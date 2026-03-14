@@ -27,3 +27,7 @@ class SignalType(StrEnum):
     PARTICIPANT_LEFT = "participant_left"
     ROOM_CLOSED = "room_closed"
     EXISTING_PARTICIPANTS = "existing_participants"
+    LOCK_ROOM = "lock_room"
+    UNLOCK_ROOM = "unlock_room"
+    ROOM_LOCKED = "room_locked"
+    ROOM_UNLOCKED = "room_unlocked"

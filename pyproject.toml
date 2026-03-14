@@ -59,6 +59,7 @@ ignore = []
 "tests/**/*.py" = [
     "S101",    # allow assert in tests
     "S104",    # allow binding to all interfaces in test assertions
+    "S106",    # allow hardcoded passwords in test fixtures
     "ANN",     # relax annotations in tests
     "ARG",     # allow unused arguments in fixtures
     "SLF001",  # allow private member access for unit testing internals

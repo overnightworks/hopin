@@ -44,6 +44,11 @@ class TestSignalType:
         actual = {s.value for s in SignalType}
         assert required.issubset(actual)
 
+    def test_contains_lock_types(self):
+        required = {"lock_room", "unlock_room", "room_locked", "room_unlocked"}
+        actual = {s.value for s in SignalType}
+        assert required.issubset(actual)
+
 
 class TestServerSettings:
     def test_defaults(self):

@@ -60,6 +60,8 @@ class SignalingHandler:
             SignalType.OFFER.value: self._handle_relay,
             SignalType.ANSWER.value: self._handle_relay,
             SignalType.ICE_CANDIDATE.value: self._handle_relay,
+            SignalType.LOCK_ROOM.value: self._handle_lock,
+            SignalType.UNLOCK_ROOM.value: self._handle_unlock,
         }
 
         handler = handlers.get(signal_type)
@@ -76,19 +78,22 @@ class SignalingHandler:
         room_id = data.get("room_id")
 
         if room_id is None:
-            room = self._room_manager.create_room(connection_id)
+            password = data.get("password") or None
+            room = self._room_manager.create_room(connection_id, password=password)
             self._connection_rooms[connection_id] = room.room_id
             await self._send(
                 connection_id,
                 {
                     "type": SignalType.ROOM_CREATED.value,
                     "room_id": room.room_id,
+                    "is_host": True,
                 },
             )
             await logger.ainfo("room_created", room_id=room.room_id, host=connection_id)
             return
 
-        room = self._room_manager.add_participant(room_id, connection_id)
+        password = data.get("password")
+        room = self._room_manager.add_participant(room_id, connection_id, password=password)
         self._connection_rooms[connection_id] = room_id
 
         existing_ids = [pid for pid in room.participant_ids if pid != connection_id]
@@ -97,6 +102,8 @@ class SignalingHandler:
             {
                 "type": SignalType.EXISTING_PARTICIPANTS.value,
                 "participants": existing_ids,
+                "is_host": False,
+                "locked": room.locked,
             },
         )
 
@@ -110,6 +117,32 @@ class SignalingHandler:
             )
 
         await logger.ainfo("participant_joined", room_id=room_id, participant=connection_id)
+
+    async def _handle_lock(self, connection_id: str, _data: dict[str, Any]) -> None:
+        room_id = self._connection_rooms.get(connection_id)
+        if not room_id:
+            return
+        room = self._room_manager.set_room_locked(room_id, connection_id, locked=True)
+        await self._broadcast_to_room(
+            room_id,
+            {
+                "type": SignalType.ROOM_LOCKED.value,
+            },
+        )
+        await logger.ainfo("room_locked", room_id=room.room_id, by=connection_id)
+
+    async def _handle_unlock(self, connection_id: str, _data: dict[str, Any]) -> None:
+        room_id = self._connection_rooms.get(connection_id)
+        if not room_id:
+            return
+        room = self._room_manager.set_room_locked(room_id, connection_id, locked=False)
+        await self._broadcast_to_room(
+            room_id,
+            {
+                "type": SignalType.ROOM_UNLOCKED.value,
+            },
+        )
+        await logger.ainfo("room_unlocked", room_id=room.room_id, by=connection_id)
 
     async def _handle_relay(self, connection_id: str, data: dict[str, Any]) -> None:
         target_id = data.get("target")
@@ -153,6 +186,14 @@ class SignalingHandler:
             )
 
         await logger.ainfo("participant_left", room_id=room_id, participant=connection_id)
+
+    async def _broadcast_to_room(self, room_id: str, data: dict[str, Any]) -> None:
+        try:
+            room = self._room_manager.get_room(room_id)
+        except RoomNotFoundError:
+            return
+        for participant_id in room.participant_ids:
+            await self._send(participant_id, data)
 
     async def _send(self, connection_id: str, data: dict[str, Any]) -> None:
         ws = self._connections.get(connection_id)

@@ -30,6 +30,8 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 - **Video calls** with up to 6 participants (mesh topology)
 - **Screen sharing** — switch between camera and screen mid-call
 - **Mute/unmute** audio and video independently
+- **Room passwords** — optionally protect calls with a password
+- **Room locking** — host can lock/unlock the room to prevent new joins
 - **No accounts** — create a room, share the link, done
 - **Self-hosted** — runs on your machine, your data stays with you
 - **Zero dependencies** in the browser — plain HTML/JS, no frameworks
@@ -76,6 +78,23 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 1. Forward port `8080` in your router settings to your PC's local IP
 2. Use a free dynamic DNS service (e.g. [DuckDNS](https://www.duckdns.org/)) for a stable URL
 3. Share `http://your-domain.duckdns.org:8080/call`
+
+## Room Security
+
+OpenStream gives the host (the person who created the call) two ways to control access:
+
+### Password Protection
+
+When starting a call, you can optionally set a password. Anyone who clicks the join link will be prompted to enter the password before they can join.
+
+### Room Locking
+
+The host sees a **Lock Room** button in the controls bar. When locked:
+- No new participants can join (even with the correct password)
+- Existing participants stay connected
+- The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
+
+Both protections are enforced **server-side** — the server rejects unauthorized join attempts regardless of what the client sends.
 
 ## Configuration
 
@@ -130,7 +149,7 @@ src/openstream/
 └── main.py               # Entry point
 
 tests/
-├── unit/                 # Unit tests (71 tests, 88% coverage)
+├── unit/                 # Unit tests (104 tests, 90% coverage)
 └── integration/          # Integration tests
 ```
 

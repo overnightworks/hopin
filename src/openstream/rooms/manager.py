@@ -2,7 +2,7 @@ import secrets
 import string
 
 from openstream.config.constants import ROOM_ID_LENGTH
-from openstream.errors import RoomFullError, RoomNotFoundError
+from openstream.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError, WrongPasswordError
 from openstream.rooms.models import Participant, Room
 
 
@@ -18,9 +18,9 @@ class RoomManager:
             if room_id not in self._rooms:
                 return room_id
 
-    def create_room(self, host_id: str) -> Room:
+    def create_room(self, host_id: str, password: str | None = None) -> Room:
         room_id = self._generate_room_id()
-        room = Room(room_id=room_id, host_id=host_id)
+        room = Room(room_id=room_id, host_id=host_id, password=password)
         room.participants[host_id] = Participant(participant_id=host_id)
         self._rooms[room_id] = room
         return room
@@ -31,11 +31,22 @@ class RoomManager:
             raise RoomNotFoundError(room_id)
         return room
 
-    def add_participant(self, room_id: str, participant_id: str) -> Room:
+    def add_participant(self, room_id: str, participant_id: str, password: str | None = None) -> Room:
         room = self.get_room(room_id)
+        if room.locked:
+            raise RoomLockedError(room_id)
+        if not room.verify_password(password):
+            raise WrongPasswordError(room_id)
         if room.participant_count >= self._max_participants_per_room:
             raise RoomFullError(room_id)
         room.participants[participant_id] = Participant(participant_id=participant_id)
+        return room
+
+    def set_room_locked(self, room_id: str, requester_id: str, *, locked: bool) -> Room:
+        room = self.get_room(room_id)
+        if room.host_id != requester_id:
+            raise NotHostError(room_id)
+        room.locked = locked
         return room
 
     def remove_participant(self, room_id: str, participant_id: str) -> Room:

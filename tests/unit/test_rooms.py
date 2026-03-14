@@ -1,7 +1,7 @@
 import pytest
 
 from openstream.config.constants import ROOM_ID_LENGTH
-from openstream.errors import RoomFullError, RoomNotFoundError
+from openstream.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError, WrongPasswordError
 from openstream.rooms.manager import RoomManager
 from openstream.rooms.models import Participant, Room
 
@@ -50,6 +50,32 @@ class TestRoom:
         )
         assert room.is_empty is False
 
+    def test_default_no_password(self):
+        room = Room(room_id="abc", host_id="h1")
+        assert room.has_password is False
+
+    def test_has_password_when_set(self):
+        room = Room(room_id="abc", host_id="h1", password="secret")
+        assert room.has_password is True
+
+    def test_verify_password_no_password_set(self):
+        room = Room(room_id="abc", host_id="h1")
+        assert room.verify_password(None) is True
+        assert room.verify_password("anything") is True
+
+    def test_verify_password_correct(self):
+        room = Room(room_id="abc", host_id="h1", password="secret")
+        assert room.verify_password("secret") is True
+
+    def test_verify_password_wrong(self):
+        room = Room(room_id="abc", host_id="h1", password="secret")
+        assert room.verify_password("wrong") is False
+        assert room.verify_password(None) is False
+
+    def test_default_not_locked(self):
+        room = Room(room_id="abc", host_id="h1")
+        assert room.locked is False
+
 
 class TestRoomManager:
     @pytest.fixture
@@ -65,6 +91,15 @@ class TestRoomManager:
         room = manager.create_room("host1")
         assert "host1" in room.participants
         assert room.participant_count == 1
+
+    def test_create_room_with_password(self, manager):
+        room = manager.create_room("host1", password="secret")
+        assert room.has_password is True
+        assert room.verify_password("secret") is True
+
+    def test_create_room_without_password(self, manager):
+        room = manager.create_room("host1")
+        assert room.has_password is False
 
     def test_create_room_generates_valid_id(self, manager):
         room = manager.create_room("host1")
@@ -100,6 +135,38 @@ class TestRoomManager:
         assert updated.participant_count == 2
         assert "p1" in updated.participants
 
+    def test_add_participant_with_correct_password(self, manager):
+        room = manager.create_room("h1", password="secret")
+        updated = manager.add_participant(room.room_id, "p1", password="secret")
+        assert "p1" in updated.participants
+
+    def test_add_participant_with_wrong_password(self, manager):
+        room = manager.create_room("h1", password="secret")
+        with pytest.raises(WrongPasswordError):
+            manager.add_participant(room.room_id, "p1", password="wrong")
+
+    def test_add_participant_missing_password(self, manager):
+        room = manager.create_room("h1", password="secret")
+        with pytest.raises(WrongPasswordError):
+            manager.add_participant(room.room_id, "p1", password=None)
+
+    def test_add_participant_no_password_required(self, manager):
+        room = manager.create_room("h1")
+        updated = manager.add_participant(room.room_id, "p1")
+        assert "p1" in updated.participants
+
+    def test_add_participant_raises_when_locked(self, manager):
+        room = manager.create_room("h1")
+        room.locked = True
+        with pytest.raises(RoomLockedError):
+            manager.add_participant(room.room_id, "p1")
+
+    def test_add_participant_locked_checked_before_password(self, manager):
+        room = manager.create_room("h1", password="secret")
+        room.locked = True
+        with pytest.raises(RoomLockedError):
+            manager.add_participant(room.room_id, "p1", password="secret")
+
     def test_add_participant_raises_when_full(self, manager):
         room = manager.create_room("h1")
         manager.add_participant(room.room_id, "p1")
@@ -110,6 +177,23 @@ class TestRoomManager:
     def test_add_participant_raises_for_unknown_room(self, manager):
         with pytest.raises(RoomNotFoundError):
             manager.add_participant("nonexistent", "p1")
+
+    def test_set_room_locked_by_host(self, manager):
+        room = manager.create_room("h1")
+        updated = manager.set_room_locked(room.room_id, "h1", locked=True)
+        assert updated.locked is True
+
+    def test_set_room_unlocked_by_host(self, manager):
+        room = manager.create_room("h1")
+        manager.set_room_locked(room.room_id, "h1", locked=True)
+        updated = manager.set_room_locked(room.room_id, "h1", locked=False)
+        assert updated.locked is False
+
+    def test_set_room_locked_by_non_host_raises(self, manager):
+        room = manager.create_room("h1")
+        manager.add_participant(room.room_id, "p1")
+        with pytest.raises(NotHostError):
+            manager.set_room_locked(room.room_id, "p1", locked=True)
 
     def test_remove_participant_removes_from_room(self, manager):
         room = manager.create_room("h1")
