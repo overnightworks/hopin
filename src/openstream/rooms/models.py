@@ -2,16 +2,24 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class Viewer:
-    viewer_id: str
+class Participant:
+    participant_id: str
 
 
 @dataclass
 class Room:
     room_id: str
-    streamer_id: str
-    viewers: dict[str, Viewer] = field(default_factory=dict)
+    host_id: str
+    participants: dict[str, Participant] = field(default_factory=dict)
 
     @property
-    def viewer_count(self) -> int:
-        return len(self.viewers)
+    def participant_count(self) -> int:
+        return len(self.participants)
+
+    @property
+    def participant_ids(self) -> list[str]:
+        return list(self.participants.keys())
+
+    @property
+    def is_empty(self) -> bool:
+        return self.participant_count == 0

@@ -3,13 +3,13 @@ import string
 
 from openstream.config.constants import ROOM_ID_LENGTH
 from openstream.errors import RoomFullError, RoomNotFoundError
-from openstream.rooms.models import Room, Viewer
+from openstream.rooms.models import Participant, Room
 
 
 class RoomManager:
-    def __init__(self, max_viewers_per_room: int) -> None:
+    def __init__(self, max_participants_per_room: int) -> None:
         self._rooms: dict[str, Room] = {}
-        self._max_viewers_per_room = max_viewers_per_room
+        self._max_participants_per_room = max_participants_per_room
 
     def _generate_room_id(self) -> str:
         alphabet = string.ascii_lowercase + string.digits
@@ -18,9 +18,10 @@ class RoomManager:
             if room_id not in self._rooms:
                 return room_id
 
-    def create_room(self, streamer_id: str) -> Room:
+    def create_room(self, host_id: str) -> Room:
         room_id = self._generate_room_id()
-        room = Room(room_id=room_id, streamer_id=streamer_id)
+        room = Room(room_id=room_id, host_id=host_id)
+        room.participants[host_id] = Participant(participant_id=host_id)
         self._rooms[room_id] = room
         return room
 
@@ -30,16 +31,16 @@ class RoomManager:
             raise RoomNotFoundError(room_id)
         return room
 
-    def add_viewer(self, room_id: str, viewer_id: str) -> Room:
+    def add_participant(self, room_id: str, participant_id: str) -> Room:
         room = self.get_room(room_id)
-        if room.viewer_count >= self._max_viewers_per_room:
+        if room.participant_count >= self._max_participants_per_room:
             raise RoomFullError(room_id)
-        room.viewers[viewer_id] = Viewer(viewer_id=viewer_id)
+        room.participants[participant_id] = Participant(participant_id=participant_id)
         return room
 
-    def remove_viewer(self, room_id: str, viewer_id: str) -> Room:
+    def remove_participant(self, room_id: str, participant_id: str) -> Room:
         room = self.get_room(room_id)
-        room.viewers.pop(viewer_id, None)
+        room.participants.pop(participant_id, None)
         return room
 
     def remove_room(self, room_id: str) -> None:

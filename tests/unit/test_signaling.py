@@ -3,14 +3,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from openstream.config.constants import RoomRole, SignalType
+from openstream.config.constants import SignalType
 from openstream.rooms.manager import RoomManager
 from openstream.signaling.handler import SignalingHandler
 
 
 @pytest.fixture
 def room_manager():
-    return RoomManager(max_viewers_per_room=5)
+    return RoomManager(max_participants_per_room=5)
 
 
 @pytest.fixture
@@ -57,153 +57,148 @@ class TestHandleMessage:
         assert "Unknown" in response["message"]
 
 
-class TestJoinAsStreamer:
+class TestJoinCreateRoom:
     @pytest.mark.asyncio
-    async def test_creates_room_and_notifies(self, handler):
-        ws = register_connection(handler, "streamer1")
+    async def test_creates_room_when_no_room_id(self, handler):
+        ws = register_connection(handler, "host1")
         await handler._handle_message(
-            "streamer1",
-            json.dumps({"type": SignalType.JOIN.value, "role": RoomRole.STREAMER.value}),
+            "host1",
+            json.dumps({"type": SignalType.JOIN.value}),
         )
         response = json.loads(ws.send_str.call_args[0][0])
         assert response["type"] == SignalType.ROOM_CREATED.value
         assert "room_id" in response
 
     @pytest.mark.asyncio
-    async def test_registers_connection_room(self, handler):
-        register_connection(handler, "streamer1")
+    async def test_registers_connection_to_room(self, handler):
+        register_connection(handler, "host1")
         await handler._handle_message(
-            "streamer1",
-            json.dumps({"type": SignalType.JOIN.value, "role": RoomRole.STREAMER.value}),
+            "host1",
+            json.dumps({"type": SignalType.JOIN.value}),
         )
-        assert "streamer1" in handler._connection_rooms
-        _, role = handler._connection_rooms["streamer1"]
-        assert role == RoomRole.STREAMER
+        assert "host1" in handler._connection_rooms
 
 
-class TestJoinAsViewer:
+class TestJoinExistingRoom:
     @pytest.mark.asyncio
-    async def test_joins_room_and_notifies_streamer(self, handler, room_manager):
-        streamer_ws = register_connection(handler, "streamer1")
-        register_connection(handler, "viewer1")
+    async def test_joins_room_and_gets_existing_participants(self, handler, room_manager):
+        register_connection(handler, "host1")
+        register_connection(handler, "p1")
 
-        room = room_manager.create_room("streamer1")
-        handler._connection_rooms["streamer1"] = (room.room_id, RoomRole.STREAMER)
+        room = room_manager.create_room("host1")
+        handler._connection_rooms["host1"] = room.room_id
 
         await handler._handle_message(
-            "viewer1",
-            json.dumps(
-                {
-                    "type": SignalType.JOIN.value,
-                    "role": RoomRole.VIEWER.value,
-                    "room_id": room.room_id,
-                }
-            ),
+            "p1",
+            json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
         )
 
-        response = json.loads(streamer_ws.send_str.call_args[0][0])
-        assert response["type"] == SignalType.VIEWER_JOINED.value
-        assert response["viewer_id"] == "viewer1"
+        p1_ws = handler._connections["p1"]
+        calls = p1_ws.send_str.call_args_list
+        existing_msg = json.loads(calls[0][0][0])
+        assert existing_msg["type"] == SignalType.EXISTING_PARTICIPANTS.value
+        assert "host1" in existing_msg["participants"]
+
+    @pytest.mark.asyncio
+    async def test_notifies_existing_participants(self, handler, room_manager):
+        host_ws = register_connection(handler, "host1")
+        register_connection(handler, "p1")
+
+        room = room_manager.create_room("host1")
+        handler._connection_rooms["host1"] = room.room_id
+
+        await handler._handle_message(
+            "p1",
+            json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
+        )
+
+        host_calls = host_ws.send_str.call_args_list
+        joined_msg = json.loads(host_calls[0][0][0])
+        assert joined_msg["type"] == SignalType.PARTICIPANT_JOINED.value
+        assert joined_msg["participant_id"] == "p1"
 
     @pytest.mark.asyncio
     async def test_invalid_room_sends_error(self, handler):
-        ws = register_connection(handler, "viewer1")
+        ws = register_connection(handler, "p1")
         await handler._handle_message(
-            "viewer1",
-            json.dumps(
-                {
-                    "type": SignalType.JOIN.value,
-                    "role": RoomRole.VIEWER.value,
-                    "room_id": "nonexistent",
-                }
-            ),
+            "p1",
+            json.dumps({"type": SignalType.JOIN.value, "room_id": "nonexistent"}),
         )
         response = json.loads(ws.send_str.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
 
     @pytest.mark.asyncio
-    async def test_invalid_join_request_sends_error(self, handler):
-        ws = register_connection(handler, "c1")
+    async def test_full_room_sends_error(self, handler):
+        manager = RoomManager(max_participants_per_room=2)
+        handler._room_manager = manager
+        room = manager.create_room("host1")
+        register_connection(handler, "host1")
+        handler._connection_rooms["host1"] = room.room_id
+        manager.add_participant(room.room_id, "p1")
+
+        ws = register_connection(handler, "p2")
         await handler._handle_message(
-            "c1",
-            json.dumps({"type": SignalType.JOIN.value, "role": "invalid"}),
+            "p2",
+            json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
         )
         response = json.loads(ws.send_str.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
-        assert "Invalid" in response["message"]
 
 
-class TestRelayMessages:
+class TestRelay:
     @pytest.mark.asyncio
     async def test_offer_relayed_to_target(self, handler):
-        register_connection(handler, "streamer1")
-        viewer_ws = register_connection(handler, "viewer1")
+        register_connection(handler, "p1")
+        target_ws = register_connection(handler, "p2")
 
         await handler._handle_message(
-            "streamer1",
+            "p1",
             json.dumps(
                 {
                     "type": SignalType.OFFER.value,
-                    "target": "viewer1",
+                    "target": "p2",
                     "sdp": "test_sdp",
                 }
             ),
         )
 
-        response = json.loads(viewer_ws.send_str.call_args[0][0])
+        response = json.loads(target_ws.send_str.call_args[0][0])
         assert response["type"] == SignalType.OFFER.value
         assert response["sdp"] == "test_sdp"
-        assert response["from"] == "streamer1"
+        assert response["from"] == "p1"
 
     @pytest.mark.asyncio
-    async def test_answer_relayed_to_streamer(self, handler, room_manager):
-        streamer_ws = register_connection(handler, "streamer1")
-        register_connection(handler, "viewer1")
-
-        room = room_manager.create_room("streamer1")
-        handler._connection_rooms["streamer1"] = (room.room_id, RoomRole.STREAMER)
-        handler._connection_rooms["viewer1"] = (room.room_id, RoomRole.VIEWER)
-        room_manager.add_viewer(room.room_id, "viewer1")
+    async def test_answer_relayed_to_target(self, handler):
+        target_ws = register_connection(handler, "p1")
+        register_connection(handler, "p2")
 
         await handler._handle_message(
-            "viewer1",
-            json.dumps({"type": SignalType.ANSWER.value, "sdp": "answer_sdp"}),
+            "p2",
+            json.dumps(
+                {
+                    "type": SignalType.ANSWER.value,
+                    "target": "p1",
+                    "sdp": "answer_sdp",
+                }
+            ),
         )
 
-        response = json.loads(streamer_ws.send_str.call_args[0][0])
+        response = json.loads(target_ws.send_str.call_args[0][0])
         assert response["type"] == SignalType.ANSWER.value
         assert response["sdp"] == "answer_sdp"
-        assert response["from"] == "viewer1"
+        assert response["from"] == "p2"
 
     @pytest.mark.asyncio
-    async def test_offer_without_target_is_ignored(self, handler):
-        register_connection(handler, "streamer1")
-        await handler._handle_message(
-            "streamer1",
-            json.dumps({"type": SignalType.OFFER.value, "sdp": "test_sdp"}),
-        )
-
-    @pytest.mark.asyncio
-    async def test_answer_without_room_is_ignored(self, handler):
-        register_connection(handler, "viewer1")
-        await handler._handle_message(
-            "viewer1",
-            json.dumps({"type": SignalType.ANSWER.value, "sdp": "answer_sdp"}),
-        )
-
-
-class TestIceCandidate:
-    @pytest.mark.asyncio
-    async def test_ice_candidate_with_target(self, handler):
-        register_connection(handler, "c1")
-        target_ws = register_connection(handler, "c2")
+    async def test_ice_candidate_relayed_to_target(self, handler):
+        register_connection(handler, "p1")
+        target_ws = register_connection(handler, "p2")
 
         await handler._handle_message(
-            "c1",
+            "p1",
             json.dumps(
                 {
                     "type": SignalType.ICE_CANDIDATE.value,
-                    "target": "c2",
+                    "target": "p2",
                     "candidate": "test_candidate",
                 }
             ),
@@ -212,96 +207,43 @@ class TestIceCandidate:
         response = json.loads(target_ws.send_str.call_args[0][0])
         assert response["type"] == SignalType.ICE_CANDIDATE.value
         assert response["candidate"] == "test_candidate"
+        assert response["from"] == "p1"
 
     @pytest.mark.asyncio
-    async def test_ice_candidate_viewer_to_streamer(self, handler, room_manager):
-        streamer_ws = register_connection(handler, "streamer1")
-        register_connection(handler, "viewer1")
-
-        room = room_manager.create_room("streamer1")
-        handler._connection_rooms["streamer1"] = (room.room_id, RoomRole.STREAMER)
-        handler._connection_rooms["viewer1"] = (room.room_id, RoomRole.VIEWER)
-        room_manager.add_viewer(room.room_id, "viewer1")
-
+    async def test_relay_without_target_is_ignored(self, handler):
+        ws = register_connection(handler, "p1")
         await handler._handle_message(
-            "viewer1",
-            json.dumps(
-                {
-                    "type": SignalType.ICE_CANDIDATE.value,
-                    "candidate": "viewer_candidate",
-                }
-            ),
+            "p1",
+            json.dumps({"type": SignalType.OFFER.value, "sdp": "test_sdp"}),
         )
-
-        response = json.loads(streamer_ws.send_str.call_args[0][0])
-        assert response["type"] == SignalType.ICE_CANDIDATE.value
-        assert response["from"] == "viewer1"
-
-    @pytest.mark.asyncio
-    async def test_ice_candidate_streamer_to_viewers(self, handler, room_manager):
-        register_connection(handler, "streamer1")
-        viewer_ws = register_connection(handler, "viewer1")
-
-        room = room_manager.create_room("streamer1")
-        handler._connection_rooms["streamer1"] = (room.room_id, RoomRole.STREAMER)
-        handler._connection_rooms["viewer1"] = (room.room_id, RoomRole.VIEWER)
-        room_manager.add_viewer(room.room_id, "viewer1")
-
-        await handler._handle_message(
-            "streamer1",
-            json.dumps(
-                {
-                    "type": SignalType.ICE_CANDIDATE.value,
-                    "candidate": "streamer_candidate",
-                }
-            ),
-        )
-
-        response = json.loads(viewer_ws.send_str.call_args[0][0])
-        assert response["type"] == SignalType.ICE_CANDIDATE.value
-        assert response["from"] == "streamer1"
-
-    @pytest.mark.asyncio
-    async def test_ice_candidate_no_room_ignored(self, handler):
-        register_connection(handler, "c1")
-        await handler._handle_message(
-            "c1",
-            json.dumps({"type": SignalType.ICE_CANDIDATE.value, "candidate": "test"}),
-        )
+        ws.send_str.assert_not_called()
 
 
 class TestDisconnect:
     @pytest.mark.asyncio
-    async def test_streamer_disconnect_notifies_viewers(self, handler, room_manager):
-        register_connection(handler, "streamer1")
-        viewer_ws = register_connection(handler, "viewer1")
+    async def test_participant_disconnect_notifies_others(self, handler, room_manager):
+        host_ws = register_connection(handler, "host1")
+        register_connection(handler, "p1")
 
-        room = room_manager.create_room("streamer1")
-        handler._connection_rooms["streamer1"] = (room.room_id, RoomRole.STREAMER)
-        handler._connection_rooms["viewer1"] = (room.room_id, RoomRole.VIEWER)
-        room_manager.add_viewer(room.room_id, "viewer1")
+        room = room_manager.create_room("host1")
+        room_manager.add_participant(room.room_id, "p1")
+        handler._connection_rooms["host1"] = room.room_id
+        handler._connection_rooms["p1"] = room.room_id
 
-        await handler._handle_disconnect("streamer1")
+        await handler._handle_disconnect("p1")
 
-        response = json.loads(viewer_ws.send_str.call_args[0][0])
-        assert response["type"] == SignalType.STREAMER_DISCONNECTED.value
-        assert not room_manager.has_room(room.room_id)
+        response = json.loads(host_ws.send_str.call_args[0][0])
+        assert response["type"] == SignalType.PARTICIPANT_LEFT.value
+        assert response["participant_id"] == "p1"
 
     @pytest.mark.asyncio
-    async def test_viewer_disconnect_notifies_streamer(self, handler, room_manager):
-        streamer_ws = register_connection(handler, "streamer1")
-        register_connection(handler, "viewer1")
+    async def test_last_participant_removes_room(self, handler, room_manager):
+        register_connection(handler, "host1")
+        room = room_manager.create_room("host1")
+        handler._connection_rooms["host1"] = room.room_id
 
-        room = room_manager.create_room("streamer1")
-        handler._connection_rooms["streamer1"] = (room.room_id, RoomRole.STREAMER)
-        handler._connection_rooms["viewer1"] = (room.room_id, RoomRole.VIEWER)
-        room_manager.add_viewer(room.room_id, "viewer1")
-
-        await handler._handle_disconnect("viewer1")
-
-        response = json.loads(streamer_ws.send_str.call_args[0][0])
-        assert response["type"] == SignalType.VIEWER_LEFT.value
-        assert response["viewer_id"] == "viewer1"
+        await handler._handle_disconnect("host1")
+        assert not room_manager.has_room(room.room_id)
 
     @pytest.mark.asyncio
     async def test_disconnect_without_room_is_safe(self, handler):
@@ -310,11 +252,24 @@ class TestDisconnect:
         assert "c1" not in handler._connections
 
     @pytest.mark.asyncio
-    async def test_viewer_disconnect_from_deleted_room(self, handler, room_manager):
-        register_connection(handler, "viewer1")
-        handler._connection_rooms["viewer1"] = ("deleted_room", RoomRole.VIEWER)
-        await handler._handle_disconnect("viewer1")
-        assert "viewer1" not in handler._connection_rooms
+    async def test_disconnect_from_deleted_room(self, handler):
+        register_connection(handler, "p1")
+        handler._connection_rooms["p1"] = "deleted_room"
+        await handler._handle_disconnect("p1")
+        assert "p1" not in handler._connection_rooms
+
+    @pytest.mark.asyncio
+    async def test_room_not_removed_while_others_remain(self, handler, room_manager):
+        register_connection(handler, "host1")
+        register_connection(handler, "p1")
+
+        room = room_manager.create_room("host1")
+        room_manager.add_participant(room.room_id, "p1")
+        handler._connection_rooms["host1"] = room.room_id
+        handler._connection_rooms["p1"] = room.room_id
+
+        await handler._handle_disconnect("p1")
+        assert room_manager.has_room(room.room_id)
 
 
 class TestSend:

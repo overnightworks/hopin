@@ -4,7 +4,7 @@ from typing import Any
 import structlog
 from aiohttp import WSMsgType, web
 
-from openstream.config.constants import RoomRole, SignalType
+from openstream.config.constants import SignalType
 from openstream.errors import OpenStreamError, RoomNotFoundError
 from openstream.rooms.manager import RoomManager
 
@@ -15,7 +15,7 @@ class SignalingHandler:
     def __init__(self, room_manager: RoomManager) -> None:
         self._room_manager = room_manager
         self._connections: dict[str, web.WebSocketResponse] = {}
-        self._connection_rooms: dict[str, tuple[str, RoomRole]] = {}
+        self._connection_rooms: dict[str, str] = {}
 
     async def handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse()
@@ -57,9 +57,9 @@ class SignalingHandler:
 
         handlers: dict[str, Any] = {
             SignalType.JOIN.value: self._handle_join,
-            SignalType.OFFER.value: self._handle_relay_to_viewer,
-            SignalType.ANSWER.value: self._handle_relay_to_streamer,
-            SignalType.ICE_CANDIDATE.value: self._handle_ice_candidate,
+            SignalType.OFFER.value: self._handle_relay,
+            SignalType.ANSWER.value: self._handle_relay,
+            SignalType.ICE_CANDIDATE.value: self._handle_relay,
         }
 
         handler = handlers.get(signal_type)
@@ -73,12 +73,11 @@ class SignalingHandler:
             await self._send_error(connection_id, str(exc))
 
     async def _handle_join(self, connection_id: str, data: dict[str, Any]) -> None:
-        role = data.get("role")
         room_id = data.get("room_id")
 
-        if role == RoomRole.STREAMER.value:
+        if room_id is None:
             room = self._room_manager.create_room(connection_id)
-            self._connection_rooms[connection_id] = (room.room_id, RoomRole.STREAMER)
+            self._connection_rooms[connection_id] = room.room_id
             await self._send(
                 connection_id,
                 {
@@ -86,24 +85,33 @@ class SignalingHandler:
                     "room_id": room.room_id,
                 },
             )
-            await logger.ainfo("room_created", room_id=room.room_id, streamer=connection_id)
+            await logger.ainfo("room_created", room_id=room.room_id, host=connection_id)
+            return
 
-        elif role == RoomRole.VIEWER.value and room_id:
-            room = self._room_manager.add_viewer(room_id, connection_id)
-            self._connection_rooms[connection_id] = (room_id, RoomRole.VIEWER)
+        room = self._room_manager.add_participant(room_id, connection_id)
+        self._connection_rooms[connection_id] = room_id
+
+        existing_ids = [pid for pid in room.participant_ids if pid != connection_id]
+        await self._send(
+            connection_id,
+            {
+                "type": SignalType.EXISTING_PARTICIPANTS.value,
+                "participants": existing_ids,
+            },
+        )
+
+        for participant_id in existing_ids:
             await self._send(
-                room.streamer_id,
+                participant_id,
                 {
-                    "type": SignalType.VIEWER_JOINED.value,
-                    "viewer_id": connection_id,
+                    "type": SignalType.PARTICIPANT_JOINED.value,
+                    "participant_id": connection_id,
                 },
             )
-            await logger.ainfo("viewer_joined", room_id=room_id, viewer=connection_id)
 
-        else:
-            await self._send_error(connection_id, "Invalid join request")
+        await logger.ainfo("participant_joined", room_id=room_id, participant=connection_id)
 
-    async def _handle_relay_to_viewer(self, connection_id: str, data: dict[str, Any]) -> None:
+    async def _handle_relay(self, connection_id: str, data: dict[str, Any]) -> None:
         target_id = data.get("target")
         if not target_id:
             return
@@ -112,102 +120,39 @@ class SignalingHandler:
             {
                 "type": data["type"],
                 "sdp": data.get("sdp"),
+                "candidate": data.get("candidate"),
                 "from": connection_id,
             },
         )
-
-    async def _handle_relay_to_streamer(self, connection_id: str, data: dict[str, Any]) -> None:
-        room_info = self._connection_rooms.get(connection_id)
-        if not room_info:
-            return
-        room_id, _ = room_info
-        try:
-            room = self._room_manager.get_room(room_id)
-        except RoomNotFoundError:
-            return
-        await self._send(
-            room.streamer_id,
-            {
-                "type": data["type"],
-                "sdp": data.get("sdp"),
-                "from": connection_id,
-            },
-        )
-
-    async def _handle_ice_candidate(self, connection_id: str, data: dict[str, Any]) -> None:
-        target_id = data.get("target")
-        if target_id:
-            await self._send(
-                target_id,
-                {
-                    "type": SignalType.ICE_CANDIDATE.value,
-                    "candidate": data.get("candidate"),
-                    "from": connection_id,
-                },
-            )
-            return
-
-        room_info = self._connection_rooms.get(connection_id)
-        if not room_info:
-            return
-        room_id, role = room_info
-        try:
-            room = self._room_manager.get_room(room_id)
-        except RoomNotFoundError:
-            return
-
-        if role == RoomRole.VIEWER:
-            await self._send(
-                room.streamer_id,
-                {
-                    "type": SignalType.ICE_CANDIDATE.value,
-                    "candidate": data.get("candidate"),
-                    "from": connection_id,
-                },
-            )
-        elif role == RoomRole.STREAMER:
-            for viewer_id in room.viewers:
-                await self._send(
-                    viewer_id,
-                    {
-                        "type": SignalType.ICE_CANDIDATE.value,
-                        "candidate": data.get("candidate"),
-                        "from": connection_id,
-                    },
-                )
 
     async def _handle_disconnect(self, connection_id: str) -> None:
         self._connections.pop(connection_id, None)
-        room_info = self._connection_rooms.pop(connection_id, None)
-        if not room_info:
+        room_id = self._connection_rooms.pop(connection_id, None)
+        if not room_id:
             return
 
-        room_id, role = room_info
-        if role == RoomRole.STREAMER:
-            try:
-                room = self._room_manager.get_room(room_id)
-            except RoomNotFoundError:
-                return
-            for viewer_id in list(room.viewers):
-                await self._send(viewer_id, {"type": SignalType.STREAMER_DISCONNECTED.value})
-                self._connection_rooms.pop(viewer_id, None)
+        try:
+            room = self._room_manager.get_room(room_id)
+        except RoomNotFoundError:
+            return
+
+        self._room_manager.remove_participant(room_id, connection_id)
+
+        if room.is_empty:
             self._room_manager.remove_room(room_id)
             await logger.ainfo("room_closed", room_id=room_id)
+            return
 
-        elif role == RoomRole.VIEWER:
-            try:
-                room = self._room_manager.get_room(room_id)
-                self._room_manager.remove_viewer(room_id, connection_id)
-                await self._send(
-                    room.streamer_id,
-                    {
-                        "type": SignalType.VIEWER_LEFT.value,
-                        "viewer_id": connection_id,
-                    },
-                )
-            except RoomNotFoundError:
-                pass
-            await logger.ainfo("viewer_left", room_id=room_id, viewer=connection_id)
+        for participant_id in room.participant_ids:
+            await self._send(
+                participant_id,
+                {
+                    "type": SignalType.PARTICIPANT_LEFT.value,
+                    "participant_id": connection_id,
+                },
+            )
+
+        await logger.ainfo("participant_left", room_id=room_id, participant=connection_id)
 
     async def _send(self, connection_id: str, data: dict[str, Any]) -> None:
         ws = self._connections.get(connection_id)

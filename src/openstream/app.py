@@ -19,7 +19,7 @@ def create_app(settings: ServerSettings | None = None) -> web.Application:
         ],
     )
 
-    room_manager = RoomManager(max_viewers_per_room=settings.max_viewers_per_room)
+    room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     signaling_handler = SignalingHandler(room_manager)
 
     app = web.Application()

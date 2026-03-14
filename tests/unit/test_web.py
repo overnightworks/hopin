@@ -1,7 +1,7 @@
 import pytest
 from aiohttp import web
 
-from openstream.config.constants import HEALTH_PATH, STREAM_PATH, VIEWER_PATH
+from openstream.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH
 from openstream.rooms.manager import RoomManager
 from openstream.signaling.handler import SignalingHandler
 from openstream.web.routes import STATIC_DIR, create_routes
@@ -9,7 +9,7 @@ from openstream.web.routes import STATIC_DIR, create_routes
 
 @pytest.fixture
 def room_manager():
-    return RoomManager(max_viewers_per_room=5)
+    return RoomManager(max_participants_per_room=5)
 
 
 @pytest.fixture
@@ -47,34 +47,34 @@ class TestHealthEndpoint:
 
     @pytest.mark.asyncio
     async def test_returns_room_count(self, aiohttp_client, app, room_manager):
-        room_manager.create_room("s1")
-        room_manager.create_room("s2")
+        room_manager.create_room("h1")
+        room_manager.create_room("h2")
         client = await aiohttp_client(app)
         response = await client.get(HEALTH_PATH)
         data = await response.json()
         assert data["rooms"] == 2
 
 
-class TestStreamPage:
+class TestCallPage:
     @pytest.mark.asyncio
     async def test_returns_html(self, aiohttp_client, app):
         client = await aiohttp_client(app)
-        response = await client.get(STREAM_PATH)
+        response = await client.get(CALL_PATH)
         assert response.status == 200
         assert response.content_type == "text/html"
 
 
-class TestViewerPage:
+class TestJoinPage:
     @pytest.mark.asyncio
     async def test_returns_html_for_valid_room(self, aiohttp_client, app, room_manager):
-        room = room_manager.create_room("s1")
+        room = room_manager.create_room("h1")
         client = await aiohttp_client(app)
-        response = await client.get(f"{VIEWER_PATH}/{room.room_id}")
+        response = await client.get(f"{JOIN_PATH}/{room.room_id}")
         assert response.status == 200
         assert response.content_type == "text/html"
 
     @pytest.mark.asyncio
     async def test_returns_404_for_invalid_room(self, aiohttp_client, app):
         client = await aiohttp_client(app)
-        response = await client.get(f"{VIEWER_PATH}/nonexistent")
+        response = await client.get(f"{JOIN_PATH}/nonexistent")
         assert response.status == 404

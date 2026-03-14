@@ -6,13 +6,13 @@ DEFAULT_PORT = 8080
 ROOM_ID_LENGTH = 8
 
 WEBSOCKET_PATH = "/ws"
-STREAM_PATH = "/stream"
-VIEWER_PATH = "/watch"
+CALL_PATH = "/call"
+JOIN_PATH = "/join"
 HEALTH_PATH = "/health"
 
 STUN_SERVER_URL = "stun:stun.l.google.com:19302"
 
-MAX_VIEWERS_PER_ROOM = 50
+MAX_PARTICIPANTS_PER_ROOM = 6
 
 
 class SignalType(StrEnum):
@@ -23,11 +23,7 @@ class SignalType(StrEnum):
     LEAVE = "leave"
     ERROR = "error"
     ROOM_CREATED = "room_created"
-    VIEWER_JOINED = "viewer_joined"
-    VIEWER_LEFT = "viewer_left"
-    STREAMER_DISCONNECTED = "streamer_disconnected"
-
-
-class RoomRole(StrEnum):
-    STREAMER = "streamer"
-    VIEWER = "viewer"
+    PARTICIPANT_JOINED = "participant_joined"
+    PARTICIPANT_LEFT = "participant_left"
+    ROOM_CLOSED = "room_closed"
+    EXISTING_PARTICIPANTS = "existing_participants"
