@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch
 
-from openstream.config.constants import (
+from hopin.config.constants import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     MAX_PARTICIPANTS_PER_ROOM,
@@ -9,7 +9,7 @@ from openstream.config.constants import (
     STUN_SERVER_URL,
     SignalType,
 )
-from openstream.config.settings import ServerSettings
+from hopin.config.settings import ServerSettings
 
 
 class TestConstants:
@@ -49,6 +49,10 @@ class TestSignalType:
         actual = {s.value for s in SignalType}
         assert required.issubset(actual)
 
+    def test_contains_chat_type(self):
+        actual = {s.value for s in SignalType}
+        assert "chat" in actual
+
 
 class TestServerSettings:
     def test_defaults(self):
@@ -60,9 +64,9 @@ class TestServerSettings:
 
     def test_override_via_environment(self):
         env = {
-            "OPENSTREAM_HOST": "127.0.0.1",
-            "OPENSTREAM_PORT": "9090",
-            "OPENSTREAM_MAX_PARTICIPANTS_PER_ROOM": "3",
+            "HOPIN_HOST": "127.0.0.1",
+            "HOPIN_PORT": "9090",
+            "HOPIN_MAX_PARTICIPANTS_PER_ROOM": "3",
         }
         with patch.dict(os.environ, env):
             settings = ServerSettings()

@@ -1,10 +1,10 @@
 from pydantic_settings import BaseSettings
 
-from openstream.config.constants import DEFAULT_HOST, DEFAULT_PORT, MAX_PARTICIPANTS_PER_ROOM, STUN_SERVER_URL
+from hopin.config.constants import DEFAULT_HOST, DEFAULT_PORT, MAX_PARTICIPANTS_PER_ROOM, STUN_SERVER_URL
 
 
 class ServerSettings(BaseSettings):
-    model_config = {"env_prefix": "OPENSTREAM_"}
+    model_config = {"env_prefix": "HOPIN_"}
 
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT

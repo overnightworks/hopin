@@ -1,8 +1,8 @@
 import pytest
 
-from openstream.errors import (
+from hopin.errors import (
+    HopInError,
     NotHostError,
-    OpenStreamError,
     RoomFullError,
     RoomLockedError,
     RoomNotFoundError,
@@ -14,10 +14,10 @@ class TestErrorHierarchy:
     def test_all_errors_inherit_from_base(self):
         errors = [RoomNotFoundError, RoomFullError, RoomLockedError, WrongPasswordError, NotHostError]
         for error_cls in errors:
-            assert issubclass(error_cls, OpenStreamError)
+            assert issubclass(error_cls, HopInError)
 
     def test_base_inherits_from_exception(self):
-        assert issubclass(OpenStreamError, Exception)
+        assert issubclass(HopInError, Exception)
 
 
 class TestRoomNotFoundError:
@@ -36,7 +36,7 @@ class TestRoomFullError:
         assert error.room_id == "abc123"
 
     def test_is_catchable_as_base(self):
-        with pytest.raises(OpenStreamError):
+        with pytest.raises(HopInError):
             raise RoomFullError("abc123")
 
 

@@ -1,9 +1,9 @@
-# OpenStream - Development Guidelines
+# HopIn - Development Guidelines
 
 ## Project Overview
 
-OpenStream is a self-hosted live video streaming service using WebRTC.
-Users start a stream and share a link — viewers click and watch in the browser.
+HopIn is a self-hosted video call service using WebRTC.
+Users start a call and share a link — friends click and join instantly in the browser.
 
 ## Tech Stack
 
@@ -39,13 +39,13 @@ Users start a stream and share a link — viewers click and watch in the browser
 
 ### Constants and Configuration
 
-- Application constants go in `src/openstream/config/constants.py`.
+- Application constants go in `src/hopin/config/constants.py`.
 - Runtime configuration uses environment variables loaded via Pydantic Settings.
 - Never scatter string literals or magic numbers across the codebase.
 
 ### Error Handling
 
-- Define custom exception types in `src/openstream/errors.py`.
+- Define custom exception types in `src/hopin/errors.py`.
 - Never catch bare `Exception` unless re-raising.
 - Let unexpected errors propagate — do not swallow them silently.
 
@@ -60,7 +60,7 @@ Users start a stream and share a link — viewers click and watch in the browser
 
 ### Structure
 
-- Unit tests in `tests/unit/`, mirroring `src/openstream/` structure.
+- Unit tests in `tests/unit/`, mirroring `src/hopin/` structure.
 - Integration tests in `tests/integration/`.
 - Use `pytest` fixtures for setup, no test inheritance hierarchies.
 - Test names follow `test_<method>_<scenario>_<expected_result>` pattern.
@@ -69,7 +69,7 @@ Users start a stream and share a link — viewers click and watch in the browser
 ## Project Structure
 
 ```
-src/openstream/
+src/hopin/
 ├── config/         # settings, constants, enums
 ├── signaling/      # WebSocket signaling server
 ├── rooms/          # room/session management

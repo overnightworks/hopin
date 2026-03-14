@@ -1,7 +1,7 @@
 from aiohttp import web
 
-from openstream.app import create_app
-from openstream.config.settings import ServerSettings
+from hopin.app import create_app
+from hopin.config.settings import ServerSettings
 
 
 class TestCreateApp:

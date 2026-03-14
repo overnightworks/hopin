@@ -1,10 +1,10 @@
 import pytest
 from aiohttp import web
 
-from openstream.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH
-from openstream.rooms.manager import RoomManager
-from openstream.signaling.handler import SignalingHandler
-from openstream.web.routes import STATIC_DIR, create_routes
+from hopin.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH
+from hopin.rooms.manager import RoomManager
+from hopin.signaling.handler import SignalingHandler
+from hopin.web.routes import STATIC_DIR, create_routes
 
 
 @pytest.fixture

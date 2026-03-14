@@ -2,9 +2,9 @@ from pathlib import Path
 
 from aiohttp import web
 
-from openstream.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH, WEBSOCKET_PATH
-from openstream.rooms.manager import RoomManager
-from openstream.signaling.handler import SignalingHandler
+from hopin.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH, WEBSOCKET_PATH
+from hopin.rooms.manager import RoomManager
+from hopin.signaling.handler import SignalingHandler
 
 STATIC_DIR = Path(__file__).parent / "static"
 

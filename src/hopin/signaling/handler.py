@@ -4,9 +4,9 @@ from typing import Any
 import structlog
 from aiohttp import WSMsgType, web
 
-from openstream.config.constants import SignalType
-from openstream.errors import OpenStreamError, RoomNotFoundError
-from openstream.rooms.manager import RoomManager
+from hopin.config.constants import SignalType
+from hopin.errors import HopInError, RoomNotFoundError
+from hopin.rooms.manager import RoomManager
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -62,6 +62,7 @@ class SignalingHandler:
             SignalType.ICE_CANDIDATE.value: self._handle_relay,
             SignalType.LOCK_ROOM.value: self._handle_lock,
             SignalType.UNLOCK_ROOM.value: self._handle_unlock,
+            SignalType.CHAT.value: self._handle_chat,
         }
 
         handler = handlers.get(signal_type)
@@ -71,7 +72,7 @@ class SignalingHandler:
 
         try:
             await handler(connection_id, data)
-        except OpenStreamError as exc:
+        except HopInError as exc:
             await self._send_error(connection_id, str(exc))
 
     async def _handle_join(self, connection_id: str, data: dict[str, Any]) -> None:
@@ -143,6 +144,28 @@ class SignalingHandler:
             },
         )
         await logger.ainfo("room_unlocked", room_id=room.room_id, by=connection_id)
+
+    async def _handle_chat(self, connection_id: str, data: dict[str, Any]) -> None:
+        room_id = self._connection_rooms.get(connection_id)
+        if not room_id:
+            return
+        message = data.get("message", "")
+        if not message:
+            return
+        try:
+            room = self._room_manager.get_room(room_id)
+        except RoomNotFoundError:
+            return
+        for participant_id in room.participant_ids:
+            if participant_id != connection_id:
+                await self._send(
+                    participant_id,
+                    {
+                        "type": SignalType.CHAT.value,
+                        "message": message,
+                        "from": connection_id,
+                    },
+                )
 
     async def _handle_relay(self, connection_id: str, data: dict[str, Any]) -> None:
         target_id = data.get("target")

@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HopIn - Video Call</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #1f1f1f;
+        }
+        h1 { font-size: 1.4rem; color: #fff; }
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .participant-count {
+            font-size: 0.85rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: #1e293b;
+            color: #94a3b8;
+        }
+        .video-grid {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            grid-template-columns: 1fr;
+        }
+        .video-grid.two { grid-template-columns: 1fr 1fr; }
+        .video-grid.many {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+        .video-container {
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .video-label {
+            position: absolute;
+            bottom: 0.5rem;
+            left: 0.5rem;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1e293b;
+        }
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #4f46e5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .connection-quality {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: flex;
+            gap: 2px;
+            align-items: flex-end;
+        }
+        .quality-bar {
+            width: 4px;
+            background: #4ade80;
+            border-radius: 1px;
+        }
+        .quality-bar.inactive { background: #374151; }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border-top: 1px solid #1f1f1f;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s, background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background: #6366f1; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-secondary { background: #374151; color: #fff; }
+        .btn-active { background: #059669; color: #fff; }
+        .btn-muted { background: #dc2626; color: #fff; }
+        .btn-warning { background: #d97706; color: #fff; }
+        .share-box {
+            background: #1a1a2e;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 0 0.5rem;
+        }
+        .share-box.visible { display: flex; }
+        .share-url {
+            flex: 1;
+            padding: 0.4rem;
+            background: #0f0f1a;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .status {
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        .status-connected { background: #064e3b; color: #6ee7b7; }
+        .status-connecting { background: #1e1b4b; color: #a5b4fc; }
+        .status-disconnected { background: #451a03; color: #fbbf24; }
+        .status-error { background: #450a0a; color: #fca5a5; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-overlay.hidden { display: none; }
+        .modal {
+            background: #1a1a2e;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+        }
+        .modal h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+        .modal input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0f0f1a;
+            border: 1px solid #4b5563;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        .modal .btn-row {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+        .modal label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .modal label input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        .lock-indicator {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: #78350f;
+            color: #fbbf24;
+            display: none;
+        }
+        .lock-indicator.visible { display: inline-block; }
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        .confirm-overlay.hidden { display: none; }
+        .confirm-box {
+            background: #1a1a2e;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            text-align: center;
+        }
+        .confirm-box p {
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+        .confirm-box .btn-row {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        .video-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .chat-panel {
+            width: 320px;
+            display: none;
+            flex-direction: column;
+            border-left: 1px solid #1f1f1f;
+            background: #111;
+        }
+        .chat-panel.visible { display: flex; }
+        .chat-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #1f1f1f;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-close {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+        }
+        .chat-close:hover { color: #fff; }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .chat-msg {
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            max-width: 90%;
+            word-wrap: break-word;
+        }
+        .chat-msg.self {
+            background: #4f46e5;
+            align-self: flex-end;
+        }
+        .chat-msg.other {
+            background: #1e293b;
+            align-self: flex-start;
+        }
+        .chat-msg .chat-sender {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            margin-bottom: 0.15rem;
+        }
+        .chat-input-row {
+            display: flex;
+            padding: 0.5rem;
+            gap: 0.4rem;
+            border-top: 1px solid #1f1f1f;
+        }
+        .chat-input-row input {
+            flex: 1;
+            padding: 0.5rem;
+            background: #0f0f1a;
+            border: 1px solid #4b5563;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 0.85rem;
+        }
+        .chat-input-row button {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+        }
+        .chat-badge {
+            display: none;
+            background: #ef4444;
+            color: #fff;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 0.7rem;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: -6px;
+            right: -6px;
+        }
+        .chat-badge.visible { display: flex; }
+        .btn-chat-wrap {
+            position: relative;
+            display: inline-flex;
+        }
+        @media (max-width: 600px) {
+            header { padding: 0.5rem 1rem; }
+            h1 { font-size: 1.1rem; }
+            .controls { gap: 0.4rem; padding: 0.5rem; }
+            button { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+            .video-grid.two { grid-template-columns: 1fr; }
+            .video-grid.many {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            .share-box { flex-wrap: wrap; }
+            .avatar { width: 50px; height: 50px; font-size: 1.2rem; }
+            .chat-panel { width: 100%; position: absolute; inset: 0; z-index: 50; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Password modal for joiners -->
+    <div id="passwordModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>This call requires a password</h2>
+            <input id="joinPasswordInput" type="password" placeholder="Enter password">
+            <div class="btn-row">
+                <button id="joinPasswordBtn" class="btn-primary">Join</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup modal for hosts -->
+    <div id="setupModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>Start a new call</h2>
+            <input id="setupPasswordInput" type="text" placeholder="Set password (optional)">
+            <label>
+                <input type="checkbox" id="setupCamOff">
+                Join without camera (audio only)
+            </label>
+            <div class="btn-row">
+                <button id="setupStartBtn" class="btn-primary">Start Call</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leave confirmation -->
+    <div id="leaveConfirm" class="confirm-overlay hidden">
+        <div class="confirm-box">
+            <p>Leave this call?</p>
+            <div class="btn-row">
+                <button id="leaveCancel" class="btn-secondary">Cancel</button>
+                <button id="leaveYes" class="btn-danger">Leave</button>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        <h1>HopIn</h1>
+        <div class="header-info">
+            <span id="participantCount" class="participant-count" style="display: none;">1</span>
+            <span id="lockIndicator" class="lock-indicator">Locked</span>
+            <div id="status" class="status status-disconnected">Not connected</div>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div class="video-area">
+            <div id="videoGrid" class="video-grid">
+                <div class="video-container" id="localContainer">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div id="localPlaceholder" class="video-placeholder" style="display: none;">
+                        <div class="avatar">You</div>
+                    </div>
+                    <div class="video-label">You</div>
+                </div>
+            </div>
+
+            <div id="shareBox" class="share-box">
+                <strong>Share:</strong>
+                <input id="shareUrl" class="share-url" readonly>
+                <button id="copyBtn" class="btn-secondary">Copy</button>
+            </div>
+
+            <div class="controls">
+                <button id="muteBtn" class="btn-active">Mic On</button>
+                <button id="videoBtn" class="btn-active">Cam On</button>
+                <button id="screenBtn" class="btn-secondary">Share Screen</button>
+                <button id="lockBtn" class="btn-secondary" style="display: none;">Lock Room</button>
+                <span class="btn-chat-wrap">
+                    <button id="chatBtn" class="btn-secondary">Chat</button>
+                    <span id="chatBadge" class="chat-badge">0</span>
+                </span>
+                <button id="leaveBtn" class="btn-danger">Leave</button>
+            </div>
+        </div>
+
+        <div id="chatPanel" class="chat-panel">
+            <div class="chat-header">
+                <span>Chat</span>
+                <button id="chatClose" class="chat-close">x</button>
+            </div>
+            <div id="chatMessages" class="chat-messages"></div>
+            <div class="chat-input-row">
+                <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off">
+                <button id="chatSend" class="btn-primary">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SIGNAL_TYPE = {
+            OFFER: "offer",
+            ANSWER: "answer",
+            ICE_CANDIDATE: "ice_candidate",
+            JOIN: "join",
+            ROOM_CREATED: "room_created",
+            PARTICIPANT_JOINED: "participant_joined",
+            PARTICIPANT_LEFT: "participant_left",
+            EXISTING_PARTICIPANTS: "existing_participants",
+            ROOM_CLOSED: "room_closed",
+            ROOM_LOCKED: "room_locked",
+            ROOM_UNLOCKED: "room_unlocked",
+            LOCK_ROOM: "lock_room",
+            UNLOCK_ROOM: "unlock_room",
+            CHAT: "chat",
+            ERROR: "error",
+        };
+
+        const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+        const RECONNECT_DELAYS = [1000, 2000, 4000, 8000];
+
+        const localVideo = document.getElementById("localVideo");
+        const localPlaceholder = document.getElementById("localPlaceholder");
+        const videoGrid = document.getElementById("videoGrid");
+        const shareBox = document.getElementById("shareBox");
+        const shareUrl = document.getElementById("shareUrl");
+        const copyBtn = document.getElementById("copyBtn");
+        const muteBtn = document.getElementById("muteBtn");
+        const videoBtn = document.getElementById("videoBtn");
+        const screenBtn = document.getElementById("screenBtn");
+        const lockBtn = document.getElementById("lockBtn");
+        const leaveBtn = document.getElementById("leaveBtn");
+        const statusEl = document.getElementById("status");
+        const lockIndicator = document.getElementById("lockIndicator");
+        const participantCountEl = document.getElementById("participantCount");
+        const passwordModal = document.getElementById("passwordModal");
+        const joinPasswordInput = document.getElementById("joinPasswordInput");
+        const joinPasswordBtn = document.getElementById("joinPasswordBtn");
+        const setupModal = document.getElementById("setupModal");
+        const setupPasswordInput = document.getElementById("setupPasswordInput");
+        const setupCamOff = document.getElementById("setupCamOff");
+        const setupStartBtn = document.getElementById("setupStartBtn");
+        const leaveConfirm = document.getElementById("leaveConfirm");
+        const leaveCancel = document.getElementById("leaveCancel");
+        const leaveYes = document.getElementById("leaveYes");
+        const chatPanel = document.getElementById("chatPanel");
+        const chatMessages = document.getElementById("chatMessages");
+        const chatInput = document.getElementById("chatInput");
+        const chatSend = document.getElementById("chatSend");
+        const chatBtn = document.getElementById("chatBtn");
+        const chatClose = document.getElementById("chatClose");
+        const chatBadge = document.getElementById("chatBadge");
+
+        let ws = null;
+        let localStream = null;
+        let screenStream = null;
+        let connectionId = null;
+        let roomId = null;
+        let currentPassword = null;
+        let peerConnections = {};
+        let audioEnabled = true;
+        let videoEnabled = true;
+        let hasCamera = true;
+        let isHost = false;
+        let isLocked = false;
+        let intentionalLeave = false;
+        let reconnectAttempt = 0;
+        let reconnectTimer = null;
+        let chatOpen = false;
+        let unreadMessages = 0;
+
+        // --- Sound notifications ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, duration, type) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type || "sine";
+            osc.frequency.value = freq;
+            gain.gain.value = 0.15;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        function playJoinSound() {
+            playTone(660, 0.15);
+            setTimeout(function() { playTone(880, 0.15); }, 100);
+        }
+        function playLeaveSound() {
+            playTone(440, 0.15);
+            setTimeout(function() { playTone(330, 0.2); }, 100);
+        }
+
+        // --- Utilities ---
+        function generateId() {
+            return crypto.randomUUID();
+        }
+
+        function getRoomIdFromUrl() {
+            const parts = location.pathname.split("/");
+            if (parts.length >= 3 && parts[1] === "join") {
+                return parts[2];
+            }
+            return null;
+        }
+
+        function setStatus(text, type) {
+            statusEl.textContent = text;
+            statusEl.className = "status status-" + type;
+        }
+
+        function updateParticipantCount() {
+            var count = Object.keys(peerConnections).length + 1;
+            participantCountEl.textContent = count + (count === 1 ? " person" : " people");
+            participantCountEl.style.display = roomId ? "" : "none";
+        }
+
+        function updateLockUI() {
+            if (isHost) {
+                lockBtn.style.display = "";
+                lockBtn.textContent = isLocked ? "Unlock Room" : "Lock Room";
+                lockBtn.className = isLocked ? "btn-warning" : "btn-secondary";
+            }
+            lockIndicator.className = isLocked ? "lock-indicator visible" : "lock-indicator";
+            lockIndicator.textContent = isLocked ? "Locked" : "";
+        }
+
+        function updateLocalVideoUI() {
+            if (hasCamera && videoEnabled) {
+                localVideo.style.display = "";
+                localPlaceholder.style.display = "none";
+            } else {
+                localVideo.style.display = "none";
+                localPlaceholder.style.display = "";
+            }
+        }
+
+        function updateGridLayout() {
+            var count = videoGrid.children.length;
+            videoGrid.className = "video-grid";
+            if (count === 2) {
+                videoGrid.classList.add("two");
+            } else if (count > 2) {
+                videoGrid.classList.add("many");
+            }
+        }
+
+        // --- Connection quality ---
+        function createQualityIndicator() {
+            var el = document.createElement("div");
+            el.className = "connection-quality";
+            var heights = [4, 8, 12, 16];
+            heights.forEach(function(h) {
+                var bar = document.createElement("div");
+                bar.className = "quality-bar";
+                bar.style.height = h + "px";
+                el.appendChild(bar);
+            });
+            return el;
+        }
+
+        function updateQualityIndicator(container, quality) {
+            var indicator = container.querySelector(".connection-quality");
+            if (!indicator) return;
+            var bars = indicator.querySelectorAll(".quality-bar");
+            var activeBars = quality === "excellent" ? 4 : quality === "good" ? 3 : quality === "poor" ? 2 : 1;
+            var color = activeBars >= 3 ? "#4ade80" : activeBars === 2 ? "#fbbf24" : "#ef4444";
+            bars.forEach(function(bar, i) {
+                if (i < activeBars) {
+                    bar.className = "quality-bar";
+                    bar.style.background = color;
+                } else {
+                    bar.className = "quality-bar inactive";
+                    bar.style.background = "";
+                }
+            });
+        }
+
+        function monitorConnectionQuality(participantId, pc) {
+            var interval = setInterval(function() {
+                if (pc.connectionState === "closed" || pc.connectionState === "failed") {
+                    clearInterval(interval);
+                    return;
+                }
+                pc.getStats().then(function(stats) {
+                    var container = document.getElementById("container-" + participantId);
+                    if (!container) { clearInterval(interval); return; }
+                    stats.forEach(function(report) {
+                        if (report.type === "candidate-pair" && report.state === "succeeded") {
+                            var rtt = report.currentRoundTripTime;
+                            if (rtt !== undefined) {
+                                var quality = rtt < 0.1 ? "excellent" : rtt < 0.3 ? "good" : rtt < 0.5 ? "poor" : "bad";
+                                updateQualityIndicator(container, quality);
+                            }
+                        }
+                    });
+                });
+            }, 3000);
+        }
+
+        // --- Video management ---
+        function addRemoteVideo(participantId) {
+            var container = document.createElement("div");
+            container.className = "video-container";
+            container.id = "container-" + participantId;
+
+            var video = document.createElement("video");
+            video.id = "video-" + participantId;
+            video.autoplay = true;
+            video.playsinline = true;
+
+            var placeholder = document.createElement("div");
+            placeholder.className = "video-placeholder";
+            placeholder.id = "placeholder-" + participantId;
+            placeholder.style.display = "none";
+            var avatar = document.createElement("div");
+            avatar.className = "avatar";
+            avatar.textContent = participantId.substring(0, 2).toUpperCase();
+            placeholder.appendChild(avatar);
+
+            var label = document.createElement("div");
+            label.className = "video-label";
+            label.textContent = "Peer " + participantId.substring(0, 6);
+
+            var qualityEl = createQualityIndicator();
+
+            container.appendChild(video);
+            container.appendChild(placeholder);
+            container.appendChild(label);
+            container.appendChild(qualityEl);
+            videoGrid.appendChild(container);
+            updateGridLayout();
+            updateParticipantCount();
+
+            video.addEventListener("loadedmetadata", function() {
+                if (video.videoWidth === 0) {
+                    video.style.display = "none";
+                    placeholder.style.display = "";
+                }
+            });
+
+            return video;
+        }
+
+        function removeRemoteVideo(participantId) {
+            var container = document.getElementById("container-" + participantId);
+            if (container) {
+                container.remove();
+                updateGridLayout();
+                updateParticipantCount();
+            }
+        }
+
+        // --- WebRTC ---
+        async function createPeerConnection(participantId, initiator) {
+            var pc = new RTCPeerConnection(RTC_CONFIG);
+            peerConnections[participantId] = pc;
+
+            if (localStream) {
+                localStream.getTracks().forEach(function(track) {
+                    pc.addTrack(track, localStream);
+                });
+            }
+
+            var videoEl = addRemoteVideo(participantId);
+
+            pc.ontrack = function(event) {
+                videoEl.srcObject = event.streams[0];
+                var placeholder = document.getElementById("placeholder-" + participantId);
+                if (event.streams[0].getVideoTracks().length === 0 && placeholder) {
+                    videoEl.style.display = "none";
+                    placeholder.style.display = "";
+                }
+            };
+
+            pc.onicecandidate = function(event) {
+                if (event.candidate && ws) {
+                    ws.send(JSON.stringify({
+                        type: SIGNAL_TYPE.ICE_CANDIDATE,
+                        target: participantId,
+                        candidate: event.candidate,
+                    }));
+                }
+            };
+
+            if (initiator) {
+                var offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                ws.send(JSON.stringify({
+                    type: SIGNAL_TYPE.OFFER,
+                    target: participantId,
+                    sdp: pc.localDescription,
+                }));
+            }
+
+            monitorConnectionQuality(participantId, pc);
+            return pc;
+        }
+
+        async function handleOffer(data) {
+            var pc = peerConnections[data.from];
+            if (!pc) {
+                pc = await createPeerConnection(data.from, false);
+            }
+            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            var answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({
+                type: SIGNAL_TYPE.ANSWER,
+                target: data.from,
+                sdp: pc.localDescription,
+            }));
+        }
+
+        async function handleAnswer(data) {
+            var pc = peerConnections[data.from];
+            if (pc) {
+                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            }
+        }
+
+        async function handleIceCandidate(data) {
+            var pc = peerConnections[data.from];
+            if (pc && data.candidate) {
+                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        }
+
+        function removePeerConnection(participantId) {
+            var pc = peerConnections[participantId];
+            if (pc) {
+                pc.close();
+                delete peerConnections[participantId];
+            }
+            removeRemoteVideo(participantId);
+        }
+
+        // --- Signaling ---
+        function handleSignal(data) {
+            switch (data.type) {
+                case SIGNAL_TYPE.ROOM_CREATED:
+                    roomId = data.room_id;
+                    isHost = data.is_host;
+                    reconnectAttempt = 0;
+                    var joinUrl = location.origin + "/join/" + roomId;
+                    shareUrl.value = joinUrl;
+                    shareBox.classList.add("visible");
+                    setStatus("In call", "connected");
+                    updateLockUI();
+                    updateParticipantCount();
+                    navigator.clipboard.writeText(joinUrl).then(function() {
+                        copyBtn.textContent = "Copied!";
+                        setTimeout(function() { copyBtn.textContent = "Copy"; }, 2000);
+                    }).catch(function() {});
+                    break;
+
+                case SIGNAL_TYPE.EXISTING_PARTICIPANTS:
+                    isHost = data.is_host;
+                    isLocked = data.locked;
+                    reconnectAttempt = 0;
+                    setStatus("In call", "connected");
+                    data.participants.forEach(function(pid) {
+                        createPeerConnection(pid, true);
+                    });
+                    updateLockUI();
+                    updateParticipantCount();
+                    break;
+
+                case SIGNAL_TYPE.PARTICIPANT_JOINED:
+                    playJoinSound();
+                    updateParticipantCount();
+                    break;
+
+                case SIGNAL_TYPE.PARTICIPANT_LEFT:
+                    removePeerConnection(data.participant_id);
+                    playLeaveSound();
+                    break;
+
+                case SIGNAL_TYPE.OFFER:
+                    handleOffer(data);
+                    break;
+
+                case SIGNAL_TYPE.ANSWER:
+                    handleAnswer(data);
+                    break;
+
+                case SIGNAL_TYPE.ICE_CANDIDATE:
+                    handleIceCandidate(data);
+                    break;
+
+                case SIGNAL_TYPE.ROOM_LOCKED:
+                    isLocked = true;
+                    updateLockUI();
+                    break;
+
+                case SIGNAL_TYPE.ROOM_UNLOCKED:
+                    isLocked = false;
+                    updateLockUI();
+                    break;
+
+                case SIGNAL_TYPE.ROOM_CLOSED:
+                    intentionalLeave = true;
+                    leaveCall();
+                    setStatus("Room closed", "disconnected");
+                    break;
+
+                case SIGNAL_TYPE.CHAT:
+                    addChatMessage(data.message, data.from, false);
+                    break;
+
+                case SIGNAL_TYPE.ERROR:
+                    setStatus("Error: " + data.message, "error");
+                    break;
+            }
+        }
+
+        function connectSignaling(password) {
+            connectionId = generateId();
+            currentPassword = password;
+            var protocol = location.protocol === "https:" ? "wss:" : "ws:";
+            var wsUrl = protocol + "//" + location.host + "/ws?id=" + connectionId;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                setStatus("Connected - joining...", "connecting");
+                var joinMsg = { type: SIGNAL_TYPE.JOIN };
+                var urlRoomId = getRoomIdFromUrl();
+                if (urlRoomId) {
+                    joinMsg.room_id = urlRoomId;
+                } else if (roomId) {
+                    joinMsg.room_id = roomId;
+                }
+                if (password) {
+                    joinMsg.password = password;
+                }
+                ws.send(JSON.stringify(joinMsg));
+            };
+
+            ws.onmessage = function(event) {
+                var data = JSON.parse(event.data);
+                if (data.type === SIGNAL_TYPE.ERROR && data.message && data.message.indexOf("Wrong password") !== -1) {
+                    ws.close();
+                    passwordModal.classList.remove("hidden");
+                    setStatus("Password required", "error");
+                    return;
+                }
+                handleSignal(data);
+            };
+
+            ws.onclose = function() {
+                if (intentionalLeave) return;
+                if (roomId && reconnectAttempt < RECONNECT_DELAYS.length) {
+                    var delay = RECONNECT_DELAYS[reconnectAttempt];
+                    reconnectAttempt++;
+                    setStatus("Reconnecting in " + (delay / 1000) + "s...", "connecting");
+                    reconnectTimer = setTimeout(function() {
+                        Object.keys(peerConnections).forEach(removePeerConnection);
+                        connectSignaling(currentPassword);
+                    }, delay);
+                } else if (!roomId) {
+                    setStatus("Disconnected", "disconnected");
+                } else {
+                    setStatus("Connection lost", "error");
+                }
+            };
+
+            ws.onerror = function() {
+                setStatus("Connection error", "error");
+            };
+        }
+
+        // --- Media acquisition with fallback ---
+        async function acquireMedia(preferCamera) {
+            if (preferCamera) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    hasCamera = true;
+                    videoEnabled = true;
+                    return;
+                } catch (e) {}
+            }
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                hasCamera = false;
+                videoEnabled = false;
+                videoBtn.textContent = "Cam Off";
+                videoBtn.className = "btn-muted";
+                return;
+            } catch (e) {}
+
+            throw new Error("No camera or microphone found. Please connect a device and try again.");
+        }
+
+        async function startCall(password, preferCamera) {
+            intentionalLeave = false;
+            reconnectAttempt = 0;
+            try {
+                await acquireMedia(preferCamera);
+                localVideo.srcObject = localStream;
+                updateLocalVideoUI();
+                connectSignaling(password);
+            } catch (err) {
+                setStatus(err.message, "error");
+            }
+        }
+
+        function leaveCall() {
+            intentionalLeave = true;
+            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            Object.keys(peerConnections).forEach(removePeerConnection);
+            if (localStream) {
+                localStream.getTracks().forEach(function(track) { track.stop(); });
+                localStream = null;
+            }
+            if (screenStream) {
+                screenStream.getTracks().forEach(function(track) { track.stop(); });
+                screenStream = null;
+            }
+            if (ws) { ws.close(); ws = null; }
+            localVideo.srcObject = null;
+            shareBox.classList.remove("visible");
+            lockBtn.style.display = "none";
+            participantCountEl.style.display = "none";
+            isHost = false;
+            isLocked = false;
+            roomId = null;
+            updateLockUI();
+            setStatus("Left call", "disconnected");
+        }
+
+        // --- Controls ---
+        muteBtn.addEventListener("click", function() {
+            if (!localStream) return;
+            audioEnabled = !audioEnabled;
+            localStream.getAudioTracks().forEach(function(track) {
+                track.enabled = audioEnabled;
+            });
+            muteBtn.textContent = audioEnabled ? "Mic On" : "Mic Off";
+            muteBtn.className = audioEnabled ? "btn-active" : "btn-muted";
+        });
+
+        videoBtn.addEventListener("click", async function() {
+            if (!localStream) return;
+
+            if (!hasCamera) {
+                try {
+                    var camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    var camTrack = camStream.getVideoTracks()[0];
+                    localStream.addTrack(camTrack);
+                    Object.values(peerConnections).forEach(function(pc) {
+                        pc.addTrack(camTrack, localStream);
+                    });
+                    hasCamera = true;
+                    videoEnabled = true;
+                    localVideo.srcObject = localStream;
+                    videoBtn.textContent = "Cam On";
+                    videoBtn.className = "btn-active";
+                    updateLocalVideoUI();
+                } catch (e) {
+                    setStatus("No camera found", "error");
+                    setTimeout(function() { if (roomId) setStatus("In call", "connected"); }, 2000);
+                }
+                return;
+            }
+
+            videoEnabled = !videoEnabled;
+            localStream.getVideoTracks().forEach(function(track) {
+                track.enabled = videoEnabled;
+            });
+            videoBtn.textContent = videoEnabled ? "Cam On" : "Cam Off";
+            videoBtn.className = videoEnabled ? "btn-active" : "btn-muted";
+            updateLocalVideoUI();
+        });
+
+        lockBtn.addEventListener("click", function() {
+            if (!ws || !isHost) return;
+            if (isLocked) {
+                ws.send(JSON.stringify({ type: SIGNAL_TYPE.UNLOCK_ROOM }));
+            } else {
+                ws.send(JSON.stringify({ type: SIGNAL_TYPE.LOCK_ROOM }));
+            }
+        });
+
+        screenBtn.addEventListener("click", async function() {
+            if (!localStream || !hasCamera) return;
+            try {
+                if (screenStream) {
+                    var screenAudioToRemove = screenStream.getAudioTracks()[0];
+                    if (screenAudioToRemove) {
+                        Object.values(peerConnections).forEach(function(pc) {
+                            var sender = pc.getSenders().find(function(s) {
+                                return s.track === screenAudioToRemove;
+                            });
+                            if (sender) pc.removeTrack(sender);
+                        });
+                    }
+                    screenStream.getTracks().forEach(function(track) { track.stop(); });
+                    screenStream = null;
+                    var camTrack = (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0];
+                    replaceVideoTrack(camTrack);
+                    localVideo.srcObject = localStream;
+                    screenBtn.textContent = "Share Screen";
+                    screenBtn.className = "btn-secondary";
+                    return;
+                }
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                var screenTrack = screenStream.getVideoTracks()[0];
+                replaceVideoTrack(screenTrack);
+                var screenAudioTrack = screenStream.getAudioTracks()[0];
+                if (screenAudioTrack) {
+                    Object.values(peerConnections).forEach(function(pc) {
+                        pc.addTrack(screenAudioTrack, screenStream);
+                    });
+                }
+                screenTrack.onended = function() {
+                    screenBtn.click();
+                };
+                screenBtn.textContent = "Stop Sharing";
+                screenBtn.className = "btn-muted";
+            } catch (err) {
+                setStatus("Screen share failed: " + err.message, "error");
+            }
+        });
+
+        function replaceVideoTrack(newTrack) {
+            var oldTrack = localStream.getVideoTracks()[0];
+            if (oldTrack) {
+                localStream.removeTrack(oldTrack);
+            }
+            localStream.addTrack(newTrack);
+            localVideo.srcObject = localStream;
+
+            Object.values(peerConnections).forEach(function(pc) {
+                var sender = pc.getSenders().find(function(s) {
+                    return s.track && s.track.kind === "video";
+                });
+                if (sender) {
+                    sender.replaceTrack(newTrack);
+                }
+            });
+        }
+
+        // Leave with confirmation
+        leaveBtn.addEventListener("click", function() {
+            if (!roomId) { leaveCall(); return; }
+            leaveConfirm.classList.remove("hidden");
+        });
+        leaveCancel.addEventListener("click", function() {
+            leaveConfirm.classList.add("hidden");
+        });
+        leaveYes.addEventListener("click", function() {
+            leaveConfirm.classList.add("hidden");
+            leaveCall();
+        });
+
+        copyBtn.addEventListener("click", function() {
+            shareUrl.select();
+            navigator.clipboard.writeText(shareUrl.value);
+            copyBtn.textContent = "Copied!";
+            setTimeout(function() { copyBtn.textContent = "Copy"; }, 2000);
+        });
+
+        // --- Chat ---
+        function addChatMessage(text, senderId, isSelf) {
+            var msgEl = document.createElement("div");
+            msgEl.className = "chat-msg " + (isSelf ? "self" : "other");
+            if (!isSelf) {
+                var senderEl = document.createElement("div");
+                senderEl.className = "chat-sender";
+                senderEl.textContent = "Peer " + senderId.substring(0, 6);
+                msgEl.appendChild(senderEl);
+            }
+            var textEl = document.createTextNode(text);
+            msgEl.appendChild(textEl);
+            chatMessages.appendChild(msgEl);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            if (!isSelf && !chatOpen) {
+                unreadMessages++;
+                chatBadge.textContent = unreadMessages;
+                chatBadge.classList.add("visible");
+                playTone(800, 0.1);
+            }
+        }
+
+        function sendChatMessage() {
+            var text = chatInput.value.trim();
+            if (!text || !ws) return;
+            ws.send(JSON.stringify({ type: SIGNAL_TYPE.CHAT, message: text }));
+            addChatMessage(text, connectionId, true);
+            chatInput.value = "";
+        }
+
+        chatBtn.addEventListener("click", function() {
+            chatOpen = !chatOpen;
+            chatPanel.classList.toggle("visible", chatOpen);
+            chatBtn.className = chatOpen ? "btn-active" : "btn-secondary";
+            if (chatOpen) {
+                unreadMessages = 0;
+                chatBadge.classList.remove("visible");
+                chatInput.focus();
+            }
+        });
+
+        chatClose.addEventListener("click", function() {
+            chatOpen = false;
+            chatPanel.classList.remove("visible");
+            chatBtn.className = "btn-secondary";
+        });
+
+        chatSend.addEventListener("click", sendChatMessage);
+        chatInput.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") sendChatMessage();
+        });
+
+        // --- Entry point ---
+        (function init() {
+            var urlRoomId = getRoomIdFromUrl();
+            if (urlRoomId) {
+                startCall(null, true);
+
+                joinPasswordBtn.addEventListener("click", function() {
+                    var pw = joinPasswordInput.value;
+                    passwordModal.classList.add("hidden");
+                    connectSignaling(pw);
+                });
+
+                joinPasswordInput.addEventListener("keydown", function(e) {
+                    if (e.key === "Enter") { joinPasswordBtn.click(); }
+                });
+            } else {
+                setupModal.classList.remove("hidden");
+
+                setupStartBtn.addEventListener("click", function() {
+                    var pw = setupPasswordInput.value || null;
+                    var preferCamera = !setupCamOff.checked;
+                    setupModal.classList.add("hidden");
+                    startCall(pw, preferCamera);
+                });
+
+                setupPasswordInput.addEventListener("keydown", function(e) {
+                    if (e.key === "Enter") { setupStartBtn.click(); }
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

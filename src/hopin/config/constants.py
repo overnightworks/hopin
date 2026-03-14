@@ -31,3 +31,4 @@ class SignalType(StrEnum):
     UNLOCK_ROOM = "unlock_room"
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
+    CHAT = "chat"

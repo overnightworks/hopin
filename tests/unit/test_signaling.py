@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from openstream.config.constants import SignalType
-from openstream.rooms.manager import RoomManager
-from openstream.signaling.handler import SignalingHandler
+from hopin.config.constants import SignalType
+from hopin.rooms.manager import RoomManager
+from hopin.signaling.handler import SignalingHandler
 
 
 @pytest.fixture
@@ -411,6 +411,54 @@ class TestLockUnlock:
             "c1",
             json.dumps({"type": SignalType.UNLOCK_ROOM.value}),
         )
+
+
+class TestChat:
+    @pytest.mark.asyncio
+    async def test_chat_broadcasts_to_other_participants(self, handler, room_manager):
+        host_ws = register_connection(handler, "host1")
+        p1_ws = register_connection(handler, "p1")
+
+        room = room_manager.create_room("host1")
+        room_manager.add_participant(room.room_id, "p1")
+        handler._connection_rooms["host1"] = room.room_id
+        handler._connection_rooms["p1"] = room.room_id
+
+        await handler._handle_message(
+            "host1",
+            json.dumps({"type": SignalType.CHAT.value, "message": "hello"}),
+        )
+
+        p1_response = json.loads(p1_ws.send_str.call_args[0][0])
+        assert p1_response["type"] == SignalType.CHAT.value
+        assert p1_response["message"] == "hello"
+        assert p1_response["from"] == "host1"
+        host_ws.send_str.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_chat_without_room_is_safe(self, handler):
+        register_connection(handler, "c1")
+        await handler._handle_message(
+            "c1",
+            json.dumps({"type": SignalType.CHAT.value, "message": "hello"}),
+        )
+
+    @pytest.mark.asyncio
+    async def test_chat_empty_message_is_ignored(self, handler, room_manager):
+        register_connection(handler, "host1")
+        p1_ws = register_connection(handler, "p1")
+
+        room = room_manager.create_room("host1")
+        room_manager.add_participant(room.room_id, "p1")
+        handler._connection_rooms["host1"] = room.room_id
+        handler._connection_rooms["p1"] = room.room_id
+
+        await handler._handle_message(
+            "host1",
+            json.dumps({"type": SignalType.CHAT.value, "message": ""}),
+        )
+
+        p1_ws.send_str.assert_not_called()
 
 
 class TestSend:

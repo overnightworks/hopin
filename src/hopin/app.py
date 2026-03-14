@@ -1,10 +1,10 @@
 import structlog
 from aiohttp import web
 
-from openstream.config.settings import ServerSettings
-from openstream.rooms.manager import RoomManager
-from openstream.signaling.handler import SignalingHandler
-from openstream.web.routes import create_routes
+from hopin.config.settings import ServerSettings
+from hopin.rooms.manager import RoomManager
+from hopin.signaling.handler import SignalingHandler
+from hopin.web.routes import create_routes
 
 
 def create_app(settings: ServerSettings | None = None) -> web.Application:

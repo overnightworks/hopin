@@ -1,9 +1,9 @@
 import secrets
 import string
 
-from openstream.config.constants import ROOM_ID_LENGTH
-from openstream.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError, WrongPasswordError
-from openstream.rooms.models import Participant, Room
+from hopin.config.constants import ROOM_ID_LENGTH
+from hopin.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError, WrongPasswordError
+from hopin.rooms.models import Participant, Room
 
 
 class RoomManager:

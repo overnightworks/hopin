@@ -1,10 +1,10 @@
-# OpenStream
+# HopIn
 
 Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. No accounts, no installs, no third-party services.
 
 ## How It Works
 
-OpenStream uses **WebRTC** with a **mesh topology** for peer-to-peer video calls:
+HopIn uses **WebRTC** with a **mesh topology** for peer-to-peer video calls:
 
 1. You open the app and start a call — a room is created
 2. You share the generated link (e.g. via WhatsApp)
@@ -46,8 +46,8 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 ### Install and Run
 
 ```bash
-git clone <your-repo-url> openstream
-cd openstream
+git clone <your-repo-url> hopin
+cd hopin
 make install
 make run
 ```
@@ -81,7 +81,7 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
-OpenStream gives the host (the person who created the call) two ways to control access:
+HopIn gives the host (the person who created the call) two ways to control access:
 
 ### Password Protection
 
@@ -102,15 +102,15 @@ All settings can be overridden via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `OPENSTREAM_HOST` | `0.0.0.0` | Server bind address |
-| `OPENSTREAM_PORT` | `8080` | Server port |
-| `OPENSTREAM_STUN_SERVER` | `stun:stun.l.google.com:19302` | STUN server for NAT traversal |
-| `OPENSTREAM_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call |
+| `HOPIN_HOST` | `0.0.0.0` | Server bind address |
+| `HOPIN_PORT` | `8080` | Server port |
+| `HOPIN_STUN_SERVER` | `stun:stun.l.google.com:19302` | STUN server for NAT traversal |
+| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call |
 
 Example:
 
 ```bash
-OPENSTREAM_PORT=3000 OPENSTREAM_MAX_PARTICIPANTS_PER_ROOM=4 make run
+HOPIN_PORT=3000 HOPIN_MAX_PARTICIPANTS_PER_ROOM=4 make run
 ```
 
 ## Development
@@ -131,7 +131,7 @@ make run        # Start the server
 ### Project Structure
 
 ```
-src/openstream/
+src/hopin/
 ├── config/
 │   ├── constants.py      # Application constants and enums
 │   └── settings.py       # Environment-based configuration

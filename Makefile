@@ -19,9 +19,9 @@ test-all:
 	uv run pytest
 
 dead:
-	uv run vulture src/openstream
+	uv run vulture src/hopin
 
 check: lint test dead
 
 run:
-	uv run openstream
+	uv run hopin
