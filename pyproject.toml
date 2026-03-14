@@ -1,0 +1,134 @@
+[project]
+name = "openstream"
+version = "0.1.0"
+description = "Self-hosted live video streaming service using WebRTC"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.11",
+    "aiortc>=1.9",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "structlog>=24.4",
+]
+
+[project.scripts]
+openstream = "openstream.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openstream"]
+
+# --- Ruff ---
+
+[tool.ruff]
+src = ["src", "tests"]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T20",    # flake8-print
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # ruff-specific rules
+    "S",      # flake8-bandit (security)
+    "ANN",    # flake8-annotations
+    "ASYNC",  # flake8-async
+    "RET",    # flake8-return
+    "SLF",    # flake8-self
+    "PT",     # flake8-pytest-style
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",    # allow assert in tests
+    "ANN",     # relax annotations in tests
+    "ARG",     # allow unused arguments in fixtures
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# --- Mypy ---
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "aiortc.*"
+ignore_missing_imports = true
+
+# --- Pytest ---
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=openstream",
+    "--cov-report=term-missing",
+    "--cov-fail-under=90",
+]
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+]
+
+# --- Coverage ---
+
+[tool.coverage.run]
+source = ["openstream"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+]
+show_missing = true
+
+# --- Vulture ---
+
+[tool.vulture]
+paths = ["src/openstream"]
+min_confidence = 80
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.6",
+    "vulture>=2.15",
+]
