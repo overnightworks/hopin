@@ -368,7 +368,7 @@
     <div id="passwordModal" class="modal-overlay hidden">
         <div class="modal">
             <h2>This call requires a password</h2>
-            <input id="joinPasswordInput" type="password" placeholder="Enter password">
+            <input id="joinPasswordInput" type="password" placeholder="Enter password" aria-label="Call password">
             <div class="btn-row">
                 <button id="joinPasswordBtn" class="btn-primary">Join</button>
             </div>
@@ -379,7 +379,7 @@
     <div id="setupModal" class="modal-overlay hidden">
         <div class="modal">
             <h2>Start a new call</h2>
-            <input id="setupPasswordInput" type="text" placeholder="Set password (optional)">
+            <input id="setupPasswordInput" type="text" placeholder="Set password (optional)" aria-label="Set call password">
             <label>
                 <input type="checkbox" id="setupCamOff">
                 Join without camera (audio only)
@@ -423,7 +423,7 @@
             </div>
 
             <div id="shareBox" class="share-box">
-                <strong>Share:</strong>
+                <label for="shareUrl">Share:</label>
                 <input id="shareUrl" class="share-url" readonly>
                 <button id="copyBtn" class="btn-secondary">Copy</button>
             </div>
@@ -448,7 +448,7 @@
             </div>
             <div id="chatMessages" class="chat-messages"></div>
             <div class="chat-input-row">
-                <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off">
+                <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off" aria-label="Chat message">
                 <button id="chatSend" class="btn-primary">Send</button>
             </div>
         </div>
