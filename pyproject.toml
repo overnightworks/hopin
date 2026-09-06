@@ -24,7 +24,7 @@ packages = ["src/hopin"]
 # --- Ruff ---
 
 [tool.ruff]
-src = ["src", "tests"]
+src = ["src", "scripts", "tests"]
 target-version = "py312"
 line-length = 120
 
@@ -92,7 +92,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "scripts"]
 addopts = [
     "--strict-markers",
     "--strict-config",
