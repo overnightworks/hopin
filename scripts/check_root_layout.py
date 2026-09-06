@@ -41,6 +41,10 @@ HOME_BY_SUFFIX = {
 }
 DEFAULT_HOME = "the root holds only what a tool must find there; a file lives in the directory of its owner"
 DIRECTORY_HOME = "a new top-level directory needs a named owner and an entry in scripts/check_root_layout.py"
+# The gate judges the repository that carries it, never the caller's working
+# directory: `git ls-files` prints paths relative to the cwd, so a run from
+# `scripts/` would otherwise accuse this very file of being misplaced.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass(frozen=True)
@@ -87,7 +91,7 @@ def repository_listing(project_root: Path) -> list[str]:
 
 
 def main() -> int:
-    problems = root_layout_problems(repository_listing(Path.cwd()), REPOSITORY_ALLOWLIST)
+    problems = root_layout_problems(repository_listing(REPO_ROOT), REPOSITORY_ALLOWLIST)
     if problems:
         # A CLI gate reports to the terminal, not through structlog: it runs
         # in CI before the application, and its readers are humans in a log.
