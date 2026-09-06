@@ -56,7 +56,7 @@ Users start a call and share a link — friends click and join instantly in the 
 - Test-driven development: write tests first, then implement.
 - 100% coverage on business logic (signaling, rooms, config).
 - Integration tests for IO-heavy code (WebSocket, media).
-- Overall coverage target: 90%+.
+- Overall coverage target: 100 %, enforced by `--cov-fail-under=100`.
 
 ### Structure
 
@@ -68,9 +68,11 @@ Users start a call and share a link — friends click and join instantly in the 
 
 ## SonarCloud
 
-- The bar is zero open findings and 100 % coverage where it makes sense (see
-  Testing above for the exclusions). The legacy rating is never chased; a
-  fresh finding on any code is a merge blocker.
+- The bar is zero open findings and 100 % coverage where it makes sense: the
+  only exclusions are lines marked `pragma: no cover`, `if TYPE_CHECKING:`,
+  and the `if __name__ == "__main__":` entry point, all named in
+  `[tool.coverage.report]` in `pyproject.toml`. The legacy rating is never
+  chased; a fresh finding on any code is a merge blocker.
 - CI's "SonarCloud open findings" step fails on any unresolved finding in
   scope: PR scope on pull requests, the whole master branch on push. It
   queries the public API's `issueStatuses` directly rather than trusting the
