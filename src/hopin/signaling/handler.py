@@ -152,10 +152,7 @@ class SignalingHandler:
         message = data.get("message", "")
         if not message:
             return
-        try:
-            room = self._room_manager.get_room(room_id)
-        except RoomNotFoundError:
-            return
+        room = self._room_manager.get_room(room_id)
         for participant_id in room.participant_ids:
             if participant_id != connection_id:
                 await self._send(
@@ -211,10 +208,7 @@ class SignalingHandler:
         await logger.ainfo("participant_left", room_id=room_id, participant=connection_id)
 
     async def _broadcast_to_room(self, room_id: str, data: dict[str, Any]) -> None:
-        try:
-            room = self._room_manager.get_room(room_id)
-        except RoomNotFoundError:
-            return
+        room = self._room_manager.get_room(room_id)
         for participant_id in room.participant_ids:
             await self._send(participant_id, data)
 

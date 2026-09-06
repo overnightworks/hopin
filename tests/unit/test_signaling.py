@@ -450,12 +450,6 @@ class TestProcessMessages:
         await handler._process_messages(socket, "c1")
 
 
-class TestBroadcastToRoom:
-    @pytest.mark.asyncio
-    async def test_broadcast_to_deleted_room_is_safe(self, handler):
-        await handler._broadcast_to_room("deleted_room", {"type": "noop"})
-
-
 class TestChat:
     @pytest.mark.asyncio
     async def test_chat_broadcasts_to_other_participants(self, handler, room_manager):
@@ -477,15 +471,6 @@ class TestChat:
         assert p1_response["message"] == "hello"
         assert p1_response["from"] == "host1"
         host_ws.send_str.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_chat_from_deleted_room_is_safe(self, handler):
-        register_connection(handler, "p1")
-        handler._connection_rooms["p1"] = "deleted_room"
-        await handler._handle_message(
-            "p1",
-            json.dumps({"type": SignalType.CHAT.value, "message": "hello"}),
-        )
 
     @pytest.mark.asyncio
     async def test_chat_without_room_is_safe(self, handler):
