@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from unittest.mock import AsyncMock
 
 import pytest
+import structlog
 from aiohttp import WSMsgType
 
 from hopin.config.constants import SignalType
@@ -442,7 +443,11 @@ class TestProcessMessages:
     @pytest.mark.asyncio
     async def test_error_frame_is_logged_without_raising(self, handler):
         socket = FakeInboundSocket([FakeMessage(type=WSMsgType.ERROR)])
-        await handler._process_messages(socket, "c1")
+        with structlog.testing.capture_logs() as logs:
+            await handler._process_messages(socket, "c1")
+
+        [error_log] = [log for log in logs if log["event"] == "websocket_error"]
+        assert error_log["connection_id"] == "c1"
 
     @pytest.mark.asyncio
     async def test_frame_types_other_than_text_and_error_are_ignored(self, handler):
