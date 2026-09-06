@@ -973,10 +973,10 @@
                 videoBtn.className = "btn-muted";
                 return;
             } catch (e) {
-                // audio unavailable either; the throw below reports the combined failure
+                // e.name distinguishes a permission denial (NotAllowedError) from an
+                // absent device (NotFoundError), which call for different advice.
+                throw new Error(`No camera or microphone available (${e.name}). Please connect a device or grant permission and try again.`);
             }
-
-            throw new Error("No camera or microphone found. Please connect a device and try again.");
         }
 
         async function startCall(password, preferCamera) {
