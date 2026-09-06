@@ -449,11 +449,6 @@ class TestProcessMessages:
         [error_log] = [log for log in logs if log["event"] == "websocket_error"]
         assert error_log["connection_id"] == "c1"
 
-    @pytest.mark.asyncio
-    async def test_frame_types_other_than_text_and_error_are_ignored(self, handler):
-        socket = FakeInboundSocket([FakeMessage(type=WSMsgType.PING)])
-        await handler._process_messages(socket, "c1")
-
 
 class TestChat:
     @pytest.mark.asyncio

@@ -262,6 +262,22 @@ class TestDisconnect:
 
 
 @pytest.mark.integration
+class TestNonTextFrames:
+    @pytest.mark.asyncio
+    async def test_binary_frame_is_ignored_and_later_text_frames_still_process(self, aiohttp_client, app):
+        client = await aiohttp_client(app)
+        ws = await connect_ws(client, "host1")
+
+        await ws.send_bytes(b"x")
+        await send(ws, {"type": SignalType.JOIN.value})
+
+        response = await receive(ws)
+        assert response["type"] == SignalType.ROOM_CREATED.value
+
+        await ws.close()
+
+
+@pytest.mark.integration
 class TestChat:
     @pytest.mark.asyncio
     async def test_chat_message_delivered_to_other_participants(self, aiohttp_client, app):
