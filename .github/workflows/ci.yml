@@ -43,7 +43,10 @@ jobs:
       # final. The quality gate itself passes on ratings (A/B/C), not on "0
       # findings on new code"; this queries the public API directly for that
       # stronger bar and fails loud, with the list, when it is not met. No
-      # token: the project is public.
+      # token: the project is public. issueStatuses includes ACCEPTED and
+      # FALSE_POSITIVE, not just OPEN/CONFIRMED: the SonarCloud UI is never
+      # the place to silence a finding, so an accepted-in-the-UI finding must
+      # still fail this gate.
       - name: SonarCloud open findings
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -66,7 +69,7 @@ jobs:
           def fetch_page(page: int) -> dict:
               url = (
                   "https://sonarcloud.io/api/issues/search"
-                  f"?componentKeys={component_key}&{scope_query}&statuses=OPEN,CONFIRMED,REOPENED&ps=100&p={page}"
+                  f"?componentKeys={component_key}&{scope_query}&issueStatuses=OPEN,CONFIRMED,ACCEPTED,FALSE_POSITIVE&ps=100&p={page}"
               )
               with urllib.request.urlopen(url) as response:
                   return json.load(response)
