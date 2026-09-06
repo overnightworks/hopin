@@ -124,12 +124,12 @@
         }
         button:hover { opacity: 0.85; }
         button:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-primary { background: #6366f1; color: #fff; }
-        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-primary { background: #4f46e5; color: #fff; }
+        .btn-danger { background: #dc2626; color: #fff; }
         .btn-secondary { background: #374151; color: #fff; }
-        .btn-active { background: #059669; color: #fff; }
+        .btn-active { background: #047857; color: #fff; }
         .btn-muted { background: #dc2626; color: #fff; }
-        .btn-warning { background: #d97706; color: #fff; }
+        .btn-warning { background: #b45309; color: #fff; }
         .share-box {
             background: #1a1a2e;
             border: 1px solid #374151;
@@ -331,7 +331,7 @@
         }
         .chat-badge {
             display: none;
-            background: #ef4444;
+            background: #dc2626;
             color: #fff;
             border-radius: 50%;
             width: 18px;
@@ -475,6 +475,8 @@
 
         const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
         const RECONNECT_DELAYS = [1000, 2000, 4000, 8000];
+        const CONNECTION_QUALITY_POLL_INTERVAL_MS = 3000;
+        const QUALITY_ACTIVE_BARS = { excellent: 4, good: 3, poor: 2, bad: 1 };
 
         const localVideo = document.getElementById("localVideo");
         const localPlaceholder = document.getElementById("localPlaceholder");
@@ -617,12 +619,18 @@
             return el;
         }
 
+        function qualityIndicatorColor(activeBars) {
+            if (activeBars >= 3) return "#4ade80";
+            if (activeBars === 2) return "#fbbf24";
+            return "#ef4444";
+        }
+
         function updateQualityIndicator(container, quality) {
             var indicator = container.querySelector(".connection-quality");
             if (!indicator) return;
             var bars = indicator.querySelectorAll(".quality-bar");
-            var activeBars = quality === "excellent" ? 4 : quality === "good" ? 3 : quality === "poor" ? 2 : 1;
-            var color = activeBars >= 3 ? "#4ade80" : activeBars === 2 ? "#fbbf24" : "#ef4444";
+            var activeBars = QUALITY_ACTIVE_BARS[quality] || 1;
+            var color = qualityIndicatorColor(activeBars);
             bars.forEach(function(bar, i) {
                 if (i < activeBars) {
                     bar.className = "quality-bar";
@@ -634,26 +642,41 @@
             });
         }
 
+        function classifyRoundTripTime(rtt) {
+            if (rtt < 0.1) return "excellent";
+            if (rtt < 0.3) return "good";
+            if (rtt < 0.5) return "poor";
+            return "bad";
+        }
+
+        function reportConnectionQuality(container, report) {
+            if (report.type !== "candidate-pair" || report.state !== "succeeded") return;
+            var rtt = report.currentRoundTripTime;
+            if (rtt === undefined) return;
+            updateQualityIndicator(container, classifyRoundTripTime(rtt));
+        }
+
+        function pollConnectionQuality(participantId, pc, interval) {
+            if (pc.connectionState === "closed" || pc.connectionState === "failed") {
+                clearInterval(interval);
+                return;
+            }
+            var container = document.getElementById("container-" + participantId);
+            if (!container) {
+                clearInterval(interval);
+                return;
+            }
+            pc.getStats().then(function(stats) {
+                stats.forEach(function(report) {
+                    reportConnectionQuality(container, report);
+                });
+            });
+        }
+
         function monitorConnectionQuality(participantId, pc) {
             var interval = setInterval(function() {
-                if (pc.connectionState === "closed" || pc.connectionState === "failed") {
-                    clearInterval(interval);
-                    return;
-                }
-                pc.getStats().then(function(stats) {
-                    var container = document.getElementById("container-" + participantId);
-                    if (!container) { clearInterval(interval); return; }
-                    stats.forEach(function(report) {
-                        if (report.type === "candidate-pair" && report.state === "succeeded") {
-                            var rtt = report.currentRoundTripTime;
-                            if (rtt !== undefined) {
-                                var quality = rtt < 0.1 ? "excellent" : rtt < 0.3 ? "good" : rtt < 0.5 ? "poor" : "bad";
-                                updateQualityIndicator(container, quality);
-                            }
-                        }
-                    });
-                });
-            }, 3000);
+                pollConnectionQuality(participantId, pc, interval);
+            }, CONNECTION_QUALITY_POLL_INTERVAL_MS);
         }
 
         // --- Video management ---
@@ -809,7 +832,9 @@
                     navigator.clipboard.writeText(joinUrl).then(function() {
                         copyBtn.textContent = "Copied!";
                         setTimeout(function() { copyBtn.textContent = "Copy"; }, 2000);
-                    }).catch(function() {});
+                    }).catch(function() {
+                        // clipboard access can be denied; the share box still shows the link to copy by hand
+                    });
                     break;
 
                 case SIGNAL_TYPE.EXISTING_PARTICIPANTS:
@@ -896,7 +921,7 @@
 
             ws.onmessage = function(event) {
                 var data = JSON.parse(event.data);
-                if (data.type === SIGNAL_TYPE.ERROR && data.message && data.message.indexOf("Wrong password") !== -1) {
+                if (data.type === SIGNAL_TYPE.ERROR && data.message && data.message.includes("Wrong password")) {
                     ws.close();
                     passwordModal.classList.remove("hidden");
                     setStatus("Password required", "error");
@@ -935,7 +960,9 @@
                     hasCamera = true;
                     videoEnabled = true;
                     return;
-                } catch (e) {}
+                } catch (e) {
+                    // camera unavailable; fall back to the audio-only attempt below
+                }
             }
 
             try {
@@ -945,7 +972,9 @@
                 videoBtn.textContent = "Cam Off";
                 videoBtn.className = "btn-muted";
                 return;
-            } catch (e) {}
+            } catch (e) {
+                // audio unavailable either; the throw below reports the combined failure
+            }
 
             throw new Error("No camera or microphone found. Please connect a device and try again.");
         }
