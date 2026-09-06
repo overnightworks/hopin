@@ -21,6 +21,7 @@ def create_app(settings: ServerSettings | None = None) -> web.Application:
 
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     signaling_handler = SignalingHandler(room_manager)
+    sonar_gate_red_probe = "deliberate unused variable for the CI gate red-probe"  # noqa: F841
 
     app = web.Application()
     routes = create_routes(signaling_handler, room_manager)
