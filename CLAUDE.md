@@ -62,6 +62,7 @@ Users start a call and share a link — friends click and join instantly in the 
 
 - Unit tests in `tests/unit/`, mirroring `src/hopin/` structure.
 - Integration tests in `tests/integration/`.
+- Tests for repository tooling in `tests/scripts/`, mirroring `scripts/`.
 - Use `pytest` fixtures for setup, no test inheritance hierarchies.
 - Test names follow `test_<method>_<scenario>_<expected_result>` pattern.
 - No mocking of the system under test. Mock only external boundaries.
@@ -86,6 +87,11 @@ Users start a call and share a link — friends click and join instantly in the 
   "Accepted" or "False Positive" resolution set there still fails the gate.
   The only accepted silencing mechanism is the versioned NOSONAR marker above.
 
+## Repository Layout
+
+The rule for what lives at the repository root is owned by `AGENTS.md`,
+section "Repository layout".
+
 ## Project Structure
 
 ```
@@ -96,6 +102,9 @@ src/hopin/
 ├── web/            # HTTP routes, static files
 ├── media/          # WebRTC media handling
 └── errors.py       # custom exceptions
+
+scripts/            # repository tooling that CI and `make check` run
+└── check_root_layout.py
 ```
 
 ## Development Commands
@@ -105,7 +114,8 @@ make install    # install dependencies
 make lint       # run ruff check + ruff format --check + mypy
 make test       # run pytest with coverage
 make dead       # run vulture for dead code detection
-make check      # run all checks (lint + test + dead)
+make layout     # check the repository root layout
+make check      # run all checks (lint + layout + test + dead)
 make run        # start the server
 ```
 
