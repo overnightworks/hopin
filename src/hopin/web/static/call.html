@@ -649,7 +649,7 @@
             return "bad";
         }
 
-        function reportConnectionQuality(container, report) {
+        function applyQualityReport(container, report) {
             if (report.type !== "candidate-pair" || report.state !== "succeeded") return;
             var rtt = report.currentRoundTripTime;
             if (rtt === undefined) return;
@@ -668,7 +668,7 @@
             }
             pc.getStats().then(function(stats) {
                 stats.forEach(function(report) {
-                    reportConnectionQuality(container, report);
+                    applyQualityReport(container, report);
                 });
             });
         }
