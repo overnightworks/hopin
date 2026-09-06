@@ -1045,7 +1045,7 @@
                     videoBtn.className = "btn-active";
                     updateLocalVideoUI();
                 } catch (e) {
-                    setStatus("No camera found", "error");
+                    setStatus(`No camera found (${e.name})`, "error");
                     setTimeout(function() { if (roomId) setStatus("In call", "connected"); }, 2000);
                 }
                 return;
