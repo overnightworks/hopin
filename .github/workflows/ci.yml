@@ -24,17 +24,28 @@ jobs:
         with:
           python-version: "3.12"
 
+      # This is the only step that installs, and it installs only what the
+      # lockfile resolved, as wheels: --locked refuses a stale lock instead of
+      # resolving fresh versions, and --no-build refuses a source distribution,
+      # whose build script runs third-party code on the runner. hopin itself
+      # stays out of the environment: it is the one source build left once the
+      # dependencies are wheels, and nothing below needs it installed, because
+      # pytest puts src/ and scripts/ on the import path (pyproject.toml,
+      # tool.pytest.ini_options.pythonpath). The steps below then call their
+      # tool straight from that environment instead of installing again.
       - name: Install dependencies
-        run: uv sync --locked
+        run: |
+          uv sync --locked --no-install-project --no-build
+          echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       - name: Lint
-        run: uv run ruff check .
+        run: ruff check .
 
       - name: Check the repository root layout
-        run: uv run python scripts/check_root_layout.py
+        run: python scripts/check_root_layout.py
 
       - name: Test with coverage
-        run: uv run pytest -q --cov=src --cov-report=xml:coverage.xml
+        run: pytest -q --cov=src --cov-report=xml:coverage.xml
 
       # SONAR_TOKEN is empty for fork-originated pull requests, and this
       # repository's CI carries the scanner, so Automatic Analysis is off and
