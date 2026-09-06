@@ -86,6 +86,11 @@ Users start a call and share a link — friends click and join instantly in the 
   "Accepted" or "False Positive" resolution set there still fails the gate.
   The only accepted silencing mechanism is the versioned NOSONAR marker above.
 
+## Repository Layout
+
+The rule for what lives at the repository root is owned by `AGENTS.md`,
+section "Repository layout".
+
 ## Project Structure
 
 ```

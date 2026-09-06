@@ -30,6 +30,9 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      - name: Check the repository root layout
+        run: uv run python scripts/check_root_layout.py
+
       - name: Test with coverage
         run: uv run pytest -q --cov=src --cov-report=xml:coverage.xml
 
