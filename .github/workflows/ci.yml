@@ -69,7 +69,11 @@ jobs:
         run: |
           set -euo pipefail
           component_key="$(sed -n 's/^sonar\.projectKey=//p' sonar-project.properties)"
-          scope_query="branch=this-branch-was-never-analysed"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            scope_query="pullRequest=${PULL_REQUEST_NUMBER}"
+          else
+            scope_query="branch=${GITHUB_REF_NAME}"
+          fi
           python3 - "${component_key}" "${scope_query}" <<'PYTHON'
           import base64
           import json
