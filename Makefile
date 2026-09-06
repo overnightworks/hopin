@@ -1,16 +1,16 @@
-.PHONY: install lint format test dead check run
+.PHONY: install lint format test dead layout check run
 
 install:
 	uv sync --all-extras
 
 lint:
-	uv run ruff check src tests
-	uv run ruff format --check src tests
-	uv run mypy src
+	uv run ruff check src tests scripts
+	uv run ruff format --check src tests scripts
+	uv run mypy src scripts
 
 format:
-	uv run ruff check --fix src tests
-	uv run ruff format src tests
+	uv run ruff check --fix src tests scripts
+	uv run ruff format src tests scripts
 
 test:
 	uv run pytest -m "not integration"
@@ -21,7 +21,10 @@ test-all:
 dead:
 	uv run vulture src/hopin
 
-check: lint test dead
+layout:
+	uv run python scripts/check_root_layout.py
+
+check: lint layout test dead
 
 run:
 	uv run hopin
