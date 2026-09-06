@@ -75,9 +75,19 @@ Users start a call and share a link — friends click and join instantly in the 
   `[tool.coverage.report]` in `pyproject.toml`. The legacy rating is never
   chased; a fresh finding on any code is a merge blocker.
 - CI's "SonarCloud open findings" step fails on any unresolved finding in
-  scope: PR scope on pull requests, the whole master branch on push. It
-  queries the public API's `issueStatuses` directly rather than trusting the
-  quality gate, which only grades ratings.
+  scope: PR scope on pull requests, the pushed branch on push. It queries
+  `issueStatuses` directly rather than trusting the quality gate, which only
+  grades ratings. It reads with the repository's own token, because the
+  credential that reads an analysis must be the one that produced it — CI here
+  carries the scanner, so a fork's pull request has no analysis at all and the
+  scan steps skip there — announced in the log, because the check is named for
+  a scan and a silent skip would claim one that never ran.
+- A zero from that query is only believed once the step has proved the
+  component resolves under the same scope, because a query asked about nothing
+  — an unanalysed branch, a pull request that does not exist, a mistyped key —
+  answers zero with no error. On success the step prints the resolved key, the
+  scope and the count, so a green run is evidence that it ran rather than an
+  inference from the job not failing.
 - A finding whose code route was tried and refused is versioned in code as
   `# NOSONAR(<bare rule key>) reason` — e.g. `# NOSONAR(S7503) reason`, never
   the prefixed `python:S7503` form (SonarPython's marker parser rejects it)
