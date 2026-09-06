@@ -36,7 +36,14 @@ jobs:
       - name: Test with coverage
         run: uv run pytest -q --cov=src --cov-report=xml:coverage.xml
 
+      # SONAR_TOKEN is empty for fork-originated pull requests, and this
+      # repository's CI carries the scanner, so Automatic Analysis is off and
+      # such a pull request produces no analysis at all. Skip both scan steps
+      # there; the push to master and same-repo pull requests still run them.
+      # The condition sits on the steps rather than the job because this job
+      # also carries lint and tests, which a fork's pull request must keep.
       - name: Scan with SonarCloud
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -44,38 +51,84 @@ jobs:
       # The scan step above blocks on the analysis (sonar.qualitygate.wait=true
       # in sonar-project.properties), so the report this reads is already
       # final. The quality gate itself passes on ratings (A/B/C), not on "0
-      # findings on new code"; this queries the public API directly for that
-      # stronger bar and fails loud, with the list, when it is not met. No
-      # token: the project is public. issueStatuses includes ACCEPTED and
-      # FALSE_POSITIVE, not just OPEN/CONFIRMED: the SonarCloud UI is never
-      # the place to silence a finding, so an accepted-in-the-UI finding must
-      # still fail this gate.
+      # findings on new code"; this queries the API directly for that stronger
+      # bar and fails loud, with the list, when it is not met. It reads with
+      # the same credential that produced the analysis, because the question
+      # is not who may read the project but whether anything was written for
+      # this scope. The token is basic auth user name with an empty password,
+      # never printed. issueStatuses includes ACCEPTED and FALSE_POSITIVE, not
+      # just OPEN/CONFIRMED: the SonarCloud UI is never the place to silence a
+      # finding, so an accepted-in-the-UI finding must still fail this gate.
       - name: SonarCloud open findings
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
           PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           set -euo pipefail
           component_key="$(sed -n 's/^sonar\.projectKey=//p' sonar-project.properties)"
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             scope_query="pullRequest=${PULL_REQUEST_NUMBER}"
           else
-            scope_query="branch=master"
+            scope_query="branch=${GITHUB_REF_NAME}"
           fi
           python3 - "${component_key}" "${scope_query}" <<'PYTHON'
+          import base64
           import json
+          import os
           import sys
+          import urllib.error
           import urllib.request
 
           component_key, scope_query = sys.argv[1], sys.argv[2]
+          credentials = base64.b64encode(f'{os.environ["SONAR_TOKEN"]}:'.encode()).decode()
+
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              # A redirect would forward the Authorization header to another
+              # host; raise instead of following it.
+              def redirect_request(self, *args, **kwargs):
+                  return None
+
+
+          opener = urllib.request.build_opener(NoRedirect())
+
+          def fetch(url: str) -> dict:
+              request = urllib.request.Request(
+                  url, headers={"Authorization": f"Basic {credentials}"}
+              )
+              with opener.open(request) as response:
+                  return json.load(response)
 
           def fetch_page(page: int) -> dict:
-              url = (
+              return fetch(
                   "https://sonarcloud.io/api/issues/search"
                   f"?componentKeys={component_key}&{scope_query}&issueStatuses=OPEN,CONFIRMED,ACCEPTED,FALSE_POSITIVE&ps=100&p={page}"
               )
-              with urllib.request.urlopen(url) as response:
-                  return json.load(response)
+
+          def require_resolved_scope() -> None:
+              # An unauthenticated, misspelled or never-analysed scope answers
+              # the issue search with zero findings and no error, so read the
+              # measures of this exact scope first: it is 404 when the token,
+              # the key or the scope does not resolve.
+              try:
+                  fetch(
+                      "https://sonarcloud.io/api/measures/component"
+                      f"?component={component_key}&{scope_query}&metricKeys=ncloc"
+                  )
+              except urllib.error.HTTPError as error:
+                  sys.exit(
+                      f"SonarCloud did not resolve {component_key} in scope "
+                      f"{scope_query} (HTTP {error.code}): either no analysis "
+                      "exists for this scope — an unanalysed branch, a pull "
+                      "request that does not exist, a mistyped key — or the "
+                      "credential cannot see the project. Its findings were "
+                      "never read."
+                  )
+
+          require_resolved_scope()
 
           page = 1
           printed = 0
@@ -95,4 +148,7 @@ jobs:
           if total > 0:
               print(f"{total} open SonarCloud finding(s) in scope {scope_query}", file=sys.stderr)
               sys.exit(1)
+
+          # A step that prints nothing on success cannot be shown to have run.
+          print(f"SonarCloud clean for '{component_key}' ({scope_query}): {total} open finding(s)")
           PYTHON
