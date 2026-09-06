@@ -103,13 +103,8 @@ src/hopin/
 ├── media/          # WebRTC media handling
 └── errors.py       # custom exceptions
 
-scripts/            # repository tooling CI and `make check` run
+scripts/            # repository tooling that CI and `make check` run
 └── check_root_layout.py
-
-tests/
-├── unit/           # mirrors src/hopin/
-├── integration/
-└── scripts/        # mirrors scripts/
 ```
 
 ## Development Commands

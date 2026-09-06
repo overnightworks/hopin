@@ -54,12 +54,6 @@ def test_the_gate_names_a_stray_root_file_and_fails(gate_repository, working_dir
     assert "NOTES.md" in completed.stderr
 
 
-def test_this_repository_passes_its_own_gate():
-    listing = check_root_layout.repository_listing(check_root_layout.REPO_ROOT)
-
-    assert check_root_layout.root_layout_problems(listing, ALLOWLIST) == ()
-
-
 def test_allowed_root_tree_passes():
     listing = [
         ".gitignore",
