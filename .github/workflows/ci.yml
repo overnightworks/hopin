@@ -48,6 +48,18 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+      # The check that carries these steps is named "Lint, test, and scan", so
+      # a silent skip reports a scan that never happened. A skip nobody can see
+      # is the same defect as a success that prints nothing.
+      - name: Report the skipped SonarCloud scan
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: >-
+          echo "SonarCloud skipped: this pull request comes from a fork, which
+          receives no SONAR_TOKEN, and this repository's CI carries the scanner,
+          so no analysis exists for this pull request to read. This run asserts
+          lint, the root layout and the tests only; the code is scanned once it
+          runs from a branch in this repository."
+
       # The scan step above blocks on the analysis (sonar.qualitygate.wait=true
       # in sonar-project.properties), so the report this reads is already
       # final. The quality gate itself passes on ratings (A/B/C), not on "0

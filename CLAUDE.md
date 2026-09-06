@@ -80,7 +80,8 @@ Users start a call and share a link — friends click and join instantly in the 
   grades ratings. It reads with the repository's own token, because the
   credential that reads an analysis must be the one that produced it — CI here
   carries the scanner, so a fork's pull request has no analysis at all and the
-  scan steps skip there.
+  scan steps skip there — announced in the log, because the check is named for
+  a scan and a silent skip would claim one that never ran.
 - A zero from that query is only believed once the step has proved the
   component resolves under the same scope, because a query asked about nothing
   — an unanalysed branch, a pull request that does not exist, a mistyped key —
