@@ -1,7 +1,10 @@
 import json
+from dataclasses import dataclass
 from unittest.mock import AsyncMock
 
 import pytest
+import structlog
+from aiohttp import WSMsgType
 
 from hopin.config.constants import SignalType
 from hopin.rooms.manager import RoomManager
@@ -29,6 +32,29 @@ def register_connection(handler, connection_id):
     ws = make_ws_mock()
     handler._connections[connection_id] = ws
     return ws
+
+
+@dataclass
+class FakeMessage:
+    type: WSMsgType
+
+
+class FakeInboundSocket:
+    """A minimal async-iterable socket, for driving the message loop without a live transport."""
+
+    def __init__(self, messages: list[FakeMessage]) -> None:
+        self._messages = list(messages)
+
+    def __aiter__(self) -> "FakeInboundSocket":
+        return self
+
+    async def __anext__(self) -> FakeMessage:
+        if not self._messages:
+            raise StopAsyncIteration
+        return self._messages.pop(0)
+
+    def exception(self) -> Exception:
+        return ConnectionResetError("simulated transport error")
 
 
 class TestHandleMessage:
@@ -411,6 +437,17 @@ class TestLockUnlock:
             "c1",
             json.dumps({"type": SignalType.UNLOCK_ROOM.value}),
         )
+
+
+class TestProcessMessages:
+    @pytest.mark.asyncio
+    async def test_error_frame_is_logged_without_raising(self, handler):
+        socket = FakeInboundSocket([FakeMessage(type=WSMsgType.ERROR)])
+        with structlog.testing.capture_logs() as logs:
+            await handler._process_messages(socket, "c1")
+
+        [error_log] = [log for log in logs if log["event"] == "websocket_error"]
+        assert error_log["connection_id"] == "c1"
 
 
 class TestChat:

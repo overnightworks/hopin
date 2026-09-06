@@ -56,7 +56,7 @@ Users start a call and share a link — friends click and join instantly in the 
 - Test-driven development: write tests first, then implement.
 - 100% coverage on business logic (signaling, rooms, config).
 - Integration tests for IO-heavy code (WebSocket, media).
-- Overall coverage target: 90%+.
+- Overall coverage target: 100 %, enforced by `--cov-fail-under=100`.
 
 ### Structure
 
@@ -65,6 +65,26 @@ Users start a call and share a link — friends click and join instantly in the 
 - Use `pytest` fixtures for setup, no test inheritance hierarchies.
 - Test names follow `test_<method>_<scenario>_<expected_result>` pattern.
 - No mocking of the system under test. Mock only external boundaries.
+
+## SonarCloud
+
+- The bar is zero open findings and 100 % coverage where it makes sense: the
+  only exclusions are lines marked `pragma: no cover`, `if TYPE_CHECKING:`,
+  and the `if __name__ == "__main__":` entry point, all named in
+  `[tool.coverage.report]` in `pyproject.toml`. The legacy rating is never
+  chased; a fresh finding on any code is a merge blocker.
+- CI's "SonarCloud open findings" step fails on any unresolved finding in
+  scope: PR scope on pull requests, the whole master branch on push. It
+  queries the public API's `issueStatuses` directly rather than trusting the
+  quality gate, which only grades ratings.
+- A finding whose code route was tried and refused is versioned in code as
+  `# NOSONAR(<bare rule key>) reason` — e.g. `# NOSONAR(S7503) reason`, never
+  the prefixed `python:S7503` form (SonarPython's marker parser rejects it)
+  and never a bare `# NOSONAR` with no rule key. Record the refusal on the
+  distributor issue first, then add the marker.
+- The SonarCloud UI is never used to accept or silence a finding — an
+  "Accepted" or "False Positive" resolution set there still fails the gate.
+  The only accepted silencing mechanism is the versioned NOSONAR marker above.
 
 ## Project Structure
 

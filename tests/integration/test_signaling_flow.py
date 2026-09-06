@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from aiohttp import WSMsgType
 
 from hopin.app import create_app
 from hopin.config.constants import SignalType
@@ -24,6 +25,16 @@ async def send(ws, data):
 async def receive(ws):
     msg = await ws.receive()
     return json.loads(msg.data)
+
+
+@pytest.mark.integration
+class TestConnect:
+    @pytest.mark.asyncio
+    async def test_connect_without_id_closes_the_socket(self, aiohttp_client, app):
+        client = await aiohttp_client(app)
+        ws = await client.ws_connect("/ws")
+        msg = await ws.receive()
+        assert msg.type == WSMsgType.CLOSE
 
 
 @pytest.mark.integration
@@ -248,6 +259,22 @@ class TestDisconnect:
         assert left_msg["participant_id"] == "p1"
 
         await host_ws.close()
+
+
+@pytest.mark.integration
+class TestNonTextFrames:
+    @pytest.mark.asyncio
+    async def test_binary_frame_is_ignored_and_later_text_frames_still_process(self, aiohttp_client, app):
+        client = await aiohttp_client(app)
+        ws = await connect_ws(client, "host1")
+
+        await ws.send_bytes(b"x")
+        await send(ws, {"type": SignalType.JOIN.value})
+
+        response = await receive(ws)
+        assert response["type"] == SignalType.ROOM_CREATED.value
+
+        await ws.close()
 
 
 @pytest.mark.integration
