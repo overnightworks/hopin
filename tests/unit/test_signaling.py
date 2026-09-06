@@ -1,7 +1,9 @@
 import json
+from dataclasses import dataclass
 from unittest.mock import AsyncMock
 
 import pytest
+from aiohttp import WSMsgType
 
 from hopin.config.constants import SignalType
 from hopin.rooms.manager import RoomManager
@@ -29,6 +31,29 @@ def register_connection(handler, connection_id):
     ws = make_ws_mock()
     handler._connections[connection_id] = ws
     return ws
+
+
+@dataclass
+class FakeMessage:
+    type: WSMsgType
+
+
+class FakeInboundSocket:
+    """A minimal async-iterable socket, for driving the message loop without a live transport."""
+
+    def __init__(self, messages: list[FakeMessage]) -> None:
+        self._messages = list(messages)
+
+    def __aiter__(self) -> "FakeInboundSocket":
+        return self
+
+    async def __anext__(self) -> FakeMessage:
+        if not self._messages:
+            raise StopAsyncIteration
+        return self._messages.pop(0)
+
+    def exception(self) -> Exception:
+        return ConnectionResetError("simulated transport error")
 
 
 class TestHandleMessage:
@@ -413,6 +438,24 @@ class TestLockUnlock:
         )
 
 
+class TestProcessMessages:
+    @pytest.mark.asyncio
+    async def test_error_frame_is_logged_without_raising(self, handler):
+        socket = FakeInboundSocket([FakeMessage(type=WSMsgType.ERROR)])
+        await handler._process_messages(socket, "c1")
+
+    @pytest.mark.asyncio
+    async def test_frame_types_other_than_text_and_error_are_ignored(self, handler):
+        socket = FakeInboundSocket([FakeMessage(type=WSMsgType.PING)])
+        await handler._process_messages(socket, "c1")
+
+
+class TestBroadcastToRoom:
+    @pytest.mark.asyncio
+    async def test_broadcast_to_deleted_room_is_safe(self, handler):
+        await handler._broadcast_to_room("deleted_room", {"type": "noop"})
+
+
 class TestChat:
     @pytest.mark.asyncio
     async def test_chat_broadcasts_to_other_participants(self, handler, room_manager):
@@ -434,6 +477,15 @@ class TestChat:
         assert p1_response["message"] == "hello"
         assert p1_response["from"] == "host1"
         host_ws.send_str.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_chat_from_deleted_room_is_safe(self, handler):
+        register_connection(handler, "p1")
+        handler._connection_rooms["p1"] = "deleted_room"
+        await handler._handle_message(
+            "p1",
+            json.dumps({"type": SignalType.CHAT.value, "message": "hello"}),
+        )
 
     @pytest.mark.asyncio
     async def test_chat_without_room_is_safe(self, handler):

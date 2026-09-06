@@ -220,3 +220,13 @@ class TestRoomManager:
         rooms = [manager.create_room(f"h{i}") for i in range(20)]
         ids = {r.room_id for r in rooms}
         assert len(ids) == 20
+
+    def test_retries_generation_on_id_collision(self, manager, monkeypatch):
+        taken = manager.create_room("h1").room_id
+        fresh_id = "z" * ROOM_ID_LENGTH
+        attempted_ids = iter([*taken, *fresh_id])
+        monkeypatch.setattr("hopin.rooms.manager.secrets.choice", lambda _alphabet: next(attempted_ids))
+
+        room = manager.create_room("h2")
+
+        assert room.room_id == fresh_id
