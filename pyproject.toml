@@ -96,7 +96,7 @@ pythonpath = ["src", "scripts"]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=hopin",
+    "--cov",
     "--cov-report=term-missing",
     "--cov-fail-under=100",
 ]
@@ -108,7 +108,14 @@ markers = [
 # --- Coverage ---
 
 [tool.coverage.run]
-source = ["hopin"]
+# The measured set has one owner, here: `--cov` in addopts turns measurement
+# on and takes its sources from this key, so every way of running the suite
+# measures the same files. `scripts` is measured next to the package because
+# the scanner analyses it too (sonar.sources in sonar-project.properties), and
+# an analysed file with no coverage data reports as wholly uncovered. Naming
+# the set in the CI command instead let the local run and the pre-commit hook
+# pass over an uncovered line that CI then turned red for.
+source = ["src", "scripts"]
 branch = true
 
 [tool.coverage.report]

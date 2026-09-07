@@ -16,8 +16,10 @@ GIT_IDENTITY = ("-c", "user.name=layout gate test", "-c", "user.email=gate@examp
 
 
 def git(repository: Path, *arguments: str) -> None:
-    subprocess.run(  # noqa: S603 -- fixed argv built from the test's own literals
-        ["git", *GIT_IDENTITY, *arguments],  # noqa: S607 -- "git" resolved via PATH by design
+    # The argv is built from this test's own literals (S603), and "git" is
+    # left to PATH by design (S607). A `noqa` directive carries codes only.
+    subprocess.run(  # noqa: S603
+        ["git", *GIT_IDENTITY, *arguments],  # noqa: S607
         cwd=repository,
         check=True,
         capture_output=True,
@@ -55,7 +57,9 @@ def gate_repository(tmp_path, monkeypatch):
 
 def run_gate(repository: Path, working_directory: Path) -> subprocess.CompletedProcess[str]:
     """The gate as CI runs it: a python process over the script, started somewhere."""
-    return subprocess.run(  # noqa: S603 -- fixed argv built from the test's own paths
+    # The argv is built from this test's own paths, so no untrusted input
+    # reaches the call (S603). A `noqa` directive carries codes only.
+    return subprocess.run(  # noqa: S603
         [sys.executable, str(repository / "scripts" / GATE.name)],
         cwd=working_directory,
         capture_output=True,
@@ -64,7 +68,8 @@ def run_gate(repository: Path, working_directory: Path) -> subprocess.CompletedP
     )
 
 
-def test_the_gate_passes_on_an_allowlisted_tree(gate_repository):
+def test_the_gate_exits_zero_when_it_passes(gate_repository):
+    """The exit status CI reads, which a return value in process does not prove."""
     completed = run_gate(gate_repository, gate_repository)
 
     assert completed.returncode == 0
@@ -90,6 +95,45 @@ def test_the_gate_names_a_committed_stray_root_file_and_fails(gate_repository):
 
     assert completed.returncode == 1
     assert "NOTES.md" in completed.stderr
+
+
+# The cases below call the gate in process instead of through `run_gate`.
+# `run_gate` starts a python process over a *copy* of the gate, so nothing it
+# exercises is ever recorded against the file this repository ships: driven
+# only that way, the gate's git boundary and its reporting read as untested,
+# and the scanner sees an analysed file with no coverage. They repeat what the
+# process cases above already prove for that reason alone, and the process
+# cases stay because only they answer what CI reads -- the exit status either
+# way, and that the gate judges the repository carrying it whatever directory
+# it was started from.
+
+
+def test_the_listing_carries_the_tracked_and_the_untracked_half(gate_repository):
+    """Both halves reach the gate: a file that landed and one that only strayed onto the tree."""
+    (gate_repository / "untracked.md").write_text("a file nobody committed\n")
+
+    listing = check_root_layout.repository_listing(gate_repository)
+
+    assert "README.md" in listing
+    assert "untracked.md" in listing
+
+
+def test_the_gate_reports_success_on_an_allowlisted_tree(gate_repository, capsys):
+    assert check_root_layout.main(gate_repository) == 0
+    assert "passed" in capsys.readouterr().out
+
+
+def test_the_gate_names_every_problem_it_found(gate_repository, capsys):
+    """A failing run reports all of it, not the first thing it tripped over."""
+    (gate_repository / "stray.txt").write_text("a stray at the root\n")
+    (gate_repository / "tooling").mkdir()
+    (gate_repository / "tooling" / "helper.py").write_text("a stray directory\n")
+
+    assert check_root_layout.main(gate_repository) == 1
+
+    reported = capsys.readouterr().err
+    assert f"stray.txt: {check_root_layout.DEFAULT_HOME}" in reported
+    assert f"tooling/: {check_root_layout.DIRECTORY_HOME}" in reported
 
 
 def test_allowed_root_tree_passes():

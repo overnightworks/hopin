@@ -93,6 +93,11 @@ Users start a call and share a link — friends click and join instantly in the 
   the prefixed `python:S7503` form (SonarPython's marker parser rejects it)
   and never a bare `# NOSONAR` with no rule key. Record the refusal on the
   distributor issue first, then add the marker.
+- A ruff suppression is `# noqa: <code>` — bare codes, comma-separated, and
+  nothing else on the directive. The reason goes in a comment above the line,
+  where a *why* belongs. Prose appended after the code is read as a further
+  code and SonarPython reports the malformed suppression (`python:S7632`); a
+  comma inside that prose makes the misreading certain.
 - The SonarCloud UI is never used to accept or silence a finding — an
   "Accepted" or "False Positive" resolution set there still fails the gate.
   The only accepted silencing mechanism is the versioned NOSONAR marker above.

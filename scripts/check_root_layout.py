@@ -75,8 +75,11 @@ def root_layout_problems(listing: Iterable[str], allowlist: RootAllowlist) -> tu
 
 
 def _git_listing(project_root: Path, *options: str) -> list[str]:
-    completed = subprocess.run(  # noqa: S603 -- fixed, literal argv; no untrusted input
-        ["git", "ls-files", "-z", *options],  # noqa: S607 -- "git" resolved via PATH by design
+    # The argv is fixed and literal, so no untrusted input reaches the call
+    # (S603), and "git" is left to PATH by design rather than pinned to one
+    # installation (S607). A `noqa` directive carries codes only.
+    completed = subprocess.run(  # noqa: S603
+        ["git", "ls-files", "-z", *options],  # noqa: S607
         cwd=project_root,
         check=True,
         capture_output=True,
@@ -90,8 +93,8 @@ def repository_listing(project_root: Path) -> list[str]:
     return _git_listing(project_root) + _git_listing(project_root, "--others", "--exclude-standard")
 
 
-def main() -> int:
-    problems = root_layout_problems(repository_listing(REPO_ROOT), REPOSITORY_ALLOWLIST)
+def main(project_root: Path) -> int:
+    problems = root_layout_problems(repository_listing(project_root), REPOSITORY_ALLOWLIST)
     if problems:
         # A CLI gate reports to the terminal, not through structlog: it runs
         # in CI before the application, and its readers are humans in a log.
@@ -104,4 +107,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(REPO_ROOT))
