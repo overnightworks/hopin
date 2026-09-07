@@ -78,146 +78,19 @@ jobs:
       # The scan step above blocks on the analysis (sonar.qualitygate.wait=true
       # in sonar-project.properties), so the report this reads is already
       # final. The quality gate itself passes on ratings (A/B/C), not on "0
-      # findings on new code"; this queries the API directly for that stronger
-      # bar and fails loud, with the list, when it is not met. This SonarCloud
-      # project is public, so no credential is needed to read it; the step
-      # sends one anyway, because the credential that reads an analysis must be
-      # the one that produced it (CLAUDE.md, "SonarCloud"), and this
-      # repository's own CI carries the scanner, so that token is present
-      # wherever this step runs. It is basic auth user name with an empty
-      # password, never printed. issueStatuses includes ACCEPTED and
-      # FALSE_POSITIVE, not just OPEN/CONFIRMED: the SonarCloud UI is never the
-      # place to silence a finding, so an accepted-in-the-UI finding must still
-      # fail this gate.
+      # findings on new code"; the fleet's gate queries the API directly for
+      # that stronger bar and fails loud, with the list, when it is not met. It
+      # reads this repository's own sonar-project.properties from the
+      # workspace, and it needs a credential: this repository's CI carries the
+      # scanner, and the credential that reads an analysis must be the one that
+      # produced it (CLAUDE.md, "SonarCloud").
       - name: SonarCloud open findings
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         # The per-call timeout gives the honest message; this is the hard
-        # ceiling, because the step pages and a per-call bound multiplies.
+        # ceiling, because the gate pages and a per-call bound multiplies. A
+        # composite action's inner steps take no timeout-minutes, so the
+        # ceiling belongs to the calling step.
         timeout-minutes: 5
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          set -euo pipefail
-          component_key="$(sed -n 's/^sonar\.projectKey=//p' sonar-project.properties)"
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            scope_name="pullRequest"
-            scope_value="${PULL_REQUEST_NUMBER}"
-          else
-            scope_name="branch"
-            scope_value="${GITHUB_REF_NAME}"
-          fi
-          python3 - "${component_key}" "${scope_name}" "${scope_value}" <<'PYTHON'
-          import base64
-          import json
-          import os
-          import sys
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          # A SonarCloud that accepts the connection and then stops answering
-          # must fail the job. This bounds one call; the step's own
-          # timeout-minutes bounds the paging above it.
-          REQUEST_TIMEOUT_SECONDS = 30
-
-          component_key, scope_name, scope_value = sys.argv[1], sys.argv[2], sys.argv[3]
-          scope_parameters = {scope_name: scope_value}
-          scope_label = f"{scope_name}={scope_value}"
-          credentials = base64.b64encode(f'{os.environ["SONAR_TOKEN"]}:'.encode()).decode()
-
-
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              # A redirect would forward the Authorization header to another
-              # host; raise instead of following it.
-              def redirect_request(self, *args, **kwargs):
-                  return None
-
-
-          opener = urllib.request.build_opener(NoRedirect())
-
-          def timed_out(error: OSError) -> bool:
-              # A read that runs out of time raises TimeoutError itself, while a
-              # connect that does arrives wrapped in URLError.
-              return isinstance(error, TimeoutError) or (
-                  isinstance(error, urllib.error.URLError)
-                  and isinstance(error.reason, TimeoutError)
-              )
-
-          def scoped_api_url(endpoint: str, **parameters: object) -> str:
-              # The scope carries a branch name the runner derived, and a ref name
-              # may legally contain characters a query string reads differently.
-              query = urllib.parse.urlencode({**parameters, **scope_parameters})
-              return f"https://sonarcloud.io/api/{endpoint}?{query}"
-
-          def fetch(url: str) -> dict:
-              request = urllib.request.Request(
-                  url, headers={"Authorization": f"Basic {credentials}"}
-              )
-              try:
-                  with opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-                      return json.load(response)
-              except OSError as error:
-                  if not timed_out(error):
-                      raise
-                  sys.exit(
-                      f"SonarCloud did not answer within {REQUEST_TIMEOUT_SECONDS}s: "
-                      f"the request for {component_key} in scope {scope_label} timed "
-                      "out. Its findings were never read, so re-run the job before "
-                      "investigating SonarCloud."
-                  )
-
-          def fetch_page(page: int) -> dict:
-              return fetch(
-                  scoped_api_url(
-                      "issues/search",
-                      componentKeys=component_key,
-                      issueStatuses="OPEN,CONFIRMED,ACCEPTED,FALSE_POSITIVE",
-                      ps=100,
-                      p=page,
-                  )
-              )
-
-          def require_resolved_scope() -> None:
-              # An unauthenticated, misspelled or never-analysed scope answers
-              # the issue search with zero findings and no error, so read the
-              # measures of this exact scope first: it is 404 when the token,
-              # the key or the scope does not resolve.
-              try:
-                  fetch(scoped_api_url("measures/component", component=component_key, metricKeys="ncloc"))
-              except urllib.error.HTTPError as error:
-                  sys.exit(
-                      f"SonarCloud did not resolve {component_key} in scope "
-                      f"{scope_label} (HTTP {error.code}): either no analysis "
-                      "exists for this scope — an unanalysed branch, a pull "
-                      "request that does not exist, a mistyped key — or the "
-                      "credential cannot see the project. Its findings were "
-                      "never read."
-                  )
-
-          require_resolved_scope()
-
-          page = 1
-          printed = 0
-          total = None
-          while total is None or printed < total:
-              report = fetch_page(page)
-              total = report["total"]
-              for issue in report["issues"]:
-                  file_path = issue["component"].split(":", 1)[1]
-                  line = issue.get("line", "?")
-                  print(f'{issue["rule"]} {file_path}:{line} {issue["message"]}')
-                  printed += 1
-              if not report["issues"]:
-                  break
-              page += 1
-
-          if total > 0:
-              print(f"{total} open SonarCloud finding(s) in scope {scope_label}", file=sys.stderr)
-              sys.exit(1)
-
-          # A step that prints nothing on success cannot be shown to have run.
-          print(f"SonarCloud clean for '{component_key}' ({scope_label}): {total} open finding(s)")
-          PYTHON
+        uses: overnightworks/marketplace/.github/actions/sonar-findings-gate@0f73f6e0331bae6de7ea800e3f7551c2a49c8058 # sonar-findings-gate-v1
+        with:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
