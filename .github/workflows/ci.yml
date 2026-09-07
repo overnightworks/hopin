@@ -44,13 +44,12 @@ jobs:
       - name: Check the repository root layout
         run: python scripts/check_root_layout.py
 
-      # `scripts` is measured next to the package because the scanner
-      # analyses it (sonar.sources in sonar-project.properties), and an
-      # analysed file with no coverage data reports as wholly uncovered. The
-      # hundred percent floor (--cov-fail-under in pyproject.toml) therefore
-      # covers the root layout gate as well.
+      # Which files are measured is pyproject.toml's to say (the source key
+      # under [tool.coverage.run]); this step only asks for the report the
+      # scanner reads, so a local run, the pre-commit hook and CI cannot
+      # disagree about the measured set.
       - name: Test with coverage
-        run: pytest -q --cov=src --cov=scripts --cov-report=xml:coverage.xml
+        run: pytest -q --cov-report=xml:coverage.xml
 
       # SONAR_TOKEN is empty for fork-originated pull requests, and this
       # repository's CI carries the scanner, so Automatic Analysis is off and
