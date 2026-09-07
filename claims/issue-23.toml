@@ -1,0 +1,7 @@
+claim_id = "4e3e0cb0e73c4be480728d8f679d2aec"
+agent = "claude"
+role = "builder"
+base = "b8c2228ec9a362540a83c7ace41560cfc3eacae0"
+branch = "claude/issue-23-consume-the-action"
+scope = [".github/workflows/ci.yml"]
+opened_commit = "d2362b8c1e325fbc40e60c7e7ed2b1e33cd1a7a9"
