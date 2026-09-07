@@ -91,6 +91,6 @@ jobs:
         # composite action's inner steps take no timeout-minutes, so the
         # ceiling belongs to the calling step.
         timeout-minutes: 5
-        uses: overnightworks/marketplace/.github/actions/sonar-findings-gate@0f73f6e0331bae6de7ea800e3f7551c2a49c8058 # sonar-findings-gate-v1
+        uses: overnightworks/marketplace/.github/actions/sonar-findings-gate@85b0e13e0530ed12b5a81208681015eda6f7854b # sonar-findings-gate-v1
         with:
           sonar-token: ${{ secrets.SONAR_TOKEN }}
