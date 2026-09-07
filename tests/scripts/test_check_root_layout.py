@@ -16,8 +16,10 @@ GIT_IDENTITY = ("-c", "user.name=layout gate test", "-c", "user.email=gate@examp
 
 
 def git(repository: Path, *arguments: str) -> None:
-    subprocess.run(  # noqa: S603 -- fixed argv built from the test's own literals
-        ["git", *GIT_IDENTITY, *arguments],  # noqa: S607 -- "git" resolved via PATH by design
+    # The argv is built from this test's own literals (S603), and "git" is
+    # left to PATH by design (S607). A `noqa` directive carries codes only.
+    subprocess.run(  # noqa: S603
+        ["git", *GIT_IDENTITY, *arguments],  # noqa: S607
         cwd=repository,
         check=True,
         capture_output=True,
@@ -55,7 +57,9 @@ def gate_repository(tmp_path, monkeypatch):
 
 def run_gate(repository: Path, working_directory: Path) -> subprocess.CompletedProcess[str]:
     """The gate as CI runs it: a python process over the script, started somewhere."""
-    return subprocess.run(  # noqa: S603 -- fixed argv built from the test's own paths
+    # The argv is built from this test's own paths, so no untrusted input
+    # reaches the call (S603). A `noqa` directive carries codes only.
+    return subprocess.run(  # noqa: S603
         [sys.executable, str(repository / "scripts" / GATE.name)],
         cwd=working_directory,
         capture_output=True,
