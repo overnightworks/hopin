@@ -68,6 +68,14 @@ def run_gate(repository: Path, working_directory: Path) -> subprocess.CompletedP
     )
 
 
+def test_the_gate_exits_zero_when_it_passes(gate_repository):
+    """The exit status CI reads, which a return value in process does not prove."""
+    completed = run_gate(gate_repository, gate_repository)
+
+    assert completed.returncode == 0
+    assert "passed" in completed.stdout
+
+
 @pytest.mark.parametrize("working_directory", [".", "scripts"])
 def test_the_gate_names_a_stray_root_file_and_fails(gate_repository, working_directory):
     (gate_repository / "NOTES.md").write_text("a stray at the root\n")
@@ -93,9 +101,11 @@ def test_the_gate_names_a_committed_stray_root_file_and_fails(gate_repository):
 # `run_gate` starts a python process over a *copy* of the gate, so nothing it
 # exercises is ever recorded against the file this repository ships: driven
 # only that way, the gate's git boundary and its reporting read as untested,
-# and the scanner sees an analysed file with no coverage. The real process
-# stays above for what only it can answer -- that the gate judges the
-# repository carrying it, from whatever directory it was started.
+# and the scanner sees an analysed file with no coverage. They repeat what the
+# process cases above already prove for that reason alone, and the process
+# cases stay because only they answer what CI reads -- the exit status either
+# way, and that the gate judges the repository carrying it whatever directory
+# it was started from.
 
 
 def test_the_listing_carries_the_tracked_and_the_untracked_half(gate_repository):
@@ -108,7 +118,7 @@ def test_the_listing_carries_the_tracked_and_the_untracked_half(gate_repository)
     assert "untracked.md" in listing
 
 
-def test_the_gate_passes_on_an_allowlisted_tree(gate_repository, capsys):
+def test_the_gate_reports_success_on_an_allowlisted_tree(gate_repository, capsys):
     assert check_root_layout.main(gate_repository) == 0
     assert "passed" in capsys.readouterr().out
 
