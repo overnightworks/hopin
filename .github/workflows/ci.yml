@@ -88,6 +88,9 @@ jobs:
       # finding, so an accepted-in-the-UI finding must still fail this gate.
       - name: SonarCloud open findings
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        # The per-call timeout gives the honest message; this is the hard
+        # ceiling, because the step pages and a per-call bound multiplies.
+        timeout-minutes: 5
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
@@ -112,6 +115,11 @@ jobs:
           import urllib.parse
           import urllib.request
 
+          # A SonarCloud that accepts the connection and then stops answering
+          # must fail the job. This bounds one call; the step's own
+          # timeout-minutes bounds the paging above it.
+          REQUEST_TIMEOUT_SECONDS = 30
+
           component_key, scope_name, scope_value = sys.argv[1], sys.argv[2], sys.argv[3]
           scope_parameters = {scope_name: scope_value}
           scope_label = f"{scope_name}={scope_value}"
@@ -127,6 +135,14 @@ jobs:
 
           opener = urllib.request.build_opener(NoRedirect())
 
+          def timed_out(error: OSError) -> bool:
+              # A read that runs out of time raises TimeoutError itself, while a
+              # connect that does arrives wrapped in URLError.
+              return isinstance(error, TimeoutError) or (
+                  isinstance(error, urllib.error.URLError)
+                  and isinstance(error.reason, TimeoutError)
+              )
+
           def scoped_api_url(endpoint: str, **parameters: object) -> str:
               # The scope carries a branch name the runner derived, and a ref name
               # may legally contain characters a query string reads differently.
@@ -137,8 +153,18 @@ jobs:
               request = urllib.request.Request(
                   url, headers={"Authorization": f"Basic {credentials}"}
               )
-              with opener.open(request) as response:
-                  return json.load(response)
+              try:
+                  with opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+                      return json.load(response)
+              except OSError as error:
+                  if not timed_out(error):
+                      raise
+                  sys.exit(
+                      f"SonarCloud did not answer within {REQUEST_TIMEOUT_SECONDS}s: "
+                      f"the request for {component_key} in scope {scope_label} timed "
+                      "out. Its findings were never read, so re-run the job before "
+                      "investigating SonarCloud."
+                  )
 
           def fetch_page(page: int) -> dict:
               return fetch(
