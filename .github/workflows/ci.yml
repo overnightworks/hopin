@@ -97,19 +97,24 @@ jobs:
           set -euo pipefail
           component_key="$(sed -n 's/^sonar\.projectKey=//p' sonar-project.properties)"
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            scope_query="pullRequest=${PULL_REQUEST_NUMBER}"
+            scope_name="pullRequest"
+            scope_value="${PULL_REQUEST_NUMBER}"
           else
-            scope_query="branch=${GITHUB_REF_NAME}"
+            scope_name="branch"
+            scope_value="${GITHUB_REF_NAME}"
           fi
-          python3 - "${component_key}" "${scope_query}" <<'PYTHON'
+          python3 - "${component_key}" "${scope_name}" "${scope_value}" <<'PYTHON'
           import base64
           import json
           import os
           import sys
           import urllib.error
+          import urllib.parse
           import urllib.request
 
-          component_key, scope_query = sys.argv[1], sys.argv[2]
+          component_key, scope_name, scope_value = sys.argv[1], sys.argv[2], sys.argv[3]
+          scope_parameters = {scope_name: scope_value}
+          scope_label = f"{scope_name}={scope_value}"
           credentials = base64.b64encode(f'{os.environ["SONAR_TOKEN"]}:'.encode()).decode()
 
 
@@ -122,6 +127,12 @@ jobs:
 
           opener = urllib.request.build_opener(NoRedirect())
 
+          def scoped_api_url(endpoint: str, **parameters: object) -> str:
+              # The scope carries a branch name the runner derived, and a ref name
+              # may legally contain characters a query string reads differently.
+              query = urllib.parse.urlencode({**parameters, **scope_parameters})
+              return f"https://sonarcloud.io/api/{endpoint}?{query}"
+
           def fetch(url: str) -> dict:
               request = urllib.request.Request(
                   url, headers={"Authorization": f"Basic {credentials}"}
@@ -131,8 +142,13 @@ jobs:
 
           def fetch_page(page: int) -> dict:
               return fetch(
-                  "https://sonarcloud.io/api/issues/search"
-                  f"?componentKeys={component_key}&{scope_query}&issueStatuses=OPEN,CONFIRMED,ACCEPTED,FALSE_POSITIVE&ps=100&p={page}"
+                  scoped_api_url(
+                      "issues/search",
+                      componentKeys=component_key,
+                      issueStatuses="OPEN,CONFIRMED,ACCEPTED,FALSE_POSITIVE",
+                      ps=100,
+                      p=page,
+                  )
               )
 
           def require_resolved_scope() -> None:
@@ -141,14 +157,11 @@ jobs:
               # measures of this exact scope first: it is 404 when the token,
               # the key or the scope does not resolve.
               try:
-                  fetch(
-                      "https://sonarcloud.io/api/measures/component"
-                      f"?component={component_key}&{scope_query}&metricKeys=ncloc"
-                  )
+                  fetch(scoped_api_url("measures/component", component=component_key, metricKeys="ncloc"))
               except urllib.error.HTTPError as error:
                   sys.exit(
                       f"SonarCloud did not resolve {component_key} in scope "
-                      f"{scope_query} (HTTP {error.code}): either no analysis "
+                      f"{scope_label} (HTTP {error.code}): either no analysis "
                       "exists for this scope — an unanalysed branch, a pull "
                       "request that does not exist, a mistyped key — or the "
                       "credential cannot see the project. Its findings were "
@@ -173,9 +186,9 @@ jobs:
               page += 1
 
           if total > 0:
-              print(f"{total} open SonarCloud finding(s) in scope {scope_query}", file=sys.stderr)
+              print(f"{total} open SonarCloud finding(s) in scope {scope_label}", file=sys.stderr)
               sys.exit(1)
 
           # A step that prints nothing on success cannot be shown to have run.
-          print(f"SonarCloud clean for '{component_key}' ({scope_query}): {total} open finding(s)")
+          print(f"SonarCloud clean for '{component_key}' ({scope_label}): {total} open finding(s)")
           PYTHON
