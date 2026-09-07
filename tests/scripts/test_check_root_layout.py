@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import sys
@@ -9,20 +10,46 @@ import check_root_layout
 
 ALLOWLIST = check_root_layout.REPOSITORY_ALLOWLIST
 GATE = Path(check_root_layout.__file__).resolve()
+# The identity travels on the command line, so the probe repository commits on a
+# machine and on a runner that configure none.
+GIT_IDENTITY = ("-c", "user.name=layout gate test", "-c", "user.email=gate@example.invalid")
 
 
-@pytest.fixture
-def gate_repository(tmp_path):
-    """A git repository carrying the gate under scripts/, as this repository does."""
-    (tmp_path / "scripts").mkdir()
-    shutil.copy(GATE, tmp_path / "scripts" / GATE.name)
-    (tmp_path / "README.md").write_text("a repository the gate is happy with\n")
-    subprocess.run(
-        ["git", "init", "--quiet"],  # noqa: S607 -- "git" resolved via PATH by design
-        cwd=tmp_path,
+def git(repository: Path, *arguments: str) -> None:
+    subprocess.run(  # noqa: S603 -- fixed argv built from the test's own literals
+        ["git", *GIT_IDENTITY, *arguments],  # noqa: S607 -- "git" resolved via PATH by design
+        cwd=repository,
         check=True,
         capture_output=True,
     )
+
+
+def commit_the_tree(repository: Path, message: str) -> None:
+    """Make the probe tree tracked, as a checked-out repository is."""
+    git(repository, "add", "--all")
+    git(repository, "commit", "--quiet", "--message", message)
+
+
+@pytest.fixture
+def gate_repository(tmp_path, monkeypatch):
+    """A git repository carrying the gate under scripts/, as this repository does.
+
+    Its tree is committed, because tracked and untracked paths reach the gate
+    through separate git calls and a fixture that only writes leaves the tracked
+    half unasserted.
+
+    The git configuration is pinned to the null device for this test and every
+    process it starts: the gate asks git which untracked files are ignored, so a
+    machine-wide ignore matching a probe file would otherwise turn a red path
+    green on that machine only.
+    """
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", os.devnull)
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(GATE, tmp_path / "scripts" / GATE.name)
+    (tmp_path / "README.md").write_text("a repository the gate is happy with\n")
+    git(tmp_path, "init", "--quiet")
+    commit_the_tree(tmp_path, "the probe tree")
     return tmp_path
 
 
@@ -49,6 +76,17 @@ def test_the_gate_names_a_stray_root_file_and_fails(gate_repository, working_dir
     (gate_repository / "NOTES.md").write_text("a stray at the root\n")
 
     completed = run_gate(gate_repository, gate_repository / working_directory)
+
+    assert completed.returncode == 1
+    assert "NOTES.md" in completed.stderr
+
+
+def test_the_gate_names_a_committed_stray_root_file_and_fails(gate_repository):
+    """A stray that already landed is as red as one that was never tracked."""
+    (gate_repository / "NOTES.md").write_text("a stray somebody committed\n")
+    commit_the_tree(gate_repository, "a stray at the root")
+
+    completed = run_gate(gate_repository, gate_repository)
 
     assert completed.returncode == 1
     assert "NOTES.md" in completed.stderr
