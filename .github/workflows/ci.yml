@@ -79,11 +79,14 @@ jobs:
       # in sonar-project.properties), so the report this reads is already
       # final. The quality gate itself passes on ratings (A/B/C), not on "0
       # findings on new code"; this queries the API directly for that stronger
-      # bar and fails loud, with the list, when it is not met. It reads with
-      # the same credential that produced the analysis, because the question
-      # is not who may read the project but whether anything was written for
-      # this scope. The token is basic auth user name with an empty password,
-      # never printed. issueStatuses includes ACCEPTED and FALSE_POSITIVE, not
+      # bar and fails loud, with the list, when it is not met. Unlike the
+      # reference this SonarCloud project is public, so no credential is
+      # needed to read it; the step sends one anyway, because the credential
+      # that reads an analysis must be the one that produced it (CLAUDE.md,
+      # "SonarCloud"), and this repository's own CI carries the scanner, so
+      # that token is present wherever this step runs. It is basic auth user
+      # name with an empty password, never printed. issueStatuses includes
+      # ACCEPTED and FALSE_POSITIVE, not
       # just OPEN/CONFIRMED: the SonarCloud UI is never the place to silence a
       # finding, so an accepted-in-the-UI finding must still fail this gate.
       - name: SonarCloud open findings
