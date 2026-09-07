@@ -79,16 +79,16 @@ jobs:
       # in sonar-project.properties), so the report this reads is already
       # final. The quality gate itself passes on ratings (A/B/C), not on "0
       # findings on new code"; this queries the API directly for that stronger
-      # bar and fails loud, with the list, when it is not met. Unlike the
-      # reference this SonarCloud project is public, so no credential is
-      # needed to read it; the step sends one anyway, because the credential
-      # that reads an analysis must be the one that produced it (CLAUDE.md,
-      # "SonarCloud"), and this repository's own CI carries the scanner, so
-      # that token is present wherever this step runs. It is basic auth user
-      # name with an empty password, never printed. issueStatuses includes
-      # ACCEPTED and FALSE_POSITIVE, not
-      # just OPEN/CONFIRMED: the SonarCloud UI is never the place to silence a
-      # finding, so an accepted-in-the-UI finding must still fail this gate.
+      # bar and fails loud, with the list, when it is not met. This SonarCloud
+      # project is public, so no credential is needed to read it; the step
+      # sends one anyway, because the credential that reads an analysis must be
+      # the one that produced it (CLAUDE.md, "SonarCloud"), and this
+      # repository's own CI carries the scanner, so that token is present
+      # wherever this step runs. It is basic auth user name with an empty
+      # password, never printed. issueStatuses includes ACCEPTED and
+      # FALSE_POSITIVE, not just OPEN/CONFIRMED: the SonarCloud UI is never the
+      # place to silence a finding, so an accepted-in-the-UI finding must still
+      # fail this gate.
       - name: SonarCloud open findings
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         # The per-call timeout gives the honest message; this is the hard
