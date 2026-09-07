@@ -75,8 +75,13 @@ def root_layout_problems(listing: Iterable[str], allowlist: RootAllowlist) -> tu
 
 
 def _git_listing(project_root: Path, *options: str) -> list[str]:
-    completed = subprocess.run(  # noqa: S603 -- fixed, literal argv; no untrusted input
-        ["git", "ls-files", "-z", *options],  # noqa: S607 -- "git" resolved via PATH by design
+    # The argv is fixed and literal, so no untrusted input reaches the call
+    # (S603), and "git" is left to PATH by design rather than pinned to one
+    # installation (S607). The reasons sit here because a `noqa` directive
+    # carries codes only -- prose after them is read as a further code, and
+    # SonarPython reports the malformed suppression (python:S7632).
+    completed = subprocess.run(  # noqa: S603
+        ["git", "ls-files", "-z", *options],  # noqa: S607
         cwd=project_root,
         check=True,
         capture_output=True,
