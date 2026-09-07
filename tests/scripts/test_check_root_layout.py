@@ -64,13 +64,6 @@ def run_gate(repository: Path, working_directory: Path) -> subprocess.CompletedP
     )
 
 
-def test_the_gate_passes_on_an_allowlisted_tree(gate_repository):
-    completed = run_gate(gate_repository, gate_repository)
-
-    assert completed.returncode == 0
-    assert "passed" in completed.stdout
-
-
 @pytest.mark.parametrize("working_directory", [".", "scripts"])
 def test_the_gate_names_a_stray_root_file_and_fails(gate_repository, working_directory):
     (gate_repository / "NOTES.md").write_text("a stray at the root\n")
@@ -90,6 +83,43 @@ def test_the_gate_names_a_committed_stray_root_file_and_fails(gate_repository):
 
     assert completed.returncode == 1
     assert "NOTES.md" in completed.stderr
+
+
+# The cases below call the gate in process instead of through `run_gate`.
+# `run_gate` starts a python process over a *copy* of the gate, so nothing it
+# exercises is ever recorded against the file this repository ships: driven
+# only that way, the gate's git boundary and its reporting read as untested,
+# and the scanner sees an analysed file with no coverage. The real process
+# stays above for what only it can answer -- that the gate judges the
+# repository carrying it, from whatever directory it was started.
+
+
+def test_the_listing_carries_the_tracked_and_the_untracked_half(gate_repository):
+    """Both halves reach the gate: a file that landed and one that only strayed onto the tree."""
+    (gate_repository / "untracked.md").write_text("a file nobody committed\n")
+
+    listing = check_root_layout.repository_listing(gate_repository)
+
+    assert "README.md" in listing
+    assert "untracked.md" in listing
+
+
+def test_the_gate_passes_on_an_allowlisted_tree(gate_repository, capsys):
+    assert check_root_layout.main(gate_repository) == 0
+    assert "passed" in capsys.readouterr().out
+
+
+def test_the_gate_names_every_problem_it_found(gate_repository, capsys):
+    """A failing run reports all of it, not the first thing it tripped over."""
+    (gate_repository / "stray.txt").write_text("a stray at the root\n")
+    (gate_repository / "tooling").mkdir()
+    (gate_repository / "tooling" / "helper.py").write_text("a stray directory\n")
+
+    assert check_root_layout.main(gate_repository) == 1
+
+    reported = capsys.readouterr().err
+    assert f"stray.txt: {check_root_layout.DEFAULT_HOME}" in reported
+    assert f"tooling/: {check_root_layout.DIRECTORY_HOME}" in reported
 
 
 def test_allowed_root_tree_passes():

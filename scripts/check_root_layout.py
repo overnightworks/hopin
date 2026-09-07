@@ -90,8 +90,8 @@ def repository_listing(project_root: Path) -> list[str]:
     return _git_listing(project_root) + _git_listing(project_root, "--others", "--exclude-standard")
 
 
-def main() -> int:
-    problems = root_layout_problems(repository_listing(REPO_ROOT), REPOSITORY_ALLOWLIST)
+def main(project_root: Path) -> int:
+    problems = root_layout_problems(repository_listing(project_root), REPOSITORY_ALLOWLIST)
     if problems:
         # A CLI gate reports to the terminal, not through structlog: it runs
         # in CI before the application, and its readers are humans in a log.
@@ -104,4 +104,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(REPO_ROOT))
