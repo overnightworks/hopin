@@ -148,6 +148,7 @@ def test_allowed_root_tree_passes():
         "pyproject.toml",
         "sonar-project.properties",
         "uv.lock",
+        ".aco/board.toml",
         ".github/workflows/ci.yml",
         "scripts/check_root_layout.py",
         "src/hopin/main.py",
