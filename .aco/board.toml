@@ -1,0 +1,2 @@
+body_contract = "block"
+merge_method = "squash"
