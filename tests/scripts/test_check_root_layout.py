@@ -150,6 +150,7 @@ def test_allowed_root_tree_passes():
         "uv.lock",
         ".aco/board.toml",
         ".github/workflows/ci.yml",
+        "quality/config.toml",
         "scripts/check_root_layout.py",
         "src/hopin/main.py",
         "tests/scripts/test_check_root_layout.py",
