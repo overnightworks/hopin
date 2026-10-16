@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   ci:
-    name: Lint, test, and scan
+    name: Lint and test
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -46,51 +46,29 @@ jobs:
 
       # Which files are measured is pyproject.toml's to say (the source key
       # under [tool.coverage.run]); this step only asks for the report the
-      # scanner reads, so a local run, the pre-commit hook and CI cannot
-      # disagree about the measured set.
+      # quality gate's scan reads, so a local run, the pre-commit hook and CI
+      # cannot disagree about the measured set.
       - name: Test with coverage
         run: pytest -q --cov-report=xml:coverage.xml
 
-      # SONAR_TOKEN is empty for fork-originated pull requests, and this
-      # repository's CI carries the scanner, so Automatic Analysis is off and
-      # such a pull request produces no analysis at all. Skip both scan steps
-      # there; the push to master and same-repo pull requests still run them.
-      # The condition sits on the steps rather than the job because this job
-      # also carries lint and tests, which a fork's pull request must keep.
-      - name: Scan with SonarCloud
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      # The check that carries these steps is named "Lint, test, and scan", so
-      # a silent skip reports a scan that never happened. A skip nobody can see
-      # is the same defect as a success that prints nothing.
-      - name: Report the skipped SonarCloud scan
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-        run: >-
-          echo "SonarCloud skipped: this pull request comes from a fork, which
-          receives no SONAR_TOKEN, and this repository's CI carries the scanner,
-          so no analysis exists for this pull request to read. This run asserts
-          lint, the root layout and the tests only; the code is scanned once it
-          runs from a branch in this repository."
-
-      # The scan step above blocks on the analysis (sonar.qualitygate.wait=true
-      # in sonar-project.properties), so the report this reads is already
-      # final. The quality gate itself passes on ratings (A/B/C), not on "0
-      # findings on new code"; the fleet's gate queries the API directly for
-      # that stronger bar and fails loud, with the list, when it is not met. It
-      # reads this repository's own sonar-project.properties from the
-      # workspace, and it needs a credential: this repository's CI carries the
-      # scanner, and the credential that reads an analysis must be the one that
-      # produced it (CLAUDE.md, "SonarCloud").
-      - name: SonarCloud open findings
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        # The per-call timeout gives the honest message; this is the hard
-        # ceiling, because the gate pages and a per-call bound multiplies. A
-        # composite action's inner steps take no timeout-minutes, so the
-        # ceiling belongs to the calling step.
-        timeout-minutes: 5
-        uses: overnightworks/marketplace/.github/actions/sonar-findings-gate@85b0e13e0530ed12b5a81208681015eda6f7854b # sonar-findings-gate-v1
+      - name: Upload the coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 1
+
+  quality:
+    name: quality
+    needs: [ci]
+    if: always()
+    permissions:
+      contents: read
+      actions: read
+    uses: overnightworks/quality/.github/workflows/gate.yml@75467b7888ab8158dda370c770d3323dfc1f594e # v0.1.1
+    with:
+      coverage-artifact: coverage
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
