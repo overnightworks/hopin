@@ -1,0 +1,2 @@
+[gate]
+mandatory_jobs = ["Lint and test"]

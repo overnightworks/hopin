@@ -35,7 +35,7 @@ ROOT_FILES = frozenset(
         "uv.lock",
     }
 )
-ROOT_DIRECTORIES = frozenset({".aco", ".github", "scripts", "src", "tests"})
+ROOT_DIRECTORIES = frozenset({".aco", ".github", "quality", "scripts", "src", "tests"})
 HOME_BY_SUFFIX = {
     ".py": "a helper belongs under scripts/, a fixture next to its test",
     ".md": "a document belongs next to its owner",
