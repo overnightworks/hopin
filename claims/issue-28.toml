@@ -1,8 +1,0 @@
-claim_id = "00c0f0e6a6564268a81bb9451ea56b95"
-agent = "Claude fe12493e-3d52-442e-b01b-4ee4336de2f0"
-role = "builder"
-base = "b28534fde9bfce2f8f7aeba34ab4116cb3ee15af"
-branch = "claude/issue-28-gate-adoption"
-scope = [".github/dependabot.yml", ".github/workflows/ci.yml", "AGENTS.md", "CLAUDE.md", "quality/config.toml", "scripts/check_root_layout.py", "sonar-project.properties", "tests/scripts/test_check_root_layout.py"]
-opened_commit = "24eeda2916c00b709263e5f3769e439ddafd1a27"
-whole_reason = "One gate adoption: the gate call, its config, the Sonar properties, the coverage wiring and the retired old checks land together or the required verdict breaks."
