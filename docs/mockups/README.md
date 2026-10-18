@@ -10,7 +10,7 @@ Blessed by the operator on 18.10.2026 ("ok bild sieht gut aus") as version 2 of
 
 It carries these rulings:
 
-- lines 1, 4, 6, 7 and 8 of #25
+- lines 1, 4, 6 and 7 of #25
 - the More-menu legal links
 - the dark stage in both themes
 - the leave dialog for the host only
