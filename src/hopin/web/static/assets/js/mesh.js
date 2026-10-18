@@ -3,7 +3,18 @@ import { SIGNAL_TYPE, on, send } from "./signaling.js";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
 import { state } from "./state.js";
 
-const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const ICE_SERVERS_PATH = "/api/ice-servers";
+
+let rtcConfiguration = { iceServers: [] };
+
+export async function loadIceServers() {
+    const response = await fetch(ICE_SERVERS_PATH);
+    if (!response.ok) {
+        throw new Error(`Could not load ICE servers (${response.status})`);
+    }
+    const { iceServers } = await response.json();
+    rtcConfiguration = { iceServers };
+}
 
 const connectionsByParticipant = new Map();
 let peersChanged = () => {};
@@ -17,7 +28,7 @@ export function peerCount() {
 }
 
 async function createPeerConnection(participantId, initiator) {
-    const connection = new RTCPeerConnection(RTC_CONFIG);
+    const connection = new RTCPeerConnection(rtcConfiguration);
     connectionsByParticipant.set(participantId, connection);
 
     if (state.localStream) {

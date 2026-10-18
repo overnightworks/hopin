@@ -33,7 +33,7 @@ The page is markup, one stylesheet and ES modules, served from
 | `app.js` | wiring, call start and leave, session message handlers |
 | `state.js` | call and local-media state |
 | `signaling.js` | WebSocket, `SIGNAL_TYPE`, reconnect, `send`, `on` |
-| `mesh.js` | peer connections, `RTC_CONFIG`, track sync to peers |
+| `mesh.js` | peer connections, the ICE servers from `/api/ice-servers`, track sync to peers |
 | `media.js` | local media, camera and screen share |
 | `quality.js` | round-trip indicator |
 | `chat.js` | chat panel and messages |

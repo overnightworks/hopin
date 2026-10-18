@@ -9,7 +9,13 @@ import {
 } from "./controls.js";
 import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
 import { acquireMedia, stopLocalMedia } from "./media.js";
-import { onPeersChanged, peerCount, registerMeshHandlers, removeAllPeers } from "./mesh.js";
+import {
+    loadIceServers,
+    onPeersChanged,
+    peerCount,
+    registerMeshHandlers,
+    removeAllPeers,
+} from "./mesh.js";
 import { playJoinSound, playLeaveSound } from "./sounds.js";
 import {
     SIGNAL_TYPE,
@@ -44,16 +50,18 @@ function updateLockUI() {
 function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return acquireMedia(preferCamera)
-        .then(() => {
-            showLocalStream(state.localStream);
-            renderVideoButton();
-            updateLocalPreview();
-            connect();
-        })
-        .catch((error) => {
-            setStatus(error.message, "error");
-        });
+    return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
+        const failure = outcomes.find((outcome) => outcome.status === "rejected");
+        if (failure) {
+            stopLocalMedia();
+            setStatus(failure.reason.message, "error");
+            return;
+        }
+        showLocalStream(state.localStream);
+        renderVideoButton();
+        updateLocalPreview();
+        connect();
+    });
 }
 
 function leaveCall() {

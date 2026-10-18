@@ -10,8 +10,9 @@ CALL_PATH = "/call"
 JOIN_PATH = "/join"
 HEALTH_PATH = "/health"
 STATIC_PATH = "/static"
+ICE_SERVERS_PATH = "/api/ice-servers"
 
-STUN_SERVER_URL = "stun:stun.l.google.com:19302"
+STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
 
 MAX_PARTICIPANTS_PER_ROOM = 6
 HOST_GRACE_SECONDS = 60

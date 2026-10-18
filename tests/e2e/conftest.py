@@ -1,5 +1,6 @@
 import http
 import http.client
+import re
 import socket
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page
+from playwright.sync_api import Browser, BrowserContext, Page, expect
 
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
@@ -24,6 +25,9 @@ FAKE_MEDIA_BROWSER_ARGS = [
     "--autoplay-policy=no-user-gesture-required",
 ]
 MEDIA_PERMISSIONS = ["camera", "microphone"]
+MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
+INVITE_LINK_PATTERN = re.compile(r"/join/\w+")
+LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 
 
 def _reserve_free_port() -> int:
@@ -106,3 +110,11 @@ def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Itera
     yield open_page
     for context in contexts:
         context.close()
+
+
+def start_call(host: Page, base_url: str) -> str:
+    host.goto(f"{base_url}/call")
+    host.click("#setupStartBtn")
+    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    return host.input_value("#shareUrl")
