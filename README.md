@@ -91,7 +91,7 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
-HopIn gives the host (the person who created the call) one way to control access:
+HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone.
 
 ### Room Locking
 
@@ -145,7 +145,9 @@ src/hopin/
 │   ├── models.py         # Room and Participant data models
 │   └── manager.py        # Room lifecycle management
 ├── signaling/
-│   └── handler.py        # WebSocket signaling for WebRTC
+│   ├── handler.py        # WebSocket signaling for WebRTC
+│   ├── identity.py       # Who a socket is, resolved at the handshake
+│   └── scheduler.py      # Timer port, injected so the host grace is testable
 ├── web/
 │   ├── routes.py         # HTTP route definitions
 │   └── static/
@@ -199,6 +201,10 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `existing_participants` | Server → Client | List of peers already in the room |
 | `participant_joined` | Server → Client | New peer joined your room |
 | `participant_left` | Server → Client | Peer left your room |
+| `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
+| `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
+| `end_room` | Client → Server | The host ends the call for everyone |
+| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out) or `ended` (the host ended it) |
 | `offer` | Client → Server → Client | WebRTC SDP offer (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |

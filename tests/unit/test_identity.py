@@ -2,7 +2,8 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from hopin.signaling.identity import Account, QueryIdIdentityResolver
+from hopin.rooms.models import Account
+from hopin.signaling.identity import QueryIdIdentityResolver
 
 
 @dataclass

@@ -1,21 +1,27 @@
 import json
+import math
 import secrets
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, NewType
 
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
+    HOST_GRACE_SECONDS,
     NORMAL_CLOSE_CODES,
     PEER_ID_BYTES,
     POLICY_VIOLATION_CLOSE_CODE,
     WEBSOCKET_DISCONNECT_EVENT,
+    RoomClosedReason,
     SignalType,
 )
 from hopin.errors import HopInError, InvalidMessageError, RoomNotFoundError
 from hopin.rooms.manager import RoomManager
-from hopin.signaling.identity import Account, IdentityResolver
+from hopin.rooms.models import Account
+from hopin.signaling.identity import IdentityResolver
+from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -29,14 +35,23 @@ class Peer:
     websocket: WebSocket
 
 
+@dataclass(frozen=True)
+class HostGrace:
+    host_peer_id: str
+    deadline: float
+    timer: TimerHandle
+
+
 def _mint_peer_id() -> PeerId:
     return PeerId(secrets.token_urlsafe(PEER_ID_BYTES))
 
 
 class SignalingHandler:
-    def __init__(self, room_manager: RoomManager, identity_resolver: IdentityResolver) -> None:
+    def __init__(self, room_manager: RoomManager, identity_resolver: IdentityResolver, scheduler: Scheduler) -> None:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
+        self._scheduler = scheduler
+        self._graces: dict[str, HostGrace] = {}
         self._peers: dict[PeerId, Peer] = {}
         self._peer_rooms: dict[str, str] = {}
 
@@ -91,6 +106,7 @@ class SignalingHandler:
             SignalType.LOCK_ROOM.value: self._handle_lock,
             SignalType.UNLOCK_ROOM.value: self._handle_unlock,
             SignalType.CHAT.value: self._handle_chat,
+            SignalType.END_ROOM.value: self._handle_end_room,
         }
 
         handler = handlers.get(signal_type)
@@ -109,69 +125,69 @@ class SignalingHandler:
             raise InvalidMessageError("room_id must be a string")
 
         if room_id is None:
-            room = self._room_manager.create_room(peer_id)
-            self._peer_rooms[peer_id] = room.room_id
-            await self._send(
-                peer_id,
-                {
-                    "type": SignalType.ROOM_CREATED.value,
-                    "room_id": room.room_id,
-                    "is_host": True,
-                },
-            )
-            await logger.ainfo("room_created", room_id=room.room_id, host=peer_id)
-            return
+            await self._create_room(peer_id)
+        else:
+            await self._join_room(peer_id, room_id)
 
-        room = self._room_manager.add_participant(room_id, peer_id)
+    async def _create_room(self, peer_id: PeerId) -> None:
+        room = self._room_manager.create_room(peer_id, self._account_of(peer_id))
+        self._peer_rooms[peer_id] = room.room_id
+        await self._send(
+            peer_id,
+            {
+                "type": SignalType.ROOM_CREATED.value,
+                "room_id": room.room_id,
+                "is_host": True,
+            },
+        )
+        await logger.ainfo("room_created", room_id=room.room_id, host=peer_id)
+
+    async def _join_room(self, peer_id: PeerId, room_id: str) -> None:
+        account = self._account_of(peer_id)
+        room = self._room_manager.add_participant(room_id, peer_id, account)
         self._peer_rooms[peer_id] = room_id
+        host_returned = room.is_hosted_by(account) and self._cancel_grace(room_id)
+        grace = self._graces.get(room_id)
+        others = [pid for pid in room.participant_ids if pid != peer_id]
 
-        existing_ids = [pid for pid in room.participant_ids if pid != peer_id]
         await self._send(
             peer_id,
             {
                 "type": SignalType.EXISTING_PARTICIPANTS.value,
-                "participants": existing_ids,
-                "is_host": False,
+                "participants": others,
+                "is_host": room.is_hosted_by(account),
                 "locked": room.locked,
             },
         )
-
-        for participant_id in existing_ids:
-            await self._send(
-                participant_id,
-                {
-                    "type": SignalType.PARTICIPANT_JOINED.value,
-                    "participant_id": peer_id,
-                },
-            )
+        if grace is not None:
+            await self._send(peer_id, self._host_away_frame(grace))
+        await self._send_all(others, {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id})
+        if host_returned:
+            await self._send_all(others, {"type": SignalType.HOST_BACK.value, "participant_id": peer_id})
 
         await logger.ainfo("participant_joined", room_id=room_id, participant=peer_id)
 
     async def _handle_lock(self, peer_id: PeerId, _data: dict[str, Any]) -> None:
-        room_id = self._peer_rooms.get(peer_id)
-        if not room_id:
-            return
-        room = self._room_manager.set_room_locked(room_id, peer_id, locked=True)
-        await self._broadcast_to_room(
-            room_id,
-            {
-                "type": SignalType.ROOM_LOCKED.value,
-            },
-        )
-        await logger.ainfo("room_locked", room_id=room.room_id, by=peer_id)
+        await self._set_locked(peer_id, locked=True)
 
     async def _handle_unlock(self, peer_id: PeerId, _data: dict[str, Any]) -> None:
+        await self._set_locked(peer_id, locked=False)
+
+    async def _set_locked(self, peer_id: PeerId, *, locked: bool) -> None:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
             return
-        room = self._room_manager.set_room_locked(room_id, peer_id, locked=False)
-        await self._broadcast_to_room(
-            room_id,
-            {
-                "type": SignalType.ROOM_UNLOCKED.value,
-            },
-        )
-        await logger.ainfo("room_unlocked", room_id=room.room_id, by=peer_id)
+        room = self._room_manager.set_room_locked(room_id, self._account_of(peer_id), locked=locked)
+        signal_type = SignalType.ROOM_LOCKED if locked else SignalType.ROOM_UNLOCKED
+        await self._broadcast_to_room(room_id, {"type": signal_type.value})
+        await logger.ainfo(signal_type.value, room_id=room.room_id, by=peer_id)
+
+    async def _handle_end_room(self, peer_id: PeerId, _data: dict[str, Any]) -> None:
+        room_id = self._peer_rooms.get(peer_id)
+        if not room_id:
+            return
+        self._room_manager.get_room_for_host(room_id, self._account_of(peer_id))
+        await self._end_room(room_id, RoomClosedReason.ENDED)
 
     async def _handle_chat(self, peer_id: PeerId, data: dict[str, Any]) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -181,16 +197,8 @@ class SignalingHandler:
         if not message:
             return
         room = self._room_manager.get_room(room_id)
-        for participant_id in room.participant_ids:
-            if participant_id != peer_id:
-                await self._send(
-                    participant_id,
-                    {
-                        "type": SignalType.CHAT.value,
-                        "message": message,
-                        "from": peer_id,
-                    },
-                )
+        others = [pid for pid in room.participant_ids if pid != peer_id]
+        await self._send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
 
     async def _handle_relay(self, peer_id: PeerId, data: dict[str, Any]) -> None:
         target_id = data.get("target")
@@ -198,6 +206,10 @@ class SignalingHandler:
             return
         if not isinstance(target_id, str):
             raise InvalidMessageError("target must be a string")
+        sender_room = self._peer_rooms.get(peer_id)
+        if sender_room is None or self._peer_rooms.get(target_id) != sender_room:
+            await logger.ainfo("relay_outside_room", peer_id=peer_id, target=target_id)
+            return
         await self._send(
             target_id,
             {
@@ -219,28 +231,64 @@ class SignalingHandler:
         except RoomNotFoundError:
             return
 
+        leaver = room.participants[peer_id]
         self._room_manager.remove_participant(room_id, peer_id)
+        remaining = room.participant_ids
 
-        if room.is_empty:
-            self._room_manager.remove_room(room_id)
-            await logger.ainfo("room_closed", room_id=room_id)
-            return
+        if room.is_hosted_by(leaver.account) and not room.host_present:
+            grace = self._start_grace(room_id, peer_id)
+            await self._send_all(remaining, self._host_away_frame(grace))
 
-        for participant_id in room.participant_ids:
-            await self._send(
-                participant_id,
-                {
-                    "type": SignalType.PARTICIPANT_LEFT.value,
-                    "participant_id": peer_id,
-                },
-            )
-
+        await self._send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
         await logger.ainfo("participant_left", room_id=room_id, participant=peer_id)
 
+    def _start_grace(self, room_id: str, host_peer_id: str) -> HostGrace:
+        timer = self._scheduler.call_later(HOST_GRACE_SECONDS, partial(self._expire_grace, room_id))
+        grace = HostGrace(
+            host_peer_id=host_peer_id,
+            deadline=self._scheduler.now() + HOST_GRACE_SECONDS,
+            timer=timer,
+        )
+        self._graces[room_id] = grace
+        return grace
+
+    def _cancel_grace(self, room_id: str) -> bool:
+        grace = self._graces.pop(room_id, None)
+        if grace is None:
+            return False
+        grace.timer.cancel()
+        return True
+
+    async def _expire_grace(self, room_id: str) -> None:
+        if room_id in self._graces:
+            await self._end_room(room_id, RoomClosedReason.HOST_GONE)
+
+    async def _end_room(self, room_id: str, reason: RoomClosedReason) -> None:
+        recipients = self._room_manager.get_room(room_id).participant_ids
+        for peer_id in recipients:
+            self._peer_rooms.pop(peer_id, None)
+        self._cancel_grace(room_id)
+        self._room_manager.remove_room(room_id)
+
+        await self._send_all(recipients, {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value})
+        await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
+
+    def _host_away_frame(self, grace: HostGrace) -> dict[str, Any]:
+        return {
+            "type": SignalType.HOST_AWAY.value,
+            "seconds_left": math.ceil(grace.deadline - self._scheduler.now()),
+            "participant_id": grace.host_peer_id,
+        }
+
+    def _account_of(self, peer_id: str) -> Account:
+        return self._peers[PeerId(peer_id)].account
+
     async def _broadcast_to_room(self, room_id: str, data: dict[str, Any]) -> None:
-        room = self._room_manager.get_room(room_id)
-        for participant_id in room.participant_ids:
-            await self._send(participant_id, data)
+        await self._send_all(self._room_manager.get_room(room_id).participant_ids, data)
+
+    async def _send_all(self, peer_ids: list[str], data: dict[str, Any]) -> None:
+        for peer_id in peer_ids:
+            await self._send(peer_id, data)
 
     async def _send(self, peer_id: str, data: dict[str, Any]) -> None:
         peer = self._peers.get(PeerId(peer_id))
