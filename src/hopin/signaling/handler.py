@@ -5,7 +5,7 @@ import structlog
 from starlette.websockets import WebSocket, WebSocketState
 
 from hopin.config.constants import NORMAL_CLOSE_CODE, NORMAL_CLOSE_CODES, WEBSOCKET_DISCONNECT_EVENT, SignalType
-from hopin.errors import HopInError, RoomNotFoundError
+from hopin.errors import HopInError, InvalidMessageError, RoomNotFoundError
 from hopin.rooms.manager import RoomManager
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -48,12 +48,16 @@ class SignalingHandler:
         try:
             data = json.loads(raw_data)
         except json.JSONDecodeError:
-            await self._send_error(connection_id, "Invalid JSON")
+            await self._send_error(connection_id, InvalidMessageError("Invalid JSON"))
+            return
+
+        if not isinstance(data, dict):
+            await self._send_error(connection_id, InvalidMessageError("Message must be a JSON object"))
             return
 
         signal_type = data.get("type")
         if signal_type is None:
-            await self._send_error(connection_id, "Missing signal type")
+            await self._send_error(connection_id, InvalidMessageError("Missing signal type"))
             return
 
         handlers: dict[str, Any] = {
@@ -68,20 +72,19 @@ class SignalingHandler:
 
         handler = handlers.get(signal_type)
         if handler is None:
-            await self._send_error(connection_id, f"Unknown signal type: {signal_type}")
+            await self._send_error(connection_id, InvalidMessageError(f"Unknown signal type: {signal_type}"))
             return
 
         try:
             await handler(connection_id, data)
         except HopInError as exc:
-            await self._send_error(connection_id, str(exc))
+            await self._send_error(connection_id, exc)
 
     async def _handle_join(self, connection_id: str, data: dict[str, Any]) -> None:
         room_id = data.get("room_id")
 
         if room_id is None:
-            password = data.get("password") or None
-            room = self._room_manager.create_room(connection_id, password=password)
+            room = self._room_manager.create_room(connection_id)
             self._connection_rooms[connection_id] = room.room_id
             await self._send(
                 connection_id,
@@ -94,8 +97,7 @@ class SignalingHandler:
             await logger.ainfo("room_created", room_id=room.room_id, host=connection_id)
             return
 
-        password = data.get("password")
-        room = self._room_manager.add_participant(room_id, connection_id, password=password)
+        room = self._room_manager.add_participant(room_id, connection_id)
         self._connection_rooms[connection_id] = room_id
 
         existing_ids = [pid for pid in room.participant_ids if pid != connection_id]
@@ -218,11 +220,12 @@ class SignalingHandler:
         if websocket and websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps(data))
 
-    async def _send_error(self, connection_id: str, message: str) -> None:
+    async def _send_error(self, connection_id: str, error: HopInError) -> None:
         await self._send(
             connection_id,
             {
                 "type": SignalType.ERROR.value,
-                "message": message,
+                "reason": error.reason.value,
+                "message": str(error),
             },
         )

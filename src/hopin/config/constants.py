@@ -39,3 +39,11 @@ class SignalType(StrEnum):
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
     CHAT = "chat"
+
+
+class ErrorReason(StrEnum):
+    NOT_FOUND = "not_found"
+    LOCKED = "locked"
+    FULL = "full"
+    NOT_HOST = "not_host"
+    INVALID_MESSAGE = "invalid_message"

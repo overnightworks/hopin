@@ -1,7 +1,7 @@
 import pytest
 
 from hopin.config.constants import ROOM_ID_LENGTH
-from hopin.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError, WrongPasswordError
+from hopin.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError
 from hopin.rooms.manager import RoomManager
 from hopin.rooms.models import Participant, Room
 
@@ -50,28 +50,6 @@ class TestRoom:
         )
         assert room.is_empty is False
 
-    def test_default_no_password(self):
-        room = Room(room_id="abc", host_id="h1")
-        assert room.has_password is False
-
-    def test_has_password_when_set(self):
-        room = Room(room_id="abc", host_id="h1", password="secret")
-        assert room.has_password is True
-
-    def test_verify_password_no_password_set(self):
-        room = Room(room_id="abc", host_id="h1")
-        assert room.verify_password(None) is True
-        assert room.verify_password("anything") is True
-
-    def test_verify_password_correct(self):
-        room = Room(room_id="abc", host_id="h1", password="secret")
-        assert room.verify_password("secret") is True
-
-    def test_verify_password_wrong(self):
-        room = Room(room_id="abc", host_id="h1", password="secret")
-        assert room.verify_password("wrong") is False
-        assert room.verify_password(None) is False
-
     def test_default_not_locked(self):
         room = Room(room_id="abc", host_id="h1")
         assert room.locked is False
@@ -91,15 +69,6 @@ class TestRoomManager:
         room = manager.create_room("host1")
         assert "host1" in room.participants
         assert room.participant_count == 1
-
-    def test_create_room_with_password(self, manager):
-        room = manager.create_room("host1", password="secret")
-        assert room.has_password is True
-        assert room.verify_password("secret") is True
-
-    def test_create_room_without_password(self, manager):
-        room = manager.create_room("host1")
-        assert room.has_password is False
 
     def test_create_room_generates_valid_id(self, manager):
         room = manager.create_room("host1")
@@ -135,37 +104,19 @@ class TestRoomManager:
         assert updated.participant_count == 2
         assert "p1" in updated.participants
 
-    def test_add_participant_with_correct_password(self, manager):
-        room = manager.create_room("h1", password="secret")
-        updated = manager.add_participant(room.room_id, "p1", password="secret")
-        assert "p1" in updated.participants
-
-    def test_add_participant_with_wrong_password(self, manager):
-        room = manager.create_room("h1", password="secret")
-        with pytest.raises(WrongPasswordError):
-            manager.add_participant(room.room_id, "p1", password="wrong")
-
-    def test_add_participant_missing_password(self, manager):
-        room = manager.create_room("h1", password="secret")
-        with pytest.raises(WrongPasswordError):
-            manager.add_participant(room.room_id, "p1", password=None)
-
-    def test_add_participant_no_password_required(self, manager):
-        room = manager.create_room("h1")
-        updated = manager.add_participant(room.room_id, "p1")
-        assert "p1" in updated.participants
-
     def test_add_participant_raises_when_locked(self, manager):
         room = manager.create_room("h1")
         room.locked = True
         with pytest.raises(RoomLockedError):
             manager.add_participant(room.room_id, "p1")
 
-    def test_add_participant_locked_checked_before_password(self, manager):
-        room = manager.create_room("h1", password="secret")
+    def test_add_participant_locked_and_full_raises_locked(self, manager):
+        room = manager.create_room("h1")
+        manager.add_participant(room.room_id, "p1")
+        manager.add_participant(room.room_id, "p2")
         room.locked = True
         with pytest.raises(RoomLockedError):
-            manager.add_participant(room.room_id, "p1", password="secret")
+            manager.add_participant(room.room_id, "p3")
 
     def test_add_participant_raises_when_full(self, manager):
         room = manager.create_room("h1")
