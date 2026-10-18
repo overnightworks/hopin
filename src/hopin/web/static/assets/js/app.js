@@ -50,16 +50,18 @@ function updateLockUI() {
 function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return Promise.all([acquireMedia(preferCamera), loadIceServers()])
-        .then(() => {
-            showLocalStream(state.localStream);
-            renderVideoButton();
-            updateLocalPreview();
-            connect();
-        })
-        .catch((error) => {
-            setStatus(error.message, "error");
-        });
+    return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
+        const failure = outcomes.find((outcome) => outcome.status === "rejected");
+        if (failure) {
+            stopLocalMedia();
+            setStatus(failure.reason.message, "error");
+            return;
+        }
+        showLocalStream(state.localStream);
+        renderVideoButton();
+        updateLocalPreview();
+        connect();
+    });
 }
 
 function leaveCall() {

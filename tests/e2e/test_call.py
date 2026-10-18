@@ -1,17 +1,15 @@
-import re
 from collections.abc import Callable
 from typing import Any
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page
+
+from tests.e2e.conftest import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, start_call
 
 pytestmark = pytest.mark.e2e
 
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
-MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
-INVITE_LINK_PATTERN = re.compile(r"/join/\w+")
-LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 TWO_PLAYING_VIDEOS = """
 () => {
     const playing = [...document.querySelectorAll("video")].filter((video) => video.videoWidth > 0);
@@ -25,11 +23,7 @@ def test_call_two_people_join_see_each_others_video(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
     host = open_person(**form_factor)
-    host.goto(f"{base_url}/call")
-    host.click("#setupStartBtn")
-    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
-    host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    invite_link = host.input_value("#shareUrl")
+    invite_link = start_call(host, base_url)
 
     guest = open_person(**form_factor)
     guest.goto(invite_link)

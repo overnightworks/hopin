@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.routes import STATIC_DIR
 
-ICE_URL_PATTERN = re.compile(r"(stuns?|turns?):", re.IGNORECASE)
+ICE_URL_PATTERN = re.compile(r"\b(stuns?|turns?):", re.IGNORECASE)
 
 
 def client_for(stun_server: str) -> TestClient:
@@ -17,7 +17,7 @@ def client_for(stun_server: str) -> TestClient:
 
 
 @pytest.mark.parametrize("method", ["get", "head"])
-def test_ice_servers_route_serves_the_configured_stun_server(method):
+def test_ice_servers_route_answers_ok_to_get_and_head(method):
     response = getattr(client_for("stun:stun.example.test:3478"), method)("/api/ice-servers")
     assert response.status_code == 200
 

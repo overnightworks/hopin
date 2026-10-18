@@ -16,7 +16,7 @@ class IceServerList(BaseModel):
 def create_ice_servers_router(stun_server: str) -> APIRouter:
     router = APIRouter()
 
-    @router.api_route(ICE_SERVERS_PATH, methods=READ_METHODS, response_model_by_alias=True)
+    @router.api_route(ICE_SERVERS_PATH, methods=READ_METHODS)
     def ice_servers() -> IceServerList:
         return IceServerList(ice_servers=[IceServer(urls=[stun_server])])
 
