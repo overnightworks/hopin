@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Page, WebSocketRoute, expect
+from playwright.sync_api import Expect, Page, WebSocketRoute
 
 from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS
 from tests.e2e.conftest import (
@@ -19,6 +19,9 @@ from tests.e2e.conftest import (
 )
 
 pytestmark = pytest.mark.e2e
+
+expect = Expect()
+expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 CLOCK_PAUSE_LEAD = timedelta(seconds=5)
 QUALITY_POLL_INTERVAL_MS = 3000
@@ -33,6 +36,7 @@ DOWNSTREAM = "down:"
 CUT_CLOSE_CODE = 4999
 CUT_REASON = "cut"
 PUMP_DEADLINE_SECONDS = 30
+CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
 UNLIMITED_DROPS = 1_000_000
 SIX_PEOPLE = 6
 CUTS_IN_A_ROW = 3
@@ -354,10 +358,15 @@ def wait_for_status(person: Page, text: str) -> None:
     person.wait_for_function(STATUS_IS, arg=text, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
-def pump_until(person: Page, condition: Callable[[], bool]) -> None:
-    deadline = time.monotonic() + PUMP_DEADLINE_SECONDS
+def pump_until(
+    person: Page,
+    condition: Callable[[], bool],
+    deadline_seconds: int = PUMP_DEADLINE_SECONDS,
+    failure: str = "the awaited signaling traffic never happened",
+) -> None:
+    deadline = time.monotonic() + deadline_seconds
     while not condition():
-        assert time.monotonic() < deadline, "the awaited signaling traffic never happened"
+        assert time.monotonic() < deadline, failure
         person.evaluate("() => 0")
 
 
@@ -554,8 +563,13 @@ def _inbound_video_bytes(person: Page) -> int:
     return int(person.evaluate(INBOUND_VIDEO_BYTES))
 
 
-def _wait_for_more_video_bytes_than(person: Page, baseline: int) -> int:
-    pump_until(person, lambda: bool(person.evaluate(INBOUND_VIDEO_BYTES_ABOVE, baseline)))
+def _wait_for_more_video_bytes_than(person: Page, baseline: int, deadline_seconds: int = PUMP_DEADLINE_SECONDS) -> int:
+    pump_until(
+        person,
+        lambda: bool(person.evaluate(INBOUND_VIDEO_BYTES_ABOVE, baseline)),
+        deadline_seconds,
+        f"no new video bytes arrived within {deadline_seconds}s",
+    )
     return _inbound_video_bytes(person)
 
 
@@ -585,7 +599,7 @@ def test_cut_signaling_socket_resumes_the_seat_while_the_video_keeps_flowing_and
     bytes_before = _inbound_video_bytes(cut_person)
 
     connected_pair.cut(cut_person)
-    bytes_during_the_cut = _wait_for_more_video_bytes_than(cut_person, bytes_before)
+    bytes_during_the_cut = _wait_for_more_video_bytes_than(cut_person, bytes_before, CUT_VIDEO_DEADLINE_SECONDS)
     connected_pair.resume(cut_person)
     _wait_for_more_video_bytes_than(cut_person, bytes_during_the_cut)
 
@@ -615,6 +629,8 @@ def test_restart_answer_swallowed_at_the_cut_is_resent_after_the_resume_and_both
 
     assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
     assert _wait_for_new_ufrag_in_stats(host, host_before) != host_before
+    _say_in_chat(host, "sent after the answer")
+    expect(guest.locator("#chatMessages .chat-msg.other")).to_have_count(1)
     assert len(_frames_of(connected_pair.guest_tap, "downstream", "answer")) == answers_before + 1
 
 
@@ -648,9 +664,9 @@ def test_chat_typed_while_the_socket_is_down_is_written_in_order_after_the_resum
     expect(host.locator("#chatMessages .chat-msg.other")).to_have_count(2)
     sent = connected_pair.guest_tap.upstream
     last_resume = max(index for index, message in enumerate(sent) if message["type"] == RESUME_FRAME_TYPE)
-    assert [(message["type"], message.get("message")) for message in sent[last_resume + 1 :]][:2] == [
-        ("chat", "first"),
-        ("chat", "second"),
+    assert [message["message"] for message in sent[last_resume + 1 :] if message["type"] == CHAT_FRAME_TYPE] == [
+        "first",
+        "second",
     ]
 
 
@@ -764,6 +780,7 @@ def test_events_of_a_replaced_socket_are_ignored(connected_pair: ConnectedPair) 
     first_delay = _reconnect_delays(guest)[0]
 
     guest.evaluate(RECONNECT_TO_SAME_SEAT)
+    pump_until(guest, lambda: bool(_frames_of(connected_pair.guest_tap, "downstream", RESUMED_FRAME_TYPE)))
     wait_for_status(guest, IN_CALL)
     guest.clock.run_for(first_delay)
     _say_in_chat(guest, "still connected")

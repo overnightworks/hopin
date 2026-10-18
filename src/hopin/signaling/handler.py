@@ -490,6 +490,8 @@ class SignalingHandler:
             await self._send(peer_id, data)
 
     async def _send(self, peer_id: str, data: dict[str, Any]) -> None:
+        # The browser drops frames at or below the last seq it dispatched, so nothing may await
+        # between assigning a frame's seq in the log and writing it.
         peer = self._peers.get(PeerId(peer_id))
         if peer is None:
             return
