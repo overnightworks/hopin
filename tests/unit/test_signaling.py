@@ -715,6 +715,25 @@ class TestSendToGonePeer:
         assert socket.sent == []
 
     @pytest.mark.asyncio
+    async def test_relay_through_handle_websocket_to_vanished_peer_still_answers_later_frames(
+        self, handler, room_manager
+    ):
+        gone_ws = register_peer(handler, "gone")
+        gone_ws.send_text.side_effect = WebSocketDisconnect(code=1006)
+        room = room_manager.create_room("gone", account_named("gone"))
+        socket = FakeSocket(
+            [
+                text_frame({"type": SignalType.JOIN.value, "room_id": room.room_id}),
+                text_frame({"type": SignalType.OFFER.value, "target": "gone"}),
+                {"type": "websocket.receive", "text": "not json"},
+                disconnect_frame(1005),
+            ]
+        )
+        await handler.handle_websocket(socket)
+        errors = [reply["reason"] for reply in socket.sent if reply["type"] == SignalType.ERROR.value]
+        assert errors == [ErrorReason.INVALID_MESSAGE.value]
+
+    @pytest.mark.asyncio
     async def test_send_over_a_transport_that_fails_is_a_no_op_via_starlette_translation(self, handler):
         async def receive():
             return {"type": "websocket.connect"}
@@ -904,7 +923,7 @@ class TestHostGrace:
 class TestEndRoom:
     @pytest.mark.asyncio
     async def test_host_ending_the_room_closes_it_as_ended_for_every_peer_including_the_host(
-        self, handler, room_manager, scheduler
+        self, handler, room_manager
     ):
         room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
 
