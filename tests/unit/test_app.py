@@ -24,6 +24,10 @@ class TestCreateApp:
         response = TestClient(create_app()).get("/health")
         assert response.status_code == 200
 
+    @pytest.mark.parametrize("path", ["/call", "/static/css/hopin.css", "/static/js/app.js"])
+    def test_serves_the_page_and_its_assets(self, path):
+        assert TestClient(create_app()).get(path).status_code == 200
+
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
     def test_generated_documentation_is_not_served(self, path):
         response = TestClient(create_app()).get(path)
