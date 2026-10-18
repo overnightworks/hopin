@@ -677,6 +677,8 @@ def test_two_restart_offers_made_while_the_socket_is_down_reach_the_host_as_one(
     )
     guest.clock.run_for(second_delay - (_restart_delay(guest, 0) - first_delay))
     wait_for_status(guest, IN_CALL)
+    _say_in_chat(guest, "sent after both offers")
+    expect(host.locator("#chatMessages .chat-msg.other")).to_have_count(1)
 
     assert _restart_offers(guest) == 2
     assert len(_frames_of(connected_pair.host_tap, "downstream", "offer")) == offers_before + 1
