@@ -9,6 +9,7 @@ WEBSOCKET_PATH = "/ws"
 CALL_PATH = "/call"
 JOIN_PATH = "/join"
 HEALTH_PATH = "/health"
+STATIC_PATH = "/static"
 
 STUN_SERVER_URL = "stun:stun.l.google.com:19302"
 
