@@ -1,0 +1,8 @@
+claim_id = "524ff2195fad41a4857e0d30eaa5046d"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "7ae1564a2fb495ffe05fe1e6f37e9a87518a2012"
+branch = "claude/issue-56-identity-port-peers-by-account"
+scope = ["README.md", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/errors.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/identity.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_identity.py", "tests/unit/test_signaling.py", "tests/unit/test_web.py"]
+opened_commit = "9927fea3bb01acad296cc0be60fe1e380ec28639"
+whole_reason = "The port, the server-minted key and the gone-peer no-op rewrite the same handshake and send path in handler.py and its two test modules; app.py, constants.py and test_web.py change only because the handler's constructor and close code change."
