@@ -730,9 +730,9 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
 
     guest.wait_for_function(ANSWER_APPLIED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     assert [INJECTED_REJECTION in error for error in connected_pair.page_errors] == [True]
+    connected_pair.page_errors.pop()
     assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
     assert _wait_for_new_ufrag_in_stats(host, host_before) != host_before
-    connected_pair.page_errors.clear()
 
 
 def test_every_cut_in_a_row_resumes_with_the_first_delay_because_each_resume_resets_the_attempts(
