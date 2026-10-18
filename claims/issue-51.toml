@@ -1,8 +1,0 @@
-claim_id = "5c6a2cf29e574f94ad1f5cc8efeff3a6"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "e38a81e7597b7f018b17ca6afd518ab455d22886"
-branch = "claude/issue-51-structured-refusals-password-goes"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "pyproject.toml", "src/hopin/config/constants.py", "src/hopin/errors.py", "src/hopin/rooms/manager.py", "src/hopin/rooms/models.py", "src/hopin/signaling/handler.py", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/dialogs.js", "src/hopin/web/static/assets/js/signaling.js", "src/hopin/web/static/index.html", "tests/integration/test_signaling_flow.py", "tests/unit/test_errors.py", "tests/unit/test_rooms.py", "tests/unit/test_signaling.py"]
-opened_commit = "3ad23b9add5e333b581e0e820be6cfeb6dc8581c"
-whole_reason = "The password is one of the refusals: removing it and naming every refusal rewrite the same error path in server, browser and tests, so either half alone rewrites what the other just wrote."
