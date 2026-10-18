@@ -115,6 +115,8 @@ src/hopin/
 
 scripts/            # repository tooling that CI and `make check` run
 └── check_root_layout.py
+
+docs/mockups/       # the blessed pictures a surface change starts from
 ```
 
 ## Development Commands
