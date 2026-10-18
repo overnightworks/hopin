@@ -1,8 +1,0 @@
-claim_id = "b949316112814549a0650f03c414a7f4"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "bdb5019dc30b91888c5a8c88e417b94fda3f31a9"
-branch = "claude/issue-38-freeze-picture-and-quality-v0-2-0"
-scope = [".github/workflows/ci.yml", "CLAUDE.md", "docs/mockups", "scripts/check_root_layout.py", "tests/scripts/test_check_root_layout.py"]
-opened_commit = "6c18d57e0784e9eb364568c6a53ecccf7b62b7ca"
-whole_reason = "Two small cards land as one bundle (#38 freezes the blessed picture, #40 bumps the quality gate); they touch disjoint lines."
