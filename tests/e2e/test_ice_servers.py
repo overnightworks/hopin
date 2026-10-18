@@ -44,9 +44,7 @@ LIVE_TRACK_COUNT = """
 ACQUIRED_TRACK_COUNT = "() => window.acquiredStreams.flatMap((stream) => stream.getTracks()).length"
 
 
-def test_call_peer_connections_use_the_servers_ice_servers(
-    open_person: Callable[..., Page], base_url: str
-) -> None:
+def test_call_peer_connections_use_the_servers_ice_servers(open_person: Callable[..., Page], base_url: str) -> None:
     host = open_person(**DESKTOP)
     guest = open_person(**DESKTOP)
     for person in (host, guest):
