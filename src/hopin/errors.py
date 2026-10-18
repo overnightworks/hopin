@@ -41,6 +41,3 @@ class NotHostError(HopInError):
 
 class InvalidMessageError(HopInError):
     reason = ErrorReason.INVALID_MESSAGE
-
-    def __init__(self, detail: str) -> None:
-        super().__init__(detail)

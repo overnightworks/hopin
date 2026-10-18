@@ -18,7 +18,8 @@ MAX_PARTICIPANTS_PER_ROOM = 6
 WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
 # 1005 is a close without a code, which is how HopIn's own client leaves.
 NORMAL_CLOSE_CODES = frozenset({1000, 1001, 1005})
-NORMAL_CLOSE_CODE = 1000
+POLICY_VIOLATION_CLOSE_CODE = 1008
+PEER_ID_BYTES = 16
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
 
 

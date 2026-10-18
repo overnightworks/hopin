@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from hopin.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH, STATIC_PATH
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
+from hopin.signaling.identity import QueryIdIdentityResolver
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 
 
@@ -18,7 +19,7 @@ def room_manager():
 
 @pytest.fixture
 def signaling_handler(room_manager):
-    return SignalingHandler(room_manager)
+    return SignalingHandler(room_manager, QueryIdIdentityResolver())
 
 
 @pytest.fixture
