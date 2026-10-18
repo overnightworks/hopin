@@ -9,6 +9,7 @@ WEBSOCKET_PATH = "/ws"
 CALL_PATH = "/call"
 JOIN_PATH = "/join"
 HEALTH_PATH = "/health"
+STATIC_PATH = "/static"
 
 STUN_SERVER_URL = "stun:stun.l.google.com:19302"
 
@@ -38,3 +39,11 @@ class SignalType(StrEnum):
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
     CHAT = "chat"
+
+
+class ErrorReason(StrEnum):
+    NOT_FOUND = "not_found"
+    LOCKED = "locked"
+    FULL = "full"
+    NOT_HOST = "not_host"
+    INVALID_MESSAGE = "invalid_message"

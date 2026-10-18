@@ -5,14 +5,15 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.app import create_app
-from hopin.config.constants import SignalType
+from hopin.config.constants import ErrorReason, SignalType
 from hopin.config.settings import ServerSettings
 
 
 @pytest.fixture
 def client():
     settings = ServerSettings(max_participants_per_room=3)
-    return TestClient(create_app(settings))
+    with TestClient(create_app(settings)) as shared_portal_client:
+        yield shared_portal_client
 
 
 @pytest.fixture
@@ -39,11 +40,12 @@ class TestRoomCreation:
         assert "room_id" in response
         assert response["is_host"] is True
 
-    def test_create_room_with_password(self, connect):
+    def test_create_room_ignores_a_password_key(self, connect):
         ws = connect("host1")
         ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
         response = ws.receive_json()
         assert response["type"] == SignalType.ROOM_CREATED.value
+        assert response["is_host"] is True
 
 
 @pytest.mark.integration
@@ -71,29 +73,7 @@ class TestJoining:
         ws.send_json({"type": SignalType.JOIN.value, "room_id": "nonexistent"})
         response = ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
-
-    def test_join_with_correct_password(self, connect):
-        host_ws = connect("host1")
-        host_ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
-        created = host_ws.receive_json()
-        room_id = created["room_id"]
-
-        p1_ws = connect("p1")
-        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id, "password": "secret"})
-        response = p1_ws.receive_json()
-        assert response["type"] == SignalType.EXISTING_PARTICIPANTS.value
-
-    def test_join_with_wrong_password_sends_error(self, connect):
-        host_ws = connect("host1")
-        host_ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
-        created = host_ws.receive_json()
-        room_id = created["room_id"]
-
-        p1_ws = connect("p1")
-        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id, "password": "wrong"})
-        response = p1_ws.receive_json()
-        assert response["type"] == SignalType.ERROR.value
-        assert "Wrong password" in response["message"]
+        assert response["reason"] == ErrorReason.NOT_FOUND.value
 
     def test_full_room_sends_error(self, connect):
         host_ws = connect("host1")
@@ -116,6 +96,7 @@ class TestJoining:
         p3_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
         response = p3_ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
+        assert response["reason"] == ErrorReason.FULL.value
 
 
 @pytest.mark.integration
@@ -161,7 +142,7 @@ class TestLockUnlock:
         p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
         response = p1_ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
-        assert "locked" in response["message"].lower()
+        assert response["reason"] == ErrorReason.LOCKED.value
 
     def test_unlock_allows_joining(self, connect):
         host_ws = connect("host1")

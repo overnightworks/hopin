@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HopIn - Video Call</title>
+    <link rel="stylesheet" href="/static/css/hopin.css">
+</head>
+<body>
+    <!-- Setup modal for hosts -->
+    <div id="setupModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>Start a new call</h2>
+            <label>
+                <input type="checkbox" id="setupCamOff">
+                Join without camera (audio only)
+            </label>
+            <div class="btn-row">
+                <button id="setupStartBtn" class="btn-primary">Start Call</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leave confirmation -->
+    <div id="leaveConfirm" class="confirm-overlay hidden">
+        <div class="confirm-box">
+            <p>Leave this call?</p>
+            <div class="btn-row">
+                <button id="leaveCancel" class="btn-secondary">Cancel</button>
+                <button id="leaveYes" class="btn-danger">Leave</button>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        <h1>HopIn</h1>
+        <div class="header-info">
+            <span id="participantCount" class="participant-count hidden">1</span>
+            <span id="lockIndicator" class="lock-indicator">Locked</span>
+            <div id="status" class="status status-disconnected">Not connected</div>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div class="video-area">
+            <div id="videoGrid" class="video-grid">
+                <div class="video-container" id="localContainer">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div id="localPlaceholder" class="video-placeholder hidden">
+                        <div class="avatar">You</div>
+                    </div>
+                    <div class="video-label">You</div>
+                </div>
+            </div>
+
+            <div id="shareBox" class="share-box">
+                <label for="shareUrl">Share:</label>
+                <input id="shareUrl" class="share-url" readonly>
+                <button id="copyBtn" class="btn-secondary">Copy</button>
+            </div>
+
+            <div class="controls">
+                <button id="muteBtn" class="btn-active">Mic On</button>
+                <button id="videoBtn" class="btn-active">Cam On</button>
+                <button id="screenBtn" class="btn-secondary">Share Screen</button>
+                <button id="lockBtn" class="btn-secondary hidden">Lock Room</button>
+                <span class="btn-chat-wrap">
+                    <button id="chatBtn" class="btn-secondary">Chat</button>
+                    <span id="chatBadge" class="chat-badge">0</span>
+                </span>
+                <button id="leaveBtn" class="btn-danger">Leave</button>
+            </div>
+        </div>
+
+        <div id="chatPanel" class="chat-panel">
+            <div class="chat-header">
+                <span>Chat</span>
+                <button id="chatClose" class="chat-close">x</button>
+            </div>
+            <div id="chatMessages" class="chat-messages"></div>
+            <div class="chat-input-row">
+                <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off" aria-label="Chat message">
+                <button id="chatSend" class="btn-primary">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

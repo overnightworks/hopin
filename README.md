@@ -32,7 +32,6 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 - **Video calls** with up to 6 participants (mesh topology)
 - **Screen sharing** — switch between camera and screen mid-call
 - **Mute/unmute** audio and video independently
-- **Room passwords** — optionally protect calls with a password
 - **Room locking** — host can lock/unlock the room to prevent new joins
 - **No accounts** — create a room, share the link, done
 - **Self-hosted** — runs on your machine, your data stays with you
@@ -92,16 +91,12 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
-HopIn gives the host (the person who created the call) two ways to control access:
-
-### Password Protection
-
-When starting a call, you can optionally set a password. Anyone who clicks the join link will be prompted to enter the password before they can join.
+HopIn gives the host (the person who created the call) one way to control access:
 
 ### Room Locking
 
 The host sees a **Lock Room** button in the controls bar. When locked:
-- No new participants can join (even with the correct password)
+- No new participants can join (the join link is refused as locked)
 - Existing participants stay connected
 - The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
 
@@ -155,7 +150,23 @@ src/hopin/
 ├── web/
 │   ├── routes.py         # HTTP route definitions
 │   └── static/
-│       └── call.html     # Video call frontend (single page)
+│       ├── index.html    # Video call page (markup only)
+│       └── assets/       # Served at /static
+│           ├── css/
+│           │   └── hopin.css
+│           └── js/       # ES modules, app.js is the entry point
+│               ├── app.js        # Wiring, call start and leave
+│               ├── state.js      # Call and local-media state
+│               ├── signaling.js  # WebSocket, reconnect, message handlers
+│               ├── mesh.js       # Peer connections
+│               ├── media.js      # Camera, microphone, screen share
+│               ├── quality.js    # Round-trip indicator
+│               ├── chat.js       # Chat panel
+│               ├── sounds.js     # Notification sounds
+│               ├── stage.js      # Video tiles and grid
+│               ├── controls.js   # Control bar and share box
+│               ├── status.js     # Status, lock, participant count
+│               └── dialogs.js    # Setup and leave dialogs
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring
 └── main.py               # Entry point
@@ -192,6 +203,7 @@ Messages are JSON over WebSocket. The server acts as a relay for connection setu
 | `offer` | Client → Server → Client | WebRTC SDP offer (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
+| `error` | Server → Client | a refusal or a bad frame, with its `reason` |
 
 ### Coding Guidelines
 

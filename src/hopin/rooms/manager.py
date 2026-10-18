@@ -2,7 +2,7 @@ import secrets
 import string
 
 from hopin.config.constants import ROOM_ID_LENGTH
-from hopin.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError, WrongPasswordError
+from hopin.errors import NotHostError, RoomFullError, RoomLockedError, RoomNotFoundError
 from hopin.rooms.models import Participant, Room
 
 
@@ -18,9 +18,9 @@ class RoomManager:
             if room_id not in self._rooms:
                 return room_id
 
-    def create_room(self, host_id: str, password: str | None = None) -> Room:
+    def create_room(self, host_id: str) -> Room:
         room_id = self._generate_room_id()
-        room = Room(room_id=room_id, host_id=host_id, password=password)
+        room = Room(room_id=room_id, host_id=host_id)
         room.participants[host_id] = Participant(participant_id=host_id)
         self._rooms[room_id] = room
         return room
@@ -31,12 +31,10 @@ class RoomManager:
             raise RoomNotFoundError(room_id)
         return room
 
-    def add_participant(self, room_id: str, participant_id: str, password: str | None = None) -> Room:
+    def add_participant(self, room_id: str, participant_id: str) -> Room:
         room = self.get_room(room_id)
         if room.locked:
             raise RoomLockedError(room_id)
-        if not room.verify_password(password):
-            raise WrongPasswordError(room_id)
         if room.participant_count >= self._max_participants_per_room:
             raise RoomFullError(room_id)
         room.participants[participant_id] = Participant(participant_id=participant_id)
