@@ -19,15 +19,28 @@ def client():
 @pytest.fixture
 def connect(client):
     with ExitStack() as sessions:
-        yield lambda connection_id: sessions.enter_context(client.websocket_connect(f"/ws?id={connection_id}"))
+        yield lambda account: sessions.enter_context(client.websocket_connect(f"/ws?id={account}"))
+
+
+def open_room(connect, account):
+    ws = connect(account)
+    ws.send_json({"type": SignalType.JOIN.value})
+    return ws, ws.receive_json()["room_id"]
+
+
+def join_room(connect, account, room_id):
+    ws = connect(account)
+    ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+    return ws, ws.receive_json()
 
 
 @pytest.mark.integration
 class TestConnect:
-    def test_connect_without_id_closes_the_socket(self, client):
-        with client.websocket_connect("/ws") as ws, pytest.raises(WebSocketDisconnect) as closed:
-            ws.receive_json()
-        assert closed.value.code == 1000
+    @pytest.mark.parametrize("path", ["/ws", "/ws?id="], ids=["missing_id", "empty_id"])
+    def test_connect_without_account_is_refused_at_the_handshake(self, client, path):
+        with pytest.raises(WebSocketDisconnect) as refused, client.websocket_connect(path):
+            pass
+        assert refused.value.code == 1008
 
 
 @pytest.mark.integration
@@ -61,12 +74,13 @@ class TestJoining:
 
         p1_response = p1_ws.receive_json()
         assert p1_response["type"] == SignalType.EXISTING_PARTICIPANTS.value
-        assert "host1" in p1_response["participants"]
+        [host_peer_id] = p1_response["participants"]
+        assert host_peer_id not in {"host1", "p1"}
         assert p1_response["is_host"] is False
 
         host_notification = host_ws.receive_json()
         assert host_notification["type"] == SignalType.PARTICIPANT_JOINED.value
-        assert host_notification["participant_id"] == "p1"
+        assert host_notification["participant_id"] not in {"host1", "p1", host_peer_id}
 
     def test_join_nonexistent_room_sends_error(self, connect):
         ws = connect("p1")
@@ -107,15 +121,14 @@ class TestRelay:
         created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = connect("p1")
-        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
-        p1_ws.receive_json()
-        host_ws.receive_json()
+        p1_ws, existing = join_room(connect, "p1", room_id)
+        [host_peer_id] = existing["participants"]
+        p1_peer_id = host_ws.receive_json()["participant_id"]
 
         p1_ws.send_json(
             {
                 "type": SignalType.OFFER.value,
-                "target": "host1",
+                "target": host_peer_id,
                 "sdp": "test_sdp_offer",
             },
         )
@@ -123,7 +136,7 @@ class TestRelay:
         relayed = host_ws.receive_json()
         assert relayed["type"] == SignalType.OFFER.value
         assert relayed["sdp"] == "test_sdp_offer"
-        assert relayed["from"] == "p1"
+        assert relayed["from"] == p1_peer_id
 
 
 @pytest.mark.integration
@@ -171,16 +184,14 @@ class TestDisconnect:
         created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = connect("p1")
-        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
-        p1_ws.receive_json()
-        host_ws.receive_json()
+        p1_ws, _existing = join_room(connect, "p1", room_id)
+        p1_peer_id = host_ws.receive_json()["participant_id"]
 
         p1_ws.close()
 
         left_msg = host_ws.receive_json()
         assert left_msg["type"] == SignalType.PARTICIPANT_LEFT.value
-        assert left_msg["participant_id"] == "p1"
+        assert left_msg["participant_id"] == p1_peer_id
 
 
 @pytest.mark.integration
@@ -203,9 +214,8 @@ class TestChat:
         created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = connect("p1")
-        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
-        p1_ws.receive_json()
+        p1_ws, existing = join_room(connect, "p1", room_id)
+        [host_peer_id] = existing["participants"]
         host_ws.receive_json()
 
         host_ws.send_json({"type": SignalType.CHAT.value, "message": "hello everyone"})
@@ -213,4 +223,48 @@ class TestChat:
         chat_msg = p1_ws.receive_json()
         assert chat_msg["type"] == SignalType.CHAT.value
         assert chat_msg["message"] == "hello everyone"
-        assert chat_msg["from"] == "host1"
+        assert chat_msg["from"] == host_peer_id
+
+
+@pytest.mark.integration
+class TestPeersAreServerMinted:
+    def test_two_sockets_of_one_account_join_as_two_peers_that_reach_each_other(self, connect):
+        first_ws, room_id = open_room(connect, "alice")
+        second_ws, existing = join_room(connect, "alice", room_id)
+        [first_peer_id] = existing["participants"]
+        second_peer_id = first_ws.receive_json()["participant_id"]
+        assert first_peer_id != second_peer_id
+
+        second_ws.send_json({"type": SignalType.OFFER.value, "target": first_peer_id, "sdp": "from_second"})
+        first_ws.send_json({"type": SignalType.OFFER.value, "target": second_peer_id, "sdp": "from_first"})
+
+        to_first = first_ws.receive_json()
+        to_second = second_ws.receive_json()
+        assert (to_first["sdp"], to_first["from"]) == ("from_second", second_peer_id)
+        assert (to_second["sdp"], to_second["from"]) == ("from_first", first_peer_id)
+
+    def test_socket_naming_another_peers_minted_id_does_not_take_over_its_entry(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, existing = join_room(connect, "guest", room_id)
+        [host_peer_id] = existing["participants"]
+        guest_peer_id = host_ws.receive_json()["participant_id"]
+
+        _impostor_ws, impostor_existing = join_room(connect, host_peer_id, room_id)
+        assert set(impostor_existing["participants"]) == {host_peer_id, guest_peer_id}
+        impostor_peer_id = host_ws.receive_json()["participant_id"]
+        guest_ws.receive_json()
+        assert impostor_peer_id != host_peer_id
+
+        guest_ws.send_json({"type": SignalType.OFFER.value, "target": host_peer_id, "sdp": "for_host"})
+
+        relayed = host_ws.receive_json()
+        assert (relayed["sdp"], relayed["from"]) == ("for_host", guest_peer_id)
+
+    def test_relay_to_an_unknown_peer_leaves_the_sender_connected(self, connect):
+        ws, _room_id = open_room(connect, "host1")
+
+        ws.send_json({"type": SignalType.OFFER.value, "target": "nobody", "sdp": "lost"})
+        ws.send_json({"type": SignalType.OFFER.value, "target": []})
+
+        response = ws.receive_json()
+        assert response["reason"] == ErrorReason.INVALID_MESSAGE.value
