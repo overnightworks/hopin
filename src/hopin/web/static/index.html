@@ -7,22 +7,10 @@
     <link rel="stylesheet" href="/static/css/hopin.css">
 </head>
 <body>
-    <!-- Password modal for joiners -->
-    <div id="passwordModal" class="modal-overlay hidden">
-        <div class="modal">
-            <h2>This call requires a password</h2>
-            <input id="joinPasswordInput" type="password" placeholder="Enter password" aria-label="Call password">
-            <div class="btn-row">
-                <button id="joinPasswordBtn" class="btn-primary">Join</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Setup modal for hosts -->
     <div id="setupModal" class="modal-overlay hidden">
         <div class="modal">
             <h2>Start a new call</h2>
-            <input id="setupPasswordInput" type="text" placeholder="Set password (optional)" aria-label="Set call password">
             <label>
                 <input type="checkbox" id="setupCamOff">
                 Join without camera (audio only)

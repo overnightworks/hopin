@@ -7,14 +7,16 @@ import structlog
 import structlog.testing
 from starlette.websockets import WebSocketState
 
-from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT, SignalType
+from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT, ErrorReason, SignalType
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
+
+ROOM_LIMIT = 5
 
 
 @pytest.fixture
 def room_manager():
-    return RoomManager(max_participants_per_room=5)
+    return RoomManager(max_participants_per_room=ROOM_LIMIT)
 
 
 @pytest.fixture
@@ -65,30 +67,58 @@ class FakeSocket:
         return None
 
 
-class TestHandleMessage:
+def join_unknown_room(_handler, room_manager):
+    return json.dumps({"type": SignalType.JOIN.value, "room_id": "nonexistent"})
+
+
+def join_locked_room(_handler, room_manager):
+    room = room_manager.create_room("host1")
+    room_manager.set_room_locked(room.room_id, "host1", locked=True)
+    return json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id})
+
+
+def join_full_room(_handler, room_manager):
+    room = room_manager.create_room("host1")
+    for index in range(ROOM_LIMIT - 1):
+        room_manager.add_participant(room.room_id, f"member{index}")
+    return json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id})
+
+
+def lock_as_participant(handler, room_manager):
+    room = room_manager.create_room("host1")
+    room_manager.add_participant(room.room_id, "sender")
+    handler._connection_rooms["sender"] = room.room_id
+    return json.dumps({"type": SignalType.LOCK_ROOM.value})
+
+
+class TestHandleMessageRefusals:
+    @pytest.mark.parametrize(
+        ("reason", "arrange"),
+        [
+            pytest.param(ErrorReason.NOT_FOUND, join_unknown_room, id="join_unknown_room"),
+            pytest.param(ErrorReason.LOCKED, join_locked_room, id="join_locked_room"),
+            pytest.param(ErrorReason.FULL, join_full_room, id="join_full_room"),
+            pytest.param(ErrorReason.NOT_HOST, lock_as_participant, id="lock_as_participant"),
+            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: "not json", id="not_json"),
+            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: "[]", id="json_array"),
+            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: json.dumps({"foo": "bar"}), id="no_type"),
+            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: json.dumps({"type": "unknown"}), id="unknown_type"),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_invalid_json_sends_error(self, handler):
-        ws = register_connection(handler, "c1")
-        await handler._handle_message("c1", "not json")
+    async def test_handle_message_refused_request_sends_error_frame_with_reason(
+        self, handler, room_manager, reason, arrange
+    ):
+        ws = register_connection(handler, "sender")
+        raw_data = arrange(handler, room_manager)
+
+        await handler._handle_message("sender", raw_data)
+
         ws.send_text.assert_called_once()
         response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
-
-    @pytest.mark.asyncio
-    async def test_missing_type_sends_error(self, handler):
-        ws = register_connection(handler, "c1")
-        await handler._handle_message("c1", json.dumps({"foo": "bar"}))
-        response = json.loads(ws.send_text.call_args[0][0])
-        assert response["type"] == SignalType.ERROR.value
-        assert "Missing" in response["message"]
-
-    @pytest.mark.asyncio
-    async def test_unknown_type_sends_error(self, handler):
-        ws = register_connection(handler, "c1")
-        await handler._handle_message("c1", json.dumps({"type": "unknown"}))
-        response = json.loads(ws.send_text.call_args[0][0])
-        assert response["type"] == SignalType.ERROR.value
-        assert "Unknown" in response["message"]
+        assert response["reason"] == reason.value
+        assert response["message"]
 
 
 class TestJoinCreateRoom:
@@ -306,54 +336,6 @@ class TestDisconnect:
         assert room_manager.has_room(room.room_id)
 
 
-class TestJoinWithPassword:
-    @pytest.mark.asyncio
-    async def test_create_room_with_password(self, handler):
-        ws = register_connection(handler, "host1")
-        await handler._handle_message(
-            "host1",
-            json.dumps({"type": SignalType.JOIN.value, "password": "secret"}),
-        )
-        response = json.loads(ws.send_text.call_args[0][0])
-        assert response["type"] == SignalType.ROOM_CREATED.value
-        assert response["is_host"] is True
-
-    @pytest.mark.asyncio
-    async def test_join_with_correct_password(self, handler, room_manager):
-        register_connection(handler, "host1")
-        register_connection(handler, "p1")
-
-        room = room_manager.create_room("host1", password="secret")
-        handler._connection_rooms["host1"] = room.room_id
-
-        await handler._handle_message(
-            "p1",
-            json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id, "password": "secret"}),
-        )
-
-        p1_ws = handler._connections["p1"]
-        calls = p1_ws.send_text.call_args_list
-        existing_msg = json.loads(calls[0][0][0])
-        assert existing_msg["type"] == SignalType.EXISTING_PARTICIPANTS.value
-        assert existing_msg["is_host"] is False
-
-    @pytest.mark.asyncio
-    async def test_join_with_wrong_password(self, handler, room_manager):
-        register_connection(handler, "host1")
-
-        room = room_manager.create_room("host1", password="secret")
-        handler._connection_rooms["host1"] = room.room_id
-
-        ws = register_connection(handler, "p1")
-        await handler._handle_message(
-            "p1",
-            json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id, "password": "wrong"}),
-        )
-        response = json.loads(ws.send_text.call_args[0][0])
-        assert response["type"] == SignalType.ERROR.value
-        assert "Wrong password" in response["message"]
-
-
 class TestLockUnlock:
     @pytest.mark.asyncio
     async def test_host_can_lock_room(self, handler, room_manager):
@@ -394,41 +376,6 @@ class TestLockUnlock:
         response = json.loads(host_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ROOM_UNLOCKED.value
         assert room.locked is False
-
-    @pytest.mark.asyncio
-    async def test_non_host_cannot_lock(self, handler, room_manager):
-        register_connection(handler, "host1")
-        p1_ws = register_connection(handler, "p1")
-
-        room = room_manager.create_room("host1")
-        room_manager.add_participant(room.room_id, "p1")
-        handler._connection_rooms["host1"] = room.room_id
-        handler._connection_rooms["p1"] = room.room_id
-
-        await handler._handle_message(
-            "p1",
-            json.dumps({"type": SignalType.LOCK_ROOM.value}),
-        )
-
-        response = json.loads(p1_ws.send_text.call_args[0][0])
-        assert response["type"] == SignalType.ERROR.value
-
-    @pytest.mark.asyncio
-    async def test_locked_room_rejects_new_participants(self, handler, room_manager):
-        register_connection(handler, "host1")
-        room = room_manager.create_room("host1")
-        handler._connection_rooms["host1"] = room.room_id
-        room_manager.set_room_locked(room.room_id, "host1", locked=True)
-
-        ws = register_connection(handler, "p1")
-        await handler._handle_message(
-            "p1",
-            json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
-        )
-
-        response = json.loads(ws.send_text.call_args[0][0])
-        assert response["type"] == SignalType.ERROR.value
-        assert "locked" in response["message"].lower()
 
     @pytest.mark.asyncio
     async def test_lock_without_room_is_safe(self, handler):

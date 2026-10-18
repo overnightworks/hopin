@@ -1,23 +1,39 @@
 import pytest
 
+from hopin.config.constants import ErrorReason
 from hopin.errors import (
     HopInError,
+    InvalidMessageError,
     NotHostError,
     RoomFullError,
     RoomLockedError,
     RoomNotFoundError,
-    WrongPasswordError,
 )
 
 
 class TestErrorHierarchy:
     def test_all_errors_inherit_from_base(self):
-        errors = [RoomNotFoundError, RoomFullError, RoomLockedError, WrongPasswordError, NotHostError]
+        errors = [RoomNotFoundError, RoomFullError, RoomLockedError, NotHostError, InvalidMessageError]
         for error_cls in errors:
             assert issubclass(error_cls, HopInError)
 
     def test_base_inherits_from_exception(self):
         assert issubclass(HopInError, Exception)
+
+
+class TestErrorReason:
+    @pytest.mark.parametrize(
+        ("error", "reason"),
+        [
+            (RoomNotFoundError("abc123"), ErrorReason.NOT_FOUND),
+            (RoomLockedError("abc123"), ErrorReason.LOCKED),
+            (RoomFullError("abc123"), ErrorReason.FULL),
+            (NotHostError("abc123"), ErrorReason.NOT_HOST),
+            (InvalidMessageError("bad frame"), ErrorReason.INVALID_MESSAGE),
+        ],
+    )
+    def test_reason_error_type_carries_its_reason(self, error, reason):
+        assert error.reason is reason
 
 
 class TestRoomNotFoundError:
@@ -49,13 +65,9 @@ class TestRoomLockedError:
         assert "abc123" in str(RoomLockedError("abc123"))
 
 
-class TestWrongPasswordError:
-    def test_stores_room_id(self):
-        error = WrongPasswordError("abc123")
-        assert error.room_id == "abc123"
-
-    def test_message_contains_room_id(self):
-        assert "abc123" in str(WrongPasswordError("abc123"))
+class TestInvalidMessageError:
+    def test_message_is_the_detail(self):
+        assert str(InvalidMessageError("Invalid JSON")) == "Invalid JSON"
 
 
 class TestNotHostError:
