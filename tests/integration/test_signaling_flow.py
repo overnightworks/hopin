@@ -12,7 +12,8 @@ from hopin.config.settings import ServerSettings
 @pytest.fixture
 def client():
     settings = ServerSettings(max_participants_per_room=3)
-    return TestClient(create_app(settings))
+    with TestClient(create_app(settings)) as shared_portal_client:
+        yield shared_portal_client
 
 
 @pytest.fixture
