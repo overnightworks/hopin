@@ -154,7 +154,23 @@ src/hopin/
 ├── web/
 │   ├── routes.py         # HTTP route definitions
 │   └── static/
-│       └── call.html     # Video call frontend (single page)
+│       ├── index.html    # Video call page (markup only)
+│       └── assets/       # Served at /static
+│           ├── css/
+│           │   └── hopin.css
+│           └── js/       # ES modules, app.js is the entry point
+│               ├── app.js        # Wiring, call start and leave
+│               ├── state.js      # Call and local-media state
+│               ├── signaling.js  # WebSocket, reconnect, message handlers
+│               ├── mesh.js       # Peer connections
+│               ├── media.js      # Camera, microphone, screen share
+│               ├── quality.js    # Round-trip indicator
+│               ├── chat.js       # Chat panel
+│               ├── sounds.js     # Notification sounds
+│               ├── stage.js      # Video tiles and grid
+│               ├── controls.js   # Control bar and share box
+│               ├── status.js     # Status, lock, participant count
+│               └── dialogs.js    # Setup, password and leave dialogs
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring
 └── main.py               # Entry point
