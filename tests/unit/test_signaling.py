@@ -721,6 +721,7 @@ class TestSendToGonePeer:
         gone_ws = register_peer(handler, "gone")
         gone_ws.send_text.side_effect = WebSocketDisconnect(code=1006)
         room = room_manager.create_room("gone", account_named("gone"))
+        handler._peer_rooms["gone"] = room.room_id
         socket = FakeSocket(
             [
                 text_frame({"type": SignalType.JOIN.value, "room_id": room.room_id}),
