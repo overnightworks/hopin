@@ -18,7 +18,6 @@ async function capSender(sender, maxBitrate) {
 }
 
 export async function applyUploadCaps(connections) {
-    if (connections.length === 0) return;
     const maxBitrate = videoBitrateCap(connections.length);
     const senders = connections.flatMap(videoSenders);
     await Promise.all(senders.map((sender) => capSender(sender, maxBitrate)));

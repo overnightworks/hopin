@@ -1,6 +1,6 @@
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -120,7 +120,6 @@ async ([peerCount, ceiling]) => {
 @dataclass
 class OfferDrops:
     remaining: int = 0
-    dropped: list[str] = field(default_factory=list)
 
     def should_drop(self, frame: str | bytes) -> bool:
         if self.remaining <= 0 or json.loads(frame)["type"] != OFFER_FRAME_TYPE:
@@ -137,10 +136,6 @@ class ConnectedPair:
 
     def force_failed_on(self, person: Page) -> None:
         person.evaluate(FORCE_STATE, "failed")
-
-    def run_clocks(self, milliseconds: int) -> None:
-        for person in (self.host, self.guest):
-            person.clock.run_for(milliseconds)
 
 
 def _relay_with_drops(drops: OfferDrops) -> Callable[[WebSocketRoute], None]:
