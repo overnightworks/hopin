@@ -1,0 +1,7 @@
+claim_id = "7492eccb9ca84b1a93e67bfe1db5e161"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "7ae1564a2fb495ffe05fe1e6f37e9a87518a2012"
+branch = "fix/integration-testclient-portal"
+scope = ["tests/integration/test_signaling_flow.py"]
+opened_commit = "8d60a3c5ec556ba08a5c9cc0eaf64200b249c9b3"
