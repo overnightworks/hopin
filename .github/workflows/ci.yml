@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: overnightworks/quality/.github/workflows/gate.yml@75467b7888ab8158dda370c770d3323dfc1f594e # v0.1.1
+    uses: overnightworks/quality/.github/workflows/gate.yml@b16b5255e00adcb45bd1f52b3439b018d63d0364 # v0.2.0
     with:
       coverage-artifact: coverage
     secrets:

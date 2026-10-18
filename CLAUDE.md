@@ -75,9 +75,10 @@ Users start a call and share a link — friends click and join instantly in the 
   `[tool.coverage.report]` in `pyproject.toml`. The legacy rating is never
   chased; a fresh finding on any code is a merge blocker.
 - CI's `quality` job (`overnightworks/quality`, pinned by SHA in `ci.yml`)
-  runs the scan and fails a pull request on any unresolved finding in PR scope.
-  On a branch push it only reports the findings, because v0.1.1 has no baseline
-  to fail against yet. It queries the findings directly rather
+  runs the scan. A run on `master` fails on any open finding; other branch
+  pushes only report them. A pull request fails only on new findings while
+  `[gate] legacy` is absent from `quality/config.toml` (absent means
+  "report"). It queries the findings directly rather
   than trusting the quality gate, which only grades ratings, and its
   `quality / verdict` is the required check. The scan reads the coverage report
   the `ci` job uploads as the `coverage` artifact. `sonar-project.properties`
