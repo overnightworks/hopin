@@ -1,0 +1,1606 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HopIn Call Prototype</title>
+<style>
+/* Layout: a German control strip on top, one device at real size in the middle, the #25 line it proves underneath, notes beside or below. */
+:root {
+  --canvas: #E3E8EB;
+  --canvas-glow: #D3E4E6;
+  --app: #F6F8F9;
+  --surface: #FFFFFF;
+  --surface-2: #EEF2F4;
+  --surface-3: #E3E8EC;
+  --ink: #14181D;
+  --ink-soft: #5C6774;
+  --ink-faint: #8A94A0;
+  --line: #D2D8DD;
+  --line-soft: #E4E8EB;
+  --accent: #0C6C77;
+  --accent-hover: #0A5D67;
+  --accent-soft: #DCEDEE;
+  --accent-ink: #0A5560;
+  --on-accent: #FFFFFF;
+  --ok: #1D7444;
+  --busy: #9A6200;
+  --busy-soft: #F6EAD3;
+  --fail: #AC2222;
+  --fail-soft: #F6E1E0;
+  --scrim: rgba(14, 18, 22, .36);
+  --shadow-sm: 0 1px 2px rgba(20, 24, 29, .06), 0 2px 8px -4px rgba(20, 24, 29, .14);
+  --shadow-lg: 0 2px 6px rgba(20, 24, 29, .06), 0 28px 64px -28px rgba(20, 24, 29, .42);
+  --shadow-device: 0 2px 4px rgba(20, 24, 29, .08), 0 40px 80px -36px rgba(20, 24, 29, .55);
+  --chrome: #EEF1F3;
+  --chrome-line: #D9DEE2;
+  --toast-bg: #1C2128;
+  --toast-ink: #F4F6F8;
+
+  /* The video stage is dark in both themes; these never change. */
+  --stage: #0D1013;
+  --stage-2: #171B20;
+  --stage-3: #252B32;
+  --on-stage: #F4F6F8;
+  --on-stage-soft: rgba(244, 246, 248, .72);
+  --glass: rgba(255, 255, 255, .15);
+  --glass-hover: rgba(255, 255, 255, .24);
+  --glass-dark: rgba(12, 14, 17, .55);
+  --stage-fade: rgba(13, 16, 19, .92);
+  --vignette: rgba(6, 8, 10, .42);
+  --silhouette: rgba(255, 255, 255, .13);
+  --accent-stage: #56C3CD;
+  --busy-stage: #EDB656;
+  --leave: #E5484D;
+  --leave-hover: #CF3A3F;
+  --on-leave: #FFFFFF;
+  --bezel: #0B0C0E;
+  --bezel-edge: #34383F;
+  --dot-1: #FF5F57;
+  --dot-2: #FEBC2E;
+  --dot-3: #28C840;
+
+  /* Placeholder video, one soft gradient per person. */
+  --felix-1: #2E6E79; --felix-2: #8FC5B6;
+  --anna-1: #B2596C; --anna-2: #F0B49C;
+  --ben-1: #4357A8; --ben-2: #96AEEE;
+  --chris-1: #5F7C33; --chris-2: #C3D48A;
+  --dana-1: #7C4FA3; --dana-2: #D3B0E8;
+  --emil-1: #A06A24; --emil-2: #EFCB88;
+  --scene-1: #31506A; --scene-2: #C7A46A;
+  --slide-bg: #FBFAF7;
+  --slide-ink: #1F2328;
+  --slide-soft: #6B7280;
+  --slide-a: #DCEDEE;
+  --slide-b: #F6EAD3;
+  --slide-c: #E6E1F5;
+
+  --sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #090B0E;
+    --canvas-glow: #10262A;
+    --app: #111418;
+    --surface: #1A1F25;
+    --surface-2: #232930;
+    --surface-3: #2D343C;
+    --ink: #E8ECF0;
+    --ink-soft: #9BA5B1;
+    --ink-faint: #737E8B;
+    --line: #2C333C;
+    --line-soft: #242A32;
+    --accent: #56C3CD;
+    --accent-hover: #74D2DA;
+    --accent-soft: #16333A;
+    --accent-ink: #8ADBE2;
+    --on-accent: #06181B;
+    --ok: #63C48D;
+    --busy: #E0A63F;
+    --busy-soft: #33260F;
+    --fail: #EE7070;
+    --fail-soft: #35191A;
+    --scrim: rgba(0, 0, 0, .55);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4), 0 2px 8px -4px rgba(0, 0, 0, .6);
+    --shadow-lg: 0 2px 6px rgba(0, 0, 0, .4), 0 28px 64px -28px rgba(0, 0, 0, .9);
+    --shadow-device: 0 2px 4px rgba(0, 0, 0, .5), 0 40px 80px -36px rgba(0, 0, 0, .95);
+    --chrome: #1A1E23;
+    --chrome-line: #2A3037;
+    --toast-bg: #E8ECF0;
+    --toast-ink: #14181D;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #090B0E;
+  --canvas-glow: #10262A;
+  --app: #111418;
+  --surface: #1A1F25;
+  --surface-2: #232930;
+  --surface-3: #2D343C;
+  --ink: #E8ECF0;
+  --ink-soft: #9BA5B1;
+  --ink-faint: #737E8B;
+  --line: #2C333C;
+  --line-soft: #242A32;
+  --accent: #56C3CD;
+  --accent-hover: #74D2DA;
+  --accent-soft: #16333A;
+  --accent-ink: #8ADBE2;
+  --on-accent: #06181B;
+  --ok: #63C48D;
+  --busy: #E0A63F;
+  --busy-soft: #33260F;
+  --fail: #EE7070;
+  --fail-soft: #35191A;
+  --scrim: rgba(0, 0, 0, .55);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4), 0 2px 8px -4px rgba(0, 0, 0, .6);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, .4), 0 28px 64px -28px rgba(0, 0, 0, .9);
+  --shadow-device: 0 2px 4px rgba(0, 0, 0, .5), 0 40px 80px -36px rgba(0, 0, 0, .95);
+  --chrome: #1A1E23;
+  --chrome-line: #2A3037;
+  --toast-bg: #E8ECF0;
+  --toast-ink: #14181D;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 50% 280px, var(--canvas-glow), transparent 70%),
+    var(--canvas);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.ic { display: block; flex: none; }
+
+.page {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.intro { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.intro h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.intro p { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
+
+.strip {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.strip-row { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl-label { font-size: 12px; color: var(--ink-faint); font-weight: 600; letter-spacing: .02em; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button {
+  border: 0; background: transparent; border-radius: 999px;
+  padding: 5px 13px; font-size: 13px; font-weight: 550; color: var(--ink-soft);
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 10px 20px; min-width: 0; }
+.chip-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip-group .ctl-label { margin-right: 2px; }
+.chip {
+  border: 1px solid var(--line); background: transparent; color: var(--ink);
+  border-radius: 999px; padding: 4px 11px; font-size: 13px; white-space: nowrap;
+}
+.chip:hover { background: var(--surface-2); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px 32px;
+  align-items: start;
+}
+.main.with-aside { grid-template-columns: minmax(0, 1fr) 340px; }
+.frame-col { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
+.frame-host { position: relative; flex: none; }
+.device { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+.proof {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 14px; color: var(--ink-soft); line-height: 1.5;
+  width: 100%;
+}
+.proof b { color: var(--ink); font-weight: 600; }
+.proof-tag {
+  flex: none; background: var(--accent-soft); color: var(--accent-ink);
+  border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 650; white-space: nowrap;
+}
+.proof-note { color: var(--accent-ink); }
+
+.legend {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  min-width: 0;
+}
+.main:not(.with-aside) .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px; }
+.legend h2 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.legend ul, .legend ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--ink-soft); font-size: 13.5px; }
+.legend b { color: var(--ink); font-weight: 600; }
+.legend code { font-family: var(--mono); font-size: 12.5px; }
+
+@media (max-width: 980px) {
+  .main.with-aside { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; margin-inline: -16px; padding-inline: 16px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip-group { flex-wrap: nowrap; }
+  .strip { padding: 12px 16px; }
+}
+
+/* Device shells */
+.phone {
+  width: 414px; height: 868px; padding: 12px;
+  border-radius: 60px; background: var(--bezel);
+  box-shadow: 0 0 0 1.5px var(--bezel-edge), var(--shadow-device);
+}
+.phone .screen { width: 390px; height: 844px; border-radius: 48px; }
+.island {
+  position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
+  width: 122px; height: 35px; border-radius: 20px; background: var(--bezel); z-index: 95; pointer-events: none;
+}
+.homebar {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  width: 134px; height: 5px; border-radius: 3px; background: var(--ink); opacity: .85; z-index: 95; pointer-events: none;
+}
+.screen[data-surface="stage"] .homebar { background: var(--on-stage); }
+.window {
+  width: 1200px; height: 760px; border-radius: 14px; overflow: hidden;
+  background: var(--app); border: 1px solid var(--chrome-line); box-shadow: var(--shadow-device);
+}
+.chrome {
+  height: 40px; background: var(--chrome); border-bottom: 1px solid var(--chrome-line);
+  display: flex; align-items: center; padding: 0 14px; position: relative;
+}
+.dots { display: flex; gap: 8px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--dot-1); }
+.dots i:nth-child(2) { background: var(--dot-2); }
+.dots i:nth-child(3) { background: var(--dot-3); }
+.url {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  height: 26px; min-width: 380px; padding: 0 14px; border-radius: 8px;
+  background: var(--surface); color: var(--ink); font-size: 13px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.url .ic { color: var(--ink-faint); }
+.url .path { color: var(--ink-faint); }
+.window .screen { width: 1198px; height: 719px; }
+.screen { position: relative; overflow: hidden; background: var(--app); color: var(--ink); }
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+/* Status bar (phone) */
+.sb {
+  height: 50px; flex: none; padding: 17px 30px 0 36px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  font-size: 15.5px; font-weight: 650; letter-spacing: -.01em; color: var(--ink);
+  position: relative; z-index: 40; pointer-events: none;
+}
+.sb-icons { display: flex; gap: 6px; align-items: center; padding-top: 2px; }
+.sb svg { fill: currentColor; }
+.on-stage .sb { color: var(--on-stage); }
+
+/* Buttons */
+.btn {
+  border: 0; border-radius: 999px; height: 52px; padding: 0 24px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-size: 16px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap;
+  transition: background .15s, transform .1s;
+}
+.btn:active { transform: scale(.985); }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-soft { background: var(--surface-2); color: var(--ink); }
+.btn-soft:hover { background: var(--surface-3); }
+.btn-leave { background: var(--leave); color: var(--on-leave); }
+.btn-leave:hover { background: var(--leave-hover); }
+.btn-text { background: transparent; color: var(--accent-ink); height: 44px; }
+.btn-text:hover { background: var(--surface-2); }
+.btn-block { width: 100%; }
+.btn-lg { height: 58px; font-size: 17px; }
+
+.iconbtn {
+  width: 44px; height: 44px; border-radius: 50%; border: 0;
+  display: grid; place-items: center; background: var(--surface-2); color: var(--ink);
+}
+.iconbtn:hover { background: var(--surface-3); }
+.iconbtn.ghost { background: transparent; }
+.iconbtn.ghost:hover { background: var(--surface-2); }
+
+/* Brand and avatars */
+.brand { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 750; letter-spacing: -.02em; }
+.glyph {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover)); color: var(--on-accent);
+}
+.glyph-xl { width: 76px; height: 76px; border-radius: 24px; box-shadow: 0 18px 40px -18px var(--accent); }
+.av {
+  border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: linear-gradient(150deg, var(--c1), var(--c2)); color: #FFFFFF;
+  font-weight: 650; letter-spacing: .01em;
+}
+.av-btn { border: 0; padding: 0; width: 40px; height: 40px; font-size: 14px; }
+.av-btn:hover { box-shadow: 0 0 0 4px var(--surface-2); }
+.av-28 { width: 28px; height: 28px; font-size: 11px; }
+.av-36 { width: 36px; height: 36px; font-size: 13px; }
+.av-44 { width: 44px; height: 44px; font-size: 15px; }
+.stack { display: flex; }
+.stack .av { box-shadow: 0 0 0 2.5px var(--app); }
+.stack .av + .av { margin-left: -5px; }
+
+/* Page screens */
+.pg { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.topbar { height: 60px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 20px; }
+.desktop .topbar { height: 72px; padding: 0 28px; }
+.topbar-title { font-size: 17px; font-weight: 650; }
+.hero {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 14px; padding: 0 32px;
+}
+.hero h2 { margin: 6px 0 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.025em; text-wrap: balance; }
+.desktop .hero h2 { font-size: 40px; }
+.hero p { margin: 0; color: var(--ink-soft); font-size: 16px; max-width: 320px; text-wrap: balance; }
+.desktop .hero p { font-size: 17px; max-width: 420px; }
+.halo {
+  position: absolute; left: 50%; top: 42%; width: 520px; height: 520px; transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, var(--accent-soft), transparent); pointer-events: none; opacity: .9;
+}
+.hero > *:not(.halo) { position: relative; }
+.dock { flex: none; padding: 0 20px 34px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.desktop .dock { padding-bottom: 28px; }
+.legal { display: flex; gap: 18px; justify-content: center; font-size: 13px; }
+.legal a { color: var(--ink-faint); text-decoration: none; }
+.legal a:hover { color: var(--ink-soft); text-decoration: underline; }
+.desktop .hero .btn-lg { min-width: 280px; margin-top: 18px; }
+
+/* Popover menus and sheets */
+.scrim { position: absolute; inset: 0; z-index: 70; background: var(--scrim); animation: fade .2s ease-out; }
+.scrim.clear { background: transparent; animation: none; }
+.pop {
+  position: absolute; z-index: 80; width: 280px; padding: 6px;
+  background: var(--surface); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-lg);
+  border: 1px solid var(--line-soft); animation: pop .18s ease-out;
+}
+.sheet {
+  position: absolute; z-index: 80; left: 8px; right: 8px; bottom: 8px;
+  background: var(--surface); color: var(--ink); border-radius: 30px; padding: 8px 10px 24px;
+  box-shadow: var(--shadow-lg); animation: sheet .26s cubic-bezier(.2, .8, .2, 1);
+  display: flex; flex-direction: column;
+}
+.grab { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 2px auto 8px; flex: none; }
+.menu-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 14px; }
+.menu-head b { display: block; font-size: 15.5px; font-weight: 650; }
+.menu-head div span { font-size: 13px; color: var(--ink-faint); }
+.sep { height: 1px; background: var(--line-soft); margin: 6px 10px; }
+.mi {
+  width: 100%; border: 0; background: transparent; color: var(--ink); text-align: left; text-decoration: none;
+  display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 0 14px; border-radius: 14px; font-size: 16px;
+}
+.desktop .mi { min-height: 46px; font-size: 15px; }
+.mi:hover { background: var(--surface-2); }
+.mi .ic { color: var(--ink-soft); }
+.mi .grow { flex: 1; min-width: 0; }
+.mi small { display: block; font-size: 12.5px; color: var(--ink-faint); margin-top: 1px; }
+.mi .end { color: var(--ink-faint); font-size: 14px; display: flex; align-items: center; gap: 4px; }
+.switch { width: 46px; height: 28px; border-radius: 999px; background: var(--surface-3); position: relative; flex: none; transition: background .18s; }
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--surface); box-shadow: var(--shadow-sm); transition: transform .18s;
+}
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(18px); }
+.sheet h3, .pop h3, .panel h3 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 10px 12px; }
+.pop .sheet-head { padding: 8px 6px 8px 12px; }
+
+/* Dialog */
+.dialog {
+  position: absolute; z-index: 80; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 400px; padding: 26px; border-radius: 24px; background: var(--surface); color: var(--ink);
+  box-shadow: var(--shadow-lg); animation: pop .18s ease-out;
+}
+.dialog h3, .sheet .confirm h3 { margin: 0 0 8px; font-size: 20px; line-height: 1.25; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
+.dialog p, .confirm p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+.dialog .row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.dialog .btn { height: 46px; font-size: 15px; }
+.confirm { padding: 10px 12px 0; display: flex; flex-direction: column; gap: 4px; }
+.confirm .stackbtns { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+
+/* Invite */
+.linkbox {
+  display: flex; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 14px;
+  padding: 6px 6px 6px 14px; margin: 4px 6px 0; min-width: 0;
+}
+.linkbox code { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linkbox .btn { height: 40px; padding: 0 16px; font-size: 14.5px; }
+.members-note { display: flex; align-items: center; gap: 8px; color: var(--ink-faint); font-size: 13px; padding: 12px 14px 4px; }
+.invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 6px 0; }
+
+/* Toasts */
+.toasts { position: absolute; left: 0; right: 0; bottom: 132px; z-index: 96; display: flex; justify-content: center; pointer-events: none; }
+.desktop-shell .toasts { bottom: 104px; }
+.toast {
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px;
+  background: var(--toast-bg); color: var(--toast-ink); font-size: 14px; font-weight: 550; box-shadow: var(--shadow-lg);
+  animation: toast 2.4s ease forwards;
+}
+
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+.dialog { animation-name: dialog; }
+@keyframes dialog { from { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }
+@keyframes sheet { from { transform: translateY(40px); opacity: 0; } }
+@keyframes toast { 0% { opacity: 0; transform: translateY(8px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* Placeholder video */
+.vid {
+  position: absolute; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(80% 65% at 28% 12%, var(--c2), transparent 72%),
+    linear-gradient(160deg, var(--c1), var(--c2));
+}
+.vid svg.person { position: absolute; left: 50%; bottom: 0; height: 74%; transform: translateX(-50%); fill: var(--silhouette); filter: blur(3px); }
+.vid::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, var(--vignette), transparent 42%); }
+.vid.mirror svg.person { transform: translateX(-50%) scaleX(-1); }
+.vid.off { background: var(--stage-3); }
+.vid.off::after { display: none; }
+.vid.off .av { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: clamp(44px, 30cqmin, 112px); height: clamp(44px, 30cqmin, 112px); font-size: clamp(15px, 10cqmin, 38px); }
+
+/* Pre-join */
+.pre { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.preview {
+  position: relative; border-radius: var(--r-xl); overflow: hidden; background: var(--stage);
+  container-type: size; color: var(--on-stage);
+}
+.phone-shell .preview { flex: 1; margin: 4px 16px 0; }
+.preview-ctl { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; gap: 14px; z-index: 3; }
+.preview-corner { position: absolute; top: 14px; right: 14px; z-index: 3; }
+.preview-msg {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center; padding: 0 36px 70px;
+}
+.preview-msg .ring { width: 64px; height: 64px; border-radius: 50%; background: var(--glass); display: grid; place-items: center; color: var(--busy-stage); }
+.preview-msg h4 { margin: 4px 0 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.preview-msg p { margin: 0; color: var(--on-stage-soft); font-size: 15px; max-width: 300px; text-wrap: balance; }
+.tag-glass {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  background: var(--glass-dark); color: var(--on-stage); font-size: 13px; font-weight: 600;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.self-row { display: flex; align-items: center; gap: 10px; padding: 14px 20px 0; min-height: 44px; font-size: 14.5px; color: var(--ink-soft); }
+.self-row b { color: var(--ink); font-weight: 600; }
+.self-row .grow { flex: 1; min-width: 0; }
+.meter { display: flex; align-items: flex-end; gap: 3px; height: 16px; color: var(--accent); }
+.meter i { width: 3.5px; border-radius: 2px; background: currentColor; height: 30%; animation: meter 1.1s ease-in-out infinite; }
+.meter i:nth-child(2) { animation-delay: -.25s; }
+.meter i:nth-child(3) { animation-delay: -.6s; }
+.meter i:nth-child(4) { animation-delay: -.4s; }
+.meter i:nth-child(5) { animation-delay: -.8s; }
+.meter.quiet i { animation: none; height: 22%; color: var(--ink-faint); background: var(--ink-faint); }
+@keyframes meter { 0%, 100% { height: 25%; } 50% { height: 95%; } }
+.pre-dock { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 10px; }
+.pre-dock .legal { padding-top: 4px; }
+
+.pre-desk { flex: 1; display: grid; grid-template-columns: 660px 340px; gap: 44px; align-content: center; justify-content: center; padding-bottom: 24px; }
+.pre-desk .preview { height: 412px; }
+.pre-side { display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.pre-side h2 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.025em; }
+.pre-side .sub { margin: -6px 0 6px; display: flex; align-items: center; gap: 10px; color: var(--ink-soft); font-size: 15px; }
+.field {
+  display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 14px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); position: relative;
+}
+.field .ic { color: var(--ink-soft); }
+.field select { flex: 1; min-width: 0; border: 0; background: transparent; appearance: none; -webkit-appearance: none; font-size: 15px; padding-right: 22px; cursor: pointer; }
+.field select:disabled { color: var(--ink-faint); cursor: default; }
+.field .chev { position: absolute; right: 12px; color: var(--ink-faint); pointer-events: none; }
+.field.has-meter select { padding-right: 70px; }
+.field .meter { position: absolute; right: 36px; }
+.field-test { position: absolute; right: 34px; border: 0; background: var(--surface-2); color: var(--ink); font-size: 12.5px; font-weight: 600; border-radius: 999px; padding: 4px 10px; }
+.field-test:hover { background: var(--surface-3); }
+.pre-side .btn-row { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.desktop-shell .dock { padding-top: 6px; }
+
+/* Stage */
+.stage { position: absolute; inset: 0; background: var(--stage); color: var(--on-stage); overflow: hidden; }
+.desktop-shell .stage.panel-open { right: 372px; }
+.ctop { position: absolute; top: 54px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; z-index: 30; gap: 8px; }
+.desktop-shell .ctop { top: 16px; left: 20px; right: 20px; }
+.ctop .left { display: flex; gap: 8px; }
+.pill-btn { border: 0; cursor: pointer; }
+.pill-btn:hover { background: var(--glass-hover); }
+.dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); }
+.num { font-variant-numeric: tabular-nums; }
+
+.grid { position: absolute; display: grid; gap: 6px; }
+.phone-shell .grid { top: 94px; bottom: 112px; left: 8px; right: 8px; grid-template-columns: repeat(var(--c), 1fr); grid-template-rows: repeat(var(--r), 1fr); }
+.desktop-shell .grid { top: 62px; bottom: 92px; left: 20px; right: 20px; container-type: size; display: grid; place-items: center; gap: 0; }
+.tiles { display: grid; gap: 10px; grid-template-columns: repeat(var(--c), 1fr); width: min(100cqw, calc((100cqh - (var(--r) - 1) * 10px) * 16 / 9 * var(--c) / var(--r))); }
+.tiles .tile { aspect-ratio: 16 / 9; }
+.tile { position: relative; border-radius: 18px; overflow: hidden; background: var(--stage-2); container-type: size; min-height: 0; }
+.desktop-shell .tile { border-radius: 16px; }
+.tile.full { position: absolute; inset: 0; border-radius: 0; }
+.tile.fill { position: absolute; inset: 0; border-radius: inherit; }
+.pip .q, .pip .name { display: none; }
+.tile.speaking::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 6; pointer-events: none;
+  box-shadow: inset 0 0 0 3px var(--accent-stage); animation: speak 1.8s ease-in-out infinite;
+}
+.tile.full.speaking::before { display: none; }
+@keyframes speak { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.tile .name {
+  position: absolute; left: 10px; bottom: 10px; z-index: 5; max-width: calc(100% - 20px);
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px;
+  background: var(--glass-dark); color: var(--on-stage); font-size: 13px; font-weight: 600;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); white-space: nowrap; overflow: hidden;
+}
+.tile.full .name { left: 16px; bottom: 124px; height: 32px; font-size: 14.5px; padding: 0 12px; }
+.name .muted { color: var(--on-stage); opacity: .9; }
+.wave { display: inline-flex; gap: 2px; align-items: center; height: 12px; color: var(--accent-stage); }
+.wave i { width: 2.5px; border-radius: 2px; background: currentColor; height: 40%; animation: meter .9s ease-in-out infinite; }
+.wave i:nth-child(2) { animation-delay: -.3s; }
+.wave i:nth-child(3) { animation-delay: -.55s; }
+.q {
+  position: absolute; top: 10px; right: 10px; z-index: 5; height: 24px; padding: 0 8px; border-radius: 999px;
+  display: flex; align-items: flex-end; gap: 2px; padding-bottom: 7px; background: var(--glass-dark);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.q i { width: 3px; border-radius: 1px; background: var(--on-stage); opacity: .3; }
+.q i:nth-child(1) { height: 4px; } .q i:nth-child(2) { height: 7px; } .q i:nth-child(3) { height: 10px; }
+.q.good i { opacity: 1; }
+.q.fair i:nth-child(-n+2) { opacity: 1; background: var(--busy-stage); }
+.q.fair i:nth-child(3) { background: var(--on-stage); }
+.q.poor i:nth-child(1) { opacity: 1; background: var(--busy-stage); }
+.tile.full .q { top: 100px; right: 16px; }
+.tile.trouble .vid { filter: grayscale(.85) brightness(.45); }
+.trouble-msg {
+  position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; text-align: center; color: var(--on-stage); font-size: 13.5px; font-weight: 600; padding: 0 10px;
+}
+.trouble-msg .ring { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--glass-dark); color: var(--busy-stage); }
+
+.pip {
+  position: absolute; width: 104px; height: 152px; border-radius: 18px; overflow: hidden; z-index: 35;
+  box-shadow: 0 10px 30px -10px var(--vignette), 0 0 0 1px var(--glass); touch-action: none; cursor: grab;
+  transition: left .28s cubic-bezier(.2, .8, .2, 1), top .28s cubic-bezier(.2, .8, .2, 1); container-type: size;
+}
+.pip.dragging { transition: none; cursor: grabbing; }
+
+/* Control bar */
+.cbar { position: absolute; z-index: 40; display: flex; align-items: center; }
+.phone-shell .cbar {
+  left: 0; right: 0; bottom: 0; padding: 26px 14px 36px; justify-content: space-between;
+  background: linear-gradient(to top, var(--stage-fade) 55%, transparent);
+}
+.desktop-shell .cbar { left: 50%; bottom: 20px; transform: translateX(-50%); gap: 10px; }
+.cbar .gap { width: 14px; }
+.cb {
+  width: 52px; height: 52px; border-radius: 50%; border: 0; position: relative;
+  display: grid; place-items: center; background: var(--glass); color: var(--on-stage);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); transition: background .15s;
+}
+.cb:hover { background: var(--glass-hover); }
+.cb.off { background: var(--on-stage); color: var(--stage); }
+.cb.active { background: var(--accent-stage); color: var(--stage); }
+.cb.leave { background: var(--leave); color: var(--on-leave); }
+.cb.leave:hover { background: var(--leave-hover); }
+.desktop-shell .cb.leave { width: 72px; border-radius: 26px; }
+.badge {
+  position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--accent-stage); color: var(--stage); font-size: 12px; font-weight: 750; display: grid; place-items: center;
+  box-shadow: 0 0 0 2.5px var(--stage);
+}
+
+/* Waiting card */
+.waiting {
+  position: absolute; z-index: 30; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+  padding: 22px; border-radius: 26px; background: var(--glass-dark); color: var(--on-stage);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.desktop-shell .waiting { left: 50%; right: auto; width: 400px; transform: translate(-50%, -50%); }
+.waiting h3 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+.waiting p { margin: 0 0 12px; color: var(--on-stage-soft); font-size: 15px; }
+.waiting .row { display: flex; gap: 10px; width: 100%; }
+.waiting .row .btn { flex: 1; height: 48px; font-size: 15px; }
+.btn-glass { background: var(--glass); color: var(--on-stage); }
+.btn-glass:hover { background: var(--glass-hover); }
+.btn-stage { background: var(--accent-stage); color: var(--stage); }
+.waiting .link { font-family: var(--mono); font-size: 13px; color: var(--on-stage-soft); margin-bottom: 12px; }
+
+/* Banners */
+.banner {
+  position: absolute; z-index: 45; left: 16px; right: 16px; top: 96px;
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px 12px 12px; border-radius: 18px;
+  background: var(--glass-dark); color: var(--on-stage); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 12px 30px -14px var(--vignette); font-size: 14.5px;
+}
+.desktop-shell .banner { left: 50%; right: auto; top: 16px; transform: translateX(-50%); width: max-content; max-width: 560px; }
+.banner.enter { animation: banner .36s cubic-bezier(.2, .8, .2, 1); }
+.desktop-shell .banner.enter { animation-name: banner-d; }
+@keyframes banner { from { transform: translateY(-16px); opacity: 0; } }
+@keyframes banner-d { from { transform: translate(-50%, -16px); opacity: 0; } }
+.banner b { display: block; font-weight: 650; }
+.banner span { color: var(--on-stage-soft); font-size: 13.5px; }
+.banner .grow { flex: 1; min-width: 0; }
+.spin { width: 34px; height: 34px; display: grid; place-items: center; color: var(--busy-stage); flex: none; }
+.spin svg { animation: rot 1.1s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.cd { position: relative; width: 38px; height: 38px; flex: none; }
+.cd svg { transform: rotate(-90deg); }
+.cd circle { fill: none; stroke-width: 3.5; }
+.cd .track { stroke: var(--glass); }
+.cd .bar { stroke: var(--busy-stage); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+.cd b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 750; }
+.tile.away .vid { filter: brightness(.38) saturate(.5); }
+.presenting {
+  position: absolute; z-index: 30; display: flex; align-items: center; gap: 10px;
+  padding: 6px 6px 6px 14px; border-radius: 999px; background: var(--accent-stage); color: var(--stage);
+  font-size: 14px; font-weight: 650;
+}
+.presenting button { border: 0; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--stage); color: var(--on-stage); font-size: 13.5px; font-weight: 650; }
+
+/* Shared screen */
+.shared { position: absolute; border-radius: 14px; overflow: hidden; container-type: inline-size; background: var(--slide-bg); color: var(--slide-ink); box-shadow: 0 0 0 2px var(--accent-stage); }
+.slide { position: absolute; inset: 0; padding: 6cqw 7cqw; display: flex; flex-direction: column; gap: 3.2cqw; }
+.slide .kick { font-size: 2.2cqw; color: var(--slide-soft); font-weight: 600; letter-spacing: .04em; }
+.slide h4 { margin: 0; font-size: 5.4cqw; line-height: 1.05; font-weight: 750; letter-spacing: -.02em; }
+.days { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.4cqw; flex: 1; }
+.day { border-radius: 2cqw; padding: 2.6cqw; background: var(--slide-a); display: flex; flex-direction: column; gap: 1.2cqw; }
+.day:nth-child(2) { background: var(--slide-b); }
+.day:nth-child(3) { background: var(--slide-c); }
+.day b { font-size: 2.6cqw; }
+.day span { font-size: 2cqw; color: var(--slide-soft); }
+.strip-tiles { position: absolute; display: flex; gap: 8px; }
+.strip-tiles .tile { flex: none; }
+
+/* Side panel (desktop) and sheet content */
+.panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 372px; z-index: 50; background: var(--surface);
+  border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; color: var(--ink);
+  animation: panel .24s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes panel { from { transform: translateX(24px); opacity: 0; } }
+.panel .sheet-head { padding: 16px 12px 12px 20px; }
+.sheet.tall { top: 120px; }
+.msgs { flex: 1; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; gap: 12px; }
+.msg { max-width: 82%; display: flex; flex-direction: column; gap: 3px; }
+.msg small { font-size: 12px; color: var(--ink-faint); padding-left: 12px; }
+.msg p { margin: 0; padding: 9px 14px; border-radius: 18px; border-top-left-radius: 6px; background: var(--surface-2); font-size: 15px; }
+.msg.me { align-self: flex-end; }
+.msg.me p { background: var(--accent); color: var(--on-accent); border-radius: 18px; border-top-right-radius: 6px; }
+.msg.me small { align-self: flex-end; padding-right: 12px; }
+.compose { display: flex; gap: 8px; padding: 10px 12px 4px; align-items: center; }
+.compose input { flex: 1; min-width: 0; height: 46px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); padding: 0 18px; font-size: 15px; }
+.compose .send { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.people { list-style: none; margin: 0; padding: 4px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.person { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 10px; border-radius: 14px; }
+.person .grow { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 550; }
+.person .icons { display: flex; gap: 8px; color: var(--ink-faint); }
+.host-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 650; vertical-align: 1px; }
+
+/* End screens */
+.end-icon { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-soft); }
+.end-icon.warn { background: var(--busy-soft); color: var(--busy); }
+.end-icon.stop { background: var(--fail-soft); color: var(--fail); }
+.count-pill { font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700; padding: 3px 12px; border-radius: 999px; background: var(--busy-soft); color: var(--busy); }
+.hero .stackbtns { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 320px; margin-top: 18px; }
+.phone-shell .hero .stackbtns { max-width: none; }
+.spinner-lg { width: 40px; height: 40px; border-radius: 50%; border: 3.5px solid var(--surface-3); border-top-color: var(--accent); animation: rot .9s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="intro">
+    <h1>HopIn – Bild zu #38</h1>
+    <p>Klickbarer Prototyp, Version 2. Knöpfe im Gerät führen durch den Ablauf.</p>
+  </header>
+
+  <section class="strip" aria-label="Steuerung">
+    <div class="strip-row">
+      <div class="ctl"><span class="ctl-label">Gerät</span>
+        <div class="seg" id="segDevice">
+          <button type="button" id="devPhone" data-device="phone" aria-pressed="true">Telefon</button>
+          <button type="button" id="devDesktop" data-device="desktop" aria-pressed="false">Desktop</button>
+        </div>
+      </div>
+      <div class="ctl"><span class="ctl-label">Thema</span>
+        <div class="seg" id="segTheme">
+          <button type="button" id="themeAuto" data-theme-set="auto" aria-pressed="true">Auto</button>
+          <button type="button" id="themeLight" data-theme-set="light" aria-pressed="false">Hell</button>
+          <button type="button" id="themeDark" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+        </div>
+      </div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <div class="main" id="main">
+    <div class="frame-col" id="frameCol">
+      <div class="frame-host" id="frameHost"><div class="device" id="device"></div></div>
+      <p class="proof" id="proof"></p>
+    </div>
+    <aside class="legend" id="legend">
+      <div>
+        <h2>So liest du das Bild</h2>
+        <ul>
+          <li><b>Ablauf:</b> Start a call → Start call → Invite → Copy link (Anna kommt dazu) → Leave → End call → Back to start.</li>
+          <li><b>Einladung:</b> Chip „Einladung öffnen“ zeigt dasselbe als Gast, der einen Link aus WhatsApp öffnet.</li>
+          <li><b>Abgemeldet:</b> HopIn zeigt nichts, sondern schickt direkt zur Keycloak-Anmeldung auf <code>auth.hallucinai.de</code>. Die Seite gehört edge und ist hier bewusst nicht gezeichnet.</li>
+          <li><b>Entfallen:</b> das Raumpasswort (Zeile 7) und die immer sichtbare Teilen-Box; „Invite“ ersetzt sie.</li>
+          <li><b>Videofläche:</b> in beiden Themen dunkel; Startseite, Vorschau-Seite, Menüs und Endseiten folgen dem Thema.</li>
+          <li><b>Kacheln:</b> Verlauf mit Umriss = Kamera an, Initialen = Kamera aus. Türkiser Rand = spricht, Balken oben rechts = Verbindung.</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Bitte bestätigen</h2>
+        <ol>
+          <li>Impressum und Datenschutz stehen im Anruf im Menü „More“, einen Tipp entfernt (Lesart von Zeile 4). Empfehlung: ja.</li>
+          <li>Videofläche auch im hellen Thema dunkel. Empfehlung: ja.</li>
+          <li>Nur der Host bekommt beim Verlassen die Rückfrage; Gäste gehen sofort. Empfehlung: ja.</li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (sel, root = document) => root.querySelector(sel);
+
+const ICON_PATHS = {
+  mic: '<rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+  micOff: '<path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/>',
+  cam: '<rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/>',
+  camOff: '<path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/>',
+  screen: '<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8 21h8M12 17v4M12 13.5V8M9.4 10.4L12 7.8l2.6 2.6"/>',
+  invite: '<circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M19 8v6M16 11h6"/>',
+  chat: '<path d="M20.5 11.6a8.1 8.1 0 0 1-11.9 7.1L3.5 20l1.4-4.6A8.1 8.1 0 1 1 20.5 11.6z"/>',
+  more: '<circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/>',
+  leave: '<path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/>',
+  copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2.6"/><path d="M15.5 8.5V6.1a2.6 2.6 0 0 0-2.6-2.6H6.1a2.6 2.6 0 0 0-2.6 2.6v6.8a2.6 2.6 0 0 0 2.6 2.6h2.4"/>',
+  share: '<path d="M12 3.5v11.5M8 7.5l4-4 4 4M8.5 10.5H7A2 2 0 0 0 5 12.5v6A2 2 0 0 0 7 20.5h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/>',
+  flip: '<path d="M4.5 10a7.8 7.8 0 0 1 13.6-4M19.5 14a7.8 7.8 0 0 1-13.6 4"/><path d="M18.5 2.8V6.3H15M5.5 21.2v-3.5H9"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  chevDown: '<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>',
+  chevRight: '<path d="M9.5 6l6 6-6 6"/>',
+  speaker: '<path d="M4 9.5h3.2L12 5.6v12.8l-4.8-3.9H4z"/><path d="M15.8 9.2a4 4 0 0 1 0 5.6M18.4 6.6a7.6 7.6 0 0 1 0 10.8"/>',
+  wifiOff: '<path d="M2.5 9a14.5 14.5 0 0 1 19 0M5.8 12.5a9.6 9.6 0 0 1 12.4 0M9.2 16a4.6 4.6 0 0 1 5.6 0M4 4l16 16"/><circle cx="12" cy="19.4" r="1.1" fill="currentColor" stroke="none"/>',
+  refresh: '<path d="M20 11.5A8 8 0 1 0 17.7 17M20 4.5v7h-7"/>',
+  hourglass: '<path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/>',
+  shieldOff: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12h6"/>',
+  ended: '<path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  external: '<path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
+  signOut: '<path d="M14.5 4H18a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 18 20h-3.5M10 8l-4 4 4 4M6 12h10"/>',
+  send: '<path d="M4.5 12L20 4.5l-4.3 15.3-3.6-6.3z M12.1 13.5L20 4.5"/>',
+  doc: '<path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M14 3.5V7.5h4M9 12h6M9 15.5h6"/>',
+  shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/>',
+  spinner: '<path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5" />',
+};
+const ic = (name, size = 24, stroke = 1.8) =>
+  `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+const PERSON_SVG = '<svg class="person" viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet" aria-hidden="true"><circle cx="50" cy="38" r="17"/><path d="M14 100c2-22 17-36 36-36s34 14 36 36z"/></svg>';
+
+const PEOPLE = {
+  felix: { name: "Felix", full: "Felix Hummert", ini: "FH" },
+  anna: { name: "Anna", full: "Anna Keller", ini: "AK" },
+  ben: { name: "Ben", full: "Ben Schulz", ini: "BS" },
+  chris: { name: "Chris", full: "Chris Wagner", ini: "CW" },
+  dana: { name: "Dana", full: "Dana Roth", ini: "DR" },
+  emil: { name: "Emil", full: "Emil Brandt", ini: "EB" },
+};
+const ROSTER_ORDER = ["felix", "anna", "ben", "chris", "dana", "emil"];
+const MAX_PEOPLE = 6;
+const HOST_GRACE_S = 60;
+const CALL_LINK = "hopin.hallucinai.de/c/k3x9q7pm";
+const LEGAL = { impressum: "https://hallucinai.de/impressum", datenschutz: "https://hallucinai.de/datenschutz#hopin" };
+const DEVICES = {
+  cam: ["FaceTime HD Camera", "Studio Display Camera"],
+  mic: ["MacBook Pro Microphone", "AirPods Pro"],
+  spk: ["MacBook Pro Speakers", "AirPods Pro"],
+};
+const sampleChat = () => [
+  { who: "anna", text: "Can everyone hear me?" },
+  { who: "ben", text: "Loud and clear." },
+  { who: "felix", text: "I'll share the trip plan in a sec." },
+];
+
+const S = { device: "phone" };
+const timers = { join: null, note: null };
+
+function fresh(over) {
+  clearTimeout(timers.join);
+  Object.assign(S, {
+    screen: "home", overlay: null, preKind: "host", role: "host", count: 1,
+    mic: true, cam: true, flipped: false, locked: false, banner: null, bannerAt: Date.now(),
+    presenting: false, peerProblem: false, unread: 0, endKind: "ended", hostLeft: 47,
+    pip: "br", elapsed: 0, chat: sampleChat(), dev: { cam: 0, mic: 0, spk: 0 },
+  }, over);
+}
+
+const PRESETS = {
+  home: () => fresh({}),
+  menu: () => fresh({ overlay: "menu" }),
+  "pre-host": () => fresh({ screen: "pre" }),
+  "pre-guest": () => fresh({ screen: "pre", preKind: "guest", role: "guest" }),
+  "pre-blocked": () => fresh({ screen: "pre", preKind: "blocked", cam: false }),
+  "pre-nocam": () => fresh({ screen: "pre", preKind: "nocam", cam: false }),
+  alone: () => fresh({ screen: "call", count: 1, elapsed: 14 }),
+  invite: () => fresh({ screen: "call", count: 1, overlay: "invite", elapsed: 21 }),
+  call2: () => fresh({ screen: "call", count: 2, elapsed: 186 }),
+  call4: () => fresh({ screen: "call", count: 4, unread: 2, elapsed: 724 }),
+  call6: () => fresh({ screen: "call", count: 6, unread: 2, locked: true, elapsed: 1322 }),
+  share: () => fresh({ screen: "call", count: 4, presenting: true, elapsed: 845 }),
+  chat: () => fresh({ screen: "call", count: 4, overlay: "chat", elapsed: 761 }),
+  more: () => fresh({ screen: "call", count: 4, overlay: "more", unread: 2, elapsed: 782 }),
+  people: () => fresh({ screen: "call", count: 4, overlay: "people", elapsed: 790 }),
+  reconnect: () => fresh({ screen: "call", count: 4, banner: "reconnect", elapsed: 902 }),
+  hostwait: () => fresh({ screen: "call", count: 4, role: "guest", banner: "hostwait", elapsed: 931 }),
+  peer: () => fresh({ screen: "call", count: 4, peerProblem: true, elapsed: 960 }),
+  leave: () => fresh({ screen: "call", count: 4, overlay: "leave", elapsed: 1441 }),
+  ended: () => fresh({ screen: "end", endKind: "ended", elapsed: 1441 }),
+  expired: () => fresh({ screen: "end", endKind: "expired" }),
+  locked: () => fresh({ screen: "end", endKind: "locked", role: "guest" }),
+  full: () => fresh({ screen: "end", endKind: "full", role: "guest" }),
+  noaccess: () => fresh({ screen: "end", endKind: "noaccess" }),
+};
+
+const CHIP_GROUPS = [
+  ["Start", [["home", "Startseite"], ["menu", "Konto-Menü"]]],
+  ["Vorschau", [["pre-host", "Anruf starten"], ["pre-guest", "Einladung öffnen"], ["pre-blocked", "Kamera blockiert"], ["pre-nocam", "Keine Kamera"]]],
+  ["Im Anruf", [["alone", "Allein"], ["invite", "Einladen"], ["call2", "2 Personen"], ["call4", "4 Personen"], ["call6", "6 Personen"], ["share", "Bildschirm"], ["chat", "Chat"], ["more", "More"], ["people", "Teilnehmer"]]],
+  ["Probleme", [["reconnect", "Neu verbinden"], ["hostwait", "Host weg"], ["peer", "Verbindungsproblem"]]],
+  ["Ende", [["leave", "Host verlässt"], ["ended", "Beendet"], ["expired", "Link abgelaufen"], ["locked", "Gesperrt"], ["full", "Voll"], ["noaccess", "Kein Zugang"]]],
+];
+const CHIP_ALIAS = { left: "ended", hostgone: "ended", signout: "home" };
+
+const CAPTIONS = {
+  home: ["Zeile 1 · 4", "Nur angemeldete Mitglieder sehen diese Seite: eine Aktion, „Start a call“. Impressum und Datenschutz stehen leise unten."],
+  menu: ["Zeile 1", "Das Keycloak-Konto ist die Identität. Das Menü zeigt den Namen und „Sign out“, sonst nichts."],
+  signout: ["Zeile 1", "Abgemeldet: HopIn schickt direkt zur Keycloak-Anmeldung auf auth.hallucinai.de (Seite von edge, hier nicht gezeichnet)."],
+  "pre-host": ["Zeile 7", "Starten ohne Passwortfeld. Große Vorschau, Mikrofon und Kamera direkt darauf, Geräteauswahl am Desktop, Kamera drehen am Telefon."],
+  "pre-guest": ["Zeile 1", "Ein Mitglied öffnet den Link, zum Beispiel aus WhatsApp, meldet sich einmal an und sieht vor dem Beitritt, wer schon da ist."],
+  "pre-blocked": ["Kein #25-Satz", "Die Kamera ist im Browser blockiert. Ein Satz, wie man sie erlaubt, dazu „Try again“ oder „Continue without camera“."],
+  "pre-nocam": ["Kein #25-Satz", "Keine Kamera gefunden: Die Vorschau zeigt die Initialen, der Anruf geht mit Ton."],
+  alone: ["Zeile 1 · 7", "Allein im Anruf: „Waiting for others“ mit Einladen. Das ersetzt die immer sichtbare Teilen-Box; nur Mitglieder kommen herein."],
+  invite: ["Zeile 1", "Einladen: Link kopieren oder am Telefon „Share“ für das System-Teilen-Menü (WhatsApp). Probier „Copy link“: Anna kommt dazu."],
+  call2: ["Zeile 8", "Zu zweit am Telefon füllt die andere Person den Bildschirm; dein Bild ist klein und lässt sich in jede Ecke ziehen."],
+  call4: ["Zeile 8", "Das Raster passt sich der Zahl an. Name, Stumm-Symbol, Sprech-Rand und Verbindungsbalken auf jeder Kachel."],
+  call6: ["Zeile 7 · 8", "Sechs Personen, das Maximum. Der Anruf ist gesperrt, oben steht „Locked“."],
+  share: ["Kein #25-Satz", "Bildschirm teilen gibt es nur am Desktop („You are presenting“, „Stop“). Das Telefon zeigt, wie es eine geteilte Fläche sieht."],
+  chat: ["Kein #25-Satz", "Chat wie heute: am Desktop als Seitenleiste, am Telefon als Blatt von unten. Die Zahl am Chat-Knopf verschwindet beim Öffnen."],
+  more: ["Zeile 4 · 7", "Lesart von Zeile 4, bitte bestätigen: Impressum und Datenschutz sind im laufenden Anruf einen Tipp entfernt. „Lock call“ sieht nur der Host."],
+  people: ["Zeile 6", "Host ist das angemeldete Konto, in der Liste markiert."],
+  reconnect: ["Kein #25-Satz", "Das eigene Netz hakt: kleines Banner „Reconnecting…“, das Video läuft weiter (Teil 6, Anrufqualität)."],
+  hostwait: ["Zeile 6", "Die Verbindung der Host-Person ist weg. Der Anruf wartet bis zu 60 s mit Countdown, ihre Kachel ist abgedunkelt; danach endet er für alle."],
+  peer: ["Zeile 9", "Eine Person hat ein Verbindungsproblem. Nur ihre Kachel zeigt es; alle anderen sprechen weiter."],
+  leave: ["Zeile 6", "Ohne Host endet der Anruf, darum fragt HopIn die Host-Person vorher. Gäste verlassen ohne Rückfrage."],
+  ended: ["Zeile 6", "Die Host-Person hat beendet, der Anruf ist für alle vorbei. Eine Aktion: „Back to start“."],
+  left: ["Zeile 6", "Als Gast verlassen: kein Dialog, der Anruf läuft für die anderen weiter. „Rejoin“ ist möglich."],
+  hostgone: ["Zeile 6", "Die Host-Person kam in 60 s nicht zurück; der Anruf ist für alle beendet."],
+  expired: ["Kein #25-Satz", "Der Link gehört zu einem Anruf, den es nicht mehr gibt. Eine Aktion: „Back to start“."],
+  locked: ["Zeile 7", "Die Host-Person hat gesperrt; wer neu kommt, sieht das und kann es nochmal versuchen."],
+  full: ["Kein #25-Satz", "Sechs von sechs Plätzen sind belegt."],
+  noaccess: ["Zeile 1", "Angemeldet, aber nicht in der Gruppe /apps/hopin. Konten legt ein Admin an, es gibt keine Selbstregistrierung."],
+};
+
+function viewKey() {
+  if (S.screen === "home") return S.overlay === "menu" ? "menu" : "home";
+  if (S.screen === "signout") return "signout";
+  if (S.screen === "pre") return "pre-" + S.preKind;
+  if (S.screen === "end") return S.endKind;
+  if (S.overlay === "leave") return "leave";
+  if (S.banner) return S.banner;
+  if (S.overlay && S.overlay !== "menu") return S.overlay;
+  if (S.presenting) return "share";
+  if (S.peerProblem) return "peer";
+  return S.count === 1 ? "alone" : "call" + S.count;
+}
+
+const store = {
+  get(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* storage blocked: keep defaults */ } },
+};
+</script>
+
+<script>
+"use strict";
+const isPhone = () => S.device === "phone";
+const pv = (key) => `--c1:var(--${key}-1);--c2:var(--${key}-2)`;
+const avatar = (key, cls = "av-36") => `<span class="av ${cls}" style="${pv(key)}">${PEOPLE[key].ini}</span>`;
+
+const STATUS_BAR = `<div class="sb"><span class="num">9:41</span><span class="sb-icons">
+  <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+  <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 11.6l2.3-2.7a3.6 3.6 0 0 0-4.6 0zM1 4.3a10.8 10.8 0 0 1 14 0l-1.5 1.8a8.4 8.4 0 0 0-11 0zM3.6 7.4a6.9 6.9 0 0 1 8.8 0l-1.5 1.8a4.5 4.5 0 0 0-5.8 0z"/></svg>
+  <svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.6" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="17" height="9" rx="2.2"/><rect x="24.6" y="4.4" width="1.8" height="4.2" rx=".9" opacity=".45"/></svg>
+</span></div>`;
+const statusBar = () => (isPhone() ? STATUS_BAR : "");
+
+const legalLinks = () => `<nav class="legal" aria-label="Legal">
+  <a href="${LEGAL.impressum}" target="_blank" rel="noopener">Impressum</a>
+  <a href="${LEGAL.datenschutz}" target="_blank" rel="noopener">Datenschutz</a></nav>`;
+const brand = () => `<div class="brand"><span class="glyph">${ic("cam", 18, 2)}</span>HopIn</div>`;
+const topbar = () => `<div class="topbar">${brand()}
+  <button class="av av-btn" style="${pv("felix")}" data-act="avatar" aria-label="Account" aria-expanded="${S.overlay === "menu"}">FH</button></div>`;
+
+function accountMenu() {
+  if (S.overlay !== "menu") return "";
+  const place = isPhone() ? "top:108px;right:14px" : "top:66px;right:24px";
+  return `<div class="scrim clear" data-act="close"></div>
+  <div class="pop" style="${place};width:260px" role="menu">
+    <div class="menu-head">${avatar("felix", "av-44")}<div><b>Felix Hummert</b><span>HopIn member</span></div></div>
+    <div class="sep"></div>
+    <button class="mi" data-act="signout" role="menuitem">${ic("signOut", 22)}<span class="grow">Sign out</span></button>
+  </div>`;
+}
+
+function homeView() {
+  const button = `<button class="btn btn-primary btn-lg ${isPhone() ? "btn-block" : ""}" data-act="start">${ic("cam", 22, 2)}Start a call</button>`;
+  return `<div class="pg">${statusBar()}${topbar()}
+    <div class="hero"><div class="halo"></div>
+      <span class="glyph glyph-xl">${ic("cam", 38, 1.8)}</span>
+      <h2>Hi, Felix</h2>
+      <p>Start a call, then send the link to the people you want.</p>
+      ${isPhone() ? "" : button}
+    </div>
+    <div class="dock">${isPhone() ? button : ""}${legalLinks()}</div>
+  </div>${accountMenu()}`;
+}
+
+function signoutView() {
+  return `<div class="pg">${statusBar()}
+    <div class="hero"><div class="spinner-lg" role="status" aria-label="Loading"></div>
+      <h2 style="font-size:22px">Signing you out…</h2>
+      <p>Next stop: sign-in at auth.hallucinai.de</p></div></div>`;
+}
+
+const PRE_TITLES = { host: "New call", guest: "Anna's call" };
+const isGuestPre = () => S.role === "guest";
+
+function previewInner() {
+  const blocked = S.preKind === "blocked";
+  const noCam = S.preKind === "nocam";
+  let body;
+  if (blocked) {
+    body = `<div class="preview-msg"><span class="ring">${ic("camOff", 30)}</span><h4>Camera is blocked</h4>
+      <p>Allow the camera for hopin.hallucinai.de in your browser's site settings, then try again.</p></div>`;
+  } else if (noCam || !S.cam) {
+    body = `<div class="vid off"><span class="av" style="${pv("felix")}">FH</span></div>
+      ${noCam ? `<div class="preview-corner" style="left:14px;right:auto"><span class="tag-glass">${ic("camOff", 16)}No camera found</span></div>` : ""}`;
+  } else {
+    body = `<div class="vid mirror" style="${pv(S.flipped ? "scene" : "felix")}">${S.flipped ? "" : PERSON_SVG}</div>`;
+  }
+  const camLocked = blocked || noCam;
+  const flip = isPhone() && !camLocked ? `<div class="preview-corner"><button class="cb" data-act="flip" aria-label="Flip camera">${ic("flip", 22)}</button></div>` : "";
+  return `${body}${flip}
+    <div class="preview-ctl">
+      <button class="cb ${S.mic ? "" : "off"}" data-act="mic" aria-label="${S.mic ? "Mute" : "Unmute"}" aria-pressed="${!S.mic}">${ic(S.mic ? "mic" : "micOff", 24)}</button>
+      <button class="cb ${S.cam ? "" : "off"}" data-act="cam" aria-label="Camera" aria-pressed="${!S.cam}" ${camLocked ? 'disabled style="opacity:.55;cursor:default"' : ""}>${ic(S.cam ? "cam" : "camOff", 24)}</button>
+    </div>`;
+}
+
+const meter = () => `<span class="meter ${S.mic ? "" : "quiet"}" aria-label="${S.mic ? "Mic is picking up sound" : "Mic is off"}"><i></i><i></i><i></i><i></i><i></i></span>`;
+const inCallLine = () => `<span class="stack">${avatar("anna", "av-28")}${avatar("ben", "av-28")}${avatar("chris", "av-28")}</span><span class="grow">Anna, Ben and Chris are here</span>`;
+
+function preActions() {
+  const join = isGuestPre() ? "Join call" : "Start call";
+  if (S.preKind === "blocked") {
+    return `<button class="btn btn-primary btn-block" data-act="retry-perm">${ic("refresh", 20, 2)}Try again</button>
+      <button class="btn btn-text btn-block" data-act="nocam-continue">Continue without camera</button>`;
+  }
+  return `<button class="btn btn-primary btn-block btn-lg" data-act="join">${join}</button>`;
+}
+
+function deviceField(kind, icon, extra) {
+  const disabled = kind === "cam" && S.preKind !== "host" && S.preKind !== "guest";
+  const options = disabled
+    ? `<option>${S.preKind === "blocked" ? "Camera blocked" : "No camera found"}</option>`
+    : DEVICES[kind].map((d, i) => `<option value="${i}" ${S.dev[kind] === i ? "selected" : ""}>${d}</option>`).join("");
+  return `<label class="field ${kind === "mic" ? "has-meter" : ""}">${ic(icon, 20)}
+    <select id="dev-${kind}" data-dev="${kind}" aria-label="${kind === "cam" ? "Camera" : kind === "mic" ? "Microphone" : "Speaker"}" ${disabled ? "disabled" : ""}>${options}</select>
+    ${extra || ""}<span class="chev">${ic("chevDown", 18)}</span></label>`;
+}
+
+function preView() {
+  if (isPhone()) {
+    const row = isGuestPre() ? inCallLine() : `${avatar("felix", "av-28")}<span class="grow"><b>Felix Hummert</b></span>`;
+    return `<div class="pre">${statusBar()}
+      <div class="topbar"><button class="iconbtn ghost" data-act="home" aria-label="Back">${ic("back", 24)}</button>
+        <span class="topbar-title">${PRE_TITLES[S.role]}</span><span style="width:44px"></span></div>
+      <div class="preview">${previewInner()}</div>
+      <div class="self-row">${row}${meter()}</div>
+      <div class="pre-dock">${preActions()}${legalLinks()}</div></div>`;
+  }
+  const heading = isGuestPre() ? "Anna's call" : "Ready to start?";
+  const sub = isGuestPre() ? `<div class="sub">${inCallLine()}</div>` : `<div class="sub">You'll get a link to invite people.</div>`;
+  return `<div class="pg">${topbar()}
+    <div class="pre-desk"><div class="preview">${previewInner()}</div>
+      <div class="pre-side"><h2>${heading}</h2>${sub}
+        ${deviceField("cam", "cam")}
+        ${deviceField("mic", "mic", meter())}
+        ${deviceField("spk", "speaker", `<button type="button" class="field-test" data-act="test-sound">Test</button>`)}
+        <div class="btn-row">${preActions()}</div></div></div>
+    <div class="dock">${legalLinks()}</div></div>${accountMenu()}`;
+}
+
+const minutes = (seconds) => Math.max(1, Math.round(seconds / 60));
+const END_SCREENS = {
+  ended: () => ({ icon: "ended", tone: "", title: "Call ended", text: `You ended the call for everyone after ${minutes(S.elapsed)} min.`, actions: [["home", "Back to start", "primary"]] }),
+  left: () => ({ icon: "ended", tone: "", title: "You left the call", text: "The others are still talking.", actions: [["home", "Back to start", "primary"], ["rejoin", "Rejoin", "text"]] }),
+  hostgone: () => ({ icon: "ended", tone: "", title: "Call ended", text: "Anna didn't come back within 60 seconds, so the call ended for everyone.", actions: [["home", "Back to start", "primary"]] }),
+  expired: () => ({ icon: "hourglass", tone: "", title: "This link has expired", text: "The call is over. Ask for a new link.", actions: [["home", "Back to start", "primary"]] }),
+  locked: () => ({ icon: "lock", tone: "warn", title: "Call is locked", text: "The host isn't letting anyone new in right now. Try again in a moment.", actions: [["retry-lock", "Retry", "primary"], ["home", "Back to start", "text"]] }),
+  full: () => ({ icon: "users", tone: "warn", title: "Call is full", pill: `${MAX_PEOPLE}/${MAX_PEOPLE}`, text: `A call has room for ${MAX_PEOPLE} people.`, actions: [["home", "Back to start", "primary"]] }),
+  noaccess: () => ({ icon: "shieldOff", tone: "stop", title: "No access", text: "You're signed in as Felix Hummert, but your account isn't in the HopIn group. Ask the operator to add you.", actions: [["signout", "Switch account", "primary"]] }),
+};
+
+function endView() {
+  const view = END_SCREENS[S.endKind]();
+  const buttons = view.actions.map(([act, label, kind]) =>
+    `<button class="btn btn-${kind} btn-block ${kind === "primary" ? "btn-lg" : ""}" data-act="${act}">${label}</button>`).join("");
+  return `<div class="pg">${statusBar()}${topbar()}
+    <div class="hero"><span class="end-icon ${view.tone}">${ic(view.icon, view.icon === "ended" ? 52 : 40, 1.7)}</span>
+      <h2>${view.title}</h2>${view.pill ? `<span class="count-pill">${view.pill}</span>` : ""}
+      <p>${view.text}</p>${isPhone() ? "" : `<div class="stackbtns">${buttons}</div>`}</div>
+    <div class="dock">${isPhone() ? `<div class="stackbtns" style="display:flex;flex-direction:column;gap:6px;width:100%">${buttons}</div>` : ""}${legalLinks()}</div>
+  </div>${accountMenu()}`;
+}
+</script>
+
+<script>
+"use strict";
+const SELF = "felix";
+const hostKey = () => (S.role === "host" ? SELF : "anna");
+const roster = () => ROSTER_ORDER.slice(0, S.count);
+const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const GRID_SHAPE = { 1: [1, 1], 2: [2, 1], 3: [3, 1], 4: [2, 2], 5: [3, 2], 6: [3, 2] };
+const PHONE_GRID_SHAPE = { 3: [1, 3], 4: [2, 2], 5: [2, 3], 6: [2, 3] };
+const COUNTDOWN_CIRCUMFERENCE = 100.53;
+
+function personState(key) {
+  const me = key === SELF;
+  const away = S.banner === "hostwait" && key === hostKey();
+  const trouble = S.peerProblem && key === "chris";
+  const presenter = S.presenting && !isPhone() ? SELF : S.presenting ? "anna" : null;
+  return {
+    me, away, trouble,
+    muted: me ? !S.mic : key === "ben",
+    camOff: me ? !S.cam : key === "dana",
+    speaking: key === "anna" && !away && presenter !== "anna",
+    quality: trouble ? "poor" : key === "emil" ? "fair" : "good",
+  };
+}
+
+function videoOf(key, state) {
+  if (state.camOff) return `<div class="vid off"><span class="av" style="${pv(key)}">${PEOPLE[key].ini}</span></div>`;
+  const back = state.me && S.flipped;
+  return `<div class="vid ${state.me ? "mirror" : ""}" style="${pv(back ? "scene" : key)}">${back ? "" : PERSON_SVG}</div>`;
+}
+
+function tile(key, extraClass = "") {
+  const st = personState(key);
+  const label = st.me ? "You" : PEOPLE[key].name;
+  const voice = st.muted ? `<span class="muted">${ic("micOff", 15, 2)}</span>` : st.speaking ? '<span class="wave"><i></i><i></i><i></i></span>' : "";
+  const quality = `<span class="q ${st.quality}" aria-label="Connection ${st.quality}"><i></i><i></i><i></i></span>`;
+  const problem = st.away
+    ? `<div class="trouble-msg"><span class="ring">${ic("wifiOff", 22)}</span>Reconnecting…</div>`
+    : st.trouble ? `<div class="trouble-msg"><span class="ring">${ic("wifiOff", 22)}</span>Connection problem</div>` : "";
+  const classes = ["tile", extraClass, st.speaking ? "speaking" : "", st.away ? "away" : "", st.trouble ? "trouble" : ""].join(" ");
+  return `<div class="${classes}">${videoOf(key, st)}${problem}${quality}<span class="name">${voice}${label}</span></div>`;
+}
+
+function topOverlay() {
+  const lock = S.locked ? `<span class="tag-glass">${ic("lock", 15, 2)}Locked</span>` : "";
+  return `<div class="ctop"><div class="left"><span class="tag-glass num"><span class="dot-live"></span><span id="elapsed">${clock(S.elapsed)}</span></span>${lock}</div>
+    <button class="tag-glass pill-btn" data-act="people" aria-label="Participants">${ic("users", 16, 2)}<span class="num">${S.count}</span></button></div>`;
+}
+
+function controlBar() {
+  const btn = (act, icon, label, cls = "", extra = "") =>
+    `<button class="cb ${cls}" data-act="${act}" aria-label="${label}" title="${label}">${ic(icon, 24)}${extra}</button>`;
+  const badge = S.unread ? `<span class="badge">${S.unread}</span>` : "";
+  const mic = btn("mic", S.mic ? "mic" : "micOff", S.mic ? "Mute" : "Unmute", S.mic ? "" : "off");
+  const cam = btn("cam", S.cam ? "cam" : "camOff", S.cam ? "Turn camera off" : "Turn camera on", S.cam ? "" : "off");
+  const invite = btn("invite", "invite", "Invite");
+  const chat = btn("chat", "chat", "Chat", S.overlay === "chat" ? "active" : "", badge);
+  const more = btn("more", "more", "More", S.overlay === "more" ? "active" : "");
+  const leave = btn("leave", "leave", "Leave", "leave");
+  if (isPhone()) return `<div class="cbar">${mic}${cam}${invite}${chat}${more}${leave}</div>`;
+  const screen = btn("screen", "screen", S.presenting ? "Stop sharing" : "Share screen", S.presenting ? "active" : "");
+  return `<div class="cbar">${mic}${cam}${screen}<span class="gap"></span>${invite}${chat}${more}<span class="gap"></span>${leave}</div>`;
+}
+
+function waitingCard() {
+  const actions = isPhone()
+    ? `<button class="btn btn-glass" data-act="copy">${ic("copy", 20)}Copy link</button><button class="btn btn-stage" data-act="share-native">${ic("share", 20)}Share</button>`
+    : `<button class="btn btn-stage" data-act="copy">${ic("copy", 20)}Copy link</button>`;
+  return `<div class="waiting"><h3>Waiting for others</h3><p>Invite people to join this call.</p>
+    ${isPhone() ? "" : `<span class="link">${CALL_LINK}</span>`}<div class="row">${actions}</div></div>`;
+}
+
+const SLIDE = `<div class="slide"><span class="kick">TRIP PLAN</span><h4>Lisbon, 14–17 Nov</h4>
+  <div class="days"><div class="day"><b>Thu</b><span>Arrive 16:40</span><span>Alfama walk</span></div>
+  <div class="day"><b>Fri</b><span>Belém</span><span>Tram 28</span></div>
+  <div class="day"><b>Sat</b><span>Sintra day trip</span><span>Dinner at 20:00</span></div></div></div>`;
+
+function shareLayout() {
+  const others = roster();
+  if (isPhone()) {
+    const strip = others.filter((k) => k !== "anna").concat(["anna"]).map((k) => `<div class="tile">${tileInner(k)}</div>`);
+    return `<div class="shared" style="top:100px;left:8px;right:8px;height:234px">${SLIDE}</div>
+      <span class="tag-glass" style="position:absolute;top:346px;left:12px;z-index:30">${ic("screen", 16, 2)}Anna is presenting</span>
+      <div class="strip-tiles" style="left:8px;right:8px;top:390px;bottom:116px;display:grid;grid-template-columns:1fr 1fr;gap:6px">${strip.join("")}</div>`;
+  }
+  const strip = others.map((k) => `<div class="tile" style="width:232px;height:130px">${tileInner(k)}</div>`).join("");
+  return `<div class="shared" style="top:62px;left:20px;bottom:92px;right:${20 + 232 + 14}px">${SLIDE}</div>
+    <div class="strip-tiles" style="top:62px;right:20px;flex-direction:column">${strip}</div>
+    <div class="presenting" style="left:50%;top:12px;transform:translateX(-50%)">${ic("screen", 18, 2)}You are presenting<button data-act="screen">Stop</button></div>`;
+}
+
+function tileInner(key) {
+  return tile(key, "fill");
+}
+
+function stageLayout() {
+  if (S.presenting) return shareLayout();
+  if (S.count === 1) return `${tile(SELF, "full")}${waitingCard()}`;
+  if (S.count === 2 && isPhone()) return `${tile("anna", "full")}<div class="pip" id="pip">${tileInner(SELF)}</div>`;
+  const people = roster();
+  if (isPhone()) {
+    const [c, r] = PHONE_GRID_SHAPE[S.count] || [1, 2];
+    return `<div class="grid" style="--c:${c};--r:${r}">${people.map((k) => tile(k)).join("")}</div>`;
+  }
+  const [c, r] = GRID_SHAPE[S.count];
+  return `<div class="grid"><div class="tiles" style="--c:${c};--r:${r}">${people.map((k) => tile(k)).join("")}</div></div>`;
+}
+
+function bannerView() {
+  if (!S.banner) return "";
+  const enter = Date.now() - S.bannerAt < 450 ? "enter" : "";
+  if (S.banner === "reconnect") {
+    return `<div class="banner ${enter}" role="status"><span class="spin">${ic("spinner", 22, 2.4)}</span>
+      <div class="grow"><b>Reconnecting…</b><span>Your video keeps running.</span></div></div>`;
+  }
+  const offset = COUNTDOWN_CIRCUMFERENCE * (1 - S.hostLeft / HOST_GRACE_S);
+  return `<div class="banner ${enter}" role="status"><span class="cd"><svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true">
+      <circle class="track" cx="19" cy="19" r="16"/><circle class="bar" id="cdBar" cx="19" cy="19" r="16" stroke-dasharray="${COUNTDOWN_CIRCUMFERENCE}" stroke-dashoffset="${offset}"/></svg>
+      <b id="cdNum" class="num">${S.hostLeft}</b></span>
+    <div class="grow"><b>Waiting for the host</b><span>Anna lost connection. The call ends in <span id="cdText" class="num">${clock(S.hostLeft)}</span>.</span></div></div>`;
+}
+
+function moreMenu() {
+  const lock = S.role === "host"
+    ? `<button class="mi" data-act="lock" role="menuitemcheckbox" aria-checked="${S.locked}">${ic("lock", 22)}<span class="grow">Lock call<small>${S.locked ? "No one new can join" : "New people can join"}</small></span><span class="switch ${S.locked ? "on" : ""}"></span></button>`
+    : "";
+  const flip = isPhone() ? `<button class="mi" data-act="flip">${ic("flip", 22)}<span class="grow">Flip camera</span></button>` : "";
+  const link = (href, icon, label) => `<a class="mi" href="${href}" target="_blank" rel="noopener">${ic(icon, 22)}<span class="grow">${label}</span><span class="end">${ic("external", 16)}</span></a>`;
+  return `${lock}<button class="mi" data-act="people">${ic("users", 22)}<span class="grow">Participants</span><span class="end num">${S.count}${ic("chevRight", 18)}</span></button>${flip}
+    <div class="sep"></div>${link(LEGAL.impressum, "doc", "Impressum")}${link(LEGAL.datenschutz, "shield", "Datenschutz")}`;
+}
+
+function inviteBody() {
+  const actions = isPhone()
+    ? `<div class="invite-actions"><button class="btn btn-soft" data-act="copy">${ic("copy", 20)}Copy link</button><button class="btn btn-primary" data-act="share-native">${ic("share", 20)}Share</button></div>`
+    : "";
+  const copyInline = isPhone() ? "" : `<button class="btn btn-primary" data-act="copy">${ic("copy", 18)}Copy</button>`;
+  return `<div class="sheet-head"><h3>Invite people</h3><button class="iconbtn ghost" data-act="close" aria-label="Close">${ic("x", 22)}</button></div>
+    <div class="linkbox"><code>${CALL_LINK}</code>${copyInline}</div>
+    <div class="members-note">${ic("lock", 16)}Only HopIn members can join.</div>${actions}`;
+}
+
+function chatBody() {
+  const msgs = S.chat.map((m) => {
+    const mine = m.who === SELF;
+    return `<div class="msg ${mine ? "me" : ""}"><small>${mine ? "You" : PEOPLE[m.who].name}</small><p>${m.text}</p></div>`;
+  }).join("");
+  return `<div class="sheet-head"><h3>Chat</h3><button class="iconbtn ghost" data-act="close" aria-label="Close">${ic("x", 22)}</button></div>
+    <div class="msgs" id="msgs">${msgs}</div>
+    <form class="compose" data-form="chat"><input id="chatInput" autocomplete="off" placeholder="Message" aria-label="Message">
+      <button class="send" aria-label="Send">${ic("send", 20, 2)}</button></form>`;
+}
+
+function peopleBody() {
+  const rows = roster().map((k) => {
+    const st = personState(k);
+    const host = k === hostKey() ? '<span class="host-tag">Host</span>' : "";
+    const icons = `${st.muted ? ic("micOff", 18) : ""}${st.camOff ? ic("camOff", 18) : ""}`;
+    return `<li class="person">${avatar(k)}<span class="grow">${st.me ? "You" : PEOPLE[k].full}${host}</span><span class="icons">${icons}</span></li>`;
+  }).join("");
+  return `<div class="sheet-head"><h3>In this call · <span class="num">${S.count}</span></h3><button class="iconbtn ghost" data-act="close" aria-label="Close">${ic("x", 22)}</button></div>
+    <ul class="people">${rows}</ul>`;
+}
+
+function leaveBody() {
+  const others = S.count - 1;
+  return `<h3>Leave and end the call for everyone?</h3>
+    <p>You're the host. When you leave, the call ends for the ${others} other ${others === 1 ? "person" : "people"}.</p>`;
+}
+
+function overlayView() {
+  const o = S.overlay;
+  if (!o) return "";
+  if (isPhone()) {
+    if (o === "leave") {
+      return `<div class="scrim" data-act="close"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>
+        <div class="confirm">${leaveBody()}<div class="stackbtns"><button class="btn btn-leave btn-block" data-act="end-call">End call</button><button class="btn btn-soft btn-block" data-act="close">Cancel</button></div></div></div>`;
+    }
+    const body = { more: moreMenu, invite: inviteBody, chat: chatBody, people: peopleBody }[o]();
+    const tall = o === "chat" ? "tall" : "";
+    return `<div class="scrim" data-act="close"></div><div class="sheet ${tall}" role="dialog"><div class="grab"></div>${body}</div>`;
+  }
+  if (o === "leave") {
+    return `<div class="scrim" data-act="close"></div><div class="dialog" role="dialog" aria-modal="true">${leaveBody()}
+      <div class="row"><button class="btn btn-soft" data-act="close">Cancel</button><button class="btn btn-leave" data-act="end-call">End call</button></div></div>`;
+  }
+  if (o === "chat" || o === "people") return `<div class="panel" role="complementary">${o === "chat" ? chatBody() : peopleBody()}</div>`;
+  const body = o === "more" ? moreMenu() : inviteBody();
+  return `<div class="scrim clear" data-act="close"></div><div class="pop" data-anchor="${o}" role="dialog" style="bottom:88px;width:${o === "invite" ? 340 : 280}px">${body}</div>`;
+}
+
+function callView() {
+  const panelOpen = !isPhone() && (S.overlay === "chat" || S.overlay === "people");
+  return `<div class="stage ${panelOpen ? "panel-open" : ""}">${stageLayout()}${statusBar()}${topOverlay()}${bannerView()}${controlBar()}</div>${overlayView()}`;
+}
+</script>
+
+<script>
+"use strict";
+const FRAME = { phone: { w: 414, h: 868 }, desktop: { w: 1200, h: 760 } };
+const JOIN_DELAY_MS = 2200;
+const TOAST_MS = 2400;
+const NOTE_MS = 5000;
+let shellDevice = null;
+
+function buildShell() {
+  const device = $("#device");
+  if (isPhone()) {
+    device.className = "device phone-shell";
+    device.innerHTML = `<div class="phone"><div class="screen" id="screen"><div class="app" id="app"></div>
+      <div class="island"></div><div class="homebar"></div><div class="toasts" id="toasts"></div></div></div>`;
+  } else {
+    device.className = "device desktop-shell";
+    device.innerHTML = `<div class="window"><div class="chrome"><span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">${ic("lock", 13, 2)}hopin.hallucinai.de<span class="path" id="urlPath"></span></span></div>
+      <div class="screen" id="screen"><div class="app" id="app"></div><div class="toasts" id="toasts"></div></div></div>`;
+  }
+  shellDevice = S.device;
+}
+
+function screenMarkup() {
+  switch (S.screen) {
+    case "home": return homeView();
+    case "signout": return signoutView();
+    case "pre": return preView();
+    case "end": return endView();
+    default: return callView();
+  }
+}
+
+function render() {
+  if (shellDevice !== S.device) buildShell();
+  const onStage = S.screen === "call";
+  $("#app").innerHTML = screenMarkup();
+  $("#app").classList.toggle("on-stage", onStage);
+  $("#screen").dataset.surface = onStage ? "stage" : "page";
+  const path = $("#urlPath");
+  if (path) path.textContent = S.screen === "home" || S.screen === "end" && S.endKind === "noaccess" ? "" : "/c/k3x9q7pm";
+  placePopovers();
+  placePip();
+  syncControls();
+  fit();
+}
+
+function syncControls() {
+  const key = viewKey();
+  const chip = CHIP_ALIAS[key] && key !== "signout" ? CHIP_ALIAS[key] : key;
+  document.querySelectorAll(".chip").forEach((el) => el.setAttribute("aria-pressed", String(el.dataset.chip === chip)));
+  revealActiveChip();
+  const [tag, text] = CAPTIONS[key];
+  $("#proof").innerHTML = `<span class="proof-tag">#25 · ${tag}</span><span id="proofText">${text}</span>`;
+  document.querySelectorAll("#segDevice button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.device === S.device)));
+  $("#main").classList.toggle("with-aside", isPhone());
+}
+
+function revealActiveChip() {
+  const row = $("#chips");
+  const active = row.querySelector('[aria-pressed="true"]');
+  if (!active || row.scrollWidth <= row.clientWidth) return;
+  const offset = active.getBoundingClientRect().left - row.getBoundingClientRect().left;
+  row.scrollLeft += offset - (row.clientWidth - active.offsetWidth) / 2;
+}
+
+function noteUnderFrame(text) {
+  const el = $("#proofText");
+  if (!el) return;
+  el.innerHTML = `${el.textContent} <span class="proof-note">${text}</span>`;
+  clearTimeout(timers.note);
+  timers.note = setTimeout(syncControls, NOTE_MS);
+}
+
+function toast(text, icon = "check") {
+  const layer = $("#toasts");
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.setAttribute("role", "status");
+  el.innerHTML = `${ic(icon, 18, 2.2)}<span>${text}</span>`;
+  layer.replaceChildren(el);
+  setTimeout(() => el.remove(), TOAST_MS);
+}
+
+function scale() {
+  const f = FRAME[S.device];
+  const avail = $("#frameCol").clientWidth;
+  return Math.min(1, avail / f.w);
+}
+
+function fit() {
+  const f = FRAME[S.device];
+  const s = scale();
+  const host = $("#frameHost");
+  host.style.width = `${f.w * s}px`;
+  host.style.height = `${f.h * s}px`;
+  $("#device").style.transform = `scale(${s})`;
+  $("#proof").style.maxWidth = `${Math.max(f.w * s, 320)}px`;
+}
+
+function placePopovers() {
+  const pop = document.querySelector(".pop[data-anchor]");
+  if (!pop) return;
+  const btn = document.querySelector(`.cbar [data-act="${pop.dataset.anchor}"]`);
+  const screen = $("#screen");
+  const s = scale();
+  const center = (btn.getBoundingClientRect().left + btn.getBoundingClientRect().width / 2 - screen.getBoundingClientRect().left) / s;
+  const width = pop.offsetWidth;
+  const left = Math.min(Math.max(center - width / 2, 16), screen.offsetWidth - width - 16);
+  pop.style.left = `${left}px`;
+}
+
+const PIP = { w: 104, h: 152, margin: 14, top: 98, bottom: 118 };
+function pipCorners() {
+  const W = 390, H = 844;
+  return {
+    tl: [PIP.margin, PIP.top], tr: [W - PIP.w - PIP.margin, PIP.top],
+    bl: [PIP.margin, H - PIP.bottom - PIP.h], br: [W - PIP.w - PIP.margin, H - PIP.bottom - PIP.h],
+  };
+}
+function placePip() {
+  const pip = $("#pip");
+  if (!pip) return;
+  const [x, y] = pipCorners()[S.pip];
+  pip.style.left = `${x}px`;
+  pip.style.top = `${y}px`;
+  pip.addEventListener("pointerdown", startPipDrag);
+}
+function startPipDrag(event) {
+  const pip = event.currentTarget;
+  const s = scale();
+  const start = { x: event.clientX, y: event.clientY, left: pip.offsetLeft, top: pip.offsetTop };
+  pip.setPointerCapture(event.pointerId);
+  pip.classList.add("dragging");
+  const move = (e) => {
+    pip.style.left = `${start.left + (e.clientX - start.x) / s}px`;
+    pip.style.top = `${start.top + (e.clientY - start.y) / s}px`;
+  };
+  const up = () => {
+    pip.removeEventListener("pointermove", move);
+    pip.removeEventListener("pointerup", up);
+    pip.classList.remove("dragging");
+    const cx = pip.offsetLeft + PIP.w / 2, cy = pip.offsetTop + PIP.h / 2;
+    S.pip = (cy < 844 / 2 ? "t" : "b") + (cx < 390 / 2 ? "l" : "r");
+    const [x, y] = pipCorners()[S.pip];
+    pip.style.left = `${x}px`;
+    pip.style.top = `${y}px`;
+  };
+  pip.addEventListener("pointermove", move);
+  pip.addEventListener("pointerup", up);
+}
+
+function copyLink() {
+  const done = () => toast("Link copied");
+  try {
+    navigator.clipboard.writeText(`https://${CALL_LINK}`).then(done, done);
+  } catch (e) {
+    done();
+  }
+  expectJoin();
+}
+function expectJoin() {
+  if (S.count !== 1 || S.role !== "host") return;
+  clearTimeout(timers.join);
+  timers.join = setTimeout(() => {
+    if (S.screen !== "call" || S.count !== 1) return;
+    Object.assign(S, { count: 2, overlay: null });
+    render();
+    toast("Anna joined", "invite");
+  }, JOIN_DELAY_MS);
+}
+
+function playTestSound() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 660;
+    gain.gain.setValueAtTime(0.06, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    toast("Sound is off in this preview", "speaker");
+  }
+}
+
+function leaveCall() {
+  if (S.role === "host" && S.count > 1) { S.overlay = "leave"; return; }
+  Object.assign(S, { screen: "end", endKind: S.role === "host" ? "ended" : "left", overlay: null, banner: null });
+}
+
+const ACTIONS = {
+  start: () => PRESETS["pre-host"](),
+  avatar: () => { S.overlay = S.overlay === "menu" ? null : "menu"; },
+  signout: () => { fresh({ screen: "signout" }); },
+  home: () => PRESETS.home(),
+  close: () => { S.overlay = null; },
+  mic: () => { S.mic = !S.mic; },
+  cam: () => { S.cam = !S.cam; },
+  flip: () => { S.flipped = !S.flipped; S.cam = true; toast(S.flipped ? "Back camera" : "Front camera", "flip"); },
+  join: () => {
+    const guest = S.role === "guest";
+    Object.assign(S, { screen: "call", count: guest ? 4 : 1, elapsed: guest ? 640 : 0, unread: guest ? 1 : 0, overlay: null });
+  },
+  "retry-perm": () => { S.preKind = S.role === "guest" ? "guest" : "host"; S.cam = true; toast("Camera allowed"); },
+  "nocam-continue": () => { S.preKind = "nocam"; S.cam = false; },
+  "test-sound": () => playTestSound(),
+  invite: () => { S.overlay = S.overlay === "invite" ? null : "invite"; },
+  copy: () => copyLink(),
+  "share-native": () => { noteUnderFrame("Hier öffnet das Telefon sein eigenes Teilen-Menü (WhatsApp, Nachrichten …)."); expectJoin(); },
+  chat: () => { S.overlay = S.overlay === "chat" ? null : "chat"; S.unread = 0; },
+  more: () => { S.overlay = S.overlay === "more" ? null : "more"; },
+  people: () => { S.overlay = S.overlay === "people" ? null : "people"; },
+  lock: () => { S.locked = !S.locked; toast(S.locked ? "Call locked" : "Call unlocked", "lock"); },
+  screen: () => { S.presenting = !S.presenting; S.overlay = null; },
+  leave: () => leaveCall(),
+  "end-call": () => Object.assign(S, { screen: "end", endKind: "ended", overlay: null }),
+  rejoin: () => PRESETS["pre-guest"](),
+  "retry-lock": () => PRESETS["pre-guest"](),
+};
+
+function onFrameClick(event) {
+  const target = event.target.closest("[data-act]");
+  if (!target || target.disabled) return;
+  if (target.tagName === "A") return;
+  event.preventDefault();
+  ACTIONS[target.dataset.act]();
+  render();
+}
+
+function onFrameSubmit(event) {
+  if (event.target.dataset.form !== "chat") return;
+  event.preventDefault();
+  const input = $("#chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+  S.chat.push({ who: SELF, text });
+  render();
+  $("#chatInput").focus();
+  const msgs = $("#msgs");
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function onFrameChange(event) {
+  const kind = event.target.dataset.dev;
+  if (kind) S.dev[kind] = Number(event.target.value);
+}
+
+function tick() {
+  if (S.screen !== "call") return;
+  S.elapsed += 1;
+  const elapsed = $("#elapsed");
+  if (elapsed) elapsed.textContent = clock(S.elapsed);
+  if (S.banner !== "hostwait") return;
+  S.hostLeft -= 1;
+  if (S.hostLeft <= 0) {
+    Object.assign(S, { screen: "end", endKind: "hostgone", banner: null, overlay: null });
+    render();
+    return;
+  }
+  $("#cdNum").textContent = S.hostLeft;
+  $("#cdText").textContent = clock(S.hostLeft);
+  $("#cdBar").setAttribute("stroke-dashoffset", COUNTDOWN_CIRCUMFERENCE * (1 - S.hostLeft / HOST_GRACE_S));
+}
+
+function buildChips() {
+  $("#chips").innerHTML = CHIP_GROUPS.map(([group, chips]) =>
+    `<div class="chip-group"><span class="ctl-label">${group}</span>${chips.map(([id, label]) =>
+      `<button type="button" class="chip" id="chip-${id}" data-chip="${id}" aria-pressed="false">${label}</button>`).join("")}</div>`).join("");
+  $("#chips").addEventListener("click", (e) => {
+    const chip = e.target.closest("[data-chip]");
+    if (!chip) return;
+    PRESETS[chip.dataset.chip]();
+    store.set("hopin-proto-chip", chip.dataset.chip);
+    render();
+  });
+}
+
+function applyTheme(choice) {
+  if (choice === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", choice);
+  document.querySelectorAll("#segTheme button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === choice)));
+  store.set("hopin-proto-theme", choice);
+}
+
+function boot() {
+  buildChips();
+  $("#segDevice").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-device]");
+    if (!b) return;
+    S.device = b.dataset.device;
+    store.set("hopin-proto-device", S.device);
+    render();
+  });
+  $("#segTheme").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-theme-set]");
+    if (b) applyTheme(b.dataset.themeSet);
+  });
+  const device = $("#device");
+  device.addEventListener("click", onFrameClick);
+  device.addEventListener("submit", onFrameSubmit);
+  device.addEventListener("change", onFrameChange);
+  const hashChip = location.hash.slice(1);
+  const savedChip = store.get("hopin-proto-chip");
+  const savedDevice = store.get("hopin-proto-device");
+  const narrow = window.innerWidth < 700;
+  S.device = savedDevice === "phone" || savedDevice === "desktop" ? savedDevice : narrow ? "phone" : "desktop";
+  applyTheme(["auto", "light", "dark"].includes(store.get("hopin-proto-theme")) ? store.get("hopin-proto-theme") : "auto");
+  (PRESETS[hashChip] || PRESETS[savedChip] || PRESETS.home)();
+  render();
+  new ResizeObserver(fit).observe($("#frameCol"));
+  setInterval(tick, 1000);
+}
+boot();
+</script>
+</body>
+</html>

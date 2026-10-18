@@ -4,7 +4,8 @@ The root carries the package manifest and its lockfile, the container files,
 the pre-commit and scanner configuration, the licence, and the entry documents.
 Everything else lives in the directory of its owner (AGENTS.md, "Repository layout"): a helper
 under `scripts/`, a fixture next to its test, the work-board contract
-`board.toml` of the aco coordination tool under `.aco/`. The gate reads the
+`board.toml` of the aco coordination tool under `.aco/`, the blessed pictures
+under `docs/mockups/`. The gate reads the
 tree as git sees it -- tracked files and untracked files git does not ignore
 -- so a file that strays onto a runner is red too, and every refusal names
 where the file belongs.
@@ -38,7 +39,7 @@ ROOT_FILES = frozenset(
         "uv.lock",
     }
 )
-ROOT_DIRECTORIES = frozenset({".aco", ".github", "quality", "scripts", "src", "tests"})
+ROOT_DIRECTORIES = frozenset({".aco", ".github", "docs", "quality", "scripts", "src", "tests"})
 HOME_BY_SUFFIX = {
     ".py": "a helper belongs under scripts/, a fixture next to its test",
     ".md": "a document belongs next to its owner",
