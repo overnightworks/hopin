@@ -25,8 +25,8 @@ class TestConstants:
     def test_max_participants_per_room_is_6(self):
         assert MAX_PARTICIPANTS_PER_ROOM == 6
 
-    def test_stun_server_uses_google(self):
-        assert "stun" in STUN_SERVER_URL
+    def test_stun_server_defaults_to_cloudflare(self):
+        assert STUN_SERVER_URL == "stun:stun.cloudflare.com:3478"
 
 
 class TestSignalType:
@@ -67,9 +67,11 @@ class TestServerSettings:
             "HOPIN_HOST": "127.0.0.1",
             "HOPIN_PORT": "9090",
             "HOPIN_MAX_PARTICIPANTS_PER_ROOM": "3",
+            "HOPIN_STUN_SERVER": "stun:stun.example.test:3478",
         }
         with patch.dict(os.environ, env):
             settings = ServerSettings()
             assert settings.host == "127.0.0.1"
             assert settings.port == 9090
             assert settings.max_participants_per_room == 3
+            assert settings.stun_server == "stun:stun.example.test:3478"
