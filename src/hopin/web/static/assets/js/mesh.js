@@ -98,9 +98,7 @@ async function handleOffer(data) {
 function handleAnswer(data) {
     const previous = answerApplicationsByParticipant.get(data.from) ?? Promise.resolve();
     const applied = previous.then(() => applyAnswer(data));
-    // The caller still sees a failed application; the queue only must not stop behind it.
-    answerApplicationsByParticipant.set(data.from, applied.catch(() => {}));
-    return applied;
+    answerApplicationsByParticipant.set(data.from, applied.catch(reportError));
 }
 
 async function applyAnswer(data) {

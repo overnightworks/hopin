@@ -60,10 +60,15 @@ peerConnectionPrototype.setLocalDescription = function (description) {
 const nativeSetRemoteDescription = peerConnectionPrototype.setRemoteDescription;
 peerConnectionPrototype.setRemoteDescription = function (description) {
     if (description.type !== "answer") return nativeSetRemoteDescription.call(this, description);
+    if (window.rejectNextAnswerApplication) {
+        window.rejectNextAnswerApplication = false;
+        return Promise.reject(new Error(window.injectedRejectionMessage));
+    }
     window.forcedStates.delete(this);
     const gate = window.answerApplicationGate ?? Promise.resolve();
     return gate.then(() => nativeSetRemoteDescription.call(this, description));
 };
+window.rejectNextAnswerApplication = false;
 window.answerCreationsStarted = 0;
 window.answerCreationsSettled = 0;
 window.answerCreationGate = null;
@@ -103,6 +108,7 @@ CLEAR_FORCED_STATE = """
 FIRST_CONNECTION_IS_CONNECTED = """
 () => ["connected", "completed"].includes(window.recordedConnections[0]?.iceConnectionState)
 """
+ANSWER_APPLIED = '() => window.recordedConnections[0].signalingState === "stable"'
 AWAITING_ANSWER = '() => window.recordedConnections[0].signalingState === "have-local-offer"'
 RESTART_OFFER_COUNT = "() => window.restartOfferCount"
 HOLD_ANSWER_CREATION = """
@@ -117,6 +123,13 @@ HOLD_ANSWER_APPLICATION = """
 }
 """
 RELEASE_ANSWER_APPLICATION = "() => window.releaseAnswerApplication()"
+REJECT_NEXT_ANSWER_APPLICATION = """
+(message) => {
+    window.injectedRejectionMessage = message;
+    window.rejectNextAnswerApplication = true;
+}
+"""
+INJECTED_REJECTION = "answer application rejected on purpose"
 ANSWER_CREATIONS_COUNTED = "() => [window.answerCreationsStarted, window.answerCreationsSettled]"
 ANSWER_CREATION_STARTED = "(before) => window.answerCreationsStarted > before"
 AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
@@ -701,6 +714,25 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
 
     assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
     assert _wait_for_new_ufrag_in_stats(host, host_before) != host_before
+
+
+def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_applied(
+    connected_pair: ConnectedPair,
+) -> None:
+    guest, host = connected_pair.guest, connected_pair.host
+    first_delay = _restart_delay(guest, 0)
+    guest_before, host_before = str(guest.evaluate(SDP_UFRAG)), str(host.evaluate(SDP_UFRAG))
+    guest.evaluate(REJECT_NEXT_ANSWER_APPLICATION, INJECTED_REJECTION)
+
+    connected_pair.force_failed_on(guest)
+    pump_until(guest, lambda: bool(connected_pair.page_errors))
+    guest.clock.run_for(first_delay)
+
+    guest.wait_for_function(ANSWER_APPLIED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    assert [INJECTED_REJECTION in error for error in connected_pair.page_errors] == [True]
+    assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
+    assert _wait_for_new_ufrag_in_stats(host, host_before) != host_before
+    connected_pair.page_errors.clear()
 
 
 def test_every_cut_in_a_row_resumes_with_the_first_delay_because_each_resume_resets_the_attempts(
