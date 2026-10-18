@@ -1,7 +1,8 @@
-import json
+from contextlib import ExitStack
 
 import pytest
-from aiohttp import WSMsgType
+from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from hopin.app import create_app
 from hopin.config.constants import SignalType
@@ -9,171 +10,128 @@ from hopin.config.settings import ServerSettings
 
 
 @pytest.fixture
-def app():
+def client():
     settings = ServerSettings(max_participants_per_room=3)
-    return create_app(settings)
+    return TestClient(create_app(settings))
 
 
-async def connect_ws(client, connection_id):
-    return await client.ws_connect(f"/ws?id={connection_id}")
-
-
-async def send(ws, data):
-    await ws.send_str(json.dumps(data))
-
-
-async def receive(ws):
-    msg = await ws.receive()
-    return json.loads(msg.data)
+@pytest.fixture
+def connect(client):
+    with ExitStack() as sessions:
+        yield lambda connection_id: sessions.enter_context(client.websocket_connect(f"/ws?id={connection_id}"))
 
 
 @pytest.mark.integration
 class TestConnect:
-    @pytest.mark.asyncio
-    async def test_connect_without_id_closes_the_socket(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        ws = await client.ws_connect("/ws")
-        msg = await ws.receive()
-        assert msg.type == WSMsgType.CLOSE
+    def test_connect_without_id_closes_the_socket(self, client):
+        with client.websocket_connect("/ws") as ws, pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_json()
+        assert closed.value.code == 1000
 
 
 @pytest.mark.integration
 class TestRoomCreation:
-    @pytest.mark.asyncio
-    async def test_create_room_returns_room_id(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        ws = await connect_ws(client, "host1")
-        await send(ws, {"type": SignalType.JOIN.value})
-        response = await receive(ws)
+    def test_create_room_returns_room_id(self, connect):
+        ws = connect("host1")
+        ws.send_json({"type": SignalType.JOIN.value})
+        response = ws.receive_json()
         assert response["type"] == SignalType.ROOM_CREATED.value
         assert "room_id" in response
         assert response["is_host"] is True
-        await ws.close()
 
-    @pytest.mark.asyncio
-    async def test_create_room_with_password(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        ws = await connect_ws(client, "host1")
-        await send(ws, {"type": SignalType.JOIN.value, "password": "secret"})
-        response = await receive(ws)
+    def test_create_room_with_password(self, connect):
+        ws = connect("host1")
+        ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
+        response = ws.receive_json()
         assert response["type"] == SignalType.ROOM_CREATED.value
-        await ws.close()
 
 
 @pytest.mark.integration
 class TestJoining:
-    @pytest.mark.asyncio
-    async def test_join_existing_room(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_join_existing_room(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
 
-        p1_response = await receive(p1_ws)
+        p1_response = p1_ws.receive_json()
         assert p1_response["type"] == SignalType.EXISTING_PARTICIPANTS.value
         assert "host1" in p1_response["participants"]
         assert p1_response["is_host"] is False
 
-        host_notification = await receive(host_ws)
+        host_notification = host_ws.receive_json()
         assert host_notification["type"] == SignalType.PARTICIPANT_JOINED.value
         assert host_notification["participant_id"] == "p1"
 
-        await host_ws.close()
-        await p1_ws.close()
-
-    @pytest.mark.asyncio
-    async def test_join_nonexistent_room_sends_error(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        ws = await connect_ws(client, "p1")
-        await send(ws, {"type": SignalType.JOIN.value, "room_id": "nonexistent"})
-        response = await receive(ws)
+    def test_join_nonexistent_room_sends_error(self, connect):
+        ws = connect("p1")
+        ws.send_json({"type": SignalType.JOIN.value, "room_id": "nonexistent"})
+        response = ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
-        await ws.close()
 
-    @pytest.mark.asyncio
-    async def test_join_with_correct_password(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value, "password": "secret"})
-        created = await receive(host_ws)
+    def test_join_with_correct_password(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id, "password": "secret"})
-        response = await receive(p1_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id, "password": "secret"})
+        response = p1_ws.receive_json()
         assert response["type"] == SignalType.EXISTING_PARTICIPANTS.value
 
-        await host_ws.close()
-        await p1_ws.close()
-
-    @pytest.mark.asyncio
-    async def test_join_with_wrong_password_sends_error(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value, "password": "secret"})
-        created = await receive(host_ws)
+    def test_join_with_wrong_password_sends_error(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id, "password": "wrong"})
-        response = await receive(p1_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id, "password": "wrong"})
+        response = p1_ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
         assert "Wrong password" in response["message"]
 
-        await host_ws.close()
-        await p1_ws.close()
-
-    @pytest.mark.asyncio
-    async def test_full_room_sends_error(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_full_room_sends_error(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        await receive(p1_ws)
-        await receive(host_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        p1_ws.receive_json()
+        host_ws.receive_json()
 
-        p2_ws = await connect_ws(client, "p2")
-        await send(p2_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        await receive(p2_ws)
-        await receive(host_ws)
-        await receive(p1_ws)
+        p2_ws = connect("p2")
+        p2_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        p2_ws.receive_json()
+        host_ws.receive_json()
+        p1_ws.receive_json()
 
-        p3_ws = await connect_ws(client, "p3")
-        await send(p3_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        response = await receive(p3_ws)
+        p3_ws = connect("p3")
+        p3_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        response = p3_ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
-
-        await host_ws.close()
-        await p1_ws.close()
-        await p2_ws.close()
-        await p3_ws.close()
 
 
 @pytest.mark.integration
 class TestRelay:
-    @pytest.mark.asyncio
-    async def test_offer_relayed_between_peers(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_offer_relayed_between_peers(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        await receive(p1_ws)
-        await receive(host_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        p1_ws.receive_json()
+        host_ws.receive_json()
 
-        await send(
-            p1_ws,
+        p1_ws.send_json(
             {
                 "type": SignalType.OFFER.value,
                 "target": "host1",
@@ -181,123 +139,97 @@ class TestRelay:
             },
         )
 
-        relayed = await receive(host_ws)
+        relayed = host_ws.receive_json()
         assert relayed["type"] == SignalType.OFFER.value
         assert relayed["sdp"] == "test_sdp_offer"
         assert relayed["from"] == "p1"
 
-        await host_ws.close()
-        await p1_ws.close()
-
 
 @pytest.mark.integration
 class TestLockUnlock:
-    @pytest.mark.asyncio
-    async def test_lock_prevents_joining(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_lock_prevents_joining(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        await send(host_ws, {"type": SignalType.LOCK_ROOM.value})
-        lock_msg = await receive(host_ws)
+        host_ws.send_json({"type": SignalType.LOCK_ROOM.value})
+        lock_msg = host_ws.receive_json()
         assert lock_msg["type"] == SignalType.ROOM_LOCKED.value
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        response = await receive(p1_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        response = p1_ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
         assert "locked" in response["message"].lower()
 
-        await host_ws.close()
-        await p1_ws.close()
-
-    @pytest.mark.asyncio
-    async def test_unlock_allows_joining(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_unlock_allows_joining(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        await send(host_ws, {"type": SignalType.LOCK_ROOM.value})
-        await receive(host_ws)
+        host_ws.send_json({"type": SignalType.LOCK_ROOM.value})
+        host_ws.receive_json()
 
-        await send(host_ws, {"type": SignalType.UNLOCK_ROOM.value})
-        unlock_msg = await receive(host_ws)
+        host_ws.send_json({"type": SignalType.UNLOCK_ROOM.value})
+        unlock_msg = host_ws.receive_json()
         assert unlock_msg["type"] == SignalType.ROOM_UNLOCKED.value
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        response = await receive(p1_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        response = p1_ws.receive_json()
         assert response["type"] == SignalType.EXISTING_PARTICIPANTS.value
-
-        await host_ws.close()
-        await p1_ws.close()
 
 
 @pytest.mark.integration
 class TestDisconnect:
-    @pytest.mark.asyncio
-    async def test_disconnect_notifies_remaining_peers(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_disconnect_notifies_remaining_peers(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        await receive(p1_ws)
-        await receive(host_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        p1_ws.receive_json()
+        host_ws.receive_json()
 
-        await p1_ws.close()
+        p1_ws.close()
 
-        left_msg = await receive(host_ws)
+        left_msg = host_ws.receive_json()
         assert left_msg["type"] == SignalType.PARTICIPANT_LEFT.value
         assert left_msg["participant_id"] == "p1"
-
-        await host_ws.close()
 
 
 @pytest.mark.integration
 class TestNonTextFrames:
-    @pytest.mark.asyncio
-    async def test_binary_frame_is_ignored_and_later_text_frames_still_process(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        ws = await connect_ws(client, "host1")
+    def test_binary_frame_is_ignored_and_later_text_frames_still_process(self, connect):
+        ws = connect("host1")
 
-        await ws.send_bytes(b"x")
-        await send(ws, {"type": SignalType.JOIN.value})
+        ws.send_bytes(b"x")
+        ws.send_json({"type": SignalType.JOIN.value})
 
-        response = await receive(ws)
+        response = ws.receive_json()
         assert response["type"] == SignalType.ROOM_CREATED.value
-
-        await ws.close()
 
 
 @pytest.mark.integration
 class TestChat:
-    @pytest.mark.asyncio
-    async def test_chat_message_delivered_to_other_participants(self, aiohttp_client, app):
-        client = await aiohttp_client(app)
-        host_ws = await connect_ws(client, "host1")
-        await send(host_ws, {"type": SignalType.JOIN.value})
-        created = await receive(host_ws)
+    def test_chat_message_delivered_to_other_participants(self, connect):
+        host_ws = connect("host1")
+        host_ws.send_json({"type": SignalType.JOIN.value})
+        created = host_ws.receive_json()
         room_id = created["room_id"]
 
-        p1_ws = await connect_ws(client, "p1")
-        await send(p1_ws, {"type": SignalType.JOIN.value, "room_id": room_id})
-        await receive(p1_ws)
-        await receive(host_ws)
+        p1_ws = connect("p1")
+        p1_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        p1_ws.receive_json()
+        host_ws.receive_json()
 
-        await send(host_ws, {"type": SignalType.CHAT.value, "message": "hello everyone"})
+        host_ws.send_json({"type": SignalType.CHAT.value, "message": "hello everyone"})
 
-        chat_msg = await receive(p1_ws)
+        chat_msg = p1_ws.receive_json()
         assert chat_msg["type"] == SignalType.CHAT.value
         assert chat_msg["message"] == "hello everyone"
         assert chat_msg["from"] == "host1"
-
-        await host_ws.close()
-        await p1_ws.close()

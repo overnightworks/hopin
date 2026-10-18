@@ -1,13 +1,13 @@
 import structlog
-from aiohttp import web
+from fastapi import FastAPI
 
 from hopin.config.settings import ServerSettings
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
-from hopin.web.routes import create_routes
+from hopin.web.routes import create_router
 
 
-def create_app(settings: ServerSettings | None = None) -> web.Application:
+def create_app(settings: ServerSettings | None = None) -> FastAPI:
     if settings is None:
         settings = ServerSettings()
 
@@ -22,10 +22,8 @@ def create_app(settings: ServerSettings | None = None) -> web.Application:
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     signaling_handler = SignalingHandler(room_manager)
 
-    app = web.Application()
-    routes = create_routes(signaling_handler, room_manager)
-    app.router.add_routes(routes)
-
-    app["settings"] = settings
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.include_router(create_router(signaling_handler, room_manager))
+    app.state.settings = settings
 
     return app

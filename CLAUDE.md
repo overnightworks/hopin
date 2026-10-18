@@ -111,7 +111,6 @@ src/hopin/
 ├── signaling/      # WebSocket signaling server
 ├── rooms/          # room/session management
 ├── web/            # HTTP routes, static files
-├── media/          # WebRTC media handling
 └── errors.py       # custom exceptions
 
 scripts/            # repository tooling that CI and `make check` run
