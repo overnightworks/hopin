@@ -10,6 +10,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
+    MAX_SIGNALING_FRAME_LENGTH,
     NORMAL_CLOSE_CODES,
     PEER_ID_BYTES,
     POLICY_VIOLATION_CLOSE_CODE,
@@ -100,6 +101,14 @@ class ResumeClaim:
         return cls(PeerId(participant_id), token, last_seq, sent_floor)
 
 
+def _token_matches(claimed: str, expected: str) -> bool:
+    try:
+        claimed_bytes = claimed.encode()
+    except UnicodeEncodeError:
+        return False
+    return secrets.compare_digest(claimed_bytes, expected.encode())
+
+
 def _is_sequence_number(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
@@ -158,6 +167,10 @@ class SignalingHandler:
             return
         is_first_frame = connection.frames_received == 0
         connection.frames_received += 1
+
+        if len(raw_data) > MAX_SIGNALING_FRAME_LENGTH:
+            await self._send_error(peer_id, InvalidMessageError("Message too long"))
+            return
 
         try:
             data = json.loads(raw_data)
@@ -367,11 +380,11 @@ class SignalingHandler:
 
     def _matching_seat(self, connection: Connection, claim: ResumeClaim) -> Peer:
         seat = self._peers.get(claim.participant_id)
-        if seat is None or claim.participant_id == connection.peer_id:
+        if seat is None:
             raise ResumeRefusedError(ResumeRefusalCause.UNKNOWN_SEAT)
-        if not secrets.compare_digest(claim.token.encode(), seat.resume_token.encode()):
+        if not _token_matches(claim.token, seat.resume_token):
             raise ResumeRefusedError(ResumeRefusalCause.CREDENTIAL_MISMATCH)
-        if self._account_of(connection.peer_id) != seat.account:
+        if self._account_of(connection.peer_id).id != seat.account.id:
             raise ResumeRefusedError(ResumeRefusalCause.WRONG_ACCOUNT)
         return seat
 
@@ -415,17 +428,22 @@ class SignalingHandler:
                 "last_seq": seat.received_seq,
             },
         )
-        await self._replay(seat, claim.last_seq)
+        await self._replay(claim.participant_id, seat, claim.last_seq)
         await logger.ainfo("seat_resumed", peer_id=claim.participant_id)
 
-    async def _replay(self, seat: Peer, last_seq: int) -> None:
+    async def _replay(self, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
         websocket = seat.websocket
         cursor = last_seq
-        while pending := seat.log.since(cursor):
-            for frame in pending:
-                if seat.websocket is not websocket or not await self._write(websocket, frame):
-                    return
-                cursor = frame[SEQUENCE_KEY]
+        while True:
+            if not seat.log.reaches_back_to(cursor):
+                await self._release_unresumable_seat(peer_id)
+                return
+            pending = seat.log.since(cursor)
+            if not pending:
+                break
+            if seat.websocket is not websocket or not await self._write(websocket, pending[0]):
+                return
+            cursor = pending[0][SEQUENCE_KEY]
         seat.replaying = False
 
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:

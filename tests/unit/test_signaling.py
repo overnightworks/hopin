@@ -11,6 +11,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
+    MAX_SIGNALING_FRAME_LENGTH,
     REPLAY_LOG_LIMIT,
     RESUME_WINDOW_SECONDS,
     SUPERSEDED_CLOSE_CODE,
@@ -1336,6 +1337,7 @@ class TestResumeRefusals:
             pytest.param({"participant_id": 7}, id="non_string_participant_id"),
             pytest.param({"token": 7}, id="non_string_token"),
             pytest.param({"token": "tökén"}, id="non_ascii_token"),
+            pytest.param({"token": "\ud800"}, id="unencodable_token"),
             pytest.param({"last_seq": None}, id="null_last_seq"),
             pytest.param({"last_seq": "1"}, id="string_last_seq"),
             pytest.param({"last_seq": 1.5}, id="float_last_seq"),
@@ -1383,6 +1385,15 @@ class TestResumeRefusals:
         assert guest.frames(SignalType.RESUMED)
 
     @pytest.mark.asyncio
+    async def test_right_token_from_the_same_account_id_under_another_display_name_resumes(self, link):
+        _host, guest = await host_and_guest(link)
+        await guest.drop()
+
+        await guest.resume(account=Account(id="guest", name="Guest, renamed"))
+
+        assert guest.frames(SignalType.RESUMED)
+
+    @pytest.mark.asyncio
     async def test_token_rotated_out_by_a_resume_is_refused(self, link):
         _host, guest = await host_and_guest(link)
         await guest.drop()
@@ -1396,25 +1407,18 @@ class TestResumeRefusals:
         assert only_error_reason(guest) == [REFUSED]
 
     @pytest.mark.asyncio
-    async def test_resume_as_a_later_frame_is_refused_and_the_seat_is_unchanged(self, link):
+    async def test_resume_as_a_later_frame_from_another_seat_is_refused_and_the_parked_seat_still_resumes(self, link):
         host, guest = await host_and_guest(link)
+        await guest.drop()
+        other_seat = await link.join("guest", host.socket.sent[0]["room_id"])
         heard_before = len(host.socket.sent)
 
-        await guest.say(guest.resume_frame())
+        await other_seat.say(guest.resume_frame())
 
-        assert only_error_reason(guest) == [REFUSED]
+        assert only_error_reason(other_seat) == [REFUSED]
         assert len(host.socket.sent) == heard_before
-
-    @pytest.mark.asyncio
-    async def test_resume_cannot_name_the_seat_of_its_own_socket(self, link):
-        host, guest = await host_and_guest(link)
-        stranger = await link.open(account_named("guest"))
-        newcomer_id = next(iter(link.handler._peers.keys() - {host.peer_id, guest.peer_id}))
-
-        stranger.push(text_frame(guest.resume_frame(participant_id=newcomer_id)))
-        await stranger.idle.wait()
-
-        assert [frame["reason"] for frame in stranger.sent] == [REFUSED]
+        await guest.resume()
+        assert guest.frames(SignalType.RESUMED)
 
     @pytest.mark.asyncio
     async def test_refusal_names_no_cause_and_echoes_no_credential(self, link):
@@ -1425,6 +1429,29 @@ class TestResumeRefusals:
 
         [refusal] = guest.socket.sent
         assert refusal == {"type": SignalType.ERROR.value, "reason": REFUSED, "message": "Resume refused"}
+
+
+@dataclass
+class HeldReplay:
+    reached: asyncio.Event
+    release: asyncio.Event
+
+
+async def resume_holding_the_first_replayed_frame(link, browser):
+    held = HeldReplay(reached=asyncio.Event(), release=asyncio.Event())
+    socket = await link.open(account_named(browser.name))
+    write = socket.send_text
+
+    async def hold_replayed_frames(text):
+        if socket.sent:
+            held.reached.set()
+            await held.release.wait()
+        await write(text)
+
+    socket.send_text = hold_replayed_frames
+    browser.sockets.append(socket)
+    socket.push(text_frame(browser.resume_frame()))
+    return held
 
 
 async def fill_server_log(host, guest, frames):
@@ -1531,23 +1558,40 @@ class TestResumeLogs:
         assert len(dropped_socket.sent) == written_before
 
     @pytest.mark.asyncio
-    async def test_frame_sent_during_the_replay_arrives_after_the_replayed_ones_without_duplicates(self, link):
+    async def test_frame_sent_while_a_replayed_frame_is_being_written_arrives_after_the_replayed_ones(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
         await host.say({"type": SignalType.CHAT.value, "message": "missed 1"})
         await host.say({"type": SignalType.CHAT.value, "message": "missed 2"})
-        gate = asyncio.Event()
-        guest.sockets.append(await link.open(account_named("guest"), send_gate=gate))
-        guest.socket.push(text_frame(guest.resume_frame()))
+        writing_replay = await resume_holding_the_first_replayed_frame(link, guest)
 
+        await writing_replay.reached.wait()
         await host.say({"type": SignalType.CHAT.value, "message": "live"})
-        gate.set()
+        writing_replay.release.set()
         await guest.socket.idle.wait()
 
-        chats = guest.frames(SignalType.CHAT)
-        assert [frame["message"] for frame in chats] == ["missed 1", "missed 2", "live"]
+        assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed 1", "missed 2", "live"]
         seqs = [frame["seq"] for frame in guest.socket.sent[1:]]
         assert seqs == sorted(set(seqs))
+
+    @pytest.mark.asyncio
+    async def test_log_overrun_while_a_replayed_frame_is_being_written_releases_the_seat_instead_of_skipping_frames(
+        self, link
+    ):
+        host, guest = await host_and_guest(link)
+        await guest.drop()
+        await host.say({"type": SignalType.CHAT.value, "message": "missed"})
+        writing_replay = await resume_holding_the_first_replayed_frame(link, guest)
+
+        await writing_replay.reached.wait()
+        await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
+        writing_replay.release.set()
+        await guest.socket.idle.wait()
+
+        assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed"]
+        assert guest.socket.closed_with == SUPERSEDED_CLOSE_CODE
+        [left] = host.frames(SignalType.PARTICIPANT_LEFT)
+        assert left["participant_id"] == guest.peer_id
 
     @pytest.mark.asyncio
     async def test_replay_stops_when_the_socket_breaks_and_the_next_resume_gets_the_rest(self, link):
@@ -1658,6 +1702,21 @@ class TestSequenceNumbers:
         await guest.send_raw(frame if seq is None else {**frame, "seq": seq})
 
         assert only_error_reason(guest) == [ErrorReason.INVALID_MESSAGE.value]
+        assert host.frames(SignalType.CHAT) == []
+
+
+class TestFrameLength:
+    @pytest.mark.asyncio
+    async def test_frame_longer_than_the_bound_is_refused_and_neither_relayed_nor_replayed(self, link):
+        host, guest = await host_and_guest(link)
+        too_long = {"type": SignalType.CHAT.value, "message": "x" * MAX_SIGNALING_FRAME_LENGTH}
+
+        await guest.say(too_long)
+
+        assert only_error_reason(guest) == [ErrorReason.INVALID_MESSAGE.value]
+        assert host.frames(SignalType.CHAT) == []
+        await host.drop()
+        await host.resume()
         assert host.frames(SignalType.CHAT) == []
 
 

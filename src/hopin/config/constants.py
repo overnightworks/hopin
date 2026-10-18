@@ -19,6 +19,7 @@ HOST_GRACE_SECONDS = 60
 RESUME_WINDOW_SECONDS = 30
 RESUME_TOKEN_BYTES = 32
 REPLAY_LOG_LIMIT = 256
+MAX_SIGNALING_FRAME_LENGTH = 65536
 
 WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
 # 1005 is a close without a code, which is how HopIn's own client leaves.
