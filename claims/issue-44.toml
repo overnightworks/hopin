@@ -1,8 +1,0 @@
-claim_id = "e8c3cb8f0298476bb3049ed72b4eb687"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "519a2dd319cd4a3bbfddd82b693089bea6db4488"
-branch = "claude/issue-44-split-call-html-into-static-modules"
-scope = ["CLAUDE.md", "README.md", "docs/decisions", "sonar-project.properties", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/web", "tests/unit/test_app.py", "tests/unit/test_web.py"]
-opened_commit = "26d8db22f623901cb7a6cb386d81556a094cb4b1"
-whole_reason = "Moving one page's markup, style and script into static files, the routes that serve them and the guard test is one change: a half-moved page does not run."
