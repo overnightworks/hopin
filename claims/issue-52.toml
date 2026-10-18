@@ -1,8 +1,0 @@
-claim_id = "2e134b4c2dc842a19f90a99be108c2fe"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "e38a81e7597b7f018b17ca6afd518ab455d22886"
-branch = "claude/issue-52-stun-from-configuration"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/web/ice_servers.py", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/mesh.js", "tests/e2e", "tests/unit/test_app.py", "tests/unit/test_config.py", "tests/unit/test_ice_servers.py"]
-opened_commit = "df2e654648714a2259b36a29b83eac66e6ee8d0d"
-whole_reason = "The route, its one browser caller and their tests are one seam: the route alone is dead code, and the browser half alone has no ICE servers to fetch."
