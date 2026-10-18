@@ -133,27 +133,30 @@ class TestRoomManager:
     def test_add_participant_raises_when_locked(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         room.locked = True
+        room_id = room.room_id
         with pytest.raises(RoomLockedError):
-            manager.add_participant(room.room_id, "p1", account_named("p1"))
+            manager.add_participant(room_id, "p1", ACCOUNT_P1)
 
     def test_add_participant_locked_and_full_raises_locked(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.add_participant(room.room_id, "p2", account_named("p2"))
         room.locked = True
+        room_id = room.room_id
         with pytest.raises(RoomLockedError):
-            manager.add_participant(room.room_id, "p3", account_named("p3"))
+            manager.add_participant(room_id, "p3", ACCOUNT_P3)
 
     def test_add_participant_raises_when_full(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.add_participant(room.room_id, "p2", account_named("p2"))
+        room_id = room.room_id
         with pytest.raises(RoomFullError):
-            manager.add_participant(room.room_id, "p3", account_named("p3"))
+            manager.add_participant(room_id, "p3", ACCOUNT_P3)
 
     def test_add_participant_raises_for_unknown_room(self, manager):
         with pytest.raises(RoomNotFoundError):
-            manager.add_participant("nonexistent", "p1", account_named("p1"))
+            manager.add_participant("nonexistent", "p1", ACCOUNT_P1)
 
     def test_set_room_locked_by_host(self, manager):
         room = manager.create_room("h1", account_named("h1"))
@@ -177,8 +180,9 @@ class TestRoomManager:
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.remove_participant(room.room_id, "h1")
         manager.add_participant(room.room_id, "p2", account_named("p2"))
+        room_id = room.room_id
         with pytest.raises(RoomFullError):
-            manager.add_participant(room.room_id, "p3", account_named("p3"))
+            manager.add_participant(room_id, "p3", ACCOUNT_P3)
 
     def test_add_participant_returning_host_takes_the_reserved_seat(self, manager):
         room = manager.create_room("h1", account_named("h1"))
@@ -191,8 +195,9 @@ class TestRoomManager:
     def test_set_room_locked_by_non_host_raises(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         manager.add_participant(room.room_id, "p1", account_named("p1"))
+        room_id = room.room_id
         with pytest.raises(NotHostError):
-            manager.set_room_locked(room.room_id, account_named("p1"), locked=True)
+            manager.set_room_locked(room_id, ACCOUNT_P1, locked=True)
 
     def test_remove_participant_removes_from_room(self, manager):
         room = manager.create_room("h1", account_named("h1"))
