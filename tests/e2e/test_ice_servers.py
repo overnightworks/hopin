@@ -4,21 +4,12 @@ from collections.abc import Callable
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e.conftest import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, start_call
+from tests.e2e.conftest import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, RECORD_PEER_CONNECTIONS, start_call
 
 pytestmark = pytest.mark.e2e
 
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 ICE_SERVERS_URL_PATTERN = "**/api/ice-servers"
-RECORD_PEER_CONNECTIONS = """
-window.recordedConfigurations = [];
-const NativePeerConnection = window.RTCPeerConnection;
-window.RTCPeerConnection = function (configuration, ...rest) {
-    window.recordedConfigurations.push(configuration);
-    return new NativePeerConnection(configuration, ...rest);
-};
-window.RTCPeerConnection.prototype = NativePeerConnection.prototype;
-"""
 RECORD_MEDIA_STREAMS = """
 window.acquiredStreams = [];
 const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
