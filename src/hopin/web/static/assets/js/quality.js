@@ -51,7 +51,7 @@ function applyQualityReport(container, report) {
 }
 
 function pollConnectionQuality(participantId, connection, interval) {
-    if (connection.connectionState === "closed" || connection.connectionState === "failed") {
+    if (connection.connectionState === "closed") {
         clearInterval(interval);
         return;
     }

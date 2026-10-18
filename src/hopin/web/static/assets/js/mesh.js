@@ -1,4 +1,6 @@
+import { applyUploadCaps } from "./bandwidth.js";
 import { monitorConnectionQuality } from "./quality.js";
+import { watchIceConnection } from "./recovery.js";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
 import { state } from "./state.js";
@@ -27,6 +29,20 @@ export function peerCount() {
     return connectionsByParticipant.size;
 }
 
+async function sendOffer(participantId, connection, options) {
+    const offer = await connection.createOffer(options);
+    await connection.setLocalDescription(offer);
+    send({
+        type: SIGNAL_TYPE.OFFER,
+        target: participantId,
+        sdp: connection.localDescription,
+    });
+}
+
+function capUploads() {
+    return applyUploadCaps([...connectionsByParticipant.values()]);
+}
+
 async function createPeerConnection(participantId, initiator) {
     const connection = new RTCPeerConnection(rtcConfiguration);
     connectionsByParticipant.set(participantId, connection);
@@ -37,6 +53,7 @@ async function createPeerConnection(participantId, initiator) {
         }
     }
 
+    void capUploads();
     addRemoteTile(participantId);
     peersChanged();
 
@@ -55,13 +72,8 @@ async function createPeerConnection(participantId, initiator) {
     };
 
     if (initiator) {
-        const offer = await connection.createOffer();
-        await connection.setLocalDescription(offer);
-        send({
-            type: SIGNAL_TYPE.OFFER,
-            target: participantId,
-            sdp: connection.localDescription,
-        });
+        await sendOffer(participantId, connection);
+        watchIceConnection(connection, () => sendOffer(participantId, connection, { iceRestart: true }));
     }
 
     monitorConnectionQuality(participantId, connection);
@@ -95,6 +107,7 @@ async function handleIceCandidate(data) {
 function removePeer(participantId) {
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
+    void capUploads();
     if (removeRemoteTile(participantId)) peersChanged();
 }
 
