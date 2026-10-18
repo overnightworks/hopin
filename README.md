@@ -161,6 +161,8 @@ src/hopin/
 │               ├── state.js      # Call and local-media state
 │               ├── signaling.js  # WebSocket, reconnect, message handlers
 │               ├── mesh.js       # Peer connections
+│               ├── recovery.js   # ICE restart of failed connections
+│               ├── bandwidth.js  # Upload cap by call size
 │               ├── media.js      # Camera, microphone, screen share
 │               ├── quality.js    # Round-trip indicator
 │               ├── chat.js       # Chat panel
@@ -206,7 +208,7 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
 | `end_room` | Client → Server | The host ends the call for everyone |
 | `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out) or `ended` (the host ended it) |
-| `offer` | Client → Server → Client | WebRTC SDP offer (relayed to target) |
+| `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
 | `error` | Server → Client | a refusal or a bad frame, with its `reason` |

@@ -27,6 +27,21 @@ FAKE_MEDIA_BROWSER_ARGS = [
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 INVITE_LINK_PATTERN = re.compile(r"/join/\w+")
+RECORD_PEER_CONNECTIONS = """
+window.recordedConfigurations = [];
+window.recordedConnections = [];
+const NativePeerConnection = window.RTCPeerConnection;
+window.RTCPeerConnection = function (configuration, ...rest) {
+    window.recordedConfigurations.push(configuration);
+    const connection = new NativePeerConnection(configuration, ...rest);
+    window.recordedConnections.push(connection);
+    return connection;
+};
+window.RTCPeerConnection.prototype = NativePeerConnection.prototype;
+"""
+OPEN_PEER_COUNT_REACHED = """
+(count) => window.recordedConnections.filter((connection) => connection.signalingState !== "closed").length === count
+"""
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 
 
@@ -118,3 +133,7 @@ def start_call(host: Page, base_url: str) -> str:
     expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
     host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     return host.input_value("#shareUrl")
+
+
+def wait_for_peer_count(person: Page, count: int) -> None:
+    person.wait_for_function(OPEN_PEER_COUNT_REACHED, arg=count, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
