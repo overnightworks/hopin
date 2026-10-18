@@ -8,7 +8,7 @@ from hopin.signaling.scheduler import AsyncioScheduler
 WAIT_CAP_SECONDS = 5
 
 
-class Boom(Exception):
+class TimerError(Exception):
     pass
 
 
@@ -65,8 +65,11 @@ class TestAsyncioScheduler:
         await wait_for(finished)
 
     @pytest.mark.asyncio
-    async def test_now_advances_with_the_event_loop_clock(self, scheduler):
-        assert scheduler.now() == asyncio.get_running_loop().time()
+    async def test_now_reads_the_event_loop_clock(self, scheduler):
+        loop = asyncio.get_running_loop()
+        before = loop.time()
+        reading = scheduler.now()
+        assert before <= reading <= loop.time()
 
     @pytest.mark.asyncio
     async def test_raising_callback_is_logged_as_timer_failed(self, scheduler):
@@ -74,7 +77,7 @@ class TestAsyncioScheduler:
 
         async def callback():
             raised.set()
-            raise Boom
+            raise TimerError
 
         with structlog.testing.capture_logs() as logs:
             scheduler.call_later(0, callback)
@@ -83,7 +86,7 @@ class TestAsyncioScheduler:
 
         [failure] = [log for log in logs if log["event"] == "timer_failed"]
         assert failure["log_level"] == "error"
-        assert isinstance(failure["exc_info"], Boom)
+        assert isinstance(failure["exc_info"], TimerError)
 
     @pytest.mark.asyncio
     async def test_cancelled_callback_task_is_not_logged_as_a_failure(self, scheduler):

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.app import create_app
-from hopin.config.constants import ErrorReason, SignalType
+from hopin.config.constants import HOST_GRACE_SECONDS, ErrorReason, RoomClosedReason, SignalType
 from hopin.config.settings import ServerSettings
 
 
@@ -192,6 +192,76 @@ class TestDisconnect:
         left_msg = host_ws.receive_json()
         assert left_msg["type"] == SignalType.PARTICIPANT_LEFT.value
         assert left_msg["participant_id"] == p1_peer_id
+
+
+@pytest.mark.integration
+class TestHostGrace:
+    def test_host_socket_closing_sends_the_guest_host_away_then_participant_left(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, existing = join_room(connect, "guest", room_id)
+        [host_peer_id] = existing["participants"]
+        host_ws.receive_json()
+
+        host_ws.close()
+
+        away = guest_ws.receive_json()
+        assert (away["type"], away["participant_id"]) == (SignalType.HOST_AWAY.value, host_peer_id)
+        assert 0 < away["seconds_left"] <= HOST_GRACE_SECONDS
+        left = guest_ws.receive_json()
+        assert (left["type"], left["participant_id"]) == (SignalType.PARTICIPANT_LEFT.value, host_peer_id)
+
+    def test_new_socket_of_the_host_account_is_host_again_and_the_guest_hears_host_back(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, _existing = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+        host_ws.close()
+        guest_ws.receive_json()
+        guest_ws.receive_json()
+
+        reloaded_ws, reloaded = join_room(connect, "host1", room_id)
+
+        assert reloaded["type"] == SignalType.EXISTING_PARTICIPANTS.value
+        assert reloaded["is_host"] is True
+        joined = guest_ws.receive_json()
+        back = guest_ws.receive_json()
+        assert joined["type"] == SignalType.PARTICIPANT_JOINED.value
+        assert (back["type"], back["participant_id"]) == (SignalType.HOST_BACK.value, joined["participant_id"])
+        reloaded_ws.send_json({"type": SignalType.LOCK_ROOM.value})
+        assert reloaded_ws.receive_json()["type"] == SignalType.ROOM_LOCKED.value
+
+
+@pytest.mark.integration
+class TestEndRoom:
+    def test_end_room_closes_it_for_both_peers_and_the_id_is_gone(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, _existing = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+
+        host_ws.send_json({"type": SignalType.END_ROOM.value})
+
+        expected = {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.ENDED.value}
+        assert host_ws.receive_json() == expected
+        assert guest_ws.receive_json() == expected
+        _late_ws, refusal = join_room(connect, "late", room_id)
+        assert refusal["reason"] == ErrorReason.NOT_FOUND.value
+
+
+@pytest.mark.integration
+class TestRelayStaysInTheRoom:
+    def test_offer_aimed_at_a_peer_in_another_room_is_not_delivered(self, connect):
+        intruder_ws, _intruder_room = open_room(connect, "intruder")
+        victim_host_ws, victim_room = open_room(connect, "victim-host")
+        victimguest_ws, existing = join_room(connect, "victim-guest", victim_room)
+        [victim_host_peer_id] = existing["participants"]
+        victim_host_ws.receive_json()
+
+        intruder_ws.send_json({"type": SignalType.OFFER.value, "target": victim_host_peer_id, "sdp": "stolen"})
+        intruder_ws.send_bytes(b"x")
+        intruder_ws.send_text("not json")
+        assert intruder_ws.receive_json()["reason"] == ErrorReason.INVALID_MESSAGE.value
+        victimguest_ws.send_json({"type": SignalType.CHAT.value, "message": "inside the room"})
+
+        assert victim_host_ws.receive_json()["type"] == SignalType.CHAT.value
 
 
 @pytest.mark.integration

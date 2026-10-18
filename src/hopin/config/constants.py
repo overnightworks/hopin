@@ -14,6 +14,7 @@ STATIC_PATH = "/static"
 STUN_SERVER_URL = "stun:stun.l.google.com:19302"
 
 MAX_PARTICIPANTS_PER_ROOM = 6
+HOST_GRACE_SECONDS = 60
 
 WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
 # 1005 is a close without a code, which is how HopIn's own client leaves.
@@ -40,6 +41,9 @@ class SignalType(StrEnum):
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
     CHAT = "chat"
+    HOST_AWAY = "host_away"
+    HOST_BACK = "host_back"
+    END_ROOM = "end_room"
 
 
 class ErrorReason(StrEnum):
@@ -48,3 +52,8 @@ class ErrorReason(StrEnum):
     FULL = "full"
     NOT_HOST = "not_host"
     INVALID_MESSAGE = "invalid_message"
+
+
+class RoomClosedReason(StrEnum):
+    HOST_GONE = "host_gone"
+    ENDED = "ended"
