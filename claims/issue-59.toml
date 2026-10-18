@@ -1,0 +1,8 @@
+claim_id = "a3350d6a3a58493da211a39a38a26aa7"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "1113b84208047ea480549d23b410391c21a5ce79"
+branch = "claude/issue-59-host-is-the-account-60s-grace"
+scope = ["README.md", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/rooms/manager.py", "src/hopin/rooms/models.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/identity.py", "src/hopin/signaling/scheduler.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_identity.py", "tests/unit/test_rooms.py", "tests/unit/test_scheduler.py", "tests/unit/test_signaling.py", "tests/unit/test_web.py"]
+opened_commit = "d838a7e41386e317df7d1c0361711886214c8580"
+whole_reason = "The host-as-account model, the grace timer and room ending rewrite the same join, disconnect and lock paths in handler.py and rooms/, and their two test modules; app.py, test_web.py and test_identity.py change only because constructor signatures and the Account import move."
