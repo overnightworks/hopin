@@ -1,7 +1,7 @@
 export const ICE_DISCONNECTED_GRACE_MS = 2000;
 const ICE_RESTART_RETRY_DELAYS_MS = [2000, 4000, 8000, 15000];
-const CONNECTED_STATES = ["connected", "completed"];
-const LOST_STATES = ["disconnected", "failed"];
+const CONNECTED_STATES = new Set(["connected", "completed"]);
+const LOST_STATES = new Set(["disconnected", "failed"]);
 
 export function restartDelay(attempt) {
     return ICE_RESTART_RETRY_DELAYS_MS[Math.min(attempt, ICE_RESTART_RETRY_DELAYS_MS.length - 1)];
@@ -13,7 +13,7 @@ export function watchIceConnection(connection, restart) {
     let pendingTimer = null;
 
     const isClosed = () => connection.signalingState === "closed";
-    const isConnected = () => CONNECTED_STATES.includes(connection.iceConnectionState);
+    const isConnected = () => CONNECTED_STATES.has(connection.iceConnectionState);
 
     function schedule(delayMs, callback) {
         clearTimeout(pendingTimer);
@@ -46,12 +46,12 @@ export function watchIceConnection(connection, restart) {
     }
 
     function restartAfterGrace() {
-        if (LOST_STATES.includes(connection.iceConnectionState)) restartAndRetry();
+        if (LOST_STATES.has(connection.iceConnectionState)) restartAndRetry();
     }
 
     connection.addEventListener("iceconnectionstatechange", () => {
         const state = connection.iceConnectionState;
-        if (CONNECTED_STATES.includes(state)) {
+        if (CONNECTED_STATES.has(state)) {
             endEpisode();
         } else if (episodeBegun) {
             return;
