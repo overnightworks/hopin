@@ -1,6 +1,6 @@
 from typing import ClassVar
 
-from hopin.config.constants import ErrorReason
+from hopin.config.constants import ErrorReason, ResumeRefusalCause
 
 
 class HopInError(Exception):
@@ -41,3 +41,11 @@ class NotHostError(HopInError):
 
 class InvalidMessageError(HopInError):
     reason = ErrorReason.INVALID_MESSAGE
+
+
+class ResumeRefusedError(HopInError):
+    reason = ErrorReason.RESUME_REFUSED
+
+    def __init__(self, cause: ResumeRefusalCause) -> None:
+        super().__init__("Resume refused")
+        self.cause = cause

@@ -1,10 +1,11 @@
 import pytest
 
-from hopin.config.constants import ErrorReason
+from hopin.config.constants import ErrorReason, ResumeRefusalCause
 from hopin.errors import (
     HopInError,
     InvalidMessageError,
     NotHostError,
+    ResumeRefusedError,
     RoomFullError,
     RoomLockedError,
     RoomNotFoundError,
@@ -13,7 +14,14 @@ from hopin.errors import (
 
 class TestErrorHierarchy:
     def test_all_errors_inherit_from_base(self):
-        errors = [RoomNotFoundError, RoomFullError, RoomLockedError, NotHostError, InvalidMessageError]
+        errors = [
+            RoomNotFoundError,
+            RoomFullError,
+            RoomLockedError,
+            NotHostError,
+            InvalidMessageError,
+            ResumeRefusedError,
+        ]
         for error_cls in errors:
             assert issubclass(error_cls, HopInError)
 
@@ -30,6 +38,7 @@ class TestErrorReason:
             (RoomFullError("abc123"), ErrorReason.FULL),
             (NotHostError("abc123"), ErrorReason.NOT_HOST),
             (InvalidMessageError("bad frame"), ErrorReason.INVALID_MESSAGE),
+            (ResumeRefusedError(ResumeRefusalCause.MALFORMED), ErrorReason.RESUME_REFUSED),
         ],
     )
     def test_reason_error_type_carries_its_reason(self, error, reason):
@@ -77,3 +86,11 @@ class TestNotHostError:
 
     def test_message_contains_room_id(self):
         assert "abc123" in str(NotHostError("abc123"))
+
+
+class TestResumeRefusedError:
+    def test_carries_the_cause_for_the_log_and_a_message_that_names_none(self):
+        error = ResumeRefusedError(ResumeRefusalCause.CREDENTIAL_MISMATCH)
+
+        assert error.cause is ResumeRefusalCause.CREDENTIAL_MISMATCH
+        assert str(error) == "Resume refused"

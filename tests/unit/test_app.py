@@ -1,4 +1,7 @@
+import secrets
+
 import pytest
+import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -37,3 +40,22 @@ class TestCreateApp:
     def test_generated_documentation_is_not_served(self, path):
         response = TestClient(create_app()).get(path)
         assert response.status_code == 404
+
+
+class TestLoggedExceptions:
+    def test_rendered_traceback_leaves_out_the_values_of_local_variables(self, capsys):
+        create_app()
+        sentinel = secrets.token_urlsafe(16)
+
+        def fail_holding_the_sentinel():
+            held_secret = sentinel
+            raise ValueError(len(held_secret))
+
+        try:
+            fail_holding_the_sentinel()
+        except ValueError:
+            structlog.get_logger().exception("failed")
+
+        rendered = capsys.readouterr().out
+        assert "ValueError" in rendered
+        assert sentinel not in rendered
