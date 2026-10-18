@@ -104,17 +104,17 @@ async function handleScreenClick() {
 
 function handleCopyClick() {
     shareUrl.select();
-    navigator.clipboard.writeText(shareUrl.value);
+    void navigator.clipboard.writeText(shareUrl.value);
     flashCopiedLabel();
 }
 
 export function initControls({ onLeaveRequested }) {
     muteButton.addEventListener("click", handleMuteClick);
     videoButton.addEventListener("click", () => {
-        handleVideoClick();
+        void handleVideoClick();
     });
     screenButton.addEventListener("click", () => {
-        handleScreenClick();
+        void handleScreenClick();
     });
     lockButton.addEventListener("click", handleLockClick);
     copyButton.addEventListener("click", handleCopyClick);

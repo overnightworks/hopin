@@ -88,7 +88,7 @@ function removePeer(participantId) {
 }
 
 export function removeAllPeers() {
-    for (const participantId of [...connectionsByParticipant.keys()]) {
+    for (const participantId of connectionsByParticipant.keys()) {
         removePeer(participantId);
     }
 }
@@ -116,7 +116,7 @@ export function replaceVideoTrackOnPeers(newTrack) {
 export function registerMeshHandlers() {
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
         for (const participantId of data.participants) {
-            createPeerConnection(participantId, true);
+            void createPeerConnection(participantId, true);
         }
     });
     on(SIGNAL_TYPE.PARTICIPANT_LEFT, (data) => removePeer(data.participant_id));

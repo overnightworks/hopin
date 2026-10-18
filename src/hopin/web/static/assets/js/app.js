@@ -41,18 +41,19 @@ function updateLockUI() {
     showLockIndicator(state.isLocked);
 }
 
-async function startCall(password, preferCamera) {
+function startCall(password, preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    try {
-        await acquireMedia(preferCamera);
-        showLocalStream(state.localStream);
-        renderVideoButton();
-        updateLocalPreview();
-        connect(password);
-    } catch (error) {
-        setStatus(error.message, "error");
-    }
+    return acquireMedia(preferCamera)
+        .then(() => {
+            showLocalStream(state.localStream);
+            renderVideoButton();
+            updateLocalPreview();
+            connect(password);
+        })
+        .catch((error) => {
+            setStatus(error.message, "error");
+        });
 }
 
 function leaveCall() {
@@ -133,7 +134,7 @@ initControls({ onLeaveRequested: requestLeave });
 initChat();
 
 if (getRoomIdFromUrl()) {
-    startCall(null, true);
+    void startCall(null, true);
 } else {
     showSetupDialog();
 }
