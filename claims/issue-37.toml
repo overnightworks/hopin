@@ -1,0 +1,8 @@
+claim_id = "0c382539a3e6443b93c1fed8197d78f3"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "18dddfeb6502190f6ec74a7a32f95203f9e19d03"
+branch = "claude/issue-37-fastapi-and-the-container"
+scope = [".dockerignore", ".github/dependabot.yml", ".pre-commit-config.yaml", "CLAUDE.md", "Dockerfile", "README.md", "compose.yaml", "pyproject.toml", "scripts/check_root_layout.py", "sonar-project.properties", "src/hopin", "tests", "uv.lock"]
+opened_commit = "7d667be27d40ae107706a94845b56c5bace4a91a"
+whole_reason = "The framework swap, its ported tests and the container that starts it are one change: the container's command is the new server, and a half-swapped app neither runs nor tests."
