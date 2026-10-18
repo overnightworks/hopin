@@ -1,4 +1,3 @@
-import { showPasswordDialog } from "./dialogs.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 
@@ -21,12 +20,10 @@ export const SIGNAL_TYPE = {
 };
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000];
-const WRONG_PASSWORD_MESSAGE = "Wrong password";
 
 const handlersByType = new Map();
 let socket = null;
 let reconnectTimer = null;
-let currentPassword = null;
 let beforeReconnect = () => {};
 
 export function on(type, handler) {
@@ -59,7 +56,7 @@ function dispatch(data) {
     }
 }
 
-function sendJoin(password) {
+function sendJoin() {
     const joinMessage = { type: SIGNAL_TYPE.JOIN };
     const urlRoomId = getRoomIdFromUrl();
     if (urlRoomId) {
@@ -67,21 +64,11 @@ function sendJoin(password) {
     } else if (state.roomId) {
         joinMessage.room_id = state.roomId;
     }
-    if (password) {
-        joinMessage.password = password;
-    }
     send(joinMessage);
 }
 
 function handleMessage(event) {
-    const data = JSON.parse(event.data);
-    if (data.type === SIGNAL_TYPE.ERROR && data.message?.includes(WRONG_PASSWORD_MESSAGE)) {
-        socket.close();
-        showPasswordDialog();
-        setStatus("Password required", "error");
-        return;
-    }
-    dispatch(data);
+    dispatch(JSON.parse(event.data));
 }
 
 function scheduleReconnect() {
@@ -90,7 +77,7 @@ function scheduleReconnect() {
     setStatus(`Reconnecting in ${delay / 1000}s...`, "connecting");
     reconnectTimer = setTimeout(() => {
         beforeReconnect();
-        connect(currentPassword);
+        connect();
     }, delay);
 }
 
@@ -105,14 +92,13 @@ function handleClose() {
     }
 }
 
-export function connect(password) {
-    currentPassword = password;
+export function connect() {
     const scheme = location.protocol.replace("http", "ws");
     socket = new WebSocket(`${scheme}//${location.host}/ws?id=${crypto.randomUUID()}`);
 
     socket.onopen = () => {
         setStatus("Connected - joining...", "connecting");
-        sendJoin(password);
+        sendJoin();
     };
     socket.onmessage = handleMessage;
     socket.onclose = handleClose;
