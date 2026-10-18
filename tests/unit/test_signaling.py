@@ -1,12 +1,13 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from unittest.mock import AsyncMock
 
 import pytest
 import structlog
-from aiohttp import WSMsgType
+import structlog.testing
+from starlette.websockets import WebSocketState
 
-from hopin.config.constants import SignalType
+from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT, SignalType
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 
@@ -23,8 +24,8 @@ def handler(room_manager):
 
 def make_ws_mock():
     ws = AsyncMock()
-    ws.closed = False
-    ws.send_str = AsyncMock()
+    ws.client_state = WebSocketState.CONNECTED
+    ws.send_text = AsyncMock()
     return ws
 
 
@@ -34,27 +35,34 @@ def register_connection(handler, connection_id):
     return ws
 
 
+def text_frame(data):
+    return {"type": "websocket.receive", "text": json.dumps(data)}
+
+
+def disconnect_frame(code):
+    return {"type": WEBSOCKET_DISCONNECT_EVENT, "code": code}
+
+
 @dataclass
-class FakeMessage:
-    type: WSMsgType
+class FakeSocket:
+    """A minimal inbound socket, for driving the message loop without a live transport."""
 
+    frames: list[dict]
+    query_params: dict[str, str] = field(default_factory=lambda: {"id": "c1"})
+    client_state: WebSocketState = WebSocketState.CONNECTED
+    closed_with: int | None = None
 
-class FakeInboundSocket:
-    """A minimal async-iterable socket, for driving the message loop without a live transport."""
+    async def accept(self) -> None:
+        return None
 
-    def __init__(self, messages: list[FakeMessage]) -> None:
-        self._messages = list(messages)
+    async def close(self, code: int) -> None:
+        self.closed_with = code
 
-    def __aiter__(self) -> "FakeInboundSocket":
-        return self
+    async def receive(self) -> dict:
+        return self.frames.pop(0)
 
-    async def __anext__(self) -> FakeMessage:
-        if not self._messages:
-            raise StopAsyncIteration
-        return self._messages.pop(0)
-
-    def exception(self) -> Exception:
-        return ConnectionResetError("simulated transport error")
+    async def send_text(self, _text: str) -> None:
+        return None
 
 
 class TestHandleMessage:
@@ -62,15 +70,15 @@ class TestHandleMessage:
     async def test_invalid_json_sends_error(self, handler):
         ws = register_connection(handler, "c1")
         await handler._handle_message("c1", "not json")
-        ws.send_str.assert_called_once()
-        response = json.loads(ws.send_str.call_args[0][0])
+        ws.send_text.assert_called_once()
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
 
     @pytest.mark.asyncio
     async def test_missing_type_sends_error(self, handler):
         ws = register_connection(handler, "c1")
         await handler._handle_message("c1", json.dumps({"foo": "bar"}))
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
         assert "Missing" in response["message"]
 
@@ -78,7 +86,7 @@ class TestHandleMessage:
     async def test_unknown_type_sends_error(self, handler):
         ws = register_connection(handler, "c1")
         await handler._handle_message("c1", json.dumps({"type": "unknown"}))
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
         assert "Unknown" in response["message"]
 
@@ -91,7 +99,7 @@ class TestJoinCreateRoom:
             "host1",
             json.dumps({"type": SignalType.JOIN.value}),
         )
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ROOM_CREATED.value
         assert "room_id" in response
 
@@ -120,7 +128,7 @@ class TestJoinExistingRoom:
         )
 
         p1_ws = handler._connections["p1"]
-        calls = p1_ws.send_str.call_args_list
+        calls = p1_ws.send_text.call_args_list
         existing_msg = json.loads(calls[0][0][0])
         assert existing_msg["type"] == SignalType.EXISTING_PARTICIPANTS.value
         assert "host1" in existing_msg["participants"]
@@ -138,7 +146,7 @@ class TestJoinExistingRoom:
             json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
         )
 
-        host_calls = host_ws.send_str.call_args_list
+        host_calls = host_ws.send_text.call_args_list
         joined_msg = json.loads(host_calls[0][0][0])
         assert joined_msg["type"] == SignalType.PARTICIPANT_JOINED.value
         assert joined_msg["participant_id"] == "p1"
@@ -150,7 +158,7 @@ class TestJoinExistingRoom:
             "p1",
             json.dumps({"type": SignalType.JOIN.value, "room_id": "nonexistent"}),
         )
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
 
     @pytest.mark.asyncio
@@ -167,7 +175,7 @@ class TestJoinExistingRoom:
             "p2",
             json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
         )
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
 
 
@@ -188,7 +196,7 @@ class TestRelay:
             ),
         )
 
-        response = json.loads(target_ws.send_str.call_args[0][0])
+        response = json.loads(target_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.OFFER.value
         assert response["sdp"] == "test_sdp"
         assert response["from"] == "p1"
@@ -209,7 +217,7 @@ class TestRelay:
             ),
         )
 
-        response = json.loads(target_ws.send_str.call_args[0][0])
+        response = json.loads(target_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ANSWER.value
         assert response["sdp"] == "answer_sdp"
         assert response["from"] == "p2"
@@ -230,7 +238,7 @@ class TestRelay:
             ),
         )
 
-        response = json.loads(target_ws.send_str.call_args[0][0])
+        response = json.loads(target_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ICE_CANDIDATE.value
         assert response["candidate"] == "test_candidate"
         assert response["from"] == "p1"
@@ -242,7 +250,7 @@ class TestRelay:
             "p1",
             json.dumps({"type": SignalType.OFFER.value, "sdp": "test_sdp"}),
         )
-        ws.send_str.assert_not_called()
+        ws.send_text.assert_not_called()
 
 
 class TestDisconnect:
@@ -258,7 +266,7 @@ class TestDisconnect:
 
         await handler._handle_disconnect("p1")
 
-        response = json.loads(host_ws.send_str.call_args[0][0])
+        response = json.loads(host_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.PARTICIPANT_LEFT.value
         assert response["participant_id"] == "p1"
 
@@ -306,7 +314,7 @@ class TestJoinWithPassword:
             "host1",
             json.dumps({"type": SignalType.JOIN.value, "password": "secret"}),
         )
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ROOM_CREATED.value
         assert response["is_host"] is True
 
@@ -324,7 +332,7 @@ class TestJoinWithPassword:
         )
 
         p1_ws = handler._connections["p1"]
-        calls = p1_ws.send_str.call_args_list
+        calls = p1_ws.send_text.call_args_list
         existing_msg = json.loads(calls[0][0][0])
         assert existing_msg["type"] == SignalType.EXISTING_PARTICIPANTS.value
         assert existing_msg["is_host"] is False
@@ -341,7 +349,7 @@ class TestJoinWithPassword:
             "p1",
             json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id, "password": "wrong"}),
         )
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
         assert "Wrong password" in response["message"]
 
@@ -362,10 +370,10 @@ class TestLockUnlock:
             json.dumps({"type": SignalType.LOCK_ROOM.value}),
         )
 
-        host_response = json.loads(host_ws.send_str.call_args[0][0])
+        host_response = json.loads(host_ws.send_text.call_args[0][0])
         assert host_response["type"] == SignalType.ROOM_LOCKED.value
 
-        p1_response = json.loads(p1_ws.send_str.call_args[0][0])
+        p1_response = json.loads(p1_ws.send_text.call_args[0][0])
         assert p1_response["type"] == SignalType.ROOM_LOCKED.value
 
         assert room.locked is True
@@ -383,7 +391,7 @@ class TestLockUnlock:
             json.dumps({"type": SignalType.UNLOCK_ROOM.value}),
         )
 
-        response = json.loads(host_ws.send_str.call_args[0][0])
+        response = json.loads(host_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ROOM_UNLOCKED.value
         assert room.locked is False
 
@@ -402,7 +410,7 @@ class TestLockUnlock:
             json.dumps({"type": SignalType.LOCK_ROOM.value}),
         )
 
-        response = json.loads(p1_ws.send_str.call_args[0][0])
+        response = json.loads(p1_ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
 
     @pytest.mark.asyncio
@@ -418,7 +426,7 @@ class TestLockUnlock:
             json.dumps({"type": SignalType.JOIN.value, "room_id": room.room_id}),
         )
 
-        response = json.loads(ws.send_str.call_args[0][0])
+        response = json.loads(ws.send_text.call_args[0][0])
         assert response["type"] == SignalType.ERROR.value
         assert "locked" in response["message"].lower()
 
@@ -439,15 +447,44 @@ class TestLockUnlock:
         )
 
 
-class TestProcessMessages:
+class TestHandleWebsocket:
     @pytest.mark.asyncio
-    async def test_error_frame_is_logged_without_raising(self, handler):
-        socket = FakeInboundSocket([FakeMessage(type=WSMsgType.ERROR)])
+    async def test_abnormal_disconnect_is_logged_and_cleans_up(self, handler, room_manager):
+        socket = FakeSocket([text_frame({"type": SignalType.JOIN.value}), disconnect_frame(1006)])
         with structlog.testing.capture_logs() as logs:
-            await handler._process_messages(socket, "c1")
+            await handler.handle_websocket(socket)
 
         [error_log] = [log for log in logs if log["event"] == "websocket_error"]
         assert error_log["connection_id"] == "c1"
+        assert room_manager.room_count == 0
+        assert "c1" not in handler._connections
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("code", [1000, 1001, 1005])
+    async def test_normal_disconnect_is_not_logged_as_error(self, handler, code):
+        socket = FakeSocket([disconnect_frame(code)])
+        with structlog.testing.capture_logs() as logs:
+            await handler.handle_websocket(socket)
+
+        assert [log for log in logs if log["event"] == "websocket_error"] == []
+
+    @pytest.mark.asyncio
+    async def test_binary_frame_is_ignored_and_later_text_frames_still_process(self, handler, room_manager):
+        socket = FakeSocket(
+            [
+                {"type": "websocket.receive", "bytes": b"x"},
+                text_frame({"type": SignalType.JOIN.value}),
+                disconnect_frame(1005),
+            ]
+        )
+        await handler.handle_websocket(socket)
+        assert room_manager.room_count == 0
+
+    @pytest.mark.asyncio
+    async def test_connection_without_id_is_accepted_then_closed_normally(self, handler):
+        socket = FakeSocket([], query_params={})
+        await handler.handle_websocket(socket)
+        assert socket.closed_with == 1000
 
 
 class TestChat:
@@ -466,11 +503,11 @@ class TestChat:
             json.dumps({"type": SignalType.CHAT.value, "message": "hello"}),
         )
 
-        p1_response = json.loads(p1_ws.send_str.call_args[0][0])
+        p1_response = json.loads(p1_ws.send_text.call_args[0][0])
         assert p1_response["type"] == SignalType.CHAT.value
         assert p1_response["message"] == "hello"
         assert p1_response["from"] == "host1"
-        host_ws.send_str.assert_not_called()
+        host_ws.send_text.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_chat_without_room_is_safe(self, handler):
@@ -495,7 +532,7 @@ class TestChat:
             json.dumps({"type": SignalType.CHAT.value, "message": ""}),
         )
 
-        p1_ws.send_str.assert_not_called()
+        p1_ws.send_text.assert_not_called()
 
 
 class TestSend:
@@ -503,7 +540,7 @@ class TestSend:
     async def test_send_to_connected_client(self, handler):
         ws = register_connection(handler, "c1")
         await handler._send("c1", {"type": "test"})
-        ws.send_str.assert_called_once()
+        ws.send_text.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_send_to_unknown_client_is_safe(self, handler):
@@ -512,6 +549,6 @@ class TestSend:
     @pytest.mark.asyncio
     async def test_send_to_closed_ws_is_safe(self, handler):
         ws = register_connection(handler, "c1")
-        ws.closed = True
+        ws.client_state = WebSocketState.DISCONNECTED
         await handler._send("c1", {"type": "test"})
-        ws.send_str.assert_not_called()
+        ws.send_text.assert_not_called()

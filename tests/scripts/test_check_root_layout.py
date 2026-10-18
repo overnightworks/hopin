@@ -138,13 +138,16 @@ def test_the_gate_names_every_problem_it_found(gate_repository, capsys):
 
 def test_allowed_root_tree_passes():
     listing = [
+        ".dockerignore",
         ".gitignore",
         ".pre-commit-config.yaml",
         "AGENTS.md",
         "CLAUDE.md",
+        "Dockerfile",
         "LICENSE",
         "Makefile",
         "README.md",
+        "compose.yaml",
         "pyproject.toml",
         "sonar-project.properties",
         "uv.lock",

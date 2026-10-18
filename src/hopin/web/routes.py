@@ -1,32 +1,33 @@
 from pathlib import Path
 
-from aiohttp import web
+from fastapi import APIRouter
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 
 from hopin.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH, WEBSOCKET_PATH
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 
 STATIC_DIR = Path(__file__).parent / "static"
+CALL_PAGE = STATIC_DIR / "call.html"
+READ_METHODS = ["GET", "HEAD"]
 
 
-def create_routes(signaling_handler: SignalingHandler, room_manager: RoomManager) -> list[web.RouteDef]:
-    async def health_handler(_request: web.Request) -> web.Response:  # NOSONAR(S7503) aiohttp needs coroutines
-        return web.json_response({"status": "ok", "rooms": room_manager.room_count})
+def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager) -> APIRouter:
+    router = APIRouter()
 
-    async def call_page(_request: web.Request) -> web.Response:  # NOSONAR(S7503) aiohttp needs coroutines
-        html_path = STATIC_DIR / "call.html"
-        return web.Response(text=html_path.read_text(), content_type="text/html")
+    @router.api_route(HEALTH_PATH, methods=READ_METHODS)
+    def health() -> JSONResponse:
+        return JSONResponse({"status": "ok", "rooms": room_manager.room_count})
 
-    async def join_page(request: web.Request) -> web.Response:  # NOSONAR(S7503) aiohttp needs coroutines
-        room_id = request.match_info.get("room_id", "")
+    @router.api_route(CALL_PATH, methods=READ_METHODS)
+    def call_page() -> FileResponse:
+        return FileResponse(CALL_PAGE)
+
+    @router.api_route(f"{JOIN_PATH}/{{room_id}}", methods=READ_METHODS)
+    def join_page(room_id: str) -> Response:
         if not room_manager.has_room(room_id):
-            return web.Response(text="Room not found", status=404)
-        html_path = STATIC_DIR / "call.html"
-        return web.Response(text=html_path.read_text(), content_type="text/html")
+            return PlainTextResponse("Room not found", status_code=404)
+        return FileResponse(CALL_PAGE)
 
-    return [
-        web.get(HEALTH_PATH, health_handler),
-        web.get(CALL_PATH, call_page),
-        web.get(f"{JOIN_PATH}/{{room_id}}", join_page),
-        web.get(WEBSOCKET_PATH, signaling_handler.handle_websocket),
-    ]
+    router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)
+    return router

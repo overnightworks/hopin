@@ -1,24 +1,30 @@
-from aiohttp import web
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from hopin.app import create_app
 from hopin.config.settings import ServerSettings
 
 
 class TestCreateApp:
-    def test_returns_aiohttp_application(self):
+    def test_returns_fastapi_application(self):
         app = create_app()
-        assert isinstance(app, web.Application)
+        assert isinstance(app, FastAPI)
 
     def test_uses_provided_settings(self):
         settings = ServerSettings(port=9999)
         app = create_app(settings)
-        assert app["settings"].port == 9999
+        assert app.state.settings.port == 9999
 
     def test_uses_default_settings_when_none(self):
         app = create_app()
-        assert app["settings"].port == 8080
+        assert app.state.settings.port == 8080
 
     def test_registers_routes(self):
-        app = create_app()
-        routes = [resource.get_info() for resource in app.router.resources()]
-        assert len(routes) >= 4
+        response = TestClient(create_app()).get("/health")
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+    def test_generated_documentation_is_not_served(self, path):
+        response = TestClient(create_app()).get(path)
+        assert response.status_code == 404

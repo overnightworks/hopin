@@ -2,9 +2,9 @@ import json
 from typing import Any
 
 import structlog
-from aiohttp import WSMsgType, web
+from starlette.websockets import WebSocket, WebSocketState
 
-from hopin.config.constants import SignalType
+from hopin.config.constants import NORMAL_CLOSE_CODE, NORMAL_CLOSE_CODES, WEBSOCKET_DISCONNECT_EVENT, SignalType
 from hopin.errors import HopInError, RoomNotFoundError
 from hopin.rooms.manager import RoomManager
 
@@ -14,34 +14,35 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class SignalingHandler:
     def __init__(self, room_manager: RoomManager) -> None:
         self._room_manager = room_manager
-        self._connections: dict[str, web.WebSocketResponse] = {}
+        self._connections: dict[str, WebSocket] = {}
         self._connection_rooms: dict[str, str] = {}
 
-    async def handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
+    async def handle_websocket(self, websocket: WebSocket) -> None:
+        await websocket.accept()
 
-        connection_id = request.query.get("id", "")
+        connection_id = websocket.query_params.get("id", "")
         if not connection_id:
-            await ws.close()
-            return ws
+            await websocket.close(code=NORMAL_CLOSE_CODE)
+            return
 
-        self._connections[connection_id] = ws
+        self._connections[connection_id] = websocket
         await logger.ainfo("client_connected", connection_id=connection_id)
 
         try:
-            await self._process_messages(ws, connection_id)
+            await self._process_messages(websocket, connection_id)
         finally:
             await self._handle_disconnect(connection_id)
 
-        return ws
-
-    async def _process_messages(self, ws: web.WebSocketResponse, connection_id: str) -> None:
-        async for msg in ws:
-            if msg.type == WSMsgType.TEXT:
-                await self._handle_message(connection_id, msg.data)
-            elif msg.type == WSMsgType.ERROR:
-                await logger.aerror("websocket_error", connection_id=connection_id, error=ws.exception())
+    async def _process_messages(self, websocket: WebSocket, connection_id: str) -> None:
+        while True:
+            frame = await websocket.receive()
+            if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
+                if frame["code"] not in NORMAL_CLOSE_CODES:
+                    await logger.aerror("websocket_error", connection_id=connection_id, code=frame["code"])
+                return
+            text = frame.get("text")
+            if text is not None:
+                await self._handle_message(connection_id, text)
 
     async def _handle_message(self, connection_id: str, raw_data: str) -> None:
         try:
@@ -213,9 +214,9 @@ class SignalingHandler:
             await self._send(participant_id, data)
 
     async def _send(self, connection_id: str, data: dict[str, Any]) -> None:
-        ws = self._connections.get(connection_id)
-        if ws and not ws.closed:
-            await ws.send_str(json.dumps(data))
+        websocket = self._connections.get(connection_id)
+        if websocket and websocket.client_state == WebSocketState.CONNECTED:
+            await websocket.send_text(json.dumps(data))
 
     async def _send_error(self, connection_id: str, message: str) -> None:
         await self._send(

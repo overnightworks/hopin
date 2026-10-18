@@ -1,0 +1,18 @@
+# An allowlist: everything is out of the build context, and only what the image
+# is built from comes back in. A deny list would let the next environment file,
+# key, or state directory into the context by simply being new.
+*
+!pyproject.toml
+!uv.lock
+!src
+
+# What the build makes for itself, so this machine's copy never travels.
+**/__pycache__
+
+# The tree above is admitted whole, so what must never be in an image is named
+# again here: a secret or a key nested inside it would otherwise ride in on its
+# parent directory.
+**/.env*
+**/*.pem
+**/*.key
+**/id_*

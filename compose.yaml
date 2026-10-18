@@ -1,0 +1,18 @@
+services:
+  hopin:
+    build: .
+    restart: unless-stopped
+    labels:
+      traefik.enable: "true"
+      edge.name: hopin
+      traefik.http.services.hopin.loadbalancer.server.port: "8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

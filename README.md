@@ -59,6 +59,15 @@ The server starts on `http://localhost:8080`.
 - Open `http://localhost:8080/call` to start a new call
 - Share the generated link with friends
 
+### Run in a Container
+
+```bash
+docker compose up -d --build
+```
+
+The `hopin` service publishes no host port: it is reached through the edge reverse proxy by its
+`edge.name: hopin` label, and answers on port 8080 inside its network. Its healthcheck calls `/health`.
+
 ### Sharing Over the Internet
 
 Your PC is behind a router, so friends can't reach `localhost` directly. Options:
@@ -151,7 +160,7 @@ src/hopin/
 └── main.py               # Entry point
 
 tests/
-├── unit/                 # Unit tests (104 tests, 90% coverage)
+├── unit/                 # Unit tests
 └── integration/          # Integration tests
 ```
 
@@ -159,7 +168,7 @@ tests/
 
 | Component | Technology |
 |---|---|
-| Server | aiohttp (async Python) |
+| Server | FastAPI + uvicorn (async Python) |
 | Real-time | WebSocket (signaling) + WebRTC (media) |
 | Frontend | Vanilla HTML/JS |
 | Type checking | mypy (strict mode) |
