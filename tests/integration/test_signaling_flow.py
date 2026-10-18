@@ -18,7 +18,7 @@ def client():
 @pytest.fixture
 def connect(client):
     with ExitStack() as sessions:
-        yield lambda connection_id: sessions.enter_context(client.websocket_connect(f"/ws?id={connection_id}"))
+        yield lambda account: sessions.enter_context(client.websocket_connect(f"/ws?id={account}"))
 
 
 def open_room(connect, account):

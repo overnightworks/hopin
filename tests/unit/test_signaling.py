@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from unittest.mock import AsyncMock
 
 import pytest
@@ -26,6 +26,15 @@ class FixedIdentityResolver:
 
     async def resolve(self, _websocket):
         return self._account
+
+
+class ResolverError(Exception):
+    pass
+
+
+class RaisingIdentityResolver:
+    async def resolve(self, _websocket):
+        raise ResolverError
 
 
 ADMITTED_ACCOUNT = Account(id="c1", name="c1")
@@ -67,6 +76,7 @@ class FakeSocket:
     application_state: WebSocketState = WebSocketState.CONNECTED
     accepted: bool = False
     closed_with: int | None = None
+    sent: list[dict] = field(default_factory=list)
 
     async def accept(self) -> None:
         self.accepted = True
@@ -77,8 +87,8 @@ class FakeSocket:
     async def receive(self) -> dict:
         return self.frames.pop(0)
 
-    async def send_text(self, _text: str) -> None:
-        return None
+    async def send_text(self, text: str) -> None:
+        self.sent.append(json.loads(text))
 
 
 def join_unknown_room(_handler, _room_manager):
@@ -474,6 +484,14 @@ class TestHandleWebsocket:
         assert not socket.accepted
 
     @pytest.mark.asyncio
+    async def test_failing_resolver_propagates_without_accepting_the_socket(self, room_manager):
+        failing_handler = SignalingHandler(room_manager, RaisingIdentityResolver())
+        socket = FakeSocket([])
+        with pytest.raises(ResolverError):
+            await failing_handler.handle_websocket(socket)
+        assert not socket.accepted
+
+    @pytest.mark.asyncio
     async def test_admitted_handshake_accepts_and_registers_a_peer_carrying_the_account(self, handler):
         socket = FakeSocket([disconnect_frame(1005)])
         peers_while_connected = await handle_and_capture_peers(handler, socket)
@@ -577,7 +595,7 @@ class TestSendToGonePeer:
         assert response["reason"] == ErrorReason.INVALID_MESSAGE.value
 
     @pytest.mark.asyncio
-    async def test_relay_through_handle_websocket_after_peer_vanished_still_answers_later_frames(self, handler):
+    async def test_relay_to_missing_targets_through_handle_websocket_sends_the_sender_no_frame(self, handler):
         socket = FakeSocket(
             [
                 text_frame({"type": SignalType.OFFER.value, "target": ""}),
@@ -586,7 +604,21 @@ class TestSendToGonePeer:
             ]
         )
         await handler.handle_websocket(socket)
-        assert handler._peers == {}
+        assert socket.sent == []
+
+    @pytest.mark.asyncio
+    async def test_relay_through_handle_websocket_to_vanished_peer_still_answers_later_frames(self, handler):
+        gone_ws = register_peer(handler, "gone")
+        gone_ws.send_text.side_effect = WebSocketDisconnect(code=1006)
+        socket = FakeSocket(
+            [
+                text_frame({"type": SignalType.OFFER.value, "target": "gone"}),
+                {"type": "websocket.receive", "text": "not json"},
+                disconnect_frame(1005),
+            ]
+        )
+        await handler.handle_websocket(socket)
+        assert [reply["reason"] for reply in socket.sent] == [ErrorReason.INVALID_MESSAGE.value]
 
     @pytest.mark.asyncio
     async def test_send_over_a_transport_that_fails_is_a_no_op_via_starlette_translation(self, handler):

@@ -16,8 +16,8 @@ class Account:
 
 
 class IdentityResolver(Protocol):
-    # Structural contract only: Protocol bodies never run.
-    async def resolve(self, websocket: WebSocket) -> Account | None: ...  # pragma: no cover
+    async def resolve(self, websocket: WebSocket) -> Account | None:
+        """Answer who the socket is, or None to refuse it."""
 
 
 class QueryIdIdentityResolver:
