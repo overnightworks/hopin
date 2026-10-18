@@ -130,6 +130,7 @@ make format     # Auto-fix formatting
 make test       # Run unit tests with coverage
 make test-all   # Run all tests (unit + integration)
 make dead       # Run vulture dead code detection
+make e2e        # Run the browser end-to-end tests (needs Chromium)
 make check      # Run all checks (lint + test + dead)
 make run        # Start the server
 ```

@@ -1,4 +1,4 @@
-.PHONY: install lint format test dead layout check run
+.PHONY: install lint format test dead layout check run e2e
 
 install:
 	uv sync --all-extras
@@ -13,10 +13,13 @@ format:
 	uv run ruff format src tests scripts
 
 test:
-	uv run pytest -m "not integration"
+	uv run pytest -m "not integration and not e2e"
 
 test-all:
-	uv run pytest
+	uv run pytest -m "not e2e"
+
+e2e:
+	uv run pytest -m e2e --no-cov --output test-results
 
 dead:
 	uv run vulture src/hopin
