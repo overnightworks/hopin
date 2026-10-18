@@ -13,6 +13,9 @@ repos:
         additional_dependencies:
           - pydantic>=2.10
           - pydantic-settings>=2.7
+          - fastapi>=0.123.7
+          - uvicorn
+          - structlog>=24.4
         args: [--strict]
 
   - repo: local

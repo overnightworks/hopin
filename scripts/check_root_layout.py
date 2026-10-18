@@ -1,8 +1,8 @@
 """The root layout gate: the repository root holds only what a tool must find there.
 
-The root carries the package manifest and its lockfile, the pre-commit and
-scanner configuration, the licence, and the entry documents. Everything else
-lives in the directory of its owner (AGENTS.md, "Repository layout"): a helper
+The root carries the package manifest and its lockfile, the container files,
+the pre-commit and scanner configuration, the licence, and the entry documents.
+Everything else lives in the directory of its owner (AGENTS.md, "Repository layout"): a helper
 under `scripts/`, a fixture next to its test, the work-board contract
 `board.toml` of the aco coordination tool under `.aco/`. The gate reads the
 tree as git sees it -- tracked files and untracked files git does not ignore
@@ -23,13 +23,16 @@ if TYPE_CHECKING:
 
 ROOT_FILES = frozenset(
     {
+        ".dockerignore",
         ".gitignore",
         ".pre-commit-config.yaml",
         "AGENTS.md",
         "CLAUDE.md",
+        "Dockerfile",
         "LICENSE",
         "Makefile",
         "README.md",
+        "compose.yaml",
         "pyproject.toml",
         "sonar-project.properties",
         "uv.lock",
