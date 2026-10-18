@@ -47,6 +47,7 @@ class RaisingIdentityResolver:
 
 
 ADMITTED_ACCOUNT = Account(id="c1", name="c1")
+SETTLE_TIMEOUT_SECONDS = 5
 
 
 class ManualScheduler:
@@ -1041,7 +1042,7 @@ class Browser:
 
     async def send_raw(self, data):
         self.socket.push(text_frame(data))
-        await self.socket.idle.wait()
+        await self.link.settle(self.socket)
 
     async def drop(self, code=1006):
         self.socket.push(disconnect_frame(code))
@@ -1077,8 +1078,18 @@ class Link:
     async def open(self, account, **socket_options):
         socket = FakeSocket([], account=account, **socket_options)
         self.tasks[socket] = asyncio.create_task(self.handler.handle_websocket(socket))
-        await socket.idle.wait()
+        await self.settle(socket)
         return socket
+
+    async def settle(self, socket):
+        task = self.tasks[socket]
+        idle = asyncio.ensure_future(socket.idle.wait())
+        done, _ = await asyncio.wait({idle, task}, timeout=SETTLE_TIMEOUT_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+        idle.cancel()
+        if task in done:
+            task.result()
+        else:
+            assert idle in done, "the handler neither went idle nor finished"
 
     async def join(self, name, room_id=None):
         browser = Browser(self, name)
@@ -1568,7 +1579,7 @@ class TestResumeLogs:
         await writing_replay.reached.wait()
         await host.say({"type": SignalType.CHAT.value, "message": "live"})
         writing_replay.release.set()
-        await guest.socket.idle.wait()
+        await link.settle(guest.socket)
 
         assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed 1", "missed 2", "live"]
         seqs = [frame["seq"] for frame in guest.socket.sent[1:]]
@@ -1586,12 +1597,32 @@ class TestResumeLogs:
         await writing_replay.reached.wait()
         await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
         writing_replay.release.set()
-        await guest.socket.idle.wait()
+        await link.settle(guest.socket)
 
         assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed"]
         assert guest.socket.closed_with == SUPERSEDED_CLOSE_CODE
         [left] = host.frames(SignalType.PARTICIPANT_LEFT)
         assert left["participant_id"] == guest.peer_id
+
+    @pytest.mark.asyncio
+    async def test_superseded_replay_overrunning_the_log_leaves_the_seat_of_the_newer_resume_alone(self, link):
+        host, guest = await host_and_guest(link)
+        await guest.drop()
+        await host.say({"type": SignalType.CHAT.value, "message": "missed"})
+        writing_replay = await resume_holding_the_first_replayed_frame(link, guest)
+        await writing_replay.reached.wait()
+        superseded_socket = guest.socket
+        await guest.accept_resumption()
+        newer_socket = await guest.resume()
+        await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
+
+        writing_replay.release.set()
+        await link.settle(superseded_socket)
+
+        assert newer_socket.closed_with is None
+        assert host.frames(SignalType.PARTICIPANT_LEFT) == []
+        await host.say({"type": SignalType.CHAT.value, "message": "live"})
+        assert newer_socket.sent[-1]["message"] == "live"
 
     @pytest.mark.asyncio
     async def test_replay_stops_when_the_socket_breaks_and_the_next_resume_gets_the_rest(self, link):
@@ -1705,13 +1736,25 @@ class TestSequenceNumbers:
         assert host.frames(SignalType.CHAT) == []
 
 
+def chat_frame_of_length(length, seq):
+    unpadded = json.dumps({"type": SignalType.CHAT.value, "message": "", "seq": seq})
+    return {"type": SignalType.CHAT.value, "message": "x" * (length - len(unpadded)), "seq": seq}
+
+
 class TestFrameLength:
+    @pytest.mark.asyncio
+    async def test_frame_of_exactly_the_bound_is_relayed(self, link):
+        host, guest = await host_and_guest(link)
+
+        await guest.send_raw(chat_frame_of_length(MAX_SIGNALING_FRAME_LENGTH, seq=1))
+
+        assert len(host.frames(SignalType.CHAT)) == 1
+
     @pytest.mark.asyncio
     async def test_frame_longer_than_the_bound_is_refused_and_neither_relayed_nor_replayed(self, link):
         host, guest = await host_and_guest(link)
-        too_long = {"type": SignalType.CHAT.value, "message": "x" * MAX_SIGNALING_FRAME_LENGTH}
 
-        await guest.say(too_long)
+        await guest.send_raw(chat_frame_of_length(MAX_SIGNALING_FRAME_LENGTH + 1, seq=1))
 
         assert only_error_reason(guest) == [ErrorReason.INVALID_MESSAGE.value]
         assert host.frames(SignalType.CHAT) == []

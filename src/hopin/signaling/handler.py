@@ -428,23 +428,22 @@ class SignalingHandler:
                 "last_seq": seat.received_seq,
             },
         )
-        await self._replay(claim.participant_id, seat, claim.last_seq)
+        await self._replay(connection.websocket, claim.participant_id, seat, claim.last_seq)
         await logger.ainfo("seat_resumed", peer_id=claim.participant_id)
 
-    async def _replay(self, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
-        websocket = seat.websocket
+    async def _replay(self, websocket: WebSocket, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
         cursor = last_seq
-        while True:
+        while self._peers.get(peer_id) is seat and seat.websocket is websocket:
             if not seat.log.reaches_back_to(cursor):
                 await self._release_unresumable_seat(peer_id)
                 return
             pending = seat.log.since(cursor)
             if not pending:
-                break
-            if seat.websocket is not websocket or not await self._write(websocket, pending[0]):
+                seat.replaying = False
+                return
+            if not await self._write(websocket, pending[0]):
                 return
             cursor = pending[0][SEQUENCE_KEY]
-        seat.replaying = False
 
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))

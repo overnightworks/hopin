@@ -59,12 +59,15 @@ peerConnectionPrototype.setLocalDescription = function (description) {
 };
 const nativeSetRemoteDescription = peerConnectionPrototype.setRemoteDescription;
 peerConnectionPrototype.setRemoteDescription = function (description) {
-    if (description.type === "answer") window.forcedStates.delete(this);
-    return nativeSetRemoteDescription.call(this, description);
+    if (description.type !== "answer") return nativeSetRemoteDescription.call(this, description);
+    window.forcedStates.delete(this);
+    const gate = window.answerApplicationGate ?? Promise.resolve();
+    return gate.then(() => nativeSetRemoteDescription.call(this, description));
 };
 window.answerCreationsStarted = 0;
 window.answerCreationsSettled = 0;
 window.answerCreationGate = null;
+window.answerApplicationGate = null;
 const nativeCreateAnswer = peerConnectionPrototype.createAnswer;
 peerConnectionPrototype.createAnswer = function (options) {
     window.answerCreationsStarted += 1;
@@ -108,7 +111,14 @@ HOLD_ANSWER_CREATION = """
 }
 """
 RELEASE_ANSWER_CREATION = "() => window.releaseAnswerCreation()"
-ANSWER_CREATION_STARTED = "() => window.answerCreationsStarted > 0"
+HOLD_ANSWER_APPLICATION = """
+() => {
+    window.answerApplicationGate = new Promise((release) => { window.releaseAnswerApplication = release; });
+}
+"""
+RELEASE_ANSWER_APPLICATION = "() => window.releaseAnswerApplication()"
+ANSWER_CREATIONS_COUNTED = "() => [window.answerCreationsStarted, window.answerCreationsSettled]"
+ANSWER_CREATION_STARTED = "(before) => window.answerCreationsStarted > before"
 AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
 () => new Promise((done) => {
     const channel = new MessageChannel();
@@ -116,7 +126,7 @@ AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
     channel.port2.postMessage(0);
 })
 """
-ANSWER_CREATION_SETTLED = "() => window.answerCreationsSettled > 0"
+ANSWER_CREATION_SETTLED = "(before) => window.answerCreationsSettled > before"
 RECONNECT_TO_SAME_SEAT = 'async () => (await import("/static/js/signaling.js")).connect()'
 LOCAL_DESCRIPTIONS_SET = "(count) => window.localDescriptionCount >= count"
 STATUS_IS = '(text) => document.getElementById("status").textContent === text'
@@ -660,7 +670,7 @@ def test_two_restart_offers_made_while_the_socket_is_down_reach_the_host_as_one(
     assert host.evaluate(CONNECTION_COUNT_AND_OPEN)
 
 
-def test_answer_replayed_after_a_newer_restart_offer_is_dropped_and_both_sides_take_a_new_ufrag(
+def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_and_raises_no_page_error(
     connected_pair: ConnectedPair,
 ) -> None:
     guest, host = connected_pair.guest, connected_pair.host
@@ -671,6 +681,7 @@ def test_answer_replayed_after_a_newer_restart_offer_is_dropped_and_both_sides_t
     guest_tap, host_tap = connected_pair.guest_tap, connected_pair.host_tap
     guest_tap.blackhole_downstream = True
     guest_tap.refused_connections = 1
+    guest.evaluate(HOLD_ANSWER_APPLICATION)
 
     connected_pair.force_failed_on(guest)
     pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", ANSWER_FRAME_TYPE)) > answers_before)
@@ -685,6 +696,7 @@ def test_answer_replayed_after_a_newer_restart_offer_is_dropped_and_both_sides_t
     pump_until(host, lambda: len(_frames_of(host_tap, "upstream", ANSWER_FRAME_TYPE)) == answers_sent + 2)
     _say_in_chat(host, "sent after both answers")
     expect(guest.locator("#chatMessages .chat-msg.other")).to_have_count(1)
+    guest.evaluate(RELEASE_ANSWER_APPLICATION)
     guest.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
 
     assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
@@ -808,17 +820,18 @@ def test_leaving_while_a_newcomers_offer_is_being_answered_raises_no_page_error(
     connected_pair: ConnectedPair, open_person: Callable[..., Page]
 ) -> None:
     host = connected_pair.host
+    started_before, settled_before = host.evaluate(ANSWER_CREATIONS_COUNTED)
     host.evaluate(HOLD_ANSWER_CREATION)
     newcomer = open_person()
     newcomer.goto(connected_pair.invite_link)
-    host.wait_for_function(ANSWER_CREATION_STARTED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    host.wait_for_function(ANSWER_CREATION_STARTED, arg=started_before, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
     host.click("#leaveBtn")
     host.click("#leaveYes")
     wait_for_status(host, "Left call")
     host.evaluate(RELEASE_ANSWER_CREATION)
 
-    host.wait_for_function(ANSWER_CREATION_SETTLED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    host.wait_for_function(ANSWER_CREATION_SETTLED, arg=settled_before, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
 
 

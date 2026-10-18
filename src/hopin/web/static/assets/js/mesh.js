@@ -19,6 +19,7 @@ export async function loadIceServers() {
 }
 
 const connectionsByParticipant = new Map();
+const answerApplicationsByParticipant = new Map();
 let peersChanged = () => {};
 
 export function onPeersChanged(callback) {
@@ -94,7 +95,15 @@ async function handleOffer(data) {
     });
 }
 
-async function handleAnswer(data) {
+function handleAnswer(data) {
+    const previous = answerApplicationsByParticipant.get(data.from) ?? Promise.resolve();
+    const applied = previous.then(() => applyAnswer(data));
+    // The caller still sees a failed application; the queue only must not stop behind it.
+    answerApplicationsByParticipant.set(data.from, applied.catch(() => {}));
+    return applied;
+}
+
+async function applyAnswer(data) {
     const connection = connectionsByParticipant.get(data.from);
     if (connection?.signalingState !== "have-local-offer") return;
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
@@ -110,6 +119,7 @@ async function handleIceCandidate(data) {
 function removePeer(participantId) {
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
+    answerApplicationsByParticipant.delete(participantId);
     void capUploads();
     if (removeRemoteTile(participantId)) peersChanged();
 }
