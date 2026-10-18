@@ -217,7 +217,7 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
 | `error` | Server → Client | a refusal or a bad frame, with its `reason`; `resume_refused` answers every failed `resume` alike and the client joins afresh |
 
-Every server frame carries a `seq` and every client frame after a socket's first does too (`resume` and `resumed` aside). Each side keeps its last 256 frames, so a resume replays what the other side missed in order, and a frame at or below the last `seq` received is ignored. A newer `offer` or `answer` replaces the older descriptions and candidates to the same peer. The `resume_token` is a secret of the seat: it travels only in frames to its owner, changes with every resume, and is never logged.
+Every server frame carries a `seq` and every client frame after a socket's first does too (`resume`, `resumed` and the `resume_refused` error aside, which belong to the new socket and carry none). Each side keeps its last 256 frames, so a resume replays what the other side missed in order, and a frame at or below the last `seq` received is ignored. A frame longer than 65536 characters is answered `invalid_message` and neither relayed nor kept. A newer `offer` or `answer` replaces the older descriptions and candidates to the same peer. The `resume_token` is a secret of the seat: it travels only in frames to its owner, changes with every resume, and is never logged.
 
 ### Coding Guidelines
 

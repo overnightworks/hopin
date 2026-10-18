@@ -109,11 +109,10 @@ function forgetSeat() {
 }
 
 function handleOpen() {
+    setStatus("Connected - joining...", "connecting");
     if (seat) {
-        setStatus("Connected - joining...", "connecting");
         writeFirstFrame(resumeMessage());
     } else {
-        setStatus("Connected - joining...", "connecting");
         writeFirstFrame(joinMessage());
         startWriting();
     }

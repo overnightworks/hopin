@@ -85,6 +85,7 @@ async function handleOffer(data) {
         connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     const answer = await connection.createAnswer();
+    if (connection.signalingState === "closed") return;
     await connection.setLocalDescription(answer);
     send({
         type: SIGNAL_TYPE.ANSWER,
@@ -94,7 +95,9 @@ async function handleOffer(data) {
 }
 
 async function handleAnswer(data) {
-    await connectionsByParticipant.get(data.from)?.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    const connection = connectionsByParticipant.get(data.from);
+    if (connection?.signalingState !== "have-local-offer") return;
+    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 }
 
 async function handleIceCandidate(data) {
