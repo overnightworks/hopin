@@ -1,8 +1,0 @@
-claim_id = "7f5a06d9c18d4bf8a1d672b9ef72de61"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "4ec9d29c03ec936e27351bbbb0f24772c5af2340"
-branch = "claude/issue-61-ice-restart-and-upload-caps"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/js/bandwidth.js", "src/hopin/web/static/assets/js/mesh.js", "src/hopin/web/static/assets/js/quality.js", "src/hopin/web/static/assets/js/recovery.js", "tests/e2e/conftest.py", "tests/e2e/test_ice_servers.py", "tests/e2e/test_mesh.py"]
-opened_commit = "b10c58c4b0fa78693be0ea1663bed2d2c63d097a"
-whole_reason = "The restart and the caps hook the same createPeerConnection and removePeer paths in mesh.js, each with one small new module; the e2e recorder moves to conftest for both proofs, and README and the ADR list the two modules."
