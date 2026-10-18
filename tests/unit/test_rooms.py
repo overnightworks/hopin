@@ -12,6 +12,10 @@ def account_named(name):
     return Account(id=name, name=name)
 
 
+ACCOUNT_P1 = account_named("p1")
+ACCOUNT_P3 = account_named("p3")
+
+
 def participant_named(name):
     return Participant(participant_id=name, account=account_named(name))
 
