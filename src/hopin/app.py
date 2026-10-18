@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from hopin.config.settings import ServerSettings
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
+from hopin.signaling.identity import QueryIdIdentityResolver
+from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.routes import create_router
 
@@ -21,7 +23,7 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
     )
 
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
-    signaling_handler = SignalingHandler(room_manager)
+    signaling_handler = SignalingHandler(room_manager, QueryIdIdentityResolver(), AsyncioScheduler())
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(create_router(signaling_handler, room_manager))

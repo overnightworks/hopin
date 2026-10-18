@@ -32,7 +32,6 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 - **Video calls** with up to 6 participants (mesh topology)
 - **Screen sharing** — switch between camera and screen mid-call
 - **Mute/unmute** audio and video independently
-- **Room passwords** — optionally protect calls with a password
 - **Room locking** — host can lock/unlock the room to prevent new joins
 - **No accounts** — create a room, share the link, done
 - **Self-hosted** — runs on your machine, your data stays with you
@@ -92,16 +91,12 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
-HopIn gives the host (the person who created the call) two ways to control access:
-
-### Password Protection
-
-When starting a call, you can optionally set a password. Anyone who clicks the join link will be prompted to enter the password before they can join.
+HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone.
 
 ### Room Locking
 
 The host sees a **Lock Room** button in the controls bar. When locked:
-- No new participants can join (even with the correct password)
+- No new participants can join (the join link is refused as locked)
 - Existing participants stay connected
 - The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
 
@@ -135,6 +130,7 @@ make format     # Auto-fix formatting
 make test       # Run unit tests with coverage
 make test-all   # Run all tests (unit + integration)
 make dead       # Run vulture dead code detection
+make e2e        # Run the browser end-to-end tests (needs Chromium)
 make check      # Run all checks (lint + test + dead)
 make run        # Start the server
 ```
@@ -150,7 +146,9 @@ src/hopin/
 │   ├── models.py         # Room and Participant data models
 │   └── manager.py        # Room lifecycle management
 ├── signaling/
-│   └── handler.py        # WebSocket signaling for WebRTC
+│   ├── handler.py        # WebSocket signaling for WebRTC
+│   ├── identity.py       # Who a socket is, resolved at the handshake
+│   └── scheduler.py      # Timer port, injected so the host grace is testable
 ├── web/
 │   ├── routes.py         # HTTP route definitions
 │   └── static/
@@ -170,7 +168,7 @@ src/hopin/
 │               ├── stage.js      # Video tiles and grid
 │               ├── controls.js   # Control bar and share box
 │               ├── status.js     # Status, lock, participant count
-│               └── dialogs.js    # Setup, password and leave dialogs
+│               └── dialogs.js    # Setup and leave dialogs
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring
 └── main.py               # Entry point
@@ -195,7 +193,7 @@ tests/
 
 ### Signaling Protocol
 
-Messages are JSON over WebSocket. The server acts as a relay for connection setup:
+Messages are JSON over WebSocket. The server identifies each socket at the handshake and names every peer with an id it mints, so peers address each other only by those ids. The server acts as a relay for connection setup:
 
 | Signal | Direction | Purpose |
 |---|---|---|
@@ -204,9 +202,14 @@ Messages are JSON over WebSocket. The server acts as a relay for connection setu
 | `existing_participants` | Server → Client | List of peers already in the room |
 | `participant_joined` | Server → Client | New peer joined your room |
 | `participant_left` | Server → Client | Peer left your room |
+| `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
+| `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
+| `end_room` | Client → Server | The host ends the call for everyone |
+| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out) or `ended` (the host ended it) |
 | `offer` | Client → Server → Client | WebRTC SDP offer (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
+| `error` | Server → Client | a refusal or a bad frame, with its `reason` |
 
 ### Coding Guidelines
 

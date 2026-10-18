@@ -47,7 +47,7 @@ function updateLockUI() {
     showLockIndicator(state.isLocked);
 }
 
-function startCall(password, preferCamera) {
+function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
     return Promise.all([acquireMedia(preferCamera), loadIceServers()])
@@ -55,7 +55,7 @@ function startCall(password, preferCamera) {
             showLocalStream(state.localStream);
             renderVideoButton();
             updateLocalPreview();
-            connect(password);
+            connect();
         })
         .catch((error) => {
             setStatus(error.message, "error");
@@ -133,14 +133,13 @@ onPeersChanged(updateParticipantCount);
 onBeforeReconnect(removeAllPeers);
 initDialogs({
     onSetupStart: startCall,
-    onPasswordSubmit: connect,
     onLeaveConfirmed: leaveCall,
 });
 initControls({ onLeaveRequested: requestLeave });
 initChat();
 
 if (getRoomIdFromUrl()) {
-    void startCall(null, true);
+    void startCall(true);
 } else {
     showSetupDialog();
 }

@@ -41,7 +41,7 @@ The page is markup, one stylesheet and ES modules, served from
 | `stage.js` | video tiles, grid, local preview |
 | `controls.js` | control bar and share box |
 | `status.js` | header status, lock indicator, participant count |
-| `dialogs.js` | setup, password and leave dialogs |
+| `dialogs.js` | setup and leave dialogs |
 
 ## Consequences
 

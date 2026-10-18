@@ -1,16 +1,22 @@
 from dataclasses import dataclass, field
 
 
+@dataclass(frozen=True)
+class Account:
+    id: str
+    name: str
+
+
 @dataclass
 class Participant:
     participant_id: str
+    account: Account
 
 
 @dataclass
 class Room:
     room_id: str
-    host_id: str
-    password: str | None = None
+    host: Account
     locked: bool = False
     participants: dict[str, Participant] = field(default_factory=dict)
 
@@ -23,14 +29,12 @@ class Room:
         return list(self.participants.keys())
 
     @property
-    def is_empty(self) -> bool:
-        return self.participant_count == 0
+    def host_present(self) -> bool:
+        return any(self.is_hosted_by(participant.account) for participant in self.participants.values())
 
-    @property
-    def has_password(self) -> bool:
-        return self.password is not None
+    def is_hosted_by(self, account: Account) -> bool:
+        return account.id == self.host.id
 
-    def verify_password(self, password: str | None) -> bool:
-        if self.password is None:
-            return True
-        return password == self.password
+    def has_free_seat_for(self, account: Account, seat_limit: int) -> bool:
+        host_seat_reserved = not self.host_present and not self.is_hosted_by(account)
+        return self.participant_count + int(host_seat_reserved) < seat_limit

@@ -7,7 +7,10 @@ from fastapi.testclient import TestClient
 
 from hopin.config.constants import CALL_PATH, HEALTH_PATH, JOIN_PATH, STATIC_PATH
 from hopin.rooms.manager import RoomManager
+from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
+from hopin.signaling.identity import QueryIdIdentityResolver
+from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 
 
@@ -18,7 +21,7 @@ def room_manager():
 
 @pytest.fixture
 def signaling_handler(room_manager):
-    return SignalingHandler(room_manager)
+    return SignalingHandler(room_manager, QueryIdIdentityResolver(), AsyncioScheduler())
 
 
 @pytest.fixture
@@ -52,8 +55,8 @@ class TestHealthEndpoint:
         assert data["rooms"] == 0
 
     def test_returns_room_count(self, client, room_manager):
-        room_manager.create_room("h1")
-        room_manager.create_room("h2")
+        room_manager.create_room("h1", Account(id="h1", name="h1"))
+        room_manager.create_room("h2", Account(id="h2", name="h2"))
         response = client.get(HEALTH_PATH)
         data = response.json()
         assert data["rooms"] == 2
@@ -68,7 +71,7 @@ class TestCallPage:
 
 class TestJoinPage:
     def test_returns_html_for_valid_room(self, client, room_manager):
-        room = room_manager.create_room("h1")
+        room = room_manager.create_room("h1", Account(id="h1", name="h1"))
         response = client.get(f"{JOIN_PATH}/{room.room_id}")
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")

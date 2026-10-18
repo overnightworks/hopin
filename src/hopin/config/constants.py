@@ -15,11 +15,13 @@ ICE_SERVERS_PATH = "/api/ice-servers"
 STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
 
 MAX_PARTICIPANTS_PER_ROOM = 6
+HOST_GRACE_SECONDS = 60
 
 WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
 # 1005 is a close without a code, which is how HopIn's own client leaves.
 NORMAL_CLOSE_CODES = frozenset({1000, 1001, 1005})
-NORMAL_CLOSE_CODE = 1000
+POLICY_VIOLATION_CLOSE_CODE = 1008
+PEER_ID_BYTES = 16
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
 
 
@@ -40,3 +42,19 @@ class SignalType(StrEnum):
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
     CHAT = "chat"
+    HOST_AWAY = "host_away"
+    HOST_BACK = "host_back"
+    END_ROOM = "end_room"
+
+
+class ErrorReason(StrEnum):
+    NOT_FOUND = "not_found"
+    LOCKED = "locked"
+    FULL = "full"
+    NOT_HOST = "not_host"
+    INVALID_MESSAGE = "invalid_message"
+
+
+class RoomClosedReason(StrEnum):
+    HOST_GONE = "host_gone"
+    ENDED = "ended"

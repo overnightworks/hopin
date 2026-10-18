@@ -63,6 +63,8 @@ Users start a call and share a link — friends click and join instantly in the 
 - Unit tests in `tests/unit/`, mirroring `src/hopin/` structure.
 - Integration tests in `tests/integration/`.
 - Tests for repository tooling in `tests/scripts/`, mirroring `scripts/`.
+- Browser end-to-end tests in `tests/e2e/` (Playwright, marker `e2e`), run with `make e2e` under
+  `/tmp/probe-stack.lock`. They stay out of the coverage run; CI's `End-to-end` job is the gate.
 - Use `pytest` fixtures for setup, no test inheritance hierarchies.
 - Test names follow `test_<method>_<scenario>_<expected_result>` pattern.
 - No mocking of the system under test. Mock only external boundaries.
@@ -129,6 +131,7 @@ make install    # install dependencies
 make lint       # run ruff check + ruff format --check + mypy
 make test       # run pytest with coverage
 make dead       # run vulture for dead code detection
+make e2e        # run the browser end-to-end tests
 make layout     # check the repository root layout
 make check      # run all checks (lint + layout + test + dead)
 make run        # start the server
