@@ -9,7 +9,13 @@ import {
 } from "./controls.js";
 import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
 import { acquireMedia, stopLocalMedia } from "./media.js";
-import { onPeersChanged, peerCount, registerMeshHandlers, removeAllPeers } from "./mesh.js";
+import {
+    loadIceServers,
+    onPeersChanged,
+    peerCount,
+    registerMeshHandlers,
+    removeAllPeers,
+} from "./mesh.js";
 import { playJoinSound, playLeaveSound } from "./sounds.js";
 import {
     SIGNAL_TYPE,
@@ -44,7 +50,7 @@ function updateLockUI() {
 function startCall(password, preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return acquireMedia(preferCamera)
+    return Promise.all([acquireMedia(preferCamera), loadIceServers()])
         .then(() => {
             showLocalStream(state.localStream);
             renderVideoButton();

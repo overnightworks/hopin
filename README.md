@@ -115,7 +115,7 @@ All settings can be overridden via environment variables:
 |---|---|---|
 | `HOPIN_HOST` | `0.0.0.0` | Server bind address |
 | `HOPIN_PORT` | `8080` | Server port |
-| `HOPIN_STUN_SERVER` | `stun:stun.l.google.com:19302` | STUN server for NAT traversal |
+| `HOPIN_STUN_SERVER` | `stun:stun.cloudflare.com:3478` | STUN server for NAT traversal, served to the browser at `/api/ice-servers` |
 | `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call |
 
 Example:
