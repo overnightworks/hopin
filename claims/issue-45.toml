@@ -1,8 +1,0 @@
-claim_id = "df4b2a86baea49fc8c87e4943555bd2b"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "519a2dd319cd4a3bbfddd82b693089bea6db4488"
-branch = "claude/issue-45-playwright-e2e-harness"
-scope = [".github/workflows/ci.yml", ".gitignore", ".pre-commit-config.yaml", "CLAUDE.md", "Makefile", "README.md", "pyproject.toml", "quality/config.toml", "tests/e2e", "uv.lock"]
-opened_commit = "ba2a834c423158bd45adca25f4877bff81984216"
-whole_reason = "The suite, its marker, its CI job and the commands that keep it out of the coverage run are one change: any part alone breaks the coverage run or never runs."
