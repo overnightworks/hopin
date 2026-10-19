@@ -71,8 +71,8 @@ STAGE_BOTTOM_IN_PIXELS = """
 () => parseFloat(getComputedStyle(document.getElementById("stage")).getPropertyValue("--stage-bottom"))
 """
 NO_ANIMATION_IS_RUNNING = "() => document.getElementById('localContainer').getAnimations().length === 0"
-EVERY_BUTTON_TRANSITION_TAKES_NO_TIME = """
-() => [...document.querySelectorAll(".button")].every((button) =>
+EVERY_BUTTON_AND_THE_OWN_TILE_TAKE_NO_TIME = """
+() => [...document.querySelectorAll(".button, #localContainer")].every((button) =>
     getComputedStyle(button).transitionDuration.split(", ").every((duration) => duration === "0s")
 )
 """
@@ -355,15 +355,17 @@ def test_stage_does_not_move_the_own_tile_when_it_is_dragged_on_desktop(
     assert _stage_boxes(host, 2)["self"] == before["self"]
 
 
+@pytest.mark.parametrize("moves_after_the_join", [True, False])
 def test_stage_drops_a_drag_that_the_call_outgrows_without_moving_a_grid_tile_or_the_corner(
-    open_person: Callable[..., Page], base_url: str
+    open_person: Callable[..., Page], base_url: str, moves_after_the_join: bool
 ) -> None:
     host, invite_link = _start_hosting_on_a_phone_with_one_guest(open_person, base_url)
     _hold_own_tile_towards(host, _stage_boxes(host, 2)["stage"], "tl")
 
     join(open_person, invite_link)
     expect(host.locator("#stage")).to_have_attribute("data-count", "3")
-    host.mouse.move(0, 0, steps=3)
+    if moves_after_the_join:
+        host.mouse.move(0, 0, steps=3)
     host.mouse.up()
 
     own = host.locator("#localContainer")
@@ -378,8 +380,9 @@ def test_stage_drops_every_transition_when_motion_is_reduced(open_person: Callab
     expect(host.locator("#stage")).to_have_attribute("data-count", "2")
     host.wait_for_function(NO_ANIMATION_IS_RUNNING)
 
-    _drag_own_tile_to(host, _stage_boxes(host, 2)["stage"], "tl")
+    _hold_own_tile_towards(host, _stage_boxes(host, 2)["stage"], "tl")
+    host.mouse.up()
 
-    _assert_own_tile_sits_in(host, "tl")
     assert host.evaluate(NO_ANIMATION_IS_RUNNING)
-    assert host.evaluate(EVERY_BUTTON_TRANSITION_TAKES_NO_TIME)
+    assert host.evaluate(EVERY_BUTTON_AND_THE_OWN_TILE_TAKE_NO_TIME)
+    _assert_own_tile_sits_in(host, "tl")
