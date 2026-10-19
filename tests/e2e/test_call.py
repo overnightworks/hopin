@@ -4,12 +4,10 @@ from typing import Any
 import pytest
 from playwright.sync_api import Page
 
-from tests.e2e.conftest import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, start_call
+from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, start_call
 
 pytestmark = pytest.mark.e2e
 
-DESKTOP = {"viewport": {"width": 1280, "height": 800}}
-PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
 TWO_PLAYING_VIDEOS = """
 () => {
     const playing = [...document.querySelectorAll("video")].filter((video) => video.videoWidth > 0);

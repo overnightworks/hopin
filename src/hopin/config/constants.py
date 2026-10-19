@@ -6,8 +6,8 @@ DEFAULT_PORT = 8080
 ROOM_ID_LENGTH = 8
 
 WEBSOCKET_PATH = "/ws"
-CALL_PATH = "/call"
-JOIN_PATH = "/join"
+HOME_PATH = "/"
+CALL_PATH = "/c"
 HEALTH_PATH = "/health"
 STATIC_PATH = "/static"
 ICE_SERVERS_PATH = "/api/ice-servers"

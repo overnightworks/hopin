@@ -55,7 +55,7 @@ make run
 
 The server starts on `http://localhost:8080`.
 
-- Open `http://localhost:8080/call` to start a new call
+- Open `http://localhost:8080/` and press "Start a call"
 - Share the generated link with friends
 
 ### Run in a Container
@@ -87,7 +87,7 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 1. Forward port `8080` in your router settings to your PC's local IP
 2. Use a free dynamic DNS service (e.g. [DuckDNS](https://www.duckdns.org/)) for a stable URL
-3. Share `http://your-domain.duckdns.org:8080/call`
+3. Share `http://your-domain.duckdns.org:8080/`
 
 ## Room Security
 
@@ -130,7 +130,7 @@ make format     # Auto-fix formatting
 make test       # Run unit tests with coverage
 make test-all   # Run all tests (unit + integration)
 make dead       # Run vulture dead code detection
-make e2e        # Run the browser end-to-end tests (needs Chromium)
+make e2e        # Run the browser end-to-end tests (needs Chromium: uv run playwright install chromium)
 make check      # Run all checks (lint + test + dead)
 make run        # Start the server
 ```
@@ -156,9 +156,12 @@ src/hopin/
 │       ├── index.html    # Video call page (markup only)
 │       └── assets/       # Served at /static
 │           ├── css/
+│           │   ├── ui-console.css  # Vendored verbatim from ui-console v0.2.0, loaded first
 │           │   └── hopin.css
 │           └── js/       # ES modules, app.js is the entry point
 │               ├── app.js        # Wiring, call start and leave
+│               ├── router.js     # The address and the screen, call links
+│               ├── home.js       # Home screen
 │               ├── state.js      # Call and local-media state
 │               ├── signaling.js  # WebSocket, resume, message handlers
 │               ├── replay.js     # Numbered log of the frames sent, resent after a resume

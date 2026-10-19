@@ -71,13 +71,13 @@ Users start a call and share a link — friends click and join instantly in the 
 
 ## SonarCloud
 
-- The bar is zero open findings and 100 % coverage where it makes sense: the
-  only exclusions are lines marked `pragma: no cover`, `if TYPE_CHECKING:`,
-  and the `if __name__ == "__main__":` entry point, all named in
-  `[tool.coverage.report]` in `pyproject.toml`. Browser code under
-  `src/hopin/web/static/` is excluded from the coverage figure
-  (`sonar.coverage.exclusions`); the end-to-end suite (#45) is its proof. The
-  legacy rating is never chased; a fresh finding on any code is a merge blocker.
+- The bar is zero open findings and 100 % coverage where it makes sense.
+  Besides browser code under `src/hopin/web/static/`, which is excluded from the
+  coverage figure (`sonar.coverage.exclusions`) and proven by the end-to-end
+  suite (#45), the only exclusions are lines marked `pragma: no cover`,
+  `if TYPE_CHECKING:`, and the `if __name__ == "__main__":` entry point, all
+  named in `[tool.coverage.report]` in `pyproject.toml`. The legacy rating is
+  never chased; a fresh finding on any code is a merge blocker.
 - CI's `quality` job (`overnightworks/quality`, pinned by SHA in `ci.yml`)
   runs the scan. A run on `master` fails on any open finding; other branch
   pushes only report them. A pull request fails only on new findings while

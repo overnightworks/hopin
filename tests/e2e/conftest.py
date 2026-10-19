@@ -26,7 +26,10 @@ FAKE_MEDIA_BROWSER_ARGS = [
 ]
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
-INVITE_LINK_PATTERN = re.compile(r"/join/\w+")
+INVITE_LINK_PATTERN = re.compile(r"/c/\w+")
+DESKTOP = {"viewport": {"width": 1280, "height": 800}}
+PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
+SMALL_PHONE_LANDSCAPE = {"viewport": {"width": 568, "height": 320}, "is_mobile": True, "has_touch": True}
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
 window.recordedConnections = [];
@@ -127,9 +130,14 @@ def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Itera
         context.close()
 
 
-def start_call(host: Page, base_url: str) -> str:
-    host.goto(f"{base_url}/call")
+def press_start_call(host: Page, base_url: str) -> None:
+    host.goto(f"{base_url}/")
+    host.click("#homeStartBtn")
     host.click("#setupStartBtn")
+
+
+def start_call(host: Page, base_url: str) -> str:
+    press_start_call(host, base_url)
     expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
     host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     return host.input_value("#shareUrl")

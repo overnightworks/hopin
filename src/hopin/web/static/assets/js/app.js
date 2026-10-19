@@ -21,7 +21,6 @@ import {
     SIGNAL_TYPE,
     connect,
     disconnect,
-    getRoomIdFromUrl,
     on,
     onSessionLost,
 } from "./signaling.js";
@@ -33,6 +32,8 @@ import {
     showLockIndicator,
     showParticipantCount,
 } from "./status.js";
+import { initHome } from "./home.js";
+import { SCREEN, callUrl, getRoomIdFromUrl, showScreen } from "./router.js";
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -93,7 +94,7 @@ function registerSessionHandlers() {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
-        showShareLink(`${location.origin}/join/${state.roomId}`);
+        showShareLink(callUrl(state.roomId));
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
@@ -139,9 +140,16 @@ initDialogs({
 });
 initControls({ onLeaveRequested: requestLeave });
 initChat();
+initHome({
+    onStartRequested: () => {
+        showScreen(SCREEN.CALL);
+        showSetupDialog();
+    },
+});
 
 if (getRoomIdFromUrl()) {
+    showScreen(SCREEN.CALL);
     void startCall(true);
 } else {
-    showSetupDialog();
+    showScreen(SCREEN.HOME);
 }

@@ -1,3 +1,23 @@
+/* Shell tokens that ui-console lacks; its own tokens come from ui-console.css. */
+:root {
+    --app: #F6F8F9;
+    --accent-hover: #0A5D67;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --app: #111418;
+        --accent-hover: #74D2DA;
+        color-scheme: dark;
+    }
+}
+
+:root[data-theme="dark"] {
+    --app: #111418;
+    --accent-hover: #74D2DA;
+    color-scheme: dark;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 body {
@@ -351,6 +371,115 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     .share-box { flex-wrap: wrap; }
     .avatar { width: 50px; height: 50px; font-size: 1.2rem; }
     .chat-panel { width: 100%; position: absolute; inset: 0; z-index: 50; }
+}
+
+.icon { display: block; flex: none; }
+.button {
+    display: inline-flex;
+    align-items: center;
+    border: 0;
+    cursor: pointer;
+    height: 52px;
+    padding: 0 24px;
+    border-radius: 999px;
+    justify-content: center;
+    gap: 10px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -.005em;
+    white-space: nowrap;
+    transition: background 0.15s, transform 0.1s;
+}
+.button:hover { opacity: 1; }
+.button:active { transform: scale(.985); }
+.button-primary { background: var(--accent); color: var(--on-accent); }
+.button-primary:hover { background: var(--accent-hover); }
+.button-lg { height: 58px; font-size: 17px; }
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 18px;
+    font-weight: 750;
+    letter-spacing: -.02em;
+}
+.brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+    color: var(--on-accent);
+}
+.brand-mark-xl {
+    width: 76px;
+    height: 76px;
+    border-radius: 24px;
+    box-shadow: 0 18px 40px -18px var(--accent);
+}
+.legal { display: flex; gap: 18px; justify-content: center; font-size: 13px; }
+.legal a { color: var(--ink-faint); text-decoration: none; }
+.legal a:hover { color: var(--ink-soft); text-decoration: underline; }
+.home {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden auto;
+    display: grid;
+    grid-template-rows: auto 1fr auto auto auto 1fr auto auto;
+    justify-items: center;
+    background: var(--app);
+    color: var(--ink);
+    font-family: var(--sans);
+    text-align: center;
+}
+.home > :not(.halo) { position: relative; }
+.home .topbar {
+    grid-row: 1;
+    justify-self: stretch;
+    height: 60px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+}
+.home .halo {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    width: 520px;
+    height: 520px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, var(--accent-soft), transparent);
+    pointer-events: none;
+    opacity: .9;
+}
+.home .brand-mark-xl { grid-row: 3; margin-bottom: 20px; }
+.home h2 {
+    grid-row: 4;
+    margin: 0 0 14px;
+    padding: 0 32px;
+    font-size: 30px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    text-wrap: balance;
+}
+.home p {
+    grid-row: 5;
+    max-width: 384px;
+    padding: 0 32px;
+    color: var(--ink-soft);
+    font-size: 16px;
+    text-wrap: balance;
+}
+.home .button { grid-row: 7; justify-self: stretch; margin: 0 20px 14px; }
+.home .legal { grid-row: 8; margin-bottom: 34px; }
+@media (min-width: 601px) {
+    .home { grid-template-rows: auto 1fr auto auto auto auto 1fr auto; }
+    .home .button { grid-row: 6; justify-self: center; margin: 14px 0 0; }
+    .home .legal { margin-top: 6px; }
 }
 
 .hidden { display: none; }

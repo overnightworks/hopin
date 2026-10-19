@@ -4,11 +4,16 @@ from collections.abc import Callable
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e.conftest import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, RECORD_PEER_CONNECTIONS, start_call
+from tests.e2e.conftest import (
+    DESKTOP,
+    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    RECORD_PEER_CONNECTIONS,
+    press_start_call,
+    start_call,
+)
 
 pytestmark = pytest.mark.e2e
 
-DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 ICE_SERVERS_URL_PATTERN = "**/api/ice-servers"
 RECORD_MEDIA_STREAMS = """
 window.acquiredStreams = [];
@@ -61,8 +66,7 @@ def test_call_start_with_failing_ice_servers_shows_the_error_and_releases_the_ca
         route.fulfill(status=500, content_type="application/json", body=json.dumps({}))
 
     host.route(ICE_SERVERS_URL_PATTERN, refuse)
-    host.goto(f"{base_url}/call")
-    host.click("#setupStartBtn")
+    press_start_call(host, base_url)
 
     expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
     assert host.evaluate(ACQUIRED_TRACK_COUNT) > 0
