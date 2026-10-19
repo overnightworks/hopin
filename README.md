@@ -111,7 +111,7 @@ All settings can be overridden via environment variables:
 | `HOPIN_HOST` | `0.0.0.0` | Server bind address |
 | `HOPIN_PORT` | `8080` | Server port |
 | `HOPIN_STUN_SERVER` | `stun:stun.cloudflare.com:3478` | STUN server for NAT traversal, served to the browser at `/api/ice-servers` |
-| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call |
+| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call, from `2` to `6` |
 
 Example:
 
@@ -173,9 +173,9 @@ src/hopin/
 │               ├── quality.js    # Round-trip indicator
 │               ├── chat.js       # Chat panel
 │               ├── sounds.js     # Notification sounds
-│               ├── stage.js      # Video tiles and grid
+│               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
 │               ├── controls.js   # Control bar and share box
-│               ├── status.js     # Status, lock, participant count
+│               ├── status.js     # Call status, lock, participant count
 │               └── dialogs.js    # Setup and leave dialogs
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring

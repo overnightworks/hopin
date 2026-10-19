@@ -31,6 +31,6 @@ def test_call_two_people_join_see_each_others_video(
 
     guest.click("#leaveBtn")
     host.wait_for_function(
-        "() => document.querySelectorAll('.video-container').length === 1",
+        "() => document.querySelectorAll('.tile').length === 1",
         timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     )
