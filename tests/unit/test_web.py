@@ -121,8 +121,8 @@ UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
 CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-VOID_TAGS = {"meta", "link", "input", "br", "img", "hr"}
-URL_ATTRIBUTES = {"src", "href"}
+VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+URL_ATTRIBUTES = {"src", "href", "xlink:href"}
 
 
 class PageInventory(HTMLParser):
@@ -135,17 +135,25 @@ class PageInventory(HTMLParser):
         self.links: list[dict[str, str | None]] = []
         self.stylesheets: list[str] = []
         self.class_values: list[str] = []
+        self.screens: set[str] = set()
         self.legal_navs_by_screen: dict[str, list[list[str]]] = {}
         self._screens: list[tuple[str, int]] = []
         self._legal_nav_links: list[str] | None = None
         self._depth = 0
 
     def handle_starttag(self, tag, attrs):
-        attributes = dict(attrs)
         if tag not in VOID_TAGS:
             self._depth += 1
+        attributes = dict(attrs)
         self._track_screen(attributes)
         self._track_legal_nav(tag, attributes)
+        self._inspect(tag, attrs)
+
+    def handle_startendtag(self, tag, attrs):
+        self._inspect(tag, attrs)
+
+    def _inspect(self, tag, attrs):
+        attributes = dict(attrs)
         if tag == "style":
             self.style_elements += 1
         if tag == "script" and "src" not in attributes:
@@ -175,6 +183,7 @@ class PageInventory(HTMLParser):
 
     def _track_screen(self, attributes):
         if "data-screen" in attributes:
+            self.screens.add(attributes["data-screen"])
             self._screens.append((attributes["data-screen"], self._depth))
 
     def _track_legal_nav(self, tag, attributes):
@@ -234,6 +243,37 @@ class TestPageShell:
         assert vendored & (own_stylesheet | used_in_markup) == set()
 
     def test_every_screen_holds_exactly_one_legal_nav_with_both_links(self, page_inventory):
-        assert set(page_inventory.legal_navs_by_screen) == {"home", "call"}
+        assert {"home", "call"} <= page_inventory.screens
+        assert set(page_inventory.legal_navs_by_screen) == page_inventory.screens
         for navs in page_inventory.legal_navs_by_screen.values():
             assert navs == [list(LEGAL_URLS)]
+
+
+LEGAL_NAV = '<nav class="legal"><a href="/a"></a></nav>'
+
+
+def inventory_of(markup: str) -> PageInventory:
+    inventory = PageInventory()
+    inventory.feed(markup)
+    return inventory
+
+
+class TestPageInventory:
+    def test_lists_a_screen_that_holds_no_legal_nav(self):
+        inventory = inventory_of(f'<main data-screen="home">{LEGAL_NAV}</main><section data-screen="ended"></section>')
+
+        assert inventory.screens == {"home", "ended"}
+        assert set(inventory.legal_navs_by_screen) == {"home"}
+
+    def test_collects_svg_urls_given_as_xlink_href(self):
+        inventory = inventory_of('<svg><use xlink:href="https://x/y#z"/><image xlink:href="/ok.png"/></svg>')
+
+        assert inventory.fetched_urls == ["https://x/y#z", "/ok.png"]
+
+    @pytest.mark.parametrize("void_tag", ["<input />", "<input>", "<source>", "<wbr>", "<br/>"])
+    def test_keeps_a_legal_nav_on_its_screen_past_a_void_tag(self, void_tag):
+        inventory = inventory_of(
+            f'<main data-screen="home">{void_tag}{LEGAL_NAV}</main><div data-screen="call">{LEGAL_NAV}</div>'
+        )
+
+        assert set(inventory.legal_navs_by_screen) == {"home", "call"}

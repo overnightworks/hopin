@@ -21,6 +21,8 @@ The page is markup, two stylesheets and ES modules, served from
   it so.
 - The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
   then `hopin.css`. An upgrade of the first is a new vendoring, never an edit.
+- `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/` and `js/` are
+  reachable, so the page is served only at its routes, never from the mount.
 - Every screen carries its own `<nav class="legal">` copy (a static page has no
   templating). The guard test pins that each distinct `data-screen` value holds
   exactly one, with both URLs; the call screen spans two elements and its nav
