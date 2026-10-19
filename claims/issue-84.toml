@@ -1,0 +1,8 @@
+claim_id = "514c7a85a19b48149fc8ffd57aaa82f6"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "86d277135ff966cc88f6d8ca070cbfcc6753ccb5"
+branch = "claude/issue-84-a-real-network-loss-parks-the-seat"
+scope = ["src/hopin/config/constants.py", "src/hopin/web/static/assets/js/signaling.js", "tests/e2e/test_mesh.py", "tests/integration/test_signaling_flow.py", "tests/integration/test_signaling_transport.py", "tests/unit/test_signaling.py"]
+opened_commit = "f2320807a58f28adab482193ac8df42f258cbc7b"
+whole_reason = "The client's close code, the server's clean set and the transport-level proof are one contract: changing one side alone either parks every leave or keeps missing every loss."
