@@ -313,6 +313,23 @@ class TestJoinCreateRoom:
 
 class TestJoinExistingRoom:
     @pytest.mark.asyncio
+    async def test_second_join_from_a_seat_in_a_room_is_refused_and_the_first_room_is_unchanged(
+        self, handler, room_manager
+    ):
+        room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+        other_room = room_manager.create_room("host2", account_named("host2"))
+
+        await deliver(handler, "p1", join_message(other_room.room_id))
+        await deliver(handler, "p1", join_message())
+
+        assert [frame["reason"] for frame in frames_of_type(sockets["p1"], SignalType.ERROR)] == [
+            ErrorReason.INVALID_MESSAGE.value
+        ] * 2
+        assert handler._peer_rooms["p1"] == room.room_id
+        assert room.participant_ids == ["host1", "p1"]
+        assert other_room.participant_ids == ["host2"]
+
+    @pytest.mark.asyncio
     async def test_joins_room_and_gets_existing_participants(self, handler, room_manager):
         register_peer(handler, "host1")
         register_peer(handler, "p1")
@@ -926,8 +943,11 @@ class TestHostGrace:
         await scheduler.advance(60)
         frames_before = {name: len(sent_frames(ws)) for name, ws in sockets.items()}
 
-        await deliver(handler, "p1", {"type": SignalType.LOCK_ROOM.value})
-        await deliver(handler, "p1", {"type": SignalType.CHAT.value, "message": "hi"})
+        stale_connection = Connection(sockets["p1"], "p1", frames_received=1)
+        await handler._handle_message(stale_connection, json.dumps({"type": SignalType.LOCK_ROOM.value, "seq": 1}))
+        await handler._handle_message(
+            stale_connection, json.dumps({"type": SignalType.CHAT.value, "message": "hi", "seq": 2})
+        )
 
         assert {name: len(sent_frames(ws)) for name, ws in sockets.items()} == frames_before
 
@@ -1031,6 +1051,19 @@ class TestHostGrace:
 
 
 class TestEndRoom:
+    @pytest.mark.asyncio
+    async def test_ending_the_room_leaves_no_seat_to_resume_or_to_relay_to(self, handler, room_manager):
+        _room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+
+        await deliver(handler, "host1", {"type": SignalType.END_ROOM.value})
+
+        assert handler._peers == {}
+        assert handler._peer_rooms == {}
+        for ws in sockets.values():
+            ws.close.assert_awaited_once_with(code=SUPERSEDED_CLOSE_CODE)
+        await handler._send("p1", {"type": SignalType.CHAT.value})
+        assert sent_types(sockets["p1"]) == [SignalType.ROOM_CLOSED.value]
+
     @pytest.mark.asyncio
     async def test_host_ending_the_room_closes_it_as_ended_for_every_peer_including_the_host(
         self, handler, room_manager
@@ -1374,16 +1407,16 @@ class TestParkedHost:
         ]
 
     @pytest.mark.asyncio
-    async def test_room_ended_while_a_guest_is_parked_is_told_to_it_on_its_resume(self, link, scheduler):
+    async def test_room_ended_while_a_guest_is_parked_clears_its_seat_and_its_resume_is_refused(self, link, handler):
         host, guest = await host_and_guest(link)
         await guest.drop()
 
         await host.say({"type": SignalType.END_ROOM.value})
         await guest.resume()
 
-        assert guest.frames(SignalType.ROOM_CLOSED) == [
-            {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.ENDED.value, "seq": 2}
-        ]
+        assert guest.peer_id not in handler._peers
+        assert guest.frames(SignalType.RESUMED, SignalType.ROOM_CLOSED) == []
+        assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
 
 
 REFUSED = ErrorReason.RESUME_REFUSED.value

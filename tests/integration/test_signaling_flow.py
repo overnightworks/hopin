@@ -272,6 +272,18 @@ class TestEndRoom:
         _late_ws, refusal = join_room(connect, "late", room_id)
         assert refusal["reason"] == ErrorReason.NOT_FOUND.value
 
+    def test_end_room_closes_the_guest_socket_and_a_chat_from_one_that_ignores_it_reaches_nobody(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, _existing = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+        host_ws.send_json({"type": SignalType.END_ROOM.value})
+        guest_ws.receive_json()
+
+        guest_ws.send_json({"type": SignalType.CHAT.value, "message": "still here"})
+
+        with pytest.raises(WebSocketDisconnect):
+            guest_ws.receive_json()
+
 
 @pytest.mark.integration
 class TestRelayStaysInTheRoom:

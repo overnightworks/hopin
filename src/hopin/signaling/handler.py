@@ -226,6 +226,8 @@ class SignalingHandler:
         room_id = data.get("room_id")
         if room_id is not None and not isinstance(room_id, str):
             raise InvalidMessageError("room_id must be a string")
+        if peer_id in self._peer_rooms:
+            raise InvalidMessageError("This seat is already in a room")
 
         if room_id is None:
             await self._create_room(peer_id)
@@ -340,10 +342,9 @@ class SignalingHandler:
         )
 
     async def _handle_disconnect(self, peer_id: PeerId) -> None:
-        peer = self._peers.pop(peer_id, None)
+        peer = self._forget_seat(peer_id)
         left_at = self._scheduler.now()
         if peer is not None and peer.park is not None:
-            peer.park.timer.cancel()
             left_at = peer.park.dropped_at
         room_id = self._peer_rooms.pop(peer_id, None)
         if not room_id:
@@ -364,6 +365,12 @@ class SignalingHandler:
 
         await self._send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
         await logger.ainfo("participant_left", room_id=room_id, participant=peer_id)
+
+    def _forget_seat(self, peer_id: PeerId) -> Peer | None:
+        peer = self._peers.pop(peer_id, None)
+        if peer is not None and peer.park is not None:
+            peer.park.timer.cancel()
+        return peer
 
     async def _park(self, peer_id: PeerId, peer: Peer) -> None:
         peer.parks_started += 1
@@ -488,6 +495,10 @@ class SignalingHandler:
         if reason is RoomClosedReason.HOST_GONE:
             frame["grace_seconds"] = HOST_GRACE_SECONDS
         await self._send_all(recipients, frame)
+        for peer_id in recipients:
+            seat = self._peers[PeerId(peer_id)]
+            self._forget_seat(PeerId(peer_id))
+            await _close_superseded(seat.websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> dict[str, Any]:
