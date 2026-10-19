@@ -53,10 +53,7 @@ function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
     return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
-        if (state.intentionalLeave) {
-            stopLocalMedia();
-            return;
-        }
+        if (state.intentionalLeave) return;
         const failure = outcomes.find((outcome) => outcome.status === "rejected");
         if (failure) {
             stopLocalMedia();
@@ -86,9 +83,8 @@ function tearDownCall() {
 }
 
 function leaveCall() {
-    const wasHost = state.isHost;
     tearDownCall();
-    showEnd(wasHost ? END_KIND.HOST_LEFT : END_KIND.LEFT);
+    showEnd(getRoomIdFromUrl() === null ? END_KIND.HOST_LEFT : END_KIND.LEFT);
 }
 
 function requestLeave() {

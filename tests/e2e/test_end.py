@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from playwright.sync_api import Locator, Page, WebSocketRoute, expect
+from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
@@ -16,36 +16,58 @@ from hopin.config.constants import (
 )
 from tests.e2e.conftest import (
     DESKTOP,
+    INVITE_LINK_PATTERN,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     PHONE,
     expect_both_legal_links,
     press_start_call,
     start_call,
 )
+from tests.e2e.test_ice_servers import ICE_SERVERS_URL_PATTERN
 
 pytestmark = pytest.mark.e2e
 
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 IN_CALL = "In call"
 SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
+# The headless browser has no screen picker, so a canvas stands in for the shared screen.
 RECORD_MEDIA_TRACKS = """
 window.requestedTracks = [];
-const requestStream = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-navigator.mediaDevices.getUserMedia = async (constraints) => {
-    const stream = await requestStream(constraints);
+window.mediaRequests = 0;
+window.heldMediaRequests = 0;
+let mediaHeld = null;
+window.holdMedia = () => {
+    mediaHeld = new Promise((release) => {
+        window.releaseMedia = (failure) => {
+            mediaHeld = null;
+            release(failure);
+        };
+    });
+};
+const recorded = (request) => async (constraints) => {
+    window.mediaRequests += 1;
+    if (mediaHeld) {
+        window.heldMediaRequests += 1;
+        const failure = await mediaHeld;
+        if (failure) throw new DOMException(failure, failure);
+    }
+    const stream = await request(constraints);
     window.requestedTracks.push(...stream.getTracks());
     return stream;
 };
+navigator.mediaDevices.getUserMedia = recorded(navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices));
+navigator.mediaDevices.getDisplayMedia = recorded(async () => document.createElement("canvas").captureStream());
 """
-HOLD_MEDIA_UNTIL_RELEASED = """
-const requestRecordedStream = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-const mediaHeld = new Promise((release) => { window.releaseMedia = release; });
-navigator.mediaDevices.getUserMedia = async (constraints) => {
-    await mediaHeld;
-    return requestRecordedStream(constraints);
-};
-"""
+HOLD_MEDIA = "window.holdMedia()"
+RELEASE_MEDIA = "window.releaseMedia()"
+FAIL_MEDIA = "window.releaseMedia('NotFoundError')"
+MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
+MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
 TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
+MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
+REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
+SHARING = "Stop Sharing"
+PRESS_LEAVE = "document.getElementById('leaveBtn').click()"
 LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
 
 
@@ -122,9 +144,13 @@ def end_screen(person: Page) -> Locator:
     return person.locator("[data-screen=end]")
 
 
+def expect_end_title(person: Page, expected: EndScreenText) -> None:
+    expect(end_screen(person).get_by_role("heading", name=expected.title)).to_be_visible()
+
+
 def expect_end_screen(person: Page, expected: EndScreenText) -> None:
     screen = end_screen(person)
-    expect(screen.get_by_role("heading", name=expected.title)).to_be_visible()
+    expect_end_title(person, expected)
     expect(screen.locator("#endText")).to_have_text(expected.text)
     if expected.pill:
         expect(screen.locator("#endPill")).to_have_text(expected.pill)
@@ -143,9 +169,18 @@ def guest_leaves(call: Call) -> None:
     call.guest.click("#leaveBtn")
 
 
+def leave_with_confirmation(person: Page) -> None:
+    person.click("#leaveBtn")
+    person.click("#leaveYes")
+
+
 def host_leaves(call: Call) -> None:
-    call.host.click("#leaveBtn")
-    call.host.click("#leaveYes")
+    leave_with_confirmation(call.host)
+
+
+def share_screen(person: Page) -> None:
+    person.click("#screenBtn")
+    expect(person.locator("#screenBtn")).to_have_text(SHARING)
 
 
 def test_guest_who_leaves_sees_the_left_screen_and_no_live_media_track(call: Call) -> None:
@@ -154,23 +189,97 @@ def test_guest_who_leaves_sees_the_left_screen_and_no_live_media_track(call: Cal
     expect_end_screen(call.guest, LEFT_BY_GUEST)
 
 
-def test_media_arriving_after_the_person_left_is_stopped_and_opens_no_connection(
+def test_media_arriving_after_the_host_left_is_stopped_before_the_ice_servers_load_and_opens_no_connection(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
     person = open_recording_person(open_person, form_factor)
-    person.add_init_script(HOLD_MEDIA_UNTIL_RELEASED)
+    person.add_init_script(HOLD_MEDIA)
+    held_ice_requests: list[Route] = []
+    person.route(ICE_SERVERS_URL_PATTERN, lambda route: held_ice_requests.append(route))
     sockets_opened: list[str] = []
     person.on("websocket", lambda socket: sockets_opened.append(socket.url))
     press_start_call(person, base_url)
+    person.wait_for_function(MEDIA_REQUEST_IS_HELD)
 
-    person.evaluate("document.getElementById('leaveBtn').click()")
-    expect(end_screen(person).get_by_role("heading", name=LEFT_BY_GUEST.title)).to_be_visible()
-    person.evaluate("window.releaseMedia()")
+    person.evaluate(PRESS_LEAVE)
+    expect_end_title(person, LEFT_BY_HOST)
+    person.evaluate(RELEASE_MEDIA)
     person.wait_for_function(TRACKS_WERE_REQUESTED)
 
-    person.wait_for_function("() => window.requestedTracks.every((track) => track.readyState === 'ended')")
+    expect_end_screen(person, LEFT_BY_HOST)
+    with person.expect_response(ICE_SERVERS_URL_PATTERN):
+        held_ice_requests.pop().continue_()
     assert sockets_opened == []
-    expect(end_screen(person).get_by_role("heading", name=LEFT_BY_GUEST.title)).to_be_visible()
+    expect_end_screen(person, LEFT_BY_HOST)
+
+
+def test_camera_failing_after_the_host_left_asks_for_no_microphone(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    person = open_recording_person(open_person, DESKTOP)
+    person.add_init_script(HOLD_MEDIA)
+    press_start_call(person, base_url)
+    person.wait_for_function(MEDIA_REQUEST_IS_HELD)
+    person.evaluate(PRESS_LEAVE)
+    expect_end_title(person, LEFT_BY_HOST)
+
+    person.evaluate(FAIL_MEDIA)
+
+    assert person.evaluate(MEDIA_REQUEST_COUNT) == 1
+    expect_end_title(person, LEFT_BY_HOST)
+
+
+def start_sharing_the_screen(person: Page, base_url: str) -> None:
+    start_call(person, base_url)
+    person.evaluate(HOLD_MEDIA)
+    person.click("#screenBtn")
+
+
+def stop_sharing_the_screen(person: Page, base_url: str) -> None:
+    start_call(person, base_url)
+    share_screen(person)
+    person.evaluate(HOLD_MEDIA)
+    person.click("#screenBtn")
+
+
+def turn_on_a_camera_after_starting_without_one(person: Page, base_url: str) -> None:
+    press_start_call(person, base_url, with_camera=False)
+    expect(person.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    person.evaluate(HOLD_MEDIA)
+    person.click("#videoBtn")
+
+
+@pytest.mark.parametrize(
+    "request_media_in_the_call",
+    [start_sharing_the_screen, stop_sharing_the_screen, turn_on_a_camera_after_starting_without_one],
+)
+def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped_and_changes_nothing(
+    open_person: Callable[..., Page], base_url: str, request_media_in_the_call: Callable[[Page, str], None]
+) -> None:
+    person = open_recording_person(open_person, DESKTOP)
+    page_errors: list[Error] = []
+    person.on("pageerror", lambda error: page_errors.append(error))
+    request_media_in_the_call(person, base_url)
+    person.wait_for_function(MEDIA_REQUEST_IS_HELD)
+    leave_with_confirmation(person)
+    expect_end_title(person, LEFT_BY_HOST)
+    status_before_the_media_arrives = person.locator("#status").text_content()
+    tracks_before_the_media_arrives = person.evaluate(REQUESTED_TRACK_COUNT)
+
+    person.evaluate(RELEASE_MEDIA)
+    person.wait_for_function(MORE_TRACKS_THAN, arg=tracks_before_the_media_arrives)
+
+    expect_end_screen(person, LEFT_BY_HOST)
+    assert person.locator("#status").text_content() == status_before_the_media_arrives
+    assert page_errors == []
+
+
+def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_call: HostedCall) -> None:
+    share_screen(hosted_call.host)
+
+    leave_with_confirmation(hosted_call.host)
+
+    expect_end_screen(hosted_call.host, LEFT_BY_HOST)
 
 
 def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:

@@ -134,9 +134,10 @@ def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Itera
         context.close()
 
 
-def press_start_call(host: Page, base_url: str) -> None:
+def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
     host.goto(f"{base_url}/")
     host.click("#homeStartBtn")
+    host.set_checked("#setupCamOff", not with_camera)
     host.click("#setupStartBtn")
 
 
