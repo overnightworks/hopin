@@ -48,6 +48,7 @@ class SignalType(StrEnum):
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
     CHAT = "chat"
+    MEDIA_STATE = "media_state"
     HOST_AWAY = "host_away"
     HOST_BACK = "host_back"
     END_ROOM = "end_room"

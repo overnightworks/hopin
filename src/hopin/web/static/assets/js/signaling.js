@@ -20,6 +20,7 @@ export const SIGNAL_TYPE = {
     LOCK_ROOM: "lock_room",
     UNLOCK_ROOM: "unlock_room",
     CHAT: "chat",
+    MEDIA_STATE: "media_state",
     ERROR: "error",
 };
 

@@ -324,6 +324,25 @@ class TestChat:
 
 
 @pytest.mark.integration
+class TestMediaState:
+    def test_media_state_reaches_the_guest_with_the_hosts_participant_id_as_from(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, existing = join_room(connect, "p1", room_id)
+        [host_peer_id] = existing["participants"]
+        host_ws.receive_json()
+
+        host_ws.send_json({"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
+
+        relayed = guest_ws.receive_json()
+        assert (relayed["type"], relayed["from"], relayed["audio"], relayed["video"]) == (
+            SignalType.MEDIA_STATE.value,
+            host_peer_id,
+            False,
+            True,
+        )
+
+
+@pytest.mark.integration
 class TestPeersAreServerMinted:
     def test_two_sockets_of_one_account_join_as_two_peers_that_reach_each_other(self, connect):
         first_ws, room_id = open_room(connect, "alice")

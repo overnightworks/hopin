@@ -58,6 +58,7 @@ The page is markup, two stylesheets and ES modules, served from
 | `media.js` | local media, camera and screen share |
 | `quality.js` | round-trip indicator |
 | `chat.js` | chat panel and messages |
+| `media-state.js` | announces the own microphone and camera state, applies the others' |
 | `sounds.js` | notification sounds |
 | `stage.js` | the stage: tiles, the grid by call size, the phone picture-in-picture, local preview |
 | `controls.js` | control bar and share box |
