@@ -123,7 +123,6 @@ async function stopScreenShare() {
             const cameraTrack = cameraStream.getVideoTracks()[0];
             cameraTrack.enabled = state.videoEnabled;
             replaceVideoTrack(cameraTrack);
-            showLocalStream(state.localStream);
         },
     );
 }

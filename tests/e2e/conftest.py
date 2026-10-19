@@ -51,6 +51,18 @@ window.RTCPeerConnection.prototype = NativePeerConnection.prototype;
 OPEN_PEER_COUNT_REACHED = """
 (count) => window.recordedConnections.filter((connection) => connection.signalingState !== "closed").length === count
 """
+SHARE_SCREEN_LABEL = "Share Screen"
+STOP_SHARING_LABEL = "Stop Sharing"
+SHARE_THE_SCREEN_FROM_A_CANVAS = """
+navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
+"""
+REFUSE_THE_CAMERA = """
+const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+navigator.mediaDevices.getUserMedia = (constraints) => {
+    if (constraints.video) return Promise.reject(new DOMException("no camera", "NotFoundError"));
+    return nativeGetUserMedia(constraints);
+};
+"""
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 
 
@@ -148,6 +160,27 @@ def start_call(host: Page, base_url: str) -> str:
     expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
     host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     return host.input_value("#shareUrl")
+
+
+def join(open_person: Callable[..., Page], invite_link: str, form_factor: dict[str, Any] = DESKTOP) -> Page:
+    guest = open_person(**form_factor)
+    guest.goto(invite_link)
+    return guest
+
+
+def share_the_screen(person: Page) -> None:
+    person.click("#screenBtn")
+    expect(person.locator("#screenBtn")).to_have_text(STOP_SHARING_LABEL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def stop_the_screen_share(person: Page) -> None:
+    person.click("#screenBtn")
+    expect(person.locator("#screenBtn")).to_have_text(SHARE_SCREEN_LABEL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def share_then_stop_the_screen_share(person: Page) -> None:
+    share_the_screen(person)
+    stop_the_screen_share(person)
 
 
 def wait_for_peer_count(person: Page, count: int) -> None:

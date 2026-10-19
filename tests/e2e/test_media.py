@@ -5,12 +5,13 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
     DESKTOP,
-    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     RECORD_PEER_CONNECTIONS,
+    SHARE_THE_SCREEN_FROM_A_CANVAS,
+    join,
+    share_then_stop_the_screen_share,
     start_call,
     wait_for_peer_count,
 )
-from tests.e2e.test_stage import SHARE_THE_SCREEN_FROM_A_CANVAS, join
 
 pytestmark = pytest.mark.e2e
 
@@ -24,13 +25,6 @@ CAMERA_TRACK_AND_ITS_SENDER_TRACK = """
     return sent ? { local: localTrack.enabled, sent: sent.enabled } : null;
 }
 """
-
-
-def _share_then_stop_sharing(host: Page) -> None:
-    host.click("#screenBtn")
-    expect(host.locator("#screenBtn")).to_have_text("Stop Sharing", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    host.click("#screenBtn")
-    expect(host.locator("#screenBtn")).to_have_text("Share Screen", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 @pytest.mark.parametrize(
@@ -49,7 +43,7 @@ def test_stop_sharing_restores_the_camera_as_the_person_left_it(
     if camera_turned_off:
         host.click("#videoBtn")
 
-    _share_then_stop_sharing(host)
+    share_then_stop_the_screen_share(host)
 
     expect(host.locator("#videoBtn")).to_have_text(button_text)
     host.wait_for_function(CAMERA_TRACK_AND_ITS_SENDER_TRACK)
