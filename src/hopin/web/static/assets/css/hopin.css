@@ -445,7 +445,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     justify-content: space-between;
     padding: 0 16px 0 20px;
 }
-.button[hidden] { display: none; }
 .button-block { width: 100%; }
 .button-text { background: transparent; color: var(--accent-ink); height: 44px; }
 .button-text:hover { background: var(--surface-2); }
@@ -539,7 +538,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .end p {
     grid-row: 6;
-    max-width: 320px;
+    max-width: 384px;
     margin-top: 14px;
     padding: 0 32px;
     color: var(--ink-soft);
@@ -558,7 +557,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .end .legal { grid-row: 9; margin-bottom: 34px; }
 @media (min-width: 601px) {
     .end { grid-template-rows: auto 1fr auto auto auto auto auto 1fr auto; }
-    .end-actions { grid-row: 7; max-width: 320px; margin: 18px 0 0; padding: 0; }
+    .end-actions { grid-row: 7; max-width: 320px; margin: 32px 0 0; padding: 0; }
     .end .legal { margin-bottom: 28px; }
 }
 

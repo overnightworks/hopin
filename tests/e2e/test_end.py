@@ -7,14 +7,25 @@ from typing import Any
 import pytest
 from playwright.sync_api import Locator, Page, WebSocketRoute, expect
 
-from hopin.config.constants import ErrorReason, RoomClosedReason, SignalType
-from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, start_call
-from tests.e2e.test_shell import expect_both_legal_links
+from hopin.config.constants import (
+    HOST_GRACE_SECONDS,
+    MAX_PARTICIPANTS_PER_ROOM,
+    ErrorReason,
+    RoomClosedReason,
+    SignalType,
+)
+from tests.e2e.conftest import (
+    DESKTOP,
+    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    PHONE,
+    expect_both_legal_links,
+    press_start_call,
+    start_call,
+)
 
 pytestmark = pytest.mark.e2e
 
-CAPACITY = 6
-HOST_GRACE_SECONDS = 60
+CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 IN_CALL = "In call"
 SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
 RECORD_MEDIA_TRACKS = """
@@ -26,6 +37,15 @@ navigator.mediaDevices.getUserMedia = async (constraints) => {
     return stream;
 };
 """
+HOLD_MEDIA_UNTIL_RELEASED = """
+const requestRecordedStream = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+const mediaHeld = new Promise((release) => { window.releaseMedia = release; });
+navigator.mediaDevices.getUserMedia = async (constraints) => {
+    await mediaHeld;
+    return requestRecordedStream(constraints);
+};
+"""
+TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
 LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
 
 
@@ -115,6 +135,7 @@ def expect_end_screen(person: Page, expected: EndScreenText) -> None:
     expect(person.locator("[data-screen]:visible")).to_have_attribute("data-screen", "end")
     expect(screen.locator(".button-primary")).to_have_count(1)
     expect(screen.locator(".button-primary")).to_have_text(expected.buttons[0])
+    assert person.evaluate(TRACKS_WERE_REQUESTED)
     assert person.evaluate(LIVE_TRACK_COUNT) == 0
 
 
@@ -131,6 +152,25 @@ def test_guest_who_leaves_sees_the_left_screen_and_no_live_media_track(call: Cal
     guest_leaves(call)
 
     expect_end_screen(call.guest, LEFT_BY_GUEST)
+
+
+def test_media_arriving_after_the_person_left_is_stopped_and_opens_no_connection(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
+) -> None:
+    person = open_recording_person(open_person, form_factor)
+    person.add_init_script(HOLD_MEDIA_UNTIL_RELEASED)
+    sockets_opened: list[str] = []
+    person.on("websocket", lambda socket: sockets_opened.append(socket.url))
+    press_start_call(person, base_url)
+
+    person.evaluate("document.getElementById('leaveBtn').click()")
+    expect(end_screen(person).get_by_role("heading", name=LEFT_BY_GUEST.title)).to_be_visible()
+    person.evaluate("window.releaseMedia()")
+    person.wait_for_function(TRACKS_WERE_REQUESTED)
+
+    person.wait_for_function("() => window.requestedTracks.every((track) => track.readyState === 'ended')")
+    assert sockets_opened == []
+    expect(end_screen(person).get_by_role("heading", name=LEFT_BY_GUEST.title)).to_be_visible()
 
 
 def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:

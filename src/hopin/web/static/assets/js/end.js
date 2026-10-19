@@ -101,7 +101,7 @@ function renderActions(actions) {
     for (const [action, id] of Object.entries(BUTTON_IDS)) {
         const button = document.getElementById(id);
         const isPrimary = action === primary;
-        button.hidden = !actions.includes(action);
+        button.classList.toggle("hidden", !actions.includes(action));
         button.classList.toggle("button-primary", isPrimary);
         button.classList.toggle("button-lg", isPrimary);
         button.classList.toggle("button-text", !isPrimary);

@@ -53,6 +53,10 @@ function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
     return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
+        if (state.intentionalLeave) {
+            stopLocalMedia();
+            return;
+        }
         const failure = outcomes.find((outcome) => outcome.status === "rejected");
         if (failure) {
             stopLocalMedia();
