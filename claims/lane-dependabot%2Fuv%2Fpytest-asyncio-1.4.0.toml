@@ -1,7 +1,0 @@
-claim_id = "6f2d8dc0fb594e15bedd560a717e485e"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "7871255bf7ad687cb7ec21a80227d5964f9ce9a9"
-branch = "dependabot/uv/pytest-asyncio-1.4.0"
-scope = ["uv.lock"]
-opened_commit = "f4c5f7259ac248f69b4736664c1be7ed95557355"
