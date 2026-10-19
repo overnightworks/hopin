@@ -6,6 +6,8 @@ from playwright.sync_api import Page, Route, expect
 
 from tests.e2e.conftest import (
     DESKTOP,
+    ICE_SERVERS_PATH,
+    ICE_SERVERS_URL_PATTERN,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     RECORD_PEER_CONNECTIONS,
     press_start_call,
@@ -14,7 +16,6 @@ from tests.e2e.conftest import (
 
 pytestmark = pytest.mark.e2e
 
-ICE_SERVERS_URL_PATTERN = "**/api/ice-servers"
 RECORD_MEDIA_STREAMS = """
 window.acquiredStreams = [];
 const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -45,7 +46,7 @@ def test_call_peer_connections_use_the_servers_ice_servers(open_person: Callable
     guest = open_person(**DESKTOP)
     for person in (host, guest):
         person.add_init_script(RECORD_PEER_CONNECTIONS)
-    served = host.request.get(f"{base_url}/api/ice-servers").json()["iceServers"]
+    served = host.request.get(f"{base_url}{ICE_SERVERS_PATH}").json()["iceServers"]
 
     invite_link = start_call(host, base_url)
     guest.goto(invite_link)
