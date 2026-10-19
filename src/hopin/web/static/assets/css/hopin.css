@@ -13,6 +13,7 @@
     --glass: rgba(255, 255, 255, .15);
     --glass-dark: rgba(12, 14, 17, .55);
     --vignette: rgba(6, 8, 10, .42);
+    --busy-stage: #EDB656;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,18 +45,34 @@ body {
 }
 .connection-quality {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    height: 24px;
+    padding: 0 8px 7px;
+    border-radius: 999px;
     display: flex;
-    gap: 2px;
     align-items: flex-end;
+    gap: 2px;
+    background: var(--glass-dark);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 .quality-bar {
-    width: 4px;
-    background: #4ade80;
+    width: 3px;
     border-radius: 1px;
+    background: var(--on-stage);
+    opacity: .3;
 }
-.quality-bar.inactive { background: #374151; }
+.quality-bar:nth-child(1) { height: 4px; }
+.quality-bar:nth-child(2) { height: 7px; }
+.quality-bar:nth-child(3) { height: 10px; }
+.connection-quality[data-quality="good"] .quality-bar { opacity: 1; }
+.connection-quality[data-quality="fair"] .quality-bar:nth-child(-n+2),
+.connection-quality[data-quality="poor"] .quality-bar:nth-child(1) {
+    opacity: 1;
+    background: var(--busy-stage);
+}
 .controls {
     display: flex;
     justify-content: center;
@@ -370,7 +387,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .tile.mirror video { transform: scaleX(-1); }
-.vid { position: absolute; inset: 0; overflow: hidden; }
+.tile::after, .preview::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(to top, var(--vignette), transparent 42%);
+}
+.vid { position: absolute; inset: 0; overflow: hidden; z-index: 2; }
 .vid.off { background: var(--stage-3); }
 .av {
     border-radius: 50%;
@@ -436,6 +461,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
         box-shadow: 0 10px 30px -10px var(--vignette), 0 0 0 1px var(--glass);
     }
     .stage[data-count="2"] .tile.self .name, .stage[data-count="2"] .tile.self .connection-quality { display: none; }
+    .stage[data-count="2"] .tile:not(.self) .connection-quality { top: 50px; right: 16px; }
 }
 @media (min-width: 601px) {
     .chat-panel { grid-column: 2; grid-row: 1 / span 2; }
