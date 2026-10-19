@@ -14,15 +14,17 @@ from tests.e2e.conftest import (
     OFFER_COUNT,
     OTHER_CAMERA_OFF,
     OTHER_VIDEO,
-    PLUG_IN_THE_CAMERA,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
+    TILE_AUDIO_IS_ALIVE_AND_UNMUTED,
     expect_the_tile_to_play_audio,
     inbound_per_connection,
     join,
+    record_page_errors,
     share_then_stop_the_screen_share,
     start_call,
+    turn_the_camera_on,
     wait_for_frames_to_advance,
     wait_for_peer_count,
 )
@@ -80,6 +82,17 @@ STREAM_IDS_ON_THE_WIRE = r"""
 TILE_TRACKS = """
 (selector) => document.querySelector(selector).srcObject.getTracks().map((track) => `${track.kind}:${track.readyState}`)
 """
+COUNT_TILE_SOURCE_ASSIGNMENTS = """
+(() => {
+    window.sourceAssignments = 0;
+    const native = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "srcObject");
+    Object.defineProperty(HTMLMediaElement.prototype, "srcObject", {
+        get() { return native.get.call(this); },
+        set(stream) { window.sourceAssignments += 1; native.set.call(this, stream); },
+    });
+})();
+"""
+SOURCE_ASSIGNMENTS = "() => window.sourceAssignments"
 PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
 ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
 
@@ -103,31 +116,18 @@ def page_errors() -> Iterator[list[str]]:
     assert errors == []
 
 
-def _record_page_errors(person: Page, page_errors: list[str]) -> Page:
-    person.on("pageerror", lambda error: page_errors.append(str(error)))
-    return person
-
-
 @pytest.fixture
 def camera_less_call(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> CameraLessCall:
-    host = _record_page_errors(open_person(**form_factor), page_errors)
+    host = record_page_errors(open_person(**form_factor), page_errors)
     host.add_init_script(RECORD_PEER_CONNECTIONS)
     host.add_init_script(COUNT_OFFERS)
     invite_link = start_call(host, base_url)
-    guest = join(open_person, invite_link, form_factor, CAMERA_OFF_AT_JOIN)
-    _record_page_errors(guest, page_errors)
+    guest = join(open_person, invite_link, form_factor, CAMERA_OFF_AT_JOIN, page_errors)
     for person in (host, guest):
         wait_for_peer_count(person, 1)
     return CameraLessCall(host, guest, invite_link)
-
-
-def _turn_the_camera_on(person: Page) -> None:
-    person.evaluate(PLUG_IN_THE_CAMERA)
-    expect(person.locator("#videoBtn")).to_have_text("Cam Off")
-    person.click("#videoBtn")
-    expect(person.locator("#videoBtn")).to_have_text("Cam On")
 
 
 def _offers_made(call: CameraLessCall) -> list[int]:
@@ -162,7 +162,7 @@ def test_a_camera_turned_on_mid_call_reaches_the_people_who_were_there_under_the
     host, guest = camera_less_call.host, camera_less_call.guest
     offers_before = _offers_made(camera_less_call)
 
-    _turn_the_camera_on(guest)
+    turn_the_camera_on(guest)
 
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_hidden()
     wait_for_frames_to_advance(host)
@@ -176,7 +176,7 @@ def test_a_camera_turned_on_mid_call_reaches_the_people_who_were_there_under_the
 def test_the_picture_arrives_under_the_stream_of_the_voice(camera_less_call: CameraLessCall) -> None:
     host, guest = camera_less_call.host, camera_less_call.guest
 
-    _turn_the_camera_on(guest)
+    turn_the_camera_on(guest)
 
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_hidden()
     assert sorted(host.evaluate(TILE_TRACKS, OTHER_VIDEO)) == ["audio:live", "video:live"]
@@ -184,15 +184,38 @@ def test_the_picture_arrives_under_the_stream_of_the_voice(camera_less_call: Cam
     assert stream_ids["audio"] == stream_ids["video"] == stream_ids["local"]
 
 
+def test_the_tile_gets_the_voice_and_then_the_picture_each_assigned_once(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host = open_person(**DESKTOP)
+    host.add_init_script(RECORD_PEER_CONNECTIONS)
+    host.add_init_script(COUNT_TILE_SOURCE_ASSIGNMENTS)
+    invite_link = start_call(host, base_url)
+    guest = join(open_person, invite_link, DESKTOP, CAMERA_OFF_AT_JOIN)
+    wait_for_peer_count(host, 1)
+    host.wait_for_function(TILE_AUDIO_IS_ALIVE_AND_UNMUTED, arg=OTHER_VIDEO)
+    assigned_for_the_voice = host.evaluate(SOURCE_ASSIGNMENTS)
+
+    turn_the_camera_on(guest)
+    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible()
+    wait_for_frames_to_advance(host)
+
+    assert host.evaluate(SOURCE_ASSIGNMENTS) == assigned_for_the_voice + 1
+
+
 def test_a_camera_turned_on_before_a_late_joiner_arrives_reaches_the_late_joiner_under_the_cap(
     camera_less_call: CameraLessCall, open_person: Callable[..., Page], page_errors: list[str]
 ) -> None:
     guest = camera_less_call.guest
-    _turn_the_camera_on(guest)
+    turn_the_camera_on(guest)
     wait_for_frames_to_advance(camera_less_call.host)
 
-    late_joiner = join(open_person, camera_less_call.invite_link, init_scripts=(RECORD_PEER_CONNECTIONS,))
-    _record_page_errors(late_joiner, page_errors)
+    late_joiner = join(
+        open_person,
+        camera_less_call.invite_link,
+        init_scripts=(RECORD_PEER_CONNECTIONS,),
+        page_errors=page_errors,
+    )
 
     wait_for_peer_count(late_joiner, 2)
     expect(late_joiner.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(2)
@@ -205,7 +228,7 @@ def test_a_camera_turned_off_and_on_again_shows_the_icon_then_the_picture_withou
     camera_less_call: CameraLessCall,
 ) -> None:
     host, guest = camera_less_call.host, camera_less_call.guest
-    _turn_the_camera_on(guest)
+    turn_the_camera_on(guest)
     wait_for_frames_to_advance(host)
     offers_before = _offers_made(camera_less_call)
 
@@ -228,7 +251,7 @@ def test_stop_sharing_keeps_a_camera_added_mid_call_as_the_person_left_it(
     camera_less_call: CameraLessCall, camera_turned_off: bool, sent_state: dict[str, bool]
 ) -> None:
     host, guest = camera_less_call.host, camera_less_call.guest
-    _turn_the_camera_on(guest)
+    turn_the_camera_on(guest)
     wait_for_frames_to_advance(host)
     if camera_turned_off:
         guest.click("#videoBtn")

@@ -14,10 +14,11 @@ function renderRemoteVideo(participantId) {
     const video = document.getElementById(`video-${participantId}`);
     const placeholder = document.getElementById(`placeholder-${participantId}`);
     if (!video) return;
-    const lacksVideoTrack = video.srcObject !== null && video.srcObject.getVideoTracks().length === 0;
+    const hasFrames = (video.srcObject?.getVideoTracks() ?? []).some(
+        (track) => track.readyState === "live" && !track.muted,
+    );
     const announcedOff = remoteMediaStates.get(participantId)?.video === false;
-    const lacksPicture = video.readyState >= HTMLMediaElement.HAVE_METADATA && video.videoWidth === 0;
-    const showsVideo = !lacksVideoTrack && !announcedOff && !lacksPicture;
+    const showsVideo = hasFrames && !announcedOff;
     video.classList.toggle("hidden", !showsVideo);
     placeholder.classList.toggle("hidden", showsVideo);
 }
@@ -84,10 +85,6 @@ export function addRemoteTile(participantId) {
     tiles.appendChild(container);
     updateGridLayout();
     renderRemoteMediaState(participantId);
-
-    for (const event of ["loadedmetadata", "resize"]) {
-        video.addEventListener(event, () => renderRemoteVideo(participantId));
-    }
 }
 
 export function removeRemoteTile(participantId) {
@@ -99,19 +96,31 @@ export function removeRemoteTile(participantId) {
     return true;
 }
 
+const tracksWatched = new WeakSet();
+
 // A media element does not start playing while the stream holds a video track that
 // has received no frame yet, which silences the person's voice until the camera is on.
 // So the element gets the audio, and each video track joins when its first frame arrives.
 function attachTracksThatHaveData(participantId, stream) {
     const video = document.getElementById(`video-${participantId}`);
     if (!video) return;
-    video.srcObject = new MediaStream(stream.getTracks().filter((track) => track.kind === "audio" || !track.muted));
+    const attached = video.srcObject?.getTracks() ?? [];
+    const wanted = stream.getTracks().filter((track) => track.kind === "audio" || !track.muted);
+    const unchanged = wanted.length === attached.length && wanted.every((track) => attached.includes(track));
+    if (!unchanged) video.srcObject = new MediaStream(wanted);
     renderRemoteVideo(participantId);
+}
+
+function watchVideoTrack(participantId, stream, track) {
+    if (tracksWatched.has(track)) return;
+    tracksWatched.add(track);
+    track.addEventListener("unmute", () => attachTracksThatHaveData(participantId, stream));
+    track.addEventListener("mute", () => renderRemoteVideo(participantId));
 }
 
 export function showRemoteStream(participantId, stream) {
     attachTracksThatHaveData(participantId, stream);
     for (const track of stream.getVideoTracks()) {
-        track.addEventListener("unmute", () => attachTracksThatHaveData(participantId, stream), { once: true });
+        watchVideoTrack(participantId, stream, track);
     }
 }

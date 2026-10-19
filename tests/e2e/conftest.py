@@ -117,25 +117,27 @@ TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
 TILE_CLOCK_PASSED = "([selector, time]) => document.querySelector(selector).currentTime > time"
 TILE_CURRENT_TIME = "(selector) => document.querySelector(selector).currentTime"
 TILE_AUDIO_LEVEL = """
-async ([selector, listenMilliseconds]) => {
+async ([selector, floor, timeoutMilliseconds]) => {
     const context = new AudioContext();
-    await context.resume();
-    const analyser = context.createAnalyser();
-    context.createMediaStreamSource(document.querySelector(selector).srcObject).connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
-    let loudest = 0;
-    const end = performance.now() + listenMilliseconds;
-    while (performance.now() < end) {
-        analyser.getByteTimeDomainData(samples);
-        loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
-        await new Promise((next) => setTimeout(next, 20));
+    try {
+        await context.resume();
+        const analyser = context.createAnalyser();
+        context.createMediaStreamSource(document.querySelector(selector).srcObject).connect(analyser);
+        const samples = new Uint8Array(analyser.fftSize);
+        let loudest = 0;
+        const end = performance.now() + timeoutMilliseconds;
+        while (loudest <= floor && performance.now() < end) {
+            analyser.getByteTimeDomainData(samples);
+            loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
+            await new Promise((next) => requestAnimationFrame(next));
+        }
+        return loudest;
+    } finally {
+        await context.close();
     }
-    await context.close();
-    return loudest;
 }
 """
 AUDIBLE_LEVEL_FLOOR = 4
-AUDIO_LISTEN_MILLISECONDS = 3_000
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 
 
@@ -235,17 +237,32 @@ def start_call(host: Page, base_url: str) -> str:
     return host.input_value("#shareUrl")
 
 
+def record_page_errors(person: Page, page_errors: list[str]) -> Page:
+    person.on("pageerror", lambda error: page_errors.append(str(error)))
+    return person
+
+
 def join(
     open_person: Callable[..., Page],
     invite_link: str,
     form_factor: dict[str, Any] = DESKTOP,
     init_scripts: Sequence[str] = (),
+    page_errors: list[str] | None = None,
 ) -> Page:
     guest = open_person(**form_factor)
+    if page_errors is not None:
+        record_page_errors(guest, page_errors)
     for script in init_scripts:
         guest.add_init_script(script)
     guest.goto(invite_link)
     return guest
+
+
+def turn_the_camera_on(person: Page) -> None:
+    person.evaluate(PLUG_IN_THE_CAMERA)
+    expect(person.locator("#videoBtn")).to_have_text("Cam Off")
+    person.click("#videoBtn")
+    expect(person.locator("#videoBtn")).to_have_text("Cam On")
 
 
 def share_the_screen(person: Page) -> None:
@@ -288,7 +305,7 @@ def expect_the_tile_to_play_audio(person: Page, video_selector: str) -> None:
     person.wait_for_function(
         TILE_CLOCK_PASSED, arg=[video_selector, time_before], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
     )
-    level = person.evaluate(TILE_AUDIO_LEVEL, [video_selector, AUDIO_LISTEN_MILLISECONDS])
+    level = person.evaluate(TILE_AUDIO_LEVEL, [video_selector, AUDIBLE_LEVEL_FLOOR, MEDIA_FLOWING_TIMEOUT_MILLISECONDS])
     assert level > AUDIBLE_LEVEL_FLOOR, f"the tile plays silence (level {level})"
 
 

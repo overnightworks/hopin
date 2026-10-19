@@ -17,11 +17,12 @@ from tests.e2e.conftest import (
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
     OTHER_CAMERA_OFF,
-    PLUG_IN_THE_CAMERA,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
     inbound_per_connection,
     start_call,
+    turn_the_camera_on,
+    wait_for_frames_to_advance,
     wait_for_peer_count,
 )
 
@@ -971,22 +972,8 @@ def test_quality_of_round_trip_is_good_below_300_ms_fair_below_500_ms_and_poor_a
     assert page.evaluate(QUALITY_OF_ROUND_TRIP_FROM_MODULE, round_trip_seconds) == expected_quality
 
 
-def _turn_the_camera_on(person: Page) -> None:
-    person.evaluate(PLUG_IN_THE_CAMERA)
-    person.click("#videoBtn")
-
-
 def _frames_decoded(person: Page) -> list[float]:
     return inbound_per_connection(person, "video", "framesDecoded")
-
-
-def _wait_for_frames_to_advance(person: Page) -> None:
-    before = _frames_decoded(person)
-    pump_until(
-        person,
-        lambda: all(now > then for now, then in zip(_frames_decoded(person), before, strict=True)),
-        failure="no video frames arrived",
-    )
 
 
 def test_camera_turned_on_mid_call_reaches_the_host_without_an_offer_and_survives_an_ice_restart(
@@ -995,15 +982,15 @@ def test_camera_turned_on_mid_call_reaches_the_host_without_an_offer_and_survive
     guest, host = camera_less_guest_pair.guest, camera_less_guest_pair.host
     assert _frames_decoded(host) == [0]
 
-    _turn_the_camera_on(guest)
-    _wait_for_frames_to_advance(host)
+    turn_the_camera_on(guest)
+    wait_for_frames_to_advance(host)
 
     assert (_restart_offers(guest), guest.evaluate(OFFER_COUNT)) == (0, 1)
     guest_before = str(guest.evaluate(SDP_UFRAG))
     camera_less_guest_pair.force_failed_on(guest)
     assert _restart_offers(guest) == 1
     assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
-    _wait_for_frames_to_advance(host)
+    wait_for_frames_to_advance(host)
     for person in (host, guest):
         assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
 
@@ -1016,8 +1003,8 @@ def test_camera_turned_on_while_the_socket_is_down_reaches_the_host_and_its_medi
     heard_before = len(host_tap.downstream)
     camera_less_guest_pair.cut(guest)
 
-    _turn_the_camera_on(guest)
-    _wait_for_frames_to_advance(host)
+    turn_the_camera_on(guest)
+    wait_for_frames_to_advance(host)
 
     assert guest.evaluate(OFFER_COUNT) == 1
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_visible()
