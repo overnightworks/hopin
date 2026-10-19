@@ -8,7 +8,7 @@ const ownTile = document.getElementById("localContainer");
 
 let drag = null;
 
-export function nearestCorner(centre, stageRect) {
+function nearestCorner(centre, stageRect) {
     const vertical = centre.y < stageRect.top + stageRect.height / 2 ? "t" : "b";
     const horizontal = centre.x < stageRect.left + stageRect.width / 2 ? "l" : "r";
     return vertical + horizontal;
@@ -25,19 +25,31 @@ function startDrag(event) {
     drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY };
 }
 
+function releaseTile() {
+    ownTile.style.translate = "";
+    ownTile.classList.remove("dragging");
+    drag = null;
+}
+
 function moveDrag(event) {
     if (drag?.pointerId !== event.pointerId) return;
+    if (!isPictureInPicture()) {
+        releaseTile();
+        return;
+    }
     ownTile.style.translate = `${event.clientX - drag.startX}px ${event.clientY - drag.startY}px`;
 }
 
 function endDrag(event) {
     if (drag?.pointerId !== event.pointerId) return;
+    if (!isPictureInPicture()) {
+        releaseTile();
+        return;
+    }
     const box = ownTile.getBoundingClientRect();
     const centre = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
     ownTile.dataset.corner = nearestCorner(centre, stage.getBoundingClientRect());
-    ownTile.style.translate = "";
-    ownTile.classList.remove("dragging");
-    drag = null;
+    releaseTile();
 }
 
 export function initPip() {

@@ -288,7 +288,8 @@ class TestPageShell:
         assert literal_motion_durations(motion_declaration)
 
     def test_accepts_a_motion_declaration_that_reads_only_motion_tokens(self):
-        assert literal_motion_durations(".a { transition: left var(--motion-snap) ease, top var(--motion-snap); }") == []
+        motion_declaration = ".a { transition: left var(--motion-snap) ease, top var(--motion-snap); }"
+        assert literal_motion_durations(motion_declaration) == []
 
     def test_every_screen_holds_exactly_one_legal_nav_with_both_links(self, page_inventory):
         assert {"home", "call"} <= page_inventory.screens

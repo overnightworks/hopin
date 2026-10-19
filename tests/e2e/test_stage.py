@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 from itertools import pairwise
 from typing import Any
@@ -69,7 +70,12 @@ ELEMENT_AT_THE_CENTER_OF_THE_OWN_TILE_IS_ITS_OWN = """
 STAGE_BOTTOM_IN_PIXELS = """
 () => parseFloat(getComputedStyle(document.getElementById("stage")).getPropertyValue("--stage-bottom"))
 """
-NO_ANIMATION_IS_RUNNING = "() => document.getAnimations().length === 0"
+NO_ANIMATION_IS_RUNNING = "() => document.getElementById('localContainer').getAnimations().length === 0"
+EVERY_BUTTON_TRANSITION_TAKES_NO_TIME = """
+() => [...document.querySelectorAll(".button")].every((button) =>
+    getComputedStyle(button).transitionDuration.split(", ").every((duration) => duration === "0s")
+)
+"""
 SHARE_THE_SCREEN_FROM_A_CANVAS = """
 navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
 """
@@ -266,7 +272,7 @@ def test_stage_without_a_camera_shows_the_person_icon_on_the_own_tile(
     expect(placeholder).to_have_css("background-color", CAMERA_OFF_SURFACE)
 
 
-def _drag_own_tile_to(host: Page, stage: Box, corner: str) -> None:
+def _hold_own_tile_towards(host: Page, stage: Box, corner: str) -> None:
     host.wait_for_function(NO_ANIMATION_IS_RUNNING)
     own = host.locator("#localContainer").bounding_box()
     assert own is not None
@@ -275,6 +281,10 @@ def _drag_own_tile_to(host: Page, stage: Box, corner: str) -> None:
     host.mouse.move(own["x"] + own["width"] / 2, own["y"] + own["height"] / 2)
     host.mouse.down()
     host.mouse.move(target_x, target_y, steps=5)
+
+
+def _drag_own_tile_to(host: Page, stage: Box, corner: str) -> None:
+    _hold_own_tile_towards(host, stage, corner)
     host.mouse.up()
     host.wait_for_function(NO_ANIMATION_IS_RUNNING)
 
@@ -338,20 +348,38 @@ def test_stage_does_not_move_the_own_tile_when_it_is_dragged_on_desktop(
     join(open_person, invite_link)
     before = _stage_boxes(host, 2)
 
-    _drag_own_tile_to(host, before["stage"], "tl")
+    _hold_own_tile_towards(host, before["stage"], "tl")
 
+    assert _stage_boxes(host, 2)["self"] == before["self"]
+    host.mouse.up()
     assert _stage_boxes(host, 2)["self"] == before["self"]
 
 
-def test_stage_lands_the_phone_picture_in_picture_without_a_glide_when_motion_is_reduced(
+def test_stage_drops_a_drag_that_the_call_outgrows_without_moving_a_grid_tile_or_the_corner(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
+    host, invite_link = _start_hosting_on_a_phone_with_one_guest(open_person, base_url)
+    _hold_own_tile_towards(host, _stage_boxes(host, 2)["stage"], "tl")
+
+    join(open_person, invite_link)
+    expect(host.locator("#stage")).to_have_attribute("data-count", "3")
+    host.mouse.move(0, 0, steps=3)
+    host.mouse.up()
+
+    own = host.locator("#localContainer")
+    expect(own).not_to_have_attribute("data-corner", re.compile(".+"))
+    expect(own).not_to_have_class(re.compile("dragging"))
+    assert host.evaluate("document.getElementById('localContainer').style.translate") == ""
+
+
+def test_stage_drops_every_transition_when_motion_is_reduced(open_person: Callable[..., Page], base_url: str) -> None:
     host = open_person(**PHONE, reduced_motion="reduce")
     join(open_person, start_call(host, base_url))
     expect(host.locator("#stage")).to_have_attribute("data-count", "2")
     host.wait_for_function(NO_ANIMATION_IS_RUNNING)
 
-    host.evaluate("document.getElementById('localContainer').dataset.corner = 'tl'")
+    _drag_own_tile_to(host, _stage_boxes(host, 2)["stage"], "tl")
 
-    assert host.evaluate(NO_ANIMATION_IS_RUNNING)
     _assert_own_tile_sits_in(host, "tl")
+    assert host.evaluate(NO_ANIMATION_IS_RUNNING)
+    assert host.evaluate(EVERY_BUTTON_TRANSITION_TAKES_NO_TIME)
