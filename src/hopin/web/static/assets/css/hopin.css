@@ -373,8 +373,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .vid { position: absolute; inset: 0; overflow: hidden; }
 .vid.off { background: var(--stage-3); }
 .av {
-    width: clamp(44px, 30cqmin, 112px);
-    height: clamp(44px, 30cqmin, 112px);
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -387,6 +385,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+    width: clamp(44px, 30cqmin, 112px);
+    height: clamp(44px, 30cqmin, 112px);
 }
 .tile .name {
     position: absolute;
