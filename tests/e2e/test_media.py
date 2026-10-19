@@ -6,6 +6,8 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
+    AUDIBLE_LEVEL_FLOOR,
+    AUDIO_SAMPLE_INTERVAL_MILLISECONDS,
     COUNT_OFFERS,
     DESKTOP,
     EVERY_VIDEO_CAP_IS,
@@ -18,6 +20,7 @@ from tests.e2e.conftest import (
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     TILE_AUDIO_IS_ALIVE_AND_UNMUTED,
+    TILE_AUDIO_LEVEL,
     expect_the_tile_to_play_audio,
     inbound_per_connection,
     join,
@@ -88,12 +91,21 @@ COUNT_TILE_SOURCE_ASSIGNMENTS = """
     const native = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "srcObject");
     Object.defineProperty(HTMLMediaElement.prototype, "srcObject", {
         get() { return native.get.call(this); },
-        set(stream) { window.sourceAssignments += 1; native.set.call(this, stream); },
+        set(stream) {
+            if (this.matches("#videoGrid .tile:not(.self) video")) window.sourceAssignments += 1;
+            native.set.call(this, stream);
+        },
     });
 })();
 """
 SOURCE_ASSIGNMENTS = "() => window.sourceAssignments"
 PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
+GIVE_THE_TILE_SILENCE = """
+(selector) => {
+    const silence = new AudioContext().createMediaStreamDestination();
+    document.querySelector(selector).srcObject = silence.stream;
+}
+"""
 ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
 
 
@@ -185,16 +197,17 @@ def test_the_picture_arrives_under_the_stream_of_the_voice(camera_less_call: Cam
 
 
 def test_the_tile_gets_the_voice_and_then_the_picture_each_assigned_once(
-    open_person: Callable[..., Page], base_url: str
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
-    host = open_person(**DESKTOP)
+    host = record_page_errors(open_person(**DESKTOP), page_errors)
     host.add_init_script(RECORD_PEER_CONNECTIONS)
     host.add_init_script(COUNT_TILE_SOURCE_ASSIGNMENTS)
     invite_link = start_call(host, base_url)
-    guest = join(open_person, invite_link, DESKTOP, CAMERA_OFF_AT_JOIN)
+    guest = join(open_person, invite_link, DESKTOP, CAMERA_OFF_AT_JOIN, page_errors)
     wait_for_peer_count(host, 1)
     host.wait_for_function(TILE_AUDIO_IS_ALIVE_AND_UNMUTED, arg=OTHER_VIDEO)
     assigned_for_the_voice = host.evaluate(SOURCE_ASSIGNMENTS)
+    assert assigned_for_the_voice == 1
 
     turn_the_camera_on(guest)
     expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible()
@@ -264,3 +277,61 @@ def test_stop_sharing_keeps_a_camera_added_mid_call_as_the_person_left_it(
         expect(host.locator(OTHER_CAMERA_OFF)).to_be_visible()
     else:
         wait_for_frames_to_advance(host)
+
+
+OFFER_THE_VIDEO_DIRECTION = """
+async (direction) => {
+    const connection = window.recordedConnections[0];
+    connection.getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track.kind === "video")
+        .forEach((transceiver) => { transceiver.direction = direction; });
+    await connection.setLocalDescription(await connection.createOffer());
+    return connection.localDescription.sdp;
+}
+"""
+ANSWER_THE_OFFER = """
+async (sdp) => {
+    const connection = window.recordedConnections[0];
+    await connection.setRemoteDescription({ type: "offer", sdp });
+    await connection.setLocalDescription(await connection.createAnswer());
+    return connection.localDescription.sdp;
+}
+"""
+ACCEPT_THE_ANSWER = "(sdp) => window.recordedConnections[0].setRemoteDescription({ type: 'answer', sdp })"
+
+
+def renegotiate_the_video_direction(offerer: Page, answerer: Page, direction: str) -> None:
+    offer = offerer.evaluate(OFFER_THE_VIDEO_DIRECTION, direction)
+    offerer.evaluate(ACCEPT_THE_ANSWER, answerer.evaluate(ANSWER_THE_OFFER, offer))
+
+
+def test_a_video_track_that_mutes_without_a_camera_off_announcement_shows_the_icon_until_it_unmutes(
+    camera_less_call: CameraLessCall,
+) -> None:
+    host, guest = camera_less_call.host, camera_less_call.guest
+    turn_the_camera_on(guest)
+    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible()
+
+    renegotiate_the_video_direction(guest, host, "inactive")
+    expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
+    expect(guest.locator("#videoBtn")).to_have_text("Cam On")
+
+    renegotiate_the_video_direction(guest, host, "sendrecv")
+    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0)
+
+
+def test_the_audio_level_wait_ends_at_its_deadline_while_animation_frames_are_withheld(
+    open_person: Callable[..., Page],
+) -> None:
+    person = open_person(**DESKTOP)
+    person.set_content("<video id='silence'></video>")
+    person.evaluate("() => { window.requestAnimationFrame = () => 0; }")
+    person.evaluate(GIVE_THE_TILE_SILENCE, "#silence")
+
+    level = person.evaluate(
+        TILE_AUDIO_LEVEL, ["#silence", AUDIBLE_LEVEL_FLOOR, 500, AUDIO_SAMPLE_INTERVAL_MILLISECONDS]
+    )
+
+    assert level <= AUDIBLE_LEVEL_FLOOR

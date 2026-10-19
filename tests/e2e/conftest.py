@@ -117,7 +117,7 @@ TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
 TILE_CLOCK_PASSED = "([selector, time]) => document.querySelector(selector).currentTime > time"
 TILE_CURRENT_TIME = "(selector) => document.querySelector(selector).currentTime"
 TILE_AUDIO_LEVEL = """
-async ([selector, floor, timeoutMilliseconds]) => {
+async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
     const context = new AudioContext();
     try {
         await context.resume();
@@ -129,7 +129,7 @@ async ([selector, floor, timeoutMilliseconds]) => {
         while (loudest <= floor && performance.now() < end) {
             analyser.getByteTimeDomainData(samples);
             loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
-            await new Promise((next) => requestAnimationFrame(next));
+            await new Promise((next) => setTimeout(next, sampleIntervalMilliseconds));
         }
         return loudest;
     } finally {
@@ -138,6 +138,7 @@ async ([selector, floor, timeoutMilliseconds]) => {
 }
 """
 AUDIBLE_LEVEL_FLOOR = 4
+AUDIO_SAMPLE_INTERVAL_MILLISECONDS = 50
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 
 
@@ -305,7 +306,10 @@ def expect_the_tile_to_play_audio(person: Page, video_selector: str) -> None:
     person.wait_for_function(
         TILE_CLOCK_PASSED, arg=[video_selector, time_before], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
     )
-    level = person.evaluate(TILE_AUDIO_LEVEL, [video_selector, AUDIBLE_LEVEL_FLOOR, MEDIA_FLOWING_TIMEOUT_MILLISECONDS])
+    level = person.evaluate(
+        TILE_AUDIO_LEVEL,
+        [video_selector, AUDIBLE_LEVEL_FLOOR, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, AUDIO_SAMPLE_INTERVAL_MILLISECONDS],
+    )
     assert level > AUDIBLE_LEVEL_FLOOR, f"the tile plays silence (level {level})"
 
 
