@@ -4,6 +4,15 @@
     --accent-hover: #0A5D67;
     --surface-2: #EEF2F4;
     --accent-ink: #0A5560;
+    /* The video stage is dark in both themes; these never change. */
+    --stage: #0D1013;
+    --stage-2: #171B20;
+    --stage-3: #252B32;
+    --on-stage: #F4F6F8;
+    --on-stage-soft: rgba(244, 246, 248, .72);
+    --glass: rgba(255, 255, 255, .15);
+    --glass-dark: rgba(12, 14, 17, .55);
+    --vignette: rgba(6, 8, 10, .42);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,18 +31,6 @@
     --surface-2: #232930;
     --accent-ink: #8ADBE2;
     color-scheme: dark;
-}
-
-/* The video stage is dark in both themes; these never change. */
-:root {
-    --stage: #0D1013;
-    --stage-2: #171B20;
-    --stage-3: #252B32;
-    --on-stage: #F4F6F8;
-    --on-stage-soft: rgba(244, 246, 248, .72);
-    --glass: rgba(255, 255, 255, .15);
-    --glass-dark: rgba(12, 14, 17, .55);
-    --vignette: rgba(6, 8, 10, .42);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
