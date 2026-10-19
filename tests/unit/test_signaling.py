@@ -650,7 +650,7 @@ class TestHandleWebsocket:
         assert room_manager.room_count == 1
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("code", [1000, 1001, 1005])
+    @pytest.mark.parametrize("code", [1000, 1001])
     async def test_normal_disconnect_is_not_logged_as_error(self, handler, code):
         socket = FakeSocket([disconnect_frame(code)])
         with structlog.testing.capture_logs() as logs:
@@ -664,7 +664,7 @@ class TestHandleWebsocket:
             [
                 {"type": "websocket.receive", "bytes": b"x"},
                 text_frame({"type": SignalType.JOIN.value}),
-                disconnect_frame(1005),
+                disconnect_frame(1000),
             ]
         )
         await handler.handle_websocket(socket)
@@ -688,7 +688,7 @@ class TestHandleWebsocket:
 
     @pytest.mark.asyncio
     async def test_admitted_handshake_accepts_and_registers_a_peer_carrying_the_account(self, handler):
-        socket = FakeSocket([disconnect_frame(1005)])
+        socket = FakeSocket([disconnect_frame(1000)])
         peers_while_connected = await handle_and_capture_peers(handler, socket)
 
         assert socket.accepted
@@ -696,8 +696,8 @@ class TestHandleWebsocket:
 
     @pytest.mark.asyncio
     async def test_two_sockets_of_one_account_become_two_peers(self, handler):
-        first = await handle_and_capture_peers(handler, FakeSocket([disconnect_frame(1005)]))
-        second = await handle_and_capture_peers(handler, FakeSocket([disconnect_frame(1005)]))
+        first = await handle_and_capture_peers(handler, FakeSocket([disconnect_frame(1000)]))
+        second = await handle_and_capture_peers(handler, FakeSocket([disconnect_frame(1000)]))
 
         assert first.keys().isdisjoint(second.keys())
 
@@ -839,7 +839,7 @@ class TestSendToGonePeer:
             [
                 text_frame({"type": SignalType.OFFER.value, "target": ""}, seq=1),
                 text_frame({"type": SignalType.OFFER.value, "target": "nobody"}, seq=2),
-                disconnect_frame(1005),
+                disconnect_frame(1000),
             ]
         )
         await handler.handle_websocket(socket)
@@ -858,7 +858,7 @@ class TestSendToGonePeer:
                 text_frame({"type": SignalType.JOIN.value, "room_id": room.room_id}),
                 text_frame({"type": SignalType.OFFER.value, "target": "gone"}, seq=1),
                 {"type": "websocket.receive", "text": "not json"},
-                disconnect_frame(1005),
+                disconnect_frame(1000),
             ]
         )
         await handler.handle_websocket(socket)
@@ -1091,7 +1091,7 @@ class TestEndRoom:
 
         async def close_while_guest_hangs_up(code):
             await close_host_socket(code)
-            await guest.drop(1005)
+            await guest.drop(1000)
 
         host.socket.close = close_while_guest_hangs_up
 
@@ -1242,7 +1242,7 @@ class Link:
     async def close_all(self):
         for socket, task in self.tasks.items():
             if not task.done():
-                socket.push(disconnect_frame(1005))
+                socket.push(disconnect_frame(1000))
         await asyncio.gather(*self.tasks.values(), return_exceptions=True)
 
 
@@ -1265,11 +1265,12 @@ class TestParkingAndWindow:
         assert RESUME_WINDOW_SECONDS < HOST_GRACE_SECONDS
 
     @pytest.mark.asyncio
-    async def test_dropped_guest_keeps_its_seat_and_tells_nobody(self, link, room_manager):
+    @pytest.mark.parametrize("code", [1005, 1006, 1011])
+    async def test_dropped_guest_keeps_its_seat_and_tells_nobody(self, link, room_manager, code):
         host, guest = await host_and_guest(link)
         heard_before = len(host.socket.sent)
 
-        await guest.drop(1006)
+        await guest.drop(code)
 
         assert len(host.socket.sent) == heard_before
         assert room_manager.get_room(host.socket.sent[0]["room_id"]).participant_count == 2
@@ -1284,7 +1285,7 @@ class TestParkingAndWindow:
         assert len(guest.socket.sent) == heard_before
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("code", [1000, 1001, 1005])
+    @pytest.mark.parametrize("code", [1000, 1001])
     async def test_guest_closing_normally_leaves_at_once(self, link, code):
         host, guest = await host_and_guest(link)
 
@@ -1295,7 +1296,7 @@ class TestParkingAndWindow:
         ]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("code", [1000, 1001, 1005])
+    @pytest.mark.parametrize("code", [1000, 1001])
     async def test_host_closing_normally_leaves_at_once_with_the_full_grace(self, link, code):
         host, guest = await host_and_guest(link)
 

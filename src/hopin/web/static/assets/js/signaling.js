@@ -37,6 +37,7 @@ export const ROOM_CLOSED_REASON = {
 };
 
 
+const NORMAL_CLOSURE_CODE = 1000;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
 
 const accountId = crypto.randomUUID();
@@ -212,6 +213,6 @@ export function disconnect() {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
     }
-    socket?.close();
+    socket?.close(NORMAL_CLOSURE_CODE);
     endSession();
 }
