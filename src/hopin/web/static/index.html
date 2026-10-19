@@ -4,25 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HopIn - Video Call</title>
+    <link rel="stylesheet" href="/static/css/ui-console.css">
     <link rel="stylesheet" href="/static/css/hopin.css">
 </head>
 <body>
-    <!-- Password modal for joiners -->
-    <div id="passwordModal" class="modal-overlay hidden">
-        <div class="modal">
-            <h2>This call requires a password</h2>
-            <input id="joinPasswordInput" type="password" placeholder="Enter password" aria-label="Call password">
-            <div class="btn-row">
-                <button id="joinPasswordBtn" class="btn-primary">Join</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Setup modal for hosts -->
     <div id="setupModal" class="modal-overlay hidden">
         <div class="modal">
             <h2>Start a new call</h2>
-            <input id="setupPasswordInput" type="text" placeholder="Set password (optional)" aria-label="Set call password">
             <label>
                 <input type="checkbox" id="setupCamOff">
                 Join without camera (audio only)
@@ -44,27 +33,60 @@
         </div>
     </div>
 
-    <header>
-        <h1>HopIn</h1>
-        <div class="header-info">
-            <span id="participantCount" class="participant-count hidden">1</span>
-            <span id="lockIndicator" class="lock-indicator">Locked</span>
-            <div id="status" class="status status-disconnected">Not connected</div>
+    <main class="end page hidden" data-screen="end">
+        <div class="topbar">
+            <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
         </div>
-    </header>
+        <span id="endIcon" class="end-icon">
+            <svg class="icon hidden" data-end-icon="ended" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg>
+            <svg class="icon hidden" data-end-icon="hourglass" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/></svg>
+            <svg class="icon hidden" data-end-icon="lock" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
+            <svg class="icon hidden" data-end-icon="users" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg>
+        </span>
+        <h2 id="endTitle">Call ended</h2>
+        <span id="endPill" class="count-pill hidden"></span>
+        <p id="endText"></p>
+        <div class="end-actions">
+            <button id="endRetryBtn" class="button button-block hidden">Retry</button>
+            <button id="endHomeBtn" class="button button-block hidden">Back to start</button>
+            <button id="endRejoinBtn" class="button button-block hidden">Rejoin</button>
+        </div>
+        <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+    </main>
 
-    <div class="main-content">
-        <div class="video-area">
-            <div id="videoGrid" class="video-grid">
-                <div class="video-container" id="localContainer">
-                    <video id="localVideo" autoplay muted playsinline></video>
-                    <div id="localPlaceholder" class="video-placeholder hidden">
-                        <div class="avatar">You</div>
+    <main class="home page hidden" data-screen="home">
+        <div class="topbar">
+            <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
+        </div>
+        <div class="halo"></div>
+        <span class="brand-mark brand-mark-xl"><svg class="icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>
+        <h2>Hi there</h2>
+        <p>Start a call, then send the link to the people you want.</p>
+        <button id="homeStartBtn" class="button button-primary button-lg"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>Start a call</button>
+        <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+    </main>
+
+    <main class="call hidden" data-screen="call">
+        <div class="stage" id="stage" data-count="1">
+            <div class="ctop">
+                <div class="left">
+                    <div id="status" class="status status-disconnected">Not connected</div>
+                    <span id="lockIndicator" class="lock-indicator">Locked</span>
+                </div>
+                <span id="participantCount" class="tag-glass hidden" aria-label="Participants"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg><span class="num">1</span></span>
+            </div>
+            <div id="videoGrid" class="grid">
+                <div class="tiles">
+                    <div class="tile self mirror" id="localContainer">
+                        <video id="localVideo" autoplay muted playsinline></video>
+                        <div id="localPlaceholder" class="vid off hidden"><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
+                        <span class="name">You</span>
                     </div>
-                    <div class="video-label">You</div>
                 </div>
             </div>
+        </div>
 
+        <div class="call-dock">
             <div id="shareBox" class="share-box">
                 <label for="shareUrl">Share:</label>
                 <input id="shareUrl" class="share-url" readonly>
@@ -82,6 +104,7 @@
                 </span>
                 <button id="leaveBtn" class="btn-danger">Leave</button>
             </div>
+            <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
         </div>
 
         <div id="chatPanel" class="chat-panel">
@@ -95,7 +118,7 @@
                 <button id="chatSend" class="btn-primary">Send</button>
             </div>
         </div>
-    </div>
+    </main>
 
     <script type="module" src="/static/js/app.js"></script>
 </body>

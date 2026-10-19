@@ -1,4 +1,7 @@
+import secrets
+
 import pytest
+import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -24,7 +27,12 @@ class TestCreateApp:
         response = TestClient(create_app()).get("/health")
         assert response.status_code == 200
 
-    @pytest.mark.parametrize("path", ["/call", "/static/css/hopin.css", "/static/js/app.js"])
+    def test_serves_the_configured_stun_server_as_ice_servers(self):
+        settings = ServerSettings(stun_server="stun:stun.example.test:3478")
+        response = TestClient(create_app(settings)).get("/api/ice-servers")
+        assert response.json() == {"iceServers": [{"urls": ["stun:stun.example.test:3478"]}]}
+
+    @pytest.mark.parametrize("path", ["/", "/static/css/ui-console.css", "/static/css/hopin.css", "/static/js/app.js"])
     def test_serves_the_page_and_its_assets(self, path):
         assert TestClient(create_app()).get(path).status_code == 200
 
@@ -32,3 +40,22 @@ class TestCreateApp:
     def test_generated_documentation_is_not_served(self, path):
         response = TestClient(create_app()).get(path)
         assert response.status_code == 404
+
+
+class TestLoggedExceptions:
+    def test_rendered_traceback_leaves_out_the_values_of_local_variables(self, capsys):
+        create_app()
+        sentinel = secrets.token_urlsafe(16)
+
+        def fail_holding_the_sentinel():
+            held_secret = sentinel
+            raise ValueError(len(held_secret))
+
+        try:
+            fail_holding_the_sentinel()
+        except ValueError:
+            structlog.get_logger().exception("failed")
+
+        rendered = capsys.readouterr().out
+        assert "ValueError" in rendered
+        assert sentinel not in rendered

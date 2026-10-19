@@ -32,7 +32,6 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 - **Video calls** with up to 6 participants (mesh topology)
 - **Screen sharing** — switch between camera and screen mid-call
 - **Mute/unmute** audio and video independently
-- **Room passwords** — optionally protect calls with a password
 - **Room locking** — host can lock/unlock the room to prevent new joins
 - **No accounts** — create a room, share the link, done
 - **Self-hosted** — runs on your machine, your data stays with you
@@ -56,7 +55,7 @@ make run
 
 The server starts on `http://localhost:8080`.
 
-- Open `http://localhost:8080/call` to start a new call
+- Open `http://localhost:8080/` and press "Start a call"
 - Share the generated link with friends
 
 ### Run in a Container
@@ -88,20 +87,16 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 1. Forward port `8080` in your router settings to your PC's local IP
 2. Use a free dynamic DNS service (e.g. [DuckDNS](https://www.duckdns.org/)) for a stable URL
-3. Share `http://your-domain.duckdns.org:8080/call`
+3. Share `http://your-domain.duckdns.org:8080/`
 
 ## Room Security
 
-HopIn gives the host (the person who created the call) two ways to control access:
-
-### Password Protection
-
-When starting a call, you can optionally set a password. Anyone who clicks the join link will be prompted to enter the password before they can join.
+HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone. Anyone whose connection drops keeps their place for 30 seconds and picks it up again without the call noticing; a host who is not back within those 30 seconds is away for the remaining 30 of the 60.
 
 ### Room Locking
 
 The host sees a **Lock Room** button in the controls bar. When locked:
-- No new participants can join (even with the correct password)
+- No new participants can join (the join link is refused as locked)
 - Existing participants stay connected
 - The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
 
@@ -115,8 +110,8 @@ All settings can be overridden via environment variables:
 |---|---|---|
 | `HOPIN_HOST` | `0.0.0.0` | Server bind address |
 | `HOPIN_PORT` | `8080` | Server port |
-| `HOPIN_STUN_SERVER` | `stun:stun.l.google.com:19302` | STUN server for NAT traversal |
-| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call |
+| `HOPIN_STUN_SERVER` | `stun:stun.cloudflare.com:3478` | STUN server for NAT traversal, served to the browser at `/api/ice-servers` |
+| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call, from `2` to `6` |
 
 Example:
 
@@ -135,6 +130,7 @@ make format     # Auto-fix formatting
 make test       # Run unit tests with coverage
 make test-all   # Run all tests (unit + integration)
 make dead       # Run vulture dead code detection
+make e2e        # Run the browser end-to-end tests (needs Chromium: uv run playwright install chromium)
 make check      # Run all checks (lint + test + dead)
 make run        # Start the server
 ```
@@ -150,27 +146,37 @@ src/hopin/
 │   ├── models.py         # Room and Participant data models
 │   └── manager.py        # Room lifecycle management
 ├── signaling/
-│   └── handler.py        # WebSocket signaling for WebRTC
+│   ├── handler.py        # WebSocket signaling for WebRTC
+│   ├── identity.py       # Who a socket is, resolved at the handshake
+│   ├── replay.py         # Numbered log of the frames a seat missed while away
+│   └── scheduler.py      # Timer port, injected so the host grace is testable
 ├── web/
 │   ├── routes.py         # HTTP route definitions
 │   └── static/
 │       ├── index.html    # Video call page (markup only)
 │       └── assets/       # Served at /static
 │           ├── css/
+│           │   ├── ui-console.css  # Vendored verbatim from ui-console v0.2.0, loaded first
 │           │   └── hopin.css
 │           └── js/       # ES modules, app.js is the entry point
 │               ├── app.js        # Wiring, call start and leave
+│               ├── router.js     # The address and the screen, call links
+│               ├── home.js       # Home screen
+│               ├── end.js        # End and refusal screens
 │               ├── state.js      # Call and local-media state
-│               ├── signaling.js  # WebSocket, reconnect, message handlers
+│               ├── signaling.js  # WebSocket, resume, message handlers
+│               ├── replay.js     # Numbered log of the frames sent, resent after a resume
 │               ├── mesh.js       # Peer connections
+│               ├── recovery.js   # ICE restart of failed connections
+│               ├── bandwidth.js  # Upload cap by call size
 │               ├── media.js      # Camera, microphone, screen share
 │               ├── quality.js    # Round-trip indicator
 │               ├── chat.js       # Chat panel
 │               ├── sounds.js     # Notification sounds
-│               ├── stage.js      # Video tiles and grid
+│               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
 │               ├── controls.js   # Control bar and share box
-│               ├── status.js     # Status, lock, participant count
-│               └── dialogs.js    # Setup, password and leave dialogs
+│               ├── status.js     # Call status, lock, participant count
+│               └── dialogs.js    # Setup and leave dialogs
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring
 └── main.py               # Entry point
@@ -195,18 +201,27 @@ tests/
 
 ### Signaling Protocol
 
-Messages are JSON over WebSocket. The server acts as a relay for connection setup:
+Messages are JSON over WebSocket. The server identifies each socket at the handshake and names every peer with an id it mints, so peers address each other only by those ids. The server acts as a relay for connection setup:
 
 | Signal | Direction | Purpose |
 |---|---|---|
 | `join` | Client → Server | Create or join a room |
-| `room_created` | Server → Client | Room created, here's the ID |
-| `existing_participants` | Server → Client | List of peers already in the room |
+| `room_created` | Server → Client | Room created, here's the ID, with your own `participant_id` and the `resume_token` of your seat |
+| `existing_participants` | Server → Client | List of peers already in the room, with your own `participant_id` and the `resume_token` of your seat |
+| `resume` | Client → Server | First frame of a new socket: take back the seat `{participant_id, token, last_seq, sent_floor}` after a drop |
+| `resumed` | Server → Client | The seat is yours again: the rotated `resume_token` and `last_seq`, the last client `seq` the server received |
 | `participant_joined` | Server → Client | New peer joined your room |
 | `participant_left` | Server → Client | Peer left your room |
-| `offer` | Client → Server → Client | WebRTC SDP offer (relayed to target) |
+| `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
+| `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
+| `end_room` | Client → Server | The host ends the call for everyone |
+| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out; the frame carries `grace_seconds`) or `ended` (the host ended it) |
+| `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
+| `error` | Server → Client | a refusal or a bad frame, with its `reason` (the `full` refusal also carries `capacity`); `resume_refused` answers every failed `resume` alike and the client joins afresh |
+
+Every server frame carries a `seq` and every client frame after a socket's first does too (`resume`, `resumed` and the `resume_refused` error aside, which belong to the new socket and carry none). Each side keeps its last 256 frames, so a resume replays what the other side missed in order, and a frame at or below the last `seq` received is ignored. A frame longer than 65536 characters is answered `invalid_message` and neither relayed nor kept. A newer `offer` or `answer` replaces the older descriptions and candidates to the same peer. The `resume_token` is a secret of the seat: it travels only in frames to its owner, changes with every resume, and is never logged.
 
 ### Coding Guidelines
 

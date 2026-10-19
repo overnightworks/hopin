@@ -8,16 +8,22 @@ import {
     showShareLink,
 } from "./controls.js";
 import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
+import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { acquireMedia, stopLocalMedia } from "./media.js";
-import { onPeersChanged, peerCount, registerMeshHandlers, removeAllPeers } from "./mesh.js";
+import {
+    loadIceServers,
+    onPeersChanged,
+    peerCount,
+    registerMeshHandlers,
+    removeAllPeers,
+} from "./mesh.js";
 import { playJoinSound, playLeaveSound } from "./sounds.js";
 import {
     SIGNAL_TYPE,
     connect,
     disconnect,
-    getRoomIdFromUrl,
     on,
-    onBeforeReconnect,
+    onSessionLost,
 } from "./signaling.js";
 import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
@@ -27,6 +33,8 @@ import {
     showLockIndicator,
     showParticipantCount,
 } from "./status.js";
+import { initHome } from "./home.js";
+import { SCREEN, callUrl, getRoomIdFromUrl, showScreen } from "./router.js";
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -41,22 +49,25 @@ function updateLockUI() {
     showLockIndicator(state.isLocked);
 }
 
-function startCall(password, preferCamera) {
+function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return acquireMedia(preferCamera)
-        .then(() => {
-            showLocalStream(state.localStream);
-            renderVideoButton();
-            updateLocalPreview();
-            connect(password);
-        })
-        .catch((error) => {
-            setStatus(error.message, "error");
-        });
+    return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
+        if (state.intentionalLeave) return;
+        const failure = outcomes.find((outcome) => outcome.status === "rejected");
+        if (failure) {
+            stopLocalMedia();
+            setStatus(failure.reason.message, "error");
+            return;
+        }
+        showLocalStream(state.localStream);
+        renderVideoButton();
+        updateLocalPreview();
+        connect();
+    });
 }
 
-function leaveCall() {
+function tearDownCall() {
     state.intentionalLeave = true;
     removeAllPeers();
     stopLocalMedia();
@@ -69,7 +80,11 @@ function leaveCall() {
     state.isLocked = false;
     state.roomId = null;
     updateLockUI();
-    setStatus("Left call", "disconnected");
+}
+
+function leaveCall() {
+    tearDownCall();
+    showEnd(getRoomIdFromUrl() === null ? END_KIND.HOST_LEFT : END_KIND.LEFT);
 }
 
 function requestLeave() {
@@ -85,7 +100,7 @@ function registerSessionHandlers() {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
-        showShareLink(`${location.origin}/join/${state.roomId}`);
+        showShareLink(callUrl(state.roomId));
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
@@ -111,12 +126,18 @@ function registerSessionHandlers() {
         state.isLocked = false;
         updateLockUI();
     });
-    on(SIGNAL_TYPE.ROOM_CLOSED, () => {
-        leaveCall();
-        setStatus("Room closed", "disconnected");
+    on(SIGNAL_TYPE.ROOM_CLOSED, (data) => {
+        tearDownCall();
+        showEnd(endKindOfClosedRoom(data.reason), data);
     });
     on(SIGNAL_TYPE.ERROR, (data) => {
-        setStatus(`Error: ${data.message}`, "error");
+        const refusal = endKindOfRefusal(data.reason);
+        if (refusal === null) {
+            setStatus(`Error: ${data.message}`, "error");
+            return;
+        }
+        tearDownCall();
+        showEnd(refusal, data);
     });
 }
 
@@ -124,17 +145,24 @@ registerMeshHandlers();
 registerChatHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
-onBeforeReconnect(removeAllPeers);
+onSessionLost(removeAllPeers);
 initDialogs({
     onSetupStart: startCall,
-    onPasswordSubmit: connect,
     onLeaveConfirmed: leaveCall,
 });
 initControls({ onLeaveRequested: requestLeave });
 initChat();
+initEnd();
+initHome({
+    onStartRequested: () => {
+        showScreen(SCREEN.CALL);
+        showSetupDialog();
+    },
+});
 
 if (getRoomIdFromUrl()) {
-    void startCall(null, true);
+    showScreen(SCREEN.CALL);
+    void startCall(true);
 } else {
-    showSetupDialog();
+    showScreen(SCREEN.HOME);
 }

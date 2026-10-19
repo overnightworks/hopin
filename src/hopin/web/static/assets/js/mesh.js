@@ -1,11 +1,25 @@
+import { applyUploadCaps } from "./bandwidth.js";
 import { monitorConnectionQuality } from "./quality.js";
+import { watchIceConnection } from "./recovery.js";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
 import { state } from "./state.js";
 
-const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const ICE_SERVERS_PATH = "/api/ice-servers";
+
+let rtcConfiguration = { iceServers: [] };
+
+export async function loadIceServers() {
+    const response = await fetch(ICE_SERVERS_PATH);
+    if (!response.ok) {
+        throw new Error(`Could not load ICE servers (${response.status})`);
+    }
+    const { iceServers } = await response.json();
+    rtcConfiguration = { iceServers };
+}
 
 const connectionsByParticipant = new Map();
+const answerApplicationsByParticipant = new Map();
 let peersChanged = () => {};
 
 export function onPeersChanged(callback) {
@@ -16,8 +30,22 @@ export function peerCount() {
     return connectionsByParticipant.size;
 }
 
+async function sendOffer(participantId, connection, options) {
+    const offer = await connection.createOffer(options);
+    await connection.setLocalDescription(offer);
+    send({
+        type: SIGNAL_TYPE.OFFER,
+        target: participantId,
+        sdp: connection.localDescription,
+    });
+}
+
+function capUploads() {
+    return applyUploadCaps([...connectionsByParticipant.values()]);
+}
+
 async function createPeerConnection(participantId, initiator) {
-    const connection = new RTCPeerConnection(RTC_CONFIG);
+    const connection = new RTCPeerConnection(rtcConfiguration);
     connectionsByParticipant.set(participantId, connection);
 
     if (state.localStream) {
@@ -26,6 +54,7 @@ async function createPeerConnection(participantId, initiator) {
         }
     }
 
+    void capUploads();
     addRemoteTile(participantId);
     peersChanged();
 
@@ -44,13 +73,8 @@ async function createPeerConnection(participantId, initiator) {
     };
 
     if (initiator) {
-        const offer = await connection.createOffer();
-        await connection.setLocalDescription(offer);
-        send({
-            type: SIGNAL_TYPE.OFFER,
-            target: participantId,
-            sdp: connection.localDescription,
-        });
+        await sendOffer(participantId, connection);
+        watchIceConnection(connection, () => sendOffer(participantId, connection, { iceRestart: true }));
     }
 
     monitorConnectionQuality(participantId, connection);
@@ -62,6 +86,7 @@ async function handleOffer(data) {
         connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     const answer = await connection.createAnswer();
+    if (connection.signalingState === "closed") return;
     await connection.setLocalDescription(answer);
     send({
         type: SIGNAL_TYPE.ANSWER,
@@ -70,8 +95,16 @@ async function handleOffer(data) {
     });
 }
 
-async function handleAnswer(data) {
-    await connectionsByParticipant.get(data.from)?.setRemoteDescription(new RTCSessionDescription(data.sdp));
+function handleAnswer(data) {
+    const previous = answerApplicationsByParticipant.get(data.from) ?? Promise.resolve();
+    const applied = previous.then(() => applyAnswer(data));
+    answerApplicationsByParticipant.set(data.from, applied.catch(reportError));
+}
+
+async function applyAnswer(data) {
+    const connection = connectionsByParticipant.get(data.from);
+    if (connection?.signalingState !== "have-local-offer") return;
+    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 }
 
 async function handleIceCandidate(data) {
@@ -84,6 +117,8 @@ async function handleIceCandidate(data) {
 function removePeer(participantId) {
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
+    answerApplicationsByParticipant.delete(participantId);
+    void capUploads();
     if (removeRemoteTile(participantId)) peersChanged();
 }
 

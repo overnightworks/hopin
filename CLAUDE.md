@@ -63,19 +63,21 @@ Users start a call and share a link — friends click and join instantly in the 
 - Unit tests in `tests/unit/`, mirroring `src/hopin/` structure.
 - Integration tests in `tests/integration/`.
 - Tests for repository tooling in `tests/scripts/`, mirroring `scripts/`.
+- Browser end-to-end tests in `tests/e2e/` (Playwright, marker `e2e`), run with `make e2e` under
+  `/tmp/probe-stack.lock`. They stay out of the coverage run; CI's `End-to-end` job is the gate.
 - Use `pytest` fixtures for setup, no test inheritance hierarchies.
 - Test names follow `test_<method>_<scenario>_<expected_result>` pattern.
 - No mocking of the system under test. Mock only external boundaries.
 
 ## SonarCloud
 
-- The bar is zero open findings and 100 % coverage where it makes sense: the
-  only exclusions are lines marked `pragma: no cover`, `if TYPE_CHECKING:`,
-  and the `if __name__ == "__main__":` entry point, all named in
-  `[tool.coverage.report]` in `pyproject.toml`. Browser code under
-  `src/hopin/web/static/` is excluded from the coverage figure
-  (`sonar.coverage.exclusions`); the end-to-end suite (#45) is its proof. The
-  legacy rating is never chased; a fresh finding on any code is a merge blocker.
+- The bar is zero open findings and 100 % coverage where it makes sense.
+  Besides browser code under `src/hopin/web/static/`, which is excluded from the
+  coverage figure (`sonar.coverage.exclusions`) and proven by the end-to-end
+  suite (#45), the only exclusions are lines marked `pragma: no cover`,
+  `if TYPE_CHECKING:`, and the `if __name__ == "__main__":` entry point, all
+  named in `[tool.coverage.report]` in `pyproject.toml`. The legacy rating is
+  never chased; a fresh finding on any code is a merge blocker.
 - CI's `quality` job (`overnightworks/quality`, pinned by SHA in `ci.yml`)
   runs the scan. A run on `master` fails on any open finding; other branch
   pushes only report them. A pull request fails only on new findings while
@@ -129,6 +131,7 @@ make install    # install dependencies
 make lint       # run ruff check + ruff format --check + mypy
 make test       # run pytest with coverage
 make dead       # run vulture for dead code detection
+make e2e        # run the browser end-to-end tests
 make layout     # check the repository root layout
 make check      # run all checks (lint + layout + test + dead)
 make run        # start the server
