@@ -2,27 +2,14 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DESKTOP, PHONE, SMALL_PHONE_LANDSCAPE
+from tests.e2e.conftest import DESKTOP, LEGAL_LINKS, PHONE, SMALL_PHONE_LANDSCAPE, expect_both_legal_links
 
 pytestmark = pytest.mark.e2e
 
-LEGAL_LINKS = {
-    "Impressum": "https://hallucinai.de/impressum",
-    "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
-}
 SCROLL_PAST_THE_END = 10_000
 FORM_FACTORS = pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])
-
-
-def expect_both_legal_links(screen: Locator) -> None:
-    for label, url in LEGAL_LINKS.items():
-        link = screen.get_by_role("link", name=label)
-        expect(link).to_be_visible()
-        expect(link).to_have_attribute("href", url)
-        expect(link).to_have_attribute("target", "_blank")
-        expect(link).to_have_attribute("rel", "noopener")
 
 
 @FORM_FACTORS

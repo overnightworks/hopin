@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page, expect
+from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
 
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
@@ -27,8 +27,14 @@ FAKE_MEDIA_BROWSER_ARGS = [
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 INVITE_LINK_PATTERN = re.compile(r"/c/\w+")
+ICE_SERVERS_PATH = "/api/ice-servers"
+ICE_SERVERS_URL_PATTERN = f"**{ICE_SERVERS_PATH}"
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
+LEGAL_LINKS = {
+    "Impressum": "https://hallucinai.de/impressum",
+    "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
+}
 SMALL_PHONE_LANDSCAPE = {"viewport": {"width": 568, "height": 320}, "is_mobile": True, "has_touch": True}
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
@@ -130,9 +136,10 @@ def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Itera
         context.close()
 
 
-def press_start_call(host: Page, base_url: str) -> None:
+def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
     host.goto(f"{base_url}/")
     host.click("#homeStartBtn")
+    host.set_checked("#setupCamOff", not with_camera)
     host.click("#setupStartBtn")
 
 
@@ -145,3 +152,12 @@ def start_call(host: Page, base_url: str) -> str:
 
 def wait_for_peer_count(person: Page, count: int) -> None:
     person.wait_for_function(OPEN_PEER_COUNT_REACHED, arg=count, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def expect_both_legal_links(screen: Locator) -> None:
+    for label, url in LEGAL_LINKS.items():
+        link = screen.get_by_role("link", name=label)
+        expect(link).to_be_visible()
+        expect(link).to_have_attribute("href", url)
+        expect(link).to_have_attribute("target", "_blank")
+        expect(link).to_have_attribute("rel", "noopener")

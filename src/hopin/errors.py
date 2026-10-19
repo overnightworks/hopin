@@ -1,10 +1,13 @@
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from hopin.config.constants import ErrorReason, ResumeRefusalCause
 
 
 class HopInError(Exception):
     reason: ClassVar[ErrorReason]
+
+    def frame_fields(self) -> dict[str, Any]:
+        return {}
 
 
 class RoomNotFoundError(HopInError):
@@ -18,9 +21,13 @@ class RoomNotFoundError(HopInError):
 class RoomFullError(HopInError):
     reason = ErrorReason.FULL
 
-    def __init__(self, room_id: str) -> None:
+    def __init__(self, room_id: str, capacity: int) -> None:
         super().__init__(f"Room is full: {room_id}")
         self.room_id = room_id
+        self.capacity = capacity
+
+    def frame_fields(self) -> dict[str, Any]:
+        return {"capacity": self.capacity}
 
 
 class RoomLockedError(HopInError):

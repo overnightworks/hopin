@@ -23,7 +23,18 @@ export const SIGNAL_TYPE = {
     ERROR: "error",
 };
 
-const RESUME_REFUSED = "resume_refused";
+export const ERROR_REASON = {
+    NOT_FOUND: "not_found",
+    LOCKED: "locked",
+    FULL: "full",
+    RESUME_REFUSED: "resume_refused",
+};
+
+export const ROOM_CLOSED_REASON = {
+    HOST_GONE: "host_gone",
+    ENDED: "ended",
+};
+
 
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
 
@@ -141,7 +152,7 @@ function handleMessage(event) {
     const data = JSON.parse(event.data);
     if (data.type === SIGNAL_TYPE.RESUMED) {
         handleResumed(data);
-    } else if (data.type === SIGNAL_TYPE.ERROR && data.reason === RESUME_REFUSED) {
+    } else if (data.type === SIGNAL_TYPE.ERROR && data.reason === ERROR_REASON.RESUME_REFUSED) {
         fallBackToJoin();
     } else if (!isAlreadyDispatched(data)) {
         if (data.resume_token) keepSeat(data);

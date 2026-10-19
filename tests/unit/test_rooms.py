@@ -151,8 +151,9 @@ class TestRoomManager:
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.add_participant(room.room_id, "p2", account_named("p2"))
         room_id = room.room_id
-        with pytest.raises(RoomFullError):
+        with pytest.raises(RoomFullError) as refusal:
             manager.add_participant(room_id, "p3", ACCOUNT_P3)
+        assert refusal.value.capacity == 3
 
     def test_add_participant_raises_for_unknown_room(self, manager):
         with pytest.raises(RoomNotFoundError):

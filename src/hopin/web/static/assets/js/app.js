@@ -8,6 +8,7 @@ import {
     showShareLink,
 } from "./controls.js";
 import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
+import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { acquireMedia, stopLocalMedia } from "./media.js";
 import {
     loadIceServers,
@@ -52,6 +53,7 @@ function startCall(preferCamera) {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
     return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
+        if (state.intentionalLeave) return;
         const failure = outcomes.find((outcome) => outcome.status === "rejected");
         if (failure) {
             stopLocalMedia();
@@ -65,7 +67,7 @@ function startCall(preferCamera) {
     });
 }
 
-function leaveCall() {
+function tearDownCall() {
     state.intentionalLeave = true;
     removeAllPeers();
     stopLocalMedia();
@@ -78,7 +80,11 @@ function leaveCall() {
     state.isLocked = false;
     state.roomId = null;
     updateLockUI();
-    setStatus("Left call", "disconnected");
+}
+
+function leaveCall() {
+    tearDownCall();
+    showEnd(getRoomIdFromUrl() === null ? END_KIND.HOST_LEFT : END_KIND.LEFT);
 }
 
 function requestLeave() {
@@ -120,12 +126,18 @@ function registerSessionHandlers() {
         state.isLocked = false;
         updateLockUI();
     });
-    on(SIGNAL_TYPE.ROOM_CLOSED, () => {
-        leaveCall();
-        setStatus("Room closed", "disconnected");
+    on(SIGNAL_TYPE.ROOM_CLOSED, (data) => {
+        tearDownCall();
+        showEnd(endKindOfClosedRoom(data.reason), data);
     });
     on(SIGNAL_TYPE.ERROR, (data) => {
-        setStatus(`Error: ${data.message}`, "error");
+        const refusal = endKindOfRefusal(data.reason);
+        if (refusal === null) {
+            setStatus(`Error: ${data.message}`, "error");
+            return;
+        }
+        tearDownCall();
+        showEnd(refusal, data);
     });
 }
 
@@ -140,6 +152,7 @@ initDialogs({
 });
 initControls({ onLeaveRequested: requestLeave });
 initChat();
+initEnd();
 initHome({
     onStartRequested: () => {
         showScreen(SCREEN.CALL);

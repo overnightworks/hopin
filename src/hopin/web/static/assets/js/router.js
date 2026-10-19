@@ -1,5 +1,10 @@
-export const SCREEN = { HOME: "home", CALL: "call" };
+export const SCREEN = {
+    HOME: "home",
+    CALL: "call",
+    END: "end",
+};
 
+const HOME_PATH = "/";
 const CALL_PATH_PREFIX = "c";
 
 export function getRoomIdFromUrl() {
@@ -15,4 +20,12 @@ export function showScreen(screen) {
     for (const element of document.querySelectorAll("[data-screen]")) {
         element.classList.toggle("hidden", element.dataset.screen !== screen);
     }
+}
+
+export function goHome() {
+    location.assign(HOME_PATH);
+}
+
+export function openCall(roomId) {
+    location.assign(callUrl(roomId));
 }
