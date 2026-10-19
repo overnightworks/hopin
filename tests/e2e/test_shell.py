@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e.conftest import DESKTOP, PHONE
+from tests.e2e.conftest import DESKTOP, PHONE, SMALL_PHONE_LANDSCAPE
 
 pytestmark = pytest.mark.e2e
 
@@ -12,6 +12,7 @@ LEGAL_LINKS = {
     "Impressum": "https://hallucinai.de/impressum",
     "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
 }
+SCROLL_PAST_THE_END = 10_000
 FORM_FACTORS = pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])
 
 
@@ -48,6 +49,23 @@ def test_call_screen_reached_from_home_shows_both_legal_links(
 
     expect_both_legal_links(page.locator("header[data-screen=call]"))
     expect(page.locator("[data-screen=home]")).to_be_hidden()
+
+
+@pytest.mark.parametrize("label", LEGAL_LINKS)
+def test_home_on_a_small_landscape_phone_reaches_each_legal_link_without_sideways_scroll(
+    open_person: Callable[..., Page], base_url: str, label: str
+) -> None:
+    page = open_person(**SMALL_PHONE_LANDSCAPE)
+    page.goto(f"{base_url}/")
+
+    link = page.locator("[data-screen=home]").get_by_role("link", name=label)
+    page.mouse.move(SMALL_PHONE_LANDSCAPE["viewport"]["width"] / 2, SMALL_PHONE_LANDSCAPE["viewport"]["height"] / 2)
+    page.mouse.wheel(0, SCROLL_PAST_THE_END)
+    expect(link).to_be_in_viewport(ratio=1)
+    link.click(trial=True)
+
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    assert page.evaluate("document.querySelector('[data-screen=home]').scrollWidth <= window.innerWidth")
 
 
 @pytest.mark.parametrize("retired_path", ["/call", "/join/anything"])

@@ -29,6 +29,7 @@ MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 INVITE_LINK_PATTERN = re.compile(r"/c/\w+")
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
+SMALL_PHONE_LANDSCAPE = {"viewport": {"width": 568, "height": 320}, "is_mobile": True, "has_touch": True}
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
 window.recordedConnections = [];
