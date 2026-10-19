@@ -1,8 +1,0 @@
-claim_id = "2ebb1023b0d94c8785990174d183726d"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "0a086abfe2d016679cec8ec90148dbd5975db748"
-branch = "claude/issue-63-signaling-reconnect-keeps-media"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/errors.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/replay.py", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/mesh.js", "src/hopin/web/static/assets/js/replay.js", "src/hopin/web/static/assets/js/signaling.js", "tests/e2e/test_mesh.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_app.py", "tests/unit/test_errors.py", "tests/unit/test_replay.py", "tests/unit/test_signaling.py"]
-opened_commit = "a110ed0b8f9a8819043a332171eec7dbe3fcb314"
-whole_reason = "The resume is one protocol: the server's parked seat, token and replay log are useless without the browser's resume and sent log, and the browser half has no server to resume against; the tests and README pin both halves."
