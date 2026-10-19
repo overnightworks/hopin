@@ -121,6 +121,14 @@ UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
 CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
+CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
+CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
+CSS_VARIABLE_REFERENCE = re.compile(r"var\(")
+CSS_ROOT_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:")
+CSS_ZEROED_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:\s*0s\b")
+CSS_REDUCED_MOTION_BLOCK = re.compile(r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?\})\s*\}", re.DOTALL)
+CSS_ROOT_BLOCK = re.compile(r":root\s*\{([^{}]*)\}")
 VOID_TAGS = {
     "area",
     "base",
@@ -211,6 +219,23 @@ class PageInventory(HTMLParser):
         self._legal_nav_links = None
 
 
+def untokened_motion_durations(stylesheet: str) -> list[str]:
+    declarations = CSS_MOTION_DECLARATION.findall(CSS_COMMENT.sub("", stylesheet))
+    untokened = [CSS_MOTION_TOKEN_REFERENCE.sub("", declaration) for declaration in declarations]
+    return [
+        duration
+        for declaration in untokened
+        for duration in CSS_LITERAL_DURATION.findall(declaration) + CSS_VARIABLE_REFERENCE.findall(declaration)
+    ]
+
+
+def motion_tokens_left_running_under_reduced_motion(stylesheet: str) -> set[str]:
+    stylesheet = CSS_COMMENT.sub("", stylesheet)
+    reduced_block = "".join(CSS_REDUCED_MOTION_BLOCK.findall(stylesheet))
+    defined = {name for block in CSS_ROOT_BLOCK.findall(stylesheet) for name in CSS_ROOT_MOTION_TOKEN.findall(block)}
+    return defined - set(CSS_ZEROED_MOTION_TOKEN.findall(reduced_block))
+
+
 def defined_class_names(stylesheet: str) -> set[str]:
     selectors = CSS_DECLARATION_BLOCK.sub("{}", CSS_COMMENT.sub("", stylesheet))
     return set(CSS_CLASS_NAME.findall(selectors))
@@ -256,6 +281,41 @@ class TestPageShell:
         used_in_markup = {name for value in page_inventory.class_values for name in value.split()}
         assert vendored
         assert vendored & (own_stylesheet | used_in_markup) == set()
+
+    def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self):
+        stylesheet = (STYLESHEETS_DIR / "hopin.css").read_text()
+        assert CSS_MOTION_DECLARATION.search(stylesheet)
+        assert untokened_motion_durations(stylesheet) == []
+
+    @pytest.mark.parametrize(
+        "motion_declaration",
+        [
+            ".a { transition: opacity 0.2s; }",
+            ".a { transition: left var(--motion-snap), top .28s ease; }",
+            ".a { animation: spin 1.5s infinite; }",
+            ".a { transition-duration: 150ms; }",
+            ".a { animation-duration: 2s; }",
+            ".a { transition: opacity var(--fade); }",
+        ],
+    )
+    def test_finds_a_duration_that_is_no_motion_token_in_a_motion_declaration(self, motion_declaration):
+        assert untokened_motion_durations(motion_declaration)
+
+    def test_accepts_a_motion_declaration_that_reads_only_motion_tokens(self):
+        motion_declaration = ".a { transition: left var(--motion-snap) ease, top var(--motion-snap); }"
+        assert untokened_motion_durations(motion_declaration) == []
+
+    def test_zeroes_every_motion_token_when_reduced_motion_is_asked_for(self):
+        stylesheet = (STYLESHEETS_DIR / "hopin.css").read_text()
+        assert CSS_ROOT_BLOCK.search(stylesheet)
+        assert motion_tokens_left_running_under_reduced_motion(stylesheet) == set()
+
+    def test_finds_a_motion_token_that_reduced_motion_leaves_unzeroed(self):
+        stylesheet = (
+            ":root { --motion-snap: .28s; --motion-ring: 1.8s; }"
+            "@media (prefers-reduced-motion: reduce) { :root { --motion-snap: 0s; } }"
+        )
+        assert motion_tokens_left_running_under_reduced_motion(stylesheet) == {"--motion-ring"}
 
     def test_every_screen_holds_exactly_one_legal_nav_with_both_links(self, page_inventory):
         assert {"home", "call"} <= page_inventory.screens

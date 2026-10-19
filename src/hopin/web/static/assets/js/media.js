@@ -1,5 +1,6 @@
 import { addTrackToPeers, removeTrackFromPeers, replaceVideoTrackOnPeers } from "./mesh.js";
-import { showLocalStream } from "./stage.js";
+import { announceMediaState } from "./media-state.js";
+import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
 
 let mediaSession = 0;
@@ -71,11 +72,17 @@ export async function acquireMedia(preferCamera) {
     }
 }
 
+function localMediaChanged() {
+    updateLocalPreview();
+    announceMediaState();
+}
+
 export function toggleAudio() {
     state.audioEnabled = !state.audioEnabled;
     for (const track of state.localStream.getAudioTracks()) {
         track.enabled = state.audioEnabled;
     }
+    localMediaChanged();
 }
 
 export function toggleVideo() {
@@ -83,6 +90,7 @@ export function toggleVideo() {
     for (const track of state.localStream.getVideoTracks()) {
         track.enabled = state.videoEnabled;
     }
+    localMediaChanged();
 }
 
 export async function addCamera() {
@@ -96,6 +104,7 @@ export async function addCamera() {
             state.hasCamera = true;
             state.videoEnabled = true;
             showLocalStream(state.localStream);
+            localMediaChanged();
         },
     );
 }
@@ -149,9 +158,11 @@ async function changeScreenShare(onEnded) {
 // one in state and leave the first one's audio capturing with nothing to stop it.
 export function toggleScreenShare(onEnded) {
     if (!screenShareChange) {
-        screenShareChange = changeScreenShare(onEnded).finally(() => {
-            screenShareChange = null;
-        });
+        screenShareChange = changeScreenShare(onEnded)
+            .then(localMediaChanged)
+            .finally(() => {
+                screenShareChange = null;
+            });
     }
     return screenShareChange;
 }

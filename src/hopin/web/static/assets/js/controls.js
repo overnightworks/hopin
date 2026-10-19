@@ -1,6 +1,5 @@
 import { addCamera, toggleAudio, toggleScreenShare, toggleVideo } from "./media.js";
 import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
-import { updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 
@@ -84,7 +83,6 @@ async function handleVideoClick() {
         }
     }
     renderVideoButton();
-    updateLocalPreview();
 }
 
 function handleLockClick() {
