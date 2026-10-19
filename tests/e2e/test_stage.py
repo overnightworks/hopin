@@ -285,3 +285,17 @@ def test_stage_does_not_move_the_own_tile_when_it_is_dragged_on_desktop(
     _drag_own_tile_to(host, before["stage"], "tl")
 
     assert _stage_boxes(host, 2)["self"] == before["self"]
+
+
+def test_stage_lands_the_phone_picture_in_picture_without_a_glide_when_motion_is_reduced(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host = open_person(**PHONE, reduced_motion="reduce")
+    join(open_person, start_call(host, base_url))
+    expect(host.locator("#stage")).to_have_attribute("data-count", "2")
+    host.wait_for_function(NO_ANIMATION_IS_RUNNING)
+
+    host.evaluate("document.getElementById('localContainer').dataset.corner = 'tl'")
+
+    assert host.evaluate(NO_ANIMATION_IS_RUNNING)
+    _assert_own_tile_sits_in(host, "tl")

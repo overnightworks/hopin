@@ -1,6 +1,7 @@
 /* Shell tokens that ui-console lacks; its own tokens come from ui-console.css. */
 :root {
     --app: #F6F8F9;
+    --motion-snap: .28s;
     --accent-hover: #0A5D67;
     --surface-2: #EEF2F4;
     --accent-ink: #0A5560;
@@ -436,9 +437,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
         touch-action: none;
         cursor: grab;
         transition:
-            left .28s cubic-bezier(.2, .8, .2, 1),
-            top .28s cubic-bezier(.2, .8, .2, 1),
-            translate .28s cubic-bezier(.2, .8, .2, 1);
+            left var(--motion-snap) cubic-bezier(.2, .8, .2, 1),
+            top var(--motion-snap) cubic-bezier(.2, .8, .2, 1),
+            translate var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
     }
     .stage[data-count="2"] .tile.self[data-corner="tl"] { left: 14px; top: 48px; }
     .stage[data-count="2"] .tile.self[data-corner="tr"] { left: calc(100% - 118px); top: 48px; }
@@ -484,7 +485,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation: none !important; transition: none !important; }
+    :root { --motion-snap: 0s; }
 }
 
 .icon { display: block; flex: none; }
