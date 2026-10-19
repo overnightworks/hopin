@@ -26,6 +26,9 @@ PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14, "ins
 MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)"
 NOT_MIRRORED = "none"
 CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
+PHONE_QUALITY_BARS_INSET = {"top": 50, "right": 16}
+QUALITY_BAR_COUNT = 3
+VIGNETTE_GRADIENT = "linear-gradient(to top"
 BOXES_OF_THE_STAGE = """
 () => {
     const boxOf = (element) => {
@@ -36,6 +39,20 @@ BOXES_OF_THE_STAGE = """
         stage: boxOf(document.getElementById("stage")),
         self: boxOf(document.getElementById("localContainer")),
         tiles: [...document.querySelectorAll("#videoGrid .tile")].map(boxOf),
+    };
+}
+"""
+BOXES_OF_THE_GUESTS_QUALITY_BARS_AND_COUNT_PILL = """
+() => {
+    const boxOf = (element) => {
+        const { x, y, right, bottom } = element.getBoundingClientRect();
+        return { x, y, right, bottom };
+    };
+    const other = document.querySelector("#videoGrid .tile:not(.self)");
+    return {
+        stage: boxOf(document.getElementById("stage")),
+        bars: boxOf(other.querySelector(".connection-quality")),
+        countPill: boxOf(document.getElementById("participantCount")),
     };
 }
 """
@@ -141,6 +158,45 @@ def test_stage_with_two_people_shows_wide_tiles_on_desktop_and_a_picture_in_pict
     assert_wide_tiles(host, 2)
     host.set_viewport_size(PHONE_VIEWPORT)
     assert_other_tile_fills_stage_beside_the_picture_in_picture(host)
+
+
+def test_stage_with_two_people_on_a_phone_puts_the_guests_quality_bars_below_the_count_pill(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host, invite_link = start_hosting(open_person, base_url)
+    join(open_person, invite_link)
+    host.set_viewport_size(PHONE_VIEWPORT)
+    _stage_boxes(host, 2)
+
+    boxes = host.evaluate(BOXES_OF_THE_GUESTS_QUALITY_BARS_AND_COUNT_PILL)
+
+    assert boxes["bars"]["y"] - boxes["stage"]["y"] == pytest.approx(
+        PHONE_QUALITY_BARS_INSET["top"], abs=POSITION_TOLERANCE_PIXELS
+    )
+    assert boxes["stage"]["right"] - boxes["bars"]["right"] == pytest.approx(
+        PHONE_QUALITY_BARS_INSET["right"], abs=POSITION_TOLERANCE_PIXELS
+    )
+    assert boxes["bars"]["y"] >= boxes["countPill"]["bottom"]
+
+
+def test_stage_shows_every_remote_tile_a_quality_pill_of_bare_bars_and_a_vignette_over_its_video(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host, invite_link = start_hosting(open_person, base_url)
+    join(open_person, invite_link)
+    join(open_person, invite_link)
+    _stage_boxes(host, 3)
+
+    remote_pills = host.locator("#videoGrid .tile:not(.self) .connection-quality")
+    expect(remote_pills).to_have_count(2)
+    for pill in remote_pills.all():
+        expect(pill.locator(".quality-bar")).to_have_count(QUALITY_BAR_COUNT)
+        assert pill.get_attribute("style") is None
+        assert all(bar.get_attribute("style") is None for bar in pill.locator(".quality-bar").all())
+    vignette = host.locator("#videoGrid .tile").first.evaluate(
+        "(tile) => getComputedStyle(tile, '::after').backgroundImage"
+    )
+    assert vignette.startswith(VIGNETTE_GRADIENT)
 
 
 def test_stage_lays_out_each_call_size_from_two_to_six_in_the_pictures_shape(
