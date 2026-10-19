@@ -33,8 +33,6 @@ RESUMED_FRAME_TYPE = "resumed"
 RESUMED_RELEASED = "resumed released to the browser"
 UPSTREAM = "up:"
 DOWNSTREAM = "down:"
-CUT_CLOSE_CODE = 4999
-CUT_REASON = "cut"
 PUMP_DEADLINE_SECONDS = 30
 CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
 UNLIMITED_DROPS = 1_000_000
@@ -276,8 +274,8 @@ class SignalingTap:
     def cut(self) -> None:
         assert self._sides is not None
         browser_side, server_side = self._sides
-        browser_side.close(code=CUT_CLOSE_CODE, reason=CUT_REASON)
-        server_side.close(code=CUT_CLOSE_CODE, reason=CUT_REASON)
+        browser_side.close()
+        server_side.close()
 
     def release_held_resumed(self) -> None:
         assert self._sides is not None
