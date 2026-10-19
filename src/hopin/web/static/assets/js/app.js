@@ -10,6 +10,7 @@ import {
 import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { acquireMedia, stopLocalMedia } from "./media.js";
+import { registerMediaStateHandlers } from "./media-state.js";
 import {
     loadIceServers,
     onPeersChanged,
@@ -143,6 +144,7 @@ function registerSessionHandlers() {
 
 registerMeshHandlers();
 registerChatHandlers();
+registerMediaStateHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);

@@ -208,6 +208,7 @@ class SignalingHandler:
             SignalType.LOCK_ROOM.value: self._handle_lock,
             SignalType.UNLOCK_ROOM.value: self._handle_unlock,
             SignalType.CHAT.value: self._handle_chat,
+            SignalType.MEDIA_STATE.value: self._handle_media_state,
             SignalType.END_ROOM.value: self._handle_end_room,
         }
 
@@ -303,6 +304,20 @@ class SignalingHandler:
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
         await self._send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
+
+    async def _handle_media_state(self, peer_id: PeerId, data: dict[str, Any]) -> None:
+        audio, video = data.get("audio"), data.get("video")
+        if not isinstance(audio, bool) or not isinstance(video, bool):
+            raise InvalidMessageError("media_state needs boolean audio and video")
+        room_id = self._peer_rooms.get(peer_id)
+        if not room_id:
+            return
+        room = self._room_manager.get_room(room_id)
+        others = [pid for pid in room.participant_ids if pid != peer_id]
+        await self._send_all(
+            others,
+            {"type": SignalType.MEDIA_STATE.value, "from": peer_id, "audio": audio, "video": video},
+        )
 
     async def _handle_relay(self, peer_id: PeerId, data: dict[str, Any]) -> None:
         target_id = data.get("target")

@@ -434,6 +434,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
+.name .muted:not(.hidden) { display: inline-flex; color: var(--on-stage); opacity: .9; }
 @media (max-width: 600px) {
     .stage[data-count="1"] .grid, .stage[data-count="2"] .grid { inset: 0; }
     .stage[data-count="1"] .tile, .stage[data-count="2"] .tile:not(.self) {
