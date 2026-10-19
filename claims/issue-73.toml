@@ -1,8 +1,0 @@
-claim_id = "5eaf510695f74c819f90a66d9d636743"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "3f039c276e7d6e7dbefccef0df4eb7248700b013"
-branch = "claude/issue-73-the-camera-after-a-screen-share-follows"
-scope = ["src/hopin/web/static/assets/js/media.js", "tests/e2e/conftest.py", "tests/e2e/test_end.py", "tests/e2e/test_media.py", "tests/e2e/test_media_state.py", "tests/e2e/test_stage.py"]
-opened_commit = "211fae570b92a76edc3f9981e18f9864044bbbea"
-whole_reason = "The camera choice after a share and the shared e2e helpers that prove it are one change: the proof module cannot stand on another test module's internals."
