@@ -330,6 +330,15 @@ class TestJoinExistingRoom:
         assert other_room.participant_ids == ["host2"]
 
     @pytest.mark.asyncio
+    async def test_refused_second_join_is_not_logged_as_a_join(self, handler, room_manager):
+        seat_in_room(handler, room_manager, "host1", "p1")
+
+        with structlog.testing.capture_logs() as logs:
+            await deliver(handler, "p1", join_message())
+
+        assert [log["event"] for log in logs if log["event"] in ("room_created", "participant_joined")] == []
+
+    @pytest.mark.asyncio
     async def test_joins_room_and_gets_existing_participants(self, handler, room_manager):
         register_peer(handler, "host1")
         register_peer(handler, "p1")
@@ -1052,17 +1061,56 @@ class TestHostGrace:
 
 class TestEndRoom:
     @pytest.mark.asyncio
-    async def test_ending_the_room_leaves_no_seat_to_resume_or_to_relay_to(self, handler, room_manager):
-        _room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_ending_the_room_closes_every_socket_and_refuses_a_resume_of_any_seat(self, link):
+        host, guest = await host_and_guest(link)
 
-        await deliver(handler, "host1", {"type": SignalType.END_ROOM.value})
+        await host.say({"type": SignalType.END_ROOM.value})
+        await guest.resume()
+        await host.resume()
 
-        assert handler._peers == {}
-        assert handler._peer_rooms == {}
-        for ws in sockets.values():
-            ws.close.assert_awaited_once_with(code=SUPERSEDED_CLOSE_CODE)
-        await handler._send("p1", {"type": SignalType.CHAT.value})
-        assert sent_types(sockets["p1"]) == [SignalType.ROOM_CLOSED.value]
+        assert [host.sockets[0].closed_with, guest.sockets[0].closed_with] == [SUPERSEDED_CLOSE_CODE] * 2
+        assert guest.frames(SignalType.RESUMED) == host.frames(SignalType.RESUMED) == []
+        assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
+
+    @pytest.mark.asyncio
+    async def test_relay_from_a_seat_of_an_ended_room_reaches_nobody(self, link):
+        host, guest = await host_and_guest(link)
+        await host.say({"type": SignalType.END_ROOM.value})
+        heard_before = len(guest.socket.sent)
+
+        await host.say({"type": SignalType.CHAT.value, "message": "still here"})
+
+        assert len(guest.socket.sent) == heard_before
+
+    @pytest.mark.asyncio
+    async def test_recipient_hanging_up_while_the_room_ends_leaves_no_seat_behind(self, link):
+        host, guest = await host_and_guest(link)
+        close_host_socket = host.socket.close
+
+        async def close_while_guest_hangs_up(code):
+            await close_host_socket(code)
+            await guest.drop(1005)
+
+        host.socket.close = close_while_guest_hangs_up
+
+        await host.say({"type": SignalType.END_ROOM.value})
+        await guest.resume()
+        await host.resume()
+
+        assert guest.frames(SignalType.RESUMED) == host.frames(SignalType.RESUMED) == []
+        assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
+        assert host.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
+
+    @pytest.mark.asyncio
+    async def test_ending_the_room_logs_no_websocket_error_when_the_closed_sockets_report_back(self, link):
+        host, guest = await host_and_guest(link)
+
+        with structlog.testing.capture_logs() as logs:
+            await host.say({"type": SignalType.END_ROOM.value})
+            for browser in (host, guest):
+                await browser.drop(SUPERSEDED_CLOSE_CODE)
+
+        assert [log for log in logs if log["event"] == "websocket_error"] == []
 
     @pytest.mark.asyncio
     async def test_host_ending_the_room_closes_it_as_ended_for_every_peer_including_the_host(
@@ -1407,14 +1455,13 @@ class TestParkedHost:
         ]
 
     @pytest.mark.asyncio
-    async def test_room_ended_while_a_guest_is_parked_clears_its_seat_and_its_resume_is_refused(self, link, handler):
+    async def test_room_ended_while_a_guest_is_parked_clears_its_seat_and_its_resume_is_refused(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
 
         await host.say({"type": SignalType.END_ROOM.value})
         await guest.resume()
 
-        assert guest.peer_id not in handler._peers
         assert guest.frames(SignalType.RESUMED, SignalType.ROOM_CLOSED) == []
         assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
 

@@ -277,12 +277,15 @@ class TestEndRoom:
         guest_ws, _existing = join_room(connect, "guest", room_id)
         host_ws.receive_json()
         host_ws.send_json({"type": SignalType.END_ROOM.value})
-        guest_ws.receive_json()
+        assert guest_ws.receive_json()["type"] == SignalType.ROOM_CLOSED.value
+        assert host_ws.receive_json()["type"] == SignalType.ROOM_CLOSED.value
 
         guest_ws.send_json({"type": SignalType.CHAT.value, "message": "still here"})
 
         with pytest.raises(WebSocketDisconnect):
             guest_ws.receive_json()
+        with pytest.raises(WebSocketDisconnect):
+            host_ws.receive_json()
 
 
 @pytest.mark.integration
