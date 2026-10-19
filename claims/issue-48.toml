@@ -1,7 +1,0 @@
-claim_id = "3943a91181c74f1d9bed7745ebe028e5"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "519a2dd319cd4a3bbfddd82b693089bea6db4488"
-branch = "claude/issue-48-adopt-quality-v021-codeql-caller"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml"]
-opened_commit = "84ed3b1c57c9138b5e93c695f741660ee41a18c8"
