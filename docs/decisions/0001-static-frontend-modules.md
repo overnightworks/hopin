@@ -25,8 +25,8 @@ The page is markup, two stylesheets and ES modules, served from
   reachable, so the page is served only at its routes, never from the mount.
 - Every screen carries its own `<nav class="legal">` copy (a static page has no
   templating). The guard test pins that each distinct `data-screen` value holds
-  exactly one, with both URLs; the call screen spans two elements and its nav
-  sits in the header.
+  exactly one, with both URLs; the call screen is one element whose nav sits
+  below the stage until the floating control bar (row 19) moves it into More.
 - HopIn reuses no class name that `ui-console.css` defines, because its grammar
   classes would otherwise style HopIn's markup. Six names are defined in both
   the picture and ui-console: `.btn` (now `.button`) and `.glyph` (now
@@ -59,9 +59,9 @@ The page is markup, two stylesheets and ES modules, served from
 | `quality.js` | round-trip indicator |
 | `chat.js` | chat panel and messages |
 | `sounds.js` | notification sounds |
-| `stage.js` | video tiles, grid, local preview |
+| `stage.js` | the stage: tiles, the grid by call size, the phone picture-in-picture, local preview |
 | `controls.js` | control bar and share box |
-| `status.js` | header status, lock indicator, participant count |
+| `status.js` | call status, lock indicator, participant count |
 | `dialogs.js` | setup and leave dialogs |
 
 ## Consequences

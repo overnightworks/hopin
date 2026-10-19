@@ -3,7 +3,9 @@ import { state } from "./state.js";
 
 const localVideo = document.getElementById("localVideo");
 const localPlaceholder = document.getElementById("localPlaceholder");
-const videoGrid = document.getElementById("videoGrid");
+const localContainer = document.getElementById("localContainer");
+const stage = document.getElementById("stage");
+const tiles = document.querySelector("#videoGrid .tiles");
 
 function showPlaceholder(video, placeholder) {
     video.classList.add("hidden");
@@ -11,17 +13,19 @@ function showPlaceholder(video, placeholder) {
 }
 
 function updateGridLayout() {
-    const tileCount = videoGrid.children.length;
-    videoGrid.className = "video-grid";
-    if (tileCount === 2) {
-        videoGrid.classList.add("two");
-    } else if (tileCount > 2) {
-        videoGrid.classList.add("many");
-    }
+    stage.dataset.count = tiles.children.length;
+}
+
+function createPersonAvatar() {
+    const avatar = document.createElement("span");
+    avatar.className = "av";
+    avatar.append(localPlaceholder.querySelector("svg").cloneNode(true));
+    return avatar;
 }
 
 export function showLocalStream(stream) {
     localVideo.srcObject = stream;
+    localContainer.classList.toggle("mirror", !state.screenStream);
 }
 
 export function updateLocalPreview() {
@@ -32,7 +36,7 @@ export function updateLocalPreview() {
 
 export function addRemoteTile(participantId) {
     const container = document.createElement("div");
-    container.className = "video-container";
+    container.className = "tile";
     container.id = `container-${participantId}`;
 
     const video = document.createElement("video");
@@ -41,19 +45,16 @@ export function addRemoteTile(participantId) {
     video.playsinline = true;
 
     const placeholder = document.createElement("div");
-    placeholder.className = "video-placeholder hidden";
+    placeholder.className = "vid off hidden";
     placeholder.id = `placeholder-${participantId}`;
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.textContent = participantId.slice(0, 2).toUpperCase();
-    placeholder.appendChild(avatar);
+    placeholder.appendChild(createPersonAvatar());
 
-    const label = document.createElement("div");
-    label.className = "video-label";
+    const label = document.createElement("span");
+    label.className = "name";
     label.textContent = `Peer ${participantId.slice(0, 6)}`;
 
     container.append(video, placeholder, label, createQualityIndicator());
-    videoGrid.appendChild(container);
+    tiles.appendChild(container);
     updateGridLayout();
 
     video.addEventListener("loadedmetadata", () => {

@@ -22,7 +22,7 @@ def test_home_shows_start_a_call_and_both_legal_links(
     home = page.locator("[data-screen=home]")
     expect(home.get_by_role("button", name="Start a call")).to_be_visible()
     expect_both_legal_links(home)
-    expect(page.locator("header[data-screen=call]")).to_be_hidden()
+    expect(page.locator("[data-screen=call]")).to_be_hidden()
 
 
 @FORM_FACTORS
@@ -34,7 +34,7 @@ def test_call_screen_reached_from_home_shows_both_legal_links(
 
     page.click("#homeStartBtn")
 
-    expect_both_legal_links(page.locator("header[data-screen=call]"))
+    expect_both_legal_links(page.locator("[data-screen=call]"))
     expect(page.locator("[data-screen=home]")).to_be_hidden()
 
 

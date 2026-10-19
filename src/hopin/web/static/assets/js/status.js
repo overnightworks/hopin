@@ -1,6 +1,7 @@
 const statusElement = document.getElementById("status");
 const lockIndicator = document.getElementById("lockIndicator");
 const participantCountElement = document.getElementById("participantCount");
+const participantCountNumber = participantCountElement.querySelector(".num");
 
 export function setStatus(text, type) {
     statusElement.textContent = text;
@@ -13,7 +14,7 @@ export function showLockIndicator(isLocked) {
 }
 
 export function showParticipantCount(count) {
-    participantCountElement.textContent = `${count} ${count === 1 ? "person" : "people"}`;
+    participantCountNumber.textContent = count;
     participantCountElement.classList.remove("hidden");
 }
 

@@ -173,9 +173,9 @@ src/hopin/
 │               ├── quality.js    # Round-trip indicator
 │               ├── chat.js       # Chat panel
 │               ├── sounds.js     # Notification sounds
-│               ├── stage.js      # Video tiles and grid
+│               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
 │               ├── controls.js   # Control bar and share box
-│               ├── status.js     # Status, lock, participant count
+│               ├── status.js     # Call status, lock, participant count
 │               └── dialogs.js    # Setup and leave dialogs
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring
