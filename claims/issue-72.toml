@@ -1,0 +1,8 @@
+claim_id = "2eadb593e2f54bf38bf7eb9ae4797a5c"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "3f039c276e7d6e7dbefccef0df4eb7248700b013"
+branch = "claude/issue-72-quality-bars-vignette-and-named-constant"
+scope = ["src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/quality.js", "src/hopin/web/static/assets/js/sounds.js", "tests/e2e/test_mesh.py", "tests/e2e/test_stage.py"]
+opened_commit = "dcfc2a006c9f41cc1c04f5287f01f3a8165f616c"
+whole_reason = "The pill's CSS, the script that sets its level and the tests that read its level are one indicator: changing one without the others leaves bars that never light."
