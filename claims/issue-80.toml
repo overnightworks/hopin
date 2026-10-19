@@ -1,0 +1,8 @@
+claim_id = "c6093b2090114f64adcc97a971ac549d"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "960b92a4930fb62149bd0ba8730eaf15245f23a3"
+branch = "claude/issue-80-a-seat-belongs-to-at-most-one-room"
+scope = ["README.md", "src/hopin/signaling/handler.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_signaling.py"]
+opened_commit = "f28c0f2a32a6342566601c56dac8175e616bec44"
+whole_reason = "The join refusal, the seat clearing and their proof live in the handler and its two test modules; splitting them would leave one of the two leaks open."
