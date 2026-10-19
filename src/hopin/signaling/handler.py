@@ -496,9 +496,8 @@ class SignalingHandler:
             frame["grace_seconds"] = HOST_GRACE_SECONDS
         await self._send_all(recipients, frame)
         seats = [self._forget_seat(PeerId(peer_id)) for peer_id in recipients]
-        for seat in seats:
-            if seat is not None:
-                await _close_socket(seat.websocket)
+        for websocket in [seat.websocket for seat in seats if seat is not None]:
+            await _close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> dict[str, Any]:
