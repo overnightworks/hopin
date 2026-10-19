@@ -1,8 +1,0 @@
-claim_id = "5a75187f301d4c8c8538277b87e7c58b"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "3f039c276e7d6e7dbefccef0df4eb7248700b013"
-branch = "claude/issue-71-everyone-sees-who-is-muted-or-has-the-ca"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/config/constants.py", "src/hopin/signaling/handler.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/media-state.js", "src/hopin/web/static/assets/js/media.js", "src/hopin/web/static/assets/js/signaling.js", "src/hopin/web/static/assets/js/stage.js", "src/hopin/web/static/index.html", "tests/e2e/test_media_state.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_signaling.py"]
-opened_commit = "db7bee7c2e987156ca14b1f31a8f995b286e099c"
-whole_reason = "The frame, its relay and the tiles that render it are one behaviour: a relay without rendering shows nothing, and rendering without the relay has nothing to show."
