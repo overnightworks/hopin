@@ -1,0 +1,7 @@
+claim_id = "6fc5a8328f1d4b16a5f8b866724f763f"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "44b0235c0168003cb79111328afbe4c6251a5701"
+branch = "dependabot/uv/pytest-cov-7.1.0"
+scope = ["uv.lock"]
+opened_commit = "21c3c3b5e72f0a0e45e1399ae6171c6b45e8d4be"
