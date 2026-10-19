@@ -1,0 +1,8 @@
+claim_id = "8fbc464db8344a0db67b82a288ba3581"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "960b92a4930fb62149bd0ba8730eaf15245f23a3"
+branch = "claude/issue-82-a-camera-turned-on-mid-call-reaches"
+scope = ["src/hopin/web/static/assets/js/bandwidth.js", "src/hopin/web/static/assets/js/media.js", "src/hopin/web/static/assets/js/mesh.js", "src/hopin/web/static/assets/js/stage.js", "tests/e2e/conftest.py", "tests/e2e/test_media.py", "tests/e2e/test_media_state.py", "tests/e2e/test_mesh.py"]
+opened_commit = "6e5c8118173e689a1bd01c9f9f1306878a150466"
+whole_reason = "Video always offered under the person's stream, the transceiver lookup with its re-cap, addCamera by replacement and the two-way picture mark are one behaviour: without any one of them an added camera reaches nobody, adds a second video transceiver, or stays hidden behind the icon; the moved helpers are the proof's shared base."
