@@ -1,0 +1,8 @@
+claim_id = "77506df588da4555b1643935bf7b2550"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "dd2d84c3fd3b8598025b08ed0d8be8526d94b376"
+branch = "claude/issue-68-stage-the-dark-stage-tiles-and-the-grid"
+scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/stage.js", "src/hopin/web/static/assets/js/status.js", "src/hopin/web/static/index.html", "tests/e2e/test_call.py", "tests/e2e/test_shell.py", "tests/e2e/test_stage.py"]
+opened_commit = "1a44c2fc27e3d1110fa039a4898626f36de55167"
+whole_reason = "The stage markup, its CSS shapes and stage.js's tile markup are one layout: any one without the others renders a broken call screen."
