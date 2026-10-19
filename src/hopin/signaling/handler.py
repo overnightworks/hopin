@@ -143,7 +143,7 @@ class SignalingHandler:
         while True:
             frame = await connection.websocket.receive()
             if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
-                if frame["code"] not in NORMAL_CLOSE_CODES:
+                if frame["code"] not in NORMAL_CLOSE_CODES and not _closed_by_server(connection.websocket):
                     connection.dropped = True
                     await logger.aerror("websocket_error", peer_id=connection.peer_id, code=frame["code"])
                 return
@@ -226,6 +226,8 @@ class SignalingHandler:
         room_id = data.get("room_id")
         if room_id is not None and not isinstance(room_id, str):
             raise InvalidMessageError("room_id must be a string")
+        if peer_id in self._peer_rooms:
+            raise InvalidMessageError("This seat is already in a room")
 
         if room_id is None:
             await self._create_room(peer_id)
@@ -340,10 +342,9 @@ class SignalingHandler:
         )
 
     async def _handle_disconnect(self, peer_id: PeerId) -> None:
-        peer = self._peers.pop(peer_id, None)
+        peer = self._forget_seat(peer_id)
         left_at = self._scheduler.now()
         if peer is not None and peer.park is not None:
-            peer.park.timer.cancel()
             left_at = peer.park.dropped_at
         room_id = self._peer_rooms.pop(peer_id, None)
         if not room_id:
@@ -364,6 +365,12 @@ class SignalingHandler:
 
         await self._send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
         await logger.ainfo("participant_left", room_id=room_id, participant=peer_id)
+
+    def _forget_seat(self, peer_id: PeerId) -> Peer | None:
+        peer = self._peers.pop(peer_id, None)
+        if peer is not None and peer.park is not None:
+            peer.park.timer.cancel()
+        return peer
 
     async def _park(self, peer_id: PeerId, peer: Peer) -> None:
         peer.parks_started += 1
@@ -414,7 +421,7 @@ class SignalingHandler:
     async def _release_unresumable_seat(self, peer_id: PeerId) -> None:
         seat = self._peers[peer_id]
         await self._handle_disconnect(peer_id)
-        await _close_superseded(seat.websocket)
+        await _close_socket(seat.websocket)
 
     async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
         await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
@@ -428,13 +435,13 @@ class SignalingHandler:
         if seat.park is not None:
             seat.park.timer.cancel()
             seat.park = None
-        del self._peers[connection.peer_id]
+        self._forget_seat(connection.peer_id)
         connection.peer_id = claim.participant_id
         seat.websocket = connection.websocket
         seat.resume_token = _mint_resume_token()
         seat.replaying = True
 
-        await _close_superseded(superseded)
+        await _close_socket(superseded)
         await self._write(
             connection.websocket,
             {
@@ -488,6 +495,9 @@ class SignalingHandler:
         if reason is RoomClosedReason.HOST_GONE:
             frame["grace_seconds"] = HOST_GRACE_SECONDS
         await self._send_all(recipients, frame)
+        seats = [self._forget_seat(PeerId(peer_id)) for peer_id in recipients]
+        for websocket in [seat.websocket for seat in seats if seat is not None]:
+            await _close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> dict[str, Any]:
@@ -544,13 +554,17 @@ class SignalingHandler:
         )
 
 
-async def _close_superseded(websocket: WebSocket) -> None:
+async def _close_socket(websocket: WebSocket) -> None:
     if not _is_connected(websocket):
         return
     try:
         await websocket.close(code=SUPERSEDED_CLOSE_CODE)
     except WebSocketDisconnect:
-        await logger.ainfo("superseded_socket_already_gone")
+        await logger.ainfo("closed_socket_already_gone")
+
+
+def _closed_by_server(websocket: WebSocket) -> bool:
+    return websocket.application_state == WebSocketState.DISCONNECTED
 
 
 def _is_connected(websocket: WebSocket) -> bool:
