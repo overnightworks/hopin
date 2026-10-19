@@ -3,6 +3,7 @@ import { showLocalStream } from "./stage.js";
 import { state } from "./state.js";
 
 let mediaSession = 0;
+let screenShareChange = null;
 
 function stopTracks(stream) {
     for (const track of stream.getTracks()) {
@@ -133,12 +134,24 @@ async function startScreenShare(onEnded) {
     );
 }
 
-export async function toggleScreenShare(onEnded) {
+async function changeScreenShare(onEnded) {
     if (state.screenStream) {
         await stopScreenShare();
     } else {
         await startScreenShare(onEnded);
     }
+}
+
+// The screen picker stays open while a change is pending. A second press joins that
+// change instead of opening a second picker, whose stream would replace the first
+// one in state and leave the first one's audio capturing with nothing to stop it.
+export function toggleScreenShare(onEnded) {
+    if (!screenShareChange) {
+        screenShareChange = changeScreenShare(onEnded).finally(() => {
+            screenShareChange = null;
+        });
+    }
+    return screenShareChange;
 }
 
 export function stopLocalMedia() {
