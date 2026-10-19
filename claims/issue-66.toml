@@ -1,8 +1,0 @@
-claim_id = "6516c061b3bc4a5785443b4de2f11d72"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "8334742231e62e7164a51a9e91d57a815519cc6d"
-branch = "claude/issue-66-end-and-refusal-screens"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/errors.py", "src/hopin/rooms/manager.py", "src/hopin/signaling/handler.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/end.js", "src/hopin/web/static/assets/js/media.js", "src/hopin/web/static/assets/js/router.js", "src/hopin/web/static/assets/js/signaling.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_end.py", "tests/e2e/test_ice_servers.py", "tests/e2e/test_mesh.py", "tests/e2e/test_shell.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_errors.py", "tests/unit/test_rooms.py", "tests/unit/test_signaling.py"]
-opened_commit = "7b9361522cfe5c8710de559f890f3a6542bb9ab2"
-whole_reason = "The end screen, the reasons it renders, the two server fields it prints, the shared e2e helpers and the media teardown it relies on are one surface: the screen without the fields prints wrong numbers, and an end screen that leaves late media running breaks O23."
