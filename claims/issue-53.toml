@@ -1,0 +1,8 @@
+claim_id = "5e8d6cae8bca4ccf88179ef634ea1eca"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "f64cf0d1319def7831841cc3ca52ea98c2780b8f"
+branch = "claude/issue-53-shell-tokens-and-router-home-and-legal-l"
+scope = ["CLAUDE.md", "README.md", "docs/decisions/0001-static-frontend-modules.md", "sonar-project.properties", "src/hopin/config/constants.py", "src/hopin/web/routes.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/css/ui-console.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/home.js", "src/hopin/web/static/assets/js/router.js", "src/hopin/web/static/assets/js/signaling.js", "src/hopin/web/static/index.html", "tests/e2e", "tests/unit/test_app.py", "tests/unit/test_web.py"]
+opened_commit = "d9b790793fa070d6c8a80b9c14e61bf6205b21ee"
+whole_reason = "Routes, the shell page, its two stylesheet layers and the screen switch are one surface: home without the route is unreachable, the route without home serves the call page at /, and the tests pin all of them."
