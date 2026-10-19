@@ -2,6 +2,9 @@
 :root {
     --app: #F6F8F9;
     --motion-snap: .28s;
+    --motion-fade: .2s;
+    --motion-quick: .15s;
+    --motion-press: .1s;
     --accent-hover: #0A5D67;
     --surface-2: #EEF2F4;
     --accent-ink: #0A5560;
@@ -89,7 +92,7 @@ button {
     font-size: 0.9rem;
     cursor: pointer;
     font-weight: 600;
-    transition: opacity 0.2s, background 0.2s;
+    transition: opacity var(--motion-fade), background var(--motion-fade);
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -511,7 +514,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    :root { --motion-snap: 0s; }
+    :root {
+        --motion-snap: 0s;
+        --motion-fade: 0s;
+        --motion-quick: 0s;
+        --motion-press: 0s;
+    }
 }
 
 .icon { display: block; flex: none; }
@@ -530,7 +538,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     font-weight: 600;
     letter-spacing: -.005em;
     white-space: nowrap;
-    transition: background 0.15s, transform 0.1s;
+    transition: background var(--motion-quick), transform var(--motion-press);
 }
 .button:hover { opacity: 1; }
 .button:active { transform: scale(.985); }

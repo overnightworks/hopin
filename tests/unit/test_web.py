@@ -121,6 +121,9 @@ UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
 CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
+CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
+CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
 VOID_TAGS = {
     "area",
     "base",
@@ -211,6 +214,15 @@ class PageInventory(HTMLParser):
         self._legal_nav_links = None
 
 
+def literal_motion_durations(stylesheet: str) -> list[str]:
+    declarations = CSS_MOTION_DECLARATION.findall(CSS_COMMENT.sub("", stylesheet))
+    return [
+        duration
+        for declaration in declarations
+        for duration in CSS_LITERAL_DURATION.findall(CSS_MOTION_TOKEN_REFERENCE.sub("", declaration))
+    ]
+
+
 def defined_class_names(stylesheet: str) -> set[str]:
     selectors = CSS_DECLARATION_BLOCK.sub("{}", CSS_COMMENT.sub("", stylesheet))
     return set(CSS_CLASS_NAME.findall(selectors))
@@ -256,6 +268,27 @@ class TestPageShell:
         used_in_markup = {name for value in page_inventory.class_values for name in value.split()}
         assert vendored
         assert vendored & (own_stylesheet | used_in_markup) == set()
+
+    def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self):
+        stylesheet = (STYLESHEETS_DIR / "hopin.css").read_text()
+        assert CSS_MOTION_DECLARATION.search(stylesheet)
+        assert literal_motion_durations(stylesheet) == []
+
+    @pytest.mark.parametrize(
+        "motion_declaration",
+        [
+            ".a { transition: opacity 0.2s; }",
+            ".a { transition: left var(--motion-snap), top .28s ease; }",
+            ".a { animation: spin 1.5s infinite; }",
+            ".a { transition-duration: 150ms; }",
+            ".a { animation-duration: 2s; }",
+        ],
+    )
+    def test_finds_a_literal_duration_in_a_motion_declaration(self, motion_declaration):
+        assert literal_motion_durations(motion_declaration)
+
+    def test_accepts_a_motion_declaration_that_reads_only_motion_tokens(self):
+        assert literal_motion_durations(".a { transition: left var(--motion-snap) ease, top var(--motion-snap); }") == []
 
     def test_every_screen_holds_exactly_one_legal_nav_with_both_links(self, page_inventory):
         assert {"home", "call"} <= page_inventory.screens
