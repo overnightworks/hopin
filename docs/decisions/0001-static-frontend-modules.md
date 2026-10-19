@@ -60,6 +60,7 @@ The page is markup, two stylesheets and ES modules, served from
 | `chat.js` | chat panel and messages |
 | `sounds.js` | notification sounds |
 | `stage.js` | the stage: tiles, the grid by call size, the phone picture-in-picture, local preview |
+| `pip.js` | dragging the phone picture-in-picture and its snap to the nearest corner |
 | `controls.js` | control bar and share box |
 | `status.js` | call status, lock indicator, participant count |
 | `dialogs.js` | setup and leave dialogs |

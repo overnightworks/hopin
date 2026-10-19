@@ -23,6 +23,9 @@ LARGEST_CALL = 6
 DESKTOP_SHAPES = {2: (2, 1), 3: (3, 1), 4: (2, 2), 5: (3, 2), 6: (3, 2)}
 PHONE_SHAPES = {3: (1, 3), 4: (2, 2), 5: (2, 3), 6: (2, 3)}
 PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14, "inset_bottom": 14}
+PICTURE_IN_PICTURE_INSET_SIDE = 14
+PICTURE_IN_PICTURE_INSET_TOP = 48
+PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM = 6
 MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)"
 NOT_MIRRORED = "none"
 CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
@@ -46,6 +49,10 @@ ELEMENT_AT_THE_CENTER_OF_THE_OWN_TILE_IS_ITS_OWN = """
     return own.contains(document.elementFromPoint(x + width / 2, y + height / 2));
 }
 """
+STAGE_BOTTOM_IN_PIXELS = """
+() => parseFloat(getComputedStyle(document.getElementById("stage")).getPropertyValue("--stage-bottom"))
+"""
+NO_ANIMATION_IS_RUNNING = "() => document.getAnimations().length === 0"
 SHARE_THE_SCREEN_FROM_A_CANVAS = """
 navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
 """
@@ -201,3 +208,80 @@ def test_stage_without_a_camera_shows_the_person_icon_on_the_own_tile(
     placeholder = host.locator("#localPlaceholder")
     expect(placeholder.locator(".av svg")).to_be_visible()
     expect(placeholder).to_have_css("background-color", CAMERA_OFF_SURFACE)
+
+
+def _drag_own_tile_to(host: Page, stage: Box, corner: str) -> None:
+    host.wait_for_function(NO_ANIMATION_IS_RUNNING)
+    own = host.locator("#localContainer").bounding_box()
+    assert own is not None
+    target_x = stage["x"] + stage["width"] * (0.25 if corner[1] == "l" else 0.75)
+    target_y = stage["y"] + stage["height"] * (0.25 if corner[0] == "t" else 0.75)
+    host.mouse.move(own["x"] + own["width"] / 2, own["y"] + own["height"] / 2)
+    host.mouse.down()
+    host.mouse.move(target_x, target_y, steps=5)
+    host.mouse.up()
+    host.wait_for_function(NO_ANIMATION_IS_RUNNING)
+
+
+def _assert_own_tile_sits_in(host: Page, corner: str) -> None:
+    host.wait_for_function(NO_ANIMATION_IS_RUNNING)
+    boxes: dict[str, Any] = host.evaluate(BOXES_OF_THE_STAGE)
+    stage, own = boxes["stage"], boxes["self"]
+    stage_bottom = host.evaluate(STAGE_BOTTOM_IN_PIXELS)
+    if corner[1] == "l":
+        assert own["x"] - stage["x"] == pytest.approx(PICTURE_IN_PICTURE_INSET_SIDE, abs=POSITION_TOLERANCE_PIXELS)
+    else:
+        assert stage["right"] - own["right"] == pytest.approx(
+            PICTURE_IN_PICTURE_INSET_SIDE, abs=POSITION_TOLERANCE_PIXELS
+        )
+    if corner[0] == "t":
+        assert own["y"] - stage["y"] == pytest.approx(PICTURE_IN_PICTURE_INSET_TOP, abs=POSITION_TOLERANCE_PIXELS)
+    else:
+        assert stage["bottom"] - own["bottom"] == pytest.approx(
+            stage_bottom + PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM, abs=POSITION_TOLERANCE_PIXELS
+        )
+
+
+def _start_hosting_on_a_phone_with_one_guest(open_person: Callable[..., Page], base_url: str) -> tuple[Page, str]:
+    host = open_person(**PHONE)
+    invite_link = start_call(host, base_url)
+    join(open_person, invite_link)
+    expect(host.locator("#stage")).to_have_attribute("data-count", "2")
+    return host, invite_link
+
+
+@pytest.mark.parametrize("corner", ["tl", "tr", "bl", "br"])
+def test_stage_snaps_the_phone_picture_in_picture_to_the_corner_it_is_dragged_towards(
+    open_person: Callable[..., Page], base_url: str, corner: str
+) -> None:
+    host, _ = _start_hosting_on_a_phone_with_one_guest(open_person, base_url)
+
+    _drag_own_tile_to(host, _stage_boxes(host, 2)["stage"], corner)
+
+    _assert_own_tile_sits_in(host, corner)
+
+
+def test_stage_keeps_the_dragged_corner_while_people_join_and_leave(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host, invite_link = _start_hosting_on_a_phone_with_one_guest(open_person, base_url)
+    _drag_own_tile_to(host, _stage_boxes(host, 2)["stage"], "tl")
+
+    third = join(open_person, invite_link)
+    expect(host.locator("#stage")).to_have_attribute("data-count", "3")
+    third.close()
+
+    expect(host.locator("#stage")).to_have_attribute("data-count", "2")
+    _assert_own_tile_sits_in(host, "tl")
+
+
+def test_stage_does_not_move_the_own_tile_when_it_is_dragged_on_desktop(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host, invite_link = start_hosting(open_person, base_url)
+    join(open_person, invite_link)
+    before = _stage_boxes(host, 2)
+
+    _drag_own_tile_to(host, before["stage"], "tl")
+
+    assert _stage_boxes(host, 2)["self"] == before["self"]

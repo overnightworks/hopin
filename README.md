@@ -174,6 +174,7 @@ src/hopin/
 │               ├── chat.js       # Chat panel
 │               ├── sounds.js     # Notification sounds
 │               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
+│               ├── pip.js        # Dragging the phone picture-in-picture
 │               ├── controls.js   # Control bar and share box
 │               ├── status.js     # Call status, lock, participant count
 │               └── dialogs.js    # Setup and leave dialogs

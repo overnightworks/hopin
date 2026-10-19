@@ -427,13 +427,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
         position: absolute;
         width: 104px;
         height: 152px;
-        right: 14px;
-        bottom: calc(var(--stage-bottom) + 6px);
-        left: auto;
-        top: auto;
+        right: auto;
+        bottom: auto;
+        left: calc(100% - 118px);
+        top: calc(100% - var(--stage-bottom) - 158px);
         z-index: 35;
         box-shadow: 0 10px 30px -10px var(--vignette), 0 0 0 1px var(--glass);
+        touch-action: none;
+        cursor: grab;
+        transition:
+            left .28s cubic-bezier(.2, .8, .2, 1),
+            top .28s cubic-bezier(.2, .8, .2, 1),
+            translate .28s cubic-bezier(.2, .8, .2, 1);
     }
+    .stage[data-count="2"] .tile.self[data-corner="tl"] { left: 14px; top: 48px; }
+    .stage[data-count="2"] .tile.self[data-corner="tr"] { left: calc(100% - 118px); top: 48px; }
+    .stage[data-count="2"] .tile.self[data-corner="bl"] { left: 14px; top: calc(100% - var(--stage-bottom) - 158px); }
+    .stage[data-count="2"] .tile.self.dragging { transition: none; cursor: grabbing; }
     .stage[data-count="2"] .tile.self .name, .stage[data-count="2"] .tile.self .connection-quality { display: none; }
 }
 @media (min-width: 601px) {
@@ -471,6 +481,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
         padding: 0 12px;
         font-size: 14.5px;
     }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 .icon { display: block; flex: none; }

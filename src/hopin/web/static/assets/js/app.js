@@ -25,6 +25,7 @@ import {
     on,
     onSessionLost,
 } from "./signaling.js";
+import { initPip } from "./pip.js";
 import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
 import {
@@ -152,6 +153,7 @@ initDialogs({
 });
 initControls({ onLeaveRequested: requestLeave });
 initChat();
+initPip();
 initEnd();
 initHome({
     onStartRequested: () => {
