@@ -1,0 +1,475 @@
+/* overnightworks/ui-console
+ *
+ * Shared design tokens and the settings grammar. Owned by the blessed
+ * picture: agent-presentator's docs/mockups/m0-lobby.html.
+ *
+ * Theme names (--accent*, --on-accent, --ok*, --busy*, --fail*, --sans,
+ * --cond, --mono) ship the picture's values as the default. A product that
+ * disagrees reassigns them after this file, on the same three selectors.
+ *
+ * State glyphs paint with the state tokens, matching the picture — not
+ * currentColor. Reassigning --ok / --busy / --fail / --ink-faint recolors
+ * both the word and the shape.
+ */
+
+:root {
+  --canvas: #E9ECEE;
+  --canvas-2: #DFE3E6;
+  --screen: #FFFFFF;
+  --ink: #14181D;
+  --ink-soft: #5C6774;
+  --ink-faint: #8A94A0;
+  --line: #D2D8DD;
+  --line-soft: #E4E8EB;
+  --accent: #0C6C77;
+  --accent-soft: #DCEDEE;
+  --on-accent: #FFFFFF;
+  --ok: #1D7444;
+  --ok-soft: #DDEFE4;
+  --busy: #9A6200;
+  --busy-soft: #F6EAD3;
+  --fail: #AC2222;
+  --fail-soft: #F6E1E0;
+  --shadow: 0 1px 2px rgba(20, 24, 29, .06), 0 8px 24px -12px rgba(20, 24, 29, .28);
+  --radius: 2px;
+
+  --sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --cond: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #101317;
+    --canvas-2: #171B21;
+    --screen: #1C2128;
+    --ink: #E8ECF0;
+    --ink-soft: #9BA5B1;
+    --ink-faint: #737E8B;
+    --line: #2C333C;
+    --line-soft: #242A32;
+    --accent: #56C3CD;
+    --accent-soft: #16333A;
+    --on-accent: #06181B;
+    --ok: #63C48D;
+    --ok-soft: #16301F;
+    --busy: #E0A63F;
+    --busy-soft: #33260F;
+    --fail: #EE7070;
+    --fail-soft: #35191A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px -14px rgba(0, 0, 0, .8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #101317;
+  --canvas-2: #171B21;
+  --screen: #1C2128;
+  --ink: #E8ECF0;
+  --ink-soft: #9BA5B1;
+  --ink-faint: #737E8B;
+  --line: #2C333C;
+  --line-soft: #242A32;
+  --accent: #56C3CD;
+  --accent-soft: #16333A;
+  --on-accent: #06181B;
+  --ok: #63C48D;
+  --ok-soft: #16301F;
+  --busy: #E0A63F;
+  --busy-soft: #33260F;
+  --fail: #EE7070;
+  --fail-soft: #35191A;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px -14px rgba(0, 0, 0, .8);
+}
+
+/* Title row. One h1, optionally one primary control. Zero actions is valid. */
+
+.list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.list-head h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .list-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Tab strip. Icons, hrefs, and the current tab are the product's. */
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 450;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 8px 10px;
+  margin-bottom: -1px;
+}
+
+.tab--now {
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* Table. Column tracks stay with the product (.row--src, .row--user). */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-soft);
+  width: 100%;
+  container-type: inline-size;
+}
+
+.row {
+  display: grid;
+  align-items: center;
+  gap: 18px;
+  padding: 13px 8px 13px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  text-decoration: none;
+  color: inherit;
+}
+
+.row--head {
+  font-family: var(--cond);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--canvas-2);
+  border-bottom-color: var(--line);
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.row-act {
+  justify-self: end;
+}
+
+@container (max-width: 520px) {
+  .row--head {
+    display: none;
+  }
+
+  .row .state {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
+/* STATE: shape plus word. Colour is the token the product sets. */
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.glyph {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  display: inline-block;
+  position: relative;
+}
+
+.state--ok {
+  color: var(--ok);
+}
+
+.state--ok .glyph {
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.state--busy {
+  color: var(--busy);
+}
+
+.state--busy .glyph {
+  border-radius: 50%;
+  border: 2px solid var(--busy);
+  border-top-color: transparent;
+  animation: turn 1.1s linear infinite;
+}
+
+.state--fail {
+  color: var(--fail);
+}
+
+.state--fail .glyph {
+  background: var(--fail);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.state--never {
+  color: var(--ink-faint);
+}
+
+.state--never .glyph {
+  border: 2px dashed var(--ink-faint);
+  border-radius: 1px;
+}
+
+.state--off {
+  color: var(--ink-faint);
+}
+
+.state--off .glyph {
+  border-radius: 50%;
+  background: var(--ink-faint);
+  clip-path: polygon(0 0, 100% 0, 100% 38%, 0 38%, 0 62%, 100% 62%, 100% 100%, 0 100%);
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state--busy .glyph,
+  .banner--busy .glyph {
+    animation: none;
+  }
+}
+
+/* Label and value. Native control look is the product's. */
+
+.stand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.lbl,
+.stand .lbl {
+  font-family: var(--cond);
+  font-size: 11px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field label {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.form-part {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 13px;
+}
+
+.sub {
+  font-family: var(--cond);
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Uppercase outline pill. The word is the product's. */
+
+.tag {
+  font-family: var(--cond);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Outline buttons. Pico hosts reset Pico in their own leftover CSS. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--screen);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.btn--s {
+  padding: 5px 11px;
+  font-size: 13px;
+}
+
+.btn--off {
+  opacity: .42;
+  border-style: dashed;
+}
+
+.btn--primary.btn--off {
+  background: transparent;
+  border-color: var(--ink-faint);
+  color: var(--ink-soft);
+  opacity: .62;
+}
+
+.pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn:focus-visible,
+.tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Empty. Title, explanation, and whether a primary sits here are the product's. */
+
+.empty {
+  border: 1px dashed var(--line);
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.empty-mark {
+  width: 34px;
+  height: 26px;
+  border: 2px dashed var(--ink-faint);
+  border-radius: var(--radius);
+  opacity: .7;
+}
+
+.empty h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+/* Error and the other banners. Copy is the product's. */
+
+.banner {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+}
+
+.banner--ok {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+}
+
+.banner--busy {
+  background: var(--busy-soft);
+  border-color: var(--busy);
+}
+
+.banner--fail {
+  background: var(--fail-soft);
+  border-color: var(--fail);
+}
+
+.banner .glyph {
+  margin-top: 3px;
+}
+
+.banner--ok .glyph {
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.banner--busy .glyph {
+  border-radius: 50%;
+  border: 2px solid var(--busy);
+  border-top-color: transparent;
+  animation: turn 1.1s linear infinite;
+}
+
+.banner--fail .glyph {
+  background: var(--fail);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.banner h2 {
+  margin: 0;
+  font-family: var(--cond);
+  font-size: 12px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.banner p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+}

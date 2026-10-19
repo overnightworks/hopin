@@ -507,7 +507,7 @@ def test_restart_delay_follows_the_schedule_and_repeats_the_last_delay(
     open_person: Callable[..., Page], base_url: str, attempt: int, expected_delay: int
 ) -> None:
     page = open_person()
-    page.goto(f"{base_url}/call")
+    page.goto(f"{base_url}/")
 
     assert _restart_delay(page, attempt) == expected_delay
 
@@ -520,7 +520,7 @@ def test_video_bitrate_cap_divides_the_budget_among_the_remote_peers(
     open_person: Callable[..., Page], base_url: str, remote_count: int, expected_cap: int
 ) -> None:
     page = open_person()
-    page.goto(f"{base_url}/call")
+    page.goto(f"{base_url}/")
 
     assert page.evaluate(VIDEO_CAP_FROM_MODULE, remote_count) == expected_cap
 
@@ -851,7 +851,7 @@ def test_reconnect_delays_cover_the_resume_window_and_stop_before_it_ends(connec
 
 def test_sending_without_a_session_throws(open_person: Callable[..., Page], base_url: str) -> None:
     page = open_person()
-    page.goto(f"{base_url}/call")
+    page.goto(f"{base_url}/")
 
     with pytest.raises(PlaywrightError, match="No signaling session"):
         page.evaluate(SEND_CHAT_FRAME)
@@ -927,7 +927,7 @@ def test_sent_log_numbers_frames_and_drops_what_a_newer_description_supersedes(
     open_person: Callable[..., Page], base_url: str, message_types: list[str], expected_kept: list[int]
 ) -> None:
     page = open_person()
-    page.goto(f"{base_url}/call")
+    page.goto(f"{base_url}/")
     frames = [{"type": message_type, "target": "peer"} for message_type in message_types]
 
     report = page.evaluate(SENT_LOG_REPORT, {"frames": frames, "limit": REPLAY_LOG_LIMIT})
@@ -941,7 +941,7 @@ def test_sent_log_keeps_at_most_the_server_log_limit_and_raises_the_floor(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
     page = open_person()
-    page.goto(f"{base_url}/call")
+    page.goto(f"{base_url}/")
     frames = [{"type": "chat", "message": str(index)} for index in range(REPLAY_LOG_LIMIT + 3)]
 
     report = page.evaluate(SENT_LOG_REPORT, {"frames": frames, "limit": page.evaluate(REPLAY_LOG_LIMIT_FROM_MODULE)})

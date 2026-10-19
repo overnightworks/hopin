@@ -1,4 +1,5 @@
 import { SentLog } from "./replay.js";
+import { getRoomIdFromUrl } from "./router.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 
@@ -54,14 +55,6 @@ export function send(message) {
 
 export function isConnected() {
     return socket !== null;
-}
-
-export function getRoomIdFromUrl() {
-    const parts = location.pathname.split("/");
-    if (parts.length >= 3 && parts[1] === "join") {
-        return parts[2];
-    }
-    return null;
 }
 
 function dispatch(data) {
