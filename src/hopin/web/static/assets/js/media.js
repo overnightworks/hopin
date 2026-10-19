@@ -39,7 +39,7 @@ function replaceVideoTrack(newTrack) {
     }
     state.localStream.addTrack(newTrack);
     showLocalStream(state.localStream);
-    replaceVideoTrackOnPeers(newTrack);
+    void replaceVideoTrackOnPeers(newTrack);
 }
 
 export async function acquireMedia(preferCamera) {
@@ -99,11 +99,9 @@ export async function addCamera() {
         () => navigator.mediaDevices.getUserMedia({ video: true }),
         (cameraStream) => {
             const cameraTrack = cameraStream.getVideoTracks()[0];
-            state.localStream.addTrack(cameraTrack);
-            addTrackToPeers(cameraTrack, state.localStream);
+            replaceVideoTrack(cameraTrack);
             state.hasCamera = true;
             state.videoEnabled = true;
-            showLocalStream(state.localStream);
             localMediaChanged();
         },
     );

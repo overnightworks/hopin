@@ -4,11 +4,12 @@ export function videoBitrateCap(remoteCount) {
     return Math.floor(VIDEO_UPLOAD_BUDGET_BPS / remoteCount);
 }
 
+export function videoTransceivers(connection) {
+    return connection.getTransceivers().filter((transceiver) => transceiver.receiver.track.kind === "video");
+}
+
 function videoSenders(connection) {
-    return connection
-        .getTransceivers()
-        .filter((transceiver) => transceiver.receiver.track.kind === "video")
-        .map((transceiver) => transceiver.sender);
+    return videoTransceivers(connection).map((transceiver) => transceiver.sender);
 }
 
 async function capSender(sender, maxBitrate) {

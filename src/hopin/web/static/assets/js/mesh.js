@@ -1,4 +1,4 @@
-import { applyUploadCaps } from "./bandwidth.js";
+import { applyUploadCaps, videoTransceivers } from "./bandwidth.js";
 import { monitorConnectionQuality } from "./quality.js";
 import { watchIceConnection } from "./recovery.js";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
@@ -51,6 +51,9 @@ async function createPeerConnection(participantId, initiator) {
     if (state.localStream) {
         for (const track of state.localStream.getTracks()) {
             connection.addTrack(track, state.localStream);
+        }
+        if (initiator && state.localStream.getVideoTracks().length === 0) {
+            connection.addTransceiver("video", { direction: "sendrecv", streams: [state.localStream] });
         }
     }
 
@@ -141,11 +144,10 @@ export function removeTrackFromPeers(track) {
     }
 }
 
-export function replaceVideoTrackOnPeers(newTrack) {
-    for (const connection of connectionsByParticipant.values()) {
-        const sender = connection.getSenders().find((candidate) => candidate.track?.kind === "video");
-        sender?.replaceTrack(newTrack);
-    }
+export async function replaceVideoTrackOnPeers(newTrack) {
+    const transceivers = [...connectionsByParticipant.values()].flatMap(videoTransceivers);
+    await Promise.all(transceivers.map((transceiver) => transceiver.sender.replaceTrack(newTrack)));
+    await capUploads();
 }
 
 export function registerMeshHandlers() {

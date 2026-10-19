@@ -5,9 +5,11 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
-    DESKTOP,
+    FORM_FACTORS,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
-    PHONE,
+    OTHER_CAMERA_OFF,
+    OTHER_TILE,
+    OTHER_VIDEO,
     REFUSE_THE_CAMERA,
     join,
     start_call,
@@ -15,11 +17,7 @@ from tests.e2e.conftest import (
 
 pytestmark = pytest.mark.e2e
 
-FORM_FACTORS = [pytest.param(DESKTOP, id="desktop"), pytest.param(PHONE, id="phone")]
-OTHER_TILE = "#videoGrid .tile:not(.self)"
 OTHER_MUTE_MARK = f"{OTHER_TILE} .name .muted"
-OTHER_VIDEO = f"{OTHER_TILE} video"
-OTHER_CAMERA_OFF = f"{OTHER_TILE} .vid.off"
 OWN_MUTE_MARK = "#localContainer .name .muted"
 OTHER_VIDEO_HAS_A_PICTURE = """
 (selector) => document.querySelector(selector).videoWidth > 0
