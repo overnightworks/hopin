@@ -23,7 +23,8 @@ REPLAY_LOG_LIMIT = 256
 MAX_SIGNALING_FRAME_LENGTH = 65536
 
 WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
-# 1005 means no close frame arrived: that is a lost connection, so the seat parks.
+# 1005 means no status arrived, from a dropped connection or a close frame without a code;
+# HopIn's page always sends 1000, so 1005 is a loss and the seat parks.
 NORMAL_CLOSE_CODES = frozenset({1000, 1001})
 POLICY_VIOLATION_CLOSE_CODE = 1008
 SUPERSEDED_CLOSE_CODE = 4001
