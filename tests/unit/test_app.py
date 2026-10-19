@@ -32,7 +32,7 @@ class TestCreateApp:
         response = TestClient(create_app(settings)).get("/api/ice-servers")
         assert response.json() == {"iceServers": [{"urls": ["stun:stun.example.test:3478"]}]}
 
-    @pytest.mark.parametrize("path", ["/call", "/static/css/hopin.css", "/static/js/app.js"])
+    @pytest.mark.parametrize("path", ["/", "/static/css/ui-console.css", "/static/css/hopin.css", "/static/js/app.js"])
     def test_serves_the_page_and_its_assets(self, path):
         assert TestClient(create_app()).get(path).status_code == 200
 

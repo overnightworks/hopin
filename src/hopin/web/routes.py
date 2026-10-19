@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from hopin.config.constants import (
     CALL_PATH,
     HEALTH_PATH,
-    JOIN_PATH,
+    HOME_PATH,
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
@@ -27,12 +27,12 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
     def health() -> JSONResponse:
         return JSONResponse({"status": "ok", "rooms": room_manager.room_count})
 
-    @router.api_route(CALL_PATH, methods=READ_METHODS)
-    def call_page() -> FileResponse:
+    @router.api_route(HOME_PATH, methods=READ_METHODS)
+    def home_page() -> FileResponse:
         return FileResponse(PAGE)
 
-    @router.api_route(f"{JOIN_PATH}/{{room_id}}", methods=READ_METHODS)
-    def join_page(room_id: str) -> Response:
+    @router.api_route(f"{CALL_PATH}/{{room_id}}", methods=READ_METHODS)
+    def call_page(room_id: str) -> Response:
         if not room_manager.has_room(room_id):
             return PlainTextResponse("Room not found", status_code=404)
         return FileResponse(PAGE)
