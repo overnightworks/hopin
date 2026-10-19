@@ -1068,8 +1068,10 @@ class TestEndRoom:
         await guest.resume()
         await host.resume()
 
-        assert [host.sockets[0].closed_with, guest.sockets[0].closed_with] == [SUPERSEDED_CLOSE_CODE] * 2
-        assert guest.frames(SignalType.RESUMED) == host.frames(SignalType.RESUMED) == []
+        assert host.sockets[0].closed_with == SUPERSEDED_CLOSE_CODE
+        assert guest.sockets[0].closed_with == SUPERSEDED_CLOSE_CODE
+        assert guest.frames(SignalType.RESUMED) == []
+        assert host.frames(SignalType.RESUMED) == []
         assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
 
     @pytest.mark.asyncio
@@ -1097,7 +1099,8 @@ class TestEndRoom:
         await guest.resume()
         await host.resume()
 
-        assert guest.frames(SignalType.RESUMED) == host.frames(SignalType.RESUMED) == []
+        assert guest.frames(SignalType.RESUMED) == []
+        assert host.frames(SignalType.RESUMED) == []
         assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
         assert host.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
 
