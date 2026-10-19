@@ -1,6 +1,10 @@
 /* Shell tokens that ui-console lacks; its own tokens come from ui-console.css. */
 :root {
     --app: #F6F8F9;
+    --motion-snap: .28s;
+    --motion-fade: .2s;
+    --motion-quick: .15s;
+    --motion-press: .1s;
     --accent-hover: #0A5D67;
     --surface-2: #EEF2F4;
     --accent-ink: #0A5560;
@@ -88,7 +92,7 @@ button {
     font-size: 0.9rem;
     cursor: pointer;
     font-weight: 600;
-    transition: opacity 0.2s, background 0.2s;
+    transition: opacity var(--motion-fade), background var(--motion-fade);
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -453,13 +457,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
         position: absolute;
         width: 104px;
         height: 152px;
-        right: 14px;
-        bottom: calc(var(--stage-bottom) + 6px);
-        left: auto;
-        top: auto;
+        right: auto;
+        bottom: auto;
+        left: calc(100% - 118px);
+        top: calc(100% - var(--stage-bottom) - 158px);
         z-index: 35;
         box-shadow: 0 10px 30px -10px var(--vignette), 0 0 0 1px var(--glass);
+        touch-action: none;
+        cursor: grab;
+        transition:
+            left var(--motion-snap) cubic-bezier(.2, .8, .2, 1),
+            top var(--motion-snap) cubic-bezier(.2, .8, .2, 1),
+            translate var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
     }
+    .stage[data-count="2"] .tile.self[data-corner="tl"] { left: 14px; top: 48px; }
+    .stage[data-count="2"] .tile.self[data-corner="tr"] { left: calc(100% - 118px); top: 48px; }
+    .stage[data-count="2"] .tile.self[data-corner="bl"] { left: 14px; top: calc(100% - var(--stage-bottom) - 158px); }
+    .stage[data-count="2"] .tile.self.dragging { transition: none; cursor: grabbing; }
     .stage[data-count="2"] .tile.self .name, .stage[data-count="2"] .tile.self .connection-quality { display: none; }
     .stage[data-count="2"] .tile:not(.self) .connection-quality { top: 50px; right: 16px; }
 }
@@ -500,6 +514,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     }
 }
 
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --motion-snap: 0s;
+        --motion-fade: 0s;
+        --motion-quick: 0s;
+        --motion-press: 0s;
+    }
+}
+
 .icon { display: block; flex: none; }
 .button {
     display: inline-flex;
@@ -516,7 +539,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     font-weight: 600;
     letter-spacing: -.005em;
     white-space: nowrap;
-    transition: background 0.15s, transform 0.1s;
+    transition: background var(--motion-quick), transform var(--motion-press);
 }
 .button:hover { opacity: 1; }
 .button:active { transform: scale(.985); }
