@@ -23,7 +23,7 @@ import {
     disconnect,
     getRoomIdFromUrl,
     on,
-    onBeforeReconnect,
+    onSessionLost,
 } from "./signaling.js";
 import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
@@ -132,7 +132,7 @@ registerMeshHandlers();
 registerChatHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
-onBeforeReconnect(removeAllPeers);
+onSessionLost(removeAllPeers);
 initDialogs({
     onSetupStart: startCall,
     onLeaveConfirmed: leaveCall,

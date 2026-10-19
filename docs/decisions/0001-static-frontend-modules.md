@@ -22,8 +22,8 @@ The page is markup, one stylesheet and ES modules, served from
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,
   and no module runs another module's code at load. Leaving the call and the
-  peer teardown on reconnect live there, so `signaling.js` never imports
-  `mesh.js`.
+  peer teardown when a session is lost (a refused resume or a reconnect that
+  gave up) live there, so `signaling.js` never imports `mesh.js`.
 - `signaling.js` offers `on(type, handler)`; each module registers the message
   types it handles, so a slice adds a handler instead of editing a `switch`.
 - `state.js` is the one mutable call state and has no DOM.
@@ -32,7 +32,8 @@ The page is markup, one stylesheet and ES modules, served from
 |---|---|
 | `app.js` | wiring, call start and leave, session message handlers |
 | `state.js` | call and local-media state |
-| `signaling.js` | WebSocket, `SIGNAL_TYPE`, reconnect, `send`, `on` |
+| `signaling.js` | WebSocket, `SIGNAL_TYPE`, reconnect and resume, `send`, `on` |
+| `replay.js` | the numbered log of sent frames that a resume resends |
 | `mesh.js` | peer connections, the ICE servers from `/api/ice-servers`, track sync to peers |
 | `recovery.js` | when and how often a failed peer connection restarts ICE |
 | `bandwidth.js` | the video upload budget and the cap on each video sender |

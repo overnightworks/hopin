@@ -91,7 +91,7 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
-HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone.
+HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone. Anyone whose connection drops keeps their place for 30 seconds and picks it up again without the call noticing; a host who is not back within those 30 seconds is away for the remaining 30 of the 60.
 
 ### Room Locking
 
@@ -148,6 +148,7 @@ src/hopin/
 ├── signaling/
 │   ├── handler.py        # WebSocket signaling for WebRTC
 │   ├── identity.py       # Who a socket is, resolved at the handshake
+│   ├── replay.py         # Numbered log of the frames a seat missed while away
 │   └── scheduler.py      # Timer port, injected so the host grace is testable
 ├── web/
 │   ├── routes.py         # HTTP route definitions
@@ -159,7 +160,8 @@ src/hopin/
 │           └── js/       # ES modules, app.js is the entry point
 │               ├── app.js        # Wiring, call start and leave
 │               ├── state.js      # Call and local-media state
-│               ├── signaling.js  # WebSocket, reconnect, message handlers
+│               ├── signaling.js  # WebSocket, resume, message handlers
+│               ├── replay.js     # Numbered log of the frames sent, resent after a resume
 │               ├── mesh.js       # Peer connections
 │               ├── recovery.js   # ICE restart of failed connections
 │               ├── bandwidth.js  # Upload cap by call size
@@ -200,8 +202,10 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | Signal | Direction | Purpose |
 |---|---|---|
 | `join` | Client → Server | Create or join a room |
-| `room_created` | Server → Client | Room created, here's the ID |
-| `existing_participants` | Server → Client | List of peers already in the room |
+| `room_created` | Server → Client | Room created, here's the ID, with your own `participant_id` and the `resume_token` of your seat |
+| `existing_participants` | Server → Client | List of peers already in the room, with your own `participant_id` and the `resume_token` of your seat |
+| `resume` | Client → Server | First frame of a new socket: take back the seat `{participant_id, token, last_seq, sent_floor}` after a drop |
+| `resumed` | Server → Client | The seat is yours again: the rotated `resume_token` and `last_seq`, the last client `seq` the server received |
 | `participant_joined` | Server → Client | New peer joined your room |
 | `participant_left` | Server → Client | Peer left your room |
 | `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
@@ -211,7 +215,9 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
-| `error` | Server → Client | a refusal or a bad frame, with its `reason` |
+| `error` | Server → Client | a refusal or a bad frame, with its `reason`; `resume_refused` answers every failed `resume` alike and the client joins afresh |
+
+Every server frame carries a `seq` and every client frame after a socket's first does too (`resume`, `resumed` and the `resume_refused` error aside, which belong to the new socket and carry none). Each side keeps its last 256 frames, so a resume replays what the other side missed in order, and a frame at or below the last `seq` received is ignored. A frame longer than 65536 characters is answered `invalid_message` and neither relayed nor kept. A newer `offer` or `answer` replaces the older descriptions and candidates to the same peer. The `resume_token` is a secret of the seat: it travels only in frames to its owner, changes with every resume, and is never logged.
 
 ### Coding Guidelines
 

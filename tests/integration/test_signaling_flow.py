@@ -5,7 +5,13 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.app import create_app
-from hopin.config.constants import HOST_GRACE_SECONDS, ErrorReason, RoomClosedReason, SignalType
+from hopin.config.constants import (
+    HOST_GRACE_SECONDS,
+    SUPERSEDED_CLOSE_CODE,
+    ErrorReason,
+    RoomClosedReason,
+    SignalType,
+)
 from hopin.config.settings import ServerSettings
 
 
@@ -16,10 +22,30 @@ def client():
         yield shared_portal_client
 
 
+def number_frames_after_the_first(websocket):
+    """Make send_json number each frame after the socket's first, as the browser does."""
+    send_unnumbered = websocket.send_json
+    sent = 0
+
+    def send_json(data):
+        nonlocal sent
+        send_unnumbered(data if sent == 0 else {**data, "seq": sent})
+        sent += 1
+
+    websocket.send_json = send_json
+    return websocket
+
+
+def without_seq(frame):
+    return {key: value for key, value in frame.items() if key != "seq"}
+
+
 @pytest.fixture
 def connect(client):
     with ExitStack() as sessions:
-        yield lambda account: sessions.enter_context(client.websocket_connect(f"/ws?id={account}"))
+        yield lambda account: number_frames_after_the_first(
+            sessions.enter_context(client.websocket_connect(f"/ws?id={account}"))
+        )
 
 
 def open_room(connect, account):
@@ -240,8 +266,8 @@ class TestEndRoom:
         host_ws.send_json({"type": SignalType.END_ROOM.value})
 
         expected = {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.ENDED.value}
-        assert host_ws.receive_json() == expected
-        assert guest_ws.receive_json() == expected
+        assert without_seq(host_ws.receive_json()) == expected
+        assert without_seq(guest_ws.receive_json()) == expected
         _late_ws, refusal = join_room(connect, "late", room_id)
         assert refusal["reason"] == ErrorReason.NOT_FOUND.value
 
@@ -338,3 +364,75 @@ class TestPeersAreServerMinted:
 
         response = ws.receive_json()
         assert response["reason"] == ErrorReason.INVALID_MESSAGE.value
+
+
+ABNORMAL_CLOSE_CODE = 4999
+
+
+def resume_frame(seat, **overrides):
+    return {
+        "type": SignalType.RESUME.value,
+        "participant_id": seat["participant_id"],
+        "token": seat["resume_token"],
+        "last_seq": seat["seq"],
+        "sent_floor": 0,
+        **overrides,
+    }
+
+
+@pytest.mark.integration
+class TestResume:
+    def test_guest_whose_socket_dropped_resumes_on_a_new_socket_and_the_host_hears_nothing(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, seat = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+        guest_ws.close(code=ABNORMAL_CLOSE_CODE)
+
+        resumed_ws = connect("guest")
+        resumed_ws.send_json(resume_frame(seat))
+        resumed = resumed_ws.receive_json()
+        resumed_ws.send_json({"type": SignalType.CHAT.value, "message": "back"})
+
+        assert resumed["type"] == SignalType.RESUMED.value
+        assert resumed["resume_token"] != seat["resume_token"]
+        assert host_ws.receive_json()["message"] == "back"
+
+    def test_chat_sent_while_the_guest_was_away_is_replayed_after_resumed(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, seat = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+        guest_ws.close(code=ABNORMAL_CLOSE_CODE)
+        host_ws.send_json({"type": SignalType.CHAT.value, "message": "while you were away"})
+
+        resumed_ws = connect("guest")
+        resumed_ws.send_json(resume_frame(seat))
+
+        assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
+        assert resumed_ws.receive_json()["message"] == "while you were away"
+
+    def test_refused_resume_leaves_the_socket_free_to_join_afresh(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, seat = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+        guest_ws.close(code=ABNORMAL_CLOSE_CODE)
+
+        retry_ws = connect("guest")
+        retry_ws.send_json(resume_frame(seat, **{"token": "not-the-token"}))
+        refusal = retry_ws.receive_json()
+        retry_ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+
+        assert refusal["reason"] == ErrorReason.RESUME_REFUSED.value
+        assert retry_ws.receive_json()["type"] == SignalType.EXISTING_PARTICIPANTS.value
+
+    def test_resume_while_the_old_socket_is_still_open_closes_the_old_one(self, connect):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, seat = join_room(connect, "guest", room_id)
+        host_ws.receive_json()
+
+        resumed_ws = connect("guest")
+        resumed_ws.send_json(resume_frame(seat))
+
+        assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
+        with pytest.raises(WebSocketDisconnect) as superseded:
+            guest_ws.receive_json()
+        assert superseded.value.code == SUPERSEDED_CLOSE_CODE

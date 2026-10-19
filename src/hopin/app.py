@@ -18,7 +18,8 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
         processors=[
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.add_log_level,
-            structlog.dev.ConsoleRenderer(),
+            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
+            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
         ],
     )
 

@@ -19,6 +19,7 @@ export async function loadIceServers() {
 }
 
 const connectionsByParticipant = new Map();
+const answerApplicationsByParticipant = new Map();
 let peersChanged = () => {};
 
 export function onPeersChanged(callback) {
@@ -85,6 +86,7 @@ async function handleOffer(data) {
         connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     const answer = await connection.createAnswer();
+    if (connection.signalingState === "closed") return;
     await connection.setLocalDescription(answer);
     send({
         type: SIGNAL_TYPE.ANSWER,
@@ -93,8 +95,16 @@ async function handleOffer(data) {
     });
 }
 
-async function handleAnswer(data) {
-    await connectionsByParticipant.get(data.from)?.setRemoteDescription(new RTCSessionDescription(data.sdp));
+function handleAnswer(data) {
+    const previous = answerApplicationsByParticipant.get(data.from) ?? Promise.resolve();
+    const applied = previous.then(() => applyAnswer(data));
+    answerApplicationsByParticipant.set(data.from, applied.catch(reportError));
+}
+
+async function applyAnswer(data) {
+    const connection = connectionsByParticipant.get(data.from);
+    if (connection?.signalingState !== "have-local-offer") return;
+    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 }
 
 async function handleIceCandidate(data) {
@@ -107,6 +117,7 @@ async function handleIceCandidate(data) {
 function removePeer(participantId) {
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
+    answerApplicationsByParticipant.delete(participantId);
     void capUploads();
     if (removeRemoteTile(participantId)) peersChanged();
 }
