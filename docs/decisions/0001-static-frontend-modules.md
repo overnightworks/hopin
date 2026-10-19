@@ -10,14 +10,27 @@ attributes would break.
 
 ## Decision
 
-The page is markup, one stylesheet and ES modules, served from
+The page is markup, two stylesheets and ES modules, served from
 `src/hopin/web/static/`:
 
 - `index.html` holds markup only: no inline script, `<style>`, `style=` or
-  `on*=` attribute, and every `src`/`href` is a same-origin absolute path. A
-  guard test (`tests/unit/test_web.py`) keeps it so.
-- `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/` and `js/` are
-  reachable, so the page has a single address.
+  `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
+  same-origin absolute path; an `<a href>` is only one of the two central legal
+  URLs, with `target="_blank" rel="noopener"`. CSP limits what the page
+  fetches, not where a link goes. A guard test (`tests/unit/test_web.py`) keeps
+  it so.
+- The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
+  then `hopin.css`. An upgrade of the first is a new vendoring, never an edit.
+- Every screen carries its own `<nav class="legal">` copy (a static page has no
+  templating). The guard test pins that each distinct `data-screen` value holds
+  exactly one, with both URLs; the call screen spans two elements and its nav
+  sits in the header.
+- HopIn reuses no class name that `ui-console.css` defines, because its grammar
+  classes would otherwise style HopIn's markup. Six names are defined in both
+  the picture and ui-console: `.btn` (now `.button`) and `.glyph` (now
+  `.brand-mark`) are renamed; `.field` and `.sub` (row 16), `.row` (rows 19 and
+  21) and `.banner` (row 21) are renamed by the row that builds them. A unit
+  test enforces the rule.
 - Showing and hiding is the `hidden` class. Styles set from script go through
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,
@@ -31,6 +44,8 @@ The page is markup, one stylesheet and ES modules, served from
 | Module | Owns |
 |---|---|
 | `app.js` | wiring, call start and leave, session message handlers |
+| `router.js` | the address and the screen: `/c/{id}` parsing, call links, the screen switch |
+| `home.js` | the home screen |
 | `state.js` | call and local-media state |
 | `signaling.js` | WebSocket, `SIGNAL_TYPE`, reconnect and resume, `send`, `on` |
 | `replay.js` | the numbered log of sent frames that a resume resends |
@@ -52,4 +67,4 @@ The page is markup, one stylesheet and ES modules, served from
   modules as written.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
-- Row 14 of #25 vendors `ui-console.css` v0.2.0 beside `hopin.css`.
+- `ui-console.css` is v0.2.0, byte-identical to its release and loaded first.
