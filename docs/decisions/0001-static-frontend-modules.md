@@ -46,8 +46,9 @@ The page is markup, two stylesheets and ES modules, served from
 | Module | Owns |
 |---|---|
 | `app.js` | wiring, call start and leave, session message handlers |
-| `router.js` | the address and the screen: `/c/{id}` parsing, call links, the screen switch |
+| `router.js` | the address and the screen: `/c/{id}` parsing, call links, the screen switch, `goHome` and `openCall` |
 | `home.js` | the home screen |
+| `end.js` | the end and refusal screens: `END_KIND`, the reasons they answer, `showEnd` |
 | `state.js` | call and local-media state |
 | `signaling.js` | WebSocket, `SIGNAL_TYPE`, reconnect and resume, `send`, `on` |
 | `replay.js` | the numbered log of sent frames that a resume resends |

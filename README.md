@@ -162,6 +162,7 @@ src/hopin/
 │               ├── app.js        # Wiring, call start and leave
 │               ├── router.js     # The address and the screen, call links
 │               ├── home.js       # Home screen
+│               ├── end.js        # End and refusal screens
 │               ├── state.js      # Call and local-media state
 │               ├── signaling.js  # WebSocket, resume, message handlers
 │               ├── replay.js     # Numbered log of the frames sent, resent after a resume
@@ -214,11 +215,11 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
 | `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
 | `end_room` | Client → Server | The host ends the call for everyone |
-| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out) or `ended` (the host ended it) |
+| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out; the frame carries `grace_seconds`) or `ended` (the host ended it) |
 | `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
-| `error` | Server → Client | a refusal or a bad frame, with its `reason`; `resume_refused` answers every failed `resume` alike and the client joins afresh |
+| `error` | Server → Client | a refusal or a bad frame, with its `reason` (the `full` refusal also carries `capacity`); `resume_refused` answers every failed `resume` alike and the client joins afresh |
 
 Every server frame carries a `seq` and every client frame after a socket's first does too (`resume`, `resumed` and the `resume_refused` error aside, which belong to the new socket and carry none). Each side keeps its last 256 frames, so a resume replays what the other side missed in order, and a frame at or below the last `seq` received is ignored. A frame longer than 65536 characters is answered `invalid_message` and neither relayed nor kept. A newer `offer` or `answer` replaces the older descriptions and candidates to the same peer. The `resume_token` is a secret of the seat: it travels only in frames to its owner, changes with every resume, and is never logged.
 

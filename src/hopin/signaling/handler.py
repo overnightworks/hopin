@@ -469,7 +469,7 @@ class SignalingHandler:
         self._cancel_grace(room_id)
         self._room_manager.remove_room(room_id)
 
-        frame = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
+        frame: dict[str, Any] = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
         if reason is RoomClosedReason.HOST_GONE:
             frame["grace_seconds"] = HOST_GRACE_SECONDS
         await self._send_all(recipients, frame)

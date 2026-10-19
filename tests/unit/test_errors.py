@@ -64,7 +64,6 @@ class TestRoomFullError:
         with pytest.raises(HopInError):
             raise RoomFullError("abc123", 6)
 
-
     def test_carries_the_capacity_into_its_frame_fields(self):
         assert RoomFullError("abc123", 6).frame_fields() == {"capacity": 6}
 

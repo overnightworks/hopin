@@ -879,7 +879,7 @@ def test_leaving_while_a_newcomers_offer_is_being_answered_raises_no_page_error(
 
     host.click("#leaveBtn")
     host.click("#leaveYes")
-    wait_for_status(host, "Left call")
+    host.locator("[data-screen=end]").wait_for(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     host.evaluate(RELEASE_ANSWER_CREATION)
 
     host.wait_for_function(ANSWER_CREATION_SETTLED, arg=settled_before, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
