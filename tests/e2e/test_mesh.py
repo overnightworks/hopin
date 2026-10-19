@@ -204,15 +204,16 @@ async () => (await import("/static/js/recovery.js")).ICE_DISCONNECTED_GRACE_MS
 VIDEO_CAP_FROM_MODULE = """
 async (remoteCount) => (await import("/static/js/bandwidth.js")).videoBitrateCap(remoteCount)
 """
+QUALITY_OF_ROUND_TRIP_FROM_MODULE = """
+async (seconds) => (await import("/static/js/quality.js")).qualityOfRoundTrip(seconds)
+"""
 BLANK_QUALITY_BARS = """
-() => document.querySelectorAll(".connection-quality .quality-bar").forEach((bar) => {
-    bar.className = "quality-bar inactive";
-    bar.style.background = "";
+() => document.querySelectorAll(".connection-quality").forEach((indicator) => {
+    delete indicator.dataset.quality;
 })
 """
 QUALITY_BARS_PAINTED = """
-() => [...document.querySelectorAll(".connection-quality .quality-bar")]
-    .some((bar) => !bar.classList.contains("inactive"))
+() => document.querySelector(".connection-quality[data-quality]") !== null
 """
 EVERY_VIDEO_CAP_IS = """
 ([peerCount, expectedCap]) => {
@@ -948,3 +949,16 @@ def test_sent_log_keeps_at_most_the_server_log_limit_and_raises_the_floor(
 
     assert report["floor"] == 3
     assert len(report["kept"]) == REPLAY_LOG_LIMIT
+
+
+@pytest.mark.parametrize(
+    ("round_trip_seconds", "expected_quality"),
+    [(0.05, "good"), (0.299, "good"), (0.3, "fair"), (0.499, "fair"), (0.5, "poor"), (2, "poor")],
+)
+def test_quality_of_round_trip_is_good_below_300_ms_fair_below_500_ms_and_poor_above(
+    open_person: Callable[..., Page], base_url: str, round_trip_seconds: float, expected_quality: str
+) -> None:
+    page = open_person()
+    page.goto(f"{base_url}/")
+
+    assert page.evaluate(QUALITY_OF_ROUND_TRIP_FROM_MODULE, round_trip_seconds) == expected_quality

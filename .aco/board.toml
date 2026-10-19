@@ -1,2 +1,3 @@
 body_contract = "block"
 merge_method = "squash"
+dependency_paths = ["uv.lock", "pyproject.toml", "Dockerfile", ".github/workflows/ci.yml", ".github/workflows/code-scanning.yml"]
