@@ -137,6 +137,7 @@ class TestJoining:
         response = p3_ws.receive_json()
         assert response["type"] == SignalType.ERROR.value
         assert response["reason"] == ErrorReason.FULL.value
+        assert response["capacity"] == 3
 
 
 @pytest.mark.integration

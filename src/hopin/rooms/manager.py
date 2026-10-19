@@ -36,7 +36,7 @@ class RoomManager:
         if room.locked and not room.is_hosted_by(account):
             raise RoomLockedError(room_id)
         if not room.has_free_seat_for(account, self._max_participants_per_room):
-            raise RoomFullError(room_id)
+            raise RoomFullError(room_id, self._max_participants_per_room)
         room.participants[participant_id] = Participant(participant_id=participant_id, account=account)
         return room
 

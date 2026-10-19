@@ -35,7 +35,7 @@ class TestErrorReason:
         [
             (RoomNotFoundError("abc123"), ErrorReason.NOT_FOUND),
             (RoomLockedError("abc123"), ErrorReason.LOCKED),
-            (RoomFullError("abc123"), ErrorReason.FULL),
+            (RoomFullError("abc123", 6), ErrorReason.FULL),
             (NotHostError("abc123"), ErrorReason.NOT_HOST),
             (InvalidMessageError("bad frame"), ErrorReason.INVALID_MESSAGE),
             (ResumeRefusedError(ResumeRefusalCause.MALFORMED), ErrorReason.RESUME_REFUSED),
@@ -57,12 +57,21 @@ class TestRoomNotFoundError:
 
 class TestRoomFullError:
     def test_stores_room_id(self):
-        error = RoomFullError("abc123")
+        error = RoomFullError("abc123", 6)
         assert error.room_id == "abc123"
 
     def test_is_catchable_as_base(self):
         with pytest.raises(HopInError):
-            raise RoomFullError("abc123")
+            raise RoomFullError("abc123", 6)
+
+
+    def test_carries_the_capacity_into_its_frame_fields(self):
+        assert RoomFullError("abc123", 6).frame_fields() == {"capacity": 6}
+
+
+class TestFrameFields:
+    def test_error_without_extra_fields_adds_nothing_to_its_frame(self):
+        assert RoomLockedError("abc123").frame_fields() == {}
 
 
 class TestRoomLockedError:

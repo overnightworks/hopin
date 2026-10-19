@@ -276,6 +276,16 @@ class TestHandleMessageRefusals:
         assert response["reason"] == reason.value
         assert response["message"]
 
+    @pytest.mark.asyncio
+    async def test_handle_message_full_room_refusal_carries_the_capacity(self, handler, room_manager):
+        ws = register_peer(handler, "sender")
+        raw_data = join_full_room(handler, room_manager)
+
+        await deliver(handler, "sender", raw_data)
+
+        response = json.loads(ws.send_text.call_args[0][0])
+        assert response["capacity"] == ROOM_LIMIT
+
 
 class TestJoinCreateRoom:
     @pytest.mark.asyncio
@@ -860,7 +870,11 @@ class TestHostGrace:
         assert room_manager.has_room(room.room_id)
         await scheduler.advance(1)
 
-        closed = {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.HOST_GONE.value}
+        closed = {
+            "type": SignalType.ROOM_CLOSED.value,
+            "reason": RoomClosedReason.HOST_GONE.value,
+            "grace_seconds": HOST_GRACE_SECONDS,
+        }
         assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == [closed]
         assert frames_of_type(sockets["p2"], SignalType.ROOM_CLOSED) == [closed]
         assert not room_manager.has_room(room.room_id)
