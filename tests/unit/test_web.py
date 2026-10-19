@@ -121,7 +121,22 @@ UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
 CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+VOID_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
 URL_ATTRIBUTES = {"src", "href", "xlink:href"}
 
 
