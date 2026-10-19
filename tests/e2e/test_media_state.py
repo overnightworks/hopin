@@ -4,8 +4,14 @@ from typing import Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, start_call
-from tests.e2e.test_stage import REFUSE_THE_CAMERA
+from tests.e2e.conftest import (
+    DESKTOP,
+    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    PHONE,
+    REFUSE_THE_CAMERA,
+    join,
+    start_call,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -18,12 +24,6 @@ OWN_MUTE_MARK = "#localContainer .name .muted"
 OTHER_VIDEO_HAS_A_PICTURE = """
 (selector) => document.querySelector(selector).videoWidth > 0
 """
-
-
-def join(open_person: Callable[..., Page], invite_link: str, form_factor: dict[str, Any]) -> Page:
-    guest = open_person(**form_factor)
-    guest.goto(invite_link)
-    return guest
 
 
 def host_and_guest(open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]) -> tuple[Page, Page]:

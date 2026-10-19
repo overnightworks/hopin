@@ -21,8 +21,10 @@ from tests.e2e.conftest import (
     INVITE_LINK_PATTERN,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     PHONE,
+    STOP_SHARING_LABEL,
     expect_both_legal_links,
     press_start_call,
+    share_the_screen,
     start_call,
 )
 
@@ -94,7 +96,6 @@ MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
 TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
 MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
 REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
-SHARING = "Stop Sharing"
 PRESS_LEAVE = "document.getElementById('leaveBtn').click()"
 LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
 LEFTOVERS = f"() => ({{ liveTracks: ({LIVE_TRACK_COUNT})(), socketsOpened: window.socketsOpened }})"
@@ -208,11 +209,6 @@ def host_leaves(call: Call) -> None:
     leave_with_confirmation(call.host)
 
 
-def share_screen(person: Page) -> None:
-    person.click("#screenBtn")
-    expect(person.locator("#screenBtn")).to_have_text(SHARING)
-
-
 def test_guest_who_leaves_sees_the_left_screen_and_no_live_media_track(call: Call) -> None:
     guest_leaves(call)
 
@@ -289,7 +285,7 @@ def start_sharing_the_screen(person: Page, base_url: str) -> None:
 
 def stop_sharing_the_screen(person: Page, base_url: str) -> None:
     start_call(person, base_url)
-    share_screen(person)
+    share_the_screen(person)
     person.evaluate(HOLD_MEDIA)
     person.click("#screenBtn")
 
@@ -327,7 +323,7 @@ def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped
 
 
 def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_call: HostedCall) -> None:
-    share_screen(hosted_call.host)
+    share_the_screen(hosted_call.host)
 
     leave_with_confirmation(hosted_call.host)
 
@@ -343,7 +339,7 @@ def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no
     host.wait_for_function(MEDIA_REQUEST_IS_HELD)
     host.click("#screenBtn")
     host.evaluate(RELEASE_MEDIA)
-    expect(host.locator("#screenBtn")).to_have_text(SHARING)
+    expect(host.locator("#screenBtn")).to_have_text(STOP_SHARING_LABEL)
 
     leave_with_confirmation(host)
 

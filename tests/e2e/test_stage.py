@@ -9,10 +9,14 @@ from playwright.sync_api import Page, ViewportSize, expect
 from tests.e2e.conftest import (
     DESKTOP,
     INVITE_LINK_PATTERN,
-    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     PHONE,
+    REFUSE_THE_CAMERA,
+    SHARE_THE_SCREEN_FROM_A_CANVAS,
+    join,
     press_start_call,
+    share_the_screen,
     start_call,
+    stop_the_screen_share,
 )
 
 pytestmark = pytest.mark.e2e
@@ -76,16 +80,6 @@ EVERY_BUTTON_AND_THE_OWN_TILE_TAKE_NO_TIME = """
     getComputedStyle(button).transitionDuration.split(", ").every((duration) => duration === "0s")
 )
 """
-SHARE_THE_SCREEN_FROM_A_CANVAS = """
-navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
-"""
-REFUSE_THE_CAMERA = """
-const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-navigator.mediaDevices.getUserMedia = (constraints) => {
-    if (constraints.video) return Promise.reject(new DOMException("no camera", "NotFoundError"));
-    return nativeGetUserMedia(constraints);
-};
-"""
 Box = dict[str, float]
 
 
@@ -144,12 +138,6 @@ def assert_other_tile_fills_stage_beside_the_picture_in_picture(host: Page) -> N
 def start_hosting(open_person: Callable[..., Page], base_url: str) -> tuple[Page, str]:
     host = open_person(**DESKTOP)
     return host, start_call(host, base_url)
-
-
-def join(open_person: Callable[..., Page], invite_link: str) -> Page:
-    guest = open_person(**DESKTOP)
-    guest.goto(invite_link)
-    return guest
 
 
 def test_stage_alone_fills_the_stage_with_the_own_tile(open_person: Callable[..., Page], base_url: str) -> None:
@@ -237,12 +225,10 @@ def test_stage_unmirrors_the_own_screen_and_mirrors_the_camera_again(
     own_video = host.locator("#localVideo")
     expect(own_video).to_have_css("transform", MIRRORED)
 
-    host.click("#screenBtn")
-    expect(host.locator("#screenBtn")).to_have_text("Stop Sharing", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    share_the_screen(host)
     expect(own_video).to_have_css("transform", NOT_MIRRORED)
 
-    host.click("#screenBtn")
-    expect(host.locator("#screenBtn")).to_have_text("Share Screen", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    stop_the_screen_share(host)
     expect(own_video).to_have_css("transform", MIRRORED)
 
 

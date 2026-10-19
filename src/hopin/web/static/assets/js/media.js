@@ -120,8 +120,9 @@ async function stopScreenShare() {
         mediaSession,
         () => navigator.mediaDevices.getUserMedia({ video: true }),
         (cameraStream) => {
-            replaceVideoTrack(cameraStream.getVideoTracks()[0]);
-            showLocalStream(state.localStream);
+            const cameraTrack = cameraStream.getVideoTracks()[0];
+            cameraTrack.enabled = state.videoEnabled;
+            replaceVideoTrack(cameraTrack);
         },
     );
 }
