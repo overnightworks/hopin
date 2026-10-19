@@ -207,7 +207,7 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 
 | Signal | Direction | Purpose |
 |---|---|---|
-| `join` | Client → Server | Create or join a room |
+| `join` | Client → Server | Create or join a room; a seat joins at most one room, and a second `join` is answered `invalid_message` |
 | `room_created` | Server → Client | Room created, here's the ID, with your own `participant_id` and the `resume_token` of your seat |
 | `existing_participants` | Server → Client | List of peers already in the room, with your own `participant_id` and the `resume_token` of your seat |
 | `resume` | Client → Server | First frame of a new socket: take back the seat `{participant_id, token, last_seq, sent_floor}` after a drop |
@@ -218,7 +218,7 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
 | `media_state` | Client → Server → Client | my microphone and camera are on or off (`audio`, `video`); relayed to the rest of the room with `from`; not kept by the server |
 | `end_room` | Client → Server | The host ends the call for everyone |
-| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out; the frame carries `grace_seconds`) or `ended` (the host ended it) |
+| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out; the frame carries `grace_seconds`) or `ended` (the host ended it); after sending it the server forgets every seat of the room and closes its sockets, so a later `resume` is refused |
 | `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |
 | `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
 | `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
