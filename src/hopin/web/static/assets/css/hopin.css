@@ -344,8 +344,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     color: var(--on-stage);
     font-size: 13px;
     font-weight: 600;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 .num { font-variant-numeric: tabular-nums; }
 .grid { position: absolute; inset: 44px 8px var(--stage-bottom) 8px; }
@@ -373,10 +373,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .vid { position: absolute; inset: 0; overflow: hidden; }
 .vid.off { background: var(--stage-3); }
 .av {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
     width: clamp(44px, 30cqmin, 112px);
     height: clamp(44px, 30cqmin, 112px);
     border-radius: 50%;
@@ -386,6 +382,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     color: #FFFFFF;
 }
 .av svg { width: 56%; height: 56%; }
+.vid.off .av {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
 .tile .name {
     position: absolute;
     left: 10px;
@@ -394,6 +396,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     max-width: calc(100% - 20px);
     display: inline-flex;
     align-items: center;
+    gap: 6px;
     height: 28px;
     padding: 0 10px;
     border-radius: 999px;

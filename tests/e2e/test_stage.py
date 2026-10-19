@@ -5,7 +5,14 @@ from typing import Any
 import pytest
 from playwright.sync_api import Page, ViewportSize, expect
 
-from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, start_call
+from tests.e2e.conftest import (
+    DESKTOP,
+    INVITE_LINK_PATTERN,
+    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    PHONE,
+    press_start_call,
+    start_call,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -15,7 +22,9 @@ PHONE_VIEWPORT = ViewportSize(**PHONE["viewport"])
 LARGEST_CALL = 6
 DESKTOP_SHAPES = {2: (2, 1), 3: (3, 1), 4: (2, 2), 5: (3, 2), 6: (3, 2)}
 PHONE_SHAPES = {3: (1, 3), 4: (2, 2), 5: (2, 3), 6: (2, 3)}
-PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14}
+PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14, "inset_bottom": 14}
+MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)"
+NOT_MIRRORED = "none"
 CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
 BOXES_OF_THE_STAGE = """
 () => {
@@ -30,8 +39,22 @@ BOXES_OF_THE_STAGE = """
     };
 }
 """
+ELEMENT_AT_THE_CENTER_OF_THE_OWN_TILE_IS_ITS_OWN = """
+() => {
+    const own = document.getElementById("localContainer");
+    const { x, y, width, height } = own.getBoundingClientRect();
+    return own.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+}
+"""
 SHARE_THE_SCREEN_FROM_A_CANVAS = """
 navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
+"""
+REFUSE_THE_CAMERA = """
+const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+navigator.mediaDevices.getUserMedia = (constraints) => {
+    if (constraints.video) return Promise.reject(new DOMException("no camera", "NotFoundError"));
+    return nativeGetUserMedia(constraints);
+};
 """
 Box = dict[str, float]
 
@@ -82,7 +105,10 @@ def assert_other_tile_fills_stage_beside_the_picture_in_picture(host: Page) -> N
     assert boxes["stage"]["right"] - boxes["self"]["right"] == pytest.approx(
         PHONE_PICTURE_IN_PICTURE["inset_right"], abs=POSITION_TOLERANCE_PIXELS
     )
-    assert boxes["self"]["bottom"] < boxes["stage"]["bottom"]
+    assert boxes["stage"]["bottom"] - boxes["self"]["bottom"] == pytest.approx(
+        PHONE_PICTURE_IN_PICTURE["inset_bottom"], abs=POSITION_TOLERANCE_PIXELS
+    )
+    assert host.evaluate(ELEMENT_AT_THE_CENTER_OF_THE_OWN_TILE_IS_ITS_OWN)
 
 
 def start_hosting(open_person: Callable[..., Page], base_url: str) -> tuple[Page, str]:
@@ -139,16 +165,16 @@ def test_stage_unmirrors_the_own_screen_and_mirrors_the_camera_again(
     host = open_person(**DESKTOP)
     host.add_init_script(SHARE_THE_SCREEN_FROM_A_CANVAS)
     start_call(host, base_url)
-    own_tile = host.locator("#localContainer")
-    expect(own_tile).to_have_class("tile self mirror")
+    own_video = host.locator("#localVideo")
+    expect(own_video).to_have_css("transform", MIRRORED)
 
     host.click("#screenBtn")
     expect(host.locator("#screenBtn")).to_have_text("Stop Sharing", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    expect(own_tile).not_to_have_class("tile self mirror")
+    expect(own_video).to_have_css("transform", NOT_MIRRORED)
 
     host.click("#screenBtn")
     expect(host.locator("#screenBtn")).to_have_text("Share Screen", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    expect(own_tile).to_have_class("tile self mirror")
+    expect(own_video).to_have_css("transform", MIRRORED)
 
 
 def test_stage_with_the_camera_off_shows_the_person_icon_on_the_neutral_surface(
@@ -158,6 +184,20 @@ def test_stage_with_the_camera_off_shows_the_person_icon_on_the_neutral_surface(
 
     host.click("#videoBtn")
 
+    placeholder = host.locator("#localPlaceholder")
+    expect(placeholder.locator(".av svg")).to_be_visible()
+    expect(placeholder).to_have_css("background-color", CAMERA_OFF_SURFACE)
+
+
+def test_stage_without_a_camera_shows_the_person_icon_on_the_own_tile(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    host = open_person(**DESKTOP)
+    host.add_init_script(REFUSE_THE_CAMERA)
+
+    press_start_call(host, base_url)
+
+    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
     placeholder = host.locator("#localPlaceholder")
     expect(placeholder.locator(".av svg")).to_be_visible()
     expect(placeholder).to_have_css("background-color", CAMERA_OFF_SURFACE)

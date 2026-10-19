@@ -1,10 +1,14 @@
 import os
 from unittest.mock import patch
 
+import pytest
+from pydantic import ValidationError
+
 from hopin.config.constants import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     MAX_PARTICIPANTS_PER_ROOM,
+    MIN_PARTICIPANTS_PER_ROOM,
     ROOM_ID_LENGTH,
     STUN_SERVER_URL,
     SignalType,
@@ -75,3 +79,12 @@ class TestServerSettings:
             assert settings.port == 9090
             assert settings.max_participants_per_room == 3
             assert settings.stun_server == "stun:stun.example.test:3478"
+
+    @pytest.mark.parametrize("limit", [MIN_PARTICIPANTS_PER_ROOM, MAX_PARTICIPANTS_PER_ROOM])
+    def test_participant_limit_at_the_ends_of_the_range_is_accepted(self, limit):
+        assert ServerSettings(max_participants_per_room=limit).max_participants_per_room == limit
+
+    @pytest.mark.parametrize("limit", [MIN_PARTICIPANTS_PER_ROOM - 1, MAX_PARTICIPANTS_PER_ROOM + 1])
+    def test_participant_limit_outside_the_range_is_refused(self, limit):
+        with pytest.raises(ValidationError):
+            ServerSettings(max_participants_per_room=limit)
