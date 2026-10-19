@@ -727,6 +727,47 @@ class TestChat:
         p1_ws.send_text.assert_not_called()
 
 
+class TestMediaState:
+    @pytest.mark.asyncio
+    async def test_media_state_reaches_every_other_participant_with_from(self, handler, room_manager):
+        _, sockets = seat_in_room(handler, room_manager, "host1", "p1", "p2")
+
+        await deliver(handler, "p1", {"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
+
+        expected = {"type": SignalType.MEDIA_STATE.value, "from": "p1", "audio": False, "video": True}
+        assert sent_frames(sockets["host1"]) == [expected]
+        assert sent_frames(sockets["p2"]) == [expected]
+        assert sockets["p1"].send_text.call_count == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "state",
+        [
+            pytest.param({"audio": "no", "video": True}, id="audio_not_boolean"),
+            pytest.param({"audio": True, "video": 1}, id="video_not_boolean"),
+            pytest.param({"audio": True}, id="video_missing"),
+            pytest.param({}, id="both_missing"),
+        ],
+    )
+    async def test_media_state_without_boolean_audio_and_video_is_answered_invalid_message(
+        self, handler, room_manager, state
+    ):
+        _, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+
+        await deliver(handler, "p1", {"type": SignalType.MEDIA_STATE.value, **state})
+
+        assert [frame["reason"] for frame in sent_frames(sockets["p1"])] == [ErrorReason.INVALID_MESSAGE.value]
+        assert sockets["host1"].send_text.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_media_state_without_room_is_ignored(self, handler):
+        ws = register_peer(handler, "c1")
+
+        await deliver(handler, "c1", {"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
+
+        assert ws.send_text.call_count == 0
+
+
 class TestSend:
     @pytest.mark.asyncio
     async def test_send_to_connected_client(self, handler):

@@ -172,6 +172,7 @@ src/hopin/
 │               ├── media.js      # Camera, microphone, screen share
 │               ├── quality.js    # Round-trip indicator
 │               ├── chat.js       # Chat panel
+│               ├── media-state.js # Who is muted or has the camera off
 │               ├── sounds.js     # Notification sounds
 │               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
 │               ├── pip.js        # Dragging the phone picture-in-picture
@@ -215,6 +216,7 @@ Messages are JSON over WebSocket. The server identifies each socket at the hands
 | `participant_left` | Server → Client | Peer left your room |
 | `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
 | `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
+| `media_state` | Client → Server → Client | my microphone and camera are on or off (`audio`, `video`); relayed to the rest of the room with `from`; not kept by the server |
 | `end_room` | Client → Server | The host ends the call for everyone |
 | `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out; the frame carries `grace_seconds`) or `ended` (the host ended it) |
 | `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |

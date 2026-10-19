@@ -7,9 +7,30 @@ const localContainer = document.getElementById("localContainer");
 const stage = document.getElementById("stage");
 const tiles = document.querySelector("#videoGrid .tiles");
 
-function showPlaceholder(video, placeholder) {
-    video.classList.add("hidden");
-    placeholder.classList.remove("hidden");
+const localMuteMark = localContainer.querySelector(".muted");
+const remoteMediaStates = new Map();
+const remotesWithoutPicture = new Set();
+
+function renderRemoteVideo(participantId) {
+    const video = document.getElementById(`video-${participantId}`);
+    const placeholder = document.getElementById(`placeholder-${participantId}`);
+    if (!video) return;
+    const lacksVideoTrack = video.srcObject !== null && video.srcObject.getVideoTracks().length === 0;
+    const announcedOff = remoteMediaStates.get(participantId)?.video === false;
+    const showsVideo = !lacksVideoTrack && !announcedOff && !remotesWithoutPicture.has(participantId);
+    video.classList.toggle("hidden", !showsVideo);
+    placeholder.classList.toggle("hidden", showsVideo);
+}
+
+function renderRemoteMuteMark(participantId) {
+    const muteMark = document.querySelector(`#container-${participantId} .muted`);
+    if (!muteMark) return;
+    muteMark.classList.toggle("hidden", remoteMediaStates.get(participantId)?.audio !== false);
+}
+
+function renderRemoteMediaState(participantId) {
+    renderRemoteVideo(participantId);
+    renderRemoteMuteMark(participantId);
 }
 
 function updateGridLayout() {
@@ -32,6 +53,12 @@ export function updateLocalPreview() {
     const showsVideo = state.hasCamera && state.videoEnabled;
     localVideo.classList.toggle("hidden", !showsVideo);
     localPlaceholder.classList.toggle("hidden", showsVideo);
+    localMuteMark.classList.toggle("hidden", state.audioEnabled);
+}
+
+export function setRemoteMediaState(participantId, mediaState) {
+    remoteMediaStates.set(participantId, mediaState);
+    renderRemoteMediaState(participantId);
 }
 
 export function addRemoteTile(participantId) {
@@ -51,18 +78,22 @@ export function addRemoteTile(participantId) {
 
     const label = document.createElement("span");
     label.className = "name";
-    label.textContent = `Peer ${participantId.slice(0, 6)}`;
+    label.append(localMuteMark.cloneNode(true), `Peer ${participantId.slice(0, 6)}`);
 
     container.append(video, placeholder, label, createQualityIndicator());
     tiles.appendChild(container);
     updateGridLayout();
+    renderRemoteMediaState(participantId);
 
     video.addEventListener("loadedmetadata", () => {
-        if (video.videoWidth === 0) showPlaceholder(video, placeholder);
+        if (video.videoWidth === 0) remotesWithoutPicture.add(participantId);
+        renderRemoteVideo(participantId);
     });
 }
 
 export function removeRemoteTile(participantId) {
+    remoteMediaStates.delete(participantId);
+    remotesWithoutPicture.delete(participantId);
     const container = document.getElementById(`container-${participantId}`);
     if (!container) return false;
     container.remove();
@@ -72,10 +103,7 @@ export function removeRemoteTile(participantId) {
 
 export function showRemoteStream(participantId, stream) {
     const video = document.getElementById(`video-${participantId}`);
-    const placeholder = document.getElementById(`placeholder-${participantId}`);
     if (!video) return;
     video.srcObject = stream;
-    if (stream.getVideoTracks().length === 0 && placeholder) {
-        showPlaceholder(video, placeholder);
-    }
+    renderRemoteVideo(participantId);
 }
