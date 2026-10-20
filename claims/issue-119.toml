@@ -1,0 +1,8 @@
+claim_id = "97d3569a9ae64cbca350d7660bb2f9ed"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "cd2cb63c67a19bcb2c58730c1aa9b21eca1d51d9"
+branch = "claude/issue-119-cam-off-releases-camera"
+scope = ["src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/media-state.js", "src/hopin/web/static/assets/js/media.js", "src/hopin/web/static/assets/js/stage.js", "src/hopin/web/static/assets/js/state.js", "tests/e2e/conftest.py", "tests/e2e/test_camera_off.py", "tests/e2e/test_media.py"]
+opened_commit = "fd802496f784a0a17b7e11aabb29219b46bc5cfa"
+whole_reason = "Releasing the camera removes the disabled-track state, so hasCamera, the share's end, the share refusal, the recorder and the sender assertions change together."
