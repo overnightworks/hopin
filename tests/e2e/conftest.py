@@ -172,9 +172,9 @@ window.heldMediaRequests = 0;
 let mediaHeld = null;
 window.holdMedia = () => {
     mediaHeld = new Promise((release) => {
-        window.releaseMedia = (failure) => {
+        window.releaseMedia = () => {
             mediaHeld = null;
-            release(failure);
+            release();
         };
     });
 };
@@ -182,8 +182,7 @@ const recorded = (request) => async (constraints) => {
     window.mediaRequests += 1;
     if (mediaHeld) {
         window.heldMediaRequests += 1;
-        const failure = await mediaHeld;
-        if (failure) throw new DOMException(failure, failure);
+        await mediaHeld;
     }
     const stream = await request(constraints);
     window.requestedTracks.push(...stream.getTracks());
@@ -208,7 +207,6 @@ window.WebSocket = class extends NativeWebSocket {
 """
 HOLD_MEDIA = "window.holdMedia()"
 RELEASE_MEDIA = "window.releaseMedia()"
-FAIL_MEDIA = "window.releaseMedia('NotFoundError')"
 MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
 MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
 TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
@@ -318,14 +316,18 @@ def wait_until_the_prejoin_media_answered(host: Page) -> None:
     expect(host.locator(PREJOIN_START)).to_be_enabled(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
-def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
-    open_prejoin(host, base_url)
-    wait_until_the_prejoin_media_answered(host)
-    camera = host.locator(PREJOIN_CAMERA)
+def press_through_the_prejoin(person: Page, *, with_camera: bool = True) -> None:
+    wait_until_the_prejoin_media_answered(person)
+    camera = person.locator(PREJOIN_CAMERA)
     if not with_camera and camera.get_attribute("aria-pressed") == "false":
         camera.click()
         expect(camera).to_have_attribute("aria-pressed", "true")
-    host.click(PREJOIN_START)
+    person.click(PREJOIN_START)
+
+
+def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
+    open_prejoin(host, base_url)
+    press_through_the_prejoin(host, with_camera=with_camera)
 
 
 def start_call(host: Page, base_url: str, *, with_camera: bool = True) -> str:
@@ -347,6 +349,15 @@ def add_init_scripts(person: Page, scripts: Sequence[str]) -> None:
     person.add_init_script("\n;\n".join(scripts))
 
 
+def open_prejoin_by_link(person: Page, invite_link: str) -> None:
+    person.goto(invite_link)
+
+
+def join_by_link(person: Page, invite_link: str, *, with_camera: bool = True) -> None:
+    open_prejoin_by_link(person, invite_link)
+    press_through_the_prejoin(person, with_camera=with_camera)
+
+
 def join(
     open_person: Callable[..., Page],
     invite_link: str,
@@ -358,7 +369,7 @@ def join(
     if page_errors is not None:
         record_page_errors(guest, page_errors)
     add_init_scripts(guest, init_scripts)
-    guest.goto(invite_link)
+    join_by_link(guest, invite_link)
     return guest
 
 

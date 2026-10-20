@@ -56,7 +56,7 @@
         <div class="topbar">
             <button id="prejoinHomeBtn" class="brand brand-button" type="button"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
             <button id="prejoinBackBtn" class="iconbtn ghost" type="button" aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-            <span class="topbar-title">New call</span>
+            <span id="prejoinTitle" class="topbar-title"></span>
             <span class="topbar-balance"></span>
         </div>
         <div class="prejoin-main">
@@ -71,9 +71,9 @@
             </div>
             <div class="self-row"><span class="av av-28"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span><b>You</b></div>
             <div class="prejoin-side">
-                <h2>Ready to start?</h2>
-                <p class="prejoin-sub">You'll get a link to invite people.</p>
-                <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled>Start with camera and mic</button>
+                <h2 id="prejoinHeading"></h2>
+                <p id="prejoinSub" class="prejoin-sub"></p>
+                <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled></button>
             </div>
         </div>
         <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>

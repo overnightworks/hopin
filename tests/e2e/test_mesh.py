@@ -31,6 +31,7 @@ from tests.e2e.conftest import (
     TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
+    join_by_link,
     start_call,
     turn_the_camera_on,
     wait_for_frames_to_advance,
@@ -395,7 +396,7 @@ def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Ca
         if without_camera is Side.GUEST:
             guest.add_init_script(REFUSE_THE_CAMERA)
         invite_link = start_call(host, base_url, with_camera=without_camera is not Side.HOST)
-        guest.goto(invite_link)
+        join_by_link(guest, invite_link)
         for person in (host, guest):
             _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
             person.clock.pause_at(datetime.now(tz=UTC) + CLOCK_PAUSE_LEAD)
@@ -537,7 +538,7 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
         person.add_init_script(RECORD_PEER_CONNECTIONS)
     invite_link = start_call(people[0], base_url)
     for joined, person in enumerate(people[1:], start=2):
-        person.goto(invite_link)
+        join_by_link(person, invite_link)
         for earlier in people[:joined]:
             wait_for_peer_count(earlier, joined - 1)
         if joined == 3:
@@ -842,7 +843,7 @@ def test_leaving_while_a_newcomers_offer_is_being_answered_raises_no_page_error(
     started_before, settled_before = host.evaluate(ANSWER_CREATIONS_COUNTED)
     host.evaluate(HOLD_ANSWER_CREATION)
     newcomer = open_person()
-    newcomer.goto(connected_pair.invite_link)
+    join_by_link(newcomer, connected_pair.invite_link)
     _wait_for(host, ANSWER_CREATION_STARTED, started_before)
 
     host.click("#leaveBtn")
