@@ -1,9 +1,10 @@
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 import pytest
 from playwright.sync_api import Page, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from tests.e2e.conftest import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
@@ -659,8 +660,8 @@ def test_leaving_while_the_answer_hand_over_is_pending_raises_no_page_error(
 
 
 WATCH_THE_TILE_PICTURE = """
-([selector, sampleIntervalMilliseconds, pictureFloor]) => {
-    const video = document.querySelector(selector);
+([videoSelector, shownVideoSelector, sampleIntervalMilliseconds, pictureFloor]) => {
+    const video = document.querySelector(videoSelector);
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d", { willReadFrequently: true });
     const drawsAPicture = () => {
@@ -673,7 +674,7 @@ WATCH_THE_TILE_PICTURE = """
         }
         return brightness / (canvas.width * canvas.height * 3) > pictureFloor;
     };
-    const showsTheVideo = () => !video.classList.contains("hidden");
+    const showsTheVideo = () => video.matches(shownVideoSelector);
     const watch = { shown: [], samples: [] };
     new MutationObserver(() => {
         if (showsTheVideo()) watch.shown.push(drawsAPicture());
@@ -685,10 +686,11 @@ WATCH_THE_TILE_PICTURE = """
     window.tilePictureWatch = watch;
 }
 """
-LAST_SAMPLES_SHOW_THE_PICTURE = """
-(count) => {
-    const last = window.tilePictureWatch.samples.slice(-count);
-    return last.length === count && last.every((sample) => sample.shows && sample.picture);
+ENOUGH_SAMPLES_AND_THE_LAST_SHOW_THE_PICTURE = """
+([minimumSamples, lastCount]) => {
+    const samples = window.tilePictureWatch.samples;
+    const last = samples.slice(-lastCount);
+    return samples.length >= minimumSamples && last.every((sample) => sample.shows && sample.picture);
 }
 """
 STOP_THE_TILE_PICTURE_WATCH = """
@@ -702,8 +704,11 @@ TILE_SAMPLE_INTERVAL_MILLISECONDS = 5
 # Mean channel value of the drawn tile; an empty canvas and a black frame both stay at or below it
 PICTURE_BRIGHTNESS_FLOOR = 16
 LAST_SAMPLES_WITH_THE_PICTURE = 3
-# A page whose timers are throttled to once a second takes fewer samples than this before the picture settles
-MINIMUM_TILE_SAMPLES = 10
+# Chromium runs the timers of a page that is not in front at most once a second
+THROTTLED_TIMER_INTERVAL_MILLISECONDS = 1_000
+# Twice what a throttled page samples during the settle wait, so even with the samples it took before the wait such
+# a page times out instead of passing thin; a page in front takes this many in a few hundred milliseconds
+MINIMUM_TILE_SAMPLES = 2 * MEDIA_FLOWING_TIMEOUT_MILLISECONDS // THROTTLED_TIMER_INTERVAL_MILLISECONDS
 
 
 @dataclass
@@ -712,10 +717,15 @@ class WatchedCameraLessPerson:
     person: Page
 
 
+class TileSample(TypedDict):
+    shows: bool
+    picture: bool
+
+
 @dataclass
 class TilePictureWatch:
     shown: list[bool]
-    samples: list[dict[str, bool]]
+    samples: list[TileSample]
 
 
 def _the_host_watches_the_guest(
@@ -751,20 +761,36 @@ def watched_camera_less_person(
 
 def _watch_the_tile_picture(watcher: Page) -> None:
     watcher.bring_to_front()
-    watcher.evaluate(WATCH_THE_TILE_PICTURE, [OTHER_VIDEO, TILE_SAMPLE_INTERVAL_MILLISECONDS, PICTURE_BRIGHTNESS_FLOOR])
+    watcher.evaluate(
+        WATCH_THE_TILE_PICTURE,
+        [OTHER_VIDEO, PICTURE_ONLY_ON_THE_TILES, TILE_SAMPLE_INTERVAL_MILLISECONDS, PICTURE_BRIGHTNESS_FLOOR],
+    )
+
+
+def _stop_the_tile_picture_watch(watcher: Page) -> TilePictureWatch:
+    return TilePictureWatch(**watcher.evaluate(STOP_THE_TILE_PICTURE_WATCH))
 
 
 def _stop_the_tile_picture_watch_once_the_picture_settles(watcher: Page) -> TilePictureWatch:
-    watcher.wait_for_function(
-        LAST_SAMPLES_SHOW_THE_PICTURE, arg=LAST_SAMPLES_WITH_THE_PICTURE, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
-    )
-    return TilePictureWatch(**watcher.evaluate(STOP_THE_TILE_PICTURE_WATCH))
+    try:
+        watcher.wait_for_function(
+            ENOUGH_SAMPLES_AND_THE_LAST_SHOW_THE_PICTURE,
+            arg=[MINIMUM_TILE_SAMPLES, LAST_SAMPLES_WITH_THE_PICTURE],
+            timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+        )
+    except PlaywrightTimeoutError as timeout:
+        samples = _stop_the_tile_picture_watch(watcher).samples
+        last_samples = samples[-LAST_SAMPLES_WITH_THE_PICTURE:]
+        raise AssertionError(
+            f"the tile picture did not settle: {len(samples)} samples where at least {MINIMUM_TILE_SAMPLES} must end "
+            f"in {LAST_SAMPLES_WITH_THE_PICTURE} with the picture, the last were {last_samples}"
+        ) from timeout
+    return _stop_the_tile_picture_watch(watcher)
 
 
 def _expect_the_video_shown_only_with_a_picture(watch: TilePictureWatch) -> None:
     assert watch.shown, "the tile never turned to its video while watched"
     assert all(watch.shown), f"the tile showed its video before it could draw a frame: {watch.shown}"
-    assert len(watch.samples) >= MINIMUM_TILE_SAMPLES, f"only {len(watch.samples)} samples"
     shown_samples = [sample["picture"] for sample in watch.samples if sample["shows"]]
     assert all(shown_samples), f"a sample showed the video without a picture: {shown_samples}"
 
