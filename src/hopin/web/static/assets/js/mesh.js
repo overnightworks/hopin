@@ -112,6 +112,7 @@ async function answerOffer(data) {
         connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     await sendLocalVideoInAnswer(connection);
+    if (connection.signalingState === "closed") return;
     const answer = await connection.createAnswer();
     if (connection.signalingState === "closed") return;
     await connection.setLocalDescription(answer);
