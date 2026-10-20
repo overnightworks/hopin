@@ -20,7 +20,6 @@ from tests.e2e.conftest import (
     DESKTOP,
     HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
-    INVITE_LINK_PATTERN,
     LIVE_TRACK_COUNT,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     MEDIA_REQUEST_IS_HELD,
@@ -32,6 +31,7 @@ from tests.e2e.conftest import (
     STOP_SHARING_LABEL,
     TRACKS_WERE_REQUESTED,
     add_init_scripts,
+    call_link_of,
     expect_both_legal_links,
     join_by_link,
     open_prejoin_by_link,
@@ -226,7 +226,7 @@ def stop_sharing_the_screen(person: Page, base_url: str) -> None:
 
 def turn_on_a_camera_after_starting_without_one(person: Page, base_url: str) -> None:
     press_start_call(person, base_url, with_camera=False)
-    expect(person.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    call_link_of(person)
     person.evaluate(HOLD_MEDIA)
     person.click("#videoBtn")
 

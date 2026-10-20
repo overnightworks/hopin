@@ -15,7 +15,6 @@ from tests.e2e.conftest import (
     HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
     ICON_ONLY_ON_THE_TILES,
-    INVITE_LINK_PATTERN,
     LOCAL_VIDEO_PLAYING,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     MEDIA_REQUEST_COUNT,
@@ -30,6 +29,7 @@ from tests.e2e.conftest import (
     REFUSE_THE_CAMERA,
     RELEASE_MEDIA,
     add_init_scripts,
+    call_link_of,
     expect_both_legal_links,
     join,
     open_prejoin,
@@ -198,7 +198,7 @@ def open_answered_prejoin_of(base_url: str, start_a_call_to_join: Callable[..., 
             open_prejoin(person.page, base_url)
         else:
             calling_host = start_a_call_to_join(calling_host_scripts)
-            open_prejoin_by_link(person.page, calling_host.input_value("#shareUrl"))
+            open_prejoin_by_link(person.page, call_link_of(calling_host))
         wait_until_the_prejoin_media_answered(person.page)
         return calling_host
 
@@ -248,7 +248,7 @@ def test_prejoin_plays_the_own_camera_mirrored_with_both_on_and_reaches_no_serve
     if calling_host is None:
         expect(person.page).to_have_url(f"{base_url}/")
     else:
-        expect(person.page).to_have_url(calling_host.input_value("#shareUrl"))
+        expect(person.page).to_have_url(call_link_of(calling_host))
         expect(calling_host.locator(OTHER_TILE)).to_have_count(0)
         expect(calling_host.locator(PARTICIPANT_COUNT)).to_have_text("1")
 
@@ -262,9 +262,9 @@ def test_started_call_puts_its_link_in_the_address_without_a_new_history_entry(
     history_length = host.evaluate(HISTORY_LENGTH)
 
     press_through_the_prejoin(host)
-    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    call_link_of(host)
 
-    expect(host).to_have_url(host.input_value("#shareUrl"))
+    expect(host).to_have_url(call_link_of(host))
     assert host.evaluate(HISTORY_LENGTH) == history_length
 
 
@@ -367,7 +367,7 @@ def test_prejoin_choice_is_what_the_call_starts_with(
     expect(chooser.page.locator("#status")).to_have_text(IN_CALL)
     expect_the_own_view_shows_the_choice(chooser.page, choice, form_factor, alone=calling_host is None)
     other = calling_host or join(
-        open_person, chooser.page.input_value("#shareUrl"), form_factor, (RECORD_PEER_CONNECTIONS,), page_errors
+        open_person, call_link_of(chooser.page), form_factor, (RECORD_PEER_CONNECTIONS,), page_errors
     )
     for person in (chooser.page, other):
         person.wait_for_function(A_CONNECTION_IS_CONNECTED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
@@ -531,7 +531,7 @@ def test_guest_prejoin_ignores_join_while_its_first_media_request_is_pending(
 ) -> None:
     calling_host = start_a_call_to_join()
     guest = open_recorded(scripts_after_the_recorder=(HOLD_MEDIA,))
-    open_prejoin_by_link(guest.page, calling_host.input_value("#shareUrl"))
+    open_prejoin_by_link(guest.page, call_link_of(calling_host))
 
     expect_the_controls_to_wait_for_the_release(guest, PREJOIN_START, JOIN_BOTH_ON)
 

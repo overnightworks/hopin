@@ -1,15 +1,8 @@
 import { initChat, registerChatHandlers } from "./chat.js";
-import {
-    hideLockButton,
-    hideShareBox,
-    initControls,
-    renderMuteButton,
-    renderVideoButton,
-    showLockButton,
-    showShareLink,
-} from "./controls.js";
+import { hideLockButton, initControls, renderMuteButton, renderVideoButton, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
+import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
 import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {
@@ -77,7 +70,7 @@ function tearDownCall() {
     stopLocalMedia();
     disconnect();
     showLocalStream(null);
-    hideShareBox();
+    hideWaitingCard();
     hideLockButton();
     hideParticipantCount();
     state.isHost = false;
@@ -106,7 +99,8 @@ function registerSessionHandlers() {
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
         showCallAddress(state.roomId);
-        showShareLink(callUrl(state.roomId));
+        setCallLink(callUrl(state.roomId));
+        showWaitingCard();
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
@@ -155,6 +149,7 @@ onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);
 initDialogs({ onLeaveConfirmed: leaveCall });
 initControls({ onLeaveRequested: requestLeave });
+initInvite();
 initChat();
 initPip();
 initEnd();

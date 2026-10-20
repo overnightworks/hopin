@@ -3,39 +3,13 @@ import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 
-const COPIED_LABEL_MS = 2000;
 const CAMERA_ERROR_STATUS_MS = 2000;
 
-const shareBox = document.getElementById("shareBox");
-const shareUrl = document.getElementById("shareUrl");
-const copyButton = document.getElementById("copyBtn");
 const muteButton = document.getElementById("muteBtn");
 const videoButton = document.getElementById("videoBtn");
 const screenButton = document.getElementById("screenBtn");
 const lockButton = document.getElementById("lockBtn");
 const leaveButton = document.getElementById("leaveBtn");
-
-function flashCopiedLabel() {
-    copyButton.textContent = "Copied!";
-    setTimeout(() => {
-        copyButton.textContent = "Copy";
-    }, COPIED_LABEL_MS);
-}
-
-export function showShareLink(url) {
-    shareUrl.value = url;
-    shareBox.classList.add("visible");
-    navigator.clipboard
-        .writeText(url)
-        .then(flashCopiedLabel)
-        .catch(() => {
-            // clipboard access can be denied; the share box still shows the link to copy by hand
-        });
-}
-
-export function hideShareBox() {
-    shareBox.classList.remove("visible");
-}
 
 export function showLockButton(isLocked) {
     lockButton.textContent = isLocked ? "Unlock Room" : "Lock Room";
@@ -100,12 +74,6 @@ async function handleScreenClick() {
     }
 }
 
-function handleCopyClick() {
-    shareUrl.select();
-    void navigator.clipboard.writeText(shareUrl.value);
-    flashCopiedLabel();
-}
-
 export function initControls({ onLeaveRequested }) {
     muteButton.addEventListener("click", handleMuteClick);
     videoButton.addEventListener("click", () => {
@@ -115,6 +83,5 @@ export function initControls({ onLeaveRequested }) {
         void handleScreenClick();
     });
     lockButton.addEventListener("click", handleLockClick);
-    copyButton.addEventListener("click", handleCopyClick);
     leaveButton.addEventListener("click", onLeaveRequested);
 }

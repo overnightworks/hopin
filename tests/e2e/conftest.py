@@ -330,12 +330,18 @@ def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> 
     press_through_the_prejoin(host, with_camera=with_camera)
 
 
+def call_link_of(host: Page) -> str:
+    link = host.locator("#waitingLink")
+    expect(link).to_have_text(INVITE_LINK_PATTERN)
+    return link.text_content() or ""
+
+
 def start_call(host: Page, base_url: str, *, with_camera: bool = True) -> str:
     press_start_call(host, base_url, with_camera=with_camera)
-    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    call_link = call_link_of(host)
     if with_camera:
         host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    return host.input_value("#shareUrl")
+    return call_link
 
 
 def record_page_errors(person: Page, page_errors: list[str]) -> Page:
