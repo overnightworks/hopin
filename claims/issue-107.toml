@@ -1,0 +1,8 @@
+claim_id = "e46d99e2c5904db7b7db0e46ffd2976d"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "1b097ed4355070d5d1842b00c09d32cb27fcaaf7"
+branch = "claude/issue-107-host-pre-join-preview-and-toggles"
+scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/dialogs.js", "src/hopin/web/static/assets/js/media.js", "src/hopin/web/static/assets/js/prejoin.js", "src/hopin/web/static/assets/js/router.js", "src/hopin/web/static/assets/js/stage.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_end.py", "tests/e2e/test_prejoin.py", "tests/e2e/test_shell.py", "tests/unit/test_web.py"]
+opened_commit = "4dd9b54c64b5a255eb0db5d4146cd2088d1c2458"
+whole_reason = "The pre-join replaces the setup dialog on one start path: its screen, the media it opens, the start that consumes them, the helpers and start-up tests every e2e start goes through, and the docs naming the modules change together or the start path breaks."
