@@ -1,0 +1,7 @@
+claim_id = "19228f6efd1646ada82b5bb26849fe42"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "97276671ba4a82b3c2052e7aa2040a062c47018c"
+branch = "claude/issue-98-signaling-and-error-tests-less-code"
+scope = ["tests/unit/test_errors.py", "tests/unit/test_signaling.py", "tests/unit/test_signaling_resume.py"]
+opened_commit = "47aa966a66268f940c71e72927e1473a33aaff12"
