@@ -1,7 +1,0 @@
-claim_id = "23d13032f1b24c6f81390591d00b9484"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "da386132c3c4c010bf8908c2f8f1c00e65388030"
-branch = "claude/issue-95-e2e-waits-prove-what-they-claim"
-scope = ["tests/e2e/conftest.py", "tests/e2e/test_media.py", "tests/e2e/test_mesh.py"]
-opened_commit = "cd6175ecbd62a069f31dcbb05e207ad1eaaa8ced"
