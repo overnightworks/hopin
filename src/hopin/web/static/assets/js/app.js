@@ -38,7 +38,7 @@ import {
 } from "./status.js";
 import { initHome } from "./home.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
-import { SCREEN, callUrl, getRoomIdFromUrl, showScreen } from "./router.js";
+import { SCREEN, callUrl, getRoomIdFromUrl, showCallAddress, showScreen } from "./router.js";
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -87,8 +87,9 @@ function tearDownCall() {
 }
 
 function leaveCall() {
+    const wasHost = state.isHost;
     tearDownCall();
-    showEnd(getRoomIdFromUrl() === null ? END_KIND.HOST_LEFT : END_KIND.LEFT);
+    showEnd(wasHost ? END_KIND.HOST_LEFT : END_KIND.LEFT);
 }
 
 function requestLeave() {
@@ -104,6 +105,7 @@ function registerSessionHandlers() {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
+        showCallAddress(state.roomId);
         showShareLink(callUrl(state.roomId));
         setStatus("In call", "connected");
         updateLockUI();
@@ -158,7 +160,8 @@ initPip();
 initEnd();
 initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });
 initPrejoin({
-    onStart: () => {
+    onStart: (kind) => {
+        state.isHost = kind === PREJOIN_KIND.HOST;
         void startCall();
     },
 });

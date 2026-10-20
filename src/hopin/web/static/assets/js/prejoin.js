@@ -41,7 +41,8 @@ const message = document.getElementById("prejoinMessage");
 const wayHomeButtons = [document.getElementById("prejoinHomeBtn"), document.getElementById("prejoinBackBtn")];
 
 let mediaRequestPending = false;
-let texts = KIND_TEXTS[PREJOIN_KIND.HOST];
+let openKind = PREJOIN_KIND.HOST;
+let texts = KIND_TEXTS[openKind];
 
 function startLabel(cameraOn, microphoneOn) {
     const labels = texts.buttonLabels;
@@ -119,6 +120,7 @@ function showTexts() {
 }
 
 export function openPrejoin(kind) {
+    openKind = kind;
     texts = KIND_TEXTS[kind];
     showTexts();
     showScreen(SCREEN.PREJOIN);
@@ -130,7 +132,7 @@ export function initPrejoin({ onStart }) {
     cameraButton.addEventListener("click", () => {
         void toggleCamera();
     });
-    startButton.addEventListener("click", onStart);
+    startButton.addEventListener("click", () => onStart(openKind));
     for (const button of wayHomeButtons) {
         button.addEventListener("click", goHome);
     }

@@ -15,6 +15,7 @@ from tests.e2e.conftest import (
     HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
     ICON_ONLY_ON_THE_TILES,
+    INVITE_LINK_PATTERN,
     LOCAL_VIDEO_PLAYING,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     MEDIA_REQUEST_COUNT,
@@ -68,6 +69,7 @@ navigator.mediaDevices.getUserMedia = async () => {
 };
 """
 PREVIEW_PLAYING = "() => document.getElementById('prejoinVideo').videoWidth > 0"
+HISTORY_LENGTH = "() => history.length"
 SOCKETS_OPENED = "() => window.socketsOpened"
 LIVE_TRACKS_OF_KIND = """
 (kind) => window.requestedTracks.filter((track) => track.kind === kind && track.readyState === "live")
@@ -249,6 +251,34 @@ def test_prejoin_plays_the_own_camera_mirrored_with_both_on_and_reaches_no_serve
         expect(person.page).to_have_url(calling_host.input_value("#shareUrl"))
         expect(calling_host.locator(OTHER_TILE)).to_have_count(0)
         expect(calling_host.locator(PARTICIPANT_COUNT)).to_have_text("1")
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_started_call_puts_its_link_in_the_address_without_a_new_history_entry(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    host = record_page_errors(open_person(**form_factor), page_errors)
+    open_prejoin(host, base_url)
+    history_length = host.evaluate(HISTORY_LENGTH)
+
+    press_through_the_prejoin(host)
+    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+
+    expect(host).to_have_url(host.input_value("#shareUrl"))
+    assert host.evaluate(HISTORY_LENGTH) == history_length
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_guest_who_opens_the_hosts_address_joins_the_call(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    host = record_page_errors(open_person(**form_factor), page_errors)
+    start_call(host, base_url)
+
+    guest = join(open_person, host.url, form_factor, page_errors=page_errors)
+
+    for person in (host, guest):
+        expect(person.locator(OTHER_TILE)).to_have_count(1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
