@@ -26,6 +26,7 @@ from tests.e2e.conftest import (
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
     RELEASE_MEDIA,
+    add_init_scripts,
     join,
     open_prejoin,
     record_page_errors,
@@ -114,8 +115,7 @@ class Choice:
 def open_host(open_person: Callable[..., Page], page_errors: list[str]) -> Callable[..., Host]:
     def open_recorded_host(form_factor: dict[str, Any] = DESKTOP, media_refusals: Sequence[str] = ()) -> Host:
         host = Host(record_page_errors(open_person(**form_factor), page_errors))
-        for script in (*media_refusals, RECORD_MEDIA_TRACKS, COUNT_SOCKETS, RECORD_PEER_CONNECTIONS):
-            host.page.add_init_script(script)
+        add_init_scripts(host.page, (*media_refusals, RECORD_MEDIA_TRACKS, COUNT_SOCKETS, RECORD_PEER_CONNECTIONS))
         host.page.on("request", host.record_ice_server_request)
         return host
 
@@ -305,8 +305,9 @@ def test_prejoin_brand_or_back_opens_the_start_page_as_a_new_document(
 
 
 def hold_the_first_request(host: Host, base_url: str) -> None:
-    host.page.add_init_script(HOLD_MEDIA)
-    open_prejoin(host.page, base_url)
+    host.page.goto(f"{base_url}/")
+    host.page.evaluate(HOLD_MEDIA)
+    host.page.get_by_role("button", name="Start a call").click()
 
 
 def hold_the_camera_coming_back(host: Host, base_url: str) -> None:

@@ -341,6 +341,12 @@ def record_page_errors(person: Page, page_errors: list[str]) -> Page:
     return person
 
 
+def add_init_scripts(person: Page, scripts: Sequence[str]) -> None:
+    # Playwright leaves the order of separate init scripts undefined, and a script may build on
+    # one before it (the media recorder wraps a refusal stub), so they run as one script, in order.
+    person.add_init_script("\n;\n".join(scripts))
+
+
 def join(
     open_person: Callable[..., Page],
     invite_link: str,
@@ -351,8 +357,7 @@ def join(
     guest = open_person(**form_factor)
     if page_errors is not None:
         record_page_errors(guest, page_errors)
-    for script in init_scripts:
-        guest.add_init_script(script)
+    add_init_scripts(guest, init_scripts)
     guest.goto(invite_link)
     return guest
 
