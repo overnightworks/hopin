@@ -54,7 +54,10 @@ function updateLockUI() {
 }
 
 // The host's media opened on the pre-join; a guest's opens while the ICE servers load.
+// The buttons show the carried state before the call screen does, so no press acts on a stale label.
 function startCall(mediaOpening = Promise.resolve()) {
+    renderVideoButton();
+    renderMuteButton();
     showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;

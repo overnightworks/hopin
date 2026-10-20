@@ -4,7 +4,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import pytest
-from playwright.sync_api import Locator, Page, Request, expect
+from playwright.sync_api import Locator, Page, Request, Route, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
 from tests.e2e.conftest import (
@@ -12,6 +12,7 @@ from tests.e2e.conftest import (
     DESKTOP,
     FORM_FACTORS,
     HOLD_MEDIA,
+    ICE_SERVERS_URL_PATTERN,
     ICON_ONLY_ON_THE_TILES,
     LOCAL_VIDEO_PLAYING,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
@@ -249,6 +250,30 @@ def test_prejoin_choice_is_what_the_call_starts_with_for_the_host_and_the_guest(
     expect_the_guest_sees_the_choice(guest, choice)
     sent = {"video": int(choice.camera), "audioEnabled": [choice.microphone]}
     assert host.page.evaluate(SENT_TRACKS) == sent
+
+
+def test_prejoin_off_choice_shows_on_the_call_buttons_while_the_ice_servers_load(
+    open_host: Callable[..., Host], base_url: str
+) -> None:
+    host = open_host()
+    open_answered_prejoin(host, base_url)
+    for selector in (PREJOIN_CAMERA, PREJOIN_MICROPHONE):
+        press_until_off(host.page, selector)
+    held_ice_requests: list[Route] = []
+    host.page.route(ICE_SERVERS_URL_PATTERN, lambda route: held_ice_requests.append(route))
+    with host.page.expect_request(ICE_SERVERS_URL_PATTERN):
+        host.page.click(PREJOIN_START)
+    microphone = host.page.locator("#muteBtn")
+
+    expect(microphone).to_have_text("Mic Off")
+    assert host.page.evaluate(LIVE_AUDIO_TRACKS_ENABLED) == [False]
+    expect(host.page.locator("#videoBtn")).to_have_text("Cam Off")
+    assert host.page.evaluate(LIVE_VIDEO_TRACK_COUNT) == 0
+
+    microphone.click()
+
+    expect(microphone).to_have_text("Mic On")
+    assert host.page.evaluate(LIVE_AUDIO_TRACKS_ENABLED) == [True]
 
 
 def expect_the_desktop_texts(prejoin: Locator) -> None:
