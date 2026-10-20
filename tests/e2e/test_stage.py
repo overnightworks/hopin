@@ -8,10 +8,10 @@ from playwright.sync_api import Page, ViewportSize, expect
 
 from tests.e2e.conftest import (
     DESKTOP,
-    INVITE_LINK_PATTERN,
     PHONE,
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
+    call_link_of,
     join,
     press_start_call,
     share_the_screen,
@@ -252,7 +252,7 @@ def test_stage_without_a_camera_shows_the_person_icon_on_the_own_tile(
 
     press_start_call(host, base_url)
 
-    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    call_link_of(host)
     placeholder = host.locator("#localPlaceholder")
     expect(placeholder.locator(".av svg")).to_be_visible()
     expect(placeholder).to_have_css("background-color", CAMERA_OFF_SURFACE)
