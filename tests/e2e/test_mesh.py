@@ -12,15 +12,18 @@ from playwright.sync_api import Expect, Page, WebSocketRoute
 
 from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, SignalType
 from tests.e2e.conftest import (
+    AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     COUNT_OFFERS,
     EVERY_VIDEO_CAP_IS,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
+    ONE_CAP_PER_CONNECTION,
     OPEN_PEER_COUNT_REACHED,
     OTHER_CAMERA_OFF,
     OTHER_TILE,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
+    TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
     start_call,
@@ -37,8 +40,6 @@ expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 CLOCK_PAUSE_LEAD = timedelta(seconds=5)
 QUALITY_POLL_INTERVAL_MS = 3000
-OFFER_FRAME_TYPE = "offer"
-ANSWER_FRAME_TYPE = "answer"
 CHAT_FRAME_TYPE = "chat"
 RESUME_FRAME_TYPE = "resume"
 RESUMED_FRAME_TYPE = "resumed"
@@ -146,13 +147,6 @@ REJECT_NEXT_ANSWER_APPLICATION = """
 INJECTED_REJECTION = "answer application rejected on purpose"
 ANSWER_CREATIONS_COUNTED = "() => [window.answerCreationsStarted, window.answerCreationsSettled]"
 ANSWER_CREATION_STARTED = "(before) => window.answerCreationsStarted > before"
-AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
-() => new Promise((done) => {
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => done();
-    channel.port2.postMessage(0);
-})
-"""
 ANSWER_CREATION_SETTLED = "(before) => window.answerCreationsSettled > before"
 RECONNECT_TO_SAME_SEAT = 'async () => (await import("/static/js/signaling.js")).connect()'
 LOCAL_DESCRIPTIONS_SET = "(count) => window.localDescriptionCount >= count"
@@ -229,7 +223,7 @@ class OfferDrops:
     remaining: int = 0
 
     def should_drop(self, frame: str | bytes) -> bool:
-        if self.remaining <= 0 or json.loads(frame)["type"] != OFFER_FRAME_TYPE:
+        if self.remaining <= 0 or json.loads(frame)["type"] != SignalType.OFFER:
             return False
         self.remaining -= 1
         return True
@@ -530,7 +524,7 @@ def test_restart_delay_follows_the_schedule_and_repeats_the_last_delay(
 
 @pytest.mark.parametrize(
     ("remote_count", "expected_cap"),
-    [(1, 2_000_000), (2, 1_000_000), (3, 666_666), (4, 500_000), (5, 400_000)],
+    [(*ONE_CAP_PER_CONNECTION,), (*TWO_CAPS_PER_CONNECTION,), (3, 666_666), (4, 500_000), (5, 400_000)],
 )
 def test_video_bitrate_cap_divides_the_budget_among_the_remote_peers(
     open_person: Callable[..., Page], base_url: str, remote_count: int, expected_cap: int
@@ -559,7 +553,7 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
         for earlier in people[:joined]:
             wait_for_peer_count(earlier, joined - 1)
         if joined == 3:
-            _wait_for_video_caps(people[:joined], 2, 1_000_000)
+            _wait_for_video_caps(people[:joined], *TWO_CAPS_PER_CONNECTION)
 
     _wait_for_video_caps(people, 5, 400_000)
     for person in people:
@@ -723,15 +717,15 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
     guest, host = connected_pair.guest, connected_pair.host
     first_delay, second_delay = _reconnect_delays(guest)[:2]
     guest_before, host_before = str(guest.evaluate(SDP_UFRAG)), str(host.evaluate(SDP_UFRAG))
-    answers_before = len(_frames_of(connected_pair.guest_tap, "downstream", ANSWER_FRAME_TYPE))
-    answers_sent = len(_frames_of(connected_pair.host_tap, "upstream", ANSWER_FRAME_TYPE))
+    answers_before = len(_frames_of(connected_pair.guest_tap, "downstream", SignalType.ANSWER))
+    answers_sent = len(_frames_of(connected_pair.host_tap, "upstream", SignalType.ANSWER))
     guest_tap, host_tap = connected_pair.guest_tap, connected_pair.host_tap
     guest_tap.blackhole_downstream = True
     guest_tap.refused_connections = 1
     guest.evaluate(HOLD_ANSWER_APPLICATION)
 
     connected_pair.force_failed_on(guest)
-    pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", ANSWER_FRAME_TYPE)) > answers_before)
+    pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", SignalType.ANSWER)) > answers_before)
     connected_pair.cut(guest)
     guest_tap.blackhole_downstream = False
     guest.clock.run_for(first_delay)
@@ -740,7 +734,7 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
     pump_until(guest, lambda: _restart_offers(guest) == 2)
     guest.clock.run_for(second_delay - (_restart_delay(guest, 0) - first_delay))
     wait_for_status(guest, IN_CALL)
-    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", ANSWER_FRAME_TYPE)) == answers_sent + 2)
+    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", SignalType.ANSWER)) == answers_sent + 2)
     _say_in_chat(host, "sent after both answers")
     expect(guest.locator("#chatMessages .chat-msg.other")).to_have_count(1)
     guest.evaluate(RELEASE_ANSWER_APPLICATION)
@@ -1051,11 +1045,11 @@ def _wait_for_offers_and_candidates_after_them(connected_pair: ConnectedPair, of
     host, host_tap = connected_pair.host, connected_pair.host_tap
 
     def offers_reached() -> bool:
-        return len(_frames_of(host_tap, "downstream", OFFER_FRAME_TYPE)) >= offers
+        return len(_frames_of(host_tap, "downstream", SignalType.OFFER)) >= offers
 
     pump_until(host, offers_reached)
     last_offer_at = max(
-        index for index, message in enumerate(host_tap.downstream) if message["type"] == OFFER_FRAME_TYPE
+        index for index, message in enumerate(host_tap.downstream) if message["type"] == SignalType.OFFER
     )
     last_offer_ufrag = _ufrag_of_description(host_tap.downstream[last_offer_at]["sdp"]["sdp"])
 
@@ -1070,8 +1064,8 @@ def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_p
     connected_pair: ConnectedPair,
 ) -> None:
     guest, host, host_tap = connected_pair.guest, connected_pair.host, connected_pair.host_tap
-    offers_before = len(_frames_of(host_tap, "downstream", OFFER_FRAME_TYPE))
-    answers_before = len(_frames_of(host_tap, "upstream", ANSWER_FRAME_TYPE))
+    offers_before = len(_frames_of(host_tap, "downstream", SignalType.OFFER))
+    answers_before = len(_frames_of(host_tap, "upstream", SignalType.ANSWER))
     guest_before, host_before = str(guest.evaluate(SDP_UFRAG)), str(host.evaluate(SDP_UFRAG))
     host.evaluate(HOLD_ANSWER_CREATION)
 
@@ -1081,7 +1075,7 @@ def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_p
     second_offer_ufrag = str(guest.evaluate(SDP_UFRAG))
     host.evaluate(RELEASE_ANSWER_CREATION)
 
-    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", ANSWER_FRAME_TYPE)) == answers_before + 2)
+    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", SignalType.ANSWER)) == answers_before + 2)
     host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
     assert second_offer_ufrag != guest_before
     assert _ice_ufrag_of_remote_description(host) == second_offer_ufrag
@@ -1095,13 +1089,13 @@ def test_leaving_behind_a_queued_restart_offer_leaves_no_tile_and_no_connection_
     connected_pair: ConnectedPair,
 ) -> None:
     guest, host, host_tap = connected_pair.guest, connected_pair.host, connected_pair.host_tap
-    offers_before = len(_frames_of(host_tap, "downstream", OFFER_FRAME_TYPE))
+    offers_before = len(_frames_of(host_tap, "downstream", SignalType.OFFER))
     started_before, settled_before = host.evaluate(ANSWER_CREATIONS_COUNTED)
     host.evaluate(HOLD_ANSWER_CREATION)
     connected_pair.force_failed_on(guest)
     host.wait_for_function(ANSWER_CREATION_STARTED, arg=started_before, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     guest.clock.run_for(_restart_delay(guest, 0))
-    pump_until(host, lambda: len(_frames_of(host_tap, "downstream", OFFER_FRAME_TYPE)) == offers_before + 2)
+    pump_until(host, lambda: len(_frames_of(host_tap, "downstream", SignalType.OFFER)) == offers_before + 2)
 
     guest.click("#leaveBtn")
     wait_for_peer_count(host, 0)

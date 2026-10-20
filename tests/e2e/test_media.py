@@ -6,6 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
+    AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     AUDIBLE_LEVEL_FLOOR,
     AUDIO_SAMPLE_INTERVAL_MILLISECONDS,
     COUNT_OFFERS,
@@ -15,6 +16,7 @@ from tests.e2e.conftest import (
     ICON_ONLY_ON_THE_TILES,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
+    ONE_CAP_PER_CONNECTION,
     OTHER_CAMERA_OFF,
     OTHER_VIDEO,
     PICTURE_ONLY_ON_THE_TILES,
@@ -23,6 +25,7 @@ from tests.e2e.conftest import (
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     TILE_AUDIO_IS_ALIVE_AND_UNMUTED,
     TILE_AUDIO_LEVEL,
+    TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     expect_the_tile_to_play_audio,
     inbound_per_connection,
@@ -37,9 +40,6 @@ from tests.e2e.conftest import (
 )
 
 pytestmark = pytest.mark.e2e
-
-ONE_CAP_PER_CONNECTION = [1, 2_000_000]
-TWO_CAPS_PER_CONNECTION = [2, 1_000_000]
 
 CAMERA_TRACK_AND_ITS_SENDER_TRACK = """
 () => {
@@ -478,23 +478,20 @@ RTCPeerConnection.prototype.setRemoteDescription = function (description) {
 """
 HOLD_THE_ANSWER_HAND_OVER = """
 window.heldHandOvers = 0;
+window.settledHandOvers = 0;
 window.handOverGate = new Promise((release) => { window.releaseHandOvers = release; });
 const nativeReplaceTrack = RTCRtpSender.prototype.replaceTrack;
 RTCRtpSender.prototype.replaceTrack = function (track) {
     window.heldHandOvers += 1;
     const replaced = nativeReplaceTrack.call(this, track);
+    const countSettled = () => { window.settledHandOvers += 1; };
+    replaced.then(countSettled, countSettled);
     return window.handOverGate.then(() => replaced);
 };
 """
 HAND_OVER_HELD = "() => window.heldHandOvers > 0"
+HAND_OVER_SETTLED = "() => window.settledHandOvers === 1"
 RELEASE_THE_HAND_OVER = "() => window.releaseHandOvers()"
-AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
-() => new Promise((done) => {
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => done();
-    channel.port2.postMessage(0);
-})
-"""
 HELD_OFFERS_REACHED = "(count) => window.heldOffers === count"
 RELEASE_THE_HELD_OFFERS = "() => window.releaseOffers()"
 EVERY_TILE_VIDEO = (
@@ -650,5 +647,6 @@ def test_leaving_while_the_answer_hand_over_is_pending_raises_no_page_error(
     later_joiner.click("#leaveBtn")
     wait_for_peer_count(host, 0)
     host.evaluate(RELEASE_THE_HAND_OVER)
+    host.wait_for_function(HAND_OVER_SETTLED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
     host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)

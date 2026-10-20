@@ -92,6 +92,15 @@ EVERY_VIDEO_CAP_IS = """
     return open.length === peerCount && caps.length === peerCount && caps.every((cap) => cap === expectedCap);
 }
 """
+ONE_CAP_PER_CONNECTION = [1, 2_000_000]
+TWO_CAPS_PER_CONNECTION = [2, 1_000_000]
+AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
+() => new Promise((done) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => done();
+    channel.port2.postMessage(0);
+})
+"""
 VIDEO_TRANSCEIVERS_PER_CONNECTION = """
 () => window.recordedConnections
     .filter((connection) => connection.signalingState !== "closed")
