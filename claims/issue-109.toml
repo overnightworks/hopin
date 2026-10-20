@@ -1,0 +1,8 @@
+claim_id = "17fc2cb9034948ddac7b81071237b446"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "98e4639d92d9abf35fe6f64290b8cd515ee01cdf"
+branch = "claude/issue-109-guest-pre-join"
+scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/prejoin.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_call.py", "tests/e2e/test_end.py", "tests/e2e/test_ice_servers.py", "tests/e2e/test_media_state.py", "tests/e2e/test_mesh.py", "tests/e2e/test_prejoin.py"]
+opened_commit = "0cc59b9551054ecd1a416737427d0c463bfec1ec"
+whole_reason = "The guest's pre-join changes how every e2e test joins by link, so the one join helper and all its callers move in the same change; a half-moved suite fails in CI."
