@@ -1,7 +1,0 @@
-claim_id = "8b6d0de88b7c4c1da2178794e064b09e"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "80b9ac964d3996bad6a3fb84baac2391d765a5ba"
-branch = "claude/issue-99-tile-keeps-the-icon-until-a-frame"
-scope = ["src/hopin/web/static/assets/js/stage.js", "tests/e2e/test_media.py"]
-opened_commit = "6f998476d8d3d9eb22265009bb48cb026aec2957"
