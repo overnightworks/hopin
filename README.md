@@ -131,7 +131,7 @@ make test       # Run unit tests with coverage
 make test-all   # Run all tests (unit + integration)
 make dead       # Run vulture dead code detection
 make e2e        # Run the browser end-to-end tests (needs Chromium: uv run playwright install chromium)
-make check      # Run all checks (lint + test + dead)
+make check      # Run all checks (lint + layout + test + dead)
 make run        # Start the server
 ```
 
@@ -228,7 +228,7 @@ Every server frame carries a `seq` and every client frame after a socket's first
 
 ### Coding Guidelines
 
-See [AGENTS.md](AGENTS.md) for HopIn's own facts (stack, commands, tests, CI); the generic coding standards are the global contract's.
+See [AGENTS.md](AGENTS.md) for HopIn's own facts (stack, commands, tests, CI).
 
 ## Scaling Considerations
 

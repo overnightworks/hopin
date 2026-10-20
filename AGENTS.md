@@ -8,13 +8,17 @@ file holds only HopIn's own facts. `CLAUDE.md` imports this file.
 ## Stack
 
 Python 3.12+, `uv`, `ruff` (lint and format), `mypy --strict`, `pytest`,
-`vulture` (dead code), `pre-commit`. Runtime settings are environment variables
-loaded through Pydantic Settings.
+`vulture` (dead code), `structlog` (logging, in `app.py` and `signaling/`).
+Runtime settings are environment variables loaded through Pydantic Settings.
+
+Pre-commit (`.pre-commit-config.yaml`) runs `ruff --fix`, `ruff-format`,
+`mypy --strict` and a local pytest hook (`not integration and not e2e`).
 
 ## Commands
 
 ```bash
 make install   # uv sync --all-extras
+make format    # ruff check --fix + ruff format
 make lint      # ruff check + ruff format --check + mypy
 make test      # pytest, not integration and not e2e
 make test-all  # pytest, not e2e (includes integration)
@@ -84,19 +88,10 @@ quality/         # config.toml of the shared quality gate
 
 ## Local rules awaiting the operator's ruling
 
-Each differs from or goes beyond the global contract (issue #92 lists the
-contract line for each). They stay here only until the operator rules.
+Each differs from the global contract. They stay here only until the operator rules.
 
-- Test names follow `test_<method>_<scenario>_<expected_result>`.
-- Test-driven development: write the tests first, then implement.
-- 100% coverage on business logic (signaling, rooms, config).
-- Use dependency injection; never instantiate dependencies inside a class.
-- Async-first: `async/await` for all IO-bound operations.
-- Use structured logging via `structlog`; never `print()` for operational output
-  (ruff `T20` also enforces this).
-- Application constants go in `src/hopin/config/constants.py`; custom exceptions
-  in `src/hopin/errors.py`.
-- Prefer dataclasses or Pydantic models over plain dicts; `enum.Enum` for fixed
-  sets of values; `pathlib.Path` over `os.path` (ruff `PTH` enforces the last).
-- Never catch bare `Exception` unless re-raising.
-- Pre-commit hooks run the checks.
+- Test names follow `test_<method>_<scenario>_<expected_result>`. Differs from the contract: "its name states that behaviour", with no fixed pattern.
+- Test-driven development: write the tests first, then implement. Differs from the contract: "a new behaviour is not done until a test pins it", with no order.
+- Use dependency injection; never instantiate dependencies inside a class. Differs from the contract: no such rule.
+- Async-first: `async/await` for all IO-bound operations. Differs from the contract: no such rule.
+- Never catch bare `Exception` unless re-raising. Differs from the contract: stricter than "fail loud, no silent catches".
