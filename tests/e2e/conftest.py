@@ -39,6 +39,8 @@ FORM_FACTORS = [pytest.param(DESKTOP, id="desktop"), pytest.param(PHONE, id="pho
 OTHER_TILE = "#videoGrid .tile:not(.self)"
 OTHER_VIDEO = f"{OTHER_TILE} video"
 OTHER_CAMERA_OFF = f"{OTHER_TILE} .vid.off"
+PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
+ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
 SMALL_PHONE_LANDSCAPE = {"viewport": {"width": 568, "height": 320}, "is_mobile": True, "has_touch": True}
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
@@ -126,10 +128,12 @@ async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
         const samples = new Uint8Array(analyser.fftSize);
         let loudest = 0;
         const end = performance.now() + timeoutMilliseconds;
-        while (loudest <= floor && performance.now() < end) {
+        while (true) {
             analyser.getByteTimeDomainData(samples);
             loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
-            await new Promise((next) => setTimeout(next, sampleIntervalMilliseconds));
+            const remaining = end - performance.now();
+            if (loudest > floor || remaining <= 0) break;
+            await new Promise((next) => setTimeout(next, Math.floor(Math.min(sampleIntervalMilliseconds, remaining))));
         }
         return loudest;
     } finally {
@@ -295,6 +299,12 @@ def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[
 
 def wait_for_frames_to_advance(person: Page) -> None:
     wait_for_inbound_growth(person, "video", "framesDecoded", inbound_per_connection(person, "video", "framesDecoded"))
+
+
+def wait_for_the_picture(person: Page) -> None:
+    wait_for_frames_to_advance(person)
+    expect(person.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(person.locator(PICTURE_ONLY_ON_THE_TILES).first).to_be_visible(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def expect_the_tile_to_play_audio(person: Page, video_selector: str) -> None:

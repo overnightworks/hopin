@@ -12,10 +12,12 @@ from tests.e2e.conftest import (
     DESKTOP,
     EVERY_VIDEO_CAP_IS,
     FORM_FACTORS,
+    ICON_ONLY_ON_THE_TILES,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
     OTHER_CAMERA_OFF,
     OTHER_VIDEO,
+    PICTURE_ONLY_ON_THE_TILES,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
@@ -28,8 +30,8 @@ from tests.e2e.conftest import (
     share_then_stop_the_screen_share,
     start_call,
     turn_the_camera_on,
-    wait_for_frames_to_advance,
     wait_for_peer_count,
+    wait_for_the_picture,
 )
 
 pytestmark = pytest.mark.e2e
@@ -99,14 +101,60 @@ COUNT_TILE_SOURCE_ASSIGNMENTS = """
 })();
 """
 SOURCE_ASSIGNMENTS = "() => window.sourceAssignments"
-PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
 GIVE_THE_TILE_SILENCE = """
 (selector) => {
     const silence = new AudioContext().createMediaStreamDestination();
     document.querySelector(selector).srcObject = silence.stream;
 }
 """
-ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
+GIVE_THE_TILE_A_TONE = """
+(selector) => {
+    const context = new AudioContext();
+    const destination = context.createMediaStreamDestination();
+    const tone = context.createOscillator();
+    tone.connect(destination);
+    tone.start();
+    document.querySelector(selector).srcObject = destination.stream;
+}
+"""
+RECORD_THE_AUDIO_LEVEL_WAITS = """
+(samplingCostMilliseconds) => {
+    window.audioLevelLog = [];
+    window.audioContextsOpened = [];
+    let virtualNow = 0;
+    performance.now = () => virtualNow;
+    const nativeSetTimeout = window.setTimeout;
+    window.setTimeout = (handler, delay, ...args) => {
+        window.audioLevelLog.push({ wait: delay, requestedAt: virtualNow });
+        virtualNow += delay;
+        return nativeSetTimeout(handler, delay, ...args);
+    };
+    const nativeSample = AnalyserNode.prototype.getByteTimeDomainData;
+    AnalyserNode.prototype.getByteTimeDomainData = function (samples) {
+        nativeSample.call(this, samples);
+        virtualNow += samplingCostMilliseconds;
+        const peak = samples.reduce((loudest, sample) => Math.max(loudest, Math.abs(sample - 128)), 0);
+        window.audioLevelLog.push({ sample: peak });
+    };
+    const NativeAudioContext = window.AudioContext;
+    window.AudioContext = class extends NativeAudioContext {
+        constructor(...args) {
+            super(...args);
+            window.audioContextsOpened.push(this);
+        }
+    };
+}
+"""
+THE_RECORDED_AUDIO_LEVEL_WAITS = """
+() => ({
+    log: window.audioLevelLog,
+    context_states: window.audioContextsOpened.map((context) => context.state),
+})
+"""
+# On the page's virtual clock each loop turn costs the interval plus this, so the deadline falls
+# inside a partial final interval and a wait that ignores the remaining budget overruns it
+AUDIO_SAMPLING_COST_MILLISECONDS = 5
+AUDIO_LEVEL_DEADLINE_MILLISECONDS = 520
 
 
 @dataclass
@@ -152,7 +200,7 @@ def test_a_person_without_a_camera_sees_and_hears_everyone_else(camera_less_call
 
     expect(guest.locator(OTHER_VIDEO)).to_be_visible()
     expect(guest.locator(OTHER_CAMERA_OFF)).to_be_hidden()
-    wait_for_frames_to_advance(guest)
+    wait_for_the_picture(guest)
     expect_the_tile_to_play_audio(guest, OTHER_VIDEO)
 
 
@@ -177,7 +225,7 @@ def test_a_camera_turned_on_mid_call_reaches_the_people_who_were_there_under_the
     turn_the_camera_on(guest)
 
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_hidden()
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
     expect_the_tile_to_play_audio(host, OTHER_VIDEO)
     expect_the_tile_to_play_audio(guest, OTHER_VIDEO)
     assert _offers_made(camera_less_call) == offers_before
@@ -211,7 +259,7 @@ def test_the_tile_gets_the_voice_and_then_the_picture_each_assigned_once(
 
     turn_the_camera_on(guest)
     expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible()
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
 
     assert host.evaluate(SOURCE_ASSIGNMENTS) == assigned_for_the_voice + 1
 
@@ -221,7 +269,7 @@ def test_a_camera_turned_on_before_a_late_joiner_arrives_reaches_the_late_joiner
 ) -> None:
     guest = camera_less_call.guest
     turn_the_camera_on(guest)
-    wait_for_frames_to_advance(camera_less_call.host)
+    wait_for_the_picture(camera_less_call.host)
 
     late_joiner = join(
         open_person,
@@ -233,7 +281,7 @@ def test_a_camera_turned_on_before_a_late_joiner_arrives_reaches_the_late_joiner
     wait_for_peer_count(late_joiner, 2)
     expect(late_joiner.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(2)
     expect(late_joiner.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0)
-    wait_for_frames_to_advance(late_joiner)
+    wait_for_the_picture(late_joiner)
     guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=[2, 1_000_000], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
@@ -242,7 +290,7 @@ def test_a_camera_turned_off_and_on_again_shows_the_icon_then_the_picture_withou
 ) -> None:
     host, guest = camera_less_call.host, camera_less_call.guest
     turn_the_camera_on(guest)
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
     offers_before = _offers_made(camera_less_call)
 
     guest.click("#videoBtn")
@@ -251,7 +299,7 @@ def test_a_camera_turned_off_and_on_again_shows_the_icon_then_the_picture_withou
     assert guest.evaluate(CAMERA_TRACK_AND_ITS_SENDER_TRACK) == {"local": False, "sent": False}
     guest.click("#videoBtn")
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_hidden()
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
     assert _offers_made(camera_less_call) == offers_before
 
 
@@ -265,7 +313,7 @@ def test_stop_sharing_keeps_a_camera_added_mid_call_as_the_person_left_it(
 ) -> None:
     host, guest = camera_less_call.host, camera_less_call.guest
     turn_the_camera_on(guest)
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
     if camera_turned_off:
         guest.click("#videoBtn")
 
@@ -276,7 +324,7 @@ def test_stop_sharing_keeps_a_camera_added_mid_call_as_the_person_left_it(
     if camera_turned_off:
         expect(host.locator(OTHER_CAMERA_OFF)).to_be_visible()
     else:
-        wait_for_frames_to_advance(host)
+        wait_for_the_picture(host)
 
 
 OFFER_THE_VIDEO_DIRECTION = """
@@ -322,16 +370,42 @@ def test_a_video_track_that_mutes_without_a_camera_off_announcement_shows_the_ic
     expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0)
 
 
-def test_the_audio_level_wait_ends_at_its_deadline_while_animation_frames_are_withheld(
-    open_person: Callable[..., Page],
-) -> None:
-    person = open_person(**DESKTOP)
-    person.set_content("<video id='silence'></video>")
+def _measure_the_audio_level_waits(person: Page, give_the_tile_audio: str) -> tuple[float, dict[str, Any]]:
+    person.set_content("<video id='tile'></video>")
     person.evaluate("() => { window.requestAnimationFrame = () => 0; }")
-    person.evaluate(GIVE_THE_TILE_SILENCE, "#silence")
-
+    person.evaluate(give_the_tile_audio, "#tile")
+    person.evaluate(RECORD_THE_AUDIO_LEVEL_WAITS, AUDIO_SAMPLING_COST_MILLISECONDS)
     level = person.evaluate(
-        TILE_AUDIO_LEVEL, ["#silence", AUDIBLE_LEVEL_FLOOR, 500, AUDIO_SAMPLE_INTERVAL_MILLISECONDS]
+        TILE_AUDIO_LEVEL,
+        ["#tile", AUDIBLE_LEVEL_FLOOR, AUDIO_LEVEL_DEADLINE_MILLISECONDS, AUDIO_SAMPLE_INTERVAL_MILLISECONDS],
     )
+    return level, person.evaluate(THE_RECORDED_AUDIO_LEVEL_WAITS)
+
+
+def test_the_audio_level_wait_over_silence_requests_no_more_waiting_than_its_deadline_and_closes_its_context(
+    open_person: Callable[..., Page], page_errors: list[str]
+) -> None:
+    person = record_page_errors(open_person(**DESKTOP), page_errors)
+
+    level, recorded = _measure_the_audio_level_waits(person, GIVE_THE_TILE_SILENCE)
 
     assert level <= AUDIBLE_LEVEL_FLOOR
+    waits = [entry for entry in recorded["log"] if "wait" in entry]
+    assert waits
+    assert all(entry["requestedAt"] + entry["wait"] <= AUDIO_LEVEL_DEADLINE_MILLISECONDS for entry in waits)
+    assert waits[-1]["wait"] < AUDIO_SAMPLE_INTERVAL_MILLISECONDS
+    assert recorded["context_states"] == ["closed"]
+    assert page_errors == []
+
+
+def test_the_audio_level_wait_over_a_tone_requests_no_waiting_after_the_loud_sample_and_closes_its_context(
+    open_person: Callable[..., Page], page_errors: list[str]
+) -> None:
+    person = record_page_errors(open_person(**DESKTOP), page_errors)
+
+    level, recorded = _measure_the_audio_level_waits(person, GIVE_THE_TILE_A_TONE)
+
+    assert level > AUDIBLE_LEVEL_FLOOR
+    assert recorded["log"][-1] == {"sample": level}
+    assert recorded["context_states"] == ["closed"]
+    assert page_errors == []
