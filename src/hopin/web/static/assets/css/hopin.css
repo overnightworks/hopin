@@ -667,10 +667,14 @@ body {
 .cb.leave { background: var(--leave); color: var(--on-leave); }
 .cb.leave:hover:not(:disabled) { background: var(--leave-hover); }
 .cb:disabled { opacity: .55; cursor: default; }
-.cbar { position: absolute; z-index: 40; display: flex; align-items: center; }
-.cbar .gap { display: none; width: 14px; }
-.cbar #screenBtn { display: none; }
 .cbar {
+    position: absolute;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    border: 0;
+    margin: 0;
+    min-inline-size: 0;
     left: 0;
     right: 0;
     bottom: 0;
@@ -678,6 +682,8 @@ body {
     justify-content: space-between;
     background: linear-gradient(to top, var(--stage-fade) 55%, transparent);
 }
+.cbar .gap { display: none; width: 14px; }
+.cbar #screenBtn { display: none; }
 .badge {
     position: absolute;
     top: -2px;
@@ -856,5 +862,5 @@ body {
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @media (min-width: 601px) {
-    .toasts { bottom: 104px; }
+    .toasts { bottom: 112px; }
 }

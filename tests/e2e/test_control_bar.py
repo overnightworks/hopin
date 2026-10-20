@@ -54,6 +54,23 @@ async (toast) => {
     return toast.getBoundingClientRect().bottom;
 }
 """
+TOAST_BOTTOM_AT_EVERY_ANIMATION_END = """
+(toast) => {
+    toast.style.animation = "none";
+    toast.getBoundingClientRect();
+    toast.style.animation = "";
+    const animations = toast.getAnimations();
+    const bottoms = [];
+    for (const animation of animations) {
+        animation.pause();
+        for (const time of [0, animation.effect.getComputedTiming().duration]) {
+            animation.currentTime = time;
+            bottoms.push(toast.getBoundingClientRect().bottom);
+        }
+    }
+    return bottoms;
+}
+"""
 RULES_OF_THE_OLD_STRIP = """
 () => [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules])
     .map((rule) => rule.cssText)
@@ -270,7 +287,9 @@ def test_toast_ends_above_every_bar_button(
     toast = host.locator("#toasts .toast")
     expect(toast).to_be_visible()
     toast_bottom = toast.evaluate(SETTLED_TOAST_BOTTOM)
-    assert toast_bottom <= min(box["top"] for box in host.evaluate(BOXES_OF, BAR_BUTTONS))
+    bar_top = min(box["top"] for box in host.evaluate(BOXES_OF, BAR_BUTTONS))
+    assert toast_bottom <= bar_top
+    assert max(toast.evaluate(TOAST_BOTTOM_AT_EVERY_ANIMATION_END)) <= bar_top
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -292,9 +311,9 @@ def test_tab_walks_the_bar_in_visual_order_and_space_toggles_mute(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     host, _ = open_call(open_person, base_url, page_errors, DESKTOP)
-    button_named(host, "Mute").focus()
+    host.evaluate("() => document.activeElement.blur()")
 
-    for name in BAR_NAMES["desktop"][1:]:
+    for name in BAR_NAMES["desktop"]:
         host.keyboard.press("Tab")
         expect(button_named(host, name)).to_be_focused()
     for name in reversed(BAR_NAMES["desktop"][:-1]):

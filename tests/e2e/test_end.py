@@ -114,12 +114,6 @@ def form_factor(request: pytest.FixtureRequest) -> dict[str, Any]:
     return dict(request.param)
 
 
-@pytest.fixture
-def desktop_only(form_factor: dict[str, Any]) -> None:
-    if form_factor != DESKTOP:
-        pytest.skip("The bar offers screen sharing on a desktop only")
-
-
 def open_recording_person(
     open_person: Callable[..., Page], form_factor: dict[str, Any], scripts_after_the_recorder: Sequence[str] = ()
 ) -> Page:
@@ -261,7 +255,7 @@ def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped
     assert page_errors == []
 
 
-@pytest.mark.usefixtures("desktop_only")
+@pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_call: HostedCall) -> None:
     share_the_screen(hosted_call.host)
 
@@ -270,7 +264,7 @@ def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_ca
     expect_end_screen(hosted_call.host, LEFT_BY_HOST)
 
 
-@pytest.mark.usefixtures("desktop_only")
+@pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no_live_media_track(
     hosted_call: HostedCall,
 ) -> None:
