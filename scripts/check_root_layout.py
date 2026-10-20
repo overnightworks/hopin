@@ -2,7 +2,7 @@
 
 The root carries the package manifest and its lockfile, the container files,
 the pre-commit and scanner configuration, the licence, and the entry documents.
-Everything else lives in the directory of its owner (AGENTS.md, "Repository layout"): a helper
+Everything else lives in the directory of its owner (the global contract, "Code policy"): a helper
 under `scripts/`, a fixture next to its test, the work-board contract
 `board.toml` of the aco coordination tool under `.aco/`, the blessed pictures
 under `docs/mockups/`. The gate reads the
