@@ -779,3 +779,22 @@ def test_a_camera_turned_on_mid_call_turns_the_icon_into_the_picture_with_no_emp
 
     wait_for_the_picture(watcher)
     _expect_the_video_shown_only_with_a_picture(_stop_the_tile_picture_watch_once_the_picture_settles(watcher))
+
+
+def test_a_video_track_that_mutes_and_unmutes_returns_to_a_picture_with_no_empty_frame_and_a_camera_off_shows_the_icon(
+    camera_less_call: CameraLessCall,
+) -> None:
+    host, guest = camera_less_call.host, camera_less_call.guest
+    _watch_the_tile_picture(host)
+    turn_the_camera_on(guest)
+    wait_for_the_picture(host)
+
+    renegotiate_the_video_direction(guest, host, "inactive")
+    expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    renegotiate_the_video_direction(guest, host, "sendrecv")
+    wait_for_the_picture(host)
+
+    _expect_the_video_shown_only_with_a_picture(_stop_the_tile_picture_watch_once_the_picture_settles(host))
+    guest.click("#videoBtn")
+    expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
