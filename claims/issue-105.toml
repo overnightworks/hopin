@@ -1,0 +1,8 @@
+claim_id = "135abc52dffb42499c5cdcad80cbf427"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "1b097ed4355070d5d1842b00c09d32cb27fcaaf7"
+branch = "claude/issue-105-last-carried-test-duplicates"
+scope = ["tests/e2e/test_media.py", "tests/e2e/test_mesh.py", "tests/unit/test_signaling.py", "tests/unit/test_signaling_resume.py"]
+opened_commit = "3b57c0082fc04f775ac8134a50129646e2704619"
+whole_reason = "Four small test follow-ups carried by one parent; bundled as one lane per the small-card rule."
