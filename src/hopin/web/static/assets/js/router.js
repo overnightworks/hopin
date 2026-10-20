@@ -17,6 +17,10 @@ export function callUrl(roomId) {
     return `${location.origin}/${CALL_PATH_PREFIX}/${roomId}`;
 }
 
+export function showCallAddress(roomId) {
+    history.replaceState(null, "", callUrl(roomId));
+}
+
 export function showScreen(screen) {
     for (const element of document.querySelectorAll("[data-screen]")) {
         element.classList.toggle("hidden", element.dataset.screen !== screen);
