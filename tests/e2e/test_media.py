@@ -118,17 +118,21 @@ GIVE_THE_TILE_A_TONE = """
 }
 """
 RECORD_THE_AUDIO_LEVEL_WAITS = """
-() => {
+(samplingCostMilliseconds) => {
     window.audioLevelLog = [];
     window.audioContextsOpened = [];
+    let virtualNow = 0;
+    performance.now = () => virtualNow;
     const nativeSetTimeout = window.setTimeout;
     window.setTimeout = (handler, delay, ...args) => {
-        window.audioLevelLog.push({ wait: delay });
+        window.audioLevelLog.push({ wait: delay, requestedAt: virtualNow });
+        virtualNow += delay;
         return nativeSetTimeout(handler, delay, ...args);
     };
     const nativeSample = AnalyserNode.prototype.getByteTimeDomainData;
     AnalyserNode.prototype.getByteTimeDomainData = function (samples) {
         nativeSample.call(this, samples);
+        virtualNow += samplingCostMilliseconds;
         const peak = samples.reduce((loudest, sample) => Math.max(loudest, Math.abs(sample - 128)), 0);
         window.audioLevelLog.push({ sample: peak });
     };
@@ -147,7 +151,9 @@ THE_RECORDED_AUDIO_LEVEL_WAITS = """
     context_states: window.audioContextsOpened.map((context) => context.state),
 })
 """
-# Not a multiple of the sample interval, so a wait that ignores the remaining budget overruns it
+# On the page's virtual clock each loop turn costs the interval plus this, so the deadline falls
+# inside a partial final interval and a wait that ignores the remaining budget overruns it
+AUDIO_SAMPLING_COST_MILLISECONDS = 5
 AUDIO_LEVEL_DEADLINE_MILLISECONDS = 520
 
 
@@ -368,7 +374,7 @@ def _measure_the_audio_level_waits(person: Page, give_the_tile_audio: str) -> tu
     person.set_content("<video id='tile'></video>")
     person.evaluate("() => { window.requestAnimationFrame = () => 0; }")
     person.evaluate(give_the_tile_audio, "#tile")
-    person.evaluate(RECORD_THE_AUDIO_LEVEL_WAITS)
+    person.evaluate(RECORD_THE_AUDIO_LEVEL_WAITS, AUDIO_SAMPLING_COST_MILLISECONDS)
     level = person.evaluate(
         TILE_AUDIO_LEVEL,
         ["#tile", AUDIBLE_LEVEL_FLOOR, AUDIO_LEVEL_DEADLINE_MILLISECONDS, AUDIO_SAMPLE_INTERVAL_MILLISECONDS],
@@ -384,7 +390,10 @@ def test_the_audio_level_wait_over_silence_requests_no_more_waiting_than_its_dea
     level, recorded = _measure_the_audio_level_waits(person, GIVE_THE_TILE_SILENCE)
 
     assert level <= AUDIBLE_LEVEL_FLOOR
-    assert sum(entry["wait"] for entry in recorded["log"] if "wait" in entry) <= AUDIO_LEVEL_DEADLINE_MILLISECONDS
+    waits = [entry for entry in recorded["log"] if "wait" in entry]
+    assert waits
+    assert all(entry["requestedAt"] + entry["wait"] <= AUDIO_LEVEL_DEADLINE_MILLISECONDS for entry in waits)
+    assert waits[-1]["wait"] < AUDIO_SAMPLE_INTERVAL_MILLISECONDS
     assert recorded["context_states"] == ["closed"]
     assert page_errors == []
 

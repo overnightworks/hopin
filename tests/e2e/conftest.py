@@ -133,7 +133,7 @@ async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
             loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
             const remaining = end - performance.now();
             if (loudest > floor || remaining <= 0) break;
-            await new Promise((next) => setTimeout(next, Math.min(sampleIntervalMilliseconds, remaining)));
+            await new Promise((next) => setTimeout(next, Math.floor(Math.min(sampleIntervalMilliseconds, remaining))));
         }
         return loudest;
     } finally {
