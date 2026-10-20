@@ -38,8 +38,13 @@ navigator.share = (argument) => {
 """
 REMOVE_SHARE = "delete Navigator.prototype.share;"
 REJECT_SHARE_WITH = """
-navigator.share = () => Promise.reject(new DOMException("refused", "%s"));
+window.shareAttempts = 0;
+navigator.share = () => {
+    window.shareAttempts += 1;
+    return Promise.reject(new DOMException("refused", "%s"));
+};
 """
+TABS_TO_REACH_COPY_LINK_AT_MOST = 20
 SEED_CLIPBOARD = "(text) => navigator.clipboard.writeText(text)"
 READ_CLIPBOARD = "() => navigator.clipboard.readText()"
 
@@ -155,6 +160,7 @@ def test_cancelling_the_share_menu_shows_nothing(
 
     host.click(SHARE_BUTTON)
 
+    host.wait_for_function("window.shareAttempts === 1")
     expect(host.locator(TOASTS)).to_be_empty()
 
 
@@ -212,10 +218,11 @@ def test_keyboard_reaches_copy_link_and_enter_copies(
 ) -> None:
     host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
 
-    for _ in range(20):
+    for _ in range(TABS_TO_REACH_COPY_LINK_AT_MOST):
         host.keyboard.press("Tab")
         if host.evaluate("document.activeElement.id") == "waitingCopyBtn":
             break
+    expect(host.locator(COPY_BUTTON)).to_be_focused()
     host.keyboard.press("Enter")
 
     expect_toast(host, "Link copied", CHECK_ICON_PATH)

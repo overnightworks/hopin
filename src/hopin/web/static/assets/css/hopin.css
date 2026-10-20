@@ -489,8 +489,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .button-primary { background: var(--accent); color: var(--on-accent); }
 .button-primary:hover { background: var(--accent-hover); }
 .button-lg { height: 58px; font-size: 17px; }
-.button-glass { background: var(--glass); color: var(--on-stage); }
-.button-glass:hover { background: var(--glass-hover); }
 .button-stage { background: var(--accent-stage); color: var(--stage); }
 .brand {
     display: flex;
@@ -803,7 +801,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     align-items: center;
     gap: 6px;
 }
-.waiting[hidden], .stage:not([data-count="1"]) .waiting { display: none; }
+.waiting.hidden, .stage:not([data-count="1"]) .waiting { display: none; }
 .waiting h3 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
 .waiting p { margin-bottom: 12px; color: var(--on-stage-soft); font-size: 15px; }
 .waiting-link { display: none; margin-bottom: 12px; font-family: var(--mono); font-size: 13px; color: var(--on-stage-soft); }
@@ -812,6 +810,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .waiting[data-share="unavailable"] #waitingShareBtn { display: none; }
 @media (max-width: 600px) {
     .waiting[data-share="available"] #waitingCopyBtn { background: var(--glass); color: var(--on-stage); }
+    .waiting[data-share="available"] #waitingCopyBtn:hover { background: var(--glass-hover); }
 }
 @media (min-width: 601px) {
     .waiting { left: 50%; right: auto; width: 400px; transform: translate(-50%, -50%); }

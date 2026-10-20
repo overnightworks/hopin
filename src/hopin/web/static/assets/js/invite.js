@@ -20,11 +20,11 @@ export function setCallLink(url) {
 }
 
 export function showWaitingCard() {
-    card.hidden = false;
+    card.classList.remove("hidden");
 }
 
 export function hideWaitingCard() {
-    card.hidden = true;
+    card.classList.add("hidden");
 }
 
 export async function copyCallLink() {
