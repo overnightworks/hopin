@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any, TypedDict
 
 import pytest
@@ -675,22 +676,26 @@ WATCH_THE_TILE_PICTURE = """
         return brightness / (canvas.width * canvas.height * 3) > pictureFloor;
     };
     const showsTheVideo = () => video.matches(shownVideoSelector);
+    const watchStartedAt = performance.now();
     const watch = { shown: [], samples: [] };
     new MutationObserver(() => {
         if (showsTheVideo()) watch.shown.push(drawsAPicture());
     }).observe(video, { attributeFilter: ["class"] });
     watch.sampler = setInterval(
-        () => watch.samples.push({ shows: showsTheVideo(), picture: drawsAPicture() }),
+        () => watch.samples.push({
+            at: performance.now() - watchStartedAt,
+            shows: showsTheVideo(),
+            picture: drawsAPicture(),
+        }),
         sampleIntervalMilliseconds,
     );
     window.tilePictureWatch = watch;
 }
 """
-ENOUGH_SAMPLES_AND_THE_LAST_SHOW_THE_PICTURE = """
-([minimumSamples, lastCount]) => {
-    const samples = window.tilePictureWatch.samples;
-    const last = samples.slice(-lastCount);
-    return samples.length >= minimumSamples && last.every((sample) => sample.shows && sample.picture);
+THE_LAST_SAMPLES_SHOW_THE_PICTURE = """
+(lastCount) => {
+    const last = window.tilePictureWatch.samples.slice(-lastCount);
+    return last.length === lastCount && last.every((sample) => sample.shows && sample.picture);
 }
 """
 STOP_THE_TILE_PICTURE_WATCH = """
@@ -706,9 +711,9 @@ PICTURE_BRIGHTNESS_FLOOR = 16
 LAST_SAMPLES_WITH_THE_PICTURE = 3
 # Chromium runs the timers of a page that is not in front at most once a second
 THROTTLED_TIMER_INTERVAL_MILLISECONDS = 1_000
-# Twice what a throttled page samples during the settle wait, so even with the samples it took before the wait such
-# a page times out instead of passing thin; a page in front takes this many in a few hundred milliseconds
-MINIMUM_TILE_SAMPLES = 2 * MEDIA_FLOWING_TIMEOUT_MILLISECONDS // THROTTLED_TIMER_INTERVAL_MILLISECONDS
+# A gap between two samples longer than a tenth of that wake-up means the sampler was throttled, however long the
+# watch ran; twenty sample intervals still let a page in front ride out a busy runner's main-thread stall
+MAXIMUM_SAMPLE_GAP_MILLISECONDS = THROTTLED_TIMER_INTERVAL_MILLISECONDS // 10
 
 
 @dataclass
@@ -718,6 +723,7 @@ class WatchedCameraLessPerson:
 
 
 class TileSample(TypedDict):
+    at: float
     shows: bool
     picture: bool
 
@@ -774,23 +780,35 @@ def _stop_the_tile_picture_watch(watcher: Page) -> TilePictureWatch:
 def _stop_the_tile_picture_watch_once_the_picture_settles(watcher: Page) -> TilePictureWatch:
     try:
         watcher.wait_for_function(
-            ENOUGH_SAMPLES_AND_THE_LAST_SHOW_THE_PICTURE,
-            arg=[MINIMUM_TILE_SAMPLES, LAST_SAMPLES_WITH_THE_PICTURE],
+            THE_LAST_SAMPLES_SHOW_THE_PICTURE,
+            arg=LAST_SAMPLES_WITH_THE_PICTURE,
             timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
         )
     except PlaywrightTimeoutError as timeout:
         samples = _stop_the_tile_picture_watch(watcher).samples
         last_samples = samples[-LAST_SAMPLES_WITH_THE_PICTURE:]
         raise AssertionError(
-            f"the tile picture did not settle: {len(samples)} samples where at least {MINIMUM_TILE_SAMPLES} must end "
-            f"in {LAST_SAMPLES_WITH_THE_PICTURE} with the picture, the last were {last_samples}"
+            f"the tile picture did not settle: the last {LAST_SAMPLES_WITH_THE_PICTURE} of {len(samples)} samples must "
+            f"show the picture, they were {last_samples}"
         ) from timeout
     return _stop_the_tile_picture_watch(watcher)
+
+
+def _expect_the_sampler_never_throttled(samples: list[TileSample]) -> None:
+    gaps = [later["at"] - earlier["at"] for earlier, later in pairwise(samples)]
+    largest_gap = max(gaps)
+    before = gaps.index(largest_gap)
+    assert largest_gap < MAXIMUM_SAMPLE_GAP_MILLISECONDS, (
+        f"the sampler paused {largest_gap:.0f} ms, at most {MAXIMUM_SAMPLE_GAP_MILLISECONDS} ms may pass: between "
+        f"samples {before} and {before + 1} of {len(samples)}, {samples[before]['at']:.0f} and "
+        f"{samples[before + 1]['at']:.0f} ms into the watch"
+    )
 
 
 def _expect_the_video_shown_only_with_a_picture(watch: TilePictureWatch) -> None:
     assert watch.shown, "the tile never turned to its video while watched"
     assert all(watch.shown), f"the tile showed its video before it could draw a frame: {watch.shown}"
+    _expect_the_sampler_never_throttled(watch.samples)
     shown_samples = [sample["picture"] for sample in watch.samples if sample["shows"]]
     assert all(shown_samples), f"a sample showed the video without a picture: {shown_samples}"
 
