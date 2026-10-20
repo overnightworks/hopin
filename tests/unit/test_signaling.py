@@ -175,13 +175,14 @@ class TestHandleMessageRefusals:
 
 
 class TestJoinCreateRoom:
-    async def test_creating_a_room_answers_room_created_and_seats_the_creator(self, handler):
+    async def test_creating_a_room_answers_room_created_and_seats_the_creator(self, handler, room_manager):
         ws = register_peer(handler, "host1")
 
         await deliver(handler, "host1", join_message())
+        await deliver(handler, "host1", {"type": SignalType.LOCK_ROOM.value})
 
-        assert sent_types(ws) == [SignalType.ROOM_CREATED.value]
-        assert handler._peer_rooms["host1"] == sent_frames(ws)[0]["room_id"]
+        assert sent_types(ws) == [SignalType.ROOM_CREATED.value, SignalType.ROOM_LOCKED.value]
+        assert room_manager.get_room(sent_frames(ws)[0]["room_id"]).locked
 
 
 class TestJoinExistingRoom:
@@ -193,11 +194,14 @@ class TestJoinExistingRoom:
 
         await deliver(handler, "p1", join_message(other_room.room_id))
         await deliver(handler, "p1", join_message())
+        await deliver(handler, "p1", {"type": SignalType.CHAT.value, "message": "still here"})
 
         assert [frame["reason"] for frame in frames_of_type(sockets["p1"], SignalType.ERROR)] == [
             ErrorReason.INVALID_MESSAGE.value
         ] * 2
-        assert handler._peer_rooms["p1"] == room.room_id
+        assert frames_of_type(sockets["host1"], SignalType.CHAT) == [
+            {"type": SignalType.CHAT.value, "message": "still here", "from": "p1"}
+        ]
         assert room.participant_ids == ["host1", "p1"]
         assert other_room.participant_ids == ["host2"]
 
@@ -326,19 +330,6 @@ class TestLockUnlock:
         assert room.locked is False
 
 
-async def handle_and_capture_peers(handler, socket):
-    peers_while_connected = {}
-    receive = socket.receive
-
-    async def receive_after_capturing():
-        peers_while_connected.update(handler._peers)
-        return await receive()
-
-    socket.receive = receive_after_capturing
-    await handler.handle_websocket(socket)
-    return peers_while_connected
-
-
 class TestHandleWebsocket:
     async def test_abnormal_disconnect_is_logged(self, handler, room_manager):
         socket = FakeSocket([text_frame({"type": SignalType.JOIN.value}), disconnect_frame(1006)])
@@ -382,18 +373,22 @@ class TestHandleWebsocket:
             await failing_handler.handle_websocket(socket)
         assert not socket.accepted
 
-    async def test_admitted_handshake_accepts_and_registers_a_peer_carrying_the_account(self, handler):
-        socket = FakeSocket([disconnect_frame(1000)])
-        peers_while_connected = await handle_and_capture_peers(handler, socket)
+    async def test_admitted_handshake_accepts_and_registers_a_peer_carrying_the_account(self, handler, room_manager):
+        socket = FakeSocket([text_frame(join_message()), disconnect_frame(1000)])
+
+        await handler.handle_websocket(socket)
 
         assert socket.accepted
-        assert [peer.account for peer in peers_while_connected.values()] == [ADMITTED_ACCOUNT]
+        assert room_manager.get_room(socket.sent[0]["room_id"]).host == ADMITTED_ACCOUNT
 
     async def test_two_sockets_of_one_account_become_two_peers(self, handler):
-        first = await handle_and_capture_peers(handler, FakeSocket([disconnect_frame(1000)]))
-        second = await handle_and_capture_peers(handler, FakeSocket([disconnect_frame(1000)]))
+        sockets = [FakeSocket([text_frame(join_message()), disconnect_frame(1000)]) for _ in range(2)]
 
-        assert first.keys().isdisjoint(second.keys())
+        for socket in sockets:
+            await handler.handle_websocket(socket)
+
+        first, second = (socket.sent[0]["participant_id"] for socket in sockets)
+        assert first != second
 
 
 class TestChat:
