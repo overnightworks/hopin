@@ -1,8 +1,0 @@
-claim_id = "ef8beabe98e14fbab70cb31924dee30b"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "fa7045f4a45be170808c901276848da5ff49a375"
-branch = "claude/issue-92-agents-md-holds-hopin-s-facts-once-and-c"
-scope = ["AGENTS.md", "CLAUDE.md", "README.md", "scripts/check_root_layout.py"]
-opened_commit = "6b197b66ca7debb78115afbf6f5c24e345c3b506"
-whole_reason = "The two entry documents and their two pointers are one migration; split, Claude and Codex read different texts in between."
