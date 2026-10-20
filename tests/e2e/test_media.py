@@ -6,6 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
+    AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     AUDIBLE_LEVEL_FLOOR,
     AUDIO_SAMPLE_INTERVAL_MILLISECONDS,
     COUNT_OFFERS,
@@ -15,6 +16,7 @@ from tests.e2e.conftest import (
     ICON_ONLY_ON_THE_TILES,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
+    ONE_CAP_PER_CONNECTION,
     OTHER_CAMERA_OFF,
     OTHER_VIDEO,
     PICTURE_ONLY_ON_THE_TILES,
@@ -23,6 +25,8 @@ from tests.e2e.conftest import (
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     TILE_AUDIO_IS_ALIVE_AND_UNMUTED,
     TILE_AUDIO_LEVEL,
+    TWO_CAPS_PER_CONNECTION,
+    VIDEO_TRANSCEIVERS_PER_CONNECTION,
     expect_the_tile_to_play_audio,
     inbound_per_connection,
     join,
@@ -30,6 +34,7 @@ from tests.e2e.conftest import (
     share_then_stop_the_screen_share,
     start_call,
     turn_the_camera_on,
+    wait_for_inbound_growth,
     wait_for_peer_count,
     wait_for_the_picture,
 )
@@ -164,6 +169,13 @@ class CameraLessCall:
     invite_link: str
 
 
+@dataclass
+class CameraLessHostCall:
+    host: Page
+    later_joiner: Page
+    invite_link: str
+
+
 @pytest.fixture
 def form_factor() -> dict[str, Any]:
     return DESKTOP
@@ -188,6 +200,30 @@ def camera_less_call(
     for person in (host, guest):
         wait_for_peer_count(person, 1)
     return CameraLessCall(host, guest, invite_link)
+
+
+def start_camera_less_host_call(
+    open_person: Callable[..., Page],
+    base_url: str,
+    form_factor: dict[str, Any],
+    page_errors: list[str],
+    host_init_scripts: tuple[str, ...] = (),
+) -> CameraLessHostCall:
+    host = record_page_errors(open_person(**form_factor), page_errors)
+    for script in (RECORD_PEER_CONNECTIONS, COUNT_OFFERS, *host_init_scripts):
+        host.add_init_script(script)
+    invite_link = start_call(host, base_url, with_camera=False)
+    later_joiner = join(open_person, invite_link, form_factor, (RECORD_PEER_CONNECTIONS, COUNT_OFFERS), page_errors)
+    for person in (host, later_joiner):
+        wait_for_peer_count(person, 1)
+    return CameraLessHostCall(host, later_joiner, invite_link)
+
+
+@pytest.fixture
+def camera_less_host_call(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+) -> CameraLessHostCall:
+    return start_camera_less_host_call(open_person, base_url, form_factor, page_errors)
 
 
 def _offers_made(call: CameraLessCall) -> list[int]:
@@ -229,7 +265,7 @@ def test_a_camera_turned_on_mid_call_reaches_the_people_who_were_there_under_the
     expect_the_tile_to_play_audio(host, OTHER_VIDEO)
     expect_the_tile_to_play_audio(guest, OTHER_VIDEO)
     assert _offers_made(camera_less_call) == offers_before
-    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=[1, 2_000_000], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=ONE_CAP_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -282,7 +318,7 @@ def test_a_camera_turned_on_before_a_late_joiner_arrives_reaches_the_late_joiner
     expect(late_joiner.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(2)
     expect(late_joiner.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0)
     wait_for_the_picture(late_joiner)
-    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=[2, 1_000_000], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=TWO_CAPS_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def test_a_camera_turned_off_and_on_again_shows_the_icon_then_the_picture_without_an_offer(
@@ -409,3 +445,208 @@ def test_the_audio_level_wait_over_a_tone_requests_no_waiting_after_the_loud_sam
     assert recorded["log"][-1] == {"sample": level}
     assert recorded["context_states"] == ["closed"]
     assert page_errors == []
+
+
+VIDEO_SECTION_DIRECTION = r"""
+() => {
+    const [, ...sections] = window.recordedConnections[0].localDescription.sdp.split("\nm=");
+    return sections.find((section) => section.startsWith("video")).match(/a=(sendrecv|recvonly|sendonly|inactive)/)[1];
+}
+"""
+DELETE_SET_STREAMS = "delete RTCRtpSender.prototype.setStreams;"
+A_VIDEO_SENDER_HOLDS_A_TRACK = """
+() => window.recordedConnections.some((connection) => connection.getSenders()
+    .some((sender) => sender.track?.kind === "video"))
+"""
+OUTBOUND_VIDEO_BYTES_SENT = """
+async () => {
+    const reports = await Promise.all(window.recordedConnections.map((connection) => connection.getStats()));
+    return reports.flatMap((stats) => [...stats.values()])
+        .filter((report) => report.type === "outbound-rtp" && report.kind === "video")
+        .reduce((total, report) => total + report.bytesSent, 0);
+}
+"""
+HOLD_OFFERS_BEING_APPLIED = """
+window.heldOffers = 0;
+window.offerGate = new Promise((release) => { window.releaseOffers = release; });
+const nativeSetRemoteDescription = RTCPeerConnection.prototype.setRemoteDescription;
+RTCPeerConnection.prototype.setRemoteDescription = function (description) {
+    if (description.type !== "offer") return nativeSetRemoteDescription.call(this, description);
+    window.heldOffers += 1;
+    return window.offerGate.then(() => nativeSetRemoteDescription.call(this, description));
+};
+"""
+HOLD_THE_ANSWER_HAND_OVER = """
+window.heldHandOvers = 0;
+window.settledHandOvers = 0;
+window.handOverGate = new Promise((release) => { window.releaseHandOvers = release; });
+const nativeReplaceTrack = RTCRtpSender.prototype.replaceTrack;
+RTCRtpSender.prototype.replaceTrack = function (track) {
+    window.heldHandOvers += 1;
+    const replaced = nativeReplaceTrack.call(this, track);
+    const countSettled = () => { window.settledHandOvers += 1; };
+    replaced.then(countSettled, countSettled);
+    return window.handOverGate.then(() => replaced);
+};
+"""
+HAND_OVER_HELD = "() => window.heldHandOvers > 0"
+HAND_OVER_SETTLED = "() => window.settledHandOvers === 1"
+RELEASE_THE_HAND_OVER = "() => window.releaseHandOvers()"
+HELD_OFFERS_REACHED = "(count) => window.heldOffers === count"
+RELEASE_THE_HELD_OFFERS = "() => window.releaseOffers()"
+EVERY_TILE_VIDEO = (
+    "() => [...document.querySelectorAll('#videoGrid .tile:not(.self) video')].map((video) => `#${video.id}`)"
+)
+
+
+def _expect_every_tile_to_play_audio(person: Page) -> None:
+    for selector in person.evaluate(EVERY_TILE_VIDEO):
+        expect_the_tile_to_play_audio(person, selector)
+
+
+def _offers_counted(*people: Page) -> list[int]:
+    return [person.evaluate(OFFER_COUNT) for person in people]
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_person_without_a_camera_sees_and_hears_the_one_who_joined_later(
+    camera_less_host_call: CameraLessHostCall,
+) -> None:
+    host = camera_less_host_call.host
+
+    wait_for_the_picture(host)
+    expect_the_tile_to_play_audio(host, OTHER_VIDEO)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_person_without_a_camera_shows_the_icon_to_the_one_who_joined_later_and_sends_no_picture(
+    camera_less_host_call: CameraLessHostCall,
+) -> None:
+    later_joiner = camera_less_host_call.later_joiner
+
+    expect_the_tile_to_play_audio(later_joiner, OTHER_VIDEO)
+
+    expect(later_joiner.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    expect(later_joiner.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
+    assert inbound_per_connection(later_joiner, "video", "framesDecoded") == [0]
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_camera_turned_on_by_the_answering_side_reaches_the_one_who_joined_later_under_the_cap_without_an_offer(
+    camera_less_host_call: CameraLessHostCall,
+) -> None:
+    host, later_joiner = camera_less_host_call.host, camera_less_host_call.later_joiner
+    offers_before = _offers_counted(host, later_joiner)
+
+    turn_the_camera_on(host)
+
+    wait_for_the_picture(later_joiner)
+    expect_the_tile_to_play_audio(later_joiner, OTHER_VIDEO)
+    expect_the_tile_to_play_audio(host, OTHER_VIDEO)
+    assert _offers_counted(host, later_joiner) == offers_before
+    host.wait_for_function(EVERY_VIDEO_CAP_IS, arg=ONE_CAP_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_answered_picture_arrives_under_the_stream_of_the_voice_in_a_sendrecv_section(
+    camera_less_host_call: CameraLessHostCall,
+) -> None:
+    host, later_joiner = camera_less_host_call.host, camera_less_host_call.later_joiner
+
+    turn_the_camera_on(host)
+
+    expect(later_joiner.locator(OTHER_CAMERA_OFF)).to_be_hidden()
+    assert sorted(later_joiner.evaluate(TILE_TRACKS, OTHER_VIDEO)) == ["audio:live", "video:live"]
+    assert host.evaluate(VIDEO_SECTION_DIRECTION) == "sendrecv"
+    stream_ids = host.evaluate(STREAM_IDS_ON_THE_WIRE)
+    assert stream_ids["audio"] == stream_ids["video"] == stream_ids["local"]
+
+
+def test_stop_sharing_keeps_the_added_camera_of_the_answering_side_for_the_one_who_joined_later(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    call = start_camera_less_host_call(open_person, base_url, DESKTOP, page_errors, (SHARE_THE_SCREEN_FROM_A_CANVAS,))
+    host, later_joiner = call.host, call.later_joiner
+    turn_the_camera_on(host)
+    wait_for_the_picture(later_joiner)
+
+    share_then_stop_the_screen_share(host)
+
+    wait_for_the_picture(later_joiner)
+    host.wait_for_function(EVERY_VIDEO_CAP_IS, arg=ONE_CAP_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    for person in (host, later_joiner):
+        assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
+
+
+def test_where_streams_cannot_be_set_the_answering_side_sends_no_picture_and_the_call_stays_as_it_was(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    call = start_camera_less_host_call(open_person, base_url, DESKTOP, page_errors, (DELETE_SET_STREAMS,))
+    host, later_joiner = call.host, call.later_joiner
+    wait_for_the_picture(host)
+    expect_the_tile_to_play_audio(host, OTHER_VIDEO)
+    expect_the_tile_to_play_audio(later_joiner, OTHER_VIDEO)
+
+    turn_the_camera_on(host)
+    host.wait_for_function(A_VIDEO_SENDER_HOLDS_A_TRACK)
+    wait_for_inbound_growth(
+        later_joiner, "audio", "bytesReceived", inbound_per_connection(later_joiner, "audio", "bytesReceived")
+    )
+
+    assert inbound_per_connection(later_joiner, "video", "framesDecoded") == [0]
+    assert host.evaluate(OUTBOUND_VIDEO_BYTES_SENT) == 0
+    expect(later_joiner.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    for person in (host, later_joiner):
+        assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
+
+
+def test_a_camera_adopted_while_the_offer_is_being_applied_reaches_the_one_who_joined_later(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    call = start_camera_less_host_call(open_person, base_url, DESKTOP, page_errors, (HOLD_OFFERS_BEING_APPLIED,))
+    host, later_joiner = call.host, call.later_joiner
+    host.wait_for_function(HELD_OFFERS_REACHED, arg=1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    turn_the_camera_on(host)
+    host.evaluate(RELEASE_THE_HELD_OFFERS)
+
+    wait_for_the_picture(later_joiner)
+    host.wait_for_function(EVERY_VIDEO_CAP_IS, arg=ONE_CAP_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def test_a_camera_turned_on_in_a_call_of_three_reaches_the_one_who_was_there_before_and_the_one_who_joined_later(
+    camera_less_call: CameraLessCall, open_person: Callable[..., Page], page_errors: list[str]
+) -> None:
+    host, guest = camera_less_call.host, camera_less_call.guest
+    later_joiner = join(
+        open_person,
+        camera_less_call.invite_link,
+        init_scripts=(RECORD_PEER_CONNECTIONS, COUNT_OFFERS),
+        page_errors=page_errors,
+    )
+    for person in (host, guest, later_joiner):
+        wait_for_peer_count(person, 2)
+    offers_before = _offers_counted(host, guest, later_joiner)
+
+    turn_the_camera_on(guest)
+
+    for person in (host, later_joiner):
+        wait_for_the_picture(person)
+        _expect_every_tile_to_play_audio(person)
+    assert _offers_counted(host, guest, later_joiner) == offers_before
+    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=TWO_CAPS_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def test_leaving_while_the_answer_hand_over_is_pending_raises_no_page_error(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    call = start_camera_less_host_call(open_person, base_url, DESKTOP, page_errors, (HOLD_THE_ANSWER_HAND_OVER,))
+    host, later_joiner = call.host, call.later_joiner
+    host.wait_for_function(HAND_OVER_HELD, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    later_joiner.click("#leaveBtn")
+    wait_for_peer_count(host, 0)
+    host.evaluate(RELEASE_THE_HAND_OVER)
+    host.wait_for_function(HAND_OVER_SETTLED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)

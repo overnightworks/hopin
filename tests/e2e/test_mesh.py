@@ -10,15 +10,21 @@ import pytest
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Expect, Page, WebSocketRoute
 
-from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS
+from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, SignalType
 from tests.e2e.conftest import (
+    AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     COUNT_OFFERS,
     EVERY_VIDEO_CAP_IS,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
+    ONE_CAP_PER_CONNECTION,
+    OPEN_PEER_COUNT_REACHED,
     OTHER_CAMERA_OFF,
+    OTHER_TILE,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
+    TWO_CAPS_PER_CONNECTION,
+    VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
     start_call,
     turn_the_camera_on,
@@ -34,8 +40,6 @@ expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 CLOCK_PAUSE_LEAD = timedelta(seconds=5)
 QUALITY_POLL_INTERVAL_MS = 3000
-OFFER_FRAME_TYPE = "offer"
-ANSWER_FRAME_TYPE = "answer"
 CHAT_FRAME_TYPE = "chat"
 RESUME_FRAME_TYPE = "resume"
 RESUMED_FRAME_TYPE = "resumed"
@@ -143,13 +147,6 @@ REJECT_NEXT_ANSWER_APPLICATION = """
 INJECTED_REJECTION = "answer application rejected on purpose"
 ANSWER_CREATIONS_COUNTED = "() => [window.answerCreationsStarted, window.answerCreationsSettled]"
 ANSWER_CREATION_STARTED = "(before) => window.answerCreationsStarted > before"
-AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
-() => new Promise((done) => {
-    const channel = new MessageChannel();
-    channel.port1.onmessage = () => done();
-    channel.port2.postMessage(0);
-})
-"""
 ANSWER_CREATION_SETTLED = "(before) => window.answerCreationsSettled > before"
 RECONNECT_TO_SAME_SEAT = 'async () => (await import("/static/js/signaling.js")).connect()'
 LOCAL_DESCRIPTIONS_SET = "(count) => window.localDescriptionCount >= count"
@@ -157,12 +154,6 @@ STATUS_IS = '(text) => document.getElementById("status").textContent === text'
 IN_CALL = "In call"
 CONNECTION_COUNT_AND_OPEN = """
 () => window.recordedConnections.length === 1 && window.recordedConnections[0].signalingState !== "closed"
-"""
-VIDEO_TRANSCEIVERS_PER_CONNECTION = """
-() => window.recordedConnections
-    .filter((connection) => connection.signalingState !== "closed")
-    .map((connection) => connection.getTransceivers()
-        .filter((transceiver) => transceiver.receiver.track.kind === "video").length)
 """
 A_NEW_CONNECTION_IS_CONNECTED = """
 () => window.recordedConnections.slice(1).some(
@@ -195,6 +186,7 @@ async (previousUfrag) => {
     return sdpUfrag !== previousUfrag && statsUfrag === sdpUfrag;
 }
 """
+REMOTE_UFRAG = "() => /a=ice-ufrag:(\\S+)/.exec(window.recordedConnections[0].remoteDescription.sdp)[1]"
 RESTART_DELAY = """
 async (attempt) => (await import("/static/js/recovery.js")).restartDelay(attempt)
 """
@@ -231,7 +223,7 @@ class OfferDrops:
     remaining: int = 0
 
     def should_drop(self, frame: str | bytes) -> bool:
-        if self.remaining <= 0 or json.loads(frame)["type"] != OFFER_FRAME_TYPE:
+        if self.remaining <= 0 or json.loads(frame)["type"] != SignalType.OFFER:
             return False
         self.remaining -= 1
         return True
@@ -376,7 +368,10 @@ def _wait_for_new_ufrag_in_stats(person: Page, previous_ufrag: str) -> str:
 
 
 def _connect_pair(
-    open_person: Callable[..., Page], base_url: str, guest_init_scripts: tuple[str, ...] = ()
+    open_person: Callable[..., Page],
+    base_url: str,
+    guest_init_scripts: tuple[str, ...] = (),
+    host_has_camera: bool = True,
 ) -> ConnectedPair:
     host = open_person()
     guest = open_person()
@@ -393,7 +388,7 @@ def _connect_pair(
     guest.goto("about:blank")
     for script in guest_init_scripts:
         guest.add_init_script(script)
-    invite_link = start_call(host, base_url)
+    invite_link = start_call(host, base_url, with_camera=host_has_camera)
     guest.goto(invite_link)
     for person in (host, guest):
         person.wait_for_function(FIRST_CONNECTION_IS_CONNECTED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
@@ -411,6 +406,13 @@ def connected_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[
 @pytest.fixture
 def camera_less_guest_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[ConnectedPair]:
     pair = _connect_pair(open_person, base_url, guest_init_scripts=(REFUSE_THE_CAMERA,))
+    yield pair
+    assert pair.page_errors == []
+
+
+@pytest.fixture
+def camera_less_host_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[ConnectedPair]:
+    pair = _connect_pair(open_person, base_url, host_has_camera=False)
     yield pair
     assert pair.page_errors == []
 
@@ -522,7 +524,7 @@ def test_restart_delay_follows_the_schedule_and_repeats_the_last_delay(
 
 @pytest.mark.parametrize(
     ("remote_count", "expected_cap"),
-    [(1, 2_000_000), (2, 1_000_000), (3, 666_666), (4, 500_000), (5, 400_000)],
+    [(*ONE_CAP_PER_CONNECTION,), (*TWO_CAPS_PER_CONNECTION,), (3, 666_666), (4, 500_000), (5, 400_000)],
 )
 def test_video_bitrate_cap_divides_the_budget_among_the_remote_peers(
     open_person: Callable[..., Page], base_url: str, remote_count: int, expected_cap: int
@@ -551,7 +553,7 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
         for earlier in people[:joined]:
             wait_for_peer_count(earlier, joined - 1)
         if joined == 3:
-            _wait_for_video_caps(people[:joined], 2, 1_000_000)
+            _wait_for_video_caps(people[:joined], *TWO_CAPS_PER_CONNECTION)
 
     _wait_for_video_caps(people, 5, 400_000)
     for person in people:
@@ -715,15 +717,15 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
     guest, host = connected_pair.guest, connected_pair.host
     first_delay, second_delay = _reconnect_delays(guest)[:2]
     guest_before, host_before = str(guest.evaluate(SDP_UFRAG)), str(host.evaluate(SDP_UFRAG))
-    answers_before = len(_frames_of(connected_pair.guest_tap, "downstream", ANSWER_FRAME_TYPE))
-    answers_sent = len(_frames_of(connected_pair.host_tap, "upstream", ANSWER_FRAME_TYPE))
+    answers_before = len(_frames_of(connected_pair.guest_tap, "downstream", SignalType.ANSWER))
+    answers_sent = len(_frames_of(connected_pair.host_tap, "upstream", SignalType.ANSWER))
     guest_tap, host_tap = connected_pair.guest_tap, connected_pair.host_tap
     guest_tap.blackhole_downstream = True
     guest_tap.refused_connections = 1
     guest.evaluate(HOLD_ANSWER_APPLICATION)
 
     connected_pair.force_failed_on(guest)
-    pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", ANSWER_FRAME_TYPE)) > answers_before)
+    pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", SignalType.ANSWER)) > answers_before)
     connected_pair.cut(guest)
     guest_tap.blackhole_downstream = False
     guest.clock.run_for(first_delay)
@@ -732,7 +734,7 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
     pump_until(guest, lambda: _restart_offers(guest) == 2)
     guest.clock.run_for(second_delay - (_restart_delay(guest, 0) - first_delay))
     wait_for_status(guest, IN_CALL)
-    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", ANSWER_FRAME_TYPE)) == answers_sent + 2)
+    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", SignalType.ANSWER)) == answers_sent + 2)
     _say_in_chat(host, "sent after both answers")
     expect(guest.locator("#chatMessages .chat-msg.other")).to_have_count(1)
     guest.evaluate(RELEASE_ANSWER_APPLICATION)
@@ -1011,3 +1013,95 @@ def test_camera_turned_on_while_the_socket_is_down_reaches_the_host_and_its_medi
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_hidden()
     heard_after = host_tap.types(host_tap.downstream[heard_before:])
     assert {"participant_left", "participant_joined"}.isdisjoint(heard_after)
+
+
+def test_camera_turned_on_by_the_answering_side_reaches_the_offerer_without_an_offer_and_survives_an_ice_restart(
+    camera_less_host_pair: ConnectedPair,
+) -> None:
+    host, guest = camera_less_host_pair.host, camera_less_host_pair.guest
+
+    turn_the_camera_on(host)
+    wait_for_the_picture(guest)
+
+    assert (_restart_offers(guest), guest.evaluate(OFFER_COUNT)) == (0, 1)
+    guest_before = str(guest.evaluate(SDP_UFRAG))
+    camera_less_host_pair.force_failed_on(guest)
+    assert _restart_offers(guest) == 1
+    assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
+    wait_for_the_picture(guest)
+    for person in (host, guest):
+        assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
+
+
+def _ice_ufrag_of_remote_description(person: Page) -> str:
+    return str(person.evaluate(REMOTE_UFRAG))
+
+
+def _ufrag_of_description(sdp: str) -> str:
+    return re.findall(r"a=ice-ufrag:(\S+)", sdp)[0]
+
+
+def _wait_for_offers_and_candidates_after_them(connected_pair: ConnectedPair, offers: int) -> None:
+    host, host_tap = connected_pair.host, connected_pair.host_tap
+
+    def offers_reached() -> bool:
+        return len(_frames_of(host_tap, "downstream", SignalType.OFFER)) >= offers
+
+    pump_until(host, offers_reached)
+    last_offer_at = max(
+        index for index, message in enumerate(host_tap.downstream) if message["type"] == SignalType.OFFER
+    )
+    last_offer_ufrag = _ufrag_of_description(host_tap.downstream[last_offer_at]["sdp"]["sdp"])
+
+    def candidate_of_the_last_offer_arrived() -> bool:
+        candidates = _frames_of(host_tap, "downstream", SignalType.ICE_CANDIDATE, last_offer_at)
+        return any(frame["candidate"]["usernameFragment"] == last_offer_ufrag for frame in candidates)
+
+    pump_until(host, candidate_of_the_last_offer_arrived)
+
+
+def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_pair_connects_again_on_the_next_retry(
+    connected_pair: ConnectedPair,
+) -> None:
+    guest, host, host_tap = connected_pair.guest, connected_pair.host, connected_pair.host_tap
+    offers_before = len(_frames_of(host_tap, "downstream", SignalType.OFFER))
+    answers_before = len(_frames_of(host_tap, "upstream", SignalType.ANSWER))
+    guest_before, host_before = str(guest.evaluate(SDP_UFRAG)), str(host.evaluate(SDP_UFRAG))
+    host.evaluate(HOLD_ANSWER_CREATION)
+
+    connected_pair.force_failed_on(guest)
+    guest.clock.run_for(_restart_delay(guest, 0))
+    _wait_for_offers_and_candidates_after_them(connected_pair, offers_before + 2)
+    second_offer_ufrag = str(guest.evaluate(SDP_UFRAG))
+    host.evaluate(RELEASE_ANSWER_CREATION)
+
+    pump_until(host, lambda: len(_frames_of(host_tap, "upstream", SignalType.ANSWER)) == answers_before + 2)
+    host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
+    assert second_offer_ufrag != guest_before
+    assert _ice_ufrag_of_remote_description(host) == second_offer_ufrag
+    guest.clock.run_for(_restart_delay(guest, 1))
+    guest.wait_for_function(FIRST_CONNECTION_IS_CONNECTED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
+    assert _wait_for_new_ufrag_in_stats(host, host_before) != host_before
+
+
+def test_leaving_behind_a_queued_restart_offer_leaves_no_tile_and_no_connection_on_the_one_who_stays(
+    connected_pair: ConnectedPair,
+) -> None:
+    guest, host, host_tap = connected_pair.guest, connected_pair.host, connected_pair.host_tap
+    offers_before = len(_frames_of(host_tap, "downstream", SignalType.OFFER))
+    started_before, settled_before = host.evaluate(ANSWER_CREATIONS_COUNTED)
+    host.evaluate(HOLD_ANSWER_CREATION)
+    connected_pair.force_failed_on(guest)
+    host.wait_for_function(ANSWER_CREATION_STARTED, arg=started_before, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    guest.clock.run_for(_restart_delay(guest, 0))
+    pump_until(host, lambda: len(_frames_of(host_tap, "downstream", SignalType.OFFER)) == offers_before + 2)
+
+    guest.click("#leaveBtn")
+    wait_for_peer_count(host, 0)
+    host.evaluate(RELEASE_ANSWER_CREATION)
+
+    host.wait_for_function(ANSWER_CREATION_SETTLED, arg=settled_before, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
+    expect(host.locator(OTHER_TILE)).to_have_count(0)
+    assert host.evaluate(OPEN_PEER_COUNT_REACHED, 0)
