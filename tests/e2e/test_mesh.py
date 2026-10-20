@@ -368,11 +368,12 @@ def _wait_for_new_ufrag_in_stats(person: Page, previous_ufrag: str) -> None:
 
 
 @contextmanager
-def _expect_a_new_ufrag_on(*people: Page) -> Iterator[None]:
+def _expect_to_reconnect_on_a_new_ufrag(*people: Page) -> Iterator[None]:
     ufrags_before = [_sdp_ufrag(person) for person in people]
     yield
     for person, ufrag_before in zip(people, ufrags_before, strict=True):
         _wait_for_new_ufrag_in_stats(person, ufrag_before)
+        _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
 
 
 @pytest.fixture
@@ -421,7 +422,7 @@ def test_forced_failure_on_the_joiner_restarts_ice_once_and_both_sides_take_the_
 ) -> None:
     guest = connected_pair.guest
 
-    with _expect_a_new_ufrag_on(guest, connected_pair.host):
+    with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
         connected_pair.force_failed_on(guest)
         assert _restart_offers(guest) == 1
 
@@ -460,7 +461,7 @@ def test_lost_restart_offer_is_retried_from_have_local_offer_and_the_retry_sched
     first_delay = _restart_delay(guest, 0)
     connected_pair.guest_tap.offers_to_drop = 1
 
-    with _expect_a_new_ufrag_on(guest, connected_pair.host):
+    with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
         connected_pair.force_failed_on(guest)
         _wait_for(guest, AWAITING_ANSWER)
         guest.clock.run_for(first_delay)
@@ -612,7 +613,7 @@ def test_restart_answer_swallowed_at_the_cut_is_resent_after_the_resume_and_both
     upstream_before = len(host_tap.upstream)
     host_tap.swallow_upstream = UNLIMITED_DROPS
 
-    with _expect_a_new_ufrag_on(guest, host):
+    with _expect_to_reconnect_on_a_new_ufrag(guest, host):
         connected_pair.force_failed_on(guest)
         pump_until(host, lambda: bool(_frames_of(host_tap, "upstream", SignalType.ANSWER, since=upstream_before)))
         with connected_pair.socket_down(host):
@@ -697,7 +698,7 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
     guest_tap.refused_connections = 1
     guest.evaluate(HOLD_ANSWER_APPLICATION)
 
-    with _expect_a_new_ufrag_on(guest, host):
+    with _expect_to_reconnect_on_a_new_ufrag(guest, host):
         connected_pair.force_failed_on(guest)
         pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", SignalType.ANSWER)) > answers_before)
         connected_pair.cut(guest)
@@ -716,7 +717,7 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
     guest = connected_pair.guest
     guest.evaluate(REJECT_NEXT_ANSWER_APPLICATION, INJECTED_REJECTION)
 
-    with _expect_a_new_ufrag_on(guest, connected_pair.host):
+    with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
         connected_pair.force_failed_on(guest)
         pump_until(guest, lambda: bool(connected_pair.page_errors))
         guest.clock.run_for(_restart_delay(guest, 0))
@@ -910,7 +911,7 @@ def test_camera_turned_on_mid_call_reaches_the_other_side_without_an_offer_and_s
     wait_for_the_picture(watcher)
 
     assert (_restart_offers(guest), guest.evaluate(OFFER_COUNT)) == (0, 1)
-    with _expect_a_new_ufrag_on(guest):
+    with _expect_to_reconnect_on_a_new_ufrag(guest):
         pair.force_failed_on(guest)
         assert _restart_offers(guest) == 1
     wait_for_the_picture(watcher)
