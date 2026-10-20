@@ -92,6 +92,12 @@ EVERY_VIDEO_CAP_IS = """
     return open.length === peerCount && caps.length === peerCount && caps.every((cap) => cap === expectedCap);
 }
 """
+VIDEO_TRANSCEIVERS_PER_CONNECTION = """
+() => window.recordedConnections
+    .filter((connection) => connection.signalingState !== "closed")
+    .map((connection) => connection.getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track.kind === "video").length)
+"""
 INBOUND_PER_CONNECTION = """
 async ([kind, field]) => {
     const open = window.recordedConnections.filter((connection) => connection.signalingState !== "closed");
@@ -235,10 +241,11 @@ def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> 
     host.click("#setupStartBtn")
 
 
-def start_call(host: Page, base_url: str) -> str:
-    press_start_call(host, base_url)
+def start_call(host: Page, base_url: str, *, with_camera: bool = True) -> str:
+    press_start_call(host, base_url, with_camera=with_camera)
     expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
-    host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    if with_camera:
+        host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     return host.input_value("#shareUrl")
 
 
