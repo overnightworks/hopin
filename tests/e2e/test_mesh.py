@@ -24,6 +24,7 @@ from tests.e2e.conftest import (
     turn_the_camera_on,
     wait_for_frames_to_advance,
     wait_for_peer_count,
+    wait_for_the_picture,
 )
 
 pytestmark = pytest.mark.e2e
@@ -981,14 +982,14 @@ def test_camera_turned_on_mid_call_reaches_the_host_without_an_offer_and_survive
     assert _frames_decoded(host) == [0]
 
     turn_the_camera_on(guest)
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
 
     assert (_restart_offers(guest), guest.evaluate(OFFER_COUNT)) == (0, 1)
     guest_before = str(guest.evaluate(SDP_UFRAG))
     camera_less_guest_pair.force_failed_on(guest)
     assert _restart_offers(guest) == 1
     assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
-    wait_for_frames_to_advance(host)
+    wait_for_the_picture(host)
     for person in (host, guest):
         assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
 
