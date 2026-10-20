@@ -31,12 +31,16 @@ function adoptLocalStream(stream, hasCamera) {
     state.videoEnabled = hasCamera;
 }
 
-function replaceVideoTrack(newTrack) {
+function dropVideoTrack() {
     const oldTrack = state.localStream.getVideoTracks()[0];
     if (oldTrack) {
         state.localStream.removeTrack(oldTrack);
         oldTrack.stop();
     }
+}
+
+function replaceVideoTrack(newTrack) {
+    dropVideoTrack();
     state.localStream.addTrack(newTrack);
     showLocalStream(state.localStream);
     void replaceVideoTrackOnPeers(newTrack);
@@ -105,6 +109,14 @@ export async function addCamera() {
             localMediaChanged();
         },
     );
+}
+
+// Stopping the track, not only disabling it, turns the camera's light off.
+export function releaseCamera() {
+    dropVideoTrack();
+    state.hasCamera = false;
+    state.videoEnabled = false;
+    localMediaChanged();
 }
 
 async function stopScreenShare() {

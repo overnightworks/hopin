@@ -8,7 +8,7 @@ Self-hosted video call service using WebRTC. Start a call, share a link, your fr
 
 HopIn uses **WebRTC** with a **mesh topology** for peer-to-peer video calls:
 
-1. You open the app and start a call — a room is created
+1. You open the app, check your camera and microphone in a preview, and start the call — a room is created
 2. You share the generated link (e.g. via WhatsApp)
 3. Friends click the link — their browser connects directly to yours
 4. Everyone sends and receives video/audio to everyone else
@@ -162,6 +162,7 @@ src/hopin/
 │               ├── app.js        # Wiring, call start and leave
 │               ├── router.js     # The address and the screen, call links
 │               ├── home.js       # Home screen
+│               ├── prejoin.js    # Pre-join: preview, microphone and camera, Start
 │               ├── end.js        # End and refusal screens
 │               ├── state.js      # Call and local-media state
 │               ├── signaling.js  # WebSocket, resume, message handlers
@@ -178,7 +179,7 @@ src/hopin/
 │               ├── pip.js        # Dragging the phone picture-in-picture
 │               ├── controls.js   # Control bar and share box
 │               ├── status.js     # Call status, lock, participant count
-│               └── dialogs.js    # Setup and leave dialogs
+│               └── dialogs.js    # Leave dialog
 ├── errors.py             # Custom exception hierarchy
 ├── app.py                # Application factory and wiring
 └── main.py               # Entry point

@@ -312,7 +312,7 @@ class TestPageShell:
         assert motion_tokens_left_running_under_reduced_motion(stylesheet) == {"--motion-ring"}
 
     def test_every_screen_holds_exactly_one_legal_nav_with_both_links(self, page_inventory):
-        assert {"home", "call"} <= page_inventory.screens
+        assert {"home", "prejoin", "call"} <= page_inventory.screens
         assert set(page_inventory.legal_navs_by_screen) == page_inventory.screens
         for navs in page_inventory.legal_navs_by_screen.values():
             assert navs == [list(LEGAL_URLS)]

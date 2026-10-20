@@ -3,11 +3,12 @@ import {
     hideLockButton,
     hideShareBox,
     initControls,
+    renderMuteButton,
     renderVideoButton,
     showLockButton,
     showShareLink,
 } from "./controls.js";
-import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
+import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { acquireMedia, stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
@@ -36,6 +37,7 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome } from "./home.js";
+import { initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, showScreen } from "./router.js";
 
 function updateParticipantCount() {
@@ -51,10 +53,12 @@ function updateLockUI() {
     showLockIndicator(state.isLocked);
 }
 
-function startCall(preferCamera) {
+// The host's media opened on the pre-join; a guest's opens while the ICE servers load.
+function startCall(mediaOpening = Promise.resolve()) {
+    showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
+    return Promise.allSettled([mediaOpening, loadIceServers()]).then((outcomes) => {
         if (state.intentionalLeave) return;
         const failure = outcomes.find((outcome) => outcome.status === "rejected");
         if (failure) {
@@ -64,6 +68,7 @@ function startCall(preferCamera) {
         }
         showLocalStream(state.localStream);
         renderVideoButton();
+        renderMuteButton();
         updateLocalPreview();
         connect();
     });
@@ -149,24 +154,20 @@ registerMediaStateHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);
-initDialogs({
-    onSetupStart: startCall,
-    onLeaveConfirmed: leaveCall,
-});
+initDialogs({ onLeaveConfirmed: leaveCall });
 initControls({ onLeaveRequested: requestLeave });
 initChat();
 initPip();
 initEnd();
-initHome({
-    onStartRequested: () => {
-        showScreen(SCREEN.CALL);
-        showSetupDialog();
+initHome({ onStartRequested: openPrejoin });
+initPrejoin({
+    onStart: () => {
+        void startCall();
     },
 });
 
 if (getRoomIdFromUrl()) {
-    showScreen(SCREEN.CALL);
-    void startCall(true);
+    void startCall(acquireMedia(true));
 } else {
     showScreen(SCREEN.HOME);
 }

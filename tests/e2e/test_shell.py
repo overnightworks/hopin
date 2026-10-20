@@ -4,7 +4,17 @@ from typing import Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DESKTOP, LEGAL_LINKS, PHONE, SMALL_PHONE_LANDSCAPE, expect_both_legal_links
+from tests.e2e.conftest import (
+    DESKTOP,
+    LEGAL_LINKS,
+    PHONE,
+    PREJOIN_START,
+    SMALL_PHONE_LANDSCAPE,
+    expect_both_legal_links,
+    open_prejoin,
+    record_page_errors,
+    wait_until_the_prejoin_media_answered,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -26,16 +36,19 @@ def test_home_shows_start_a_call_and_both_legal_links(
 
 
 @FORM_FACTORS
-def test_call_screen_reached_from_home_shows_both_legal_links(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
+def test_prejoin_and_call_screen_reached_from_home_each_show_both_legal_links(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
-    page = open_person(**form_factor)
-    page.goto(f"{base_url}/")
+    page = record_page_errors(open_person(**form_factor), page_errors)
 
-    page.click("#homeStartBtn")
-
-    expect_both_legal_links(page.locator("[data-screen=call]"))
+    open_prejoin(page, base_url)
+    expect_both_legal_links(page.locator("[data-screen=prejoin]"))
     expect(page.locator("[data-screen=home]")).to_be_hidden()
+
+    wait_until_the_prejoin_media_answered(page)
+    page.click(PREJOIN_START)
+    expect_both_legal_links(page.locator("[data-screen=call]"))
+    expect(page.locator("[data-screen=prejoin]")).to_be_hidden()
 
 
 @pytest.mark.parametrize("label", LEGAL_LINKS)

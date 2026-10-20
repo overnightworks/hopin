@@ -51,7 +51,7 @@ export function renderVideoButton() {
     videoButton.className = state.videoEnabled ? "btn-active" : "btn-muted";
 }
 
-function renderMuteButton() {
+export function renderMuteButton() {
     muteButton.textContent = state.audioEnabled ? "Mic On" : "Mic Off";
     muteButton.className = state.audioEnabled ? "btn-active" : "btn-muted";
 }
