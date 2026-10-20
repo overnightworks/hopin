@@ -10,7 +10,7 @@ import pytest
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Expect, Page, WebSocketRoute
 
-from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS
+from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, SignalType
 from tests.e2e.conftest import (
     COUNT_OFFERS,
     EVERY_VIDEO_CAP_IS,
@@ -39,7 +39,6 @@ CLOCK_PAUSE_LEAD = timedelta(seconds=5)
 QUALITY_POLL_INTERVAL_MS = 3000
 OFFER_FRAME_TYPE = "offer"
 ANSWER_FRAME_TYPE = "answer"
-CANDIDATE_FRAME_TYPE = "ice_candidate"
 CHAT_FRAME_TYPE = "chat"
 RESUME_FRAME_TYPE = "resume"
 RESUMED_FRAME_TYPE = "resumed"
@@ -1044,6 +1043,10 @@ def _ice_ufrag_of_remote_description(person: Page) -> str:
     return str(person.evaluate(REMOTE_UFRAG))
 
 
+def _ufrag_of_description(sdp: str) -> str:
+    return re.findall(r"a=ice-ufrag:(\S+)", sdp)[0]
+
+
 def _wait_for_offers_and_candidates_after_them(connected_pair: ConnectedPair, offers: int) -> None:
     host, host_tap = connected_pair.host, connected_pair.host_tap
 
@@ -1054,7 +1057,13 @@ def _wait_for_offers_and_candidates_after_them(connected_pair: ConnectedPair, of
     last_offer_at = max(
         index for index, message in enumerate(host_tap.downstream) if message["type"] == OFFER_FRAME_TYPE
     )
-    pump_until(host, lambda: bool(_frames_of(host_tap, "downstream", CANDIDATE_FRAME_TYPE, last_offer_at)))
+    last_offer_ufrag = _ufrag_of_description(host_tap.downstream[last_offer_at]["sdp"]["sdp"])
+
+    def candidate_of_the_last_offer_arrived() -> bool:
+        candidates = _frames_of(host_tap, "downstream", SignalType.ICE_CANDIDATE, last_offer_at)
+        return any(frame["candidate"]["usernameFragment"] == last_offer_ufrag for frame in candidates)
+
+    pump_until(host, candidate_of_the_last_offer_arrived)
 
 
 def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_pair_connects_again_on_the_next_retry(
