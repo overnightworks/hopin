@@ -1,7 +1,0 @@
-claim_id = "c965eedaa1834daaba118667ba53d783"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "80b9ac964d3996bad6a3fb84baac2391d765a5ba"
-branch = "claude/issue-102-mesh-e2e-tests-less-code"
-scope = ["tests/e2e/conftest.py", "tests/e2e/test_mesh.py"]
-opened_commit = "d45454c1038c24b5ad3fe36fc490a89790c04be1"
