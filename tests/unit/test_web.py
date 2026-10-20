@@ -7,17 +7,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from hopin.config.constants import CALL_PATH, HEALTH_PATH, HOME_PATH, STATIC_PATH
-from hopin.rooms.manager import RoomManager
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import QueryIdIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
-
-
-@pytest.fixture
-def room_manager():
-    return RoomManager(max_participants_per_room=5)
 
 
 @pytest.fixture
