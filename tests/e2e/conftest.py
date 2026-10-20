@@ -58,8 +58,6 @@ window.RTCPeerConnection.prototype = NativePeerConnection.prototype;
 OPEN_PEER_COUNT_REACHED = """
 (count) => window.recordedConnections.filter((connection) => connection.signalingState !== "closed").length === count
 """
-SHARE_SCREEN_LABEL = "Share Screen"
-STOP_SHARING_LABEL = "Stop Sharing"
 SHARE_THE_SCREEN_FROM_A_CANVAS = """
 navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
 """
@@ -381,19 +379,23 @@ def join(
 
 def turn_the_camera_on(person: Page) -> None:
     person.evaluate(PLUG_IN_THE_CAMERA)
-    expect(person.locator("#videoBtn")).to_have_text("Cam Off")
+    expect(person.locator("#videoBtn")).to_have_attribute("aria-pressed", "true")
     person.click("#videoBtn")
-    expect(person.locator("#videoBtn")).to_have_text("Cam On")
+    expect(person.locator("#videoBtn")).to_have_attribute("aria-pressed", "false")
 
 
 def share_the_screen(person: Page) -> None:
     person.click("#screenBtn")
-    expect(person.locator("#screenBtn")).to_have_text(STOP_SHARING_LABEL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(person.locator("#screenBtn")).to_have_attribute(
+        "aria-pressed", "true", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def stop_the_screen_share(person: Page) -> None:
     person.click("#screenBtn")
-    expect(person.locator("#screenBtn")).to_have_text(SHARE_SCREEN_LABEL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(person.locator("#screenBtn")).to_have_attribute(
+        "aria-pressed", "false", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def share_then_stop_the_screen_share(person: Page) -> None:

@@ -1,9 +1,9 @@
+import { renderDeviceToggle } from "./controls.js";
 import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "./media.js";
 import { SCREEN, goHome, showScreen } from "./router.js";
 import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
 
-const MICROPHONE_LABEL = { ON: "Mute", OFF: "Unmute" };
 export const PREJOIN_KIND = Object.freeze({ HOST: "host", GUEST: "guest" });
 
 const KIND_TEXTS = {
@@ -52,17 +52,11 @@ function startLabel(cameraOn, microphoneOn) {
     return labels.NEITHER;
 }
 
-function renderToggle(button, isOn) {
-    button.classList.toggle("off", !isOn);
-    button.setAttribute("aria-pressed", String(!isOn));
-}
-
 function render() {
     const cameraOn = state.videoEnabled;
     const microphoneOn = state.audioEnabled;
-    renderToggle(microphoneButton, microphoneOn);
-    microphoneButton.setAttribute("aria-label", microphoneOn ? MICROPHONE_LABEL.ON : MICROPHONE_LABEL.OFF);
-    renderToggle(cameraButton, cameraOn);
+    renderDeviceToggle(microphoneButton, microphoneOn);
+    renderDeviceToggle(cameraButton, cameraOn);
     startButton.textContent = startLabel(cameraOn, microphoneOn);
     const nothingToUse = mediaRequestPending || !state.localStream;
     for (const control of [microphoneButton, cameraButton, startButton]) {

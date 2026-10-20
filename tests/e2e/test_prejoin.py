@@ -319,8 +319,8 @@ def expect_the_own_view_shows_the_choice(
     if alone or form_factor == DESKTOP:
         # Only a phone hides the own mark once others are in the call; it is the others' to see there.
         expect(person.locator(OWN_MUTE_MARK)).to_be_visible(visible=not choice.microphone)
-    expect(person.locator("#videoBtn")).to_have_text("Cam On" if choice.camera else "Cam Off")
-    expect(person.locator("#muteBtn")).to_have_text("Mic On" if choice.microphone else "Mic Off")
+    expect(person.locator("#videoBtn")).to_have_attribute("aria-pressed", str(not choice.camera).lower())
+    expect(person.locator("#muteBtn")).to_have_attribute("aria-pressed", str(not choice.microphone).lower())
 
 
 def expect_the_other_sees_the_choice(other: Page, choice: Choice) -> None:
@@ -391,14 +391,14 @@ def test_prejoin_off_choice_shows_on_the_call_buttons_while_the_ice_servers_load
         person.page.click(PREJOIN_START)
     microphone = person.page.locator("#muteBtn")
 
-    expect(microphone).to_have_text("Mic Off")
+    expect(microphone).to_have_attribute("aria-pressed", "true")
     assert person.page.evaluate(LIVE_AUDIO_TRACKS_ENABLED) == [False]
-    expect(person.page.locator("#videoBtn")).to_have_text("Cam Off")
+    expect(person.page.locator("#videoBtn")).to_have_attribute("aria-pressed", "true")
     assert person.page.evaluate(LIVE_VIDEO_TRACK_COUNT) == 0
 
     microphone.click()
 
-    expect(microphone).to_have_text("Mic On")
+    expect(microphone).to_have_attribute("aria-pressed", "false")
     assert person.page.evaluate(LIVE_AUDIO_TRACKS_ENABLED) == [True]
     held_ice_requests.pop().continue_()
 
@@ -609,14 +609,14 @@ def test_prejoin_buttons_name_their_action_and_tell_whether_the_device_is_off(
         return prejoin.get_by_role("button", name=name, exact=True, pressed=off)
 
     expect(button("Mute", off=False)).to_be_visible()
-    expect(button("Camera", off=False)).to_be_visible()
+    expect(button("Camera off", off=False)).to_be_visible()
 
     button("Mute", off=False).click()
-    button("Camera", off=False).click()
-    expect(button("Unmute", off=True)).to_be_visible()
-    expect(button("Camera", off=True)).to_be_visible()
+    button("Camera off", off=False).click()
+    expect(button("Mute", off=True)).to_be_visible()
+    expect(button("Camera off", off=True)).to_be_visible()
 
-    button("Unmute", off=True).click()
-    button("Camera", off=True).click()
+    button("Mute", off=True).click()
+    button("Camera off", off=True).click()
     expect(button("Mute", off=False)).to_be_visible()
-    expect(button("Camera", off=False)).to_be_visible()
+    expect(button("Camera off", off=False)).to_be_visible()

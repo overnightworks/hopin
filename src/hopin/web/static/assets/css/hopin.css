@@ -24,6 +24,10 @@
     --vignette: rgba(6, 8, 10, .42);
     --busy-stage: #EDB656;
     --accent-stage: #56C3CD;
+    --stage-fade: rgba(13, 16, 19, .92);
+    --leave: #E5484D;
+    --leave-hover: #CF3A3F;
+    --on-leave: #FFFFFF;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -91,17 +95,9 @@ body {
     opacity: 1;
     background: var(--busy-stage);
 }
-.controls {
-    display: flex;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    border-top: 1px solid #1f1f1f;
-    flex-wrap: wrap;
-}
-/* Old-surface shape until the strip (19a), chat (20) and leave dialog (21) rows
+/* Old-surface shape until the chat (20) and leave dialog (21) rows
    delete their selectors; the last one removes this rule. */
-.btn-primary, .btn-danger, .btn-secondary, .btn-active, .btn-muted, .btn-warning, .chat-close {
+.btn-primary, .btn-danger, .btn-secondary, .chat-close {
     padding: 0.6rem 1.2rem;
     border: none;
     border-radius: 50px;
@@ -113,14 +109,10 @@ body {
     align-items: center;
     gap: 0.4rem;
 }
-.btn-primary:hover, .btn-danger:hover, .btn-secondary:hover, .btn-active:hover,
-.btn-muted:hover, .btn-warning:hover, .chat-close:hover { opacity: 0.85; }
+.btn-primary:hover, .btn-danger:hover, .btn-secondary:hover, .chat-close:hover { opacity: 0.85; }
 .btn-primary { background: #4f46e5; color: #fff; }
 .btn-danger { background: #dc2626; color: #fff; }
 .btn-secondary { background: #374151; color: #fff; }
-.btn-active { background: #047857; color: #fff; }
-.btn-muted { background: #dc2626; color: #fff; }
-.btn-warning { background: #b45309; color: #fff; }
 .status {
     padding: 0.3rem 0.6rem;
     border-radius: 6px;
@@ -238,28 +230,8 @@ body {
     padding: 0.5rem 1rem;
     border-radius: 6px;
 }
-.chat-badge {
-    display: none;
-    background: #dc2626;
-    color: #fff;
-    border-radius: 50%;
-    width: 18px;
-    height: 18px;
-    font-size: 0.7rem;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: -6px;
-    right: -6px;
-}
-.chat-badge.visible { display: flex; }
-.btn-chat-wrap {
-    position: relative;
-    display: inline-flex;
-}
 @media (max-width: 600px) {
-    .controls { gap: 0.4rem; padding: 0.5rem; }
-    .btn-primary, .btn-danger, .btn-secondary, .btn-active, .btn-muted, .btn-warning {
+    .btn-primary, .btn-danger, .btn-secondary {
         padding: 0.5rem 0.8rem;
         font-size: 0.8rem;
     }
@@ -278,7 +250,7 @@ body {
     font-family: var(--sans);
 }
 .stage {
-    --stage-bottom: 8px;
+    --stage-bottom: 112px;
     --c: 1;
     --r: 1;
     position: relative;
@@ -428,7 +400,7 @@ body {
 }
 @media (min-width: 601px) {
     .chat-panel { grid-column: 2; grid-row: 1 / span 2; }
-    .stage { --stage-bottom: 20px; }
+    .stage { --stage-bottom: 92px; }
     .stage[data-count="2"] { --c: 2; --r: 1; }
     .stage[data-count="3"] { --c: 3; --r: 1; }
     .stage[data-count="5"], .stage[data-count="6"] { --c: 3; --r: 2; }
@@ -689,9 +661,46 @@ body {
     -webkit-backdrop-filter: blur(14px);
     transition: background var(--motion-quick);
 }
-.cb:hover:not(:disabled, .off) { background: var(--glass-hover); }
+.cb:hover:not(:disabled, .off, .active, .leave) { background: var(--glass-hover); }
 .cb.off { background: var(--on-stage); color: var(--stage); }
+.cb.active { background: var(--accent-stage); color: var(--stage); }
+.cb.leave { background: var(--leave); color: var(--on-leave); }
+.cb.leave:hover:not(:disabled) { background: var(--leave-hover); }
 .cb:disabled { opacity: .55; cursor: default; }
+.cbar { position: absolute; z-index: 40; display: flex; align-items: center; }
+.cbar .gap { display: none; width: 14px; }
+.cbar #screenBtn { display: none; }
+.cbar {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 26px 14px 36px;
+    justify-content: space-between;
+    background: linear-gradient(to top, var(--stage-fade) 55%, transparent);
+}
+.badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent-stage);
+    color: var(--stage);
+    font-size: 12px;
+    font-weight: 750;
+    display: none;
+    place-items: center;
+    box-shadow: 0 0 0 2.5px var(--stage);
+}
+.badge.visible { display: grid; }
+@media (min-width: 601px) {
+    .cbar { left: 50%; right: auto; bottom: 20px; padding: 0; gap: 10px; transform: translateX(-50%); background: none; }
+    .cbar .gap { display: block; }
+    .cbar #screenBtn { display: grid; }
+    .cb.leave { width: 72px; border-radius: 26px; }
+}
 .cb .shows-off, .cb.off .shows-on { display: none; }
 .cb.off .shows-off { display: block; }
 .av-28 { width: 28px; height: 28px; flex: none; }
