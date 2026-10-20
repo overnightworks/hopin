@@ -111,33 +111,44 @@ def lock_while_host_is_away(handler, room_manager):
 
 class TestHandleMessageRefusals:
     @pytest.mark.parametrize(
-        ("reason", "arrange"),
+        ("reason", "arrange", "detail"),
         [
-            pytest.param(ErrorReason.NOT_FOUND, join_unknown_room, id="join_unknown_room"),
-            pytest.param(ErrorReason.LOCKED, join_locked_room, id="join_locked_room"),
-            pytest.param(ErrorReason.FULL, join_full_room, id="join_full_room"),
-            pytest.param(ErrorReason.NOT_HOST, lock_as_participant, id="lock_as_participant"),
-            pytest.param(ErrorReason.NOT_HOST, end_room_as_participant, id="end_room_as_participant"),
-            pytest.param(ErrorReason.NOT_HOST, lock_while_host_is_away, id="lock_while_host_is_away"),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: "not json", id="not_json"),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: "[]", id="json_array"),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: {"foo": "bar"}, id="no_type"),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: {"type": "unknown"}, id="unknown_type"),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: {"type": []}, id="non_string_type"),
+            pytest.param(ErrorReason.NOT_FOUND, join_unknown_room, None, id="join_unknown_room"),
+            pytest.param(ErrorReason.LOCKED, join_locked_room, None, id="join_locked_room"),
+            pytest.param(ErrorReason.FULL, join_full_room, None, id="join_full_room"),
+            pytest.param(ErrorReason.NOT_HOST, lock_as_participant, None, id="lock_as_participant"),
+            pytest.param(ErrorReason.NOT_HOST, end_room_as_participant, None, id="end_room_as_participant"),
+            pytest.param(ErrorReason.NOT_HOST, lock_while_host_is_away, None, id="lock_while_host_is_away"),
+            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: "not json", "Invalid JSON", id="not_json"),
+            pytest.param(
+                ErrorReason.INVALID_MESSAGE, lambda *_: "[]", "Message must be a JSON object", id="json_array"
+            ),
+            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: {"foo": "bar"}, "Missing signal type", id="no_type"),
+            pytest.param(
+                ErrorReason.INVALID_MESSAGE,
+                lambda *_: {"type": "unknown"},
+                "Unknown signal type: unknown",
+                id="unknown_type",
+            ),
+            pytest.param(
+                ErrorReason.INVALID_MESSAGE, lambda *_: {"type": []}, "Missing signal type", id="non_string_type"
+            ),
             pytest.param(
                 ErrorReason.INVALID_MESSAGE,
                 lambda *_: {"type": SignalType.OFFER.value, "target": []},
+                "target must be a string",
                 id="non_string_target",
             ),
             pytest.param(
                 ErrorReason.INVALID_MESSAGE,
                 lambda *_: {"type": SignalType.JOIN.value, "room_id": {}},
+                "room_id must be a string",
                 id="non_string_room_id",
             ),
         ],
     )
-    async def test_handle_message_refused_request_sends_error_frame_with_reason(
-        self, handler, room_manager, reason, arrange
+    async def test_handle_message_refused_request_sends_one_error_frame_with_reason_and_message(
+        self, handler, room_manager, reason, arrange, detail
     ):
         ws = register_peer(handler, "sender")
         raw_data = arrange(handler, room_manager)
@@ -149,22 +160,9 @@ class TestHandleMessageRefusals:
         assert response["type"] == SignalType.ERROR.value
         assert response["reason"] == reason.value
         assert response["message"]
-
-    @pytest.mark.parametrize(
-        ("raw_data", "detail"),
-        [
-            pytest.param("not json", "Invalid JSON", id="not_json"),
-            pytest.param("[]", "Message must be a JSON object", id="json_array"),
-            pytest.param({"foo": "bar"}, "Missing signal type", id="no_type"),
-            pytest.param({"type": "unknown"}, "Unknown signal type: unknown", id="unknown_type"),
-        ],
-    )
-    async def test_handle_message_invalid_frame_tells_the_person_what_was_wrong(self, handler, raw_data, detail):
-        ws = register_peer(handler, "sender")
-
-        await deliver(handler, "sender", raw_data)
-
-        assert json.loads(ws.send_text.call_args[0][0])["message"] == detail
+        # A room refusal's wording names the room id the arrangement generated, so its row leaves the detail open
+        if detail is not None:
+            assert response["message"] == detail
 
     async def test_handle_message_full_room_refusal_carries_the_capacity(self, handler, room_manager):
         ws = register_peer(handler, "sender")
