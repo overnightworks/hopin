@@ -1,0 +1,8 @@
+claim_id = "91e0dbf9472f4954974ba18978e6360d"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "da386132c3c4c010bf8908c2f8f1c00e65388030"
+branch = "claude/issue-91-python-3-14-everywhere"
+scope = [".github/workflows/ci.yml", "AGENTS.md", "Dockerfile", "README.md", "pyproject.toml", "sonar-project.properties", "tests/e2e/conftest.py", "tests/scripts/test_check_root_layout.py", "uv.lock"]
+opened_commit = "6737772fe191e64f63843a703f0653f662e0fa50"
+whole_reason = "The Python version is one value across lock, lint, type check, CI, container and docs; splitting it leaves CI and production on different versions."
