@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any, TypedDict
@@ -181,13 +181,6 @@ class CameraLessHostCall:
 @pytest.fixture
 def form_factor() -> dict[str, Any]:
     return DESKTOP
-
-
-@pytest.fixture
-def page_errors() -> Iterator[list[str]]:
-    errors: list[str] = []
-    yield errors
-    assert errors == []
 
 
 def start_camera_less_call(
