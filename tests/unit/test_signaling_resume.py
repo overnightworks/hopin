@@ -18,15 +18,12 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
-from hopin.rooms.manager import RoomManager
 from hopin.rooms.models import Account
-from hopin.signaling.handler import Peer, SignalingHandler
-from tests.unit.test_signaling import (
+from hopin.signaling.handler import Peer
+from tests.unit.conftest import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
     FakeSocket,
-    ManualScheduler,
-    SocketAccountResolver,
     account_named,
     disconnect_frame,
     make_ws_mock,
@@ -189,21 +186,6 @@ class Link:
             if not task.done():
                 socket.push(disconnect_frame(1000))
         await asyncio.gather(*self.tasks.values(), return_exceptions=True)
-
-
-@pytest.fixture
-def room_manager():
-    return RoomManager(max_participants_per_room=ROOM_LIMIT)
-
-
-@pytest.fixture
-def scheduler():
-    return ManualScheduler()
-
-
-@pytest.fixture
-def handler(room_manager, scheduler):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler)
 
 
 @pytest_asyncio.fixture

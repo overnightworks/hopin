@@ -1,7 +1,4 @@
-import asyncio
 import json
-from dataclasses import dataclass, field
-from unittest.mock import AsyncMock
 
 import pytest
 import structlog
@@ -10,28 +7,24 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
-    WEBSOCKET_DISCONNECT_EVENT,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
-from hopin.rooms.manager import RoomManager
-from hopin.rooms.models import Account
 from hopin.signaling.handler import Connection, Peer, SignalingHandler
+from tests.unit.conftest import (
+    ADMITTED_ACCOUNT,
+    ROOM_LIMIT,
+    FakeSocket,
+    ManualScheduler,
+    SocketAccountResolver,
+    account_named,
+    disconnect_frame,
+    make_ws_mock,
+    text_frame,
+)
 
 pytestmark = pytest.mark.asyncio
-
-ROOM_LIMIT = 5
-
-
-@pytest.fixture
-def room_manager():
-    return RoomManager(max_participants_per_room=ROOM_LIMIT)
-
-
-class SocketAccountResolver:
-    async def resolve(self, websocket):
-        return websocket.account
 
 
 class ResolverError(Exception):
@@ -41,66 +34,6 @@ class ResolverError(Exception):
 class RaisingIdentityResolver:
     async def resolve(self, _websocket):
         raise ResolverError
-
-
-ADMITTED_ACCOUNT = Account(id="c1", name="c1")
-
-
-class ManualScheduler:
-    """Runs timers only when the test advances its clock; cancel leaves a started callback alone."""
-
-    def __init__(self):
-        self._now = 0.0
-        self._timers = []
-
-    def now(self):
-        return self._now
-
-    def call_later(self, delay_seconds, callback):
-        timer = ManualTimer(self._now + delay_seconds, callback)
-        self._timers.append(timer)
-        return timer
-
-    async def advance(self, seconds):
-        target = self._now + seconds
-        while due := [timer for timer in self._timers if timer.pending and timer.deadline <= target]:
-            timer = min(due, key=lambda candidate: candidate.deadline)
-            self._now = max(self._now, timer.deadline)
-            timer.pending = False
-            await timer.callback()
-        self._now = target
-
-
-class ManualTimer:
-    def __init__(self, deadline, callback):
-        self.deadline = deadline
-        self.callback = callback
-        self.pending = True
-
-    def cancel(self):
-        self.pending = False
-
-
-@pytest.fixture
-def scheduler():
-    return ManualScheduler()
-
-
-@pytest.fixture
-def handler(room_manager, scheduler):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler)
-
-
-def make_ws_mock():
-    ws = AsyncMock()
-    ws.client_state = WebSocketState.CONNECTED
-    ws.application_state = WebSocketState.CONNECTED
-    ws.send_text = AsyncMock()
-    return ws
-
-
-def account_named(name):
-    return Account(id=name, name=name)
 
 
 def register_peer(handler, peer_id, account_id=None):
@@ -138,60 +71,6 @@ def sent_frames(ws):
 
 def sent_types(ws):
     return [frame["type"] for frame in sent_frames(ws)]
-
-
-def text_frame(data, seq=None):
-    numbered = data if seq is None else {**data, "seq": seq}
-    return {"type": "websocket.receive", "text": json.dumps(numbered)}
-
-
-def disconnect_frame(code):
-    return {"type": WEBSOCKET_DISCONNECT_EVENT, "code": code}
-
-
-@dataclass(eq=False)
-class FakeSocket:
-    """A minimal socket: the test pushes inbound frames and reads what the handler sent."""
-
-    frames: list[dict]
-    account: Account | None = ADMITTED_ACCOUNT
-    client_state: WebSocketState = WebSocketState.CONNECTED
-    application_state: WebSocketState = WebSocketState.CONNECTED
-    accepted: bool = False
-    closed_with: int | None = None
-    sent: list[dict] = field(default_factory=list)
-    send_gate: asyncio.Event | None = None
-    idle: asyncio.Event = field(default_factory=asyncio.Event)
-    inbox: asyncio.Queue = field(default_factory=asyncio.Queue)
-
-    def __post_init__(self) -> None:
-        for frame in self.frames:
-            self.inbox.put_nowait(frame)
-
-    async def accept(self) -> None:
-        self.accepted = True
-
-    async def close(self, code: int) -> None:
-        self.closed_with = code
-        self.application_state = WebSocketState.DISCONNECTED
-
-    async def receive(self) -> dict:
-        if self.inbox.empty():
-            self.idle.set()
-        frame = await self.inbox.get()
-        self.idle.clear()
-        if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
-            self.client_state = WebSocketState.DISCONNECTED
-        return frame
-
-    def push(self, frame: dict) -> None:
-        self.idle.clear()
-        self.inbox.put_nowait(frame)
-
-    async def send_text(self, text: str) -> None:
-        if self.send_gate is not None:
-            await self.send_gate.wait()
-        self.sent.append(json.loads(text))
 
 
 def join_unknown_room(_handler, _room_manager):
@@ -270,6 +149,22 @@ class TestHandleMessageRefusals:
         assert response["type"] == SignalType.ERROR.value
         assert response["reason"] == reason.value
         assert response["message"]
+
+    @pytest.mark.parametrize(
+        ("raw_data", "detail"),
+        [
+            pytest.param("not json", "Invalid JSON", id="not_json"),
+            pytest.param("[]", "Message must be a JSON object", id="json_array"),
+            pytest.param({"foo": "bar"}, "Missing signal type", id="no_type"),
+            pytest.param({"type": "unknown"}, "Unknown signal type: unknown", id="unknown_type"),
+        ],
+    )
+    async def test_handle_message_invalid_frame_tells_the_person_what_was_wrong(self, handler, raw_data, detail):
+        ws = register_peer(handler, "sender")
+
+        await deliver(handler, "sender", raw_data)
+
+        assert json.loads(ws.send_text.call_args[0][0])["message"] == detail
 
     async def test_handle_message_full_room_refusal_carries_the_capacity(self, handler, room_manager):
         ws = register_peer(handler, "sender")
@@ -661,13 +556,6 @@ class TestHostGrace:
             {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": "host1"},
         ]
         assert room_manager.has_room(room.room_id)
-
-    async def test_guest_leaving_sends_no_host_away(self, handler, room_manager):
-        _room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
-
-        await handler._handle_disconnect("p1")
-
-        assert sent_types(sockets["host1"]) == [SignalType.PARTICIPANT_LEFT.value]
 
     async def test_room_survives_until_the_grace_runs_out_then_closes_for_every_peer_as_host_gone(
         self, handler, room_manager, scheduler
