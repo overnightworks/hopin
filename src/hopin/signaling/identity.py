@@ -1,9 +1,11 @@
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
-from starlette.websockets import WebSocket
 
 from hopin.rooms.models import Account
+
+if TYPE_CHECKING:
+    from starlette.websockets import WebSocket
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 

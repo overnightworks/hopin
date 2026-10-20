@@ -1,8 +1,7 @@
 import json
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, expect
@@ -27,6 +26,9 @@ from tests.e2e.conftest import (
     share_the_screen,
     start_call,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

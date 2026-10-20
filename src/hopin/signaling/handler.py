@@ -3,7 +3,7 @@ import math
 import secrets
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, NewType, TypeGuard
+from typing import TYPE_CHECKING, Any, NewType, TypeGuard
 
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
@@ -23,11 +23,13 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError, RoomNotFoundError
-from hopin.rooms.manager import RoomManager
-from hopin.rooms.models import Account
-from hopin.signaling.identity import IdentityResolver
 from hopin.signaling.replay import SEQUENCE_KEY, ReplayLog
-from hopin.signaling.scheduler import Scheduler, TimerHandle
+
+if TYPE_CHECKING:
+    from hopin.rooms.manager import RoomManager
+    from hopin.rooms.models import Account
+    from hopin.signaling.identity import IdentityResolver
+    from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -89,7 +91,7 @@ class ResumeClaim:
     sent_floor: int
 
     @classmethod
-    def from_frame(cls, data: dict[str, Any]) -> "ResumeClaim":
+    def from_frame(cls, data: dict[str, Any]) -> ResumeClaim:
         participant_id = data.get("participant_id")
         token = data.get("token")
         last_seq = data.get("last_seq")

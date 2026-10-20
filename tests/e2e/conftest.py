@@ -5,12 +5,14 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Sequence
 
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
@@ -187,7 +189,7 @@ def base_url(pytestconfig: pytest.Config, delete_output_dir: None) -> Iterator[s
     environment = {"PYTHONPATH": str(SOURCE_DIRECTORY), "HOPIN_HOST": LOOPBACK_HOST, "HOPIN_PORT": str(port)}
     with (log_directory / SERVER_LOG_NAME).open("wb") as server_log:
         # The command is built from sys.executable and constants, never from input.
-        server = subprocess.Popen(  # noqa: S603
+        server = subprocess.Popen(
             [sys.executable, "-m", "hopin.main"],
             env=environment,
             stdout=server_log,

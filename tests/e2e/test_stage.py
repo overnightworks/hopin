@@ -1,7 +1,6 @@
 import re
-from collections.abc import Callable
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Page, ViewportSize, expect
@@ -18,6 +17,9 @@ from tests.e2e.conftest import (
     start_call,
     stop_the_screen_share,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

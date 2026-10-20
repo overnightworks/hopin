@@ -41,7 +41,7 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.14+
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 
 ### Install and Run

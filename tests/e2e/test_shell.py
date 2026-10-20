@@ -1,10 +1,12 @@
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import DESKTOP, LEGAL_LINKS, PHONE, SMALL_PHONE_LANDSCAPE, expect_both_legal_links
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

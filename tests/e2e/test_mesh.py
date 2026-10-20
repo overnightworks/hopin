@@ -1,10 +1,9 @@
 import json
 import re
 import time
-from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Error as PlaywrightError
@@ -25,6 +24,9 @@ from tests.e2e.conftest import (
     wait_for_frames_to_advance,
     wait_for_peer_count,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 pytestmark = pytest.mark.e2e
 

@@ -7,7 +7,7 @@ file holds only HopIn's own facts. `CLAUDE.md` imports this file.
 
 ## Stack
 
-Python 3.12+, `uv`, `ruff` (lint and format), `mypy --strict`, `pytest`,
+Python 3.14+, `uv`, `ruff` (lint and format), `mypy --strict`, `pytest`,
 `vulture` (dead code), `structlog` (logging, in `app.py` and `signaling/`).
 Runtime settings are environment variables loaded through Pydantic Settings.
 

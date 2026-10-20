@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
@@ -11,8 +12,10 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
-from hopin.rooms.manager import RoomManager
-from hopin.signaling.handler import SignalingHandler
+
+if TYPE_CHECKING:
+    from hopin.rooms.manager import RoomManager
+    from hopin.signaling.handler import SignalingHandler
 
 STATIC_DIR = Path(__file__).parent / "static"
 PAGE = STATIC_DIR / "index.html"
