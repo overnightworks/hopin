@@ -1,5 +1,6 @@
 export const SCREEN = {
     HOME: "home",
+    PREJOIN: "prejoin",
     CALL: "call",
     END: "end",
 };

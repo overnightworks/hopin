@@ -4,6 +4,12 @@ import { state } from "./state.js";
 const localVideo = document.getElementById("localVideo");
 const localPlaceholder = document.getElementById("localPlaceholder");
 const localContainer = document.getElementById("localContainer");
+const prejoinVideo = document.getElementById("prejoinVideo");
+const prejoinPlaceholder = document.getElementById("prejoinPlaceholder");
+const ownPictures = [
+    { video: localVideo, placeholder: localPlaceholder },
+    { video: prejoinVideo, placeholder: prejoinPlaceholder },
+];
 const stage = document.getElementById("stage");
 const tiles = document.querySelector("#videoGrid .tiles");
 
@@ -47,14 +53,18 @@ function createPersonAvatar() {
 }
 
 export function showLocalStream(stream) {
-    localVideo.srcObject = stream;
+    for (const { video } of ownPictures) {
+        video.srcObject = stream;
+    }
     localContainer.classList.toggle("mirror", !state.screenStream);
 }
 
 export function updateLocalPreview() {
     const showsVideo = state.hasCamera && state.videoEnabled;
-    localVideo.classList.toggle("hidden", !showsVideo);
-    localPlaceholder.classList.toggle("hidden", showsVideo);
+    for (const { video, placeholder } of ownPictures) {
+        video.classList.toggle("hidden", !showsVideo);
+        placeholder.classList.toggle("hidden", showsVideo);
+    }
     localMuteMark.classList.toggle("hidden", state.audioEnabled);
 }
 

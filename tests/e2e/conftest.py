@@ -12,6 +12,8 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
 
+from hopin.config.constants import ICE_SERVERS_PATH
+
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
 HEALTH_PATH = "/health"
@@ -27,7 +29,6 @@ FAKE_MEDIA_BROWSER_ARGS = [
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 INVITE_LINK_PATTERN = re.compile(r"/c/\w+")
-ICE_SERVERS_PATH = "/api/ice-servers"
 ICE_SERVERS_URL_PATTERN = f"**{ICE_SERVERS_PATH}"
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
@@ -162,6 +163,61 @@ async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
 AUDIBLE_LEVEL_FLOOR = 4
 AUDIO_SAMPLE_INTERVAL_MILLISECONDS = 50
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
+# The headless browser has no screen picker, so a canvas and a silent audio destination
+# stand in for a shared screen with its sound.
+RECORD_MEDIA_TRACKS = """
+window.requestedTracks = [];
+window.mediaRequests = 0;
+window.heldMediaRequests = 0;
+let mediaHeld = null;
+window.holdMedia = () => {
+    mediaHeld = new Promise((release) => {
+        window.releaseMedia = (failure) => {
+            mediaHeld = null;
+            release(failure);
+        };
+    });
+};
+const recorded = (request) => async (constraints) => {
+    window.mediaRequests += 1;
+    if (mediaHeld) {
+        window.heldMediaRequests += 1;
+        const failure = await mediaHeld;
+        if (failure) throw new DOMException(failure, failure);
+    }
+    const stream = await request(constraints);
+    window.requestedTracks.push(...stream.getTracks());
+    return stream;
+};
+navigator.mediaDevices.getUserMedia = recorded(navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices));
+navigator.mediaDevices.getDisplayMedia = recorded(async () => {
+    const screenPicture = document.createElement("canvas").captureStream();
+    const screenSound = new AudioContext().createMediaStreamDestination().stream;
+    return new MediaStream([...screenPicture.getTracks(), ...screenSound.getTracks()]);
+});
+"""
+COUNT_SOCKETS = """
+window.socketsOpened = 0;
+const NativeWebSocket = window.WebSocket;
+window.WebSocket = class extends NativeWebSocket {
+    constructor(...options) {
+        super(...options);
+        window.socketsOpened += 1;
+    }
+};
+"""
+HOLD_MEDIA = "window.holdMedia()"
+RELEASE_MEDIA = "window.releaseMedia()"
+FAIL_MEDIA = "window.releaseMedia('NotFoundError')"
+MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
+MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
+TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
+MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
+REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
+LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
+PREJOIN_MICROPHONE = "#prejoinMicBtn"
+PREJOIN_CAMERA = "#prejoinCamBtn"
+PREJOIN_START = "#prejoinStartBtn"
 
 
 def _reserve_free_port() -> int:
@@ -246,11 +302,30 @@ def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Itera
         context.close()
 
 
-def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
+@pytest.fixture
+def page_errors() -> Iterator[list[str]]:
+    errors: list[str] = []
+    yield errors
+    assert errors == []
+
+
+def open_prejoin(host: Page, base_url: str) -> None:
     host.goto(f"{base_url}/")
     host.click("#homeStartBtn")
-    host.set_checked("#setupCamOff", not with_camera)
-    host.click("#setupStartBtn")
+
+
+def wait_until_the_prejoin_media_answered(host: Page) -> None:
+    expect(host.locator(PREJOIN_START)).to_be_enabled(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
+    open_prejoin(host, base_url)
+    wait_until_the_prejoin_media_answered(host)
+    camera = host.locator(PREJOIN_CAMERA)
+    if not with_camera and camera.get_attribute("aria-pressed") == "false":
+        camera.click()
+        expect(camera).to_have_attribute("aria-pressed", "true")
+    host.click(PREJOIN_START)
 
 
 def start_call(host: Page, base_url: str, *, with_camera: bool = True) -> str:
@@ -266,6 +341,12 @@ def record_page_errors(person: Page, page_errors: list[str]) -> Page:
     return person
 
 
+def add_init_scripts(person: Page, scripts: Sequence[str]) -> None:
+    # Playwright leaves the order of separate init scripts undefined, and a script may build on
+    # one before it (the media recorder wraps a refusal stub), so they run as one script, in order.
+    person.add_init_script("\n;\n".join(scripts))
+
+
 def join(
     open_person: Callable[..., Page],
     invite_link: str,
@@ -276,8 +357,7 @@ def join(
     guest = open_person(**form_factor)
     if page_errors is not None:
         record_page_errors(guest, page_errors)
-    for script in init_scripts:
-        guest.add_init_script(script)
+    add_init_scripts(guest, init_scripts)
     guest.goto(invite_link)
     return guest
 

@@ -9,21 +9,33 @@ from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, exp
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
+    ICE_SERVERS_PATH,
     MAX_PARTICIPANTS_PER_ROOM,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
 from tests.e2e.conftest import (
+    COUNT_SOCKETS,
     DESKTOP,
-    ICE_SERVERS_PATH,
+    FAIL_MEDIA,
+    HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
     INVITE_LINK_PATTERN,
+    LIVE_TRACK_COUNT,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    MEDIA_REQUEST_COUNT,
+    MEDIA_REQUEST_IS_HELD,
+    MORE_TRACKS_THAN,
     PHONE,
+    RECORD_MEDIA_TRACKS,
+    RELEASE_MEDIA,
+    REQUESTED_TRACK_COUNT,
     STOP_SHARING_LABEL,
+    TRACKS_WERE_REQUESTED,
     expect_both_legal_links,
     press_start_call,
+    record_page_errors,
     share_the_screen,
     start_call,
 )
@@ -33,49 +45,6 @@ pytestmark = pytest.mark.e2e
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 IN_CALL = "In call"
 SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
-# The headless browser has no screen picker, so a canvas and a silent audio destination
-# stand in for a shared screen with its sound.
-RECORD_MEDIA_TRACKS = """
-window.requestedTracks = [];
-window.mediaRequests = 0;
-window.heldMediaRequests = 0;
-let mediaHeld = null;
-window.holdMedia = () => {
-    mediaHeld = new Promise((release) => {
-        window.releaseMedia = (failure) => {
-            mediaHeld = null;
-            release(failure);
-        };
-    });
-};
-const recorded = (request) => async (constraints) => {
-    window.mediaRequests += 1;
-    if (mediaHeld) {
-        window.heldMediaRequests += 1;
-        const failure = await mediaHeld;
-        if (failure) throw new DOMException(failure, failure);
-    }
-    const stream = await request(constraints);
-    window.requestedTracks.push(...stream.getTracks());
-    return stream;
-};
-navigator.mediaDevices.getUserMedia = recorded(navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices));
-navigator.mediaDevices.getDisplayMedia = recorded(async () => {
-    const screenPicture = document.createElement("canvas").captureStream();
-    const screenSound = new AudioContext().createMediaStreamDestination().stream;
-    return new MediaStream([...screenPicture.getTracks(), ...screenSound.getTracks()]);
-});
-"""
-COUNT_SOCKETS = """
-window.socketsOpened = 0;
-const NativeWebSocket = window.WebSocket;
-window.WebSocket = class extends NativeWebSocket {
-    constructor(...options) {
-        super(...options);
-        window.socketsOpened += 1;
-    }
-};
-"""
 # startCall continues in the same microtask drain in which the ICE servers' body is read,
 # so a later poll that sees the flag also sees whatever that continuation did.
 RECORD_ICE_SERVERS_READ = f"""
@@ -88,16 +57,7 @@ Response.prototype.json = async function () {{
 }};
 """
 ICE_SERVERS_WERE_READ = "() => window.iceServersRead"
-HOLD_MEDIA = "window.holdMedia()"
-RELEASE_MEDIA = "window.releaseMedia()"
-FAIL_MEDIA = "window.releaseMedia('NotFoundError')"
-MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
-MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
-TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
-MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
-REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
 PRESS_LEAVE = "document.getElementById('leaveBtn').click()"
-LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
 LEFTOVERS = f"() => ({{ liveTracks: ({LIVE_TRACK_COUNT})(), socketsOpened: window.socketsOpened }})"
 NOTHING_LEFT = {"liveTracks": 0, "socketsOpened": 0}
 
@@ -225,20 +185,22 @@ def open_person_whose_startup_media_is_held(open_person: Callable[..., Page], fo
 def leave_and_release_the_held_media(person: Page) -> None:
     person.wait_for_function(MEDIA_REQUEST_IS_HELD)
     person.evaluate(PRESS_LEAVE)
-    expect_end_title(person, LEFT_BY_HOST)
+    expect_end_title(person, LEFT_BY_GUEST)
     person.evaluate(RELEASE_MEDIA)
     person.wait_for_function(TRACKS_WERE_REQUESTED)
 
 
-def test_media_arriving_after_the_host_left_is_stopped_before_the_ice_servers_load_and_opens_no_connection(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
+def test_host_who_leaves_while_the_ice_servers_load_opens_no_connection_and_keeps_no_live_track(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
-    person = open_person_whose_startup_media_is_held(open_person, form_factor)
+    person = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
+    for script in (COUNT_SOCKETS, RECORD_ICE_SERVERS_READ):
+        person.add_init_script(script)
     held_ice_requests: list[Route] = []
     person.route(ICE_SERVERS_URL_PATTERN, lambda route: held_ice_requests.append(route))
     with person.expect_request(ICE_SERVERS_URL_PATTERN):
         press_start_call(person, base_url)
-    leave_and_release_the_held_media(person)
+    person.evaluate(PRESS_LEAVE)
     expect_end_screen(person, LEFT_BY_HOST)
 
     held_ice_requests.pop().continue_()
@@ -248,33 +210,34 @@ def test_media_arriving_after_the_host_left_is_stopped_before_the_ice_servers_lo
     expect_end_screen(person, LEFT_BY_HOST)
 
 
-def test_media_arriving_after_the_host_left_once_the_ice_servers_loaded_is_stopped_and_opens_no_connection(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
+def test_media_arriving_after_a_guest_left_once_the_ice_servers_loaded_is_stopped_and_opens_no_connection(
+    hosted_call: HostedCall, open_person: Callable[..., Page], form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
-    person = open_person_whose_startup_media_is_held(open_person, form_factor)
-    press_start_call(person, base_url)
+    person = record_page_errors(open_person_whose_startup_media_is_held(open_person, form_factor), page_errors)
+    person.goto(hosted_call.invite_link)
     person.wait_for_function(ICE_SERVERS_WERE_READ)
 
     leave_and_release_the_held_media(person)
 
     assert person.evaluate(LEFTOVERS) == NOTHING_LEFT
-    expect_end_screen(person, LEFT_BY_HOST)
+    expect_end_screen(person, LEFT_BY_GUEST)
 
 
-def test_camera_failing_after_the_host_left_asks_for_no_microphone(
-    open_person: Callable[..., Page], base_url: str
+def test_camera_failing_after_a_guest_left_asks_for_no_microphone(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
-    person = open_recording_person(open_person, DESKTOP)
+    invite_link = start_call(record_page_errors(open_person(**DESKTOP), page_errors), base_url)
+    person = record_page_errors(open_recording_person(open_person, DESKTOP), page_errors)
     person.add_init_script(HOLD_MEDIA)
-    press_start_call(person, base_url)
+    person.goto(invite_link)
     person.wait_for_function(MEDIA_REQUEST_IS_HELD)
     person.evaluate(PRESS_LEAVE)
-    expect_end_title(person, LEFT_BY_HOST)
+    expect_end_title(person, LEFT_BY_GUEST)
 
     person.evaluate(FAIL_MEDIA)
 
     assert person.evaluate(MEDIA_REQUEST_COUNT) == 1
-    expect_end_title(person, LEFT_BY_HOST)
+    expect_end_title(person, LEFT_BY_GUEST)
 
 
 def start_sharing_the_screen(person: Page, base_url: str) -> None:
