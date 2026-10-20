@@ -4,26 +4,51 @@ import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
 
 const MICROPHONE_LABEL = { ON: "Mute", OFF: "Unmute" };
-const START_LABEL = {
-    CAMERA_AND_MIC: "Start with camera and mic",
-    CAMERA_ONLY: "Start with camera only",
-    MIC_ONLY: "Start with mic only",
-    NEITHER: "Start with camera and mic off",
+export const PREJOIN_KIND = Object.freeze({ HOST: "host", GUEST: "guest" });
+
+const KIND_TEXTS = {
+    [PREJOIN_KIND.HOST]: {
+        title: "New call",
+        heading: "Ready to start?",
+        subLine: "You'll get a link to invite people.",
+        buttonLabels: {
+            CAMERA_AND_MIC: "Start with camera and mic",
+            CAMERA_ONLY: "Start with camera only",
+            MIC_ONLY: "Start with mic only",
+            NEITHER: "Start with camera and mic off",
+        },
+    },
+    [PREJOIN_KIND.GUEST]: {
+        title: "Join call",
+        heading: "Ready to join?",
+        subLine: null,
+        buttonLabels: {
+            CAMERA_AND_MIC: "Join with camera and mic",
+            CAMERA_ONLY: "Join with camera only",
+            MIC_ONLY: "Join with mic only",
+            NEITHER: "Join with camera and mic off",
+        },
+    },
 };
 
 const microphoneButton = document.getElementById("prejoinMicBtn");
 const cameraButton = document.getElementById("prejoinCamBtn");
 const startButton = document.getElementById("prejoinStartBtn");
+const titleElement = document.getElementById("prejoinTitle");
+const headingElement = document.getElementById("prejoinHeading");
+const subLineElement = document.getElementById("prejoinSub");
 const message = document.getElementById("prejoinMessage");
 const wayHomeButtons = [document.getElementById("prejoinHomeBtn"), document.getElementById("prejoinBackBtn")];
 
 let mediaRequestPending = false;
+let texts = KIND_TEXTS[PREJOIN_KIND.HOST];
 
 function startLabel(cameraOn, microphoneOn) {
-    if (cameraOn && microphoneOn) return START_LABEL.CAMERA_AND_MIC;
-    if (cameraOn) return START_LABEL.CAMERA_ONLY;
-    if (microphoneOn) return START_LABEL.MIC_ONLY;
-    return START_LABEL.NEITHER;
+    const labels = texts.buttonLabels;
+    if (cameraOn && microphoneOn) return labels.CAMERA_AND_MIC;
+    if (cameraOn) return labels.CAMERA_ONLY;
+    if (microphoneOn) return labels.MIC_ONLY;
+    return labels.NEITHER;
 }
 
 function renderToggle(button, isOn) {
@@ -86,7 +111,16 @@ async function toggleCamera() {
     }
 }
 
-export function openPrejoin() {
+function showTexts() {
+    titleElement.textContent = texts.title;
+    headingElement.textContent = texts.heading;
+    subLineElement.textContent = texts.subLine ?? "";
+    subLineElement.classList.toggle("hidden", texts.subLine === null);
+}
+
+export function openPrejoin(kind) {
+    texts = KIND_TEXTS[kind];
+    showTexts();
     showScreen(SCREEN.PREJOIN);
     whileMediaIsRequested(openMedia).catch(showMediaFailure);
 }

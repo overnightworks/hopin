@@ -10,7 +10,7 @@ HopIn uses **WebRTC** with a **mesh topology** for peer-to-peer video calls:
 
 1. You open the app, check your camera and microphone in a preview, and start the call — a room is created
 2. You share the generated link (e.g. via WhatsApp)
-3. Friends click the link — their browser connects directly to yours
+3. Friends open the link, check their camera and microphone in the same preview, and join — their browser connects directly to yours
 4. Everyone sends and receives video/audio to everyone else
 
 The server only handles **signaling** (coordinating who connects to whom). The actual video/audio data flows directly between browsers via WebRTC.
@@ -162,7 +162,7 @@ src/hopin/
 │               ├── app.js        # Wiring, call start and leave
 │               ├── router.js     # The address and the screen, call links
 │               ├── home.js       # Home screen
-│               ├── prejoin.js    # Pre-join: preview, microphone and camera, Start
+│               ├── prejoin.js    # Pre-join: preview, microphone and camera, Start or Join
 │               ├── end.js        # End and refusal screens
 │               ├── state.js      # Call and local-media state
 │               ├── signaling.js  # WebSocket, resume, message handlers

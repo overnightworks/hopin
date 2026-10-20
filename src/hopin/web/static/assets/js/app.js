@@ -10,7 +10,7 @@ import {
 } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
-import { acquireMedia, stopLocalMedia } from "./media.js";
+import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {
     loadIceServers,
@@ -28,7 +28,7 @@ import {
     onSessionLost,
 } from "./signaling.js";
 import { initPip } from "./pip.js";
-import { showLocalStream, updateLocalPreview } from "./stage.js";
+import { showLocalStream } from "./stage.js";
 import { state } from "./state.js";
 import {
     hideParticipantCount,
@@ -37,7 +37,7 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome } from "./home.js";
-import { initPrejoin, openPrejoin } from "./prejoin.js";
+import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, showScreen } from "./router.js";
 
 function updateParticipantCount() {
@@ -53,28 +53,22 @@ function updateLockUI() {
     showLockIndicator(state.isLocked);
 }
 
-// The host's media opened on the pre-join; a guest's opens while the ICE servers load.
-// The buttons show the carried state before the call screen does, so no press acts on a stale label.
-function startCall(mediaOpening = Promise.resolve()) {
+function startCall() {
     renderVideoButton();
     renderMuteButton();
     showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return Promise.allSettled([mediaOpening, loadIceServers()]).then((outcomes) => {
-        if (state.intentionalLeave) return;
-        const failure = outcomes.find((outcome) => outcome.status === "rejected");
-        if (failure) {
+    return loadIceServers().then(
+        () => {
+            if (!state.intentionalLeave) connect();
+        },
+        (error_) => {
+            if (state.intentionalLeave) return;
             stopLocalMedia();
-            setStatus(failure.reason.message, "error");
-            return;
-        }
-        showLocalStream(state.localStream);
-        renderVideoButton();
-        renderMuteButton();
-        updateLocalPreview();
-        connect();
-    });
+            setStatus(error_.message, "error");
+        },
+    );
 }
 
 function tearDownCall() {
@@ -162,7 +156,7 @@ initControls({ onLeaveRequested: requestLeave });
 initChat();
 initPip();
 initEnd();
-initHome({ onStartRequested: openPrejoin });
+initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });
 initPrejoin({
     onStart: () => {
         void startCall();
@@ -170,7 +164,7 @@ initPrejoin({
 });
 
 if (getRoomIdFromUrl()) {
-    void startCall(acquireMedia(true));
+    openPrejoin(PREJOIN_KIND.GUEST);
 } else {
     showScreen(SCREEN.HOME);
 }
