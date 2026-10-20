@@ -63,10 +63,10 @@ function startCall() {
         () => {
             if (!state.intentionalLeave) connect();
         },
-        (failure) => {
+        (error_) => {
             if (state.intentionalLeave) return;
             stopLocalMedia();
-            setStatus(failure.message, "error");
+            setStatus(error_.message, "error");
         },
     );
 }
