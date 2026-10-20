@@ -1,8 +1,0 @@
-claim_id = "159f8d4e4fed4873aab68cf4820b1302"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "97276671ba4a82b3c2052e7aa2040a062c47018c"
-branch = "claude/issue-83-a-camera-turned-on-mid-call-reaches-the"
-scope = ["src/hopin/web/static/assets/js/mesh.js", "tests/e2e/conftest.py", "tests/e2e/test_media.py", "tests/e2e/test_mesh.py"]
-opened_commit = "22c24681ab71abb8187f15f00dcf7a5ad20cbdc1"
-whole_reason = "The answering direction flip with its stream association, track hand-over and cap, and the per-participant signaling queue with its queue-object guard are one behaviour; split, the flip widens the offer race or the queue leaves tiles for people who left."
