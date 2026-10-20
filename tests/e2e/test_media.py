@@ -38,6 +38,9 @@ from tests.e2e.conftest import (
 
 pytestmark = pytest.mark.e2e
 
+ONE_CAP_PER_CONNECTION = [1, 2_000_000]
+TWO_CAPS_PER_CONNECTION = [2, 1_000_000]
+
 CAMERA_TRACK_AND_ITS_SENDER_TRACK = """
 () => {
     const [localTrack] = document.getElementById("localVideo").srcObject.getVideoTracks();
@@ -262,7 +265,7 @@ def test_a_camera_turned_on_mid_call_reaches_the_people_who_were_there_under_the
     expect_the_tile_to_play_audio(host, OTHER_VIDEO)
     expect_the_tile_to_play_audio(guest, OTHER_VIDEO)
     assert _offers_made(camera_less_call) == offers_before
-    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=[1, 2_000_000], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=ONE_CAP_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -315,7 +318,7 @@ def test_a_camera_turned_on_before_a_late_joiner_arrives_reaches_the_late_joiner
     expect(late_joiner.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(2)
     expect(late_joiner.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0)
     wait_for_the_picture(late_joiner)
-    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=[2, 1_000_000], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=TWO_CAPS_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def test_a_camera_turned_off_and_on_again_shows_the_icon_then_the_picture_without_an_offer(
@@ -473,12 +476,30 @@ RTCPeerConnection.prototype.setRemoteDescription = function (description) {
     return window.offerGate.then(() => nativeSetRemoteDescription.call(this, description));
 };
 """
+HOLD_THE_ANSWER_HAND_OVER = """
+window.heldHandOvers = 0;
+window.handOverGate = new Promise((release) => { window.releaseHandOvers = release; });
+const nativeReplaceTrack = RTCRtpSender.prototype.replaceTrack;
+RTCRtpSender.prototype.replaceTrack = function (track) {
+    window.heldHandOvers += 1;
+    const replaced = nativeReplaceTrack.call(this, track);
+    return window.handOverGate.then(() => replaced);
+};
+"""
+HAND_OVER_HELD = "() => window.heldHandOvers > 0"
+RELEASE_THE_HAND_OVER = "() => window.releaseHandOvers()"
+AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
+() => new Promise((done) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => done();
+    channel.port2.postMessage(0);
+})
+"""
 HELD_OFFERS_REACHED = "(count) => window.heldOffers === count"
 RELEASE_THE_HELD_OFFERS = "() => window.releaseOffers()"
 EVERY_TILE_VIDEO = (
     "() => [...document.querySelectorAll('#videoGrid .tile:not(.self) video')].map((video) => `#${video.id}`)"
 )
-ONE_CAP_PER_CONNECTION = [1, 2_000_000]
 
 
 def _expect_every_tile_to_play_audio(person: Page) -> None:
@@ -616,4 +637,18 @@ def test_a_camera_turned_on_in_a_call_of_three_reaches_the_one_who_was_there_bef
         wait_for_the_picture(person)
         _expect_every_tile_to_play_audio(person)
     assert _offers_counted(host, guest, later_joiner) == offers_before
-    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=[2, 1_000_000], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=TWO_CAPS_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def test_leaving_while_the_answer_hand_over_is_pending_raises_no_page_error(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    call = start_camera_less_host_call(open_person, base_url, DESKTOP, page_errors, (HOLD_THE_ANSWER_HAND_OVER,))
+    host, later_joiner = call.host, call.later_joiner
+    host.wait_for_function(HAND_OVER_HELD, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    later_joiner.click("#leaveBtn")
+    wait_for_peer_count(host, 0)
+    host.evaluate(RELEASE_THE_HAND_OVER)
+
+    host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
