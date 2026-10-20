@@ -1,5 +1,5 @@
 import { initChat, registerChatHandlers } from "./chat.js";
-import { hideLockButton, initControls, renderMuteButton, renderVideoButton, showLockButton } from "./controls.js";
+import { hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
@@ -47,8 +47,7 @@ function updateLockUI() {
 }
 
 function startCall() {
-    renderVideoButton();
-    renderMuteButton();
+    renderControls();
     showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
@@ -59,6 +58,7 @@ function startCall() {
         (error_) => {
             if (state.intentionalLeave) return;
             stopLocalMedia();
+            renderControls();
             setStatus(error_.message, "error");
         },
     );

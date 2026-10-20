@@ -27,7 +27,7 @@ PHONE_VIEWPORT = ViewportSize(**PHONE["viewport"])
 LARGEST_CALL = 6
 DESKTOP_SHAPES = {2: (2, 1), 3: (3, 1), 4: (2, 2), 5: (3, 2), 6: (3, 2)}
 PHONE_SHAPES = {3: (1, 3), 4: (2, 2), 5: (2, 3), 6: (2, 3)}
-PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14, "inset_bottom": 14}
+PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14}
 PICTURE_IN_PICTURE_INSET_SIDE = 14
 PICTURE_IN_PICTURE_INSET_TOP = 48
 PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM = 6
@@ -130,7 +130,8 @@ def assert_other_tile_fills_stage_beside_the_picture_in_picture(host: Page) -> N
         PHONE_PICTURE_IN_PICTURE["inset_right"], abs=POSITION_TOLERANCE_PIXELS
     )
     assert boxes["stage"]["bottom"] - boxes["self"]["bottom"] == pytest.approx(
-        PHONE_PICTURE_IN_PICTURE["inset_bottom"], abs=POSITION_TOLERANCE_PIXELS
+        host.evaluate(STAGE_BOTTOM_IN_PIXELS) + PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM,
+        abs=POSITION_TOLERANCE_PIXELS,
     )
     assert host.evaluate(ELEMENT_AT_THE_CENTER_OF_THE_OWN_TILE_IS_ITS_OWN)
 

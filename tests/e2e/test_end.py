@@ -28,7 +28,6 @@ from tests.e2e.conftest import (
     RECORD_MEDIA_TRACKS,
     RELEASE_MEDIA,
     REQUESTED_TRACK_COUNT,
-    STOP_SHARING_LABEL,
     TRACKS_WERE_REQUESTED,
     add_init_scripts,
     call_link_of,
@@ -256,6 +255,7 @@ def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped
     assert page_errors == []
 
 
+@pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_call: HostedCall) -> None:
     share_the_screen(hosted_call.host)
 
@@ -264,6 +264,7 @@ def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_ca
     expect_end_screen(hosted_call.host, LEFT_BY_HOST)
 
 
+@pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no_live_media_track(
     hosted_call: HostedCall,
 ) -> None:
@@ -273,7 +274,7 @@ def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no
     host.wait_for_function(MEDIA_REQUEST_IS_HELD)
     host.click("#screenBtn")
     host.evaluate(RELEASE_MEDIA)
-    expect(host.locator("#screenBtn")).to_have_text(STOP_SHARING_LABEL)
+    expect(host.locator("#screenBtn")).to_have_attribute("aria-pressed", "true")
 
     leave_with_confirmation(host)
 

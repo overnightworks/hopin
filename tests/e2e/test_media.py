@@ -56,12 +56,12 @@ CAMERA_TRACK_AND_ITS_SENDER_TRACK = """
 
 
 @pytest.mark.parametrize(
-    ("camera_turned_off", "button_text"),
-    [(True, "Cam Off"), (False, "Cam On")],
+    ("camera_turned_off", "pressed"),
+    [(True, "true"), (False, "false")],
     ids=["off", "on"],
 )
 def test_stop_sharing_restores_the_camera_as_the_person_left_it(
-    open_person: Callable[..., Page], base_url: str, camera_turned_off: bool, button_text: str
+    open_person: Callable[..., Page], base_url: str, camera_turned_off: bool, pressed: str
 ) -> None:
     host = open_person(**DESKTOP)
     host.add_init_script(RECORD_PEER_CONNECTIONS)
@@ -73,7 +73,7 @@ def test_stop_sharing_restores_the_camera_as_the_person_left_it(
 
     share_then_stop_the_screen_share(host)
 
-    expect(host.locator("#videoBtn")).to_have_text(button_text)
+    expect(host.locator("#videoBtn")).to_have_attribute("aria-pressed", pressed)
     host.wait_for_function(CAMERA_TRACK_AND_ITS_SENDER_TRACK)
     expected = not camera_turned_off
     assert host.evaluate(CAMERA_TRACK_AND_ITS_SENDER_TRACK) == {"local": expected, "sent": expected}
@@ -812,7 +812,7 @@ def test_a_video_track_that_mutes_unannounced_shows_the_icon_then_a_picture_with
     renegotiate_the_video_direction(guest, host, "inactive")
     expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
     expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
-    expect(guest.locator("#videoBtn")).to_have_text("Cam On")
+    expect(guest.locator("#videoBtn")).to_have_attribute("aria-pressed", "false")
     renegotiate_the_video_direction(guest, host, "sendrecv")
     wait_for_the_picture(host)
 

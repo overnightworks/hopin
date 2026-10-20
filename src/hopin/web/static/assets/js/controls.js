@@ -11,34 +11,35 @@ const screenButton = document.getElementById("screenBtn");
 const lockButton = document.getElementById("lockBtn");
 const leaveButton = document.getElementById("leaveBtn");
 
+export function renderDeviceToggle(button, isOn) {
+    button.classList.toggle("off", !isOn);
+    button.setAttribute("aria-pressed", String(!isOn));
+}
+
 export function showLockButton(isLocked) {
-    lockButton.textContent = isLocked ? "Unlock Room" : "Lock Room";
-    lockButton.className = isLocked ? "btn-warning" : "btn-secondary";
+    lockButton.classList.remove("hidden");
+    lockButton.classList.toggle("active", isLocked);
+    lockButton.setAttribute("aria-pressed", String(isLocked));
 }
 
 export function hideLockButton() {
     lockButton.classList.add("hidden");
 }
 
-export function renderVideoButton() {
-    videoButton.textContent = state.videoEnabled ? "Cam On" : "Cam Off";
-    videoButton.className = state.videoEnabled ? "btn-active" : "btn-muted";
-}
-
-export function renderMuteButton() {
-    muteButton.textContent = state.audioEnabled ? "Mic On" : "Mic Off";
-    muteButton.className = state.audioEnabled ? "btn-active" : "btn-muted";
-}
-
-function renderScreenButton() {
-    screenButton.textContent = state.screenStream ? "Stop Sharing" : "Share Screen";
-    screenButton.className = state.screenStream ? "btn-muted" : "btn-secondary";
+export function renderControls() {
+    const hasMedia = Boolean(state.localStream);
+    renderDeviceToggle(muteButton, hasMedia && state.audioEnabled);
+    renderDeviceToggle(videoButton, hasMedia && state.hasCamera && state.videoEnabled);
+    const isSharing = Boolean(state.screenStream);
+    screenButton.classList.toggle("active", isSharing);
+    screenButton.setAttribute("aria-pressed", String(isSharing));
+    for (const button of [muteButton, videoButton, screenButton]) button.disabled = !hasMedia;
 }
 
 function handleMuteClick() {
     if (!state.localStream) return;
     toggleAudio();
-    renderMuteButton();
+    renderControls();
 }
 
 async function handleVideoClick() {
@@ -56,7 +57,7 @@ async function handleVideoClick() {
             return;
         }
     }
-    renderVideoButton();
+    renderControls();
 }
 
 function handleLockClick() {
@@ -68,7 +69,7 @@ async function handleScreenClick() {
     if (!state.localStream || !state.hasCamera) return;
     try {
         await toggleScreenShare(() => screenButton.click());
-        renderScreenButton();
+        renderControls();
     } catch (error) {
         setStatus(`Screen share failed: ${error.message}`, "error");
     }

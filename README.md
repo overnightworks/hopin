@@ -95,7 +95,7 @@ HopIn gives the host (the account that started the call) one way to control acce
 
 ### Room Locking
 
-The host sees a **Lock Room** button in the controls bar. When locked:
+The host locks with the lock button in the call's control bar. When locked:
 - No new participants can join (the join link is refused as locked)
 - Existing participants stay connected
 - The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
