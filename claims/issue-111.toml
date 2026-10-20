@@ -1,0 +1,8 @@
+claim_id = "0d9e23328a5449e5815a7ab170308a72"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "588ddfe75b4f28e072af431b14d2b207246cbb34"
+branch = "claude/issue-111-address-becomes-the-call-link"
+scope = ["src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/prejoin.js", "src/hopin/web/static/assets/js/router.js", "tests/e2e/test_end.py", "tests/e2e/test_prejoin.py"]
+opened_commit = "fd4f36e034de0123d0fe9d44d6cf8ae9dc91dd39"
+whole_reason = "The address change and the one host decider move together, or a host whose address holds the call link is offered Rejoin."
