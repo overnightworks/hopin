@@ -103,8 +103,8 @@ async function sendLocalVideoInAnswer(connection) {
     for (const transceiver of answeringReceivers) {
         transceiver.direction = "sendrecv";
         transceiver.sender.setStreams(state.localStream);
-        await transceiver.sender.replaceTrack(videoTrack);
     }
+    await Promise.all(answeringReceivers.map((transceiver) => transceiver.sender.replaceTrack(videoTrack)));
 }
 
 async function answerOffer(data) {
