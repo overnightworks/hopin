@@ -55,9 +55,9 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #0f0f0f;
-    color: #e0e0e0;
+    font-family: var(--sans);
+    background: var(--app);
+    color: var(--ink);
     display: flex;
     flex-direction: column;
 }
@@ -99,7 +99,9 @@ body {
     border-top: 1px solid #1f1f1f;
     flex-wrap: wrap;
 }
-button {
+/* Old-surface shape until the strip (19a), chat (20) and leave dialog (21) rows
+   delete their selectors; the last one removes this rule. */
+.btn-primary, .btn-danger, .btn-secondary, .btn-active, .btn-muted, .btn-warning, .chat-close {
     padding: 0.6rem 1.2rem;
     border: none;
     border-radius: 50px;
@@ -111,8 +113,8 @@ button {
     align-items: center;
     gap: 0.4rem;
 }
-button:hover { opacity: 0.85; }
-button:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary:hover, .btn-danger:hover, .btn-secondary:hover, .btn-active:hover,
+.btn-muted:hover, .btn-warning:hover, .chat-close:hover { opacity: 0.85; }
 .btn-primary { background: #4f46e5; color: #fff; }
 .btn-danger { background: #dc2626; color: #fff; }
 .btn-secondary { background: #374151; color: #fff; }
@@ -147,6 +149,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     z-index: 200;
 }
 .confirm-box {
+    color: #e0e0e0;
     background: #1a1a2e;
     border: 1px solid #374151;
     border-radius: 12px;
@@ -256,7 +259,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 @media (max-width: 600px) {
     .controls { gap: 0.4rem; padding: 0.5rem; }
-    button { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+    .btn-primary, .btn-danger, .btn-secondary, .btn-active, .btn-muted, .btn-warning {
+        padding: 0.5rem 0.8rem;
+        font-size: 0.8rem;
+    }
     .chat-panel { width: 100%; position: absolute; inset: 0; z-index: 50; }
 }
 
@@ -484,10 +490,11 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     white-space: nowrap;
     transition: background var(--motion-quick), transform var(--motion-press);
 }
-.button:hover { opacity: 1; }
 .button:active { transform: scale(.985); }
+.button:disabled { opacity: .55; cursor: default; }
 .button-primary { background: var(--accent); color: var(--on-accent); }
 .button-primary:hover { background: var(--accent-hover); }
+.button-primary:disabled { background: var(--accent); }
 .button-lg { height: 58px; font-size: 17px; }
 .button-stage { background: var(--accent-stage); color: var(--stage); }
 .brand {
@@ -649,8 +656,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     .end .legal { margin-bottom: 28px; }
 }
 
-.button:disabled { opacity: .55; cursor: default; }
-.button-primary:disabled { background: var(--accent); }
 .iconbtn {
     width: 44px;
     height: 44px;
@@ -662,8 +667,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     background: var(--surface-2);
     color: var(--ink);
     cursor: pointer;
+    transition: background var(--motion-fade);
 }
-.iconbtn:hover { background: var(--surface-3); opacity: 1; }
+.iconbtn:hover { background: var(--surface-3); }
 .iconbtn.ghost { background: transparent; }
 .iconbtn.ghost:hover { background: var(--surface-2); }
 .topbar-title { font-size: 17px; font-weight: 650; }
@@ -683,7 +689,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     -webkit-backdrop-filter: blur(14px);
     transition: background var(--motion-quick);
 }
-.cb:hover { opacity: 1; }
 .cb:hover:not(:disabled, .off) { background: var(--glass-hover); }
 .cb.off { background: var(--on-stage); color: var(--stage); }
 .cb:disabled { opacity: .55; cursor: default; }
@@ -701,7 +706,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     font-family: inherit;
     cursor: pointer;
 }
-.brand-button:hover { opacity: 1; }
 .topbar-balance { width: 44px; }
 .prejoin-main { flex: 1 0 auto; display: flex; flex-direction: column; }
 .preview {
