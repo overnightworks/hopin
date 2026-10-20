@@ -277,26 +277,28 @@ def test_prejoin_camera_off_turns_the_light_off_and_on_brings_the_picture_back(
     expect_nothing_reached_the_server(person)
 
 
-def expect_the_own_view_shows_the_choice(person: Page, choice: Choice, *, alone: bool) -> None:
+def expect_the_own_view_shows_the_choice(
+    person: Page, choice: Choice, form_factor: dict[str, Any], *, alone: bool
+) -> None:
     own_picture, own_icon = person.locator("#localVideo"), person.locator("#localPlaceholder")
     shown, hidden = (own_picture, own_icon) if choice.camera else (own_icon, own_picture)
     expect(shown).to_be_visible()
     expect(hidden).to_be_hidden()
     if choice.camera:
         person.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    if alone:
-        # With others in the call a phone shrinks the own tile, so its mark is the others' to see.
+    if alone or form_factor == DESKTOP:
+        # Only a phone hides the own mark once others are in the call; it is the others' to see there.
         expect(person.locator(OWN_MUTE_MARK)).to_be_visible(visible=not choice.microphone)
     expect(person.locator("#videoBtn")).to_have_text("Cam On" if choice.camera else "Cam Off")
     expect(person.locator("#muteBtn")).to_have_text("Mic On" if choice.microphone else "Mic Off")
 
 
-def expect_the_other_sees_the_choice(guest: Page, choice: Choice) -> None:
+def expect_the_other_sees_the_choice(other: Page, choice: Choice) -> None:
     if choice.camera:
-        wait_for_the_picture(guest)
+        wait_for_the_picture(other)
     else:
-        expect(guest.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
-    expect(guest.locator(OTHER_MUTE_MARK)).to_be_visible(visible=not choice.microphone)
+        expect(other.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    expect(other.locator(OTHER_MUTE_MARK)).to_be_visible(visible=not choice.microphone)
 
 
 CHOICES = [
@@ -333,7 +335,7 @@ def test_prejoin_choice_is_what_the_call_starts_with(
 
     start.click()
     expect(chooser.page.locator("#status")).to_have_text(IN_CALL)
-    expect_the_own_view_shows_the_choice(chooser.page, choice, alone=calling_host is None)
+    expect_the_own_view_shows_the_choice(chooser.page, choice, form_factor, alone=calling_host is None)
     other = calling_host or join(
         open_person, chooser.page.input_value("#shareUrl"), form_factor, (RECORD_PEER_CONNECTIONS,), page_errors
     )
@@ -438,17 +440,19 @@ def test_prejoin_brand_or_back_opens_the_start_page_as_a_new_document(
     assert not person.page.evaluate(DOCUMENT_IS_MARKED)
 
 
-def hold_the_first_request(person: Person, base_url: str) -> None:
-    person.page.goto(f"{base_url}/")
-    person.page.evaluate(HOLD_MEDIA)
-    person.page.get_by_role("button", name="Start a call").click()
+def hold_the_first_request(open_recorded: Callable[..., Person], base_url: str) -> Person:
+    person = open_recorded(scripts_after_the_recorder=(HOLD_MEDIA,))
+    open_prejoin(person.page, base_url)
+    return person
 
 
-def hold_the_camera_coming_back(person: Person, base_url: str) -> None:
+def hold_the_camera_coming_back(open_recorded: Callable[..., Person], base_url: str) -> Person:
+    person = open_recorded()
     open_answered_prejoin(person, base_url)
     press_until_off(person.page, PREJOIN_CAMERA)
     person.page.evaluate(HOLD_MEDIA)
     person.page.click(PREJOIN_CAMERA)
+    return person
 
 
 def expect_the_controls_to_wait_for_the_release(person: Person, pressed: str, both_on: str) -> None:
@@ -485,11 +489,10 @@ def expect_the_controls_to_wait_for_the_release(person: Person, pressed: str, bo
 def test_prejoin_ignores_its_controls_while_a_media_request_is_pending(
     open_recorded: Callable[..., Person],
     base_url: str,
-    hold_a_media_request: Callable[[Person, str], None],
+    hold_a_media_request: Callable[[Callable[..., Person], str], Person],
     pressed: str,
 ) -> None:
-    person = open_recorded()
-    hold_a_media_request(person, base_url)
+    person = hold_a_media_request(open_recorded, base_url)
     expect_the_controls_to_wait_for_the_release(person, pressed, BOTH_ON)
 
 

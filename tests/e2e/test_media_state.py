@@ -12,7 +12,6 @@ from tests.e2e.conftest import (
     OTHER_VIDEO,
     REFUSE_THE_CAMERA,
     join,
-    join_by_link,
     start_call,
 )
 
@@ -98,9 +97,7 @@ def test_media_state_shows_the_person_icon_for_a_person_without_a_camera(
 ) -> None:
     host = open_person(**form_factor)
     invite_link = start_call(host, base_url)
-    guest = open_person(**form_factor)
-    guest.add_init_script(REFUSE_THE_CAMERA)
-    join_by_link(guest, invite_link)
+    join(open_person, invite_link, form_factor, (REFUSE_THE_CAMERA,))
 
     expect(host.locator(OTHER_CAMERA_OFF)).to_be_visible()
     expect(host.locator(f"{OTHER_CAMERA_OFF} .av svg")).to_be_visible()

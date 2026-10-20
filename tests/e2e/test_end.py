@@ -314,9 +314,9 @@ def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(call: Call
 
 
 def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at_join(
-    hosted_call: HostedCall, open_person: Callable[..., Page], page_errors: list[str]
+    hosted_call: HostedCall, open_person: Callable[..., Page], page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    guest = record_page_errors(open_recording_person(open_person, DESKTOP), page_errors)
+    guest = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
     open_prejoin_by_link(guest, hosted_call.invite_link)
     wait_until_the_prejoin_media_answered(guest)
     hosted_call.host.evaluate(SEND_END_ROOM)
