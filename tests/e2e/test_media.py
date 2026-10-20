@@ -397,23 +397,6 @@ def renegotiate_the_video_direction(offerer: Page, answerer: Page, direction: st
     offerer.evaluate(ACCEPT_THE_ANSWER, answerer.evaluate(ANSWER_THE_OFFER, offer))
 
 
-def test_a_video_track_that_mutes_without_a_camera_off_announcement_shows_the_icon_until_it_unmutes(
-    camera_less_call: CameraLessCall,
-) -> None:
-    host, guest = camera_less_call.host, camera_less_call.guest
-    turn_the_camera_on(guest)
-    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible()
-
-    renegotiate_the_video_direction(guest, host, "inactive")
-    expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
-    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
-    expect(guest.locator("#videoBtn")).to_have_text("Cam On")
-
-    renegotiate_the_video_direction(guest, host, "sendrecv")
-    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_be_visible(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0)
-
-
 def _measure_the_audio_level_waits(person: Page, give_the_tile_audio: str) -> tuple[float, dict[str, Any]]:
     person.set_content("<video id='tile'></video>")
     person.evaluate("() => { window.requestAnimationFrame = () => 0; }")
@@ -825,7 +808,7 @@ def test_a_camera_turned_on_mid_call_turns_the_icon_into_the_picture_with_no_emp
     _expect_the_video_shown_only_with_a_picture(_stop_the_tile_picture_watch_once_the_picture_settles(watcher))
 
 
-def test_a_video_track_that_mutes_and_unmutes_returns_to_a_picture_with_no_empty_frame_and_a_camera_off_shows_the_icon(
+def test_a_video_track_that_mutes_unannounced_shows_the_icon_then_a_picture_with_no_empty_frame_and_camera_off_the_icon(
     camera_less_call: CameraLessCall,
 ) -> None:
     host, guest = camera_less_call.host, camera_less_call.guest
@@ -835,6 +818,8 @@ def test_a_video_track_that_mutes_and_unmutes_returns_to_a_picture_with_no_empty
 
     renegotiate_the_video_direction(guest, host, "inactive")
     expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
+    expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
+    expect(guest.locator("#videoBtn")).to_have_text("Cam On")
     renegotiate_the_video_direction(guest, host, "sendrecv")
     wait_for_the_picture(host)
 

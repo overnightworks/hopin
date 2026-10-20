@@ -865,7 +865,7 @@ def test_peer_removed_in_the_middle_of_a_restart_episode_stops_the_restart_sched
     host.click("#leaveBtn")
     host.click("#leaveYes")
     wait_for_peer_count(guest, 0)
-    guest.clock.run_for(sum(_restart_delay(guest, attempt) for attempt in range(6)))
+    guest.clock.run_for(sum(_restart_delay(guest, attempt) for attempt in RESTART_DELAY_BY_ATTEMPT))
 
     assert _restart_offers(guest) == 1
 
@@ -876,7 +876,7 @@ def test_last_peer_leaving_raises_no_page_error_on_the_one_who_stays(connected_p
     guest.click("#leaveBtn")
 
     wait_for_peer_count(host, 0)
-    host.clock.run_for(sum(_restart_delay(host, attempt) for attempt in range(6)))
+    host.clock.run_for(sum(_restart_delay(host, attempt) for attempt in RESTART_DELAY_BY_ATTEMPT))
 
 
 def test_sent_log_numbers_frames_drops_what_a_newer_description_supersedes_and_keeps_the_server_log_limit(
