@@ -1,7 +1,0 @@
-claim_id = "ab47d8a184b545588374c200a1174d15"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "6b4cab0da805d0d0f9f66bcc50d0b4ed6a3d55fa"
-branch = "claude/issue-115-dark-body-and-button-rules-go"
-scope = ["src/hopin/web/static/assets/css/hopin.css"]
-opened_commit = "989c720b7e2c79217e9661846e09bed877481a7e"
