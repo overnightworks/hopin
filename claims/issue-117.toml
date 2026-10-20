@@ -1,0 +1,8 @@
+claim_id = "a7ba795028f14b93b9c3ba22c2f8959d"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "15578220a53c7e8c03b4937dbb62d68fb6eff126"
+branch = "claude/issue-117-floating-control-bar"
+scope = ["README.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/chat.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/prejoin.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_control_bar.py", "tests/e2e/test_end.py", "tests/e2e/test_media.py", "tests/e2e/test_prejoin.py", "tests/e2e/test_stage.py"]
+opened_commit = "ec2d2d66445381a50c95d0b334b1a29236fdbaf6"
+whole_reason = "The strip's text labels are what the e2e helpers assert, so the bar, its one renderer and every text assertion on the six buttons change together, or every test that toggles a device fails."
