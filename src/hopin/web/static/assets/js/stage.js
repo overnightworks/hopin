@@ -14,11 +14,12 @@ function renderRemoteVideo(participantId) {
     const video = document.getElementById(`video-${participantId}`);
     const placeholder = document.getElementById(`placeholder-${participantId}`);
     if (!video) return;
-    const hasFrames = (video.srcObject?.getVideoTracks() ?? []).some(
+    const pictureArrives = (video.srcObject?.getVideoTracks() ?? []).some(
         (track) => track.readyState === "live" && !track.muted,
     );
+    const canDrawAFrame = video.readyState >= video.HAVE_CURRENT_DATA;
     const announcedOff = remoteMediaStates.get(participantId)?.video === false;
-    const showsVideo = hasFrames && !announcedOff;
+    const showsVideo = pictureArrives && canDrawAFrame && !announcedOff;
     video.classList.toggle("hidden", !showsVideo);
     placeholder.classList.toggle("hidden", showsVideo);
 }
@@ -71,6 +72,7 @@ export function addRemoteTile(participantId) {
     video.id = `video-${participantId}`;
     video.autoplay = true;
     video.playsinline = true;
+    video.addEventListener("loadeddata", () => renderRemoteVideo(participantId));
 
     const placeholder = document.createElement("div");
     placeholder.className = "vid off hidden";
