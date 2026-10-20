@@ -1,8 +1,0 @@
-claim_id = "04015acec36846bfb6da5c1bfc322145"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "0c3ef948bd1292ad1e6dd40b49bd61ac36b06059"
-branch = "claude/issue-113-waiting-card"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/invite.js", "src/hopin/web/static/assets/js/toast.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_end.py", "tests/e2e/test_prejoin.py", "tests/e2e/test_stage.py", "tests/e2e/test_waiting_card.py"]
-opened_commit = "69ed8126fbd6ecea977c4321b85336e3890dce82"
-whole_reason = "The share box is start_call's link source for the whole e2e suite, so the box, its JS and every #shareUrl read leave together with the card that replaces them, or every test that starts a call fails."
