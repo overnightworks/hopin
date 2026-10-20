@@ -12,9 +12,17 @@ from playwright.sync_api import Expect, Page, WebSocketRoute
 
 from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS
 from tests.e2e.conftest import (
+    COUNT_OFFERS,
+    EVERY_VIDEO_CAP_IS,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    OFFER_COUNT,
+    OTHER_CAMERA_OFF,
     RECORD_PEER_CONNECTIONS,
+    REFUSE_THE_CAMERA,
+    inbound_per_connection,
     start_call,
+    turn_the_camera_on,
+    wait_for_frames_to_advance,
     wait_for_peer_count,
 )
 
@@ -149,19 +157,12 @@ IN_CALL = "In call"
 CONNECTION_COUNT_AND_OPEN = """
 () => window.recordedConnections.length === 1 && window.recordedConnections[0].signalingState !== "closed"
 """
-SUM_INBOUND_VIDEO_BYTES = """
-async () => {
-    let total = 0;
-    for (const connection of window.recordedConnections) {
-        for (const report of (await connection.getStats()).values()) {
-            if (report.type === "inbound-rtp" && report.kind === "video") total += report.bytesReceived;
-        }
-    }
-    return total;
-}
+VIDEO_TRANSCEIVERS_PER_CONNECTION = """
+() => window.recordedConnections
+    .filter((connection) => connection.signalingState !== "closed")
+    .map((connection) => connection.getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track.kind === "video").length)
 """
-INBOUND_VIDEO_BYTES = f"() => ({SUM_INBOUND_VIDEO_BYTES})()"
-INBOUND_VIDEO_BYTES_ABOVE = f"async (baseline) => (await ({SUM_INBOUND_VIDEO_BYTES})()) > baseline"
 A_NEW_CONNECTION_IS_CONNECTED = """
 () => window.recordedConnections.slice(1).some(
     (connection) => ["connected", "completed"].includes(connection.iceConnectionState)
@@ -212,15 +213,6 @@ BLANK_QUALITY_BARS = """
 """
 QUALITY_BARS_PAINTED = """
 () => document.querySelector(".connection-quality[data-quality]") !== null
-"""
-EVERY_VIDEO_CAP_IS = """
-([peerCount, expectedCap]) => {
-    const open = window.recordedConnections.filter((connection) => connection.signalingState !== "closed");
-    const caps = open.flatMap((connection) => connection.getTransceivers()
-        .filter((transceiver) => transceiver.receiver.track.kind === "video")
-        .map((transceiver) => transceiver.sender.getParameters().encodings[0].maxBitrate));
-    return open.length === peerCount && caps.length === peerCount && caps.every((cap) => cap === expectedCap);
-}
 """
 EVERY_VIDEO_TARGET_IS_AT_MOST = """
 async ([peerCount, ceiling]) => {
@@ -382,8 +374,9 @@ def _wait_for_new_ufrag_in_stats(person: Page, previous_ufrag: str) -> str:
     return str(person.evaluate(SDP_UFRAG))
 
 
-@pytest.fixture
-def connected_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[ConnectedPair]:
+def _connect_pair(
+    open_person: Callable[..., Page], base_url: str, guest_init_scripts: tuple[str, ...] = ()
+) -> ConnectedPair:
     host = open_person()
     guest = open_person()
     host_tap, guest_tap = SignalingTap(), SignalingTap()
@@ -394,14 +387,29 @@ def connected_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[
         person.clock.install()
         person.add_init_script(RECORD_PEER_CONNECTIONS)
         person.add_init_script(FORCE_ICE_FAULTS)
+        person.add_init_script(COUNT_OFFERS)
 
     guest.goto("about:blank")
+    for script in guest_init_scripts:
+        guest.add_init_script(script)
     invite_link = start_call(host, base_url)
     guest.goto(invite_link)
     for person in (host, guest):
         person.wait_for_function(FIRST_CONNECTION_IS_CONNECTED, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
         person.clock.pause_at(datetime.now(tz=UTC) + CLOCK_PAUSE_LEAD)
-    pair = ConnectedPair(host, guest, host_tap, guest_tap, invite_link, page_errors)
+    return ConnectedPair(host, guest, host_tap, guest_tap, invite_link, page_errors)
+
+
+@pytest.fixture
+def connected_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[ConnectedPair]:
+    pair = _connect_pair(open_person, base_url)
+    yield pair
+    assert pair.page_errors == []
+
+
+@pytest.fixture
+def camera_less_guest_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[ConnectedPair]:
+    pair = _connect_pair(open_person, base_url, guest_init_scripts=(REFUSE_THE_CAMERA,))
     yield pair
     assert pair.page_errors == []
 
@@ -559,13 +567,13 @@ def _wait_for_reconnect_attempt(person: Page, expected: int) -> None:
 
 
 def _inbound_video_bytes(person: Page) -> int:
-    return int(person.evaluate(INBOUND_VIDEO_BYTES))
+    return int(sum(inbound_per_connection(person, "video", "bytesReceived")))
 
 
 def _wait_for_more_video_bytes_than(person: Page, baseline: int, deadline_seconds: int = PUMP_DEADLINE_SECONDS) -> int:
     pump_until(
         person,
-        lambda: bool(person.evaluate(INBOUND_VIDEO_BYTES_ABOVE, baseline)),
+        lambda: _inbound_video_bytes(person) > baseline,
         deadline_seconds,
         f"no new video bytes arrived within {deadline_seconds}s",
     )
@@ -960,3 +968,45 @@ def test_quality_of_round_trip_is_good_below_300_ms_fair_below_500_ms_and_poor_a
     page.goto(f"{base_url}/")
 
     assert page.evaluate(QUALITY_OF_ROUND_TRIP_FROM_MODULE, round_trip_seconds) == expected_quality
+
+
+def _frames_decoded(person: Page) -> list[float]:
+    return inbound_per_connection(person, "video", "framesDecoded")
+
+
+def test_camera_turned_on_mid_call_reaches_the_host_without_an_offer_and_survives_an_ice_restart(
+    camera_less_guest_pair: ConnectedPair,
+) -> None:
+    guest, host = camera_less_guest_pair.guest, camera_less_guest_pair.host
+    assert _frames_decoded(host) == [0]
+
+    turn_the_camera_on(guest)
+    wait_for_frames_to_advance(host)
+
+    assert (_restart_offers(guest), guest.evaluate(OFFER_COUNT)) == (0, 1)
+    guest_before = str(guest.evaluate(SDP_UFRAG))
+    camera_less_guest_pair.force_failed_on(guest)
+    assert _restart_offers(guest) == 1
+    assert _wait_for_new_ufrag_in_stats(guest, guest_before) != guest_before
+    wait_for_frames_to_advance(host)
+    for person in (host, guest):
+        assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
+
+
+def test_camera_turned_on_while_the_socket_is_down_reaches_the_host_and_its_media_state_follows_the_resume(
+    camera_less_guest_pair: ConnectedPair,
+) -> None:
+    guest, host = camera_less_guest_pair.guest, camera_less_guest_pair.host
+    host_tap = camera_less_guest_pair.host_tap
+    heard_before = len(host_tap.downstream)
+    camera_less_guest_pair.cut(guest)
+
+    turn_the_camera_on(guest)
+    wait_for_frames_to_advance(host)
+
+    assert guest.evaluate(OFFER_COUNT) == 1
+    expect(host.locator(OTHER_CAMERA_OFF)).to_be_visible()
+    camera_less_guest_pair.resume(guest)
+    expect(host.locator(OTHER_CAMERA_OFF)).to_be_hidden()
+    heard_after = host_tap.types(host_tap.downstream[heard_before:])
+    assert {"participant_left", "participant_joined"}.isdisjoint(heard_after)

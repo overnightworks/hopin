@@ -5,7 +5,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +35,10 @@ LEGAL_LINKS = {
     "Impressum": "https://hallucinai.de/impressum",
     "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
 }
+FORM_FACTORS = [pytest.param(DESKTOP, id="desktop"), pytest.param(PHONE, id="phone")]
+OTHER_TILE = "#videoGrid .tile:not(.self)"
+OTHER_VIDEO = f"{OTHER_TILE} video"
+OTHER_CAMERA_OFF = f"{OTHER_TILE} .vid.off"
 SMALL_PHONE_LANDSCAPE = {"viewport": {"width": 568, "height": 320}, "is_mobile": True, "has_touch": True}
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
@@ -59,10 +63,82 @@ navigator.mediaDevices.getDisplayMedia = async () => document.createElement("can
 REFUSE_THE_CAMERA = """
 const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 navigator.mediaDevices.getUserMedia = (constraints) => {
-    if (constraints.video) return Promise.reject(new DOMException("no camera", "NotFoundError"));
+    if (constraints.video && !window.cameraPluggedIn) {
+        return Promise.reject(new DOMException("no camera", "NotFoundError"));
+    }
     return nativeGetUserMedia(constraints);
 };
 """
+PLUG_IN_THE_CAMERA = "() => { window.cameraPluggedIn = true; }"
+COUNT_OFFERS = """
+(() => {
+    window.offerCount = 0;
+    const nativeCreateOffer = RTCPeerConnection.prototype.createOffer;
+    RTCPeerConnection.prototype.createOffer = function (...parameters) {
+        window.offerCount += 1;
+        return nativeCreateOffer.apply(this, parameters);
+    };
+})();
+"""
+OFFER_COUNT = "() => window.offerCount"
+EVERY_VIDEO_CAP_IS = """
+([peerCount, expectedCap]) => {
+    const open = window.recordedConnections.filter((connection) => connection.signalingState !== "closed");
+    const caps = open.flatMap((connection) => connection.getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track.kind === "video")
+        .map((transceiver) => transceiver.sender.getParameters().encodings[0].maxBitrate));
+    return open.length === peerCount && caps.length === peerCount && caps.every((cap) => cap === expectedCap);
+}
+"""
+INBOUND_PER_CONNECTION = """
+async ([kind, field]) => {
+    const open = window.recordedConnections.filter((connection) => connection.signalingState !== "closed");
+    return Promise.all(open.map(async (connection) => {
+        const reports = [...(await connection.getStats()).values()];
+        return reports
+            .filter((report) => report.type === "inbound-rtp" && report.kind === kind)
+            .reduce((total, report) => total + report[field], 0);
+    }));
+}
+"""
+INBOUND_HAS_GROWN = f"""
+async ([kind, field, baseline]) => {{
+    const now = await ({INBOUND_PER_CONNECTION})([kind, field]);
+    return now.length === baseline.length && now.every((value, index) => value > baseline[index]);
+}}
+"""
+TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
+(selector) => {
+    const video = document.querySelector(selector);
+    const [audio] = video.srcObject?.getAudioTracks() ?? [];
+    return audio?.readyState === "live" && audio.enabled && !video.muted && video.volume > 0;
+}
+"""
+TILE_CLOCK_PASSED = "([selector, time]) => document.querySelector(selector).currentTime > time"
+TILE_CURRENT_TIME = "(selector) => document.querySelector(selector).currentTime"
+TILE_AUDIO_LEVEL = """
+async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
+    const context = new AudioContext();
+    try {
+        await context.resume();
+        const analyser = context.createAnalyser();
+        context.createMediaStreamSource(document.querySelector(selector).srcObject).connect(analyser);
+        const samples = new Uint8Array(analyser.fftSize);
+        let loudest = 0;
+        const end = performance.now() + timeoutMilliseconds;
+        while (loudest <= floor && performance.now() < end) {
+            analyser.getByteTimeDomainData(samples);
+            loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
+            await new Promise((next) => setTimeout(next, sampleIntervalMilliseconds));
+        }
+        return loudest;
+    } finally {
+        await context.close();
+    }
+}
+"""
+AUDIBLE_LEVEL_FLOOR = 4
+AUDIO_SAMPLE_INTERVAL_MILLISECONDS = 50
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
 
 
@@ -162,10 +238,32 @@ def start_call(host: Page, base_url: str) -> str:
     return host.input_value("#shareUrl")
 
 
-def join(open_person: Callable[..., Page], invite_link: str, form_factor: dict[str, Any] = DESKTOP) -> Page:
+def record_page_errors(person: Page, page_errors: list[str]) -> Page:
+    person.on("pageerror", lambda error: page_errors.append(str(error)))
+    return person
+
+
+def join(
+    open_person: Callable[..., Page],
+    invite_link: str,
+    form_factor: dict[str, Any] = DESKTOP,
+    init_scripts: Sequence[str] = (),
+    page_errors: list[str] | None = None,
+) -> Page:
     guest = open_person(**form_factor)
+    if page_errors is not None:
+        record_page_errors(guest, page_errors)
+    for script in init_scripts:
+        guest.add_init_script(script)
     guest.goto(invite_link)
     return guest
+
+
+def turn_the_camera_on(person: Page) -> None:
+    person.evaluate(PLUG_IN_THE_CAMERA)
+    expect(person.locator("#videoBtn")).to_have_text("Cam Off")
+    person.click("#videoBtn")
+    expect(person.locator("#videoBtn")).to_have_text("Cam On")
 
 
 def share_the_screen(person: Page) -> None:
@@ -185,6 +283,34 @@ def share_then_stop_the_screen_share(person: Page) -> None:
 
 def wait_for_peer_count(person: Page, count: int) -> None:
     person.wait_for_function(OPEN_PEER_COUNT_REACHED, arg=count, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def inbound_per_connection(person: Page, kind: str, field: str) -> list[float]:
+    return [float(value) for value in person.evaluate(INBOUND_PER_CONNECTION, [kind, field])]
+
+
+def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
+    person.wait_for_function(INBOUND_HAS_GROWN, arg=[kind, field, baseline], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def wait_for_frames_to_advance(person: Page) -> None:
+    wait_for_inbound_growth(person, "video", "framesDecoded", inbound_per_connection(person, "video", "framesDecoded"))
+
+
+def expect_the_tile_to_play_audio(person: Page, video_selector: str) -> None:
+    person.wait_for_function(
+        TILE_AUDIO_IS_ALIVE_AND_UNMUTED, arg=video_selector, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
+    wait_for_inbound_growth(person, "audio", "bytesReceived", inbound_per_connection(person, "audio", "bytesReceived"))
+    time_before = person.evaluate(TILE_CURRENT_TIME, video_selector)
+    person.wait_for_function(
+        TILE_CLOCK_PASSED, arg=[video_selector, time_before], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
+    level = person.evaluate(
+        TILE_AUDIO_LEVEL,
+        [video_selector, AUDIBLE_LEVEL_FLOOR, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, AUDIO_SAMPLE_INTERVAL_MILLISECONDS],
+    )
+    assert level > AUDIBLE_LEVEL_FLOOR, f"the tile plays silence (level {level})"
 
 
 def expect_both_legal_links(screen: Locator) -> None:
