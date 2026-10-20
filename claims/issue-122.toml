@@ -1,0 +1,8 @@
+claim_id = "28bd9850a5a24b97a57af5e5ff8afd1a"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "cd2cb63c67a19bcb2c58730c1aa9b21eca1d51d9"
+branch = "claude/issue-122-speaking-ring"
+scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/mesh.js", "src/hopin/web/static/assets/js/speaking.js", "src/hopin/web/static/assets/js/stage.js", "tests/e2e/test_speaking.py", "tests/e2e/test_stage.py"]
+opened_commit = "d4ddab062753035637c0113ecd43d15965ff9267"
+whole_reason = "Detection, its wiring per connection, the tile's voice renderer and the ring and wave styles are one behaviour: any one without the others shows nothing or polls for no surface."
