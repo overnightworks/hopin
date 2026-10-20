@@ -12,12 +12,11 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
-from hopin.config.settings import ServerSettings
 
 
 @pytest.fixture
-def client():
-    settings = ServerSettings(max_participants_per_room=3)
+def client(sign_in_settings):
+    settings = sign_in_settings(max_participants_per_room=3).settings
     with TestClient(create_app(settings)) as shared_portal_client:
         yield shared_portal_client
 

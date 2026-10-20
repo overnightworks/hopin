@@ -33,6 +33,7 @@ make run       # start the server
 
 ```
 src/hopin/
+├── auth/        # sign-in configuration built from the settings
 ├── config/      # settings.py, constants.py (application constants), enums
 ├── signaling/   # WebSocket signaling server
 ├── rooms/       # room and session management

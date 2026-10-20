@@ -13,6 +13,7 @@ import pytest
 from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
+from tests.sign_in_settings import build_sign_in_settings
 
 SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
@@ -254,11 +255,14 @@ def _stop(server: subprocess.Popen[bytes]) -> None:
 
 
 @pytest.fixture(scope="session")
-def base_url(pytestconfig: pytest.Config, delete_output_dir: None) -> Iterator[str]:
+def base_url(
+    pytestconfig: pytest.Config, delete_output_dir: None, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[str]:
     port = _reserve_free_port()
     log_directory = Path(pytestconfig.getoption("output"))
     log_directory.mkdir(parents=True, exist_ok=True)
-    environment = {"PYTHONPATH": str(SOURCE_DIRECTORY), "HOPIN_HOST": LOOPBACK_HOST, "HOPIN_PORT": str(port)}
+    sign_in = build_sign_in_settings(tmp_path_factory.mktemp("sign-in"), host=LOOPBACK_HOST, port=port)
+    environment = {"PYTHONPATH": str(SOURCE_DIRECTORY), **sign_in.environment}
     with (log_directory / SERVER_LOG_NAME).open("wb") as server_log:
         # The command is built from sys.executable and constants, never from input.
         server = subprocess.Popen(  # noqa: S603
