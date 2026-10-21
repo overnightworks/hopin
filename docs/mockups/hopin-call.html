@@ -385,7 +385,7 @@ button { cursor: pointer; }
 .legal a { color: var(--ink-faint); text-decoration: none; }
 .legal a:hover { color: var(--ink-soft); text-decoration: underline; }
 
-/* Sign-in states: transcribed from ui-console v0.3.0 (.login and its parts), in
+/* Sign-in states: transcribed from ui-console v0.3.1 (.login and its parts), in
    this picture's tokens. HopIn's own .btn, .banner and .glyph are different
    things here, so the shared classes carry the prefix si-. */
 .si { box-sizing: border-box; width: 100%; flex: 1; padding: 56px 28px 64px; display: flex; flex-direction: column; align-items: center; gap: 22px; container-type: inline-size; overflow: auto; }
@@ -739,7 +739,6 @@ button { cursor: pointer; }
 /* End screens */
 .end-icon { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-soft); }
 .end-icon.warn { background: var(--busy-soft); color: var(--busy); }
-.end-icon.stop { background: var(--fail-soft); color: var(--fail); }
 .count-pill { font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700; padding: 3px 12px; border-radius: 999px; background: var(--busy-soft); color: var(--busy); }
 .hero .stackbtns { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 320px; margin-top: 18px; }
 .phone-shell .hero .stackbtns { max-width: none; }
@@ -922,7 +921,7 @@ const CHIP_ALIAS = { left: "ended", hostgone: "ended", signout: "home" };
 const CAPTIONS = {
   home: ["Zeile 1 · 4", "Nur angemeldete Mitglieder sehen diese Seite: eine Aktion, „Start a call“. Impressum und Datenschutz stehen leise unten."],
   menu: ["Zeile 1", "Das Keycloak-Konto ist die Identität. Das Menü zeigt den Namen und „Log out“, sonst nichts."],
-  signout: ["Zeile 1 · 4", "„Log out“ im Konto-Menü landet auf /login: „You are logged out.“ und ein „Log in“, das nie von selbst weiterleitet. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.0); sie ändern sich nur durch neue Abschrift."],
+  signout: ["Zeile 1 · 4", "„Log out“ im Konto-Menü landet auf /login: „You are logged out.“ und ein „Log in“, das nie von selbst weiterleitet. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.1); sie ändern sich nur durch neue Abschrift."],
   "pre-host": ["Zeile 7", "Starten ohne Passwortfeld. Große Vorschau, Mikrofon und Kamera direkt darauf, Geräteauswahl am Desktop, Kamera drehen am Telefon."],
   "pre-guest": ["Zeile 1", "Ein Mitglied öffnet den Link, zum Beispiel aus WhatsApp, meldet sich einmal an und sieht vor dem Beitritt, wer schon da ist."],
   "pre-blocked": ["Kein #25-Satz", "Die Kamera ist im Browser blockiert. Ein Satz, wie man sie erlaubt, dazu „Try again“ oder „Continue without camera“."],
@@ -946,8 +945,8 @@ const CAPTIONS = {
   expired: ["Kein #25-Satz", "Der Link gehört zu einem Anruf, den es nicht mehr gibt. Eine Aktion: „Back to start“."],
   locked: ["Zeile 7", "Die Host-Person hat gesperrt; wer neu kommt, sieht das und kann es nochmal versuchen."],
   full: ["Kein #25-Satz", "Sechs von sechs Plätzen sind belegt."],
-  noaccess: ["Zeile 1 · 4", "Angemeldet, aber nicht in der Gruppe /apps/hopin: kein Name, weil eine Absage keine Identität trägt. Zwei Wege: „Log out“ und „Back“. Where Back goes is pending the operator's ruling for every app (21.10.2026). The recommendation is to drop it, so Log out is the one way out, as webauth's README says. The alternative is a link to https://hallucinai.de."],
-  loginfailed: ["Zeile 1 · 4", "Anmeldung fehlgeschlagen auf /auth/callback: ein Weg, „Try again“. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.0)."],
+  noaccess: ["Zeile 1 · 4", "Angemeldet, aber nicht in der Gruppe /apps/hopin: kein Name, weil eine Absage keine Identität trägt. Ein Weg: „Log out“. „Back“ entfällt (#25 Lesart 7, Vorgabe vom 21.10.2026); der Operator kann stattdessen einen festen Link zu https://hallucinai.de bestimmen."],
+  loginfailed: ["Zeile 1 · 4", "Anmeldung fehlgeschlagen auf /auth/callback: ein Weg, „Try again“. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.1)."],
 };
 
 function viewKey() {
@@ -1028,8 +1027,7 @@ function signoutView() {
 
 const SIGNIN_PAGES = {
   noaccess: { path: "/no-access", body: () => `<h1>No access</h1>${siBanner("You are signed in, but this account has no access to HopIn.")}
-    <div class="si-actions"><button class="si-btn si-btn--primary" data-act="signout">Log out</button>
-      <button class="si-btn" data-act="back">Back</button></div>` },
+    <div class="si-actions"><button class="si-btn si-btn--primary" data-act="signout">Log out</button></div>` },
   loginfailed: { path: "/auth/callback", body: () => `<h1>Login failed</h1>${siBanner("Sign-in did not work. Please try again.")}
     <div class="si-actions"><button class="si-btn si-btn--primary" data-act="home">Try again</button></div>` },
 };
@@ -1529,7 +1527,6 @@ const ACTIONS = {
   avatar: () => { S.overlay = S.overlay === "menu" ? null : "menu"; },
   signout: () => { fresh({ screen: "signout" }); },
   home: () => PRESETS.home(),
-  back: () => toast("Where Back goes is not ruled yet", "back"),
   close: () => { S.overlay = null; },
   mic: () => { S.mic = !S.mic; },
   cam: () => { S.cam = !S.cam; },

@@ -66,6 +66,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
+.sign-in { flex: 1; overflow: auto; }
 body {
     font-family: var(--sans);
     background: var(--app);

@@ -33,6 +33,10 @@ The page is markup, two stylesheets and ES modules, served from
   `.brand-mark`) are renamed; `.field` and `.sub` (row 16), `.row` (rows 19 and
   21) and `.banner` (row 21) are renamed by the row that builds them. A unit
   test enforces the rule.
+- The sign-in pages (`login-failed.html`) are ui-console's sign-in markup with
+  its classes and wording, and load both stylesheets. The no-reuse rule and the
+  legal-only `<a>` rule above are about `index.html` and `hopin.css`; a sign-in
+  page links the two legal URLs and `/auth/start`.
 - Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,
@@ -76,4 +80,4 @@ The page is markup, two stylesheets and ES modules, served from
   modules as written.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
-- `ui-console.css` is v0.2.0, byte-identical to its release and loaded first.
+- `ui-console.css` is v0.3.1, byte-identical to its release and loaded first.

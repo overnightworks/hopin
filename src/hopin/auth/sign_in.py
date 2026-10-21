@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import SecretStr
 from webauth.config import SessionLifetime, WebAuthConfig, web_auth_config
 from webauth.cookies import issue_session_cookies
@@ -40,10 +40,11 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.settings import ServerSettings
+from hopin.web.routes import STATIC_DIR
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
 NO_ACCESS_BODY = "No access"
-LOGIN_FAILED_BODY = "Login failed"
+LOGIN_FAILED_PAGE = STATIC_DIR / "login-failed.html"
 
 logger = structlog.get_logger()
 
@@ -189,8 +190,10 @@ def create_sign_in_router(
 
 def _refusal_response(refusal: OidcRefusal | AdmissionRefusal, *, carrying: Response) -> Response:
     _log_refusal(refusal)
-    body = NO_ACCESS_BODY if refusal is AdmissionRefusal.NOT_A_MEMBER else LOGIN_FAILED_BODY
-    response = PlainTextResponse(body, status_code=HTTPStatus.FORBIDDEN)
+    if refusal is AdmissionRefusal.NOT_A_MEMBER:
+        response: Response = PlainTextResponse(NO_ACCESS_BODY, status_code=HTTPStatus.FORBIDDEN)
+    else:
+        response = FileResponse(LOGIN_FAILED_PAGE, status_code=HTTPStatus.FORBIDDEN)
     for cookie in carrying.headers.getlist("set-cookie"):
         response.headers.append("set-cookie", cookie)
     return response

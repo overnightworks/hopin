@@ -6,7 +6,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from hopin.config.constants import CALL_PATH, HEALTH_PATH, HOME_PATH, STATIC_PATH
+from hopin.auth.sign_in import LOGIN_FAILED_PAGE
+from hopin.config.constants import AUTH_START_PATH, CALL_PATH, HEALTH_PATH, HOME_PATH, STATIC_PATH
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
@@ -109,7 +110,7 @@ class TestHeadRequests:
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
 LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
-UI_CONSOLE_SHA256 = "abcc85ad2171201d71002fc497a16b2da38caac1b9fa48a059a26637e6b4da01"
+UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
 UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
@@ -242,15 +243,20 @@ def page_inventory():
     return inventory
 
 
-class TestPageIsCspReady:
-    def test_has_no_inline_script_style_or_handler(self, page_inventory):
-        assert page_inventory.inline_scripts == 0
-        assert page_inventory.style_elements == 0
-        assert page_inventory.forbidden_attributes == []
+@pytest.fixture(params=sorted(STATIC_DIR.glob("*.html")), ids=lambda page: page.name)
+def every_page_inventory(request):
+    return inventory_of(request.param.read_text())
 
-    def test_fetches_only_same_origin_absolute_paths(self, page_inventory):
-        assert page_inventory.fetched_urls
-        assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in page_inventory.fetched_urls)
+
+class TestPageIsCspReady:
+    def test_has_no_inline_script_style_or_handler(self, every_page_inventory):
+        assert every_page_inventory.inline_scripts == 0
+        assert every_page_inventory.style_elements == 0
+        assert every_page_inventory.forbidden_attributes == []
+
+    def test_fetches_only_same_origin_absolute_paths(self, every_page_inventory):
+        assert every_page_inventory.fetched_urls
+        assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
 
     def test_links_only_to_the_two_central_legal_pages_in_a_new_tab(self, page_inventory):
         assert {link["href"] for link in page_inventory.links} == set(LEGAL_URLS)
@@ -262,9 +268,36 @@ class TestPageIsCspReady:
         assert f'<script type="module" src="{STATIC_PATH}/js/app.js">' in PAGE.read_text()
 
 
+class TestLoginFailedPage:
+    @pytest.fixture
+    def markup(self):
+        return LOGIN_FAILED_PAGE.read_text()
+
+    @pytest.fixture
+    def inventory(self, markup):
+        return inventory_of(markup)
+
+    def test_links_to_a_new_sign_in_in_the_same_tab_and_to_both_legal_pages_in_a_new_tab(self, inventory):
+        again, *legal = inventory.links
+        assert again["href"] == AUTH_START_PATH
+        assert "target" not in again
+        assert [link["href"] for link in legal] == list(LEGAL_URLS)
+        assert all(link[name] == value for link in legal for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
+
+    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
+        assert "<script" not in markup.lower()
+        assert "http-equiv" not in markup
+
+    @pytest.mark.parametrize(
+        "wording", ["<h1>Login failed</h1>", "<p>Sign-in did not work. Please try again.</p>", ">Try again</a>"]
+    )
+    def test_carries_the_ruled_wording_verbatim(self, markup, wording):
+        assert wording in markup
+
+
 class TestPageShell:
-    def test_loads_ui_console_before_hopin(self, page_inventory):
-        assert page_inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
+    def test_every_page_loads_ui_console_before_hopin(self, every_page_inventory):
+        assert every_page_inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
 
     def test_vendored_ui_console_is_byte_identical_to_its_release(self):
         assert hashlib.sha256(UI_CONSOLE_CSS.read_bytes()).hexdigest() == UI_CONSOLE_SHA256

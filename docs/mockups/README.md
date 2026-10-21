@@ -21,8 +21,7 @@ It carries these rulings:
 The three sign-in states (No access, Signed out, Login failed) were
 transcribed on 21.10.2026 from the shared picture (version 2, blessed
 19.10.2026; agent-presentator `docs/mockups/m0-lobby.html`, "SIGN-IN
-(KEYCLOAK)", at fd21404) and ui-console v0.3.0 `grammar.html`. They change only
-by re-transcription from there. Where "Back" on No access goes is pending the
-operator's ruling for every app; the picture's caption says so.
+(KEYCLOAK)", at fd21404) and ui-console v0.3.1 `grammar.html`. They change only
+by re-transcription from there.
 
 To view it, open the file in a browser.
