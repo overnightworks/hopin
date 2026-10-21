@@ -1,0 +1,8 @@
+claim_id = "5eed0e8c12f849649cbb229ecceeac3d"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "4c0c3cb4b04576d6f7434480c5d8b3ca4ad5dca3"
+branch = "claude/issue-166-socket-recheck"
+scope = ["README.md", "src/hopin/config/constants.py", "src/hopin/signaling/handler.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_signaling_recheck.py", "tests/unit/test_signaling_resume.py"]
+opened_commit = "bc65b3573f4ed42f09dd771cfe993b4d9068548a"
+whole_reason = "The per-frame check, the tick and the ownership rule are one invariant in one class; the tests that pin the handler's timers and log fields change with it."
