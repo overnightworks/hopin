@@ -65,6 +65,8 @@ class _ExpiredSessionSweep:
         return self._scheduler.call_later(SESSION_SWEEP_SECONDS, self._sweep)
 
     async def _sweep(self) -> None:
+        if self._stopped:
+            return
         # The scan holds the store's lock, so it runs off the event loop.
         removed = await asyncio.to_thread(
             self._sessions.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)

@@ -142,6 +142,32 @@ class TestCreateApp:
         assert signed_in_client(sign_in_settings().settings).get(path).status_code == 404
 
 
+WAIT_CAP_SECONDS = 5
+
+
+class QueuingTimer:
+    def __init__(self, callback):
+        self.callback = callback
+        self.cancelled = False
+
+    def cancel(self):
+        self.cancelled = True
+
+
+class QueuingScheduler:
+    """Holds timers until the test queues the callback as a task, whether or not the timer was cancelled."""
+
+    def __init__(self):
+        self.timer = None
+
+    def call_later(self, _delay_seconds, callback):
+        self.timer = QueuingTimer(callback)
+        return self.timer
+
+    def queue_due_callback(self):
+        return asyncio.get_running_loop().create_task(self.timer.callback())
+
+
 class TestExpiredSessionSweep:
     @pytest.fixture
     def swept(self, sign_in_settings, scheduler):
@@ -192,13 +218,32 @@ class TestExpiredSessionSweep:
         async def shut_down_during_the_scan():
             async with app.router.lifespan_context(app):
                 running = asyncio.create_task(scheduler.advance(SESSION_SWEEP_SECONDS))
-                await asyncio.to_thread(scan_started.wait)
+                await asyncio.to_thread(scan_started.wait, WAIT_CAP_SECONDS)
+                assert scan_started.is_set()
             scan_released.set()
             await running
             await scheduler.advance(SESSION_SWEEP_SECONDS * 2)
 
         asyncio.run(shut_down_during_the_scan())
         assert len(scans) == 1
+
+    def test_a_sweep_queued_before_shutdown_removes_nothing_once_the_lifespan_has_stopped(self, sign_in_settings):
+        stores = SignInStores.in_memory()
+        scheduler = QueuingScheduler()
+        app = create_app(sign_in_settings().settings, stores=stores, scheduler=scheduler)
+        now = datetime.now(UTC)
+        account = stores.accounts.create_for_subject("subject", "name", "user")
+        expired = stores.sessions.create(
+            account.id, now=now - timedelta(hours=2), expires_at=now - timedelta(hours=1), refresh_token=None
+        )
+
+        async def shut_down_with_the_sweep_queued():
+            async with app.router.lifespan_context(app):
+                queued = scheduler.queue_due_callback()
+            await queued
+
+        asyncio.run(shut_down_with_the_sweep_queued())
+        assert (stores.sessions.load(expired.id) is not None, scheduler.timer.cancelled) == (True, True)
 
     def test_the_lifespan_stops_the_sweep_at_shutdown(self, swept, scheduler):
         app, sessions, expired, _ = swept
