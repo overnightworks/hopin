@@ -1,8 +1,10 @@
+import { initAccount } from "./account.js";
 import { initChat, registerChatHandlers } from "./chat.js";
 import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
+import { initMenus } from "./menus.js";
 import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {
@@ -30,7 +32,7 @@ import {
     showLockIndicator,
     showParticipantCount,
 } from "./status.js";
-import { initHome } from "./home.js";
+import { initHome, showGreeting } from "./home.js";
 import { clearToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
@@ -164,12 +166,14 @@ registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);
 initDialogs({ onLeaveConfirmed: leaveCall });
+initMenus();
 initControls({ onLeaveRequested: requestLeave });
 initInvite();
 initChat();
 initPip();
 initEnd();
 initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });
+initAccount({ onNameRead: showGreeting });
 initPrejoin({
     onStart: (kind) => {
         state.isHost = kind === PREJOIN_KIND.HOST;

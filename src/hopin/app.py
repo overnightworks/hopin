@@ -67,7 +67,7 @@ def create_app(
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(create_router(signaling_handler, room_manager))
     app.include_router(create_ice_servers_router(settings.stun_server))
-    app.include_router(create_account_router(sign_in_stores.sessions))
+    app.include_router(create_account_router())
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     app.include_router(

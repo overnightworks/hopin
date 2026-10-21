@@ -323,6 +323,8 @@ body {
     place-items: center;
     background: linear-gradient(150deg, var(--c1, var(--accent)), var(--c2, var(--accent-hover)));
     color: #FFFFFF;
+    font-weight: 650;
+    letter-spacing: .01em;
 }
 .av svg { width: 56%; height: 56%; }
 .vid.off .av {
@@ -551,8 +553,8 @@ body {
     position: absolute;
     left: 50%;
     top: 42%;
-    width: 520px;
-    height: 520px;
+    height: min(520px, 100%);
+    aspect-ratio: 1;
     transform: translate(-50%, -50%);
     background: radial-gradient(closest-side, var(--accent-soft), transparent);
     pointer-events: none;
@@ -561,6 +563,7 @@ body {
 .home .brand-mark-xl { grid-row: 3; margin-bottom: 20px; }
 .home h2 {
     grid-row: 4;
+    overflow-wrap: anywhere;
     margin: 0 0 14px;
     padding: 0 32px;
     font-size: 30px;
@@ -571,6 +574,7 @@ body {
 }
 .home p {
     grid-row: 5;
+    line-height: 1.45;
     max-width: 384px;
     padding: 0 32px;
     color: var(--ink-soft);
@@ -867,6 +871,34 @@ body {
     }
 }
 .av-28 { width: 28px; height: 28px; flex: none; }
+.av-44 { width: 44px; height: 44px; flex: none; font-size: 15px; color: var(--on-accent); }
+.av-btn { width: 40px; height: 40px; flex: none; border: 0; padding: 0; font: inherit; font-size: 14px; font-weight: 650; color: var(--on-accent); cursor: pointer; }
+.av-btn:hover { box-shadow: 0 0 0 4px var(--surface-2); }
+#accountScrim { position: fixed; background: transparent; animation: none; }
+.account-menu {
+    position: fixed;
+    z-index: 80;
+    inset: 58px 14px auto auto;
+    width: 260px;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid var(--line-soft);
+    border-radius: 18px;
+    background: var(--screen);
+    color: var(--ink);
+    box-shadow: var(--shadow-lg);
+    animation: overlay-pop var(--motion-fade) ease-out;
+}
+.menu-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 14px; }
+.menu-head div { min-width: 0; }
+.menu-head b:not(.hidden) { display: block; overflow: hidden; font-size: 15.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.menu-head span:not(.av) { font-size: 13px; color: var(--ink-faint); }
+@media (min-width: 601px) {
+    .account-menu { inset: 66px 24px auto auto; }
+}
+@media (max-width: 600px) {
+    .prejoin .account-button { display: none; }
+}
 
 .prejoin { display: flex; flex-direction: column; }
 .brand-button {
