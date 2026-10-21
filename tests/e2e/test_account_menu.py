@@ -130,6 +130,7 @@ def test_avatar_keeps_the_person_icon_when_the_username_has_no_letter_or_digit(
 ) -> None:
     person = open_home(open_person, base_url, page_errors, username="._-", **form_factor)
 
+    expect(person.locator(MENU_NAME)).to_have_text("._-")
     expect(person.locator(AVATAR).locator("svg")).to_be_visible()
     expect(person.locator(AVATAR)).to_have_text("")
 
