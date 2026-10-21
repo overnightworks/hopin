@@ -216,16 +216,20 @@ class TestExpiredSessionSweep:
         monkeypatch.setattr(sessions, "delete_expired", held_scan)
 
         async def shut_down_during_the_scan():
-            async with app.router.lifespan_context(app):
-                running = asyncio.create_task(scheduler.advance(SESSION_SWEEP_SECONDS))
-                await asyncio.to_thread(scan_started.wait, WAIT_CAP_SECONDS)
-                assert scan_started.is_set()
-            scan_released.set()
+            try:
+                async with app.router.lifespan_context(app):
+                    running = asyncio.create_task(scheduler.advance(SESSION_SWEEP_SECONDS))
+                    await asyncio.to_thread(scan_started.wait, WAIT_CAP_SECONDS)
+                    assert scan_started.is_set()
+            finally:
+                scan_released.set()
             await running
+            timer_pending_after_the_scan = scheduler.has_pending_timer()
             await scheduler.advance(SESSION_SWEEP_SECONDS * 2)
+            return timer_pending_after_the_scan
 
-        asyncio.run(shut_down_during_the_scan())
-        assert len(scans) == 1
+        timer_pending_after_the_scan = asyncio.run(shut_down_during_the_scan())
+        assert (len(scans), timer_pending_after_the_scan, scheduler.has_pending_timer()) == (1, False, False)
 
     def test_a_sweep_queued_before_shutdown_removes_nothing_once_the_lifespan_has_stopped(self, sign_in_settings):
         stores = SignInStores.in_memory()
