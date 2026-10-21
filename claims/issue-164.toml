@@ -1,0 +1,8 @@
+claim_id = "f0a2e51821c045b4b80130a754cf64fb"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "4c0c3cb4b04576d6f7434480c5d8b3ca4ad5dca3"
+branch = "claude/issue-164-sweep-cache-favicon"
+scope = ["docs/decisions/0001-static-frontend-modules.md", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/auth/stores.py", "src/hopin/config/constants.py", "src/hopin/web/static/assets/img/hopin.svg", "src/hopin/web/static/index.html", "src/hopin/web/static/login-failed.html", "src/hopin/web/static/login.html", "src/hopin/web/static/no-access.html", "tests/e2e/test_shell.py", "tests/unit/test_app.py", "tests/unit/test_auth_stores.py", "tests/unit/test_gate.py", "tests/unit/test_web.py"]
+opened_commit = "65f0b2b6d1718db455e23595b6d9c877989e9eda"
+whole_reason = "Three small cards bundled by the contract's rule: the sweep, the cache header and the favicon each touch the composition root or the pages, and none is worth a lane alone."
