@@ -9,9 +9,9 @@ import hashlib
 import json
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote_plus, urlsplit
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -29,7 +29,7 @@ AUTHORIZATION_CODE_BYTES = 16
 
 @dataclass(frozen=True)
 class _IssuedCode:
-    nonce: str
+    nonce: str = field(repr=False)
     code_challenge: str
     claims: dict[str, object]
 
@@ -43,7 +43,7 @@ class FakeIssuer:
         self._client_id = sign_in.settings.oidc_client_id
         self._client_secret = sign_in.client_secret
         self._codes: dict[str, _IssuedCode] = {}
-        self.exchanges: list[tuple[TokenRequest, TokenEndpointAnswer]] = []
+        self.exchanges: list[tuple[TokenRequest, TokenEndpointAnswer | None]] = []
         self.token_endpoint_is_down = False
         self.key_set_is_down = False
 
@@ -74,6 +74,7 @@ class FakeIssuer:
 
     def post_token_request(self, request: TokenRequest) -> TokenEndpointAnswer:
         if self.token_endpoint_is_down:
+            self.exchanges.append((request, None))
             message = "the token endpoint of a test issuer is down"
             raise TokenEndpointError(message)
         answer = self._answer(request)
@@ -81,7 +82,7 @@ class FakeIssuer:
         return answer
 
     def _answer(self, request: TokenRequest) -> TokenEndpointAnswer:
-        if request.authorization.get_secret_value() != self._basic_authorization():
+        if not self._is_authenticated(request.authorization.get_secret_value()):
             return self._refusal(HTTPStatus.UNAUTHORIZED, "invalid_client")
         issued = self._codes.pop(request.form["code"], None)
         if issued is None or not self._proves_possession(issued, request.form["code_verifier"]):
@@ -96,9 +97,12 @@ class FakeIssuer:
         public_key = jwt.algorithms.RSAAlgorithm.to_jwk(self._key.public_key(), as_dict=True)
         return json.dumps({"keys": [{**public_key, "kid": KEY_ID, "alg": "RS256", "use": "sig"}]}).encode()
 
-    def _basic_authorization(self) -> str:
-        credentials = f"{self._client_id}:{self._client_secret}".encode()
-        return "Basic " + base64.b64encode(credentials).decode()
+    def _is_authenticated(self, authorization: str) -> bool:
+        scheme, _, encoded = authorization.partition(" ")
+        if scheme != "Basic":
+            return False
+        client_id, _, client_secret = base64.b64decode(encoded).decode().partition(":")
+        return (unquote_plus(client_id), unquote_plus(client_secret)) == (self._client_id, self._client_secret)
 
     @staticmethod
     def _refusal(status: HTTPStatus, error: str) -> TokenEndpointAnswer:

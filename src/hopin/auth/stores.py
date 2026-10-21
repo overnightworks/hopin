@@ -2,7 +2,7 @@ import secrets
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 import structlog
@@ -22,7 +22,7 @@ class StoredAccount:
 
 @dataclass(frozen=True)
 class StoredSession:
-    id: str
+    id: str = field(repr=False)
     user: StoredAccount
     created_at: datetime
     expires_at: datetime
@@ -30,7 +30,7 @@ class StoredSession:
 
 @dataclass(frozen=True)
 class _SessionRow:
-    id: str
+    id: str = field(repr=False)
     user_id: str
     created_at: datetime
     expires_at: datetime
@@ -46,6 +46,10 @@ class InMemoryAccounts:
     def get(self, user_id: str) -> StoredAccount | None:
         with self._guard:
             return self._by_subject.get(user_id)
+
+    def existing(self, user_id: str) -> StoredAccount:
+        with self._guard:
+            return self._by_subject[user_id]
 
     def create_for_subject(self, subject: str, username: str, role: str) -> StoredAccount:
         account = StoredAccount(id=subject, username=username, role=role)
@@ -70,7 +74,7 @@ class InMemorySessions:
         self._guard = threading.Lock()
 
     def create(self, user_id: str, *, now: datetime, expires_at: datetime) -> StoredSession:
-        user = self._account_of(user_id)
+        user = self._accounts.existing(user_id)
         row = _SessionRow(
             id=secrets.token_urlsafe(SESSION_ID_BYTES), user_id=user_id, created_at=now, expires_at=expires_at
         )
@@ -82,7 +86,7 @@ class InMemorySessions:
     def load(self, session_id: str) -> StoredSession | None:
         with self._guard:
             row = self._rows.get(session_id)
-        return None if row is None else _joined(row, self._account_of(row.user_id))
+        return None if row is None else _joined(row, self._accounts.existing(row.user_id))
 
     def touch(self, session_id: str, *, expires_at: datetime) -> bool:
         with self._guard:
@@ -112,12 +116,6 @@ class InMemorySessions:
             )
             for row in newest_first[keep_newest:]:
                 del self._rows[row.id]
-
-    def _account_of(self, user_id: str) -> StoredAccount:
-        user = self._accounts.get(user_id)
-        if user is None:
-            raise KeyError(user_id)
-        return user
 
 
 def _joined(row: _SessionRow, user: StoredAccount) -> StoredSession:

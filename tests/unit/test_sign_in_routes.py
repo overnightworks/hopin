@@ -1,6 +1,7 @@
 import json
+import secrets
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -43,13 +44,16 @@ class SignInHarness:
     sessions: InMemorySessions
     config: WebAuthConfig
     app: FastAPI
+    started: list[Response] = field(default_factory=list)
 
     def browser(self) -> TestClient:
         return TestClient(self.app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
 
     def start(self, browser: TestClient, next_path: str | None = None) -> Response:
         params = {} if next_path is None else {RETURN_TO_QUERY_PARAMETER: next_path}
-        return browser.get(AUTH_START_PATH, params=params)
+        response = browser.get(AUTH_START_PATH, params=params)
+        self.started.append(response)
+        return response
 
     def sign_in_through(
         self,
@@ -70,8 +74,12 @@ class SignInHarness:
 
 @pytest.fixture
 def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
-    def make(*, key_set_of: FakeIssuer | None = None, windows_line_ending: bool = False) -> SignInHarness:
+    def make(
+        *, key_set_of: FakeIssuer | None = None, windows_line_ending: bool = False, client_secret: str | None = None
+    ) -> SignInHarness:
         sign_in = sign_in_settings()
+        if client_secret is not None:
+            sign_in = replace(sign_in, client_secret=client_secret)
         sign_in.settings.oidc_client_secret_file.write_text(
             sign_in.client_secret + ("\r\n" if windows_line_ending else "\n")
         )
@@ -138,16 +146,36 @@ def with_query_value(url: str, name: str, value: str) -> str:
     return parts._replace(query=urlencode(query, doseq=True)).geturl()
 
 
-def assert_refused(response: Response, body: str) -> None:
+def cookie_scope(raw_cookie: str) -> tuple[str, frozenset[str]]:
+    """A Set-Cookie as its name and the attributes that say where and how the browser keeps it."""
+    name_and_value, *attributes = raw_cookie.split("; ")
+    kept = {a.lower() for a in attributes if not a.lower().startswith(("max-age", "expires"))}
+    return name_and_value.split("=", 1)[0], frozenset(kept)
+
+
+def assert_refused(
+    harness: SignInHarness, response: Response, body: str, *, cleared_under_start_name: bool = True
+) -> None:
     assert response.status_code == 403
     assert response.headers["content-type"].startswith("text/plain")
     assert response.text == body
     cookies = set_cookies(response)
     assert SESSION_COOKIE not in cookies
     assert HINT_COOKIE not in cookies
-    pending = [attributes for name, attributes in cookies.items() if name.startswith(PENDING_COOKIE_PREFIX)]
-    assert len(pending) == 1
-    assert "max-age=0" in pending[0]
+    set_by_start = {
+        cookie_scope(raw)
+        for started in harness.started
+        for raw in started.headers.get_list("set-cookie")
+        if raw.startswith(PENDING_COOKIE_PREFIX)
+    }
+    cleared = [raw for raw in response.headers.get_list("set-cookie") if raw.startswith(PENDING_COOKIE_PREFIX)]
+    assert len(cleared) == 1
+    assert "max-age=0" in cleared[0].lower()
+    cleared_name, cleared_attributes = cookie_scope(cleared[0])
+    if cleared_under_start_name:
+        assert (cleared_name, cleared_attributes) in set_by_start
+    else:
+        assert cleared_attributes in {attributes for _, attributes in set_by_start}
 
 
 class TestStart:
@@ -206,8 +234,10 @@ class TestAdmittedLogin:
         ],
     )
     def test_the_login_lands_only_on_a_page_of_this_app(self, harness, requested, landing):
-        response = harness.sign_in_through(harness.browser(), next_path=requested)
+        browser = harness.browser()
+        response = harness.sign_in_through(browser, next_path=requested)
         assert (response.status_code, response.headers["location"]) == (303, landing)
+        assert harness.who(browser)["user"] == {"id": SUBJECT, "username": USERNAME}
 
     def test_two_subjects_with_one_username_both_get_a_session(self, harness):
         first, second = harness.browser(), harness.browser()
@@ -225,7 +255,7 @@ class TestRefusedLogin:
     )
     def test_a_non_member_gets_no_access_and_no_account(self, harness, groups):
         response = harness.sign_in_through(harness.browser(), groups=groups)
-        assert_refused(response, NO_ACCESS)
+        assert_refused(harness, response, NO_ACCESS)
         assert harness.accounts.get(SUBJECT) is None
 
     def test_an_altered_state_is_refused_before_any_token_request(self, harness):
@@ -235,7 +265,8 @@ class TestRefusedLogin:
             start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
         )
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query.replace('state=', 'state=x')}")
-        assert_refused(response, LOGIN_FAILED)
+        # webauth clears the cookie named for the state it was handed, which is not the one the start set
+        assert_refused(harness, response, LOGIN_FAILED, cleared_under_start_name=False)
         assert harness.issuer.exchanges == []
 
     def test_another_browsers_callback_is_refused_and_spends_nothing_of_the_first(self, harness):
@@ -245,8 +276,9 @@ class TestRefusedLogin:
             start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
         )
         refused = intruder.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        assert harness.issuer.exchanges == []
         admitted = owner.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(refused, LOGIN_FAILED)
+        assert_refused(harness, refused, LOGIN_FAILED)
         assert harness.who(intruder) == {"user": None}
         assert admitted.status_code == 303
         assert harness.who(owner)["user"] == {"id": SUBJECT, "username": USERNAME}
@@ -258,7 +290,7 @@ class TestRefusedLogin:
         swapped = with_query_value(start.headers["location"], claim, "swapped")
         query = harness.issuer.authorize(swapped, subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME)
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(response, LOGIN_FAILED)
+        assert_refused(harness, response, LOGIN_FAILED)
         assert harness.who(browser) == {"user": None}
 
     def test_a_replayed_callback_is_refused_and_leaves_the_first_session(self, harness):
@@ -272,8 +304,8 @@ class TestRefusedLogin:
         with_copy = browser.get(f"{AUTH_CALLBACK_PATH}?{query}", headers={"cookie": f"{pending_name}={pending_value}"})
         requests_after_copy = len(harness.issuer.exchanges)
         without_copy = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(with_copy, LOGIN_FAILED)
-        assert_refused(without_copy, LOGIN_FAILED)
+        assert_refused(harness, with_copy, LOGIN_FAILED)
+        assert_refused(harness, without_copy, LOGIN_FAILED)
         assert len(harness.issuer.exchanges) == requests_after_copy == 2
         assert harness.who(browser)["user"] == {"id": SUBJECT, "username": USERNAME}
         assert harness.sessions.delete_for_user(SUBJECT) == 1
@@ -304,8 +336,15 @@ class TestRefusedLogin:
         if breakage == "access denied":
             query = f"error=access_denied&state={parse_qs(urlsplit(start.headers['location']).query)['state'][0]}"
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(response, LOGIN_FAILED)
+        assert_refused(harness, response, LOGIN_FAILED)
         assert harness.who(browser) == {"user": None}
+
+
+class TestIssuerRecord:
+    def test_a_token_request_to_an_endpoint_that_is_down_is_still_recorded(self, harness):
+        harness.issuer.token_endpoint_is_down = True
+        harness.sign_in_through(harness.browser())
+        assert len(harness.issuer.exchanges) == 1
 
 
 class TestSessionLifecycle:
@@ -355,7 +394,7 @@ class TestLogs:
         harness = make_harness(windows_line_ending=True)
         with structlog.testing.capture_logs() as logs:
             response = harness.sign_in_through(harness.browser())
-        assert_refused(response, LOGIN_FAILED)
+        assert_refused(harness, response, LOGIN_FAILED)
         assert [(log["reason"], log["idp_error"]) for log in logs if log["event"] == "sign_in_refused"] == [
             ("token-request-refused", "invalid_client")
         ]
@@ -368,19 +407,34 @@ class TestLogs:
                 start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
             )
             admitted = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-            refused = harness.sign_in_through(refused_browser, subject="other", groups=[])
-        request, answer = harness.issuer.exchanges[0]
-        authorization = parse_qs(urlsplit(start.headers["location"]).query)
-        callback = parse_qs(query)
+            refused_start = harness.start(refused_browser)
+            refused_query = harness.issuer.authorize(
+                refused_start.headers["location"], subject="other", groups=[], username=USERNAME
+            )
+            refused = refused_browser.get(f"{AUTH_CALLBACK_PATH}?{refused_query}")
+        assert len(harness.issuer.exchanges) == 2
         secrets_of_the_run = [
             harness.sign_in.client_secret,
             harness.sign_in.session_secret,
-            callback["code"][0],
-            callback["state"][0],
-            authorization["nonce"][0],
-            request.form["code_verifier"],
-            json.loads(answer.body)["id_token"],
             harness.who(browser)["session_id"],
         ]
-        everything_visible = json.dumps(logs) + admitted.text + refused.text + start.text
+        for started, callback_query, (request, answer) in zip(
+            (start, refused_start), (query, refused_query), harness.issuer.exchanges, strict=True
+        ):
+            callback = parse_qs(callback_query)
+            secrets_of_the_run += [
+                callback["code"][0],
+                callback["state"][0],
+                parse_qs(urlsplit(started.headers["location"]).query)["nonce"][0],
+                request.form["code_verifier"],
+                json.loads(answer.body)["id_token"],
+            ]
+        everything_visible = json.dumps(logs) + admitted.text + refused.text + start.text + refused_start.text
         assert [secret for secret in secrets_of_the_run if secret in everything_visible] == []
+
+    def test_a_client_secret_with_plus_slash_and_percent_is_accepted_as_an_issuer_decodes_it(self, make_harness):
+        harness = make_harness(client_secret="a+b/c%2Fd%e" + secrets.token_urlsafe(8))
+        browser = harness.browser()
+        response = harness.sign_in_through(browser)
+        assert response.status_code == 303
+        assert harness.who(browser)["user"] == {"id": SUBJECT, "username": USERNAME}

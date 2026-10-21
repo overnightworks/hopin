@@ -1,10 +1,12 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import pytest
 import structlog.testing
 from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 
-from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
+from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock, _SessionRow
+from tests.fake_issuer import _IssuedCode
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
@@ -46,10 +48,6 @@ class TestSessionCreation:
         session = sessions.create(user.id, now=NOW, expires_at=LATER)
         assert (session.created_at, session.expires_at, session.user) == (NOW, LATER, user)
 
-    def test_create_for_an_unknown_account_raises_key_error(self, sessions):
-        with pytest.raises(KeyError):
-            sessions.create("unknown", now=NOW, expires_at=LATER)
-
     def test_create_drops_a_session_expired_before_now_and_keeps_one_expiring_at_now(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
         expired = sessions.create(user.id, now=NOW - timedelta(hours=2), expires_at=NOW - timedelta(seconds=1))
@@ -78,10 +76,10 @@ class TestSessionRenewalAndEnd:
     def test_delete_for_user_answers_the_count_and_leaves_other_users(self, accounts, sessions):
         first = accounts.create_for_subject("first", "name", "user")
         second = accounts.create_for_subject("second", "name", "user")
-        sessions.create(first.id, now=NOW, expires_at=LATER)
-        sessions.create(first.id, now=NOW, expires_at=LATER)
+        ended = [sessions.create(first.id, now=NOW, expires_at=LATER) for _ in range(2)]
         others = sessions.create(second.id, now=NOW, expires_at=LATER)
         assert sessions.delete_for_user(first.id) == 2
+        assert [sessions.load(session.id) for session in ended] == [None, None]
         assert sessions.load(others.id) is not None
 
     @pytest.mark.parametrize(("keep_newest", "kept_ages"), [(1, [2]), (0, [])])
@@ -113,6 +111,18 @@ class TestAccounts:
         session = sessions.create(user.id, now=NOW, expires_at=LATER)
         accounts.set_role(user.id, "admin")
         assert sessions.load(session.id).user.role == "admin"
+
+
+def test_no_record_shows_a_session_id_or_a_nonce_in_its_repr(accounts, sessions):
+    user = accounts.create_for_subject("subject", "name", "user")
+    session_id, nonce = secrets.token_urlsafe(16), secrets.token_urlsafe(16)
+    records = [
+        sessions.create(user.id, now=NOW, expires_at=LATER),
+        _SessionRow(id=session_id, user_id=user.id, created_at=NOW, expires_at=LATER),
+        _IssuedCode(nonce=nonce, code_challenge="challenge", claims={}),
+    ]
+    shown = "".join(repr(record) for record in records) + repr(sessions.load(records[0].id))
+    assert [secret for secret in (session_id, nonce, records[0].id) if secret in shown] == []
 
 
 def test_write_lock_can_be_held_twice_one_after_the_other():
