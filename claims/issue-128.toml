@@ -1,0 +1,8 @@
+claim_id = "f29c012db9c4402b837e0dd2238e16a6"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "43b95ef51c81587bd558a388153878081f0c1314"
+branch = "claude/issue-128-keycloak-sign-in-session"
+scope = ["AGENTS.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/auth/stores.py", "src/hopin/config/constants.py", "tests/fake_issuer.py", "tests/unit/test_app.py", "tests/unit/test_auth_stores.py", "tests/unit/test_sign_in_routes.py", "uv.lock"]
+opened_commit = "484691279a4a3c61cc0843b564fde8250caee367"
+whole_reason = "The callback cannot open a session without the four ports and the ports have no caller without the callback, so the two routes, the in-memory stores, their wiring in create_app and the test issuer land together."
