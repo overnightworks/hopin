@@ -230,13 +230,13 @@ def _serving(server: uvicorn.Server) -> Iterator[None]:
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     deadline = time.monotonic() + READINESS_DEADLINE_SECONDS
-    while not server.started:
-        if not thread.is_alive():
-            pytest.fail("HopIn exited before it started")
-        if time.monotonic() > deadline:
-            pytest.fail(f"HopIn did not start within {READINESS_DEADLINE_SECONDS} seconds")
-        time.sleep(READINESS_POLL_INTERVAL_SECONDS)
     try:
+        while not server.started:
+            if not thread.is_alive():
+                pytest.fail("HopIn exited before it started")
+            if time.monotonic() > deadline:
+                pytest.fail(f"HopIn did not start within {READINESS_DEADLINE_SECONDS} seconds")
+            time.sleep(READINESS_POLL_INTERVAL_SECONDS)
         yield
     finally:
         server.should_exit = True

@@ -46,6 +46,7 @@ def test_open_person_holds_the_session_and_csrf_cookies_of_its_seeded_member(
     assert set(held) == {config.session_cookie_name, config.csrf_cookie_name}
     for cookie in held.values():
         assert (cookie["secure"], cookie["path"], cookie["sameSite"]) == (True, "/", "Lax")
+        assert cookie["expires"] > config.wall_clock()
     assert held[config.session_cookie_name]["httpOnly"] is True
     assert held[config.csrf_cookie_name]["httpOnly"] is False
     assert all(f"{name}={cookie['value']}" in cookie_header for name, cookie in held.items())

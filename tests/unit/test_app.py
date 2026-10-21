@@ -4,13 +4,18 @@ import pytest
 import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 from webauth.config import WebAuthConfig, installed_web_auth_config
+from webauth.dependencies import session_id_from_request
 
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError
+from hopin.auth.stores import SignInStores
 from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
+
+SESSION_COOKIE = "__Host-session_id"
 
 
 class TestCreateApp:
@@ -44,7 +49,26 @@ class TestCreateApp:
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert start.headers["location"].startswith(sign_in.settings.oidc_issuer)
         assert callback.status_code == 303
-        assert any(raw.startswith("__Host-session_id=") for raw in callback.headers.get_list("set-cookie"))
+        assert any(raw.startswith(f"{SESSION_COOKIE}=") for raw in callback.headers.get_list("set-cookie"))
+
+    def test_signs_members_in_to_the_stores_it_is_given(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        issuer = FakeIssuer(sign_in)
+        stores = SignInStores.in_memory()
+        app = create_app(sign_in.settings, issuer_transports=issuer.transports, stores=stores)
+        browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
+        start = browser.get(AUTH_START_PATH)
+        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        cookie = f"{SESSION_COOKIE}={browser.cookies[SESSION_COOKIE]}"
+        session_id = session_id_from_request(
+            Request({"type": "http", "headers": [(b"cookie", cookie.encode())]}), installed_web_auth_config(app)
+        )
+        assert session_id is not None
+        session = stores.sessions.load(session_id)
+        assert stores.accounts.get("subject") is not None
+        assert session is not None
+        assert session.user.id == "subject"
 
     def test_registers_routes(self, sign_in_settings):
         response = TestClient(create_app(sign_in_settings().settings)).get("/health")
