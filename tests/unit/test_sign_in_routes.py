@@ -11,6 +11,7 @@ import structlog.testing
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx2 import Response
+from pydantic import SecretStr
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
 
@@ -227,6 +228,13 @@ class TestAdmittedLogin:
         assert who["user"] == {"id": SUBJECT, "username": USERNAME}
         assert session.expires_at - session.created_at == timedelta(seconds=SESSION_LIFETIME_SECONDS)
 
+    def test_the_issued_refresh_token_is_held_in_the_session_row_as_a_secret(self, harness):
+        browser = harness.browser()
+        harness.sign_in_through(browser)
+        session = harness.sessions.load(harness.who(browser)["session_id"])
+        assert isinstance(session.refresh_token, SecretStr)
+        assert session.refresh_token.get_secret_value() == harness.issuer.refresh_token
+
     @pytest.mark.parametrize(
         ("requested", "landing"),
         [
@@ -437,6 +445,7 @@ class TestLogs:
         secrets_of_the_run = [
             harness.sign_in.client_secret,
             harness.sign_in.session_secret,
+            harness.issuer.refresh_token,
             harness.who(browser)["session_id"],
         ]
         for started, callback_query, (request, answer) in zip(
