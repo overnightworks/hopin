@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Callable
 
 import pytest
@@ -122,9 +123,8 @@ def test_tile_keeps_the_username_after_the_other_persons_socket_resumes(
     join_by_link(guest, invite_link)
     expect(host.locator(TILE_NAME)).to_have_text("ben", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
-    drop_socket()
-
-    expect(guest.locator("#status")).to_contain_text("Reconnecting")
+    with guest.expect_websocket(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS):
+        drop_socket()
     expect(guest.locator("#status")).to_have_text("In call", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     assert SignalType.RESUMED.value in server_frame_types
     expect(host.locator(TILE_NAME)).to_have_text("ben")
@@ -152,8 +152,7 @@ def test_home_keeps_hi_there_when_the_account_answer_fails(
     person = record_page_errors(open_person(**DESKTOP), page_errors)
     person.route(ACCOUNT_ROUTE, lambda route: route.fulfill(status=500, body=json.dumps({})))
 
-    with person.expect_response(ACCOUNT_ROUTE):
-        person.goto(f"{base_url}/")
-    person.evaluate("() => fetch('/api/account').then((answer) => answer.text())")
+    person.goto(f"{base_url}/")
 
+    expect(person.locator(HOME_HEADING)).not_to_have_attribute("aria-busy", re.compile(".*"))
     expect(person.locator(HOME_HEADING)).to_have_text("Hi there")
