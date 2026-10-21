@@ -1,8 +1,0 @@
-claim_id = "2c1d5e0625bd4bf0a29d439a792c45b6"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "cd2cb63c67a19bcb2c58730c1aa9b21eca1d51d9"
-branch = "claude/issue-123-more-menu"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/status.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_control_bar.py", "tests/e2e/test_end.py", "tests/e2e/test_more_menu.py", "tests/e2e/test_shell.py"]
-opened_commit = "31c712d6396b5c2181abf64f9d2ab68aa9b51989"
-whole_reason = "Lock, the call screen's legal nav and the Locked tag leave the bar, the dock and the amber box together, or the call screen loses its legal links or the host's Lock for a landing; status.js and app.js change by a few lines each, for the tag and the toast."
