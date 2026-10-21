@@ -162,7 +162,7 @@ def test_share_hands_the_share_menu_the_call_link_alone(
 
     host.click(SHARE_BUTTON)
 
-    host.wait_for_function("window.sharedArguments.length === 1")
+    host.wait_for_function("() => window.sharedArguments.length === 1")
     assert host.evaluate("window.sharedArguments") == [{"url": call_link_of(host)}]
     expect(host.locator(TOASTS)).to_be_empty()
 
@@ -174,7 +174,7 @@ def test_cancelling_the_share_menu_shows_nothing(
 
     host.click(SHARE_BUTTON)
 
-    host.wait_for_function("window.shareAttempts === 1")
+    host.wait_for_function("() => window.shareAttempts === 1")
     expect(host.locator(TOASTS)).to_be_empty()
 
 
@@ -250,7 +250,7 @@ def test_a_toast_fades_out_before_it_is_removed(
     expect_toast(host, "Link copied", CHECK_ICON_PATH)
 
     host.evaluate(START_WATCHING_A_TOAST_DIM)
-    host.wait_for_function("window.toastWatch.removed")
+    host.wait_for_function("() => window.toastWatch.removed")
 
     assert host.evaluate("window.toastWatch.dimmed")
 
@@ -263,7 +263,7 @@ def test_a_toast_is_gone_within_its_time_under_reduced_motion(
 
     host.click(COPY_BUTTON)
 
-    host.wait_for_function("window.toastStoodFor !== null")
+    host.wait_for_function("() => window.toastStoodFor !== null")
     assert host.evaluate("window.toastStoodFor") < TOAST_MILLISECONDS + FADE_GRACE_MILLISECONDS
 
 
