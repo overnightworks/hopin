@@ -8,7 +8,7 @@ file holds only HopIn's own facts. `CLAUDE.md` imports this file.
 ## Stack
 
 Python 3.12+, `uv`, `ruff` (lint and format), `mypy --strict`, `pytest`,
-`vulture` (dead code), `structlog` (logging, in `app.py` and `signaling/`).
+`vulture` (dead code), `structlog` (logging, in `app.py`, `auth/` and `signaling/`).
 Runtime settings are environment variables loaded through Pydantic Settings.
 
 Pre-commit (`.pre-commit-config.yaml`) runs `ruff --fix`, `ruff-format`,
@@ -33,7 +33,7 @@ make run       # start the server
 
 ```
 src/hopin/
-├── auth/        # sign-in configuration built from the settings
+├── auth/        # sign-in: configuration from the settings, the routes, the in-memory stores
 ├── config/      # settings.py, constants.py (application constants), enums
 ├── signaling/   # WebSocket signaling server
 ├── rooms/       # room and session management

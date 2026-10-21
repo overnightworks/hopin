@@ -8,6 +8,9 @@ from webauth.config import WebAuthConfig, installed_web_auth_config
 
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError
+from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP
+from tests.fake_issuer import FakeIssuer
+from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 
 class TestCreateApp:
@@ -30,6 +33,18 @@ class TestCreateApp:
         settings.session_secret_file.unlink()
         with pytest.raises(SignInConfigurationError, match="session_secret_file"):
             create_app(settings)
+
+    def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        issuer = FakeIssuer(sign_in)
+        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
+        start = browser.get(AUTH_START_PATH)
+        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        assert start.headers["location"].startswith(sign_in.settings.oidc_issuer)
+        assert callback.status_code == 303
+        assert any(raw.startswith("__Host-session_id=") for raw in callback.headers.get_list("set-cookie"))
 
     def test_registers_routes(self, sign_in_settings):
         response = TestClient(create_app(sign_in_settings().settings)).get("/health")

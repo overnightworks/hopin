@@ -2,7 +2,8 @@ import structlog
 from fastapi import FastAPI
 from webauth.config import install_web_auth_config
 
-from hopin.auth.sign_in import build_sign_in_configs
+from hopin.auth.sign_in import ISSUER_OVER_HTTPS, IssuerTransports, build_sign_in_configs, create_sign_in_router
+from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
 from hopin.config.settings import ServerSettings
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
@@ -12,7 +13,7 @@ from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.routes import create_router
 
 
-def create_app(settings: ServerSettings) -> FastAPI:
+def create_app(settings: ServerSettings, *, issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS) -> FastAPI:
     sign_in_configs = build_sign_in_configs(settings)
 
     structlog.configure(
@@ -32,5 +33,17 @@ def create_app(settings: ServerSettings) -> FastAPI:
     app.include_router(create_ice_servers_router(settings.stun_server))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
+    accounts = InMemoryAccounts()
+    app.include_router(
+        create_sign_in_router(
+            sign_in_configs.oidc_client,
+            sign_in_configs.web_auth,
+            issuer_transports,
+            accounts=accounts,
+            sessions=InMemorySessions(accounts),
+            lock=ProcessWriteLock(),
+            audit=LoggingAuditSink(),
+        )
+    )
 
     return app
