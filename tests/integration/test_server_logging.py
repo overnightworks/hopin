@@ -19,8 +19,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.main import main
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import SeededMember, cookie_header, seed_member
+from tests.signed_in import SeededMember, handshake_headers, seed_member
 
 LOCALHOST = "127.0.0.1"
 UVICORN_LOGGER_NAMES = ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi")
@@ -97,17 +96,10 @@ async def _get(output: Output, target: str) -> None:
 
 
 async def _handshake(output: Output, target: str, *, signed_in: bool) -> None:
-    headers = {"origin": TEST_PUBLIC_ORIGIN}
-    if signed_in:
-        headers["cookie"] = cookie_header(output.member.set_cookie_headers)
-    try:
-        async with websockets.connect(
-            f"ws://{LOCALHOST}:{output.port}{target}", additional_headers=headers
-        ) as connection:
-            await connection.send(json.dumps({"type": SignalType.JOIN.value}))
-            await asyncio.wait_for(connection.recv(), ARRIVAL_CAP_SECONDS)
-    except websockets.exceptions.InvalidStatus:
-        assert not signed_in
+    headers = handshake_headers(output.member if signed_in else None)
+    async with websockets.connect(f"ws://{LOCALHOST}:{output.port}{target}", additional_headers=headers) as connection:
+        await connection.send(json.dumps({"type": SignalType.JOIN.value}))
+        await asyncio.wait_for(connection.recv(), ARRIVAL_CAP_SECONDS)
 
 
 async def _join_and_close(output: Output, target: str) -> None:
@@ -115,7 +107,8 @@ async def _join_and_close(output: Output, target: str) -> None:
 
 
 async def _refused_handshake(output: Output, target: str) -> None:
-    await _handshake(output, target, signed_in=False)
+    with pytest.raises(websockets.exceptions.InvalidStatus):
+        await _handshake(output, target, signed_in=False)
 
 
 @pytest.mark.integration

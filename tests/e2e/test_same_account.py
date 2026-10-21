@@ -35,7 +35,8 @@ def test_account_in_the_call_on_two_devices_stays_host_while_either_is_there(
 
     laptop.click("#leaveBtn")
     laptop.click("#leaveYes")
+    for remaining in (phone, guest):
+        expect(remaining.locator(OTHER_TILE)).to_have_count(1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     toggle_the_lock(phone)
 
     expect(phone.locator("#lockIndicator")).to_be_visible()
-    expect(guest.locator("[data-screen=end]")).to_be_hidden()

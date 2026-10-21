@@ -9,6 +9,7 @@ from webauth.config import WebAuthConfig
 from webauth.cookies import issue_session_cookies
 
 from hopin.auth.stores import SignInStores, StoredAccount, StoredSession
+from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 SUBJECT_BYTES = 12
 
@@ -30,6 +31,14 @@ def cookie_header(set_cookie_headers: Iterable[str]) -> str:
     return "; ".join(f"{name}={morsel.value}" for name, morsel in parsed_set_cookies(set_cookie_headers))
 
 
+def handshake_headers(member: "SeededMember | None", origin: str | None = TEST_PUBLIC_ORIGIN) -> dict[str, str]:
+    """The headers of a socket handshake: the origin, and the member's cookies when there is one."""
+    headers = {} if origin is None else {"origin": origin}
+    if member is not None:
+        headers["cookie"] = cookie_header(member.set_cookie_headers)
+    return headers
+
+
 def seed_member(
     stores: SignInStores,
     config: WebAuthConfig,
@@ -46,7 +55,7 @@ def seed_member(
         suffix = secrets.token_hex(SUBJECT_BYTES)
         account = stores.accounts.create_for_subject(f"subject-{suffix}", f"member-{suffix}", role=config.user_role)
     now = datetime.fromtimestamp(int(config.wall_clock()), UTC)
-    lifetime = expires_in or timedelta(seconds=config.session_lifetime.absolute_max_age_seconds)
+    lifetime = timedelta(seconds=config.session_lifetime.absolute_max_age_seconds) if expires_in is None else expires_in
     session = stores.sessions.create(account.id, now=now, expires_at=now + lifetime)
     response = Response()
     issue_session_cookies(response, session.id, config)

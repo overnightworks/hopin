@@ -14,8 +14,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
 from hopin.signaling.replay import SEQUENCE_KEY
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import SeededMember, cookie_header, seed_member
+from tests.signed_in import SeededMember, handshake_headers, seed_member
 
 LOCALHOST = "127.0.0.1"
 CLEAN_CLOSE_CODE = 1000
@@ -52,10 +51,7 @@ class Call:
 
 
 async def connect_as(port: int, member: SeededMember | None) -> websockets.ClientConnection:
-    headers = {"origin": TEST_PUBLIC_ORIGIN}
-    if member is not None:
-        headers["cookie"] = cookie_header(member.set_cookie_headers)
-    return await websockets.connect(f"ws://{LOCALHOST}:{port}/ws", additional_headers=headers)
+    return await websockets.connect(f"ws://{LOCALHOST}:{port}/ws", additional_headers=handshake_headers(member))
 
 
 async def _say(socket: websockets.ClientConnection, frame: dict[str, object]) -> dict[str, object]:

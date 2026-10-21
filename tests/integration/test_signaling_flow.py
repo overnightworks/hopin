@@ -23,7 +23,7 @@ from hopin.config.constants import (
 )
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import SeededMember, cookie_header, seed_member
+from tests.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
 
 POLICY_VIOLATION_CODE = 1008
 
@@ -68,13 +68,6 @@ def member_named(seed) -> Callable[[str], SeededMember]:
 def logs(client):
     with structlog.testing.capture_logs() as captured:
         yield captured
-
-
-def handshake_headers(member: SeededMember | None, origin: str | None = TEST_PUBLIC_ORIGIN) -> dict[str, str]:
-    headers = {} if origin is None else {"origin": origin}
-    if member is not None:
-        headers["cookie"] = cookie_header(member.set_cookie_headers)
-    return headers
 
 
 def refused_with_code(client, headers, path=WEBSOCKET_PATH):
@@ -216,8 +209,15 @@ class TestConnect:
         else:
             joined_room(client, member)
 
+        cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
         secrets_in_logs = [member.account.username, member.session.id, cookie_header(member.set_cookie_headers)]
-        assert [secret for secret in secrets_in_logs if secret in str(logs)] == []
+        assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
+        permitted_fields = {
+            "refused": ("handshake_refused", {"event", "reason", "log_level"}),
+            "admitted": ("client_connected", {"event", "peer_id", "account", "log_level"}),
+        }
+        event, fields = permitted_fields[scenario]
+        assert [set(entry) for entry in events_named(logs, event)] == [fields]
 
 
 @pytest.mark.integration
