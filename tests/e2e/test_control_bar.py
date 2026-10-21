@@ -1,6 +1,5 @@
 import json
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Locator, Page, expect
@@ -21,6 +20,9 @@ from tests.e2e.conftest import (
     stop_the_screen_share,
     wait_for_peer_count,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

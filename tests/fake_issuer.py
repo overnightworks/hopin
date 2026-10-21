@@ -11,6 +11,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from http import HTTPStatus
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, unquote_plus, urlsplit
 
 import jwt
@@ -19,7 +20,9 @@ from webauth.https_client import KeySetFetchError
 from webauth.oidc import TokenEndpointAnswer, TokenEndpointError, TokenRequest
 
 from hopin.auth.sign_in import IssuerTransports
-from tests.sign_in_settings import SignInSettings
+
+if TYPE_CHECKING:
+    from tests.sign_in_settings import SignInSettings
 
 KEY_ID = "the-key-only-this-test-has"
 TOKEN_LIFETIME_SECONDS = 300

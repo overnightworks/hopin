@@ -1,16 +1,15 @@
 import json
 import re
 import secrets
-from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import timedelta
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 import structlog.testing
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from httpx2 import Response
 from pydantic import SecretStr
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
@@ -27,6 +26,11 @@ from hopin.config.constants import (
 )
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN, SignInSettings
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from httpx2 import Response
 
 SESSION_COOKIE = "__Host-session_id"
 PENDING_COOKIE_PREFIX = "__Host-oidc_pending_"

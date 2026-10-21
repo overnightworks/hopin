@@ -1,7 +1,6 @@
-from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import pairwise
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -44,6 +43,9 @@ from tests.e2e.conftest import (
     wait_for_the_picture,
     wait_for_video_tracks,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

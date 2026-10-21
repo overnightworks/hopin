@@ -1,7 +1,6 @@
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pytest
-from playwright.sync_api import Page
 
 from tests.e2e import conftest
 from tests.e2e.conftest import (
@@ -13,6 +12,11 @@ from tests.e2e.conftest import (
     wait_for_inbound_growth,
     wait_for_peer_count,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from playwright.sync_api import Page
 
 pytestmark = pytest.mark.e2e
 

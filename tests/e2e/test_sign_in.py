@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -27,7 +26,11 @@ from tests.e2e.conftest import (
     wait_until_the_prejoin_media_answered,
 )
 from tests.sign_in_settings import TEST_ISSUER
-from tests.signed_in import SeededMember
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from tests.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 

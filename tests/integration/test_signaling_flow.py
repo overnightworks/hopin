@@ -1,6 +1,6 @@
-from collections.abc import Callable
 from contextlib import ExitStack
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 import pytest
 import structlog
@@ -24,6 +24,9 @@ from hopin.config.constants import (
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 POLICY_VIOLATION_CODE = 1008
 
