@@ -22,7 +22,7 @@ import {
     onSessionLost,
 } from "./signaling.js";
 import { initPip } from "./pip.js";
-import { showLocalStream } from "./stage.js";
+import { showLocalStream, showRemoteName } from "./stage.js";
 import { state } from "./state.js";
 import {
     hideParticipantCount,
@@ -83,6 +83,7 @@ function tearDownCall() {
     state.isHost = false;
     state.isLocked = false;
     state.roomId = null;
+    state.namesByParticipant.clear();
     updateLockUI();
 }
 
@@ -113,6 +114,10 @@ function registerSessionHandlers() {
         updateParticipantCount();
     });
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
+        for (const [participantId, name] of Object.entries(data.names)) {
+            state.namesByParticipant.set(participantId, name);
+            showRemoteName(participantId);
+        }
         state.isHost = data.is_host;
         state.isLocked = data.locked;
         state.reconnectAttempt = 0;
@@ -121,7 +126,8 @@ function registerSessionHandlers() {
         updateLockUI();
         updateParticipantCount();
     });
-    on(SIGNAL_TYPE.PARTICIPANT_JOINED, () => {
+    on(SIGNAL_TYPE.PARTICIPANT_JOINED, (data) => {
+        state.namesByParticipant.set(data.participant_id, data.name);
         playJoinSound();
         updateParticipantCount();
     });

@@ -4,6 +4,7 @@ from webauth.config import install_web_auth_config
 from webauth.middleware import install_web_auth_middleware
 from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
 
+from hopin.auth.account import create_account_router
 from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import ISSUER_OVER_HTTPS, IssuerTransports, build_sign_in_configs, create_sign_in_router
 from hopin.auth.stores import SignInStores
@@ -43,6 +44,7 @@ def create_app(
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(create_router(signaling_handler, room_manager))
     app.include_router(create_ice_servers_router(settings.stun_server))
+    app.include_router(create_account_router(sign_in_stores.sessions))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     app.include_router(

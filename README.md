@@ -227,10 +227,10 @@ Messages are JSON over WebSocket. The server identifies each socket by its webau
 |---|---|---|
 | `join` | Client → Server | Create or join a room; a seat joins at most one room, and a second `join` is answered `invalid_message` |
 | `room_created` | Server → Client | Room created, here's the ID, with your own `participant_id` and the `resume_token` of your seat |
-| `existing_participants` | Server → Client | List of peers already in the room, with your own `participant_id` and the `resume_token` of your seat |
+| `existing_participants` | Server → Client | List of peers already in the room, `names` mapping each to its Keycloak username, with your own `participant_id` and the `resume_token` of your seat |
 | `resume` | Client → Server | First frame of a new socket: take back the seat `{participant_id, token, last_seq, sent_floor}` after a drop |
 | `resumed` | Server → Client | The seat is yours again: the rotated `resume_token` and `last_seq`, the last client `seq` the server received |
-| `participant_joined` | Server → Client | New peer joined your room |
+| `participant_joined` | Server → Client | New peer joined your room, with its Keycloak username as `name` |
 | `participant_left` | Server → Client | Peer left your room |
 | `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
 | `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |

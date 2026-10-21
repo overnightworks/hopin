@@ -278,6 +278,21 @@ class TestJoining:
         assert host_notification["type"] == SignalType.PARTICIPANT_JOINED.value
         assert host_notification["participant_id"] not in {"host1", "p1", host_peer_id}
 
+    def test_names_the_others_to_the_joiner_and_the_joiner_to_the_others(self, connect, member_named):
+        host_ws, room_id = open_room(connect, "a")
+        _p1_ws, existing = join_room(connect, "b", room_id)
+
+        [host_peer_id] = existing["participants"]
+        joined = host_ws.receive_json()
+        assert existing["names"] == {host_peer_id: member_named("a").account.username}
+        assert joined["name"] == member_named("b").account.username
+
+    def test_names_the_same_account_on_a_second_device_under_one_username(self, connect, member_named):
+        _first_ws, room_id = open_room(connect, "a")
+        _second_ws, existing = join_room(connect, "a", room_id)
+
+        assert list(existing["names"].values()) == [member_named("a").account.username]
+
     def test_join_nonexistent_room_sends_error(self, connect):
         ws = connect("p1")
         ws.send_json({"type": SignalType.JOIN.value, "room_id": "nonexistent"})
