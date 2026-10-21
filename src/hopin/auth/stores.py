@@ -55,7 +55,8 @@ class InMemoryAccounts:
 
     def set_role(self, user_id: str, role: str) -> StoredAccount:
         with self._guard:
-            account = replace(self._by_subject[user_id], role=role)
+            existing = self._by_subject[user_id]
+            account = StoredAccount(id=existing.id, username=existing.username, role=role)
             self._by_subject[user_id] = account
         return account
 
