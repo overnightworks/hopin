@@ -33,7 +33,7 @@ The page is markup, two stylesheets and ES modules, served from
   `.brand-mark`) are renamed; `.field` and `.sub` (row 16), `.row` (rows 19 and
   21) and `.banner` (row 21) are renamed by the row that builds them. A unit
   test enforces the rule.
-- Showing and hiding is the `hidden` class. Styles set from script go through
+- Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,
   and no module runs another module's code at load. Leaving the call and the
