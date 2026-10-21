@@ -101,13 +101,6 @@ class TestRoomManager:
         assert len(room.room_id) == ROOM_ID_LENGTH
         assert room.room_id.isalnum()
 
-    def test_create_room_increments_count(self, manager):
-        assert manager.room_count == 0
-        manager.create_room("h1", account_named("h1"))
-        assert manager.room_count == 1
-        manager.create_room("h2", account_named("h2"))
-        assert manager.room_count == 2
-
     def test_get_room_returns_existing_room(self, manager):
         created = manager.create_room("h1", account_named("h1"))
         fetched = manager.get_room(created.room_id)
@@ -218,8 +211,9 @@ class TestRoomManager:
         assert manager.has_room(room.room_id) is False
 
     def test_remove_room_ignores_unknown(self, manager):
+        room = manager.create_room("h1", account_named("h1"))
         manager.remove_room("nonexistent")
-        assert manager.room_count == 0
+        assert manager.has_room(room.room_id) is True
 
     def test_unique_room_ids(self, manager):
         rooms = [manager.create_room(f"h{i}", account_named(f"h{i}")) for i in range(20)]

@@ -11,6 +11,7 @@ import {
     peerCount,
     registerMeshHandlers,
     removeAllPeers,
+    SignedOutError,
 } from "./mesh.js";
 import { playJoinSound, playLeaveSound } from "./sounds.js";
 import {
@@ -32,7 +33,7 @@ import {
 import { initHome } from "./home.js";
 import { clearToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
-import { SCREEN, callUrl, getRoomIdFromUrl, showCallAddress, showScreen } from "./router.js";
+import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -58,6 +59,10 @@ function startCall() {
         },
         (error_) => {
             if (state.intentionalLeave) return;
+            if (error_ instanceof SignedOutError) {
+                goThroughSignIn();
+                return;
+            }
             stopLocalMedia();
             renderControls();
             setStatus(error_.message, "error");

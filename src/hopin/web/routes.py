@@ -25,7 +25,7 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
-        return JSONResponse({"status": "ok", "rooms": room_manager.room_count})
+        return JSONResponse({"status": "ok"})
 
     @router.api_route(HOME_PATH, methods=READ_METHODS)
     def home_page() -> FileResponse:

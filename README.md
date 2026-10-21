@@ -95,6 +95,8 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
+Only members of `/apps/hopin` reach HopIn. Every page sends a signed-out person through Keycloak and back to the page they asked for, and an API call without a session gets 401. Only `/health` (which answers just its status), the two sign-in routes and the stylesheets of the sign-in failure page are public.
+
 HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone. Anyone whose connection drops keeps their place for 30 seconds and picks it up again without the call noticing; a host who is not back within those 30 seconds is away for the remaining 30 of the 60.
 
 ### Room Locking

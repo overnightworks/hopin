@@ -46,16 +46,7 @@ class TestHealthEndpoint:
     def test_returns_ok_status(self, client):
         response = client.get(HEALTH_PATH)
         assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ok"
-        assert data["rooms"] == 0
-
-    def test_returns_room_count(self, client, room_manager):
-        room_manager.create_room("h1", Account(id="h1", name="h1"))
-        room_manager.create_room("h2", Account(id="h2", name="h2"))
-        response = client.get(HEALTH_PATH)
-        data = response.json()
-        assert data["rooms"] == 2
+        assert response.json() == {"status": "ok"}
 
 
 class TestHomePage:

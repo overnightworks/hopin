@@ -27,6 +27,10 @@ export function showScreen(screen) {
     }
 }
 
+export function goThroughSignIn() {
+    location.reload();
+}
+
 export function goHome() {
     location.assign(HOME_PATH);
 }

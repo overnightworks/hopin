@@ -113,7 +113,7 @@ def test_host_opens_invite_as_a_sheet_on_a_phone_with_the_link_copy_link_and_sha
     assert copy_box["y"] == share_box["y"]
     expect(host.locator(INVITE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(INVITE_BUTTON)).to_have_class("cb active")
-    expect(menu).not_to_contain_text("Only HopIn members can join.")
+    expect(menu).to_contain_text("Only HopIn members can join.")
 
 
 def test_host_opens_invite_as_a_popover_on_a_desktop_with_the_link_and_copy_and_no_share(
@@ -134,7 +134,7 @@ def test_host_opens_invite_as_a_popover_on_a_desktop_with_the_link_and_copy_and_
     expect(menu.get_by_role("button", name="Share")).to_be_hidden()
     expect(host.locator(INVITE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(INVITE_BUTTON)).to_have_class("cb active")
-    expect(menu).not_to_contain_text("Only HopIn members can join.")
+    expect(menu).to_contain_text("Only HopIn members can join.")
 
 
 def test_a_phone_without_web_share_offers_copy_link_alone(
