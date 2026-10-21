@@ -1,8 +1,9 @@
 import json
 import re
 import secrets
+import time
 from dataclasses import dataclass, field, replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -13,12 +14,14 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.ports import AccountEventKind
 
 from hopin.auth.sign_in import LOGIN_FAILED_PAGE, IssuerTransports, build_sign_in_configs, create_sign_in_router
 from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
 from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
+    BACKCHANNEL_LOGOUT_PATH,
     HOME_PATH,
     LOGIN_GROUP,
     LOGIN_PATH,
@@ -53,8 +56,13 @@ class SignInHarness:
     app: FastAPI
     started: list[Response] = field(default_factory=list)
 
-    def browser(self) -> TestClient:
-        return TestClient(self.app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
+    def browser(self, *, raise_server_exceptions: bool = True) -> TestClient:
+        return TestClient(
+            self.app,
+            base_url=TEST_PUBLIC_ORIGIN,
+            follow_redirects=False,
+            raise_server_exceptions=raise_server_exceptions,
+        )
 
     def start(self, browser: TestClient, next_path: str | None = None) -> Response:
         params = {} if next_path is None else {RETURN_TO_QUERY_PARAMETER: next_path}
@@ -75,6 +83,13 @@ class SignInHarness:
         query = self.issuer.authorize(start.headers["location"], subject=subject, groups=groups, username=username)
         return browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
 
+    def post_logout_token(self, token: str, *, content_type: str = "application/x-www-form-urlencoded") -> Response:
+        """What the issuer's back-channel logout sends: a form post with no cookie."""
+        fields = {"logout_token": token}
+        return self.browser(raise_server_exceptions=False).post(
+            BACKCHANNEL_LOGOUT_PATH, content=urlencode(fields), headers={"content-type": content_type}
+        )
+
     def who(self, browser: TestClient) -> dict[str, object]:
         return browser.get(WHO_AM_I_PATH).json()
 
@@ -82,7 +97,11 @@ class SignInHarness:
 @pytest.fixture
 def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
     def make(
-        *, key_set_of: FakeIssuer | None = None, windows_line_ending: bool = False, client_secret: str | None = None
+        *,
+        key_set_of: FakeIssuer | None = None,
+        windows_line_ending: bool = False,
+        client_secret: str | None = None,
+        audit: LoggingAuditSink | None = None,
     ) -> SignInHarness:
         sign_in = sign_in_settings()
         if client_secret is not None:
@@ -107,7 +126,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
                 accounts=accounts,
                 sessions=sessions,
                 lock=ProcessWriteLock(),
-                audit=LoggingAuditSink(),
+                audit=LoggingAuditSink() if audit is None else audit,
             )
         )
 
@@ -294,6 +313,88 @@ class TestLogout:
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
         assert {"max-age=0", "path=/"} <= cookies[harness.config.csrf_cookie_name]
         assert {"max-age=0", "path=/logout"} <= cookies[HINT_COOKIE]
+
+
+class FailingAuditSink(LoggingAuditSink):
+    def account_event(self, event) -> None:
+        if event.kind is AccountEventKind.BACKCHANNEL_LOGOUT:
+            raise RuntimeError("the audit sink of a test is down")
+        super().account_event(event)
+
+
+class TestBackchannelLogout:
+    def sign_in_on_devices(self, harness, subject: str, devices: int = 2) -> list[str]:
+        session_ids = []
+        for _ in range(devices):
+            browser = harness.browser()
+            harness.sign_in_through(browser, subject=subject)
+            session_ids.append(harness.who(browser)["session_id"])
+        return session_ids
+
+    def test_a_valid_token_ends_every_session_of_its_subject_and_no_one_elses(self, harness):
+        anna = self.sign_in_on_devices(harness, "anna")
+        (other,) = self.sign_in_on_devices(harness, "ben", devices=1)
+
+        with structlog.testing.capture_logs() as logs:
+            response = harness.post_logout_token(harness.issuer.logout_token("anna"))
+
+        assert response.status_code == 200
+        assert [harness.sessions.load(session_id) for session_id in anna] == [None, None]
+        assert harness.sessions.load(other) is not None
+        ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
+        assert [log["subject_id"] for log in ended] == ["anna"]
+        assert USERNAME not in json.dumps(logs)
+
+    def test_a_token_for_an_unseen_subject_is_accepted_and_creates_no_account(self, harness):
+        response = harness.post_logout_token(harness.issuer.logout_token("stranger"))
+
+        assert response.status_code == 200
+        assert harness.accounts.get("stranger") is None
+
+    @pytest.mark.parametrize(
+        "forge",
+        [
+            lambda harness: FakeIssuer(harness.sign_in).logout_token("anna"),
+            lambda harness: harness.issuer.logout_token("anna", audience="another-client"),
+            lambda harness: harness.issuer.logout_token("anna", issued_at=int(time.time()) - 300),
+        ],
+        ids=["foreign-key", "other-audience", "too-old"],
+    )
+    def test_a_token_the_verifier_refuses_answers_400_and_ends_nothing(self, harness, forge):
+        (session_id,) = self.sign_in_on_devices(harness, "anna", devices=1)
+
+        response = harness.post_logout_token(forge(harness))
+
+        assert response.status_code == 400
+        assert harness.sessions.load(session_id) is not None
+
+    def test_a_token_sent_as_json_answers_400_and_ends_nothing(self, harness):
+        (session_id,) = self.sign_in_on_devices(harness, "anna", devices=1)
+
+        response = harness.post_logout_token(harness.issuer.logout_token("anna"), content_type="application/json")
+
+        assert response.status_code == 400
+        assert harness.sessions.load(session_id) is not None
+
+    def test_an_unreachable_key_set_answers_400_and_ends_nothing(self, harness):
+        account = harness.accounts.create_for_subject("anna", USERNAME, role="user")
+        now = datetime.now(UTC)
+        session = harness.sessions.create(account.id, now=now, expires_at=now + timedelta(hours=1), refresh_token=None)
+        harness.issuer.key_set_is_down = True
+
+        response = harness.post_logout_token(harness.issuer.logout_token("anna"))
+
+        assert response.status_code == 400
+        assert harness.sessions.load(session.id) is not None
+
+    def test_an_audit_failure_after_the_deletion_answers_500_with_the_sessions_already_ended(self, make_harness):
+        harness = make_harness(audit=FailingAuditSink())
+        (session_id,) = self.sign_in_on_devices(harness, "anna", devices=1)
+
+        response = harness.post_logout_token(harness.issuer.logout_token("anna"))
+
+        assert response.status_code == 500
+        assert harness.sessions.load(session_id) is None
 
 
 class TestRefusedLogin:
