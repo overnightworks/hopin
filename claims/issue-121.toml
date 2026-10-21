@@ -1,7 +1,0 @@
-claim_id = "2de78baef1e44b5cb8d48e10d5fbbe89"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "cd2cb63c67a19bcb2c58730c1aa9b21eca1d51d9"
-branch = "claude/issue-121-picture-sign-in-states"
-scope = ["docs/mockups/README.md", "docs/mockups/hopin-call.html"]
-opened_commit = "f49f0c9301484061ff7c48f497ec6c4d5f81c503"
