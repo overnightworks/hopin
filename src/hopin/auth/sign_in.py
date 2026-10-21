@@ -179,7 +179,7 @@ def create_sign_in_router(
         )
         if not isinstance(outcome, AdmittedLogin):
             return _refusal_response(outcome, carrying=answer)
-        session = open_session(request, config, outcome.account, sessions=sessions, lock=lock, max_sessions=None)
+        session = open_session(request, config, outcome, sessions=sessions, lock=lock, max_sessions=None)
         issue_session_cookies(answer, session.id, config)
         answer.status_code = HTTPStatus.SEE_OTHER
         answer.headers["location"] = outcome.return_to or HOME_PATH

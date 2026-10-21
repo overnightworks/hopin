@@ -1,7 +1,9 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import pytest
 import structlog.testing
+from pydantic import SecretStr
 from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 
 from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock, SignInStores
@@ -33,7 +35,7 @@ def test_stores_satisfy_the_webauth_ports(accounts, sessions):
 def test_in_memory_sign_in_stores_load_a_session_for_an_account_created_through_them():
     stores = SignInStores.in_memory()
     account = stores.accounts.create_for_subject("subject", "name", "user")
-    session = stores.sessions.create(account.id, now=NOW, expires_at=LATER)
+    session = stores.sessions.create(account.id, now=NOW, expires_at=LATER, refresh_token=None)
     assert stores.sessions.load(session.id) == session
     assert stores.sessions.load(session.id).user == account
 
@@ -41,7 +43,7 @@ def test_in_memory_sign_in_stores_load_a_session_for_an_account_created_through_
 class TestSessionCreation:
     def test_create_mints_distinct_url_safe_ids_of_43_characters(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        created = [sessions.create(user.id, now=NOW, expires_at=LATER) for _ in range(1000)]
+        created = [sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None) for _ in range(1000)]
         assert len({session.id for session in created}) == 1000
         assert {len(session.id) for session in created} == {43}
         assert all(
@@ -51,14 +53,16 @@ class TestSessionCreation:
 
     def test_create_stores_the_given_instants_and_the_account(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        session = sessions.create(user.id, now=NOW, expires_at=LATER)
+        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
         assert (session.created_at, session.expires_at, session.user) == (NOW, LATER, user)
 
     def test_create_drops_a_session_expired_before_now_and_keeps_one_expiring_at_now(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        expired = sessions.create(user.id, now=NOW - timedelta(hours=2), expires_at=NOW - timedelta(seconds=1))
-        expiring_now = sessions.create(user.id, now=NOW - timedelta(hours=2), expires_at=NOW)
-        sessions.create(user.id, now=NOW, expires_at=LATER)
+        expired = sessions.create(
+            user.id, now=NOW - timedelta(hours=2), expires_at=NOW - timedelta(seconds=1), refresh_token=None
+        )
+        expiring_now = sessions.create(user.id, now=NOW - timedelta(hours=2), expires_at=NOW, refresh_token=None)
+        sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
         assert sessions.load(expired.id) is None
         assert sessions.load(expiring_now.id) is not None
 
@@ -70,7 +74,7 @@ class TestSessionRenewalAndEnd:
 
     def test_touch_of_a_known_id_writes_the_expiry_and_keeps_created_at(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        session = sessions.create(user.id, now=NOW, expires_at=LATER)
+        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
         renewed_expiry = LATER + timedelta(hours=1)
         assert sessions.touch(session.id, expires_at=renewed_expiry) is True
         loaded = sessions.load(session.id)
@@ -82,8 +86,8 @@ class TestSessionRenewalAndEnd:
     def test_delete_for_user_answers_the_count_and_leaves_other_users(self, accounts, sessions):
         first = accounts.create_for_subject("first", "name", "user")
         second = accounts.create_for_subject("second", "name", "user")
-        ended = [sessions.create(first.id, now=NOW, expires_at=LATER) for _ in range(2)]
-        others = sessions.create(second.id, now=NOW, expires_at=LATER)
+        ended = [sessions.create(first.id, now=NOW, expires_at=LATER, refresh_token=None) for _ in range(2)]
+        others = sessions.create(second.id, now=NOW, expires_at=LATER, refresh_token=None)
         assert sessions.delete_for_user(first.id) == 2
         assert [sessions.load(session.id) for session in ended] == [None, None]
         assert sessions.load(others.id) is not None
@@ -92,7 +96,8 @@ class TestSessionRenewalAndEnd:
     def test_prune_overflow_keeps_the_newest_by_created_at(self, accounts, sessions, keep_newest, kept_ages):
         user = accounts.create_for_subject("subject", "name", "user")
         by_age = {
-            age: sessions.create(user.id, now=NOW + timedelta(minutes=age), expires_at=LATER) for age in (0, 1, 2)
+            age: sessions.create(user.id, now=NOW + timedelta(minutes=age), expires_at=LATER, refresh_token=None)
+            for age in (0, 1, 2)
         }
         sessions.prune_overflow(user.id, keep_newest)
         assert [age for age, session in by_age.items() if sessions.load(session.id)] == kept_ages
@@ -114,16 +119,53 @@ class TestAccounts:
 
     def test_set_role_changes_the_role_a_session_loads_with(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        session = sessions.create(user.id, now=NOW, expires_at=LATER)
+        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
         accounts.set_role(user.id, "admin")
         assert sessions.load(session.id).user.role == "admin"
 
 
 def test_no_record_shows_a_session_id_in_its_repr(accounts, sessions):
     user = accounts.create_for_subject("subject", "name", "user")
-    created = sessions.create(user.id, now=NOW, expires_at=LATER)
+    created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
     shown = repr(created) + repr(sessions.load(created.id))
     assert created.id not in shown
+
+
+class TestRefreshToken:
+    def test_a_session_created_with_a_refresh_token_loads_with_it(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        token = SecretStr(secrets.token_urlsafe())
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=token)
+        assert created.refresh_token == token
+        assert sessions.load(created.id).refresh_token == token
+
+    def test_a_session_created_without_one_loads_without_it(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        assert sessions.load(created.id).refresh_token is None
+
+    def test_replace_on_a_live_session_stores_the_new_token(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        token = SecretStr(secrets.token_urlsafe())
+        assert sessions.replace_refresh_token(created.id, refresh_token=token) is True
+        assert sessions.load(created.id).refresh_token == token
+
+    def test_replace_on_an_unknown_or_deleted_session_answers_false_and_creates_nothing(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        deleted = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        sessions.delete(deleted.id)
+        for session_id in (deleted.id, secrets.token_urlsafe()):
+            replaced = sessions.replace_refresh_token(session_id, refresh_token=SecretStr(secrets.token_urlsafe()))
+            assert replaced is False
+            assert sessions.load(session_id) is None
+
+    def test_no_repr_shows_the_token_value(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        value = secrets.token_urlsafe()
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(value))
+        shown = repr(created) + repr(sessions.load(created.id)) + repr(sessions) + repr(vars(sessions))
+        assert value not in shown
 
 
 def test_write_lock_can_be_held_twice_one_after_the_other():

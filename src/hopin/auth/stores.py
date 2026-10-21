@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 import structlog
+from pydantic import SecretStr
 from webauth.ports import AccountEvent
 
 SESSION_ID_BYTES = 32
@@ -26,6 +27,7 @@ class StoredSession:
     user: StoredAccount
     created_at: datetime
     expires_at: datetime
+    refresh_token: SecretStr | None
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,7 @@ class _SessionRow:
     user_id: str
     created_at: datetime
     expires_at: datetime
+    refresh_token: SecretStr | None
 
 
 class InMemoryAccounts:
@@ -73,10 +76,16 @@ class InMemorySessions:
         self._rows: dict[str, _SessionRow] = {}
         self._guard = threading.Lock()
 
-    def create(self, user_id: str, *, now: datetime, expires_at: datetime) -> StoredSession:
+    def create(
+        self, user_id: str, *, now: datetime, expires_at: datetime, refresh_token: SecretStr | None
+    ) -> StoredSession:
         user = self._accounts.existing(user_id)
         row = _SessionRow(
-            id=secrets.token_urlsafe(SESSION_ID_BYTES), user_id=user_id, created_at=now, expires_at=expires_at
+            id=secrets.token_urlsafe(SESSION_ID_BYTES),
+            user_id=user_id,
+            created_at=now,
+            expires_at=expires_at,
+            refresh_token=refresh_token,
         )
         with self._guard:
             self._rows = {id_: stored for id_, stored in self._rows.items() if stored.expires_at >= now}
@@ -94,6 +103,14 @@ class InMemorySessions:
             if row is None:
                 return False
             self._rows[session_id] = replace(row, expires_at=expires_at)
+            return True
+
+    def replace_refresh_token(self, session_id: str, *, refresh_token: SecretStr) -> bool:
+        with self._guard:
+            row = self._rows.get(session_id)
+            if row is None:
+                return False
+            self._rows[session_id] = replace(row, refresh_token=refresh_token)
             return True
 
     def delete(self, session_id: str) -> None:
@@ -119,7 +136,13 @@ class InMemorySessions:
 
 
 def _joined(row: _SessionRow, user: StoredAccount) -> StoredSession:
-    return StoredSession(id=row.id, user=user, created_at=row.created_at, expires_at=row.expires_at)
+    return StoredSession(
+        id=row.id,
+        user=user,
+        created_at=row.created_at,
+        expires_at=row.expires_at,
+        refresh_token=row.refresh_token,
+    )
 
 
 class ProcessWriteLock:

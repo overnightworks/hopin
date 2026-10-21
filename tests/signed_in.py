@@ -56,7 +56,7 @@ def seed_member(
         account = stores.accounts.create_for_subject(f"subject-{suffix}", f"member-{suffix}", role=config.user_role)
     now = datetime.fromtimestamp(int(config.wall_clock()), UTC)
     lifetime = timedelta(seconds=config.session_lifetime.absolute_max_age_seconds) if expires_in is None else expires_in
-    session = stores.sessions.create(account.id, now=now, expires_at=now + lifetime)
+    session = stores.sessions.create(account.id, now=now, expires_at=now + lifetime, refresh_token=None)
     response = Response()
     issue_session_cookies(response, session.id, config)
     return SeededMember(
