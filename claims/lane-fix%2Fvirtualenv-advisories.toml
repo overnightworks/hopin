@@ -1,0 +1,7 @@
+claim_id = "8626c0152f1d4cc78b2cdd9ffbdc038f"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "d024150f8cb8a18dba5b15f830d70d39c3f76eb7"
+branch = "fix/virtualenv-advisories"
+scope = ["uv.lock"]
+opened_commit = "a1404dc281adfb5221ba73fb2857d9f4983d0f01"
