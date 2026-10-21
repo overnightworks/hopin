@@ -13,7 +13,7 @@ from hopin.config.constants import (
     MAX_SIGNALING_FRAME_LENGTH,
     REPLAY_LOG_LIMIT,
     RESUME_WINDOW_SECONDS,
-    SUPERSEDED_CLOSE_CODE,
+    SEAT_CLOSED_BY_SERVER_CODE,
     ErrorReason,
     RoomClosedReason,
     SignalType,
@@ -42,8 +42,8 @@ class TestEndedRoomSeats:
         await guest.resume()
         await host.resume()
 
-        assert host.sockets[0].closed_with == SUPERSEDED_CLOSE_CODE
-        assert guest.sockets[0].closed_with == SUPERSEDED_CLOSE_CODE
+        assert host.sockets[0].closed_with == SEAT_CLOSED_BY_SERVER_CODE
+        assert guest.sockets[0].closed_with == SEAT_CLOSED_BY_SERVER_CODE
         assert guest.frames(SignalType.RESUMED) == []
         assert host.frames(SignalType.RESUMED) == []
         assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
@@ -51,11 +51,10 @@ class TestEndedRoomSeats:
     async def test_relay_from_a_seat_of_an_ended_room_reaches_nobody(self, link):
         host, guest = await host_and_guest(link)
         await host.say({"type": SignalType.END_ROOM.value})
-        heard_before = len(guest.socket.sent)
 
-        await host.say({"type": SignalType.CHAT.value, "message": "still here"})
+        await host.say({"type": SignalType.OFFER.value, "target": guest.peer_id, "sdp": "still here"})
 
-        assert len(guest.socket.sent) == heard_before
+        assert guest.frames(SignalType.OFFER) == []
 
     async def test_recipient_hanging_up_while_the_room_ends_leaves_no_seat_behind(self, link):
         host, guest = await host_and_guest(link)
@@ -82,7 +81,7 @@ class TestEndedRoomSeats:
         with structlog.testing.capture_logs() as logs:
             await host.say({"type": SignalType.END_ROOM.value})
             for browser in (host, guest):
-                await browser.drop(SUPERSEDED_CLOSE_CODE)
+                await browser.drop(SEAT_CLOSED_BY_SERVER_CODE)
 
         assert [log for log in logs if log["event"] == "websocket_error"] == []
 
@@ -522,7 +521,7 @@ class TestResumeLogs:
 
         await guest.resume(sent_floor=1)
 
-        assert old_socket.closed_with == SUPERSEDED_CLOSE_CODE
+        assert old_socket.closed_with == SEAT_CLOSED_BY_SERVER_CODE
         assert host.frames(SignalType.PARTICIPANT_LEFT)
         old_socket.push(disconnect_frame(1006))
         await link.tasks[old_socket]
@@ -616,7 +615,7 @@ class TestResumeLogs:
         await link.settle(guest.socket)
 
         assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed"]
-        assert guest.socket.closed_with == SUPERSEDED_CLOSE_CODE
+        assert guest.socket.closed_with == SEAT_CLOSED_BY_SERVER_CODE
         [left] = host.frames(SignalType.PARTICIPANT_LEFT)
         assert left["participant_id"] == guest.peer_id
 
@@ -673,7 +672,7 @@ class TestResumeSupersedesTheOldSocket:
         old_socket.push(disconnect_frame(1006))
         await link.tasks[old_socket]
 
-        assert old_socket.closed_with == SUPERSEDED_CLOSE_CODE
+        assert old_socket.closed_with == SEAT_CLOSED_BY_SERVER_CODE
         assert len(host.socket.sent) == heard_before
         await guest.say({"type": SignalType.CHAT.value, "message": "from the new socket"})
         assert host.socket.sent[-1]["message"] == "from the new socket"

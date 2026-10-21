@@ -16,7 +16,7 @@ from hopin.config.constants import (
     POLICY_VIOLATION_CLOSE_CODE,
     RESUME_TOKEN_BYTES,
     RESUME_WINDOW_SECONDS,
-    SUPERSEDED_CLOSE_CODE,
+    SEAT_CLOSED_BY_SERVER_CODE,
     WEBSOCKET_DISCONNECT_EVENT,
     ResumeRefusalCause,
     RoomClosedReason,
@@ -558,7 +558,7 @@ async def _close_socket(websocket: WebSocket) -> None:
     if not _is_connected(websocket):
         return
     try:
-        await websocket.close(code=SUPERSEDED_CLOSE_CODE)
+        await websocket.close(code=SEAT_CLOSED_BY_SERVER_CODE)
     except WebSocketDisconnect:
         await logger.ainfo("closed_socket_already_gone")
 
