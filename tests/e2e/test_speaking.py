@@ -11,6 +11,7 @@ from tests.e2e.conftest import (
     PHONE,
     RECORD_PEER_CONNECTIONS,
     join,
+    record_page_errors,
     start_call,
 )
 
@@ -68,8 +69,13 @@ SPEAK_ON_DEMAND = """
 })();
 """
 TILES_THAT_RANG = "() => [...new Set(window.speakingLog.filter((entry) => entry.speaking).map((entry) => entry.id))]"
-TILE_RANG_AND_STOPPED_ONCE = """
+RING_CHANGES_SO_FAR = """
 () => window.speakingLog.map((entry) => entry.speaking).join()
+"""
+SOUND_IS_ARRIVING = """
+() => window.recordedConnections.some((connection) => connection.getReceivers()
+    .filter((receiver) => receiver.track.kind === "audio")
+    .some((receiver) => receiver.getSynchronizationSources().length > 0))
 """
 RING_LOOK = """
 (tile) => {
@@ -118,9 +124,9 @@ DECISION_BY_CASE = {
 def host_a_call(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> tuple[Page, str]:
-    host = open_person(**form_factor)
-    host.on("pageerror", lambda error: page_errors.append(str(error)))
+    host = record_page_errors(open_person(**form_factor), page_errors)
     host.add_init_script(SPEAK_ON_DEMAND)
+    host.add_init_script(RECORD_PEER_CONNECTIONS)
     return host, start_call(host, base_url)
 
 
@@ -153,6 +159,8 @@ def expect_a_ringing_tile(viewer: Page) -> None:
 
 
 def expect_no_ringing_tile(viewer: Page, milliseconds: int = OBSERVATION_MILLISECONDS) -> None:
+    # Detection can only ring once sound arrives, so the window opens after it does.
+    viewer.wait_for_function(SOUND_IS_ARRIVING)
     viewer.wait_for_timeout(milliseconds)
     assert viewer.evaluate(TILES_THAT_RANG) == []
 
@@ -161,10 +169,12 @@ def expect_no_ringing_tile(viewer: Page, milliseconds: int = OBSERVATION_MILLISE
 def test_speaking_rings_the_tile_of_the_guest_who_speaks_with_the_pictures_ring_and_wave(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, guest = start_call_with_guests(open_person, base_url, page_errors, 2, form_factor)[:2]
+    host, guest, other_guest = start_call_with_guests(open_person, base_url, page_errors, 2, form_factor)
     guest.evaluate(f"window.speak({LOUD})")
 
     expect_a_ringing_tile(host)
+    expect_a_ringing_tile(other_guest)
+    assert host.evaluate(TILES_THAT_RANG) == other_guest.evaluate(TILES_THAT_RANG)
     ring = host.locator(f"{OTHER_TILE}.speaking").first.evaluate(RING_LOOK)
     assert SPEAKING_RING in ring["shadow"]
     assert "inset" in ring["shadow"]
@@ -186,11 +196,9 @@ def test_speaking_ring_goes_within_two_seconds_of_silence_and_holds_through_a_ha
     guest.evaluate(f"window.speak({LOUD})")
     expect_a_ringing_tile(host)
 
-    guest.evaluate(f"window.speak({SILENCE})")
-    host.wait_for_timeout(PAUSE_MILLISECONDS)
-    guest.evaluate(f"window.speak({LOUD})")
-    host.wait_for_timeout(PAUSE_MILLISECONDS)
-    assert host.evaluate(TILE_RANG_AND_STOPPED_ONCE) == "true"
+    guest.evaluate(f"window.speak({SILENCE}); setTimeout(() => window.speak({LOUD}), {PAUSE_MILLISECONDS})")
+    host.wait_for_timeout(2 * PAUSE_MILLISECONDS)
+    assert host.evaluate(RING_CHANGES_SO_FAR) == "true"
 
     guest.evaluate(f"window.speak({SILENCE})")
     expect(host.locator(f"{OTHER_TILE}.speaking")).to_have_count(0, timeout=GOES_QUIET_WITHIN_MILLISECONDS)
@@ -255,8 +263,7 @@ def test_speaking_host_rings_on_the_guests_page_and_never_on_the_hosts_own_tile(
     host.evaluate(f"window.speak({LOUD})")
 
     expect_a_ringing_tile(guest)
-    host.wait_for_timeout(OBSERVATION_MILLISECONDS)
-    assert host.evaluate(TILES_THAT_RANG) == []
+    expect_no_ringing_tile(host)
     expect(host.locator("#localContainer .wave")).to_have_count(0)
 
 
@@ -306,8 +313,9 @@ def test_speaking_rings_only_the_tile_of_the_one_who_speaks_among_three(
     expect_a_ringing_tile(host)
     expect_a_ringing_tile(listener)
     host.wait_for_timeout(OBSERVATION_MILLISECONDS)
-    for viewer in (host, listener):
-        assert len(viewer.evaluate(TILES_THAT_RANG)) == 1
+    speakers_tile_on_host = host.evaluate(TILES_THAT_RANG)
+    assert len(speakers_tile_on_host) == 1
+    assert listener.evaluate(TILES_THAT_RANG) == speakers_tile_on_host
     assert speaker.evaluate(TILES_THAT_RANG) == []
 
 
