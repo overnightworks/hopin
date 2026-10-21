@@ -7,7 +7,7 @@ from hopin.auth.stores import SignInStores
 from hopin.config.settings import ServerSettings
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
-from hopin.signaling.identity import QueryIdIdentityResolver
+from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.routes import create_router
@@ -30,15 +30,17 @@ def create_app(
         ],
     )
 
+    sign_in_stores = stores if stores is not None else SignInStores.in_memory()
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
-    signaling_handler = SignalingHandler(room_manager, QueryIdIdentityResolver(), AsyncioScheduler())
+    signaling_handler = SignalingHandler(
+        room_manager, SessionIdentityResolver(sign_in_stores.sessions), AsyncioScheduler()
+    )
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(create_router(signaling_handler, room_manager))
     app.include_router(create_ice_servers_router(settings.stun_server))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
-    sign_in_stores = stores if stores is not None else SignInStores.in_memory()
     app.include_router(
         create_sign_in_router(
             sign_in_configs.oidc_client,

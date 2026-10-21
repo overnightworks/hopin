@@ -385,7 +385,7 @@ def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Ca
         host, guest = open_person(), open_person()
         host_tap, guest_tap = SignalingTap(), SignalingTap()
         for person, tap in ((host, host_tap), (guest, guest_tap)):
-            person.route_web_socket("**/ws?*", tap.relay)
+            person.route_web_socket("**/ws", tap.relay)
             person.on("pageerror", lambda error: page_errors.append(str(error)))
             person.clock.install()
             person.add_init_script(RECORD_PEER_CONNECTIONS)
