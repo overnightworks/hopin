@@ -14,10 +14,23 @@ function videoSenders(connection) {
 
 const lastCapBySender = new WeakMap();
 
+const CAP_ATTEMPTS = 3;
+
+// The browser only honours setParameters on parameters read in the same task. A
+// setParameters that waits behind a pending replaceTrack or negotiation on the sender
+// can find them already discarded and is rejected with an InvalidStateError; the cap
+// is read and set again then. Any other failure, or the last attempt, is thrown.
 async function setCap(sender, maxBitrate) {
-    const parameters = sender.getParameters();
-    parameters.encodings[0].maxBitrate = maxBitrate;
-    await sender.setParameters(parameters);
+    for (let attempt = 1; ; attempt++) {
+        const parameters = sender.getParameters();
+        parameters.encodings[0].maxBitrate = maxBitrate;
+        try {
+            await sender.setParameters(parameters);
+            return;
+        } catch (error) {
+            if (error.name !== "InvalidStateError" || attempt === CAP_ATTEMPTS) throw error;
+        }
+    }
 }
 
 // A sender accepts one getParameters/setParameters transaction at a time: a second
