@@ -11,7 +11,7 @@ from webauth.dependencies import session_id_from_request
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError
 from hopin.auth.stores import SignInStores
-from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP
+from hopin.config.constants import ACCOUNT_PATH, AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -50,6 +50,19 @@ class TestCreateApp:
         assert start.headers["location"].startswith(sign_in.settings.oidc_issuer)
         assert callback.status_code == 303
         assert any(raw.startswith(f"{SESSION_COOKIE}=") for raw in callback.headers.get_list("set-cookie"))
+
+    def test_account_route_reads_the_sessions_the_sign_in_wrote(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        issuer = FakeIssuer(sign_in)
+        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
+        start = browser.get(AUTH_START_PATH)
+        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+
+        answer = browser.get(ACCOUNT_PATH)
+
+        assert (answer.status_code, answer.json()) == (200, {"name": "alice"})
 
     def test_signs_members_in_to_the_stores_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()

@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -11,6 +12,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
+from hopin.rooms.models import Account
 from hopin.signaling.handler import Connection, Peer, SignalingHandler
 from tests.unit.conftest import (
     ADMITTED_ACCOUNT,
@@ -221,7 +223,25 @@ class TestJoinExistingRoom:
 
         [existing] = frames_of_type(joiner_ws, SignalType.EXISTING_PARTICIPANTS)
         assert "host1" in existing["participants"]
-        assert sent_frames(sockets["host1"]) == [{"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "p1"}]
+        assert sent_frames(sockets["host1"]) == [
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "p1", "name": "p1"}
+        ]
+
+    async def test_joiner_is_told_the_names_of_the_others_by_their_participant_ids(self, handler):
+        host_socket = FakeSocket([text_frame(join_message())], account=Account(id="host-account", name="felix"))
+        host_connection = asyncio.create_task(handler.handle_websocket(host_socket))
+        await host_socket.idle.wait()
+        joiner_socket = FakeSocket(
+            [text_frame(join_message(host_socket.sent[0]["room_id"])), disconnect_frame(1000)],
+            account=account_named("ben"),
+        )
+
+        await handler.handle_websocket(joiner_socket)
+        host_socket.push(disconnect_frame(1000))
+        await host_connection
+
+        [existing] = [frame for frame in joiner_socket.sent if frame["type"] == SignalType.EXISTING_PARTICIPANTS.value]
+        assert existing["names"] == {host_socket.sent[0]["participant_id"]: "felix"}
 
 
 class TestRelay:
@@ -601,7 +621,7 @@ class TestHostGrace:
         [existing] = frames_of_type(returning_ws, SignalType.EXISTING_PARTICIPANTS)
         assert existing["is_host"] is True
         assert sent_frames(sockets["p1"])[-2:] == [
-            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "host-back"},
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "host-back", "name": "host1"},
             {"type": SignalType.HOST_BACK.value, "participant_id": "host-back"},
         ]
         assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == []

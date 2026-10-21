@@ -1,5 +1,6 @@
 import { playMessageSound } from "./sounds.js";
 import { SIGNAL_TYPE, isConnected, on, send } from "./signaling.js";
+import { state } from "./state.js";
 
 const chatPanel = document.getElementById("chatPanel");
 const chatMessages = document.getElementById("chatMessages");
@@ -19,7 +20,7 @@ function appendMessage(text, senderId) {
     if (!isSelf) {
         const senderElement = document.createElement("div");
         senderElement.className = "chat-sender";
-        senderElement.textContent = `Peer ${senderId.slice(0, 6)}`;
+        senderElement.textContent = state.namesByParticipant.get(senderId) ?? "";
         messageElement.appendChild(senderElement);
     }
     messageElement.append(text);

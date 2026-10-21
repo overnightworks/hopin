@@ -8,4 +8,5 @@ export const state = {
     screenStream: null,
     audioEnabled: true,
     videoEnabled: true,
+    namesByParticipant: new Map(),
 };

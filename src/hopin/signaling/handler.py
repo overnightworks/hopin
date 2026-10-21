@@ -261,6 +261,7 @@ class SignalingHandler:
             {
                 "type": SignalType.EXISTING_PARTICIPANTS.value,
                 "participants": others,
+                "names": {pid: self._account_of(pid).name for pid in others},
                 "is_host": room.is_hosted_by(account),
                 "locked": room.locked,
                 **self._seat_credentials(peer_id),
@@ -268,7 +269,10 @@ class SignalingHandler:
         )
         if grace is not None:
             await self._send(peer_id, self._host_away_frame(grace))
-        await self._send_all(others, {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id})
+        await self._send_all(
+            others,
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id, "name": account.name},
+        )
         if host_returned:
             await self._send_all(others, {"type": SignalType.HOST_BACK.value, "participant_id": peer_id})
 
