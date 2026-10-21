@@ -1,3 +1,4 @@
+import { initAccount } from "./account.js";
 import { initChat, registerChatHandlers } from "./chat.js";
 import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
@@ -31,7 +32,7 @@ import {
     showLockIndicator,
     showParticipantCount,
 } from "./status.js";
-import { initHome } from "./home.js";
+import { initHome, showGreeting } from "./home.js";
 import { clearToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
@@ -172,6 +173,7 @@ initChat();
 initPip();
 initEnd();
 initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });
+initAccount({ onNameRead: showGreeting });
 initPrejoin({
     onStart: (kind) => {
         state.isHost = kind === PREJOIN_KIND.HOST;

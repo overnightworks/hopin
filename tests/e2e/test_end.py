@@ -154,7 +154,7 @@ def expect_end_screen(person: Page, expected: EndScreenText) -> None:
         expect(screen.locator("#endPill")).to_have_text(expected.pill)
     else:
         expect(screen.locator("#endPill")).to_be_hidden()
-    expect(screen.get_by_role("button")).to_have_text(list(expected.buttons))
+    expect(screen.locator(".end-actions").get_by_role("button")).to_have_text(list(expected.buttons))
     expect_both_legal_links(screen)
     expect(person.locator("[data-screen]:visible")).to_have_attribute("data-screen", "end")
     expect(screen.locator(".button-primary")).to_have_count(1)

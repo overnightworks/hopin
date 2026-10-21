@@ -41,7 +41,8 @@ webauth:
   rule above are about `index.html` and `hopin.css`; a sign-in page links the
   two legal URLs and `/auth/start`. No access posts one same-origin form to
   `/logout`, so the Content-Security-Policy adds the issuer's origin to
-  `form-action` for the redirect to its end-session endpoint.
+  `form-action` for the redirect to its end-session endpoint. `index.html` posts
+  one same-origin form to `/logout`, from the account menu.
 - Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,
@@ -56,7 +57,9 @@ webauth:
 |---|---|
 | `app.js` | wiring, call start and leave, session message handlers |
 | `router.js` | the address and the screen: `/c/{id}` parsing, call links, the screen switch, `goHome`, `openCall` and `goThroughSignIn` |
-| `home.js` | the home screen |
+| `home.js` | the home screen and its greeting |
+| `account.js` | the account name from `/api/account` and the account menu: the avatars' initials, the menu head |
+| `menus.js` | every menu's open, close, focus and Escape |
 | `prejoin.js` | the pre-join screen: the preview's microphone and camera buttons, the wait for a media request, the Start or Join label, Back and Start or Join |
 | `end.js` | the end and refusal screens: `END_KIND`, the reasons they answer, `showEnd` |
 | `state.js` | call and local-media state |

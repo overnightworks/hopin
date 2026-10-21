@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 SCROLL_PAST_THE_END = 10_000
+SHORT_DESKTOP = {"viewport": {"width": 1280, "height": 400}}
 FORM_FACTORS = pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])
 
 
@@ -70,6 +71,16 @@ def test_home_on_a_small_landscape_phone_reaches_each_legal_link_without_sideway
 
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     assert page.evaluate("document.querySelector('[data-screen=home]').scrollWidth <= window.innerWidth")
+
+
+def test_home_on_a_short_window_does_not_scroll_past_its_own_height(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    page = open_person(**SHORT_DESKTOP)
+    page.goto(f"{base_url}/")
+    expect(page.locator("[data-screen=home]")).to_be_visible()
+
+    assert page.evaluate("document.querySelector('.home').scrollHeight <= document.querySelector('.home').clientHeight")
 
 
 @pytest.mark.parametrize("retired_path", ["/call", "/join/anything"])

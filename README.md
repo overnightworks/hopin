@@ -178,6 +178,8 @@ src/hopin/
 │               ├── app.js        # Wiring, call start and leave
 │               ├── router.js     # The address and the screen, call links
 │               ├── home.js       # Home screen
+│               ├── account.js    # The account name and the account menu
+│               ├── menus.js      # Every menu's open, close, focus and Escape
 │               ├── prejoin.js    # Pre-join: preview, microphone and camera, Start or Join
 │               ├── end.js        # End and refusal screens
 │               ├── state.js      # Call and local-media state

@@ -268,6 +268,10 @@ class TestPageIsCspReady:
             link[name] == value for link in page_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items()
         )
 
+    def test_posts_one_same_origin_form_to_log_out_from_the_account_menu(self, page_inventory):
+        assert [(form["method"], form["action"]) for form in page_inventory.forms] == [("post", LOGOUT_PATH)]
+        assert page_inventory.submit_buttons == 1
+
     def test_loads_the_application_as_a_module(self):
         assert f'<script type="module" src="{STATIC_PATH}/js/app.js">' in PAGE.read_text()
 

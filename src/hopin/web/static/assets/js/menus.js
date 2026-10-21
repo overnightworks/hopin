@@ -1,6 +1,7 @@
-const menus = [];
+let openedMenu = null;
 
 function closeMenu({ button, dialog, scrim }) {
+    openedMenu = null;
     scrim.classList.add("hidden");
     dialog.close();
     button.classList.remove("active");
@@ -9,7 +10,8 @@ function closeMenu({ button, dialog, scrim }) {
 }
 
 function openMenu(menu) {
-    for (const other of menus) if (other !== menu && other.dialog.open) closeMenu(other);
+    if (openedMenu) closeMenu(openedMenu);
+    openedMenu = menu;
     menu.scrim.classList.remove("hidden");
     menu.dialog.show();
     menu.button.classList.add("active");
@@ -19,17 +21,15 @@ function openMenu(menu) {
 }
 
 function toggleMenu(menu) {
-    if (menu.dialog.open) closeMenu(menu);
+    if (openedMenu === menu) closeMenu(menu);
     else openMenu(menu);
 }
 
 export function closeOpenMenu() {
-    const open = menus.find((menu) => menu.dialog.open);
-    if (open) closeMenu(open);
+    if (openedMenu) closeMenu(openedMenu);
 }
 
 export function registerMenu(menu) {
-    menus.push(menu);
     menu.button.addEventListener("click", () => toggleMenu(menu));
     menu.scrim.addEventListener("click", closeOpenMenu);
 }
