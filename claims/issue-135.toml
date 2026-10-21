@@ -3,6 +3,6 @@ agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
 role = "builder"
 base = "d4b21b7856561526f6d323382ee3de162036bddb"
 branch = "claude/issue-135-invite-and-toast"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/invite.js", "src/hopin/web/static/assets/js/toast.js", "src/hopin/web/static/index.html", "tests/e2e/test_control_bar.py", "tests/e2e/test_invite.py", "tests/e2e/test_more_menu.py", "tests/e2e/test_waiting_card.py"]
+scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/invite.js", "src/hopin/web/static/assets/js/toast.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_control_bar.py", "tests/e2e/test_invite.py", "tests/e2e/test_more_menu.py", "tests/e2e/test_waiting_card.py"]
 opened_commit = "1dc832b482ac7f8cd67c65f5635c595f3ab8ed4a"
 whole_reason = "Bundle of 19c (#135) and 19b-2 (#136): Invite's button, its menu, the open-close owner it shares with More and the guest's link are one behaviour, or Invite opens nothing or copies an empty link; the bundled 19b-2 adds toast.js and a few lines in hopin.css and app.js, and its toast-over-a-menu rule needs both menus to prove."
