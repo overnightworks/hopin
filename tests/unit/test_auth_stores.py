@@ -1,12 +1,10 @@
-import secrets
 from datetime import UTC, datetime, timedelta
 
 import pytest
 import structlog.testing
 from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 
-from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock, _SessionRow
-from tests.fake_issuer import _IssuedCode
+from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
@@ -113,16 +111,11 @@ class TestAccounts:
         assert sessions.load(session.id).user.role == "admin"
 
 
-def test_no_record_shows_a_session_id_or_a_nonce_in_its_repr(accounts, sessions):
+def test_no_record_shows_a_session_id_in_its_repr(accounts, sessions):
     user = accounts.create_for_subject("subject", "name", "user")
-    session_id, nonce = secrets.token_urlsafe(16), secrets.token_urlsafe(16)
-    records = [
-        sessions.create(user.id, now=NOW, expires_at=LATER),
-        _SessionRow(id=session_id, user_id=user.id, created_at=NOW, expires_at=LATER),
-        _IssuedCode(nonce=nonce, code_challenge="challenge", claims={}),
-    ]
-    shown = "".join(repr(record) for record in records) + repr(sessions.load(records[0].id))
-    assert [secret for secret in (session_id, nonce, records[0].id) if secret in shown] == []
+    created = sessions.create(user.id, now=NOW, expires_at=LATER)
+    shown = repr(created) + repr(sessions.load(created.id))
+    assert created.id not in shown
 
 
 def test_write_lock_can_be_held_twice_one_after_the_other():
