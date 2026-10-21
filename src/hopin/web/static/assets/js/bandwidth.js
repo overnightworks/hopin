@@ -16,10 +16,11 @@ const lastCapBySender = new WeakMap();
 
 const CAP_ATTEMPTS = 3;
 
-// The browser only honours setParameters on parameters read in the same task. A
-// setParameters that waits behind a pending replaceTrack or negotiation on the sender
-// can find them already discarded and is rejected with an InvalidStateError; the cap
-// is read and set again then. Any other failure, or the last attempt, is thrown.
+// Chromium rejected a cap with an InvalidStateError ("getParameters() has never been
+// called") while caps overlapped a camera or screen track change; CI showed it in the
+// C9(c) camera-off case. So the cap is read and set again, up to CAP_ATTEMPTS. That is
+// an empirical retry budget, not a guaranteed bound: after the last attempt the error
+// is thrown. Other errors are thrown at once.
 async function setCap(sender, maxBitrate) {
     for (let attempt = 1; ; attempt++) {
         const parameters = sender.getParameters();
@@ -36,9 +37,8 @@ async function setCap(sender, maxBitrate) {
     }
 }
 
-// A sender accepts one getParameters/setParameters transaction at a time: a second
-// setParameters after another one consumed the transaction is rejected. Caps on one
-// sender therefore run in turn, each reading its parameters right before it sets them.
+// Caps on one sender run one after another, each reading its parameters right before
+// it sets them, so the latest bitrate is applied last.
 function capSender(sender, maxBitrate) {
     const previous = lastCapBySender.get(sender) ?? Promise.resolve();
     const cap = previous.then(() => setCap(sender, maxBitrate));
