@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+import threading
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -162,6 +163,42 @@ class TestExpiredSessionSweep:
         with TestClient(app):
             asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
             assert [sessions.load(expired.id), sessions.load(live.id) is not None] == [None, True]
+
+    def test_the_lifespan_sweeps_again_every_following_interval(self, swept, scheduler):
+        app, sessions, _, _ = swept
+        with TestClient(app):
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+            now = datetime.now(UTC)
+            later = sessions.create(
+                "subject", now=now - timedelta(hours=2), expires_at=now - timedelta(hours=1), refresh_token=None
+            )
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+            assert sessions.load(later.id) is None
+
+    def test_the_lifespan_stops_a_sweep_that_is_still_running_at_shutdown(self, swept, scheduler, monkeypatch):
+        app, sessions, _, _ = swept
+        scan_started, scan_released = threading.Event(), threading.Event()
+        scans = []
+        delete_expired = sessions.delete_expired
+
+        def held_scan(now):
+            scans.append(now)
+            scan_started.set()
+            scan_released.wait()
+            return delete_expired(now)
+
+        monkeypatch.setattr(sessions, "delete_expired", held_scan)
+
+        async def shut_down_during_the_scan():
+            async with app.router.lifespan_context(app):
+                running = asyncio.create_task(scheduler.advance(SESSION_SWEEP_SECONDS))
+                await asyncio.to_thread(scan_started.wait)
+            scan_released.set()
+            await running
+            await scheduler.advance(SESSION_SWEEP_SECONDS * 2)
+
+        asyncio.run(shut_down_during_the_scan())
+        assert len(scans) == 1
 
     def test_the_lifespan_stops_the_sweep_at_shutdown(self, swept, scheduler):
         app, sessions, expired, _ = swept

@@ -58,6 +58,7 @@ class _ExpiredSessionSweep:
         self._sessions = sessions
         self._wall_clock = wall_clock
         self._scheduler = scheduler
+        self._stopped = False
         self._timer = self._schedule()
 
     def _schedule(self) -> TimerHandle:
@@ -70,9 +71,11 @@ class _ExpiredSessionSweep:
         )
         if removed:
             logger.info("expired_sessions_swept", removed=removed)
-        self._timer = self._schedule()
+        if not self._stopped:
+            self._timer = self._schedule()
 
     def stop(self) -> None:
+        self._stopped = True
         self._timer.cancel()
 
 
