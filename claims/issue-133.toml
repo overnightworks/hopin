@@ -1,7 +1,0 @@
-claim_id = "dc1f48292e1e435194b554a6cee91515"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "cca63b54acc60c9bcd8343e40883023e1cc638b2"
-branch = "claude/issue-133-ufrag-wait-flake"
-scope = ["tests/e2e/test_mesh.py"]
-opened_commit = "6dafde0f0b958288cc0fb5fdc20398bb9014a97a"
