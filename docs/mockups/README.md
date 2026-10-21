@@ -16,5 +16,13 @@ It carries these rulings:
 - the leave dialog for the host only
 - ui-console colour and type tokens
 - the English UI
+- the sign-in states (ui-console#6)
+
+The three sign-in states (No access, Signed out, Login failed) were
+transcribed on 21.10.2026 from the shared picture (version 2, blessed
+19.10.2026; agent-presentator `docs/mockups/m0-lobby.html`, "SIGN-IN
+(KEYCLOAK)", at fd21404) and ui-console v0.3.0 `grammar.html`. They change only
+by re-transcription from there. Where "Back" on No access goes is pending the
+operator's ruling for every app; the picture's caption says so.
 
 To view it, open the file in a browser.
