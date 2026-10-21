@@ -21,7 +21,7 @@ const MENUS = [
     {
         button: document.getElementById("inviteBtn"),
         dialog: document.getElementById("inviteMenu"),
-        firstFocus: "#inviteCopyBtn, #inviteCopyLinkBtn",
+        firstFocus: ".invite-copy",
     },
 ];
 const lockButton = document.getElementById("lockBtn");

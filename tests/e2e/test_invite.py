@@ -7,27 +7,27 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.conftest import (
+    BOX_OF_SETTLED,
+    CHECK_ICON_PATH,
+    CLIPBOARD_ALLOWED,
     DESKTOP,
     FORM_FACTORS,
     ICE_SERVERS_URL_PATTERN,
-    MEDIA_PERMISSIONS,
     PHONE,
+    READ_CLIPBOARD,
+    REJECT_SHARE_WITH,
+    REMOVE_SHARE,
+    STUB_SHARE,
+    TOAST_AND_MENU_BOXES,
+    TOAST_ICON,
+    TOASTS,
+    X_ICON_PATH,
+    expect_toast,
     open_call,
     open_more,
     press_start_call,
     record_page_errors,
     start_call,
-)
-from tests.e2e.test_more_menu import TOAST_AND_MENU_BOXES
-from tests.e2e.test_waiting_card import (
-    CHECK_ICON_PATH,
-    REJECT_SHARE_WITH,
-    REMOVE_SHARE,
-    STUB_SHARE,
-    TOAST_ICON,
-    TOASTS,
-    X_ICON_PATH,
-    expect_toast,
 )
 
 pytestmark = pytest.mark.e2e
@@ -40,8 +40,6 @@ COPY_BUTTON = "#inviteCopyBtn:visible, #inviteCopyLinkBtn:visible"
 SHARE_BUTTON = "#inviteShareBtn"
 CARD_COPY_BUTTON = "#waitingCopyBtn"
 ACTIVE = re.compile(r"\bactive\b")
-CLIPBOARD_ALLOWED = {"permissions": [*MEDIA_PERMISSIONS, "clipboard-read", "clipboard-write"]}
-READ_CLIPBOARD = "() => navigator.clipboard.readText()"
 SHEET_MARGIN_PIXELS = 8
 POPOVER_WIDTH_PIXELS = 340
 POPOVER_BOTTOM_GAP_PIXELS = 88
@@ -49,12 +47,10 @@ CENTRE_TOLERANCE_PIXELS = 2
 DESKTOP_TOAST_OFFSET_PIXELS = 112
 PHONE_TOAST_OFFSET_PIXELS = 132
 TABS_TO_REACH_AT_MOST = 20
-BOX_OF_SETTLED = """
-async (selector) => {
-    const element = document.querySelector(selector);
-    await Promise.all(element.getAnimations().map((animation) => animation.finished));
-    const { left, top, right, bottom, width } = element.getBoundingClientRect();
-    return { left, top, right, bottom, width };
+A_TOAST_OTHER_THAN = """
+(first) => {
+    const toast = document.querySelector("#toasts .toast");
+    return toast !== null && toast !== first;
 }
 """
 
@@ -325,9 +321,10 @@ def test_a_toast_stands_above_the_open_invite_and_returns_above_the_bar_once_it_
     boxes = host.evaluate(TOAST_AND_MENU_BOXES, INVITE_MENU)
     assert boxes["toast"]["bottom"] <= boxes["menu"]["top"]
     assert boxes["toast"]["top"] >= 0
+    first_toast = host.locator(f"{TOASTS} .toast").element_handle()
     host.click("#inviteCloseBtn")
     host.click(CARD_COPY_BUTTON)
-    expect(host.locator(TOAST_ICON)).to_have_attribute("d", CHECK_ICON_PATH)
+    host.wait_for_function(A_TOAST_OTHER_THAN, arg=first_toast)
     settled = host.evaluate(TOAST_AND_MENU_BOXES, None)
     offset = PHONE_TOAST_OFFSET_PIXELS if form_factor == PHONE else DESKTOP_TOAST_OFFSET_PIXELS
     assert settled["toast"]["bottom"] == pytest.approx(settled["viewport"]["height"] - offset, abs=1)

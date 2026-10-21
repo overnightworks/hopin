@@ -7,11 +7,14 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
+    BOX_OF_SETTLED,
+    CHECK_ICON_PATH,
     DESKTOP,
     FORM_FACTORS,
     ICE_SERVERS_URL_PATTERN,
     LEGAL_LINKS,
     PHONE,
+    TOAST_AND_MENU_BOXES,
     expect_both_legal_links,
     join,
     open_call,
@@ -28,20 +31,11 @@ MORE_MENU = "#moreMenu"
 MORE_BUTTON = "#moreBtn"
 LOCK_SWITCH = "#lockBtn"
 ACTIVE = re.compile(r"\bactive\b")
-CHECK_ICON_PATH = "M5 12.5l4.5 4.5L19 7.5"
 SHEET_MARGIN_PIXELS = 8
 POPOVER_WIDTH_PIXELS = 280
 POPOVER_BOTTOM_GAP_PIXELS = 88
 CENTRE_TOLERANCE_PIXELS = 2
 VIDEO_TAP_HEIGHT_PIXELS = 200
-BOX_OF_SETTLED = """
-async (selector) => {
-    const element = document.querySelector(selector);
-    await Promise.all(element.getAnimations().map((animation) => animation.finished));
-    const { left, top, right, bottom, width } = element.getBoundingClientRect();
-    return { left, top, right, bottom, width };
-}
-"""
 VISIBLE_MENU_ENTRIES = """
 () => {
     const entryName = (element) => {
@@ -52,21 +46,6 @@ VISIBLE_MENU_ENTRIES = """
     return [...document.querySelectorAll("#moreMenu #lockBtn, #moreMenu .sep, #moreMenu a.mi")]
         .filter((element) => element.getClientRects().length)
         .map(entryName);
-}
-"""
-TOAST_AND_MENU_BOXES = """
-async (menuSelector) => {
-    const settledBox = async (selector) => {
-        const element = document.querySelector(selector);
-        await Promise.all(element.getAnimations().map((animation) => animation.finished));
-        const { top, bottom } = element.getBoundingClientRect();
-        return { top, bottom };
-    };
-    return {
-        menu: menuSelector && (await settledBox(menuSelector)),
-        toast: await settledBox("#toasts .toast"),
-        viewport: { height: innerHeight },
-    };
 }
 """
 COLOUR_OF = "(selector) => getComputedStyle(document.querySelector(selector)).color"

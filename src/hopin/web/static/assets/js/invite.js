@@ -14,6 +14,8 @@ const shareButton = document.getElementById("waitingShareBtn");
 const inviteButton = document.getElementById("inviteBtn");
 const inviteMenu = document.getElementById("inviteMenu");
 const inviteLinkElement = document.getElementById("inviteLink");
+const inviteCopyButtons = inviteMenu.querySelectorAll(".invite-copy");
+const inviteShareButton = document.getElementById("inviteShareBtn");
 
 let callLink = "";
 
@@ -54,13 +56,13 @@ export function initInvite() {
     const shareState = "share" in navigator ? "available" : "unavailable";
     card.dataset.share = shareState;
     inviteMenu.dataset.share = shareState;
-    const copyButtons = [copyButton, ...inviteMenu.querySelectorAll("#inviteCopyBtn, #inviteCopyLinkBtn")];
+    const copyButtons = [copyButton, ...inviteCopyButtons];
     for (const button of copyButtons) {
         button.addEventListener("click", () => {
             void copyCallLink();
         });
     }
-    for (const button of [shareButton, inviteMenu.querySelector("#inviteShareBtn")]) {
+    for (const button of [shareButton, inviteShareButton]) {
         button.addEventListener("click", () => {
             void shareCallLink();
         });

@@ -487,6 +487,7 @@ body {
 .button-primary { background: var(--accent); color: var(--on-accent); }
 .button-primary:hover { background: var(--accent-hover); }
 .button-primary:disabled { background: var(--accent); }
+.button-primary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .button-lg { height: 58px; font-size: 17px; }
 .button-stage { background: var(--accent-stage); color: var(--stage); }
 .brand {
@@ -827,6 +828,7 @@ body {
         animation: overlay-pop var(--motion-fade) ease-out;
     }
     .invite { width: 340px; }
+    .overlay .sheet-head { padding: 8px 6px 8px 12px; }
     .grab { display: none; }
 }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 10px 12px; }
