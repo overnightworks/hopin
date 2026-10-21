@@ -358,7 +358,7 @@ class TestHandleWebsocket:
 
         [error_log] = [log for log in logs if log["event"] == "websocket_error"]
         assert error_log["code"] == 1006
-        assert room_manager.room_count == 1
+        assert room_manager.has_room(socket.sent[0]["room_id"]) is True
 
     @pytest.mark.parametrize("code", [1000, 1001])
     async def test_normal_disconnect_is_not_logged_as_error(self, handler, code):
@@ -377,7 +377,7 @@ class TestHandleWebsocket:
             ]
         )
         await handler.handle_websocket(socket)
-        assert room_manager.room_count == 1
+        assert room_manager.has_room(socket.sent[0]["room_id"]) is True
 
     async def test_refused_handshake_closes_with_policy_violation_without_accepting(self, room_manager):
         refusing_handler = SignalingHandler(room_manager, SocketAccountResolver(), ManualScheduler())

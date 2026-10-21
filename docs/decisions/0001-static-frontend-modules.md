@@ -4,14 +4,16 @@
 
 The blessed UI (`docs/mockups/hopin-call.html`) is built in about fifteen
 slices. If every slice edited one `call.html`, they would run one at a time.
-The login slice also needs webauth's default Content-Security-Policy
+The page is served under webauth's default Content-Security-Policy
 (`script-src 'self'`, no inline style), which an inline `<script>` and `style=`
 attributes would break.
 
 ## Decision
 
 The page is markup, two stylesheets and ES modules, served from
-`src/hopin/web/static/`:
+`src/hopin/web/static/`. Every route but the named public paths is behind
+webauth's session gate, and the CSP and the Permissions-Policy come from
+webauth:
 
 - `index.html` holds markup only: no inline script, `<style>`, `style=` or
   `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
@@ -50,7 +52,7 @@ The page is markup, two stylesheets and ES modules, served from
 | Module | Owns |
 |---|---|
 | `app.js` | wiring, call start and leave, session message handlers |
-| `router.js` | the address and the screen: `/c/{id}` parsing, call links, the screen switch, `goHome` and `openCall` |
+| `router.js` | the address and the screen: `/c/{id}` parsing, call links, the screen switch, `goHome`, `openCall` and `goThroughSignIn` |
 | `home.js` | the home screen |
 | `prejoin.js` | the pre-join screen: the preview's microphone and camera buttons, the wait for a media request, the Start or Join label, Back and Start or Join |
 | `end.js` | the end and refusal screens: `END_KIND`, the reasons they answer, `showEnd` |

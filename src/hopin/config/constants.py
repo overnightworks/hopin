@@ -17,6 +17,8 @@ AUTH_CALLBACK_PATH = "/auth/callback"
 LOGIN_PATH = "/login"
 LOGOUT_PATH = "/logout"
 
+PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
+
 OIDC_CLIENT_ID = "hopin"
 LOGIN_GROUP = "/apps/hopin"
 RETURN_TO_QUERY_PARAMETER = "next"

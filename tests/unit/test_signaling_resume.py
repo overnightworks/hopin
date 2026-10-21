@@ -350,10 +350,11 @@ class TestParkedHost:
 
         [closed] = guest.frames(SignalType.ROOM_CLOSED)
         assert closed["reason"] == RoomClosedReason.HOST_GONE.value
-        assert room_manager.room_count == 0
+        assert room_manager.has_room(host.socket.sent[0]["room_id"]) is False
 
     async def test_host_resuming_inside_the_window_was_never_away(self, link, scheduler, room_manager):
         host, guest = await host_and_guest(link)
+        room_id = host.socket.sent[0]["room_id"]
         await host.drop()
         await scheduler.advance(20)
         heard_before = len(guest.socket.sent)
@@ -362,7 +363,7 @@ class TestParkedHost:
         await scheduler.advance(2 * HOST_GRACE_SECONDS)
 
         assert len(guest.socket.sent) == heard_before
-        assert room_manager.room_count == 1
+        assert room_manager.has_room(room_id) is True
 
     async def test_host_account_joining_fresh_after_the_window_is_host_again_and_the_guest_hears_host_back(
         self, link, scheduler

@@ -10,8 +10,13 @@ const ICE_SERVERS_PATH = "/api/ice-servers";
 
 let rtcConfiguration = { iceServers: [] };
 
+export class SignedOutError extends Error {}
+
 export async function loadIceServers() {
     const response = await fetch(ICE_SERVERS_PATH);
+    if (response.status === 401) {
+        throw new SignedOutError("Signed out");
+    }
     if (!response.ok) {
         throw new Error(`Could not load ICE servers (${response.status})`);
     }

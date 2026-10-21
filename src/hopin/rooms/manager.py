@@ -61,7 +61,3 @@ class RoomManager:
 
     def has_room(self, room_id: str) -> bool:
         return room_id in self._rooms
-
-    @property
-    def room_count(self) -> int:
-        return len(self._rooms)

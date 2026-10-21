@@ -3,7 +3,7 @@ import re
 from collections.abc import Callable
 
 import pytest
-from playwright.sync_api import Page, WebSocketRoute, expect
+from playwright.sync_api import Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
 from tests.e2e.conftest import (
@@ -11,10 +11,13 @@ from tests.e2e.conftest import (
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OTHER_TILE,
     PHONE,
+    RunningServer,
     join_by_link,
     record_page_errors,
     start_call,
 )
+from tests.sign_in_settings import TEST_ISSUER
+from tests.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 
@@ -156,3 +159,26 @@ def test_home_keeps_hi_there_when_the_account_answer_fails(
 
     expect(person.locator(HOME_HEADING)).not_to_have_attribute("aria-busy", re.compile(".*"))
     expect(person.locator(HOME_HEADING)).to_have_text("Hi there")
+
+
+def test_home_whose_session_ended_goes_through_the_sign_in_when_the_account_answers_401(
+    open_person: Callable[..., Page],
+    member_of: Callable[[Page], SeededMember],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+) -> None:
+    person = record_page_errors(open_person(**DESKTOP), page_errors)
+    documents: list[str] = []
+    person.on("request", lambda request: documents.append(request.url) if request.resource_type == "document" else None)
+
+    def end_the_session_and_answer_401(route: Route) -> None:
+        e2e_server.stores.sessions.delete(member_of(person).session.id)
+        route.fulfill(status=401, body=json.dumps({}))
+
+    person.route(ACCOUNT_ROUTE, end_the_session_and_answer_401)
+
+    with person.expect_event("requestfailed"):
+        person.goto(f"{e2e_server.base_url}/")
+
+    assert documents[-2:] == [f"{e2e_server.base_url}/auth/start?next=%2F", documents[-1]]
+    assert documents[-1].startswith(TEST_ISSUER)

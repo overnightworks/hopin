@@ -1,10 +1,14 @@
 import structlog
 from fastapi import FastAPI
 from webauth.config import install_web_auth_config
+from webauth.middleware import install_web_auth_middleware
+from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
 
 from hopin.auth.account import create_account_router
+from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import ISSUER_OVER_HTTPS, IssuerTransports, build_sign_in_configs, create_sign_in_router
 from hopin.auth.stores import SignInStores
+from hopin.config.constants import PERMISSIONS_POLICY
 from hopin.config.settings import ServerSettings
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
@@ -53,6 +57,13 @@ def create_app(
             lock=sign_in_stores.lock,
             audit=sign_in_stores.audit,
         )
+    )
+    install_web_auth_middleware(
+        app,
+        security_headers=SecurityHeadersPolicy(
+            content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
+        ),
+        session_gate=session_gate(sign_in_stores.sessions),
     )
 
     return app

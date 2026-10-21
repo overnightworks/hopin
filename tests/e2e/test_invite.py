@@ -39,6 +39,8 @@ OVERLAY_SCRIM = "#overlayScrim"
 COPY_BUTTON = "#inviteCopyBtn:visible, #inviteCopyLinkBtn:visible"
 SHARE_BUTTON = "#inviteShareBtn"
 CARD_COPY_BUTTON = "#waitingCopyBtn"
+MEMBERS_LINE_AFTER_THE_LINK_BOX = ".linkbox + .members-note"
+LOCK_SHACKLE = 'path[d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"]'
 ACTIVE = re.compile(r"\bactive\b")
 SHEET_MARGIN_PIXELS = 8
 POPOVER_WIDTH_PIXELS = 340
@@ -53,6 +55,13 @@ A_TOAST_OTHER_THAN = """
     return toast !== null && toast !== first;
 }
 """
+
+
+def expect_the_members_line_after_the_link_box(menu: Locator) -> None:
+    members_line = menu.locator(MEMBERS_LINE_AFTER_THE_LINK_BOX)
+    expect(members_line).to_be_visible()
+    expect(members_line).to_have_text("Only HopIn members can join.")
+    expect(members_line.locator(f"svg {LOCK_SHACKLE}")).to_be_visible()
 
 
 def open_invite(person: Page) -> Locator:
@@ -113,7 +122,7 @@ def test_host_opens_invite_as_a_sheet_on_a_phone_with_the_link_copy_link_and_sha
     assert copy_box["y"] == share_box["y"]
     expect(host.locator(INVITE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(INVITE_BUTTON)).to_have_class("cb active")
-    expect(menu).not_to_contain_text("Only HopIn members can join.")
+    expect_the_members_line_after_the_link_box(menu)
 
 
 def test_host_opens_invite_as_a_popover_on_a_desktop_with_the_link_and_copy_and_no_share(
@@ -134,7 +143,7 @@ def test_host_opens_invite_as_a_popover_on_a_desktop_with_the_link_and_copy_and_
     expect(menu.get_by_role("button", name="Share")).to_be_hidden()
     expect(host.locator(INVITE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(INVITE_BUTTON)).to_have_class("cb active")
-    expect(menu).not_to_contain_text("Only HopIn members can join.")
+    expect_the_members_line_after_the_link_box(menu)
 
 
 def test_a_phone_without_web_share_offers_copy_link_alone(
@@ -190,7 +199,7 @@ def test_share_in_invite_hands_the_share_menu_the_call_link_alone_and_reports_on
     host.click(SHARE_BUTTON)
 
     if toast_text is None:
-        host.wait_for_function("(window.sharedArguments ?? []).length === 1 || window.shareAttempts === 1")
+        host.wait_for_function("() => (window.sharedArguments ?? []).length === 1 || window.shareAttempts === 1")
         expect(host.locator(TOASTS)).to_be_empty()
     else:
         expect_toast(host, toast_text, X_ICON_PATH)

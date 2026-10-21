@@ -11,11 +11,28 @@ from webauth.dependencies import session_id_from_request
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError
 from hopin.auth.stores import SignInStores
-from hopin.config.constants import ACCOUNT_PATH, AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP
+from hopin.config.constants import (
+    ACCOUNT_PATH,
+    AUTH_CALLBACK_PATH,
+    AUTH_START_PATH,
+    LOGIN_GROUP,
+    WEBSOCKET_PATH,
+    SignalType,
+)
+from hopin.config.settings import ServerSettings
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.signed_in import cookie_header, seed_member
 
 SESSION_COOKIE = "__Host-session_id"
+
+
+def signed_in_client(settings: ServerSettings) -> TestClient:
+    stores = SignInStores.in_memory()
+    app = create_app(settings, stores=stores)
+    member = seed_member(stores, installed_web_auth_config(app))
+    headers = {"cookie": cookie_header(member.set_cookie_headers)}
+    return TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, follow_redirects=False)
 
 
 class TestCreateApp:
@@ -83,23 +100,38 @@ class TestCreateApp:
         assert session is not None
         assert session.user.id == "subject"
 
+    def test_admits_the_member_the_sign_in_router_signed_in_to_its_pages(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        issuer = FakeIssuer(sign_in)
+        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
+        start = browser.get(AUTH_START_PATH)
+        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        handshake = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
+        with browser.websocket_connect(WEBSOCKET_PATH, headers=handshake) as socket:
+            socket.send_json({"type": SignalType.JOIN.value})
+            room_id = socket.receive_json()["room_id"]
+            for path in ["/", f"/c/{room_id}"]:
+                response = browser.get(path, headers={"accept": "text/html"})
+                assert (response.status_code, "location" in response.headers) == (200, False)
+
     def test_registers_routes(self, sign_in_settings):
         response = TestClient(create_app(sign_in_settings().settings)).get("/health")
         assert response.status_code == 200
 
     def test_serves_the_configured_stun_server_as_ice_servers(self, sign_in_settings):
         settings = sign_in_settings(stun_server="stun:stun.example.test:3478").settings
-        response = TestClient(create_app(settings)).get("/api/ice-servers")
+        response = signed_in_client(settings).get("/api/ice-servers")
         assert response.json() == {"iceServers": [{"urls": ["stun:stun.example.test:3478"]}]}
 
     @pytest.mark.parametrize("path", ["/", "/static/css/ui-console.css", "/static/css/hopin.css", "/static/js/app.js"])
     def test_serves_the_page_and_its_assets(self, sign_in_settings, path):
-        assert TestClient(create_app(sign_in_settings().settings)).get(path).status_code == 200
+        assert signed_in_client(sign_in_settings().settings).get(path).status_code == 200
 
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
     def test_generated_documentation_is_not_served(self, sign_in_settings, path):
-        response = TestClient(create_app(sign_in_settings().settings)).get(path)
-        assert response.status_code == 404
+        assert signed_in_client(sign_in_settings().settings).get(path).status_code == 404
 
 
 class TestLoggedExceptions:
