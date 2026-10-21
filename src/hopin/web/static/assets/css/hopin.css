@@ -730,14 +730,15 @@ body {
 .cb .shows-off, .cb.off .shows-on { display: none; }
 .cb.off .shows-off { display: block; }
 #moreBtn { anchor-name: --more; }
+#inviteBtn { anchor-name: --invite; }
 .scrim {
     position: absolute;
     inset: 0;
     z-index: 70;
     background: var(--scrim);
-    animation: more-fade var(--motion-fade) ease-out;
+    animation: overlay-fade var(--motion-fade) ease-out;
 }
-.more {
+.overlay {
     position: absolute;
     z-index: 80;
     left: 8px;
@@ -756,9 +757,9 @@ body {
     background: var(--screen);
     color: var(--ink);
     box-shadow: var(--shadow-lg);
-    animation: more-sheet var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
+    animation: overlay-sheet var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
 }
-.more:not([open]) { display: none; }
+.overlay:not([open]) { display: none; }
 .grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--line); }
 .sep { height: 1px; margin: 6px 10px; background: var(--line-soft); }
 #lockBtn.hidden + .sep { display: none; }
@@ -784,8 +785,8 @@ body {
 .mi .grow { flex: 1; min-width: 0; }
 .mi small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); }
 .mi .end { display: flex; color: var(--ink-faint); }
-.more .legal { display: block; font-size: inherit; }
-.more .legal a, .more .legal a:hover { color: var(--ink); text-decoration: none; }
+.overlay .legal { display: block; font-size: inherit; }
+.overlay .legal a, .overlay .legal a:hover { color: var(--ink); text-decoration: none; }
 .switch {
     position: relative;
     flex: none;
@@ -809,12 +810,12 @@ body {
 }
 .switch.on { background: var(--accent); }
 .switch.on::after { transform: translateX(18px); }
-@keyframes more-fade { from { opacity: 0; } }
-@keyframes more-sheet { from { transform: translateY(40px); opacity: 0; } }
-@keyframes more-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+@keyframes overlay-fade { from { opacity: 0; } }
+@keyframes overlay-sheet { from { transform: translateY(40px); opacity: 0; } }
+@keyframes overlay-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 @media (min-width: 601px) {
     .scrim { background: transparent; animation: none; }
-    .more {
+    .overlay {
         right: auto;
         bottom: 88px;
         left: 50%;
@@ -823,13 +824,44 @@ body {
         border: 1px solid var(--line-soft);
         border-radius: 18px;
         translate: -50% 0;
-        animation: more-pop var(--motion-fade) ease-out;
+        animation: overlay-pop var(--motion-fade) ease-out;
     }
+    .invite { width: 340px; }
+    .overlay .sheet-head { padding: 8px 6px 8px 12px; }
     .grab { display: none; }
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 10px 12px; }
+.sheet-head h3 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.linkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    margin: 4px 6px 0;
+    padding: 6px 6px 6px 14px;
+    border-radius: 14px;
+    background: var(--surface-2);
+}
+.linkbox code { flex: 1; min-width: 0; overflow: hidden; font-family: var(--mono); font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.linkbox .button { height: 40px; padding: 0 16px; font-size: 14.5px; }
+.invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 6px 0; }
+.invite-actions .button { height: 48px; font-size: 15px; }
+.invite .button:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.invite[data-share="unavailable"] #inviteShareBtn { display: none; }
+.invite[data-share="unavailable"] .invite-actions { grid-template-columns: 1fr; }
+.invite[data-share="available"] #inviteCopyLinkBtn { background: var(--surface-2); color: var(--ink); }
+.invite[data-share="available"] #inviteCopyLinkBtn:hover { background: var(--surface-3); }
+@media (max-width: 600px) {
+    .linkbox .button { display: none; }
+}
+@media (min-width: 601px) {
+    .invite-actions { display: none; }
 }
 @supports (anchor-name: --more) {
     @media (min-width: 601px) {
-        .more { position-anchor: --more; left: anchor(center); }
+        #moreMenu { position-anchor: --more; }
+        #inviteMenu { position-anchor: --invite; }
+        .overlay { left: anchor(center); }
     }
 }
 .av-28 { width: 28px; height: 28px; flex: none; }
@@ -983,7 +1015,13 @@ body {
     box-shadow: var(--shadow-lg);
     animation: toast-in var(--motion-fade) ease;
 }
+.toast.leaving { animation: toast-out var(--motion-fade) ease forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes toast-out { to { opacity: 0; } }
 @media (min-width: 601px) {
     .toasts { bottom: 112px; }
+}
+.stage dialog[open] { anchor-name: --open-menu; }
+@supports (anchor-name: --open-menu) {
+    body:has(.stage dialog[open]) .toasts { position-anchor: --open-menu; bottom: calc(anchor(top) + 8px); }
 }

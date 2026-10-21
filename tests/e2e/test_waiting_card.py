@@ -5,12 +5,20 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
+    CHECK_ICON_PATH,
+    CLIPBOARD_ALLOWED,
     DESKTOP,
     FORM_FACTORS,
-    MEDIA_PERMISSIONS,
     PHONE,
+    READ_CLIPBOARD,
+    REJECT_SHARE_WITH,
+    REMOVE_SHARE,
+    STUB_SHARE,
+    TOASTS,
+    X_ICON_PATH,
     add_init_scripts,
     call_link_of,
+    expect_toast,
     join,
     press_start_call,
     record_page_errors,
@@ -23,30 +31,41 @@ CARD = "#waitingCard"
 COPY_BUTTON = "#waitingCopyBtn"
 SHARE_BUTTON = "#waitingShareBtn"
 LINK_TEXT = "#waitingLink"
-TOASTS = "#toasts"
-TOAST_ICON = f"{TOASTS} svg path"
-CHECK_ICON_PATH = "M5 12.5l4.5 4.5L19 7.5"
-X_ICON_PATH = "M6 6l12 12M18 6L6 18"
-CLIPBOARD_PERMISSIONS = [*MEDIA_PERMISSIONS, "clipboard-read", "clipboard-write"]
-CLIPBOARD_ALLOWED = {"permissions": CLIPBOARD_PERMISSIONS}
-STUB_SHARE = """
-window.sharedArguments = [];
-navigator.share = (argument) => {
-    window.sharedArguments.push(argument);
-    return Promise.resolve();
-};
-"""
-REMOVE_SHARE = "delete Navigator.prototype.share;"
-REJECT_SHARE_WITH = """
-window.shareAttempts = 0;
-navigator.share = () => {
-    window.shareAttempts += 1;
-    return Promise.reject(new DOMException("refused", "%s"));
-};
-"""
 TABS_TO_REACH_COPY_LINK_AT_MOST = 20
 SEED_CLIPBOARD = "(text) => navigator.clipboard.writeText(text)"
-READ_CLIPBOARD = "() => navigator.clipboard.readText()"
+TOAST_MILLISECONDS = 2400
+FADE_GRACE_MILLISECONDS = 300
+REDUCED_MOTION = {"reduced_motion": "reduce"}
+START_TIMING_A_TOAST = """
+() => {
+    window.toastStoodFor = null;
+    let appeared = null;
+    new MutationObserver(() => {
+        const standing = document.querySelector("#toasts .toast") !== null;
+        if (standing && appeared === null) appeared = performance.now();
+        if (!standing && appeared !== null && window.toastStoodFor === null) {
+            window.toastStoodFor = performance.now() - appeared;
+        }
+    }).observe(document.getElementById("toasts"), { childList: true });
+}
+"""
+START_WATCHING_A_TOAST_DIM = """
+() => {
+    window.toastWatch = { wasFullyShown: false, dimmed: false, removed: false };
+    const sample = () => {
+        const toast = document.querySelector("#toasts .toast");
+        if (!toast) {
+            window.toastWatch.removed = true;
+            return;
+        }
+        const opacity = Number(getComputedStyle(toast).opacity);
+        if (opacity === 1) window.toastWatch.wasFullyShown = true;
+        else if (window.toastWatch.wasFullyShown) window.toastWatch.dimmed = true;
+        requestAnimationFrame(sample);
+    };
+    sample();
+}
+"""
 
 
 def open_host(
@@ -70,11 +89,6 @@ def start_as_host(
     host = open_host(open_person, page_errors, form_factor, *init_scripts)
     start_call(host, base_url)
     return host
-
-
-def expect_toast(host: Page, text: str, icon_path: str) -> None:
-    expect(host.locator(TOASTS)).to_have_text(text)
-    expect(host.locator(TOAST_ICON)).to_have_attribute("d", icon_path)
 
 
 def test_alone_the_desktop_host_sees_the_card_with_the_link_and_copy_link_only(
@@ -226,3 +240,43 @@ def test_keyboard_reaches_copy_link_and_enter_copies(
     host.keyboard.press("Enter")
 
     expect_toast(host, "Link copied", CHECK_ICON_PATH)
+
+
+def test_a_toast_fades_out_before_it_is_removed(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
+    host.click(COPY_BUTTON)
+    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+
+    host.evaluate(START_WATCHING_A_TOAST_DIM)
+    host.wait_for_function("window.toastWatch.removed")
+
+    assert host.evaluate("window.toastWatch.dimmed")
+
+
+def test_a_toast_is_gone_within_its_time_under_reduced_motion(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED, **REDUCED_MOTION})
+    host.evaluate(START_TIMING_A_TOAST)
+
+    host.click(COPY_BUTTON)
+
+    host.wait_for_function("window.toastStoodFor !== null")
+    assert host.evaluate("window.toastStoodFor") < TOAST_MILLISECONDS + FADE_GRACE_MILLISECONDS
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_toast_started_just_before_leave_does_not_stand_over_the_end_screen(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    host = start_as_host(open_person, base_url, page_errors, {**form_factor, **CLIPBOARD_ALLOWED})
+    host.click(COPY_BUTTON)
+    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+
+    host.click("#leaveBtn")
+    host.click("#leaveYes")
+
+    expect(host.locator("[data-screen=end]")).to_be_visible()
+    assert host.evaluate("() => document.getElementById('toasts').childElementCount") == 0

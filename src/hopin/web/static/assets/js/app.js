@@ -30,6 +30,7 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome } from "./home.js";
+import { clearToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, showCallAddress, showScreen } from "./router.js";
 
@@ -70,6 +71,7 @@ function tearDownCall() {
     stopLocalMedia();
     disconnect();
     showLocalStream(null);
+    clearToast();
     hideWaitingCard();
     hideLockButton();
     hideParticipantCount();
@@ -109,6 +111,7 @@ function registerSessionHandlers() {
         state.isHost = data.is_host;
         state.isLocked = data.locked;
         state.reconnectAttempt = 0;
+        setCallLink(callUrl(getRoomIdFromUrl()));
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();

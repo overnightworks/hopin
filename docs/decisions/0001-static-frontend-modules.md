@@ -65,7 +65,7 @@ The page is markup, two stylesheets and ES modules, served from
 | `stage.js` | the stage: tiles, the grid by call size, the phone picture-in-picture, local preview |
 | `pip.js` | dragging the phone picture-in-picture and its snap to the nearest corner |
 | `controls.js` | control bar |
-| `invite.js` | the call link: the waiting card, Copy link and Share |
+| `invite.js` | the call link: the waiting card and Invite, with Copy link and Share |
 | `toast.js` | short status messages |
 | `status.js` | call status, lock indicator, participant count |
 | `dialogs.js` | leave dialog |
