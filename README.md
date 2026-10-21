@@ -53,7 +53,9 @@ make install
 make run
 ```
 
-The server starts on `http://localhost:8080`.
+Set the four required settings (see Configuration) before `make run`: the https issuer and public origin, and the paths of the two secret files. Put no secret value in the environment. Without them HopIn refuses to start.
+
+Once they are set, the server starts on `http://localhost:8080`.
 
 - Open `http://localhost:8080/` and press "Start a call"
 - Share the generated link with friends
@@ -66,6 +68,8 @@ docker compose up -d --build
 
 The `hopin` service publishes no host port: it is reached through the edge reverse proxy by its
 `edge.name: hopin` label, and answers on port 8080 inside its network. Its healthcheck calls `/health`.
+
+The container needs the four required settings and the two secret files mounted read-only. `compose.yaml` does not carry them yet (go-live, #25 row 5), so the service refuses to start until it does.
 
 ### Sharing Over the Internet
 
@@ -112,8 +116,15 @@ All settings can be overridden via environment variables:
 | `HOPIN_PORT` | `8080` | Server port |
 | `HOPIN_STUN_SERVER` | `stun:stun.cloudflare.com:3478` | STUN server for NAT traversal, served to the browser at `/api/ice-servers` |
 | `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call, from `2` to `6` |
+| `HOPIN_OIDC_ISSUER` | required | The Keycloak realm URL, https, without a trailing slash |
+| `HOPIN_OIDC_CLIENT_ID` | `hopin` | The Keycloak client HopIn signs in as |
+| `HOPIN_OIDC_CLIENT_SECRET_FILE` | required | Absolute path of the file holding that client's secret |
+| `HOPIN_PUBLIC_ORIGIN` | required | HopIn's own https origin, without a path or trailing slash |
+| `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 
-Example:
+HopIn refuses to start without the four required settings, or when a secret file cannot be read, and says which setting is at fault, never what a file holds.
+
+Example, with the four required settings already set as above:
 
 ```bash
 HOPIN_PORT=3000 HOPIN_MAX_PARTICIPANTS_PER_ROOM=4 make run

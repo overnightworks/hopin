@@ -4,47 +4,55 @@ import pytest
 import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from webauth.config import WebAuthConfig, installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.config.settings import ServerSettings
+from hopin.auth.sign_in import SignInConfigurationError
 
 
 class TestCreateApp:
-    def test_returns_fastapi_application(self):
-        app = create_app()
+    def test_returns_fastapi_application(self, sign_in_settings):
+        app = create_app(sign_in_settings().settings)
         assert isinstance(app, FastAPI)
 
-    def test_uses_provided_settings(self):
-        settings = ServerSettings(port=9999)
-        app = create_app(settings)
+    def test_uses_provided_settings(self, sign_in_settings):
+        app = create_app(sign_in_settings(port=9999).settings)
         assert app.state.settings.port == 9999
 
-    def test_uses_default_settings_when_none(self):
-        app = create_app()
-        assert app.state.settings.port == 8080
+    def test_installs_the_web_auth_config_built_from_its_settings(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        config = installed_web_auth_config(create_app(sign_in.settings))
+        assert isinstance(config, WebAuthConfig)
+        assert config.session_secret.get_secret_value() == sign_in.session_secret
 
-    def test_registers_routes(self):
-        response = TestClient(create_app()).get("/health")
+    def test_does_not_start_without_its_sign_in_files(self, sign_in_settings):
+        settings = sign_in_settings().settings
+        settings.session_secret_file.unlink()
+        with pytest.raises(SignInConfigurationError, match="session_secret_file"):
+            create_app(settings)
+
+    def test_registers_routes(self, sign_in_settings):
+        response = TestClient(create_app(sign_in_settings().settings)).get("/health")
         assert response.status_code == 200
 
-    def test_serves_the_configured_stun_server_as_ice_servers(self):
-        settings = ServerSettings(stun_server="stun:stun.example.test:3478")
+    def test_serves_the_configured_stun_server_as_ice_servers(self, sign_in_settings):
+        settings = sign_in_settings(stun_server="stun:stun.example.test:3478").settings
         response = TestClient(create_app(settings)).get("/api/ice-servers")
         assert response.json() == {"iceServers": [{"urls": ["stun:stun.example.test:3478"]}]}
 
     @pytest.mark.parametrize("path", ["/", "/static/css/ui-console.css", "/static/css/hopin.css", "/static/js/app.js"])
-    def test_serves_the_page_and_its_assets(self, path):
-        assert TestClient(create_app()).get(path).status_code == 200
+    def test_serves_the_page_and_its_assets(self, sign_in_settings, path):
+        assert TestClient(create_app(sign_in_settings().settings)).get(path).status_code == 200
 
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
-    def test_generated_documentation_is_not_served(self, path):
-        response = TestClient(create_app()).get(path)
+    def test_generated_documentation_is_not_served(self, sign_in_settings, path):
+        response = TestClient(create_app(sign_in_settings().settings)).get(path)
         assert response.status_code == 404
 
 
 class TestLoggedExceptions:
-    def test_rendered_traceback_leaves_out_the_values_of_local_variables(self, capsys):
-        create_app()
+    def test_rendered_traceback_leaves_out_the_values_of_local_variables(self, sign_in_settings, capsys):
+        create_app(sign_in_settings().settings)
         sentinel = secrets.token_urlsafe(16)
 
         def fail_holding_the_sentinel():

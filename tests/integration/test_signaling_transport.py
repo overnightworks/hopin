@@ -11,7 +11,6 @@ import websockets
 
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
-from hopin.config.settings import ServerSettings
 from hopin.signaling.replay import SEQUENCE_KEY
 
 LOCALHOST = "127.0.0.1"
@@ -52,13 +51,13 @@ async def _say(socket: websockets.ClientConnection, frame: dict[str, object]) ->
 
 
 @pytest_asyncio.fixture
-async def call() -> AsyncIterator[Call]:
+async def call(sign_in_settings) -> AsyncIterator[Call]:
     listening = socket.socket()
     listening.bind((LOCALHOST, 0))
     listening.listen()
     port = listening.getsockname()[1]
     config = uvicorn.Config(
-        create_app(ServerSettings()),
+        create_app(sign_in_settings().settings),
         ws=UVICORN_WEBSOCKET_IMPLEMENTATION,
         log_level="warning",
     )

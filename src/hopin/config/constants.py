@@ -11,6 +11,14 @@ CALL_PATH = "/c"
 HEALTH_PATH = "/health"
 STATIC_PATH = "/static"
 ICE_SERVERS_PATH = "/api/ice-servers"
+AUTH_CALLBACK_PATH = "/auth/callback"
+LOGIN_PATH = "/login"
+LOGOUT_PATH = "/logout"
+
+OIDC_CLIENT_ID = "hopin"
+OIDC_SCOPES = ("openid", "profile", "groups")
+OIDC_LEEWAY_SECONDS = 30
+SESSION_LIFETIME_SECONDS = 12 * 60 * 60
 
 STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
 
