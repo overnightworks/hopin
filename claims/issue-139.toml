@@ -3,6 +3,6 @@ agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
 role = "builder"
 base = "74100bf06eadbdebd35a3a0cefaf58daaea1cb62"
 branch = "claude/issue-139-e2e-seeded-sign-in"
-scope = [".github/workflows/ci.yml", "src/hopin/app.py", "src/hopin/auth/stores.py", "src/hopin/main.py", "tests/e2e/conftest.py", "tests/e2e/test_sign_in.py", "tests/signed_in.py", "tests/unit/test_auth_stores.py"]
+scope = [".github/workflows/ci.yml", "src/hopin/app.py", "src/hopin/auth/stores.py", "src/hopin/main.py", "tests/e2e/conftest.py", "tests/e2e/test_sign_in.py", "tests/signed_in.py", "tests/unit/test_app.py", "tests/unit/test_auth_stores.py"]
 opened_commit = "f11e68d922195df44e425aac68a1fcb5256eb77a"
 whole_reason = "The in-process server, main's one options owner, create_app's stores seam and the seeded cookies are one harness: without any one of them no e2e person is signed in."
