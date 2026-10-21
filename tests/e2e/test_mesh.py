@@ -571,7 +571,7 @@ def _wait_for_more_video_bytes_than(person: Page, baseline: int, deadline_second
         person,
         lambda: _inbound_video_bytes(person) > baseline,
         deadline_seconds,
-        f"no new video bytes arrived within {deadline_seconds}s",
+        "no new video bytes arrived",
     )
     return _inbound_video_bytes(person)
 

@@ -122,7 +122,7 @@ async ([kind, field]) => {
     }));
 }
 """
-INBOUND_POLL_INTERVAL_MILLISECONDS = 50
+POLL_INTERVAL_MILLISECONDS = 50
 TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
 (selector) => {
     const video = document.querySelector(selector);
@@ -530,17 +530,20 @@ def poll_until[Measured](
     measure: Callable[[], Measured],
     reached: Callable[[Measured], bool],
     failure: str,
-    deadline_seconds: float = MEDIA_FLOWING_TIMEOUT_MILLISECONDS / 1000,
+    deadline_seconds: float | None = None,
 ) -> Measured:
     # A Python deadline loop: wait_for_function takes the Promise of an async predicate as truthy,
     # and each round trip to the page keeps the mesh relay pumping.
+    if deadline_seconds is None:
+        deadline_seconds = MEDIA_FLOWING_TIMEOUT_MILLISECONDS / 1000
     deadline = time.monotonic() + deadline_seconds
     while True:
         measured = measure()
         if reached(measured):
             return measured
-        assert time.monotonic() < deadline, f"{failure} within {deadline_seconds} s; last measured {measured}"
-        person.wait_for_timeout(INBOUND_POLL_INTERVAL_MILLISECONDS)
+        last_measured = "" if isinstance(measured, bool) else f"; last measured {measured}"
+        assert time.monotonic() < deadline, f"{failure} within {deadline_seconds} s{last_measured}"
+        person.wait_for_timeout(POLL_INTERVAL_MILLISECONDS)
 
 
 def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
