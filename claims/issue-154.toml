@@ -1,8 +1,0 @@
-claim_id = "2fe12f30a6194a8e9d407bdd607f9648"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "94ee4657e27364470451c7db56460692c885089f"
-branch = "claude/issue-154-logout-loop"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "src/hopin/web/static/login.html", "src/hopin/web/static/no-access.html", "tests/e2e/test_sign_in_pages.py", "tests/unit/test_gate.py", "tests/unit/test_sign_in_routes.py", "tests/unit/test_web.py"]
-opened_commit = "3628334dbee21c7350d492e4da4c86d5dee0b356"
-whole_reason = "No access's one way out is the logout, the logout needs the CSRF origin check and the issuer in form-action in the one install call, and it lands on Signed out, so the two pages, the routes, the install arguments and the public paths land together."
