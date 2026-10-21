@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -63,7 +64,10 @@ class _ExpiredSessionSweep:
         return self._scheduler.call_later(SESSION_SWEEP_SECONDS, self._sweep)
 
     async def _sweep(self) -> None:
-        removed = self._sessions.delete_expired(datetime.fromtimestamp(int(self._wall_clock()), UTC))
+        # The scan holds the store's lock, so it runs off the event loop.
+        removed = await asyncio.to_thread(
+            self._sessions.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)
+        )
         if removed:
             logger.info("expired_sessions_swept", removed=removed)
         self._timer = self._schedule()
