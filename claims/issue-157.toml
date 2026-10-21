@@ -1,8 +1,0 @@
-claim_id = "216b89f6acc4425d855527f51ace97a6"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "f2107be4b5fe0ab6da8677f5b1a78bab8e8febea"
-branch = "claude/issue-157-account-menu"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/app.py", "src/hopin/auth/account.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/js/account.js", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/controls.js", "src/hopin/web/static/assets/js/home.js", "src/hopin/web/static/assets/js/menus.js", "src/hopin/web/static/assets/js/router.js", "src/hopin/web/static/index.html", "tests/e2e/test_account_menu.py", "tests/e2e/test_end.py", "tests/e2e/test_shell.py", "tests/unit/test_web.py"]
-opened_commit = "61a5e2e1bbb8133ee5933ef457f1f578e57a2e61"
-whole_reason = "The avatar, its menu, the one reader of the account name and the menu owner lifted from controls.js are one behaviour across markup, stylesheet, modules and wiring, and the lift has no reason without this second caller; #53's and #153's carried lines are about ten lines that would otherwise pay their own lane."
