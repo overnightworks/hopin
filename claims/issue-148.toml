@@ -1,8 +1,0 @@
-claim_id = "a07b568ea2b34bc6955de55a1ffe4719"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "0bef17c1842da0ce9db6c8d6328d3da8abb0b6da"
-branch = "claude/issue-148-login-failed-card"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "docs/mockups/README.md", "docs/mockups/hopin-call.html", "src/hopin/auth/sign_in.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/css/ui-console.css", "src/hopin/web/static/login-failed.html", "tests/e2e/test_sign_in_pages.py", "tests/unit/test_sign_in_routes.py", "tests/unit/test_web.py"]
-opened_commit = "355bae392ec1ba4031e480a3e66c3384c0b46444"
-whole_reason = "Login failed is ui-console v0.3.1's card, so the vendored release, the page, the callback's answer, the guard test and the picture's re-transcription from the same release land together; the docs name that release."
