@@ -56,14 +56,16 @@ pytestmark = pytest.mark.e2e
 def test_stop_sharing_restores_the_camera_as_the_person_left_it(
     open_person: Callable[..., Page],
     base_url: str,
+    page_errors: list[str],
     camera_turned_off: bool,
     pressed: str,
     tracks_after_the_stop: tuple[list[str], list[str | None]],
 ) -> None:
-    host = open_person(**DESKTOP)
+    host = record_page_errors(open_person(**DESKTOP), page_errors)
     add_init_scripts(host, [RECORD_PEER_CONNECTIONS, RECORD_MEDIA_TRACKS])
-    join(open_person, start_call(host, base_url))
+    watcher = join(open_person, start_call(host, base_url), DESKTOP, (RECORD_PEER_CONNECTIONS,), page_errors)
     wait_for_peer_count(host, 1)
+    wait_for_the_picture(watcher)
     if camera_turned_off:
         host.click("#videoBtn")
 
@@ -73,6 +75,9 @@ def test_stop_sharing_restores_the_camera_as_the_person_left_it(
     wait_for_video_tracks(host, *tracks_after_the_stop)
     if camera_turned_off:
         wait_for_the_light_to_go_out(host)
+        expect(watcher.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(1)
+    else:
+        wait_for_the_picture(watcher)
 
 
 CAMERA_OFF_AT_JOIN = (
@@ -80,7 +85,6 @@ CAMERA_OFF_AT_JOIN = (
     RECORD_MEDIA_TRACKS,
     RECORD_PEER_CONNECTIONS,
     COUNT_OFFERS,
-    SHARE_THE_SCREEN_FROM_A_CANVAS,
 )
 STREAM_IDS_ON_THE_WIRE = r"""
 () => {

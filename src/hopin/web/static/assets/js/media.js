@@ -26,7 +26,7 @@ export class CameraError extends Error {
 // A camera request also stops when a newer press, a share or the end of the call
 // overtook it (isCurrent).
 async function acquireStream(session, request, adopt, isCurrent = () => true) {
-    if (session !== mediaSession || !isCurrent()) return;
+    if (session !== mediaSession) return;
     const stream = await request();
     if (session !== mediaSession || !isCurrent()) {
         stopTracks(stream);
