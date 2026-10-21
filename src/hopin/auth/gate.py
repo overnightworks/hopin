@@ -8,7 +8,7 @@ from webauth.policies import PathRules, PublicRule
 from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
-    BACKCHANNEL_LOGOUT_PATH,
+    BACKCHANNEL_LOGOUT_PATH_RULES,
     HEALTH_PATH,
     LOGIN_PATH,
     LOGOUT_PATH,
@@ -42,6 +42,6 @@ def session_gate(sessions: SessionRecordStore) -> SessionGate:
         login_redirect=LOGIN_REDIRECT,
         public=(
             PublicRule(PathRules(exact=PUBLIC_PATHS)),
-            PublicRule(PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PATH})), methods=frozenset({"POST"})),
+            PublicRule(BACKCHANNEL_LOGOUT_PATH_RULES, methods=frozenset({"POST"})),
         ),
     )

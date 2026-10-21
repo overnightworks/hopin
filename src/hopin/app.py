@@ -10,7 +10,6 @@ from webauth.policies import (
     CacheControlRule,
     CspDirective,
     CsrfPolicy,
-    PathRules,
     SecurityHeadersPolicy,
     default_content_security_policy,
 )
@@ -27,7 +26,7 @@ from hopin.auth.sign_in import (
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     BACKCHANNEL_LOGOUT_BODY_MAX_BYTES,
-    BACKCHANNEL_LOGOUT_PATH,
+    BACKCHANNEL_LOGOUT_PATH_RULES,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
     PERMISSIONS_POLICY,
 )
@@ -82,7 +81,6 @@ def create_app(
             audit=sign_in_stores.audit,
         )
     )
-    backchannel_logout_path = PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PATH}))
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
@@ -90,12 +88,12 @@ def create_app(
                 added_sources={CspDirective.FORM_ACTION: [end_session_origin(sign_in_configs.oidc_client)]}
             ),
             permissions_policy=PERMISSIONS_POLICY,
-            cache_control_rules=(CacheControlRule(paths=backchannel_logout_path, value="no-store"),),
+            cache_control_rules=(CacheControlRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, value="no-store"),),
         ),
-        csrf_origin=CsrfPolicy(exempt=backchannel_logout_path),
+        csrf_origin=CsrfPolicy(exempt=BACKCHANNEL_LOGOUT_PATH_RULES),
         body_size=BodySizePolicy(
             default_max_bytes=DEFAULT_REQUEST_BODY_MAX_BYTES,
-            rules=(BodySizeRule(paths=backchannel_logout_path, max_bytes=BACKCHANNEL_LOGOUT_BODY_MAX_BYTES),),
+            rules=(BodySizeRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, max_bytes=BACKCHANNEL_LOGOUT_BODY_MAX_BYTES),),
         ),
         session_gate=session_gate(sign_in_stores.sessions),
     )

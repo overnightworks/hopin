@@ -1,3 +1,4 @@
+import json
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
@@ -5,12 +6,14 @@ from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
+import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
 from webauth.middleware import install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
 from webauth.policies import CspDirective, SecurityHeadersPolicy, default_content_security_policy
+from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
@@ -20,9 +23,7 @@ from hopin.config.constants import (
     ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
-    BACKCHANNEL_LOGOUT_BODY_MAX_BYTES,
     BACKCHANNEL_LOGOUT_PATH,
-    DEFAULT_REQUEST_BODY_MAX_BYTES,
     HEALTH_PATH,
     ICE_SERVERS_PATH,
     LOGIN_PATH,
@@ -286,11 +287,19 @@ class TestLogout:
 class TestBackchannelLogout:
     def test_the_issuer_as_it_posts_ends_the_sessions_without_origin_cookie_or_fetch_metadata(self, application):
         member = application.seed()
+        other_device = seed_member(application.stores, application.config, account=member.account)
+        other_member = application.seed()
 
-        response = application.post_logout_token(member.account.id, host="hopin:8080")
+        with structlog.testing.capture_logs() as logs:
+            response = application.post_logout_token(member.account.id, host="hopin:8080")
 
         assert response.status_code == 200
         assert application.stores.sessions.load(member.session.id) is None
+        assert application.stores.sessions.load(other_device.session.id) is None
+        assert application.stores.sessions.load(other_member.session.id) is not None
+        ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
+        assert [log["subject_id"] for log in ended] == [member.account.id]
+        assert member.account.username not in json.dumps(logs)
 
     @pytest.mark.parametrize(
         "path", [f"{BACKCHANNEL_LOGOUT_PATH}/", f"{BACKCHANNEL_LOGOUT_PATH}x", BACKCHANNEL_LOGOUT_PATH.upper()]
@@ -315,21 +324,28 @@ class TestBackchannelLogout:
     def test_a_get_is_gated_and_never_reaches_the_route(self, application, headers, status):
         response = application.get(BACKCHANNEL_LOGOUT_PATH, **headers)
         assert response.status_code == status
-        assert response.headers.get("location", AUTH_START_PATH).startswith(AUTH_START_PATH)
+        if status == 401:
+            assert "location" not in response.headers
+        else:
+            assert response.headers["location"].startswith(AUTH_START_PATH)
 
-    def test_a_form_up_to_32_kib_is_accepted_and_one_over_is_refused(self, application):
-        padded = b"logout_token=" + b"a" * (BACKCHANNEL_LOGOUT_BODY_MAX_BYTES - len(b"logout_token="))
+    def test_a_form_of_32_kib_is_accepted_and_one_byte_over_is_refused(self, application):
+        padded = b"logout_token=" + b"a" * (32 * 1024 - len(b"logout_token="))
         accepted = application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=padded, **FORM_POST)
         refused = application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=padded + b"a", **FORM_POST)
         assert accepted.status_code == 400
         assert refused.status_code == 413
 
+    def test_a_form_of_33_kib_to_the_path_is_refused(self, application):
+        body = b"logout_token=" + b"a" * (33 * 1024)
+        assert application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=body, **FORM_POST).status_code == 413
+
     def test_every_other_path_takes_only_4_kib(self, application):
-        over = b"a" * (DEFAULT_REQUEST_BODY_MAX_BYTES + 1)
+        over = b"a" * (5 * 1024)
         assert application.request("POST", LOGOUT_PATH, body=over, **SAME_ORIGIN_FORM_POST).status_code == 413
 
     def test_every_answer_of_the_path_is_not_cached(self, application):
-        oversized = b"a" * (BACKCHANNEL_LOGOUT_BODY_MAX_BYTES + 1)
+        oversized = b"a" * (33 * 1024)
         answers = {
             200: application.post_logout_token("nobody"),
             400: application.request("POST", BACKCHANNEL_LOGOUT_PATH, **FORM_POST),

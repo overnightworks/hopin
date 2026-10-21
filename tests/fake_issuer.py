@@ -29,7 +29,9 @@ TOKEN_LIFETIME_SECONDS = 300
 RSA_KEY_BITS = 2048
 AUTHORIZATION_CODE_BYTES = 16
 REFRESH_TOKEN_BYTES = 32
-BACKCHANNEL_LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"  # NOSONAR(S5332)
+BACKCHANNEL_LOGOUT_EVENT = (
+    "http://schemas.openid.net/event/backchannel-logout"  # NOSONAR(S5332) fixed OpenID event name, never fetched
+)
 
 
 @dataclass(frozen=True)

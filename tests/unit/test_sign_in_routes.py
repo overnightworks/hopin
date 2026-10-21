@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.ports import AccountEventKind
 
 from hopin.auth.sign_in import LOGIN_FAILED_PAGE, IssuerTransports, build_sign_in_configs, create_sign_in_router
 from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
@@ -85,9 +86,8 @@ class SignInHarness:
     def post_logout_token(self, token: str, *, content_type: str = "application/x-www-form-urlencoded") -> Response:
         """What the issuer's back-channel logout sends: a form post with no cookie."""
         fields = {"logout_token": token}
-        body = json.dumps(fields) if content_type == "application/json" else urlencode(fields)
         return self.browser(raise_server_exceptions=False).post(
-            BACKCHANNEL_LOGOUT_PATH, content=body, headers={"content-type": content_type}
+            BACKCHANNEL_LOGOUT_PATH, content=urlencode(fields), headers={"content-type": content_type}
         )
 
     def who(self, browser: TestClient) -> dict[str, object]:
@@ -317,7 +317,7 @@ class TestLogout:
 
 class FailingAuditSink(LoggingAuditSink):
     def account_event(self, event) -> None:
-        if event.kind.value == "backchannel_logout":
+        if event.kind is AccountEventKind.BACKCHANNEL_LOGOUT:
             raise RuntimeError("the audit sink of a test is down")
         super().account_event(event)
 
@@ -341,7 +341,7 @@ class TestBackchannelLogout:
         assert response.status_code == 200
         assert [harness.sessions.load(session_id) for session_id in anna] == [None, None]
         assert harness.sessions.load(other) is not None
-        ended = [log for log in logs if log.get("kind") == "backchannel_logout"]
+        ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
         assert [log["subject_id"] for log in ended] == ["anna"]
         assert USERNAME not in json.dumps(logs)
 
