@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![CI](https://github.com/overnightworks/hopin/actions/workflows/ci.yml/badge.svg)](https://github.com/overnightworks/hopin/actions/workflows/ci.yml)
 
-Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. No accounts, no installs, no third-party services.
+Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. No accounts, no installs, and no third-party services except STUN through a configurable server (Cloudflare by default).
 
 ## How It Works
 
@@ -99,7 +99,7 @@ HopIn gives the host (the account that started the call) one way to control acce
 
 ### Room Locking
 
-The host locks with the lock button in the call's control bar. When locked:
+The host locks with the "Lock call" switch in the call's More menu. When locked:
 - No new participants can join (the join link is refused as locked)
 - Existing participants stay connected
 - The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
