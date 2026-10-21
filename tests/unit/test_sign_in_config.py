@@ -2,7 +2,9 @@ import secrets
 import traceback
 
 import pytest
+from webauth.config import installed_web_auth_config
 
+from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError, build_sign_in_configs
 
 SECRET_FILE_SETTINGS = ["oidc_client_secret_file", "session_secret_file"]
@@ -63,6 +65,30 @@ class TestSecretFiles:
         assert configs.oidc_client.client_secret.get_secret_value() == sign_in.client_secret
         assert configs.web_auth.session_secret.get_secret_value() == sign_in.session_secret
 
+    @pytest.mark.parametrize("ending", ["\rinside\n", " \n", "\n\n", " ", "\r\n"])
+    def test_a_secret_file_keeps_everything_but_its_final_newline(self, sign_in_settings, ending):
+        settings = sign_in_settings().settings
+        content = secrets.token_urlsafe(36) + ending
+        settings.oidc_client_secret_file.write_bytes(content.encode())
+        settings.session_secret_file.write_bytes(content.encode())
+
+        configs = build_sign_in_configs(settings)
+
+        expected = content.removesuffix("\n")
+        assert configs.oidc_client.client_secret.get_secret_value() == expected
+        assert configs.web_auth.session_secret.get_secret_value() == expected
+
+    def test_no_representation_shows_a_secret_or_a_secret_file_path(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        representations = repr(sign_in) + repr(sign_in.settings)
+        for hidden in (
+            sign_in.client_secret,
+            sign_in.session_secret,
+            str(sign_in.settings.oidc_client_secret_file),
+            str(sign_in.settings.session_secret_file),
+        ):
+            assert hidden not in representations
+
 
 class TestRefusedUrls:
     @pytest.mark.parametrize(
@@ -100,15 +126,14 @@ class TestBuiltConfigs:
         assert client.end_session_endpoint == f"{issuer}/protocol/openid-connect/logout"
 
     def test_a_session_lasts_twelve_hours_in_a_secure_lax_cookie(self, sign_in_settings):
-        web_auth = build_sign_in_configs(sign_in_settings().settings).web_auth
+        web_auth = installed_web_auth_config(create_app(sign_in_settings().settings))
         assert web_auth.session_lifetime.idle_seconds == SESSION_LENGTH_SECONDS
         assert web_auth.session_lifetime.absolute_max_age_seconds == SESSION_LENGTH_SECONDS
         assert web_auth.cookie_samesite == "lax"
         assert web_auth.cookie_secure is True
 
     def test_only_the_public_origins_host_is_admitted(self, sign_in_settings):
-        web_auth = build_sign_in_configs(
-            sign_in_settings(public_origin="https://hopin.test.invalid:8443").settings
-        ).web_auth
+        settings = sign_in_settings(public_origin="https://HopIn.Test.invalid:8443").settings
+        web_auth = installed_web_auth_config(create_app(settings))
         assert web_auth.allowed_hosts_exact == frozenset({"hopin.test.invalid:8443"})
         assert web_auth.allowed_hosts_patterns == ()

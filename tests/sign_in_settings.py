@@ -1,5 +1,5 @@
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from hopin.config.settings import ServerSettings
@@ -12,10 +12,10 @@ CLIENT_SECRET_BYTES = 24
 
 @dataclass(frozen=True)
 class SignInSettings:
-    environment: dict[str, str]
+    environment: dict[str, str] = field(repr=False)
     settings: ServerSettings
-    client_secret: str
-    session_secret: str
+    client_secret: str = field(repr=False)
+    session_secret: str = field(repr=False)
 
 
 def build_sign_in_settings(directory: Path, **overrides: str | int | Path | None) -> SignInSettings:

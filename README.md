@@ -53,7 +53,9 @@ make install
 make run
 ```
 
-The server starts on `http://localhost:8080`.
+Set the four required settings (see Configuration) before `make run`: the https issuer and public origin, and the paths of the two secret files. Put no secret value in the environment and no `~/.secrets` path in a command line you share. Without them HopIn refuses to start.
+
+Once they are set, the server starts on `http://localhost:8080`.
 
 - Open `http://localhost:8080/` and press "Start a call"
 - Share the generated link with friends
@@ -66,6 +68,8 @@ docker compose up -d --build
 
 The `hopin` service publishes no host port: it is reached through the edge reverse proxy by its
 `edge.name: hopin` label, and answers on port 8080 inside its network. Its healthcheck calls `/health`.
+
+The container needs the four required settings and the two secret files mounted read-only. `compose.yaml` does not carry them yet (go-live, #25 row 5), so the service refuses to start until it does.
 
 ### Sharing Over the Internet
 
@@ -120,7 +124,7 @@ All settings can be overridden via environment variables:
 
 HopIn refuses to start without the four required settings, or when a secret file cannot be read, and says which setting is at fault, never what a file holds.
 
-Example:
+Example, with the four required settings already set as above:
 
 ```bash
 HOPIN_PORT=3000 HOPIN_MAX_PARTICIPANTS_PER_ROOM=4 make run

@@ -89,6 +89,9 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
+[tool.pydantic-mypy]
+init_typed = true
+
 # --- Pytest ---
 
 [tool.pytest.ini_options]

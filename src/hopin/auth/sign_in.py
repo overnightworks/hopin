@@ -47,7 +47,7 @@ def build_sign_in_configs(settings: ServerSettings) -> SignInConfigs:
 
 def _read_secret_file(path: Path, setting: str) -> SecretStr:
     try:
-        content = path.read_text(encoding="utf-8").removesuffix("\n")
+        content = path.read_bytes().decode("utf-8").removesuffix("\n")
     except (OSError, UnicodeDecodeError):
         raise SignInConfigurationError(f"{setting} names a file that cannot be read") from None
     if not content:
@@ -78,7 +78,7 @@ def _build_web_auth(settings: ServerSettings, session_secret: SecretStr) -> WebA
         session_secret=session_secret,
         trusted_proxies=TrustedProxies(),
         rate_limits=SingleProcessRateLimitBackend(),
-        allowed_hosts_exact=frozenset({urlsplit(settings.public_origin).netloc}),
+        allowed_hosts_exact=frozenset({urlsplit(settings.public_origin).netloc.lower()}),
         allowed_hosts_patterns=(),
         session_lifetime=SessionLifetime(
             idle_seconds=SESSION_LIFETIME_SECONDS, absolute_max_age_seconds=SESSION_LIFETIME_SECONDS
