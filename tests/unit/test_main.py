@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION
+from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.main import main
 
 
@@ -22,3 +22,11 @@ class TestMain:
             monkeypatch.setenv(name, value)
         main()
         assert mock_run.call_args[1]["ws"] == UVICORN_WEBSOCKET_IMPLEMENTATION
+
+    @patch("hopin.main.uvicorn.run")
+    def test_writes_no_access_line_and_logs_only_warnings(self, mock_run, sign_in_settings, monkeypatch):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        main()
+        assert mock_run.call_args[1]["access_log"] is False
+        assert mock_run.call_args[1]["log_level"] == UVICORN_LOG_LEVEL
