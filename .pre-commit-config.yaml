@@ -6,21 +6,14 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
-    hooks:
-      - id: mypy
-        language_version: python3.14
-        additional_dependencies:
-          - pydantic>=2.10
-          - pydantic-settings>=2.7
-          - fastapi>=0.123.7
-          - uvicorn
-          - structlog>=24.4
-        args: [--strict]
-
   - repo: local
     hooks:
+      - id: mypy
+        name: mypy --strict
+        entry: uv run mypy src scripts
+        language: system
+        pass_filenames: false
+        types: [python]
       - id: pytest
         name: pytest
         entry: uv run pytest -m "not integration and not e2e" --no-header -q
