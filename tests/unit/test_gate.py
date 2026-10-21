@@ -172,7 +172,10 @@ class TestSecurityHeaders:
         ("method", "path", "signed_in", "headers", "status"),
         [
             ("GET", "/", False, BROWSER_ACCEPT, 302),
+            ("GET", "/c/abc?x=1", False, BROWSER_ACCEPT, 302),
             ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
+            ("GET", "/static/js/app.js", False, FETCH_ACCEPT, 401),
+            ("GET", "/", False, FETCH_ACCEPT, 401),
             ("GET", HEALTH_PATH, False, {}, 200),
             ("HEAD", HEALTH_PATH, False, {}, 200),
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
