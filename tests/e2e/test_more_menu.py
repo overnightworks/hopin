@@ -7,11 +7,14 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.conftest import (
+    BOX_OF_SETTLED,
+    CHECK_ICON_PATH,
     DESKTOP,
     FORM_FACTORS,
     ICE_SERVERS_URL_PATTERN,
     LEGAL_LINKS,
     PHONE,
+    TOAST_AND_MENU_BOXES,
     expect_both_legal_links,
     join,
     open_call,
@@ -28,20 +31,11 @@ MORE_MENU = "#moreMenu"
 MORE_BUTTON = "#moreBtn"
 LOCK_SWITCH = "#lockBtn"
 ACTIVE = re.compile(r"\bactive\b")
-CHECK_ICON_PATH = "M5 12.5l4.5 4.5L19 7.5"
 SHEET_MARGIN_PIXELS = 8
 POPOVER_WIDTH_PIXELS = 280
 POPOVER_BOTTOM_GAP_PIXELS = 88
 CENTRE_TOLERANCE_PIXELS = 2
 VIDEO_TAP_HEIGHT_PIXELS = 200
-BOX_OF_SETTLED = """
-async (selector) => {
-    const element = document.querySelector(selector);
-    await Promise.all(element.getAnimations().map((animation) => animation.finished));
-    const { left, top, right, bottom, width } = element.getBoundingClientRect();
-    return { left, top, right, bottom, width };
-}
-"""
 VISIBLE_MENU_ENTRIES = """
 () => {
     const entryName = (element) => {
@@ -54,24 +48,13 @@ VISIBLE_MENU_ENTRIES = """
         .map(entryName);
 }
 """
-TOAST_IS_ON_TOP_OF_THE_MENU = """
-() => {
-    const toasts = document.getElementById("toasts");
-    const pointerEvents = toasts.style.pointerEvents;
-    toasts.style.pointerEvents = "auto";
-    const toast = toasts.querySelector(".toast").getBoundingClientRect();
-    const topmost = document.elementFromPoint(toast.left + toast.width / 2, toast.top + toast.height / 2);
-    toasts.style.pointerEvents = pointerEvents;
-    return Boolean(topmost.closest("#toasts"));
-}
-"""
 COLOUR_OF = "(selector) => getComputedStyle(document.querySelector(selector)).color"
 THE_TAG_AT_THE_TOP = "#stage .ctop .left #lockIndicator"
 
 
 def expect_more_closed(person: Page) -> None:
     expect(person.locator(MORE_MENU)).to_be_hidden()
-    expect(person.locator("#moreScrim")).to_be_hidden()
+    expect(person.locator("#overlayScrim")).to_be_hidden()
     expect(person.locator(MORE_BUTTON)).to_have_attribute("aria-expanded", "false")
     expect(person.locator(MORE_BUTTON)).not_to_have_class(ACTIVE)
 
@@ -98,7 +81,7 @@ def test_host_opens_more_as_a_sheet_on_a_phone_and_a_popover_on_a_desktop(
 
     stage = host.evaluate(BOX_OF_SETTLED, "#stage")
     menu = host.evaluate(BOX_OF_SETTLED, MORE_MENU)
-    scrim = host.evaluate(BOX_OF_SETTLED, "#moreScrim")
+    scrim = host.evaluate(BOX_OF_SETTLED, "#overlayScrim")
     assert scrim == stage
     if form_factor == PHONE:
         assert menu["left"] == stage["left"] + SHEET_MARGIN_PIXELS
@@ -162,7 +145,9 @@ def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_ta
     expect(host.locator(MORE_MENU)).to_be_visible()
     expect(host.locator("#toasts")).to_have_text("Call locked")
     expect(host.locator("#toasts svg path")).to_have_attribute("d", CHECK_ICON_PATH)
-    assert host.evaluate(TOAST_IS_ON_TOP_OF_THE_MENU)
+    boxes = host.evaluate(TOAST_AND_MENU_BOXES, MORE_MENU)
+    assert boxes["toast"]["top"] >= 0
+    assert boxes["toast"]["bottom"] <= boxes["menu"]["top"]
     expect(guest.locator("#toasts")).to_be_empty()
     for person in (host, guest):
         tag = person.locator(THE_TAG_AT_THE_TOP)

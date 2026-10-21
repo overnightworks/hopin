@@ -7,7 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 from hopin.app import create_app
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
-    SUPERSEDED_CLOSE_CODE,
+    SEAT_CLOSED_BY_SERVER_CODE,
     ErrorReason,
     RoomClosedReason,
     SignalType,
@@ -469,4 +469,4 @@ class TestResume:
         assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
         with pytest.raises(WebSocketDisconnect) as superseded:
             guest_ws.receive_json()
-        assert superseded.value.code == SUPERSEDED_CLOSE_CODE
+        assert superseded.value.code == SEAT_CLOSED_BY_SERVER_CODE

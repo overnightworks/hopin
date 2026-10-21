@@ -190,7 +190,7 @@ src/hopin/
 │               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
 │               ├── pip.js        # Dragging the phone picture-in-picture
 │               ├── controls.js   # Control bar
-│               ├── invite.js     # The call link: waiting card, Copy link, Share
+│               ├── invite.js     # The call link: waiting card and Invite, Copy link, Share
 │               ├── toast.js      # Short status messages
 │               ├── status.js     # Call status, lock, participant count
 │               └── dialogs.js    # Leave dialog

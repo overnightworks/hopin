@@ -14,5 +14,13 @@ export function showToast(text, kind) {
     toast.querySelector("span").textContent = text;
     layer.replaceChildren(toast);
     clearTimeout(leavingTimer);
-    leavingTimer = setTimeout(() => toast.remove(), TOAST_MS);
+    leavingTimer = setTimeout(() => {
+        toast.classList.add("leaving");
+        void Promise.allSettled(toast.getAnimations().map((animation) => animation.finished)).then(() => toast.remove());
+    }, TOAST_MS);
+}
+
+export function clearToast() {
+    clearTimeout(leavingTimer);
+    layer.replaceChildren();
 }
