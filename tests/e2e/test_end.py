@@ -39,6 +39,7 @@ from tests.e2e.conftest import (
     record_page_errors,
     share_the_screen,
     start_call,
+    toggle_the_lock,
     wait_until_the_prejoin_media_answered,
 )
 
@@ -345,13 +346,13 @@ def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at
 
 def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(call: Call) -> None:
     guest_leaves(call)
-    call.host.click("#lockBtn")
-    expect(call.host.locator("#lockIndicator")).to_have_text("Locked")
+    toggle_the_lock(call.host)
+    expect(call.host.locator("#lockIndicator")).to_be_visible()
     join_by_link(call.guest, call.invite_link)
     expect_end_screen(call.guest, LOCKED)
 
-    call.host.click("#lockBtn")
-    expect(call.host.locator("#lockIndicator")).to_have_text("")
+    toggle_the_lock(call.host)
+    expect(call.host.locator("#lockIndicator")).to_be_hidden()
     end_screen(call.guest).get_by_role("button", name="Retry").click()
     expect(call.guest.locator("[data-screen=prejoin]")).to_be_visible()
     press_through_the_prejoin(call.guest)

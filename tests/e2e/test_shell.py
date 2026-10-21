@@ -11,6 +11,7 @@ from tests.e2e.conftest import (
     PREJOIN_START,
     SMALL_PHONE_LANDSCAPE,
     expect_both_legal_links,
+    open_more,
     open_prejoin,
     record_page_errors,
     wait_until_the_prejoin_media_answered,
@@ -47,7 +48,8 @@ def test_prejoin_and_call_screen_reached_from_home_each_show_both_legal_links(
 
     wait_until_the_prejoin_media_answered(page)
     page.click(PREJOIN_START)
-    expect_both_legal_links(page.locator("[data-screen=call]"))
+    expect(page.locator("[data-screen=call]")).to_be_visible()
+    expect_both_legal_links(open_more(page))
     expect(page.locator("[data-screen=prejoin]")).to_be_hidden()
 
 

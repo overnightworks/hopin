@@ -25,8 +25,8 @@ The page is markup, two stylesheets and ES modules, served from
   reachable, so the page is served only at its routes, never from the mount.
 - Every screen carries its own `<nav class="legal">` copy (a static page has no
   templating). The guard test pins that each distinct `data-screen` value holds
-  exactly one, with both URLs; the call screen is one element whose nav sits
-  below the stage until the floating control bar (row 19) moves it into More.
+  exactly one, with both URLs; the call screen is one element whose nav sits in
+  its More menu.
 - HopIn reuses no class name that `ui-console.css` defines, because its grammar
   classes would otherwise style HopIn's markup. Six names are defined in both
   the picture and ui-console: `.btn` (now `.button`) and `.glyph` (now

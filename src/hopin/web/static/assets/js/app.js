@@ -1,5 +1,5 @@
 import { initChat, registerChatHandlers } from "./chat.js";
-import { hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
+import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
@@ -121,10 +121,12 @@ function registerSessionHandlers() {
     on(SIGNAL_TYPE.ROOM_LOCKED, () => {
         state.isLocked = true;
         updateLockUI();
+        confirmLockChange(true);
     });
     on(SIGNAL_TYPE.ROOM_UNLOCKED, () => {
         state.isLocked = false;
         updateLockUI();
+        confirmLockChange(false);
     });
     on(SIGNAL_TYPE.ROOM_CLOSED, (data) => {
         tearDownCall();

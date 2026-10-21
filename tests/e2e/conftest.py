@@ -448,3 +448,16 @@ def expect_both_legal_links(screen: Locator) -> None:
         expect(link).to_have_attribute("href", url)
         expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_attribute("rel", "noopener")
+
+
+def open_more(person: Page) -> Locator:
+    menu = person.locator("#moreMenu")
+    if not menu.is_visible():
+        person.click("#moreBtn")
+    expect(menu).to_be_visible()
+    return menu
+
+
+def toggle_the_lock(host: Page) -> None:
+    open_more(host)
+    host.click("#lockBtn")
