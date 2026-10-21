@@ -1,24 +1,26 @@
-import http
-import http.client
 import re
 import socket
-import subprocess
-import sys
+import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
-from pathlib import Path
+from contextlib import contextmanager
+from dataclasses import dataclass
+from http.cookies import SimpleCookie
 from typing import Any
 
 import pytest
+import uvicorn
 from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
+from webauth.config import WebAuthConfig, installed_web_auth_config
 
+from hopin.app import create_app
+from hopin.auth.stores import SignInStores
 from hopin.config.constants import ICE_SERVERS_PATH
+from hopin.main import uvicorn_options
 from tests.sign_in_settings import build_sign_in_settings
+from tests.signed_in import SeededMember, seed_member
 
-SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
-HEALTH_PATH = "/health"
-SERVER_LOG_NAME = "server.log"
 READINESS_POLL_INTERVAL_SECONDS = 0.1
 READINESS_DEADLINE_SECONDS = 20
 SERVER_STOP_TIMEOUT_SECONDS = 10
@@ -223,59 +225,51 @@ def _reserve_free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def _is_healthy(port: int) -> bool:
-    connection = http.client.HTTPConnection(LOOPBACK_HOST, port, timeout=READINESS_POLL_INTERVAL_SECONDS * 10)
-    try:
-        connection.request("GET", HEALTH_PATH)
-        return connection.getresponse().status == http.HTTPStatus.OK
-    except OSError:
-        return False
-    finally:
-        connection.close()
-
-
-def _wait_until_healthy(server: subprocess.Popen[bytes], port: int) -> None:
+@contextmanager
+def _serving(server: uvicorn.Server) -> Iterator[None]:
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
     deadline = time.monotonic() + READINESS_DEADLINE_SECONDS
-    while time.monotonic() < deadline:
-        if server.poll() is not None:
-            pytest.fail(f"HopIn exited with code {server.returncode} before becoming healthy")
-        if _is_healthy(port):
-            return
-        time.sleep(READINESS_POLL_INTERVAL_SECONDS)
-    pytest.fail(f"HopIn was not healthy within {READINESS_DEADLINE_SECONDS} seconds")
-
-
-def _stop(server: subprocess.Popen[bytes]) -> None:
-    server.terminate()
     try:
-        server.wait(timeout=SERVER_STOP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        server.kill()
-        server.wait()
+        while not server.started:
+            if not thread.is_alive():
+                pytest.fail("HopIn exited before it started")
+            if time.monotonic() > deadline:
+                pytest.fail(f"HopIn did not start within {READINESS_DEADLINE_SECONDS} seconds")
+            time.sleep(READINESS_POLL_INTERVAL_SECONDS)
+        yield
+    finally:
+        server.should_exit = True
+        thread.join(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+        assert not thread.is_alive(), f"HopIn did not stop within {SERVER_STOP_TIMEOUT_SECONDS} seconds"
+
+
+@dataclass(frozen=True)
+class RunningServer:
+    base_url: str
+    config: WebAuthConfig
+    stores: SignInStores
 
 
 @pytest.fixture(scope="session")
-def base_url(
-    pytestconfig: pytest.Config, delete_output_dir: None, tmp_path_factory: pytest.TempPathFactory
-) -> Iterator[str]:
+def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
     port = _reserve_free_port()
-    log_directory = Path(pytestconfig.getoption("output"))
-    log_directory.mkdir(parents=True, exist_ok=True)
-    sign_in = build_sign_in_settings(tmp_path_factory.mktemp("sign-in"), host=LOOPBACK_HOST, port=port)
-    environment = {"PYTHONPATH": str(SOURCE_DIRECTORY), **sign_in.environment}
-    with (log_directory / SERVER_LOG_NAME).open("wb") as server_log:
-        # The command is built from sys.executable and constants, never from input.
-        server = subprocess.Popen(  # noqa: S603
-            [sys.executable, "-m", "hopin.main"],
-            env=environment,
-            stdout=server_log,
-            stderr=subprocess.STDOUT,
-        )
-        try:
-            _wait_until_healthy(server, port)
-            yield f"http://{LOOPBACK_HOST}:{port}"
-        finally:
-            _stop(server)
+    sign_in = build_sign_in_settings(
+        tmp_path_factory.mktemp("sign-in"),
+        host=LOOPBACK_HOST,
+        port=port,
+        public_origin=f"https://{LOOPBACK_HOST}:{port}",
+    )
+    stores = SignInStores.in_memory()
+    app = create_app(sign_in.settings, stores=stores)
+    server = uvicorn.Server(uvicorn.Config(app, **uvicorn_options(sign_in.settings)))
+    with _serving(server):
+        yield RunningServer(f"http://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores)
+
+
+@pytest.fixture(scope="session")
+def base_url(e2e_server: RunningServer) -> str:
+    return e2e_server.base_url
 
 
 @pytest.fixture(scope="session")
@@ -288,14 +282,51 @@ def browser_context_args(browser_context_args: dict[str, Any]) -> dict[str, Any]
     return {**browser_context_args, "permissions": MEDIA_PERMISSIONS}
 
 
+def _playwright_cookie(set_cookie_header: str, config: WebAuthConfig) -> dict[str, Any]:
+    cookie = SimpleCookie(set_cookie_header)
+    ((name, morsel),) = cookie.items()
+    expires = int(config.wall_clock()) + int(morsel["max-age"])
+    # The URL form of add_cookies is refused for a __Host- name, so the cookie goes in by domain and path.
+    return {
+        "name": name,
+        "value": morsel.value,
+        "domain": LOOPBACK_HOST,
+        "path": morsel["path"],
+        "secure": bool(morsel["secure"]),
+        "httpOnly": bool(morsel["httponly"]),
+        "sameSite": morsel["samesite"].capitalize(),
+        "expires": expires,
+    }
+
+
 @pytest.fixture
-def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Iterator[Callable[..., Page]]:
+def seeded_members() -> dict[Page, SeededMember]:
+    return {}
+
+
+@pytest.fixture
+def member_of(seeded_members: dict[Page, SeededMember]) -> Callable[[Page], SeededMember]:
+    return seeded_members.__getitem__
+
+
+@pytest.fixture
+def open_person(
+    browser: Browser,
+    browser_context_args: dict[str, Any],
+    e2e_server: RunningServer,
+    seeded_members: dict[Page, SeededMember],
+) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
 
-    def open_page(**device_options: Any) -> Page:
+    def open_page(*, signed_in: bool = True, **device_options: Any) -> Page:
         context = browser.new_context(**{**browser_context_args, **device_options})
         contexts.append(context)
-        return context.new_page()
+        page = context.new_page()
+        if signed_in:
+            member = seed_member(e2e_server.stores, e2e_server.config)
+            context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
+            seeded_members[page] = member
+        return page
 
     yield open_page
     for context in contexts:
