@@ -11,14 +11,19 @@ from webauth.ports import AuthenticatedUser
 
 from tests.e2e.conftest import (
     DESKTOP,
+    ICE_SERVERS_URL_PATTERN,
     PHONE,
     PREJOIN_START,
+    RECORD_PEER_CONNECTIONS,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     RunningServer,
-    open_call,
+    join,
+    open_host,
     open_prejoin,
+    record_page_errors,
     share_the_screen,
     start_call,
+    wait_for_peer_count,
     wait_until_the_prejoin_media_answered,
 )
 from tests.sign_in_settings import TEST_ISSUER
@@ -122,8 +127,21 @@ def record_document_requests(page: Page) -> list[str]:
     return documents
 
 
-def expect_the_sign_in_at_the_issuer(documents: list[str], e2e_server: RunningServer, *, next_path: str) -> None:
-    start, issuer = documents[-2:]
+def record_document_statuses(page: Page) -> list[int]:
+    statuses: list[int] = []
+    page.on(
+        "response",
+        lambda response: statuses.append(response.status) if response.request.resource_type == "document" else None,
+    )
+    return statuses
+
+
+def expect_the_sign_in_at_the_issuer(
+    documents: list[str], e2e_server: RunningServer, *, opened: str, next_path: str
+) -> None:
+    assert len(documents) == 3
+    opened_document, start, issuer = documents
+    assert opened_document == opened
     assert start == f"{e2e_server.base_url}/auth/start?next={next_path}"
     assert issuer.startswith(TEST_ISSUER)
     redirect_uri = parse_qs(urlsplit(issuer).query)["redirect_uri"]
@@ -132,22 +150,23 @@ def expect_the_sign_in_at_the_issuer(documents: list[str], e2e_server: RunningSe
 
 @FORM_FACTORS
 def test_a_person_without_a_session_who_opens_a_call_link_is_sent_to_the_issuer_and_never_sees_the_call(
-    open_person: Callable[..., Page], e2e_server: RunningServer, form_factor: dict[str, Any]
+    open_person: Callable[..., Page], e2e_server: RunningServer, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
-    host = open_person(**DESKTOP)
+    host = record_page_errors(open_person(**DESKTOP), page_errors)
     call_link = start_call(host, e2e_server.base_url)
     room_path = urlsplit(call_link).path
-    outsider = open_person(signed_in=False, **form_factor)
+    outsider = record_page_errors(open_person(signed_in=False, **form_factor), page_errors)
     sockets = []
     outsider.on("websocket", lambda socket: sockets.append(socket))
     documents = record_document_requests(outsider)
+    statuses = record_document_statuses(outsider)
 
     with pytest.raises(PlaywrightError, match="ERR_NAME_NOT_RESOLVED"):
         outsider.goto(call_link)
 
-    assert documents[0] == call_link
-    expect_the_sign_in_at_the_issuer(documents, e2e_server, next_path=room_path.replace("/", "%2F"))
-    assert len(documents) == 3
+    expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=call_link, next_path=room_path.replace("/", "%2F"))
+    assert statuses == [302, 303]
+    expect(outsider.locator("[data-screen=prejoin]")).to_have_count(0)
     assert sockets == []
     expect(host.locator("#videoGrid .tile")).to_have_count(1)
 
@@ -160,8 +179,9 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     e2e_server: RunningServer,
     form_factor: dict[str, Any],
     end_the_session: str,
+    page_errors: list[str],
 ) -> None:
-    page = open_person(**form_factor)
+    page = record_page_errors(open_person(**form_factor), page_errors)
     statuses: list[str] = []
     page.expose_function("noteStatus", lambda text: statuses.append(text))
     page.add_init_script(WATCH_THE_STATUS_LINE)
@@ -173,20 +193,20 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     else:
         page.context.clear_cookies()
 
-    with page.expect_event("requestfailed"):
+    with page.expect_response(ICE_SERVERS_URL_PATTERN) as ice_servers, page.expect_event("requestfailed"):
         page.click(PREJOIN_START)
 
-    assert documents[0] == f"{e2e_server.base_url}/"
-    expect_the_sign_in_at_the_issuer(documents, e2e_server, next_path="%2F")
+    assert ice_servers.value.status == 401
+    expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=f"{e2e_server.base_url}/", next_path="%2F")
     assert not any("Could not load ICE servers" in status for status in statuses)
 
 
 def test_a_member_who_follows_a_call_link_from_another_site_lands_on_the_pre_join_without_the_sign_in(
-    open_person: Callable[..., Page], e2e_server: RunningServer
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
 ) -> None:
-    host = open_person(**DESKTOP)
+    host = record_page_errors(open_person(**DESKTOP), page_errors)
     call_link = start_call(host, e2e_server.base_url)
-    member = open_person(**DESKTOP)
+    member = record_page_errors(open_person(**DESKTOP), page_errors)
     other_site = "https://chat.test.invalid/"
     member.route(
         other_site,
@@ -204,9 +224,12 @@ def test_a_member_who_follows_a_call_link_from_another_site_lands_on_the_pre_joi
 def test_a_call_runs_under_the_security_headers_with_camera_microphone_and_screen_capture_allowed(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
 ) -> None:
-    host, guest, _ = open_call(
+    host, invite_link = open_host(
         open_person, e2e_server.base_url, page_errors, DESKTOP, RECORD_POLICY_VIOLATIONS, SHARE_THE_SCREEN_FROM_A_CANVAS
     )
+    guest = join(open_person, invite_link, DESKTOP, (RECORD_PEER_CONNECTIONS, RECORD_POLICY_VIOLATIONS), page_errors)
+    wait_for_peer_count(host, 1)
+    wait_for_peer_count(guest, 1)
 
     guest.click("#chatBtn")
     guest.fill("#chatInput", "hello")
@@ -223,6 +246,7 @@ def test_a_call_runs_under_the_security_headers_with_camera_microphone_and_scree
         "geolocation": False,
     }
     assert host.evaluate("() => window.policyViolations") == []
+    assert guest.evaluate("() => window.policyViolations") == []
 
 
 def test_the_screen_capture_of_a_page_is_not_refused_by_the_permissions_policy(

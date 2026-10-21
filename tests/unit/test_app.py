@@ -11,7 +11,7 @@ from webauth.dependencies import session_id_from_request
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError
 from hopin.auth.stores import SignInStores
-from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP
+from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
 from hopin.config.settings import ServerSettings
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -87,10 +87,14 @@ class TestCreateApp:
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
-        browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        for path in ["/", "/static/js/app.js"]:
-            response = browser.get(path, headers={"accept": "text/html"})
-            assert (response.status_code, "location" in response.headers) == (200, False)
+        callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        handshake = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
+        with browser.websocket_connect(WEBSOCKET_PATH, headers=handshake) as socket:
+            socket.send_json({"type": SignalType.JOIN.value})
+            room_id = socket.receive_json()["room_id"]
+            for path in ["/", f"/c/{room_id}"]:
+                response = browser.get(path, headers={"accept": "text/html"})
+                assert (response.status_code, "location" in response.headers) == (200, False)
 
     def test_registers_routes(self, sign_in_settings):
         response = TestClient(create_app(sign_in_settings().settings)).get("/health")

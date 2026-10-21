@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
 
@@ -12,6 +12,7 @@ from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
 from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
 
 from hopin.app import create_app
+from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
@@ -23,12 +24,13 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
 STYLESHEETS = ["/static/css/ui-console.css", "/static/css/hopin.css"]
+LOOKALIKE_PATHS = ["/health/", "/HEALTH", f"{TEST_PUBLIC_ORIGIN}//health", "/auth/start/", "/auth/callback/x"]
 SESSION_LIFETIME = timedelta(hours=12)
 
 
@@ -44,10 +46,13 @@ class Application:
     def seed(self) -> SeededMember:
         return seed_member(self.stores, self.config)
 
-    def get(self, path: str, member: SeededMember | None = None, **headers: str):
+    def request(self, method: str, path: str, member: SeededMember | None = None, **headers: str):
         if member is not None:
             headers = {**headers, "cookie": cookie_header(member.set_cookie_headers)}
-        return self.client.get(path, headers=headers)
+        return self.client.request(method, path, headers=headers)
+
+    def get(self, path: str, member: SeededMember | None = None, **headers: str):
+        return self.request("GET", path, member, **headers)
 
 
 @pytest.fixture
@@ -94,15 +99,13 @@ class TestSignedOut:
     def test_the_sign_in_start_is_public(self, application):
         response = application.get(AUTH_START_PATH, **BROWSER_ACCEPT)
         assert response.status_code == 303
-        assert response.headers["location"].startswith(TEST_ISSUER_PREFIX)
+        assert response.headers["location"].startswith(TEST_ISSUER)
 
     @pytest.mark.parametrize("path", STYLESHEETS)
     def test_the_stylesheets_of_the_login_failed_page_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
 
-    @pytest.mark.parametrize(
-        "path", ["/health/", "/HEALTH", "//health", "/auth/start/", "/auth/callback/x", "/static/css/../js/app.js"]
-    )
+    @pytest.mark.parametrize("path", LOOKALIKE_PATHS)
     def test_a_path_that_only_looks_like_a_public_path_is_gated(self, application, path):
         response = application.get(path, **BROWSER_ACCEPT)
         assert response.status_code in {302, 401}
@@ -115,9 +118,6 @@ class TestSignedOut:
         assert all("evil.example" not in value for value in foreign.headers.values())
 
 
-TEST_ISSUER_PREFIX = "https://issuer.test.invalid/"
-
-
 class TestSignedIn:
     def test_a_member_reaches_every_page_and_the_ice_servers(self, application):
         member = application.seed()
@@ -126,7 +126,8 @@ class TestSignedIn:
                 assert application.get(path, member, **BROWSER_ACCEPT).status_code == 200, path
 
     def test_a_session_of_another_application_instance_is_refused(self, sign_in_settings):
-        first, second = Application(sign_in_settings()), Application(sign_in_settings())
+        sign_in = sign_in_settings()
+        first, second = Application(sign_in), Application(sign_in)
         member = first.seed()
         assert second.get("/", member, **BROWSER_ACCEPT).status_code == 302
         assert second.get(ICE_SERVERS_PATH, member, **FETCH_ACCEPT).status_code == 401
@@ -157,8 +158,6 @@ class TestSessionLifetime:
 
 
 def install_gate(app: FastAPI, stores: SignInStores) -> None:
-    from hopin.auth.gate import session_gate
-
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
@@ -170,21 +169,27 @@ def install_gate(app: FastAPI, stores: SignInStores) -> None:
 
 class TestSecurityHeaders:
     @pytest.mark.parametrize(
-        ("path", "signed_in", "headers", "status"),
+        ("method", "path", "signed_in", "headers", "status"),
         [
-            ("/", False, BROWSER_ACCEPT, 302),
-            (ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
-            (HEALTH_PATH, False, {}, 200),
-            (AUTH_CALLBACK_PATH, False, {}, 403),
-            ("/", True, BROWSER_ACCEPT, 200),
-            (ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
-            ("/static/js/app.js", True, FETCH_ACCEPT, 200),
-            ("/c/unknown", True, BROWSER_ACCEPT, 404),
+            ("GET", "/", False, BROWSER_ACCEPT, 302),
+            ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
+            ("GET", HEALTH_PATH, False, {}, 200),
+            ("HEAD", HEALTH_PATH, False, {}, 200),
+            ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
+            ("GET", AUTH_CALLBACK_PATH, False, {}, 403),
+            *[("GET", path, False, BROWSER_ACCEPT, 200) for path in STYLESHEETS],
+            *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
+            ("GET", "/", True, BROWSER_ACCEPT, 200),
+            ("GET", ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
+            ("GET", "/static/js/app.js", True, FETCH_ACCEPT, 200),
+            ("GET", "/c/{room}", True, BROWSER_ACCEPT, 200),
+            ("GET", "/c/unknown", True, BROWSER_ACCEPT, 404),
         ],
     )
-    def test_every_answer_carries_the_headers(self, application, path, signed_in, headers, status):
+    def test_every_answer_carries_the_headers(self, application, method, path, signed_in, headers, status):
         member = application.seed() if signed_in else None
-        response = application.get(path, member, **headers)
+        with hosted_room(application, member) if member else nullcontext("") as room_id:
+            response = application.request(method, path.format(room=room_id), member, **headers)
         assert response.status_code == status
         assert response.headers["content-security-policy"] == default_content_security_policy()
         assert response.headers["permissions-policy"] == PERMISSIONS_POLICY
