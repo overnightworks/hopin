@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 FORGED_CALLBACK = f"{AUTH_CALLBACK_PATH}?state=forged&code=x"
-CONSOLE_PROBLEM_TYPES = {"error", "warning"}
 CARD_ACTIONS = ".login-card .actions .btn"
 END_SESSION_PATH = "/realms/test/protocol/openid-connect/logout"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
@@ -97,10 +96,7 @@ def open_signed_out_page(
     form_factor: dict[str, Any],
 ) -> Page:
     person = record_page_errors(open_person(signed_in=False, **form_factor), page_errors)
-    person.on(
-        "console",
-        lambda message: message.type in CONSOLE_PROBLEM_TYPES and page_errors.append(f"{message.type}: {message.text}"),
-    )
+    person.on("console", lambda message: page_errors.append(f"{message.type}: {message.text}"))
     response = person.goto(f"{e2e_server.base_url}{path}")
     assert response is not None
     assert response.status == 200

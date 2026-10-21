@@ -36,7 +36,6 @@ if TYPE_CHECKING:
     from httpx2 import Response
 
 SESSION_COOKIE = "__Host-session_id"
-CSRF_COOKIE = "__Host-csrf_token"
 PENDING_COOKIE_PREFIX = "__Host-oidc_pending_"
 HINT_COOKIE = "__Secure-oidc_id_token_hint"
 WHO_AM_I_PATH = "/who-am-i"
@@ -293,7 +292,7 @@ class TestLogout:
         assert harness.sessions.load(session_id) is None
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
-        assert {"max-age=0", "path=/"} <= cookies[CSRF_COOKIE]
+        assert {"max-age=0", "path=/"} <= cookies[harness.config.csrf_cookie_name]
         assert {"max-age=0", "path=/logout"} <= cookies[HINT_COOKIE]
 
 

@@ -187,16 +187,17 @@ class TestLogout:
     def cleared_cookie_paths(self, response):
         cleared = {}
         for raw in response.headers.get_list("set-cookie"):
-            _, *attributes = (part.lower() for part in raw.split("; "))
-            if "max-age=0" in attributes:
-                cleared[raw.split("=", 1)[0]] = next(a for a in attributes if a.startswith("path="))
+            _, *attributes = raw.split("; ")
+            if "max-age=0" in (attribute.lower() for attribute in attributes):
+                path = next(a for a in attributes if a.lower().startswith("path="))
+                cleared[raw.split("=", 1)[0]] = f"Path={path.split('=', 1)[1]}"
         return cleared
 
     def expected_cleared_paths(self, application):
         return {
-            application.config.session_cookie_name: "path=/",
-            application.config.csrf_cookie_name: "path=/",
-            HINT_COOKIE: "path=/logout",
+            application.config.session_cookie_name: "Path=/",
+            application.config.csrf_cookie_name: "Path=/",
+            HINT_COOKIE: "Path=/logout",
         }
 
     def test_a_member_is_sent_to_the_end_session_and_loses_the_session_and_both_cookies(self, application):
