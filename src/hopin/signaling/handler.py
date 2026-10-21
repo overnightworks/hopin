@@ -84,7 +84,7 @@ class Connection:
     peer_id: PeerId
     frames_received: int = 0
     dropped: bool = False
-    recheck: TimerHandle | None = None
+    recheck: TimerHandle = field(init=False)
     ended: bool = False
 
 
@@ -197,8 +197,7 @@ class SignalingHandler:
 
     async def _end_connection(self, connection: Connection) -> None:
         connection.ended = True
-        if connection.recheck is not None:
-            connection.recheck.cancel()
+        connection.recheck.cancel()
         peer = self._peers.get(connection.peer_id)
         if peer is None or peer.websocket is not connection.websocket:
             return
