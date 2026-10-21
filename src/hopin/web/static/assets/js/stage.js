@@ -60,7 +60,7 @@ export function showLocalStream(stream) {
 }
 
 export function updateLocalPreview() {
-    const showsVideo = state.hasCamera && state.videoEnabled;
+    const showsVideo = state.videoEnabled;
     for (const { video, placeholder } of ownPictures) {
         video.classList.toggle("hidden", !showsVideo);
         placeholder.classList.toggle("hidden", showsVideo);

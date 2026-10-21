@@ -1,4 +1,4 @@
-import { addCamera, toggleAudio, toggleScreenShare, toggleVideo } from "./media.js";
+import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "./media.js";
 import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
@@ -29,7 +29,7 @@ export function hideLockButton() {
 export function renderControls() {
     const hasMedia = Boolean(state.localStream);
     renderDeviceToggle(muteButton, hasMedia && state.audioEnabled);
-    renderDeviceToggle(videoButton, hasMedia && state.hasCamera && state.videoEnabled);
+    renderDeviceToggle(videoButton, hasMedia && state.videoEnabled);
     const isSharing = Boolean(state.screenStream);
     screenButton.classList.toggle("active", isSharing);
     screenButton.setAttribute("aria-pressed", String(isSharing));
@@ -42,18 +42,22 @@ function handleMuteClick() {
     renderControls();
 }
 
+function showCameraError(error) {
+    setStatus(`No camera found (${error.name})`, "error");
+    setTimeout(() => {
+        if (state.roomId) setStatus("In call", "connected");
+    }, CAMERA_ERROR_STATUS_MS);
+}
+
 async function handleVideoClick() {
     if (!state.localStream) return;
-    if (state.hasCamera) {
-        toggleVideo();
+    if (state.videoEnabled) {
+        releaseCamera();
     } else {
         try {
             await addCamera();
         } catch (error) {
-            setStatus(`No camera found (${error.name})`, "error");
-            setTimeout(() => {
-                if (state.roomId) setStatus("In call", "connected");
-            }, CAMERA_ERROR_STATUS_MS);
+            showCameraError(error);
             return;
         }
     }
@@ -66,13 +70,17 @@ function handleLockClick() {
 }
 
 async function handleScreenClick() {
-    if (!state.localStream || !state.hasCamera) return;
+    if (!state.localStream) return;
     try {
         await toggleScreenShare(() => screenButton.click());
-        renderControls();
     } catch (error) {
-        setStatus(`Screen share failed: ${error.message}`, "error");
+        if (error instanceof CameraError) {
+            showCameraError(error);
+        } else {
+            setStatus(`Screen share failed: ${error.message}`, "error");
+        }
     }
+    renderControls();
 }
 
 export function initControls({ onLeaveRequested }) {

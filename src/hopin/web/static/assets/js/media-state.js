@@ -3,7 +3,7 @@ import { setRemoteMediaState } from "./stage.js";
 import { state } from "./state.js";
 
 function showsOwnVideo() {
-    return state.screenStream !== null || (state.hasCamera && state.videoEnabled);
+    return state.screenStream !== null || state.videoEnabled;
 }
 
 export function announceMediaState() {
