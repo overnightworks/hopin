@@ -19,8 +19,9 @@ from tests.sign_in_settings import TEST_ISSUER
 pytestmark = pytest.mark.e2e
 
 FORGED_CALLBACK = f"{AUTH_CALLBACK_PATH}?state=forged&code=x"
+CONSOLE_PROBLEM_TYPES = {"error", "warning"}
 CARD_ACTIONS = ".login-card .actions .btn"
-END_SESSION_PATH = f"{urlsplit(TEST_ISSUER).path}/protocol/openid-connect/logout"
+END_SESSION_PATH = "/realms/test/protocol/openid-connect/logout"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 ACTION_AND_CARD_CONTENT_WIDTHS = """() => {
     const card = document.querySelector(".login-card");
@@ -94,6 +95,10 @@ def open_signed_out_page(
     form_factor: dict[str, Any],
 ) -> Page:
     person = record_page_errors(open_person(signed_in=False, **form_factor), page_errors)
+    person.on(
+        "console",
+        lambda message: message.type in CONSOLE_PROBLEM_TYPES and page_errors.append(f"{message.type}: {message.text}"),
+    )
     response = person.goto(f"{e2e_server.base_url}{path}")
     assert response is not None
     assert response.status == 200
@@ -144,13 +149,14 @@ ISSUER_NOT_REACHABLE = "net::ERR_NAME_NOT_RESOLVED"
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_log_out_ends_the_session_and_the_browser_follows_the_redirect_to_the_issuers_end_session(
+def test_log_out_ends_the_session_and_the_loop_stops_at_the_issuers_end_session_whose_return_is_not_driven_here(
     open_person: Callable[..., Page],
     member_of: Callable[[Page], Any],
     e2e_server: RunningServer,
     page_errors: list[str],
     form_factor: dict[str, Any],
 ) -> None:
+    """The loop stops at the issuer: the test issuer does not resolve, so the return to Signed out is #25 row 4f's."""
     person = record_page_errors(open_person(**form_factor), page_errors)
     console_messages: list[str] = []
     person.on("console", lambda message: console_messages.append(message.text))

@@ -52,8 +52,13 @@ SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 EXPECTED_CONTENT_SECURITY_POLICY = default_content_security_policy(
-    added_sources={CspDirective.FORM_ACTION: [urlsplit(TEST_ISSUER)._replace(path="").geturl()]}
+    added_sources={CspDirective.FORM_ACTION: ["https://issuer.test.invalid"]}
 )
+HINT_COOKIE = "__Secure-oidc_id_token_hint"
+END_SESSION_QUERY_WITHOUT_HINT = {
+    "client_id": ["hopin"],
+    "post_logout_redirect_uri": [f"{TEST_PUBLIC_ORIGIN}{LOGIN_PATH}"],
+}
 SESSION_LIFETIME = timedelta(hours=12)
 
 
@@ -176,8 +181,20 @@ class TestSignInPages:
 
 
 class TestLogout:
-    def cleared_cookie_names(self, application, response):
-        return {raw.split("=", 1)[0] for raw in response.headers.get_list("set-cookie") if "max-age=0" in raw.lower()}
+    def cleared_cookie_paths(self, response):
+        cleared = {}
+        for raw in response.headers.get_list("set-cookie"):
+            _, *attributes = (part.lower() for part in raw.split("; "))
+            if "max-age=0" in attributes:
+                cleared[raw.split("=", 1)[0]] = next(a for a in attributes if a.startswith("path="))
+        return cleared
+
+    def expected_cleared_paths(self, application):
+        return {
+            application.config.session_cookie_name: "path=/",
+            application.config.csrf_cookie_name: "path=/",
+            HINT_COOKIE: "path=/logout",
+        }
 
     def test_a_member_is_sent_to_the_end_session_and_loses_the_session_and_both_cookies(self, application):
         member = application.seed()
@@ -185,11 +202,11 @@ class TestLogout:
         response = application.request("POST", LOGOUT_PATH, member, **SAME_ORIGIN_FORM_POST)
 
         assert response.status_code == 303
-        assert response.headers["location"].startswith(f"{END_SESSION_URL}?")
+        location = urlsplit(response.headers["location"])
+        assert f"{location.scheme}://{location.netloc}{location.path}" == END_SESSION_URL
+        assert parse_qs(location.query) == END_SESSION_QUERY_WITHOUT_HINT
         assert application.stores.sessions.load(member.session.id) is None
-        assert {application.config.session_cookie_name, application.config.csrf_cookie_name} <= (
-            self.cleared_cookie_names(application, response)
-        )
+        assert self.cleared_cookie_paths(response) == self.expected_cleared_paths(application)
 
     @pytest.mark.parametrize("session", ["none", "deleted", "forged"])
     def test_a_person_without_a_usable_session_still_gets_the_end_session_and_cleared_cookies(
@@ -207,8 +224,8 @@ class TestLogout:
         location = urlsplit(response.headers["location"])
         assert response.status_code == 303
         assert f"{location.scheme}://{location.netloc}{location.path}" == END_SESSION_URL
-        assert "id_token_hint" not in parse_qs(location.query)
-        assert application.config.session_cookie_name in self.cleared_cookie_names(application, response)
+        assert parse_qs(location.query) == END_SESSION_QUERY_WITHOUT_HINT
+        assert self.cleared_cookie_paths(response) == self.expected_cleared_paths(application)
 
     @pytest.mark.parametrize(
         "headers",
@@ -228,7 +245,7 @@ class TestLogout:
 
         assert response.status_code == 403
         assert "location" not in response.headers
-        assert self.cleared_cookie_names(application, response) == set()
+        assert self.cleared_cookie_paths(response) == {}
         assert application.stores.sessions.load(member.session.id) is not None
 
     def test_a_logout_the_browser_marks_same_origin_is_accepted_without_an_origin_header(self, application):
