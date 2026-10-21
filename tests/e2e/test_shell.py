@@ -74,9 +74,10 @@ def test_home_on_a_small_landscape_phone_reaches_each_legal_link_without_sideway
 
 
 def test_home_on_a_short_window_does_not_scroll_past_its_own_height(
-    open_person: Callable[..., Page], base_url: str
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
-    page = open_person(**SHORT_DESKTOP)
+    page = record_page_errors(open_person(**SHORT_DESKTOP), page_errors)
+    page.on("console", lambda message: page_errors.append(f"{message.type}: {message.text}"))
     page.goto(f"{base_url}/")
     expect(page.locator("[data-screen=home]")).to_be_visible()
 

@@ -124,6 +124,16 @@ def test_avatar_shows_the_initials_of_the_username(
     expect(person.get_by_role("button", name="Account")).to_have_text(initials)
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_avatar_keeps_the_person_icon_when_the_username_has_no_letter_or_digit(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    person = open_home(open_person, base_url, page_errors, username="._-", **form_factor)
+
+    expect(person.locator(AVATAR).locator("svg")).to_be_visible()
+    expect(person.locator(AVATAR)).to_have_text("")
+
+
 def test_desktop_prejoin_has_the_avatar_and_the_phone_prejoin_keeps_back_instead(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
