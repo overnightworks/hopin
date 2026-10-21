@@ -1,8 +1,0 @@
-claim_id = "60d84643f74248aa82289a317ce49249"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "cd2cb63c67a19bcb2c58730c1aa9b21eca1d51d9"
-branch = "claude/issue-120-webauth-pin-settings"
-scope = ["AGENTS.md", "README.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/__init__.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "src/hopin/config/settings.py", "tests/conftest.py", "tests/e2e/conftest.py", "tests/integration/test_signaling_flow.py", "tests/integration/test_signaling_transport.py", "tests/sign_in_settings.py", "tests/unit/test_app.py", "tests/unit/test_config.py", "tests/unit/test_main.py", "tests/unit/test_sign_in_config.py", "uv.lock"]
-opened_commit = "d12839f1f639669fc2cb250c8b31ab846fb46ea7"
-whole_reason = "Making the settings required breaks every create_app() and ServerSettings() caller at once, so the settings, their test builder and every caller change together or the suite is red."
