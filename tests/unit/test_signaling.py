@@ -11,6 +11,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
+from hopin.rooms.models import Account
 from hopin.signaling.handler import Connection, Peer, SignalingHandler
 from tests.unit.conftest import (
     ADMITTED_ACCOUNT,
@@ -221,7 +222,19 @@ class TestJoinExistingRoom:
 
         [existing] = frames_of_type(joiner_ws, SignalType.EXISTING_PARTICIPANTS)
         assert "host1" in existing["participants"]
-        assert sent_frames(sockets["host1"]) == [{"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "p1"}]
+        assert sent_frames(sockets["host1"]) == [
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "p1", "name": "p1"}
+        ]
+
+    async def test_joiner_is_told_the_names_of_the_others_by_their_participant_ids(self, handler, room_manager):
+        room, _sockets = seat_in_room(handler, room_manager, "host1")
+        handler._peers["host1"].account = Account(id="host-account", name="felix")
+        joiner_ws = register_peer(handler, "p1")
+
+        await deliver(handler, "p1", join_message(room.room_id))
+
+        [existing] = frames_of_type(joiner_ws, SignalType.EXISTING_PARTICIPANTS)
+        assert existing["names"] == {"host1": "felix"}
 
 
 class TestRelay:
@@ -601,7 +614,7 @@ class TestHostGrace:
         [existing] = frames_of_type(returning_ws, SignalType.EXISTING_PARTICIPANTS)
         assert existing["is_host"] is True
         assert sent_frames(sockets["p1"])[-2:] == [
-            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "host-back"},
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "host-back", "name": "host1"},
             {"type": SignalType.HOST_BACK.value, "participant_id": "host-back"},
         ]
         assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == []

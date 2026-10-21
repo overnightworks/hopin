@@ -370,12 +370,22 @@ def open_person(
 ) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
 
-    def open_page(*, signed_in: bool = True, same_account_as: Page | None = None, **device_options: Any) -> Page:
+    def open_page(
+        *,
+        signed_in: bool = True,
+        same_account_as: Page | None = None,
+        username: str | None = None,
+        **device_options: Any,
+    ) -> Page:
         context = browser.new_context(**{**browser_context_args, **device_options})
         contexts.append(context)
         page = context.new_page()
         if signed_in:
             account = None if same_account_as is None else seeded_members[same_account_as].account
+            if username is not None:
+                account = e2e_server.stores.accounts.create_for_subject(
+                    f"subject-{username}", username, role=e2e_server.config.user_role
+                )
             member = seed_member(e2e_server.stores, e2e_server.config, account=account)
             context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
             seeded_members[page] = member

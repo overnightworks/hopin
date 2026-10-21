@@ -111,12 +111,20 @@ export function addRemoteTile(participantId) {
 
     const label = document.createElement("span");
     label.className = "name";
-    label.append(localMuteMark.cloneNode(true), createWave(), `Peer ${participantId.slice(0, 6)}`);
+    const nameText = document.createElement("span");
+    nameText.className = "name-text";
+    label.append(localMuteMark.cloneNode(true), createWave(), nameText);
 
     container.append(video, placeholder, label, createQualityIndicator());
     tiles.appendChild(container);
     updateGridLayout();
     renderRemoteMediaState(participantId);
+    showRemoteName(participantId);
+}
+
+export function showRemoteName(participantId) {
+    const nameText = document.querySelector(`#container-${participantId} .name-text`);
+    if (nameText) nameText.textContent = state.namesByParticipant.get(participantId) ?? "";
 }
 
 export function removeRemoteTile(participantId) {
