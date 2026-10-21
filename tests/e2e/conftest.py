@@ -450,6 +450,24 @@ def expect_both_legal_links(screen: Locator) -> None:
         expect(link).to_have_attribute("rel", "noopener")
 
 
+def open_host(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any], *scripts: str
+) -> tuple[Page, str]:
+    host = record_page_errors(open_person(**form_factor), page_errors)
+    add_init_scripts(host, (RECORD_PEER_CONNECTIONS, *scripts))
+    return host, start_call(host, base_url)
+
+
+def open_call(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any], *scripts: str
+) -> tuple[Page, Page, str]:
+    host, invite_link = open_host(open_person, base_url, page_errors, form_factor, *scripts)
+    guest = join(open_person, invite_link, form_factor, (RECORD_PEER_CONNECTIONS,), page_errors)
+    wait_for_peer_count(host, 1)
+    wait_for_peer_count(guest, 1)
+    return host, guest, invite_link
+
+
 def open_more(person: Page) -> Locator:
     menu = person.locator("#moreMenu")
     if not menu.is_visible():

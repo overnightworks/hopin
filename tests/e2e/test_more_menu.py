@@ -12,16 +12,13 @@ from tests.e2e.conftest import (
     ICE_SERVERS_URL_PATTERN,
     LEGAL_LINKS,
     PHONE,
-    RECORD_PEER_CONNECTIONS,
-    add_init_scripts,
     expect_both_legal_links,
     join,
+    open_call,
     open_more,
     press_start_call,
     record_page_errors,
-    start_call,
     toggle_the_lock,
-    wait_for_peer_count,
 )
 
 pytestmark = pytest.mark.e2e
@@ -60,25 +57,16 @@ VISIBLE_MENU_ENTRIES = """
 TOAST_IS_ON_TOP_OF_THE_MENU = """
 () => {
     const toasts = document.getElementById("toasts");
+    const pointerEvents = toasts.style.pointerEvents;
     toasts.style.pointerEvents = "auto";
     const toast = toasts.querySelector(".toast").getBoundingClientRect();
     const topmost = document.elementFromPoint(toast.left + toast.width / 2, toast.top + toast.height / 2);
+    toasts.style.pointerEvents = pointerEvents;
     return Boolean(topmost.closest("#toasts"));
 }
 """
+COLOUR_OF = "(selector) => getComputedStyle(document.querySelector(selector)).color"
 THE_TAG_AT_THE_TOP = "#stage .ctop .left #lockIndicator"
-
-
-def open_call(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
-) -> tuple[Page, Page, str]:
-    host = record_page_errors(open_person(**form_factor), page_errors)
-    add_init_scripts(host, (RECORD_PEER_CONNECTIONS,))
-    invite_link = start_call(host, base_url)
-    guest = join(open_person, invite_link, form_factor, (RECORD_PEER_CONNECTIONS,), page_errors)
-    wait_for_peer_count(host, 1)
-    wait_for_peer_count(guest, 1)
-    return host, guest, invite_link
 
 
 def expect_more_closed(person: Page) -> None:
@@ -124,6 +112,10 @@ def test_host_opens_more_as_a_sheet_on_a_phone_and_a_popover_on_a_desktop(
     expect(host.locator(MORE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(MORE_BUTTON)).to_have_class("cb active")
     assert host.evaluate(VISIBLE_MENU_ENTRIES) == ["Lock call", "separator", *LEGAL_LINKS]
+    lock_colour = host.evaluate(COLOUR_OF, LOCK_SWITCH)
+    for label in LEGAL_LINKS:
+        assert host.evaluate(COLOUR_OF, f"a.mi[href='{LEGAL_LINKS[label]}']") == lock_colour
+    expect(host.get_by_role("dialog", name="More")).to_be_visible()
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -218,7 +210,7 @@ def test_a_tap_over_the_video_closes_more(
     expect_more_closed(host)
 
 
-def test_keyboard_opens_more_on_lock_call_toggles_it_and_escape_returns_to_more(
+def test_keyboard_opens_more_on_lock_call_toggles_it_and_both_more_and_escape_close_it_with_focus_on_more(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     host, _, _ = open_call(open_person, base_url, page_errors, DESKTOP)
@@ -236,6 +228,18 @@ def test_keyboard_opens_more_on_lock_call_toggles_it_and_escape_returns_to_more(
 
     expect(host.locator(LOCK_SWITCH)).to_have_attribute("aria-checked", "true")
 
+    host.keyboard.press("Shift+Tab")
+    host.keyboard.press("Shift+Tab")
+
+    expect(host.locator(MORE_BUTTON)).to_be_focused()
+
+    host.keyboard.press("Enter")
+
+    expect_more_closed(host)
+    expect(host.locator(MORE_BUTTON)).to_be_focused()
+
+    host.keyboard.press("Enter")
+    expect(host.locator(LOCK_SWITCH)).to_be_focused()
     host.keyboard.press("Escape")
 
     expect_more_closed(host)

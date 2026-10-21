@@ -34,12 +34,12 @@ export function hideLockButton() {
 }
 
 function isMoreOpen() {
-    return !moreMenu.classList.contains("hidden");
+    return moreMenu.open;
 }
 
 function openMore() {
     moreScrim.classList.remove("hidden");
-    moreMenu.classList.remove("hidden");
+    moreMenu.show();
     moreButton.classList.add("active");
     moreButton.setAttribute("aria-expanded", "true");
     moreMenu.querySelector(".mi:not(.hidden)").focus();
@@ -47,7 +47,7 @@ function openMore() {
 
 function closeMore() {
     moreScrim.classList.add("hidden");
-    moreMenu.classList.add("hidden");
+    moreMenu.close();
     moreButton.classList.remove("active");
     moreButton.setAttribute("aria-expanded", "false");
     moreButton.focus();

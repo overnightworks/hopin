@@ -717,13 +717,20 @@ body {
     bottom: 8px;
     display: flex;
     flex-direction: column;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
     padding: 8px 10px 24px;
+    border: 0;
     border-radius: 30px;
     background: var(--screen);
     color: var(--ink);
     box-shadow: var(--shadow-lg);
     animation: more-sheet var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
 }
+.more:not([open]) { display: none; }
 .grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--line); }
 .sep { height: 1px; margin: 6px 10px; background: var(--line-soft); }
 #lockBtn.hidden + .sep { display: none; }
@@ -750,6 +757,7 @@ body {
 .mi small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); }
 .mi .end { display: flex; color: var(--ink-faint); }
 .more .legal { display: block; font-size: inherit; }
+.more .legal a, .more .legal a:hover { color: var(--ink); text-decoration: none; }
 .switch {
     position: relative;
     flex: none;
@@ -790,7 +798,6 @@ body {
         animation: more-pop var(--motion-fade) ease-out;
     }
     .grab { display: none; }
-    .mi { min-height: 46px; font-size: 15px; }
 }
 @supports (anchor-name: --more) {
     @media (min-width: 601px) {
