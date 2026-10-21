@@ -123,21 +123,6 @@ async ([kind, field]) => {
     }));
 }
 """
-# Playwright's wait_for_function takes the Promise of an async predicate as truthy, so the
-# poll runs inside one evaluate and reports the last values it measured.
-INBOUND_GROWTH_AWAITED = f"""
-async ([kind, field, baseline, timeoutMilliseconds, pollIntervalMilliseconds]) => {{
-    const measure = {INBOUND_PER_CONNECTION};
-    const end = performance.now() + timeoutMilliseconds;
-    while (true) {{
-        const now = await measure([kind, field]);
-        const grown = now.length === baseline.length && now.every((value, index) => value > baseline[index]);
-        const remaining = end - performance.now();
-        if (grown || remaining <= 0) return {{ grown, now }};
-        await new Promise((next) => setTimeout(next, Math.floor(Math.min(pollIntervalMilliseconds, remaining))));
-    }}
-}}
-"""
 INBOUND_POLL_INTERVAL_MILLISECONDS = 50
 TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
 (selector) => {
@@ -542,14 +527,17 @@ def inbound_per_connection(person: Page, kind: str, field: str) -> list[float]:
 
 
 def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
-    outcome = person.evaluate(
-        INBOUND_GROWTH_AWAITED,
-        [kind, field, baseline, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, INBOUND_POLL_INTERVAL_MILLISECONDS],
-    )
-    assert outcome["grown"], (
-        f"inbound {kind} {field} did not grow past {baseline} within "
-        f"{MEDIA_FLOWING_TIMEOUT_MILLISECONDS} ms; last measured {outcome['now']}"
-    )
+    # A Python deadline loop: wait_for_function takes the Promise of an async predicate as truthy.
+    deadline = time.monotonic() + MEDIA_FLOWING_TIMEOUT_MILLISECONDS / 1000
+    while True:
+        now = inbound_per_connection(person, kind, field)
+        if len(now) == len(baseline) and all(value > before for value, before in zip(now, baseline, strict=True)):
+            return
+        assert time.monotonic() < deadline, (
+            f"inbound {kind} {field} did not grow past {baseline} within "
+            f"{MEDIA_FLOWING_TIMEOUT_MILLISECONDS} ms; last measured {now}"
+        )
+        person.wait_for_timeout(INBOUND_POLL_INTERVAL_MILLISECONDS)
 
 
 def wait_for_frames_to_advance(person: Page) -> None:
