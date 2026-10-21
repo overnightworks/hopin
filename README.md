@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![CI](https://github.com/overnightworks/hopin/actions/workflows/ci.yml/badge.svg)](https://github.com/overnightworks/hopin/actions/workflows/ci.yml)
 
-Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. No accounts, no installs, no third-party services.
+Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. No accounts, no installs, and no third-party services except STUN through a configurable server (Cloudflare by default).
 
 ## How It Works
 
