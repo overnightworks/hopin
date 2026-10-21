@@ -16,6 +16,7 @@ from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
+    ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     HEALTH_PATH,
@@ -84,6 +85,7 @@ class TestSignedOut:
             (ICE_SERVERS_PATH, FETCH_ACCEPT),
             ("/static/js/app.js", FETCH_ACCEPT),
             ("/", FETCH_ACCEPT),
+            (ACCOUNT_PATH, FETCH_ACCEPT),
             (ICE_SERVERS_PATH, {"accept": "*/*"}),
         ],
     )
@@ -176,6 +178,7 @@ class TestSecurityHeaders:
             ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
             ("GET", "/static/js/app.js", False, FETCH_ACCEPT, 401),
             ("GET", "/", False, FETCH_ACCEPT, 401),
+            ("GET", ACCOUNT_PATH, False, FETCH_ACCEPT, 401),
             ("GET", HEALTH_PATH, False, {}, 200),
             ("HEAD", HEALTH_PATH, False, {}, 200),
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
