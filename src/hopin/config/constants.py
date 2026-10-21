@@ -15,6 +15,7 @@ ACCOUNT_PATH = "/api/account"
 AUTH_START_PATH = "/auth/start"
 AUTH_CALLBACK_PATH = "/auth/callback"
 LOGIN_PATH = "/login"
+NO_ACCESS_PATH = "/no-access"
 LOGOUT_PATH = "/logout"
 
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"

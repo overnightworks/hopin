@@ -4,11 +4,17 @@ import structlog
 from fastapi import FastAPI
 from webauth.config import install_web_auth_config
 from webauth.middleware import install_web_auth_middleware
-from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
+from webauth.policies import CspDirective, CsrfPolicy, SecurityHeadersPolicy, default_content_security_policy
 
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import session_gate
-from hopin.auth.sign_in import ISSUER_OVER_HTTPS, IssuerTransports, build_sign_in_configs, create_sign_in_router
+from hopin.auth.sign_in import (
+    ISSUER_OVER_HTTPS,
+    IssuerTransports,
+    build_sign_in_configs,
+    create_sign_in_router,
+    end_session_origin,
+)
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import PERMISSIONS_POLICY
 from hopin.rooms.manager import RoomManager
@@ -65,8 +71,12 @@ def create_app(
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
-            content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
+            content_security_policy=default_content_security_policy(
+                added_sources={CspDirective.FORM_ACTION: [end_session_origin(sign_in_configs.oidc_client)]}
+            ),
+            permissions_policy=PERMISSIONS_POLICY,
         ),
+        csrf_origin=CsrfPolicy(),
         session_gate=session_gate(sign_in_stores.sessions),
     )
 

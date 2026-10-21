@@ -6,8 +6,15 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from hopin.auth.sign_in import LOGIN_FAILED_PAGE
-from hopin.config.constants import AUTH_START_PATH, CALL_PATH, HEALTH_PATH, HOME_PATH, STATIC_PATH
+from hopin.auth.sign_in import LOGIN_FAILED_PAGE, NO_ACCESS_PAGE, SIGNED_OUT_PAGE
+from hopin.config.constants import (
+    AUTH_START_PATH,
+    CALL_PATH,
+    HEALTH_PATH,
+    HOME_PATH,
+    LOGOUT_PATH,
+    STATIC_PATH,
+)
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
@@ -142,6 +149,8 @@ class PageInventory(HTMLParser):
         self.forbidden_attributes: list[str] = []
         self.fetched_urls: list[str] = []
         self.links: list[dict[str, str | None]] = []
+        self.forms: list[dict[str, str | None]] = []
+        self.submit_buttons = 0
         self.stylesheets: list[str] = []
         self.class_values: list[str] = []
         self.screens: set[str] = set()
@@ -171,6 +180,10 @@ class PageInventory(HTMLParser):
             self.stylesheets.append(attributes["href"])
         if "class" in attributes:
             self.class_values.append(attributes["class"])
+        if tag == "form":
+            self.forms.append(attributes)
+        if tag == "button" and attributes.get("type") == "submit":
+            self.submit_buttons += 1
         if tag == "a":
             self.links.append(attributes)
             if self._legal_nav_links is not None:
@@ -281,6 +294,59 @@ class TestLoginFailedPage:
 
     @pytest.mark.parametrize(
         "wording", ["<h1>Login failed</h1>", "<p>Sign-in did not work. Please try again.</p>", ">Try again</a>"]
+    )
+    def test_carries_the_ruled_wording_verbatim(self, markup, wording):
+        assert wording in markup
+
+
+class TestSignedOutPage:
+    @pytest.fixture
+    def markup(self):
+        return SIGNED_OUT_PAGE.read_text()
+
+    def test_links_to_a_new_sign_in_in_the_same_tab_and_to_both_legal_pages_in_a_new_tab(self, markup):
+        again, *legal = inventory_of(markup).links
+        assert again["href"] == AUTH_START_PATH
+        assert "target" not in again
+        assert [link["href"] for link in legal] == list(LEGAL_URLS)
+        assert all(link[name] == value for link in legal for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
+
+    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
+        assert "<script" not in markup.lower()
+        assert "http-equiv" not in markup
+
+    @pytest.mark.parametrize(
+        "wording", ["<title>HopIn - Signed out</title>", "<h1>You are logged out.</h1>", ">Log in</a>"]
+    )
+    def test_carries_the_ruled_wording_verbatim(self, markup, wording):
+        assert wording in markup
+
+
+class TestNoAccessPage:
+    @pytest.fixture
+    def markup(self):
+        return NO_ACCESS_PAGE.read_text()
+
+    def test_offers_one_log_out_form_to_the_logout_route_and_no_other_way_out(self, markup):
+        inventory = inventory_of(markup)
+        assert [(form["method"], form["action"]) for form in inventory.forms] == [("post", LOGOUT_PATH)]
+        assert inventory.submit_buttons == 1
+        assert [link["href"] for link in inventory.links] == list(LEGAL_URLS)
+        assert all(link[name] == value for link in inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
+        assert "Back" not in markup
+
+    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
+        assert "<script" not in markup.lower()
+        assert "http-equiv" not in markup
+
+    @pytest.mark.parametrize(
+        "wording",
+        [
+            "<title>HopIn - No access</title>",
+            "<h1>No access</h1>",
+            "<p>You are signed in, but this account has no access to HopIn.</p>",
+            ">Log out</button>",
+        ],
     )
     def test_carries_the_ruled_wording_verbatim(self, markup, wording):
         assert wording in markup
