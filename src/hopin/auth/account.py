@@ -1,31 +1,25 @@
-from typing import TYPE_CHECKING
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from webauth.dependencies import current_user_dependency
-from webauth.ports import AuthenticatedUser
+from webauth.middleware import admitted_user
 
 from hopin.config.constants import ACCOUNT_PATH
 from hopin.web.routes import READ_METHODS
-
-if TYPE_CHECKING:
-    from webauth.ports import SessionRecordStore
 
 
 class AccountName(BaseModel):
     name: str
 
 
-def create_account_router(sessions: SessionRecordStore) -> APIRouter:
-    dependencies = current_user_dependency(
-        session_store=lambda: sessions,
-        # HopIn's log context binds nothing and no log names a username.
-        on_authenticated=lambda _user: None,
-    )
+def create_account_router() -> APIRouter:
     router = APIRouter()
 
     @router.api_route(ACCOUNT_PATH, methods=READ_METHODS)
-    def account(user: AuthenticatedUser = Depends(dependencies.current_user)) -> AccountName:  # noqa: B008
+    def account(request: Request) -> AccountName:
+        user = admitted_user(request)
+        # The gate refuses a request without a session before the route runs, so a missing user is a wiring fault.
+        if user is None:  # pragma: no cover
+            message = "The account route ran without an admitted user."
+            raise RuntimeError(message)
         return AccountName(name=user.username)
 
     return router
