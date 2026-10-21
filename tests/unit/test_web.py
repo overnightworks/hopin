@@ -9,14 +9,14 @@ from fastapi.testclient import TestClient
 from hopin.config.constants import CALL_PATH, HEALTH_PATH, HOME_PATH, STATIC_PATH
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
-from hopin.signaling.identity import QueryIdIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
+from tests.unit.conftest import SocketAccountResolver
 
 
 @pytest.fixture
 def signaling_handler(room_manager):
-    return SignalingHandler(room_manager, QueryIdIdentityResolver(), AsyncioScheduler())
+    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
 
 
 @pytest.fixture

@@ -218,7 +218,7 @@ tests/
 
 ### Signaling Protocol
 
-Messages are JSON over WebSocket. The server identifies each socket at the handshake and names every peer with an id it mints, so peers address each other only by those ids. The server acts as a relay for connection setup:
+Messages are JSON over WebSocket. The server identifies each socket by its webauth session at the handshake (the page's Origin must be HopIn's own) and names every peer with an id it mints, so peers address each other only by those ids. The server acts as a relay for connection setup:
 
 | Signal | Direction | Purpose |
 |---|---|---|

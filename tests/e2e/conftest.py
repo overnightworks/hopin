@@ -5,7 +5,6 @@ import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from http.cookies import SimpleCookie
 from typing import Any
 
 import pytest
@@ -18,7 +17,7 @@ from hopin.auth.stores import SignInStores
 from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.main import uvicorn_options
 from tests.sign_in_settings import build_sign_in_settings
-from tests.signed_in import SeededMember, seed_member
+from tests.signed_in import SeededMember, parsed_set_cookies, seed_member
 
 LOOPBACK_HOST = "127.0.0.1"
 READINESS_POLL_INTERVAL_SECONDS = 0.1
@@ -337,8 +336,7 @@ def browser_context_args(browser_context_args: dict[str, Any]) -> dict[str, Any]
 
 
 def _playwright_cookie(set_cookie_header: str, config: WebAuthConfig) -> dict[str, Any]:
-    cookie = SimpleCookie(set_cookie_header)
-    ((name, morsel),) = cookie.items()
+    ((name, morsel),) = parsed_set_cookies([set_cookie_header])
     expires = int(config.wall_clock()) + int(morsel["max-age"])
     # The URL form of add_cookies is refused for a __Host- name, so the cookie goes in by domain and path.
     return {
@@ -372,12 +370,13 @@ def open_person(
 ) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
 
-    def open_page(*, signed_in: bool = True, **device_options: Any) -> Page:
+    def open_page(*, signed_in: bool = True, same_account_as: Page | None = None, **device_options: Any) -> Page:
         context = browser.new_context(**{**browser_context_args, **device_options})
         contexts.append(context)
         page = context.new_page()
         if signed_in:
-            member = seed_member(e2e_server.stores, e2e_server.config)
+            account = None if same_account_as is None else seeded_members[same_account_as].account
+            member = seed_member(e2e_server.stores, e2e_server.config, account=account)
             context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
             seeded_members[page] = member
         return page
