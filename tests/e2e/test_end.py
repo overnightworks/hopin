@@ -47,7 +47,6 @@ pytestmark = pytest.mark.e2e
 
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 IN_CALL = "In call"
-FIX_THE_ACCOUNT_ID = 'crypto.randomUUID = () => "a-host-account-that-survives-a-reload"'
 SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
 # startCall continues in the same microtask drain in which the ICE servers' body is read,
 # so a later poll that sees the flag also sees whatever that continuation did.
@@ -313,7 +312,7 @@ def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None
 def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rejoin_or_dialog(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
-    host = record_page_errors(open_recording_person(open_person, form_factor, [FIX_THE_ACCOUNT_ID]), page_errors)
+    host = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
     start_call(host, base_url)
 
     host.reload()
