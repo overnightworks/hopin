@@ -487,7 +487,6 @@ body {
 .button-primary { background: var(--accent); color: var(--on-accent); }
 .button-primary:hover { background: var(--accent-hover); }
 .button-primary:disabled { background: var(--accent); }
-.button-primary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .button-lg { height: 58px; font-size: 17px; }
 .button-stage { background: var(--accent-stage); color: var(--stage); }
 .brand {
@@ -847,6 +846,7 @@ body {
 .linkbox .button { height: 40px; padding: 0 16px; font-size: 14.5px; }
 .invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 6px 0; }
 .invite-actions .button { height: 48px; font-size: 15px; }
+.invite .button:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
 .invite[data-share="unavailable"] #inviteShareBtn { display: none; }
 .invite[data-share="unavailable"] .invite-actions { grid-template-columns: 1fr; }
 .invite[data-share="available"] #inviteCopyLinkBtn { background: var(--surface-2); color: var(--ink); }

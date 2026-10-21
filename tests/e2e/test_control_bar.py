@@ -6,10 +6,10 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.conftest import (
+    CLIPBOARD_ALLOWED,
     DESKTOP,
     FORM_FACTORS,
     ICE_SERVERS_URL_PATTERN,
-    MEDIA_PERMISSIONS,
     PHONE,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     join,
@@ -32,7 +32,6 @@ BAR_NAMES = {
     "desktop": ["Mute", "Camera off", "Share screen", "Invite", "Chat", "More", "Leave"],
     "phone": ["Mute", "Camera off", "Invite", "Chat", "More", "Leave"],
 }
-CLIPBOARD_ALLOWED = {"permissions": [*MEDIA_PERMISSIONS, "clipboard-read", "clipboard-write"]}
 OTHER_MUTE_MARK = ".tile:not(.self) .name .muted"
 OWN_PICTURE_AND_ICON = "#localVideo", "#localPlaceholder"
 LOCAL_AUDIO_TRACKS_ENABLED = (
