@@ -1,8 +1,0 @@
-claim_id = "595d9af656a94d028104698e4ae0b62c"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "12dd9d1e4f2536744c8e1cbe11373daf38472a5b"
-branch = "claude/issue-150-webauth-0-20-refresh-token"
-scope = ["pyproject.toml", "src/hopin/auth/sign_in.py", "src/hopin/auth/stores.py", "tests/fake_issuer.py", "tests/signed_in.py", "tests/unit/test_auth_stores.py", "tests/unit/test_sign_in_routes.py", "uv.lock"]
-opened_commit = "fafaa93013a2d2ec289ac4e7358e4c602805a4ee"
-whole_reason = "The new create signature breaks the store, its tests and the seeding recipe at once, and the pin and the lock decide which signature applies; they land together or the tree does not type-check."
