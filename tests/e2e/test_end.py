@@ -363,7 +363,7 @@ def answer_join_with(person: Page, frame: dict[str, Any]) -> None:
     def answer(socket: WebSocketRoute) -> None:
         socket.on_message(lambda _frame: socket.send(json.dumps(frame)))
 
-    person.route_web_socket("**/ws?*", answer)
+    person.route_web_socket("**/ws", answer)
 
 
 @pytest.mark.parametrize(("error", "expected"), REFUSED_JOINS)
