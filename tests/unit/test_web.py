@@ -151,6 +151,8 @@ class PageInventory(HTMLParser):
         self.links: list[dict[str, str | None]] = []
         self.forms: list[dict[str, str | None]] = []
         self.submit_buttons = 0
+        self.submit_labels: list[str] = []
+        self._in_submit_button = False
         self.stylesheets: list[str] = []
         self.class_values: list[str] = []
         self.screens: set[str] = set()
@@ -184,6 +186,8 @@ class PageInventory(HTMLParser):
             self.forms.append(attributes)
         if tag == "button" and attributes.get("type") == "submit":
             self.submit_buttons += 1
+            self._in_submit_button = True
+            self.submit_labels.append("")
         if tag == "a":
             self.links.append(attributes)
             if self._legal_nav_links is not None:
@@ -196,7 +200,13 @@ class PageInventory(HTMLParser):
             if value is not None and value.strip().lower().startswith("javascript:"):
                 self.forbidden_attributes.append(f"{name}=javascript:")
 
+    def handle_data(self, data):
+        if self._in_submit_button:
+            self.submit_labels[-1] += data
+
     def handle_endtag(self, tag):
+        if tag == "button":
+            self._in_submit_button = False
         if tag == "nav" and self._legal_nav_links is not None:
             self._record_legal_nav()
         while self._screens and self._screens[-1][1] == self._depth:
@@ -271,6 +281,7 @@ class TestPageIsCspReady:
     def test_posts_one_same_origin_form_to_log_out_from_the_account_menu(self, page_inventory):
         assert [(form["method"], form["action"]) for form in page_inventory.forms] == [("post", LOGOUT_PATH)]
         assert page_inventory.submit_buttons == 1
+        assert page_inventory.submit_labels == ["Log out"]
 
     def test_loads_the_application_as_a_module(self):
         assert f'<script type="module" src="{STATIC_PATH}/js/app.js">' in PAGE.read_text()

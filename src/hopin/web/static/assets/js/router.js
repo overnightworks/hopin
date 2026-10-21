@@ -1,3 +1,5 @@
+import { closeOpenMenu } from "./menus.js";
+
 export const SCREEN = {
     HOME: "home",
     PREJOIN: "prejoin",
@@ -22,6 +24,7 @@ export function showCallAddress(roomId) {
 }
 
 export function showScreen(screen) {
+    closeOpenMenu();
     for (const element of document.querySelectorAll("[data-screen]")) {
         element.classList.toggle("hidden", element.dataset.screen !== screen);
     }

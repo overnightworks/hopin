@@ -1,4 +1,5 @@
 let openedMenu = null;
+const scrimsClosingTheMenu = new WeakSet();
 
 function closeMenu({ button, dialog, scrim }) {
     openedMenu = null;
@@ -31,6 +32,8 @@ export function closeOpenMenu() {
 
 export function registerMenu(menu) {
     menu.button.addEventListener("click", () => toggleMenu(menu));
+    if (scrimsClosingTheMenu.has(menu.scrim)) return;
+    scrimsClosingTheMenu.add(menu.scrim);
     menu.scrim.addEventListener("click", closeOpenMenu);
 }
 

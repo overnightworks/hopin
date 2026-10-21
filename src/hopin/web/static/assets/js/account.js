@@ -4,13 +4,15 @@ import { goThroughSignIn } from "./router.js";
 const ACCOUNT_URL = "/api/account";
 const SIGNED_OUT_STATUS = 401;
 const INITIAL_SEPARATOR = /[._-]/;
+const INITIAL_CHARACTER = /[\p{L}\p{N}]/u;
 const INITIAL_COUNT = 2;
 
 function initialsOf(name) {
-    const parts = name.split(INITIAL_SEPARATOR).filter(Boolean);
-    return parts
+    return name
+        .split(INITIAL_SEPARATOR)
+        .filter(Boolean)
         .slice(0, INITIAL_COUNT)
-        .map((part) => [...part][0].toUpperCase())
+        .map((part) => part.match(INITIAL_CHARACTER)?.[0].toUpperCase() ?? "")
         .join("");
 }
 
@@ -32,7 +34,9 @@ async function readAccountName() {
 
 function showAccountName(name) {
     const initials = initialsOf(name);
-    for (const avatar of document.querySelectorAll(".account-button, #accountMenu .av")) avatar.textContent = initials;
+    if (initials !== "") {
+        for (const avatar of document.querySelectorAll(".account-button, #accountMenu .av")) avatar.textContent = initials;
+    }
     const nameLine = document.querySelector("#accountMenu .menu-head b");
     nameLine.textContent = name;
     nameLine.classList.remove("hidden");
