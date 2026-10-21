@@ -15,6 +15,8 @@ const tiles = document.querySelector("#videoGrid .tiles");
 
 const localMuteMark = localContainer.querySelector(".muted");
 const remoteMediaStates = new Map();
+const WAVE_BAR_COUNT = 3;
+const speakingParticipantIds = new Set();
 
 function renderRemoteVideo(participantId) {
     const video = document.getElementById(`video-${participantId}`);
@@ -30,15 +32,19 @@ function renderRemoteVideo(participantId) {
     placeholder.classList.toggle("hidden", showsVideo);
 }
 
-function renderRemoteMuteMark(participantId) {
-    const muteMark = document.querySelector(`#container-${participantId} .muted`);
-    if (!muteMark) return;
-    muteMark.classList.toggle("hidden", remoteMediaStates.get(participantId)?.audio !== false);
+function renderRemoteVoice(participantId) {
+    const container = document.getElementById(`container-${participantId}`);
+    if (!container) return;
+    const muted = remoteMediaStates.get(participantId)?.audio === false;
+    const showsWave = speakingParticipantIds.has(participantId) && !muted;
+    container.querySelector(".muted").classList.toggle("hidden", !muted);
+    container.querySelector(".wave").classList.toggle("hidden", !showsWave);
+    container.classList.toggle("speaking", showsWave);
 }
 
 function renderRemoteMediaState(participantId) {
     renderRemoteVideo(participantId);
-    renderRemoteMuteMark(participantId);
+    renderRemoteVoice(participantId);
 }
 
 function updateGridLayout() {
@@ -50,6 +56,14 @@ function createPersonAvatar() {
     avatar.className = "av";
     avatar.append(localPlaceholder.querySelector("svg").cloneNode(true));
     return avatar;
+}
+
+function createWave() {
+    const wave = document.createElement("span");
+    wave.className = "wave hidden";
+    wave.setAttribute("aria-hidden", "true");
+    wave.append(...Array.from({ length: WAVE_BAR_COUNT }, () => document.createElement("i")));
+    return wave;
 }
 
 export function showLocalStream(stream) {
@@ -73,6 +87,12 @@ export function setRemoteMediaState(participantId, mediaState) {
     renderRemoteMediaState(participantId);
 }
 
+export function setRemoteSpeaking(participantId, speaking) {
+    if (speaking) speakingParticipantIds.add(participantId);
+    else speakingParticipantIds.delete(participantId);
+    renderRemoteVoice(participantId);
+}
+
 export function addRemoteTile(participantId) {
     const container = document.createElement("div");
     container.className = "tile";
@@ -91,7 +111,7 @@ export function addRemoteTile(participantId) {
 
     const label = document.createElement("span");
     label.className = "name";
-    label.append(localMuteMark.cloneNode(true), `Peer ${participantId.slice(0, 6)}`);
+    label.append(localMuteMark.cloneNode(true), createWave(), `Peer ${participantId.slice(0, 6)}`);
 
     container.append(video, placeholder, label, createQualityIndicator());
     tiles.appendChild(container);
@@ -101,6 +121,7 @@ export function addRemoteTile(participantId) {
 
 export function removeRemoteTile(participantId) {
     remoteMediaStates.delete(participantId);
+    speakingParticipantIds.delete(participantId);
     const container = document.getElementById(`container-${participantId}`);
     if (!container) return false;
     container.remove();

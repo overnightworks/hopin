@@ -9,8 +9,7 @@ export function setStatus(text, type) {
 }
 
 export function showLockIndicator(isLocked) {
-    lockIndicator.className = isLocked ? "lock-indicator visible" : "lock-indicator";
-    lockIndicator.textContent = isLocked ? "Locked" : "";
+    lockIndicator.classList.toggle("hidden", !isLocked);
 }
 
 export function showParticipantCount(count) {

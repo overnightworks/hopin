@@ -7,17 +7,16 @@ from starlette.websockets import WebSocketDisconnect
 from hopin.app import create_app
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
-    SUPERSEDED_CLOSE_CODE,
+    SEAT_CLOSED_BY_SERVER_CODE,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
-from hopin.config.settings import ServerSettings
 
 
 @pytest.fixture
-def client():
-    settings = ServerSettings(max_participants_per_room=3)
+def client(sign_in_settings):
+    settings = sign_in_settings(max_participants_per_room=3).settings
     with TestClient(create_app(settings)) as shared_portal_client:
         yield shared_portal_client
 
@@ -470,4 +469,4 @@ class TestResume:
         assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
         with pytest.raises(WebSocketDisconnect) as superseded:
             guest_ws.receive_json()
-        assert superseded.value.code == SUPERSEDED_CLOSE_CODE
+        assert superseded.value.code == SEAT_CLOSED_BY_SERVER_CODE

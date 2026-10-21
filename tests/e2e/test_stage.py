@@ -8,6 +8,7 @@ from playwright.sync_api import Page, ViewportSize, expect
 
 from tests.e2e.conftest import (
     DESKTOP,
+    OTHER_TILE,
     PHONE,
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
@@ -37,6 +38,18 @@ CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
 PHONE_QUALITY_BARS_INSET = {"top": 50, "right": 16}
 QUALITY_BAR_COUNT = 3
 VIGNETTE_GRADIENT = "linear-gradient(to top"
+VIGNETTE_STACKING = """
+(tile) => {
+    const stackOf = (selector) => Number(getComputedStyle(tile.querySelector(selector)).zIndex) || 0;
+    const vignette = getComputedStyle(tile, "::after");
+    return {
+        backgroundImage: vignette.backgroundImage,
+        vignette: Number(vignette.zIndex),
+        video: stackOf("video"),
+        placeholder: stackOf(".vid"),
+    };
+}
+"""
 BOXES_OF_THE_STAGE = """
 () => {
     const boxOf = (element) => {
@@ -195,10 +208,9 @@ def test_stage_shows_every_remote_tile_a_quality_pill_of_bare_bars_and_a_vignett
         expect(pill.locator(".quality-bar")).to_have_count(QUALITY_BAR_COUNT)
         assert pill.get_attribute("style") is None
         assert all(bar.get_attribute("style") is None for bar in pill.locator(".quality-bar").all())
-    vignette = host.locator("#videoGrid .tile").first.evaluate(
-        "(tile) => getComputedStyle(tile, '::after').backgroundImage"
-    )
-    assert vignette.startswith(VIGNETTE_GRADIENT)
+    stacking = host.locator(OTHER_TILE).first.evaluate(VIGNETTE_STACKING)
+    assert stacking["backgroundImage"].startswith(VIGNETTE_GRADIENT)
+    assert stacking["video"] < stacking["vignette"] < stacking["placeholder"]
 
 
 def test_stage_lays_out_each_call_size_from_two_to_six_in_the_pictures_shape(

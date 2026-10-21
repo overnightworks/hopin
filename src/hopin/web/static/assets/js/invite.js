@@ -11,12 +11,19 @@ const card = document.getElementById("waitingCard");
 const linkElement = document.getElementById("waitingLink");
 const copyButton = document.getElementById("waitingCopyBtn");
 const shareButton = document.getElementById("waitingShareBtn");
+const inviteButton = document.getElementById("inviteBtn");
+const inviteMenu = document.getElementById("inviteMenu");
+const inviteLinkElement = document.getElementById("inviteLink");
+const inviteCopyButtons = inviteMenu.querySelectorAll(".invite-copy");
+const inviteShareButton = document.getElementById("inviteShareBtn");
 
 let callLink = "";
 
 export function setCallLink(url) {
     callLink = url;
     linkElement.textContent = url;
+    inviteLinkElement.textContent = url;
+    inviteButton.disabled = false;
 }
 
 export function showWaitingCard() {
@@ -46,11 +53,18 @@ export async function shareCallLink() {
 }
 
 export function initInvite() {
-    card.dataset.share = "share" in navigator ? "available" : "unavailable";
-    copyButton.addEventListener("click", () => {
-        void copyCallLink();
-    });
-    shareButton.addEventListener("click", () => {
-        void shareCallLink();
-    });
+    const shareState = "share" in navigator ? "available" : "unavailable";
+    card.dataset.share = shareState;
+    inviteMenu.dataset.share = shareState;
+    const copyButtons = [copyButton, ...inviteCopyButtons];
+    for (const button of copyButtons) {
+        button.addEventListener("click", () => {
+            void copyCallLink();
+        });
+    }
+    for (const button of [shareButton, inviteShareButton]) {
+        button.addEventListener("click", () => {
+            void shareCallLink();
+        });
+    }
 }

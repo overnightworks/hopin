@@ -1,5 +1,5 @@
 import { initChat, registerChatHandlers } from "./chat.js";
-import { hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
+import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
@@ -30,6 +30,7 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome } from "./home.js";
+import { clearToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, showCallAddress, showScreen } from "./router.js";
 
@@ -70,6 +71,7 @@ function tearDownCall() {
     stopLocalMedia();
     disconnect();
     showLocalStream(null);
+    clearToast();
     hideWaitingCard();
     hideLockButton();
     hideParticipantCount();
@@ -109,6 +111,7 @@ function registerSessionHandlers() {
         state.isHost = data.is_host;
         state.isLocked = data.locked;
         state.reconnectAttempt = 0;
+        setCallLink(callUrl(getRoomIdFromUrl()));
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
@@ -121,10 +124,12 @@ function registerSessionHandlers() {
     on(SIGNAL_TYPE.ROOM_LOCKED, () => {
         state.isLocked = true;
         updateLockUI();
+        confirmLockChange(true);
     });
     on(SIGNAL_TYPE.ROOM_UNLOCKED, () => {
         state.isLocked = false;
         updateLockUI();
+        confirmLockChange(false);
     });
     on(SIGNAL_TYPE.ROOM_CLOSED, (data) => {
         tearDownCall();

@@ -6,19 +6,18 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.conftest import (
+    CLIPBOARD_ALLOWED,
     DESKTOP,
     FORM_FACTORS,
     ICE_SERVERS_URL_PATTERN,
-    MEDIA_PERMISSIONS,
     PHONE,
-    RECORD_PEER_CONNECTIONS,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
-    add_init_scripts,
     join,
+    open_call,
+    open_host,
     press_start_call,
     record_page_errors,
     share_the_screen,
-    start_call,
     stop_the_screen_share,
     wait_for_peer_count,
 )
@@ -30,10 +29,9 @@ VISIBLE_BAR_BUTTONS = f"{BAR} button:visible"
 ROUND_BUTTON_PIXELS = 52
 LEAVE_PILL_PIXELS = {"desktop": 72, "phone": 52}
 BAR_NAMES = {
-    "desktop": ["Mute", "Camera off", "Share screen", "Chat", "Lock call", "Leave"],
-    "phone": ["Mute", "Camera off", "Chat", "Lock call", "Leave"],
+    "desktop": ["Mute", "Camera off", "Share screen", "Invite", "Chat", "More", "Leave"],
+    "phone": ["Mute", "Camera off", "Invite", "Chat", "More", "Leave"],
 }
-CLIPBOARD_ALLOWED = {"permissions": [*MEDIA_PERMISSIONS, "clipboard-read", "clipboard-write"]}
 OTHER_MUTE_MARK = ".tile:not(.self) .name .muted"
 OWN_PICTURE_AND_ICON = "#localVideo", "#localPlaceholder"
 LOCAL_AUDIO_TRACKS_ENABLED = (
@@ -82,24 +80,6 @@ def form_factor_name(form_factor: dict[str, Any]) -> str:
     return "phone" if form_factor == PHONE else "desktop"
 
 
-def open_host(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any], *scripts: str
-) -> tuple[Page, str]:
-    host = record_page_errors(open_person(**form_factor), page_errors)
-    add_init_scripts(host, (RECORD_PEER_CONNECTIONS, *scripts))
-    return host, start_call(host, base_url)
-
-
-def open_call(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any], *scripts: str
-) -> tuple[Page, Page]:
-    host, invite_link = open_host(open_person, base_url, page_errors, form_factor, *scripts)
-    guest = join(open_person, invite_link, form_factor, (RECORD_PEER_CONNECTIONS,), page_errors)
-    wait_for_peer_count(host, 1)
-    wait_for_peer_count(guest, 1)
-    return host, guest
-
-
 def bar_names(person: Page) -> list[str]:
     return [button.get_attribute("aria-label") or "" for button in person.locator(VISIBLE_BAR_BUTTONS).all()]
 
@@ -126,7 +106,7 @@ def test_host_bar_shows_round_buttons_in_order_inside_the_stage_and_no_old_strip
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
     name = form_factor_name(form_factor)
-    host, _ = open_call(open_person, base_url, page_errors, form_factor)
+    host, _, _ = open_call(open_person, base_url, page_errors, form_factor)
 
     expect(host.locator(VISIBLE_BAR_BUTTONS)).to_have_count(len(BAR_NAMES[name]))
     assert bar_names(host) == BAR_NAMES[name]
@@ -144,21 +124,23 @@ def test_host_bar_shows_round_buttons_in_order_inside_the_stage_and_no_old_strip
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_guest_bar_has_no_lock_button(
+def test_guest_bar_has_more_and_no_lock_and_no_button_carries_a_title(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, guest = open_call(open_person, base_url, page_errors, form_factor)
+    host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
 
-    expect(button_named(host, "Lock call")).to_be_visible()
-    expect(button_named(guest, "Lock call")).to_be_hidden()
-    assert "Lock call" not in bar_names(guest)
+    for person in (host, guest):
+        expect(button_named(person, "More")).to_be_visible()
+        expect(person.locator(f"{BAR} #lockBtn")).to_have_count(0)
+        expect(person.locator(f"{BAR} [title]")).to_have_count(0)
+    assert bar_names(guest) == bar_names(host)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_mute_keeps_its_name_and_is_pressed_exactly_while_the_microphone_is_off(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, guest = open_call(open_person, base_url, page_errors, form_factor)
+    host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
     mute = button_named(host, "Mute")
 
     mute.click()
@@ -178,7 +160,7 @@ def test_mute_keeps_its_name_and_is_pressed_exactly_while_the_microphone_is_off(
 def test_camera_off_keeps_its_name_and_is_pressed_exactly_while_the_own_tile_shows_the_icon(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, _ = open_call(open_person, base_url, page_errors, form_factor)
+    host, _, _ = open_call(open_person, base_url, page_errors, form_factor)
     camera = button_named(host, "Camera off")
     picture, icon = (host.locator(selector) for selector in OWN_PICTURE_AND_ICON)
 
@@ -198,7 +180,7 @@ def test_camera_off_keeps_its_name_and_is_pressed_exactly_while_the_own_tile_sho
 def test_share_screen_is_pressed_and_active_exactly_while_sharing(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
-    host, _ = open_call(open_person, base_url, page_errors, DESKTOP, SHARE_THE_SCREEN_FROM_A_CANVAS)
+    host, _, _ = open_call(open_person, base_url, page_errors, DESKTOP, SHARE_THE_SCREEN_FROM_A_CANVAS)
     share = button_named(host, "Share screen")
 
     share_the_screen(host)
@@ -211,31 +193,10 @@ def test_share_screen_is_pressed_and_active_exactly_while_sharing(
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_lock_call_is_pressed_with_the_locked_tag_and_a_guest_finds_the_call_locked(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
-) -> None:
-    host, invite_link = open_host(open_person, base_url, page_errors, form_factor)
-    lock = button_named(host, "Lock call")
-
-    lock.click()
-
-    pressed(lock, value=True)
-    expect(lock).to_have_class("cb active")
-    expect(host.locator("#lockIndicator")).to_have_text("Locked")
-    latecomer = join(open_person, invite_link, form_factor, page_errors=page_errors)
-    expect(latecomer.locator("[data-screen=end]")).to_contain_text("locked", ignore_case=True)
-
-    lock.click()
-
-    pressed(lock, value=False)
-    expect(host.locator("#lockIndicator")).to_have_text("")
-
-
-@pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_chat_button_shows_the_unread_count_and_clears_it_when_the_panel_opens(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, guest = open_call(open_person, base_url, page_errors, form_factor)
+    host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
     chat = button_named(host, "Chat")
     badge = host.locator("#chatBadge")
 
@@ -310,7 +271,7 @@ def test_no_tile_overlaps_a_bar_button_with_three_people(
 def test_tab_walks_the_bar_in_visual_order_and_space_toggles_mute(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
-    host, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    host, _, _ = open_call(open_person, base_url, page_errors, DESKTOP)
     host.evaluate("() => document.activeElement.blur()")
 
     for name in BAR_NAMES["desktop"]:

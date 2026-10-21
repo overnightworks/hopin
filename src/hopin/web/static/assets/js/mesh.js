@@ -2,6 +2,7 @@ import { applyUploadCaps, videoTransceivers } from "./bandwidth.js";
 import { monitorConnectionQuality } from "./quality.js";
 import { watchIceConnection } from "./recovery.js";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
+import { monitorSpeaking } from "./speaking.js";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
 import { state } from "./state.js";
 
@@ -81,6 +82,7 @@ async function createPeerConnection(participantId, initiator) {
     }
 
     monitorConnectionQuality(participantId, connection);
+    monitorSpeaking(participantId, connection);
     return connection;
 }
 

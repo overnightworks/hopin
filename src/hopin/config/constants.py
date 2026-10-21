@@ -11,6 +11,17 @@ CALL_PATH = "/c"
 HEALTH_PATH = "/health"
 STATIC_PATH = "/static"
 ICE_SERVERS_PATH = "/api/ice-servers"
+AUTH_START_PATH = "/auth/start"
+AUTH_CALLBACK_PATH = "/auth/callback"
+LOGIN_PATH = "/login"
+LOGOUT_PATH = "/logout"
+
+OIDC_CLIENT_ID = "hopin"
+LOGIN_GROUP = "/apps/hopin"
+RETURN_TO_QUERY_PARAMETER = "next"
+OIDC_SCOPES = ("openid", "profile", "groups")
+OIDC_LEEWAY_SECONDS = 30
+SESSION_LIFETIME_SECONDS = 12 * 60 * 60
 
 STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
 
@@ -27,9 +38,12 @@ WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
 # HopIn's page always sends 1000, so 1005 is a loss and the seat parks.
 NORMAL_CLOSE_CODES = frozenset({1000, 1001})
 POLICY_VIOLATION_CLOSE_CODE = 1008
-SUPERSEDED_CLOSE_CODE = 4001
+# The server closes a socket that no longer serves a seat: a resume took the seat over,
+# a resume could not catch the seat up, or the room ended.
+SEAT_CLOSED_BY_SERVER_CODE = 4001
 PEER_ID_BYTES = 16
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
+UVICORN_LOG_LEVEL = "warning"
 
 
 class SignalType(StrEnum):
