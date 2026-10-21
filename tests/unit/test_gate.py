@@ -1,16 +1,19 @@
+import json
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
+import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
 from webauth.middleware import install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
 from webauth.policies import CspDirective, SecurityHeadersPolicy, default_content_security_policy
+from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
@@ -20,6 +23,7 @@ from hopin.config.constants import (
     ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
+    BACKCHANNEL_LOGOUT_PATH,
     HEALTH_PATH,
     ICE_SERVERS_PATH,
     LOGIN_PATH,
@@ -29,6 +33,7 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
+from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
@@ -48,6 +53,9 @@ LOOKALIKE_PATHS = [
     "/LOGIN",
     "/no-access/x",
     "/logout/",
+    f"{BACKCHANNEL_LOGOUT_PATH}/",
+    f"{BACKCHANNEL_LOGOUT_PATH}x",
+    BACKCHANNEL_LOGOUT_PATH.upper(),
 ]
 SIGN_IN_PAGES = {LOGIN_PATH: SIGNED_OUT_PAGE, NO_ACCESS_PATH: NO_ACCESS_PAGE}
 FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
@@ -70,17 +78,24 @@ class Application:
 
     def __init__(self, sign_in: SignInSettings, **options) -> None:
         self.stores = SignInStores.in_memory()
-        self.app = create_app(sign_in.settings, stores=self.stores, **options)
+        self.issuer = FakeIssuer(sign_in)
+        self.app = create_app(sign_in.settings, stores=self.stores, issuer_transports=self.issuer.transports, **options)
         self.config = installed_web_auth_config(self.app)
         self.client = TestClient(self.app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
 
     def seed(self) -> SeededMember:
         return seed_member(self.stores, self.config)
 
-    def request(self, method: str, path: str, member: SeededMember | None = None, **headers: str):
+    def request(self, method: str, path: str, member: SeededMember | None = None, *, body: bytes = b"", **headers: str):
         if member is not None:
             headers = {**headers, "cookie": cookie_header(member.set_cookie_headers)}
-        return self.client.request(method, path, headers=headers)
+        return self.client.request(method, path, headers=headers, content=body)
+
+    def post_logout_token(self, subject: str, **headers: str):
+        """What the issuer's back-channel logout sends: a form post with no origin, cookie or fetch metadata."""
+        body = urlencode({"logout_token": self.issuer.logout_token(subject)}).encode()
+        url = f"http://hopin:8080{BACKCHANNEL_LOGOUT_PATH}"
+        return self.request("POST", url, body=body, **{**FORM_POST, **headers})
 
     def get(self, path: str, member: SeededMember | None = None, **headers: str):
         return self.request("GET", path, member, **headers)
@@ -267,6 +282,81 @@ class TestLogout:
 
         assert response.status_code == 405
         assert application.stores.sessions.load(member.session.id) is not None
+
+
+class TestBackchannelLogout:
+    def test_the_issuer_as_it_posts_ends_the_sessions_without_origin_cookie_or_fetch_metadata(self, application):
+        member = application.seed()
+        other_device = seed_member(application.stores, application.config, account=member.account)
+        other_member = application.seed()
+
+        with structlog.testing.capture_logs() as logs:
+            response = application.post_logout_token(member.account.id, host="hopin:8080")
+
+        assert response.status_code == 200
+        assert application.stores.sessions.load(member.session.id) is None
+        assert application.stores.sessions.load(other_device.session.id) is None
+        assert application.stores.sessions.load(other_member.session.id) is not None
+        ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
+        assert [log["subject_id"] for log in ended] == [member.account.id]
+        assert member.account.username not in json.dumps(logs)
+
+    @pytest.mark.parametrize(
+        "path", [f"{BACKCHANNEL_LOGOUT_PATH}/", f"{BACKCHANNEL_LOGOUT_PATH}x", BACKCHANNEL_LOGOUT_PATH.upper()]
+    )
+    def test_a_lookalike_path_is_not_exempt_from_the_origin_check(self, application, path):
+        assert application.request("POST", path, **FORM_POST).status_code == 403
+
+    def test_the_exemption_leaves_a_cross_site_logout_refused(self, application):
+        assert application.request("POST", LOGOUT_PATH, **CROSS_SITE_FORM_POST).status_code == 403
+
+    @pytest.mark.parametrize(
+        "path", [f"{BACKCHANNEL_LOGOUT_PATH}x", f"{BACKCHANNEL_LOGOUT_PATH}/", BACKCHANNEL_LOGOUT_PATH.upper()]
+    )
+    def test_a_lookalike_path_is_not_public_for_a_post(self, application, path):
+        response = application.request("POST", path, **{"sec-fetch-site": "same-origin"})
+        assert response.status_code == 401
+        assert "location" not in response.headers
+
+    @pytest.mark.parametrize(
+        ("headers", "status"), [(BROWSER_ACCEPT, 302), (FETCH_ACCEPT, 401)], ids=["navigation", "fetch"]
+    )
+    def test_a_get_is_gated_and_never_reaches_the_route(self, application, headers, status):
+        response = application.get(BACKCHANNEL_LOGOUT_PATH, **headers)
+        assert response.status_code == status
+        if status == 401:
+            assert "location" not in response.headers
+        else:
+            assert response.headers["location"].startswith(AUTH_START_PATH)
+
+    def test_a_form_of_32_kib_is_accepted_and_one_byte_over_is_refused(self, application):
+        padded = b"logout_token=" + b"a" * (32 * 1024 - len(b"logout_token="))
+        accepted = application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=padded, **FORM_POST)
+        refused = application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=padded + b"a", **FORM_POST)
+        assert accepted.status_code == 400
+        assert refused.status_code == 413
+
+    def test_a_form_of_33_kib_to_the_path_is_refused(self, application):
+        body = b"logout_token=" + b"a" * (33 * 1024)
+        assert application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=body, **FORM_POST).status_code == 413
+
+    def test_every_other_path_takes_only_4_kib(self, application):
+        over = b"a" * (5 * 1024)
+        assert application.request("POST", LOGOUT_PATH, body=over, **SAME_ORIGIN_FORM_POST).status_code == 413
+
+    def test_every_answer_of_the_path_is_not_cached(self, application):
+        oversized = b"a" * (33 * 1024)
+        answers = {
+            200: application.post_logout_token("nobody"),
+            400: application.request("POST", BACKCHANNEL_LOGOUT_PATH, **FORM_POST),
+            413: application.request("POST", BACKCHANNEL_LOGOUT_PATH, body=oversized, **FORM_POST),
+        }
+        for status, response in answers.items():
+            assert response.status_code == status
+            assert response.headers["cache-control"] == "no-store"
+
+    def test_other_paths_keep_their_cache_headers(self, application):
+        assert application.get(HEALTH_PATH).headers.get("cache-control") != "no-store"
 
 
 class TestSessionLifetime:
