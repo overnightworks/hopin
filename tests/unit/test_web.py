@@ -245,9 +245,7 @@ def page_inventory():
 
 @pytest.fixture(params=sorted(STATIC_DIR.glob("*.html")), ids=lambda page: page.name)
 def every_page_inventory(request):
-    inventory = PageInventory()
-    inventory.feed(request.param.read_text())
-    return inventory
+    return inventory_of(request.param.read_text())
 
 
 class TestPageIsCspReady:
@@ -279,9 +277,6 @@ class TestLoginFailedPage:
     def inventory(self, markup):
         return inventory_of(markup)
 
-    def test_loads_ui_console_before_hopin(self, inventory):
-        assert inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
-
     def test_links_to_a_new_sign_in_in_the_same_tab_and_to_both_legal_pages_in_a_new_tab(self, inventory):
         again, *legal = inventory.links
         assert again["href"] == AUTH_START_PATH
@@ -289,7 +284,8 @@ class TestLoginFailedPage:
         assert [link["href"] for link in legal] == list(LEGAL_URLS)
         assert all(link[name] == value for link in legal for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
 
-    def test_never_redirects_by_itself(self, markup):
+    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
+        assert "<script" not in markup.lower()
         assert "http-equiv" not in markup
 
     @pytest.mark.parametrize(
@@ -300,8 +296,8 @@ class TestLoginFailedPage:
 
 
 class TestPageShell:
-    def test_loads_ui_console_before_hopin(self, page_inventory):
-        assert page_inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
+    def test_every_page_loads_ui_console_before_hopin(self, every_page_inventory):
+        assert every_page_inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
 
     def test_vendored_ui_console_is_byte_identical_to_its_release(self):
         assert hashlib.sha256(UI_CONSOLE_CSS.read_bytes()).hexdigest() == UI_CONSOLE_SHA256

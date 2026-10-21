@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -282,7 +283,7 @@ class TestRefusedLogin:
         refused = intruder.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert harness.issuer.exchanges == []
         admitted = owner.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(harness, refused, LOGIN_FAILED)
+        assert_refused(harness, refused, LOGIN_FAILED, cleared_under_start_name=False)
         assert harness.who(intruder) == {"user": None}
         assert admitted.status_code == 303
         assert harness.who(owner)["user"] == {"id": SUBJECT, "username": USERNAME}
@@ -296,6 +297,22 @@ class TestRefusedLogin:
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert_refused(harness, response, LOGIN_FAILED)
         assert harness.who(browser) == {"user": None}
+
+    def test_try_again_on_the_login_failed_page_signs_in_to_the_home_not_the_first_requested_page(self, harness):
+        browser = harness.browser()
+        harness.start(browser, "/c/first-requested")
+        refused = browser.get(f"{AUTH_CALLBACK_PATH}?state=forged&code=x")
+        assert_refused(harness, refused, LOGIN_FAILED, cleared_under_start_name=False)
+        again = re.search(r'href="([^"]+)">Try again</a>', refused.text)
+        assert again is not None
+
+        start = browser.get(again.group(1))
+        query = harness.issuer.authorize(
+            start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
+        )
+        landing = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+
+        assert (landing.status_code, landing.headers["location"]) == (303, HOME_PATH)
 
     def test_a_replayed_callback_is_refused_and_leaves_the_first_session(self, harness):
         browser = harness.browser()

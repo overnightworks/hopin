@@ -60,7 +60,7 @@ def test_try_again_is_as_wide_as_the_card_on_a_phone_and_narrower_on_a_desktop(
     assert desktop_button < desktop_content
 
 
-def test_try_again_starts_a_new_sign_in_without_a_return_path(
+def test_try_again_starts_a_new_sign_in_at_the_issuer(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
 ) -> None:
     person = open_login_failed(open_person, e2e_server, page_errors, DESKTOP)
@@ -75,4 +75,3 @@ def test_try_again_starts_a_new_sign_in_without_a_return_path(
     assert urls[0].query == ""
     assert urls[-1].hostname == "issuer.test.invalid"
     assert documents[0].response().status == 303
-    assert {"next", "return_to"}.isdisjoint(part.split("=")[0] for part in urls[-1].query.split("&"))
