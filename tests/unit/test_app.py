@@ -1,8 +1,11 @@
+import asyncio
 import secrets
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
 import structlog
+import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -17,6 +20,7 @@ from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     LOGIN_GROUP,
+    SESSION_SWEEP_SECONDS,
     WEBSOCKET_PATH,
     SignalType,
 )
@@ -135,6 +139,51 @@ class TestCreateApp:
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
     def test_generated_documentation_is_not_served(self, sign_in_settings, path):
         assert signed_in_client(sign_in_settings().settings).get(path).status_code == 404
+
+
+class TestExpiredSessionSweep:
+    @pytest.fixture
+    def swept(self, sign_in_settings, scheduler):
+        stores = SignInStores.in_memory()
+        app = create_app(sign_in_settings().settings, stores=stores, scheduler=scheduler)
+        account = stores.accounts.create_for_subject("subject", "name", "user")
+        now = datetime.now(UTC)
+        created_at = now - timedelta(hours=2)
+        expired = stores.sessions.create(
+            account.id, now=created_at, expires_at=now - timedelta(hours=1), refresh_token=None
+        )
+        live = stores.sessions.create(
+            account.id, now=created_at, expires_at=now + timedelta(hours=1), refresh_token=None
+        )
+        return app, stores.sessions, expired, live
+
+    def test_the_lifespan_removes_expired_sessions_every_interval_and_keeps_live_ones(self, swept, scheduler):
+        app, sessions, expired, live = swept
+        with TestClient(app):
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+            assert [sessions.load(expired.id), sessions.load(live.id) is not None] == [None, True]
+
+    def test_the_lifespan_stops_the_sweep_at_shutdown(self, swept, scheduler):
+        app, sessions, expired, _ = swept
+        with TestClient(app):
+            pass
+        asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+        assert sessions.load(expired.id) is not None
+
+    def test_a_sweep_that_removed_nothing_logs_nothing(self, swept, scheduler):
+        app, sessions, expired, _ = swept
+        sessions.delete(expired.id)
+        with structlog.testing.capture_logs() as logs, TestClient(app):
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+        assert [entry["event"] for entry in logs if entry["event"] == "expired_sessions_swept"] == []
+
+    def test_a_sweep_that_removed_sessions_logs_only_the_count(self, swept, scheduler):
+        app, *_ = swept
+        with structlog.testing.capture_logs() as logs, TestClient(app):
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+        assert [entry for entry in logs if entry["event"] == "expired_sessions_swept"] == [
+            {"event": "expired_sessions_swept", "log_level": "info", "removed": 1}
+        ]
 
 
 class TestLoggedExceptions:

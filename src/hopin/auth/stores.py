@@ -92,9 +92,19 @@ class InMemorySessions:
             refresh_token=refresh_token,
         )
         with self._guard:
-            self._rows = {id_: stored for id_, stored in self._rows.items() if stored.expires_at >= now}
+            self._drop_expired(now)
             self._rows[row.id] = row
         return _joined(row, user)
+
+    def delete_expired(self, now: datetime) -> int:
+        with self._guard:
+            return self._drop_expired(now)
+
+    def _drop_expired(self, now: datetime) -> int:
+        expired = [id_ for id_, row in self._rows.items() if row.expires_at < now]
+        for session_id in expired:
+            del self._rows[session_id]
+        return len(expired)
 
     def load(self, session_id: str) -> StoredSession | None:
         with self._guard:
