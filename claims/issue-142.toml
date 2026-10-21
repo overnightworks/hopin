@@ -1,0 +1,8 @@
+claim_id = "8bc1129b67cb4b7e8a889131132b8b69"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "12dd9d1e4f2536744c8e1cbe11373daf38472a5b"
+branch = "claude/issue-142-names-from-the-session"
+scope = ["README.md", "src/hopin/app.py", "src/hopin/auth/account.py", "src/hopin/config/constants.py", "src/hopin/signaling/handler.py", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/chat.js", "src/hopin/web/static/assets/js/home.js", "src/hopin/web/static/assets/js/stage.js", "src/hopin/web/static/assets/js/state.js", "src/hopin/web/static/index.html", "tests/e2e/conftest.py", "tests/e2e/test_names.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_account.py", "tests/unit/test_app.py", "tests/unit/test_signaling.py"]
+opened_commit = "e9342296c067d35c8ff59bb85fcfb7f10bb23626"
+whole_reason = "One ruled reading (the Keycloak username) is shown at the home, on the tiles and in chat; each part is a few lines over its own files, so the account route, the frames and the three readers land together."
