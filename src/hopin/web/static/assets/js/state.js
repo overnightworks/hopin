@@ -6,7 +6,7 @@ export const state = {
     intentionalLeave: false,
     localStream: null,
     screenStream: null,
-    hasCamera: true,
     audioEnabled: true,
     videoEnabled: true,
+    namesByParticipant: new Map(),
 };

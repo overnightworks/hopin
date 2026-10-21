@@ -1,25 +1,95 @@
+from collections.abc import Callable
 from contextlib import ExitStack
+from datetime import timedelta
 
 import pytest
+import structlog
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
+from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
+    AUTH_CALLBACK_PATH,
+    AUTH_START_PATH,
     HOST_GRACE_SECONDS,
-    SUPERSEDED_CLOSE_CODE,
+    LOGIN_GROUP,
+    SEAT_CLOSED_BY_SERVER_CODE,
+    WEBSOCKET_PATH,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
-from hopin.config.settings import ServerSettings
+from tests.fake_issuer import FakeIssuer
+from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
+
+POLICY_VIOLATION_CODE = 1008
 
 
 @pytest.fixture
-def client():
-    settings = ServerSettings(max_participants_per_room=3)
-    with TestClient(create_app(settings)) as shared_portal_client:
+def stores():
+    return SignInStores.in_memory()
+
+
+@pytest.fixture
+def app(sign_in_settings, stores):
+    settings = sign_in_settings(max_participants_per_room=3).settings
+    return create_app(settings, stores=stores)
+
+
+@pytest.fixture
+def client(app):
+    with TestClient(app) as shared_portal_client:
         yield shared_portal_client
+
+
+@pytest.fixture
+def seed(app, stores) -> Callable[..., SeededMember]:
+    config = installed_web_auth_config(app)
+    return lambda **options: seed_member(stores, config, **options)
+
+
+@pytest.fixture
+def member_named(seed) -> Callable[[str], SeededMember]:
+    """The same label is the same member, so a reload or a second socket stays the same account."""
+    members: dict[str, SeededMember] = {}
+
+    def member(label: str) -> SeededMember:
+        if label not in members:
+            members[label] = seed()
+        return members[label]
+
+    return member
+
+
+@pytest.fixture
+def logs(client):
+    with structlog.testing.capture_logs() as captured:
+        yield captured
+
+
+def refused_with_code(client, headers, path=WEBSOCKET_PATH):
+    with pytest.raises(WebSocketDisconnect) as refused, client.websocket_connect(path, headers=headers):
+        pass
+    return refused.value.code
+
+
+def events_named(logs, event):
+    return [entry for entry in logs if entry["event"] == event]
+
+
+def expires_at(stores, member):
+    stored = stores.sessions.load(member.session.id)
+    assert stored is not None
+    return stored.expires_at
+
+
+def joined_room(client, member):
+    with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member)) as ws:
+        ws.send_json({"type": SignalType.JOIN.value})
+        return ws.receive_json()
 
 
 def number_frames_after_the_first(websocket):
@@ -41,10 +111,12 @@ def without_seq(frame):
 
 
 @pytest.fixture
-def connect(client):
+def connect(client, member_named):
     with ExitStack() as sessions:
         yield lambda account: number_frames_after_the_first(
-            sessions.enter_context(client.websocket_connect(f"/ws?id={account}"))
+            sessions.enter_context(
+                client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member_named(account)))
+            )
         )
 
 
@@ -62,11 +134,109 @@ def join_room(connect, account, room_id):
 
 @pytest.mark.integration
 class TestConnect:
-    @pytest.mark.parametrize("path", ["/ws", "/ws?id="], ids=["missing_id", "empty_id"])
-    def test_connect_without_account_is_refused_at_the_handshake(self, client, path):
-        with pytest.raises(WebSocketDisconnect) as refused, client.websocket_connect(path):
-            pass
-        assert refused.value.code == 1008
+    def test_connect_without_a_session_is_refused_at_the_handshake_and_logs_only_the_reason(self, client, logs):
+        code = refused_with_code(client, handshake_headers(None), "/ws?id=someone")
+
+        assert code == POLICY_VIOLATION_CODE
+        assert [entry for entry in logs if entry["event"] != "handshake_refused"] == []
+        assert events_named(logs, "handshake_refused") == [
+            {"event": "handshake_refused", "reason": "no-session", "log_level": "info"}
+        ]
+
+    def test_connect_after_the_session_ended_is_refused(self, client, stores, seed, logs):
+        member = seed()
+        stores.sessions.delete(member.session.id)
+
+        assert refused_with_code(client, handshake_headers(member)) == POLICY_VIOLATION_CODE
+        assert events_named(logs, "handshake_refused")[0]["reason"] == "session-ended-or-expired"
+
+    @pytest.mark.parametrize(
+        ("origin", "reason"),
+        [
+            pytest.param(None, "missing-origin", id="no_origin"),
+            pytest.param(f"{TEST_PUBLIC_ORIGIN}.evil.example", "foreign-origin", id="foreign_origin"),
+        ],
+    )
+    def test_connect_from_a_page_that_is_not_hopins_is_refused_without_renewing_the_session(
+        self, client, stores, seed, logs, origin, reason
+    ):
+        member = seed(expires_in=timedelta(hours=1))
+        before = expires_at(stores, member)
+
+        assert refused_with_code(client, handshake_headers(member, origin)) == POLICY_VIOLATION_CODE
+
+        assert events_named(logs, "handshake_refused")[0]["reason"] == reason
+        assert expires_at(stores, member) == before
+
+    def test_connect_with_a_session_admits_the_member_as_its_account_and_renews_the_session(
+        self, client, stores, seed, logs
+    ):
+        member = seed(expires_in=timedelta(hours=1))
+        before = expires_at(stores, member)
+
+        room = joined_room(client, member)
+
+        assert (room["type"], room["is_host"]) == (SignalType.ROOM_CREATED.value, True)
+        [connected] = events_named(logs, "client_connected")
+        assert connected["account"] == member.account.id
+        assert expires_at(stores, member) > before
+
+    def test_query_names_nobody_so_another_accounts_id_does_not_make_the_socket_host(self, client, member_named):
+        host = member_named("host")
+        with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(host)) as host_ws:
+            host_ws.send_json({"type": SignalType.JOIN.value})
+            room_id = host_ws.receive_json()["room_id"]
+            host_path = f"{WEBSOCKET_PATH}?id={host.account.id}"
+            with client.websocket_connect(host_path, headers=handshake_headers(member_named("a"))) as ws:
+                ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+                existing = ws.receive_json()
+                ws.send_json({"type": SignalType.LOCK_ROOM.value, "seq": 1})
+                refusal = ws.receive_json()
+            with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member_named("c"))) as ws:
+                ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+                admitted = ws.receive_json()
+
+        assert existing["is_host"] is False
+        assert refusal["reason"] == ErrorReason.NOT_HOST.value
+        assert admitted["type"] == SignalType.EXISTING_PARTICIPANTS.value
+
+    @pytest.mark.parametrize("scenario", ["refused", "admitted"])
+    def test_logs_carry_no_username_cookie_or_session_id(self, client, stores, seed, logs, scenario):
+        member = seed()
+        if scenario == "refused":
+            stores.sessions.delete(member.session.id)
+            refused_with_code(client, handshake_headers(member))
+        else:
+            joined_room(client, member)
+
+        cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
+        secrets_in_logs = [member.account.username, member.session.id, cookie_header(member.set_cookie_headers)]
+        assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
+        permitted_fields = {
+            "refused": ("handshake_refused", {"event", "reason", "log_level"}),
+            "admitted": ("client_connected", {"event", "peer_id", "account", "log_level"}),
+        }
+        event, fields = permitted_fields[scenario]
+        assert [set(entry) for entry in events_named(logs, event)] == [fields]
+
+
+@pytest.mark.integration
+class TestProductionWiring:
+    def test_member_signed_in_through_the_issuer_opens_the_socket_of_an_app_with_default_stores(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        issuer = FakeIssuer(sign_in)
+        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
+        start = browser.get(AUTH_START_PATH)
+        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        headers = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
+
+        with browser.websocket_connect(WEBSOCKET_PATH, headers=headers) as ws:
+            ws.send_json({"type": SignalType.JOIN.value})
+            room = ws.receive_json()
+
+        assert (room["type"], room["is_host"]) == (SignalType.ROOM_CREATED.value, True)
 
 
 @pytest.mark.integration
@@ -107,6 +277,21 @@ class TestJoining:
         host_notification = host_ws.receive_json()
         assert host_notification["type"] == SignalType.PARTICIPANT_JOINED.value
         assert host_notification["participant_id"] not in {"host1", "p1", host_peer_id}
+
+    def test_names_the_others_to_the_joiner_and_the_joiner_to_the_others(self, connect, member_named):
+        host_ws, room_id = open_room(connect, "a")
+        _p1_ws, existing = join_room(connect, "b", room_id)
+
+        [host_peer_id] = existing["participants"]
+        joined = host_ws.receive_json()
+        assert existing["names"] == {host_peer_id: member_named("a").account.username}
+        assert joined["name"] == member_named("b").account.username
+
+    def test_names_the_same_account_on_a_second_device_under_one_username(self, connect, member_named):
+        _first_ws, room_id = open_room(connect, "a")
+        _second_ws, existing = join_room(connect, "a", room_id)
+
+        assert list(existing["names"].values()) == [member_named("a").account.username]
 
     def test_join_nonexistent_room_sends_error(self, connect):
         ws = connect("p1")
@@ -470,4 +655,4 @@ class TestResume:
         assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
         with pytest.raises(WebSocketDisconnect) as superseded:
             guest_ws.receive_json()
-        assert superseded.value.code == SUPERSEDED_CLOSE_CODE
+        assert superseded.value.code == SEAT_CLOSED_BY_SERVER_CODE

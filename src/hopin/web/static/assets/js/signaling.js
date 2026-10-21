@@ -39,8 +39,8 @@ export const ROOM_CLOSED_REASON = {
 
 const NORMAL_CLOSURE_CODE = 1000;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
+const WEBSOCKET_PATH = "/ws";
 
-const accountId = crypto.randomUUID();
 const handlersByType = new Map();
 let socket = null;
 let socketIsLive = false;
@@ -194,7 +194,7 @@ function handleClose() {
 
 export function connect() {
     const scheme = location.protocol.replace("http", "ws");
-    const current = new WebSocket(`${scheme}//${location.host}/ws?id=${accountId}`);
+    const current = new WebSocket(`${scheme}//${location.host}${WEBSOCKET_PATH}`);
     socket = current;
 
     const ifCurrent = (handler) => (event) => {

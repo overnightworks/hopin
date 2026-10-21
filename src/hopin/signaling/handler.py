@@ -16,7 +16,7 @@ from hopin.config.constants import (
     POLICY_VIOLATION_CLOSE_CODE,
     RESUME_TOKEN_BYTES,
     RESUME_WINDOW_SECONDS,
-    SUPERSEDED_CLOSE_CODE,
+    SEAT_CLOSED_BY_SERVER_CODE,
     WEBSOCKET_DISCONNECT_EVENT,
     ResumeRefusalCause,
     RoomClosedReason,
@@ -263,6 +263,7 @@ class SignalingHandler:
             {
                 "type": SignalType.EXISTING_PARTICIPANTS.value,
                 "participants": others,
+                "names": {pid: self._account_of(pid).name for pid in others},
                 "is_host": room.is_hosted_by(account),
                 "locked": room.locked,
                 **self._seat_credentials(peer_id),
@@ -270,7 +271,10 @@ class SignalingHandler:
         )
         if grace is not None:
             await self._send(peer_id, self._host_away_frame(grace))
-        await self._send_all(others, {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id})
+        await self._send_all(
+            others,
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id, "name": account.name},
+        )
         if host_returned:
             await self._send_all(others, {"type": SignalType.HOST_BACK.value, "participant_id": peer_id})
 
@@ -560,7 +564,7 @@ async def _close_socket(websocket: WebSocket) -> None:
     if not _is_connected(websocket):
         return
     try:
-        await websocket.close(code=SUPERSEDED_CLOSE_CODE)
+        await websocket.close(code=SEAT_CLOSED_BY_SERVER_CODE)
     except WebSocketDisconnect:
         await logger.ainfo("closed_socket_already_gone")
 

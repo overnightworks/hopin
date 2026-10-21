@@ -1,88 +1,117 @@
-import { addCamera, toggleAudio, toggleScreenShare, toggleVideo } from "./media.js";
+import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "./media.js";
 import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
+import { TOAST_KIND, showToast } from "./toast.js";
 
-const COPIED_LABEL_MS = 2000;
 const CAMERA_ERROR_STATUS_MS = 2000;
+const LOCK_LINE = Object.freeze({ LOCKED: "No one new can join", UNLOCKED: "New people can join" });
+const LOCK_TOAST = Object.freeze({ LOCKED: "Call locked", UNLOCKED: "Call unlocked" });
 
-const shareBox = document.getElementById("shareBox");
-const shareUrl = document.getElementById("shareUrl");
-const copyButton = document.getElementById("copyBtn");
 const muteButton = document.getElementById("muteBtn");
 const videoButton = document.getElementById("videoBtn");
 const screenButton = document.getElementById("screenBtn");
+const overlayScrim = document.getElementById("overlayScrim");
+const MENUS = [
+    {
+        button: document.getElementById("moreBtn"),
+        dialog: document.getElementById("moreMenu"),
+        firstFocus: ".mi",
+    },
+    {
+        button: document.getElementById("inviteBtn"),
+        dialog: document.getElementById("inviteMenu"),
+        firstFocus: ".invite-copy",
+    },
+];
 const lockButton = document.getElementById("lockBtn");
 const leaveButton = document.getElementById("leaveBtn");
 
-function flashCopiedLabel() {
-    copyButton.textContent = "Copied!";
-    setTimeout(() => {
-        copyButton.textContent = "Copy";
-    }, COPIED_LABEL_MS);
-}
-
-export function showShareLink(url) {
-    shareUrl.value = url;
-    shareBox.classList.add("visible");
-    navigator.clipboard
-        .writeText(url)
-        .then(flashCopiedLabel)
-        .catch(() => {
-            // clipboard access can be denied; the share box still shows the link to copy by hand
-        });
-}
-
-export function hideShareBox() {
-    shareBox.classList.remove("visible");
+export function renderDeviceToggle(button, isOn) {
+    button.classList.toggle("off", !isOn);
+    button.setAttribute("aria-pressed", String(!isOn));
 }
 
 export function showLockButton(isLocked) {
-    lockButton.textContent = isLocked ? "Unlock Room" : "Lock Room";
-    lockButton.className = isLocked ? "btn-warning" : "btn-secondary";
+    lockButton.classList.remove("hidden");
+    lockButton.setAttribute("aria-checked", String(isLocked));
+    lockButton.querySelector("small").textContent = isLocked ? LOCK_LINE.LOCKED : LOCK_LINE.UNLOCKED;
+    lockButton.querySelector(".switch").classList.toggle("on", isLocked);
 }
 
 export function hideLockButton() {
     lockButton.classList.add("hidden");
 }
 
-export function renderVideoButton() {
-    videoButton.textContent = state.videoEnabled ? "Cam On" : "Cam Off";
-    videoButton.className = state.videoEnabled ? "btn-active" : "btn-muted";
+function closeMenu({ button, dialog }) {
+    overlayScrim.classList.add("hidden");
+    dialog.close();
+    button.classList.remove("active");
+    button.setAttribute("aria-expanded", "false");
+    button.focus();
 }
 
-function renderMuteButton() {
-    muteButton.textContent = state.audioEnabled ? "Mic On" : "Mic Off";
-    muteButton.className = state.audioEnabled ? "btn-active" : "btn-muted";
+function openMenu(menu) {
+    for (const other of MENUS) if (other !== menu && other.dialog.open) closeMenu(other);
+    overlayScrim.classList.remove("hidden");
+    menu.dialog.show();
+    menu.button.classList.add("active");
+    menu.button.setAttribute("aria-expanded", "true");
+    const firstItems = menu.dialog.querySelectorAll(menu.firstFocus);
+    [...firstItems].find((item) => item.checkVisibility()).focus();
 }
 
-function renderScreenButton() {
-    screenButton.textContent = state.screenStream ? "Stop Sharing" : "Share Screen";
-    screenButton.className = state.screenStream ? "btn-muted" : "btn-secondary";
+function toggleMenu(menu) {
+    if (menu.dialog.open) closeMenu(menu);
+    else openMenu(menu);
+}
+
+function closeOpenMenu() {
+    const open = MENUS.find((menu) => menu.dialog.open);
+    if (open) closeMenu(open);
+}
+
+export function confirmLockChange(isLocked) {
+    if (!state.isHost) return;
+    showToast(isLocked ? LOCK_TOAST.LOCKED : LOCK_TOAST.UNLOCKED, TOAST_KIND.DONE);
+}
+
+export function renderControls() {
+    const hasMedia = Boolean(state.localStream);
+    renderDeviceToggle(muteButton, hasMedia && state.audioEnabled);
+    renderDeviceToggle(videoButton, hasMedia && state.videoEnabled);
+    const isSharing = Boolean(state.screenStream);
+    screenButton.classList.toggle("active", isSharing);
+    screenButton.setAttribute("aria-pressed", String(isSharing));
+    for (const button of [muteButton, videoButton, screenButton]) button.disabled = !hasMedia;
 }
 
 function handleMuteClick() {
     if (!state.localStream) return;
     toggleAudio();
-    renderMuteButton();
+    renderControls();
+}
+
+function showCameraError(error) {
+    setStatus(`No camera found (${error.name})`, "error");
+    setTimeout(() => {
+        if (state.roomId) setStatus("In call", "connected");
+    }, CAMERA_ERROR_STATUS_MS);
 }
 
 async function handleVideoClick() {
     if (!state.localStream) return;
-    if (state.hasCamera) {
-        toggleVideo();
+    if (state.videoEnabled) {
+        releaseCamera();
     } else {
         try {
             await addCamera();
         } catch (error) {
-            setStatus(`No camera found (${error.name})`, "error");
-            setTimeout(() => {
-                if (state.roomId) setStatus("In call", "connected");
-            }, CAMERA_ERROR_STATUS_MS);
+            showCameraError(error);
             return;
         }
     }
-    renderVideoButton();
+    renderControls();
 }
 
 function handleLockClick() {
@@ -91,19 +120,17 @@ function handleLockClick() {
 }
 
 async function handleScreenClick() {
-    if (!state.localStream || !state.hasCamera) return;
+    if (!state.localStream) return;
     try {
         await toggleScreenShare(() => screenButton.click());
-        renderScreenButton();
     } catch (error) {
-        setStatus(`Screen share failed: ${error.message}`, "error");
+        if (error instanceof CameraError) {
+            showCameraError(error);
+        } else {
+            setStatus(`Screen share failed: ${error.message}`, "error");
+        }
     }
-}
-
-function handleCopyClick() {
-    shareUrl.select();
-    void navigator.clipboard.writeText(shareUrl.value);
-    flashCopiedLabel();
+    renderControls();
 }
 
 export function initControls({ onLeaveRequested }) {
@@ -114,7 +141,12 @@ export function initControls({ onLeaveRequested }) {
     screenButton.addEventListener("click", () => {
         void handleScreenClick();
     });
+    for (const menu of MENUS) menu.button.addEventListener("click", () => toggleMenu(menu));
+    overlayScrim.addEventListener("click", closeOpenMenu);
+    document.getElementById("inviteCloseBtn").addEventListener("click", closeOpenMenu);
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeOpenMenu();
+    });
     lockButton.addEventListener("click", handleLockClick);
-    copyButton.addEventListener("click", handleCopyClick);
     leaveButton.addEventListener("click", onLeaveRequested);
 }

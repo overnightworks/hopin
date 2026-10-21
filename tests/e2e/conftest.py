@@ -1,23 +1,25 @@
-import http
-import http.client
 import re
 import socket
-import subprocess
-import sys
+import threading
 import time
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any
 
 import pytest
+import uvicorn
 from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
+from webauth.config import WebAuthConfig, installed_web_auth_config
 
-if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
+from hopin.app import create_app
+from hopin.auth.stores import SignInStores
+from hopin.config.constants import ICE_SERVERS_PATH
+from hopin.main import uvicorn_options
+from tests.sign_in_settings import build_sign_in_settings
+from tests.signed_in import SeededMember, parsed_set_cookies, seed_member
 
-SOURCE_DIRECTORY = Path(__file__).resolve().parents[2] / "src"
 LOOPBACK_HOST = "127.0.0.1"
-HEALTH_PATH = "/health"
-SERVER_LOG_NAME = "server.log"
 READINESS_POLL_INTERVAL_SECONDS = 0.1
 READINESS_DEADLINE_SECONDS = 20
 SERVER_STOP_TIMEOUT_SECONDS = 10
@@ -29,7 +31,6 @@ FAKE_MEDIA_BROWSER_ARGS = [
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 INVITE_LINK_PATTERN = re.compile(r"/c/\w+")
-ICE_SERVERS_PATH = "/api/ice-servers"
 ICE_SERVERS_URL_PATTERN = f"**{ICE_SERVERS_PATH}"
 DESKTOP = {"viewport": {"width": 1280, "height": 800}}
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
@@ -41,6 +42,8 @@ FORM_FACTORS = [pytest.param(DESKTOP, id="desktop"), pytest.param(PHONE, id="pho
 OTHER_TILE = "#videoGrid .tile:not(.self)"
 OTHER_VIDEO = f"{OTHER_TILE} video"
 OTHER_CAMERA_OFF = f"{OTHER_TILE} .vid.off"
+PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
+ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
 SMALL_PHONE_LANDSCAPE = {"viewport": {"width": 568, "height": 320}, "is_mobile": True, "has_touch": True}
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
@@ -57,8 +60,6 @@ window.RTCPeerConnection.prototype = NativePeerConnection.prototype;
 OPEN_PEER_COUNT_REACHED = """
 (count) => window.recordedConnections.filter((connection) => connection.signalingState !== "closed").length === count
 """
-SHARE_SCREEN_LABEL = "Share Screen"
-STOP_SHARING_LABEL = "Stop Sharing"
 SHARE_THE_SCREEN_FROM_A_CANVAS = """
 navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
 """
@@ -92,6 +93,24 @@ EVERY_VIDEO_CAP_IS = """
     return open.length === peerCount && caps.length === peerCount && caps.every((cap) => cap === expectedCap);
 }
 """
+ONE_CAP_PER_CONNECTION = [1, 2_000_000]
+TWO_CAPS_PER_CONNECTION = [2, 1_000_000]
+THREE_CAPS_PER_CONNECTION = [3, 666_666]
+FOUR_CAPS_PER_CONNECTION = [4, 500_000]
+FIVE_CAPS_PER_CONNECTION = [5, 400_000]
+AFTER_PENDING_REJECTIONS_ARE_REPORTED = """
+() => new Promise((done) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => done();
+    channel.port2.postMessage(0);
+})
+"""
+VIDEO_TRANSCEIVERS_PER_CONNECTION = """
+() => window.recordedConnections
+    .filter((connection) => connection.signalingState !== "closed")
+    .map((connection) => connection.getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track.kind === "video").length)
+"""
 INBOUND_PER_CONNECTION = """
 async ([kind, field]) => {
     const open = window.recordedConnections.filter((connection) => connection.signalingState !== "closed");
@@ -103,12 +122,7 @@ async ([kind, field]) => {
     }));
 }
 """
-INBOUND_HAS_GROWN = f"""
-async ([kind, field, baseline]) => {{
-    const now = await ({INBOUND_PER_CONNECTION})([kind, field]);
-    return now.length === baseline.length && now.every((value, index) => value > baseline[index]);
-}}
-"""
+POLL_INTERVAL_MILLISECONDS = 50
 TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
 (selector) => {
     const video = document.querySelector(selector);
@@ -128,10 +142,12 @@ async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
         const samples = new Uint8Array(analyser.fftSize);
         let loudest = 0;
         const end = performance.now() + timeoutMilliseconds;
-        while (loudest <= floor && performance.now() < end) {
+        while (true) {
             analyser.getByteTimeDomainData(samples);
             loudest = samples.reduce((peak, sample) => Math.max(peak, Math.abs(sample - 128)), loudest);
-            await new Promise((next) => setTimeout(next, sampleIntervalMilliseconds));
+            const remaining = end - performance.now();
+            if (loudest > floor || remaining <= 0) break;
+            await new Promise((next) => setTimeout(next, Math.floor(Math.min(sampleIntervalMilliseconds, remaining))));
         }
         return loudest;
     } finally {
@@ -142,6 +158,118 @@ async ([selector, floor, timeoutMilliseconds, sampleIntervalMilliseconds]) => {
 AUDIBLE_LEVEL_FLOOR = 4
 AUDIO_SAMPLE_INTERVAL_MILLISECONDS = 50
 LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 0"
+# The headless browser has no screen picker, so a canvas and a silent audio destination
+# stand in for a shared screen with its sound.
+RECORD_MEDIA_TRACKS = """
+const SCREEN_COLOUR = "rgb(255, 0, 0)";
+window.requestedTracks = [];
+window.cameraTracks = [];
+window.mediaRequests = 0;
+window.heldMediaRequests = 0;
+const holds = { camera: null, screen: null };
+window.holdMedia = (source) => {
+    const sources = source ? [source] : Object.keys(holds);
+    const hold = new Promise((release, reject) => {
+        const lift = () => sources.forEach((held) => { holds[held] = null; });
+        window.releaseMedia = () => { lift(); release(); };
+        window.rejectMedia = () => { lift(); reject(new DOMException("no camera", "NotFoundError")); };
+    });
+    sources.forEach((held) => { holds[held] = hold; });
+};
+const recorded = (source, request) => async (constraints) => {
+    window.mediaRequests += 1;
+    if (holds[source]) {
+        window.heldMediaRequests += 1;
+        await holds[source];
+    }
+    const stream = await request(constraints);
+    window.requestedTracks.push(...stream.getTracks());
+    if (source === "camera") window.cameraTracks.push(...stream.getVideoTracks());
+    return stream;
+};
+navigator.mediaDevices.getUserMedia = recorded(
+    "camera",
+    navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices),
+);
+navigator.mediaDevices.getDisplayMedia = recorded("screen", async () => {
+    const canvas = document.createElement("canvas");
+    const screenPicture = canvas.captureStream();
+    const [screenTrack] = screenPicture.getVideoTracks();
+    const repaint = setInterval(() => {
+        if (screenTrack.readyState === "ended") return clearInterval(repaint);
+        const painter = canvas.getContext("2d");
+        painter.fillStyle = SCREEN_COLOUR;
+        painter.fillRect(0, 0, canvas.width, canvas.height);
+    }, 100);
+    const screenSound = new AudioContext().createMediaStreamDestination().stream;
+    return new MediaStream([...screenPicture.getTracks(), ...screenSound.getTracks()]);
+});
+"""
+COUNT_SOCKETS = """
+window.socketsOpened = 0;
+const NativeWebSocket = window.WebSocket;
+window.WebSocket = class extends NativeWebSocket {
+    constructor(...options) {
+        super(...options);
+        window.socketsOpened += 1;
+    }
+};
+"""
+HOLD_MEDIA = "window.holdMedia()"
+HOLD_CAMERA_REQUESTS = 'window.holdMedia("camera")'
+HOLD_SCREEN_REQUESTS = 'window.holdMedia("screen")'
+RELEASE_MEDIA = "window.releaseMedia()"
+REJECT_MEDIA = "window.rejectMedia()"
+MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
+MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
+TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
+MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
+REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
+LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
+CAMERA_TRACK_STATES = "() => window.cameraTracks.map((track) => track.readyState)"
+LATE_CAMERA_IS_STOPPED = """
+(before) => window.cameraTracks.length > before
+    && window.cameraTracks.every((track) => track.readyState === "ended")
+"""
+VIDEO_TRACKS_NOW = """
+() => {
+    const own = document.getElementById("localVideo").srcObject?.getVideoTracks() ?? [];
+    const senders = window.recordedConnections
+        .filter((connection) => connection.signalingState !== "closed")
+        .flatMap((connection) => connection.getTransceivers())
+        .filter((transceiver) => transceiver.receiver.track.kind === "video")
+        .map((transceiver) => transceiver.sender.track);
+    const stateOf = (track) => (track.enabled ? track.readyState : `${track.readyState} disabled`);
+    return {
+        own: own.map(stateOf),
+        senders: senders.map((track) => {
+            if (!track) return null;
+            return own.includes(track) ? stateOf(track) : `foreign ${stateOf(track)}`;
+        }),
+    };
+}
+"""
+TILE_SHOWS_THE_SCREEN = """
+(selector) => {
+    const video = document.querySelector(selector);
+    if (!video.videoWidth) return false;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const painter = canvas.getContext("2d");
+    painter.drawImage(video, 0, 0, 1, 1);
+    const [red, green, blue] = painter.getImageData(0, 0, 1, 1).data;
+    return red > 200 && green < 60 && blue < 60;
+}
+"""
+VIDEO_TRACKS_ARE = f"""
+(expected) => {{
+    const now = ({VIDEO_TRACKS_NOW})();
+    return JSON.stringify(now) === JSON.stringify(expected);
+}}
+"""
+PREJOIN_MICROPHONE = "#prejoinMicBtn"
+PREJOIN_CAMERA = "#prejoinCamBtn"
+PREJOIN_START = "#prejoinStartBtn"
 
 
 def _reserve_free_port() -> int:
@@ -150,56 +278,51 @@ def _reserve_free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def _is_healthy(port: int) -> bool:
-    connection = http.client.HTTPConnection(LOOPBACK_HOST, port, timeout=READINESS_POLL_INTERVAL_SECONDS * 10)
-    try:
-        connection.request("GET", HEALTH_PATH)
-        return connection.getresponse().status == http.HTTPStatus.OK
-    except OSError:
-        return False
-    finally:
-        connection.close()
-
-
-def _wait_until_healthy(server: subprocess.Popen[bytes], port: int) -> None:
+@contextmanager
+def _serving(server: uvicorn.Server) -> Iterator[None]:
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
     deadline = time.monotonic() + READINESS_DEADLINE_SECONDS
-    while time.monotonic() < deadline:
-        if server.poll() is not None:
-            pytest.fail(f"HopIn exited with code {server.returncode} before becoming healthy")
-        if _is_healthy(port):
-            return
-        time.sleep(READINESS_POLL_INTERVAL_SECONDS)
-    pytest.fail(f"HopIn was not healthy within {READINESS_DEADLINE_SECONDS} seconds")
-
-
-def _stop(server: subprocess.Popen[bytes]) -> None:
-    server.terminate()
     try:
-        server.wait(timeout=SERVER_STOP_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        server.kill()
-        server.wait()
+        while not server.started:
+            if not thread.is_alive():
+                pytest.fail("HopIn exited before it started")
+            if time.monotonic() > deadline:
+                pytest.fail(f"HopIn did not start within {READINESS_DEADLINE_SECONDS} seconds")
+            time.sleep(READINESS_POLL_INTERVAL_SECONDS)
+        yield
+    finally:
+        server.should_exit = True
+        thread.join(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+        assert not thread.is_alive(), f"HopIn did not stop within {SERVER_STOP_TIMEOUT_SECONDS} seconds"
+
+
+@dataclass(frozen=True)
+class RunningServer:
+    base_url: str
+    config: WebAuthConfig
+    stores: SignInStores
 
 
 @pytest.fixture(scope="session")
-def base_url(pytestconfig: pytest.Config, delete_output_dir: None) -> Iterator[str]:
+def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
     port = _reserve_free_port()
-    log_directory = Path(pytestconfig.getoption("output"))
-    log_directory.mkdir(parents=True, exist_ok=True)
-    environment = {"PYTHONPATH": str(SOURCE_DIRECTORY), "HOPIN_HOST": LOOPBACK_HOST, "HOPIN_PORT": str(port)}
-    with (log_directory / SERVER_LOG_NAME).open("wb") as server_log:
-        # The command is built from sys.executable and constants, never from input.
-        server = subprocess.Popen(
-            [sys.executable, "-m", "hopin.main"],
-            env=environment,
-            stdout=server_log,
-            stderr=subprocess.STDOUT,
-        )
-        try:
-            _wait_until_healthy(server, port)
-            yield f"http://{LOOPBACK_HOST}:{port}"
-        finally:
-            _stop(server)
+    sign_in = build_sign_in_settings(
+        tmp_path_factory.mktemp("sign-in"),
+        host=LOOPBACK_HOST,
+        port=port,
+        public_origin=f"https://{LOOPBACK_HOST}:{port}",
+    )
+    stores = SignInStores.in_memory()
+    app = create_app(sign_in.settings, stores=stores)
+    server = uvicorn.Server(uvicorn.Config(app, **uvicorn_options(sign_in.settings)))
+    with _serving(server):
+        yield RunningServer(f"http://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores)
+
+
+@pytest.fixture(scope="session")
+def base_url(e2e_server: RunningServer) -> str:
+    return e2e_server.base_url
 
 
 @pytest.fixture(scope="session")
@@ -212,37 +335,129 @@ def browser_context_args(browser_context_args: dict[str, Any]) -> dict[str, Any]
     return {**browser_context_args, "permissions": MEDIA_PERMISSIONS}
 
 
+def _playwright_cookie(set_cookie_header: str, config: WebAuthConfig) -> dict[str, Any]:
+    ((name, morsel),) = parsed_set_cookies([set_cookie_header])
+    expires = int(config.wall_clock()) + int(morsel["max-age"])
+    # The URL form of add_cookies is refused for a __Host- name, so the cookie goes in by domain and path.
+    return {
+        "name": name,
+        "value": morsel.value,
+        "domain": LOOPBACK_HOST,
+        "path": morsel["path"],
+        "secure": bool(morsel["secure"]),
+        "httpOnly": bool(morsel["httponly"]),
+        "sameSite": morsel["samesite"].capitalize(),
+        "expires": expires,
+    }
+
+
 @pytest.fixture
-def open_person(browser: Browser, browser_context_args: dict[str, Any]) -> Iterator[Callable[..., Page]]:
+def seeded_members() -> dict[Page, SeededMember]:
+    return {}
+
+
+@pytest.fixture
+def member_of(seeded_members: dict[Page, SeededMember]) -> Callable[[Page], SeededMember]:
+    return seeded_members.__getitem__
+
+
+@pytest.fixture
+def open_person(
+    browser: Browser,
+    browser_context_args: dict[str, Any],
+    e2e_server: RunningServer,
+    seeded_members: dict[Page, SeededMember],
+) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
 
-    def open_page(**device_options: Any) -> Page:
+    def open_page(
+        *,
+        signed_in: bool = True,
+        same_account_as: Page | None = None,
+        username: str | None = None,
+        **device_options: Any,
+    ) -> Page:
         context = browser.new_context(**{**browser_context_args, **device_options})
         contexts.append(context)
-        return context.new_page()
+        page = context.new_page()
+        if signed_in:
+            account = None if same_account_as is None else seeded_members[same_account_as].account
+            if username is not None:
+                account = e2e_server.stores.accounts.create_for_subject(
+                    f"subject-{username}", username, role=e2e_server.config.user_role
+                )
+            member = seed_member(e2e_server.stores, e2e_server.config, account=account)
+            context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
+            seeded_members[page] = member
+        return page
 
     yield open_page
     for context in contexts:
         context.close()
 
 
-def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
+@pytest.fixture
+def page_errors() -> Iterator[list[str]]:
+    errors: list[str] = []
+    yield errors
+    assert errors == []
+
+
+def open_prejoin(host: Page, base_url: str) -> None:
     host.goto(f"{base_url}/")
     host.click("#homeStartBtn")
-    host.set_checked("#setupCamOff", not with_camera)
-    host.click("#setupStartBtn")
 
 
-def start_call(host: Page, base_url: str) -> str:
-    press_start_call(host, base_url)
-    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
-    host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    return host.input_value("#shareUrl")
+def wait_until_the_prejoin_media_answered(host: Page) -> None:
+    expect(host.locator(PREJOIN_START)).to_be_enabled(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+def press_through_the_prejoin(person: Page, *, with_camera: bool = True) -> None:
+    wait_until_the_prejoin_media_answered(person)
+    camera = person.locator(PREJOIN_CAMERA)
+    if not with_camera and camera.get_attribute("aria-pressed") == "false":
+        camera.click()
+        expect(camera).to_have_attribute("aria-pressed", "true")
+    person.click(PREJOIN_START)
+
+
+def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
+    open_prejoin(host, base_url)
+    press_through_the_prejoin(host, with_camera=with_camera)
+
+
+def call_link_of(host: Page) -> str:
+    link = host.locator("#waitingLink")
+    expect(link).to_have_text(INVITE_LINK_PATTERN)
+    return link.text_content() or ""
+
+
+def start_call(host: Page, base_url: str, *, with_camera: bool = True) -> str:
+    press_start_call(host, base_url, with_camera=with_camera)
+    call_link = call_link_of(host)
+    if with_camera:
+        host.wait_for_function(LOCAL_VIDEO_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    return call_link
 
 
 def record_page_errors(person: Page, page_errors: list[str]) -> Page:
     person.on("pageerror", lambda error: page_errors.append(str(error)))
     return person
+
+
+def add_init_scripts(person: Page, scripts: Sequence[str]) -> None:
+    # Playwright leaves the order of separate init scripts undefined, and a script may build on
+    # one before it (the media recorder wraps a refusal stub), so they run as one script, in order.
+    person.add_init_script("\n;\n".join(scripts))
+
+
+def open_prejoin_by_link(person: Page, invite_link: str) -> None:
+    person.goto(invite_link)
+
+
+def join_by_link(person: Page, invite_link: str, *, with_camera: bool = True) -> None:
+    open_prejoin_by_link(person, invite_link)
+    press_through_the_prejoin(person, with_camera=with_camera)
 
 
 def join(
@@ -255,32 +470,61 @@ def join(
     guest = open_person(**form_factor)
     if page_errors is not None:
         record_page_errors(guest, page_errors)
-    for script in init_scripts:
-        guest.add_init_script(script)
-    guest.goto(invite_link)
+    add_init_scripts(guest, init_scripts)
+    join_by_link(guest, invite_link)
     return guest
 
 
 def turn_the_camera_on(person: Page) -> None:
     person.evaluate(PLUG_IN_THE_CAMERA)
-    expect(person.locator("#videoBtn")).to_have_text("Cam Off")
+    expect(person.locator("#videoBtn")).to_have_attribute("aria-pressed", "true")
     person.click("#videoBtn")
-    expect(person.locator("#videoBtn")).to_have_text("Cam On")
+    expect(person.locator("#videoBtn")).to_have_attribute("aria-pressed", "false")
 
 
 def share_the_screen(person: Page) -> None:
     person.click("#screenBtn")
-    expect(person.locator("#screenBtn")).to_have_text(STOP_SHARING_LABEL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(person.locator("#screenBtn")).to_have_attribute(
+        "aria-pressed", "true", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def stop_the_screen_share(person: Page) -> None:
     person.click("#screenBtn")
-    expect(person.locator("#screenBtn")).to_have_text(SHARE_SCREEN_LABEL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(person.locator("#screenBtn")).to_have_attribute(
+        "aria-pressed", "false", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def share_then_stop_the_screen_share(person: Page) -> None:
     share_the_screen(person)
     stop_the_screen_share(person)
+
+
+def wait_for_video_tracks(person: Page, own: list[str], senders: list[str | None]) -> None:
+    """Wait until the own stream and every video sender hold exactly these tracks, by `readyState`.
+
+    A disabled track reads "<readyState> disabled". A sender whose track is not in the own stream
+    reads "foreign <state>"; no track reads None.
+    """
+    person.wait_for_function(
+        VIDEO_TRACKS_ARE, arg={"own": own, "senders": senders}, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
+
+
+def camera_track_states(person: Page) -> list[str]:
+    return person.evaluate(CAMERA_TRACK_STATES)
+
+
+def wait_for_the_light_to_go_out(person: Page) -> None:
+    person.wait_for_function(
+        "() => window.cameraTracks.every((track) => track.readyState === 'ended')",
+        timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    )
+
+
+def wait_for_the_tile_to_show_the_screen(person: Page) -> None:
+    person.wait_for_function(TILE_SHOWS_THE_SCREEN, arg=OTHER_VIDEO, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def wait_for_peer_count(person: Page, count: int) -> None:
@@ -291,12 +535,46 @@ def inbound_per_connection(person: Page, kind: str, field: str) -> list[float]:
     return [float(value) for value in person.evaluate(INBOUND_PER_CONNECTION, [kind, field])]
 
 
+def poll_until[Measured](
+    person: Page,
+    measure: Callable[[], Measured],
+    reached: Callable[[Measured], bool],
+    failure: str,
+    deadline_seconds: float | None = None,
+) -> Measured:
+    # A Python deadline loop: wait_for_function takes the Promise of an async predicate as truthy,
+    # and each round trip to the page keeps the mesh relay pumping.
+    if deadline_seconds is None:
+        deadline_seconds = MEDIA_FLOWING_TIMEOUT_MILLISECONDS / 1000
+    deadline = time.monotonic() + deadline_seconds
+    while True:
+        measured = measure()
+        if reached(measured):
+            return measured
+        last_measured = "" if isinstance(measured, bool) else f"; last measured {measured}"
+        assert time.monotonic() < deadline, f"{failure} within {deadline_seconds} s{last_measured}"
+        person.wait_for_timeout(POLL_INTERVAL_MILLISECONDS)
+
+
 def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
-    person.wait_for_function(INBOUND_HAS_GROWN, arg=[kind, field, baseline], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    poll_until(
+        person,
+        lambda: inbound_per_connection(person, kind, field),
+        lambda now: (
+            len(now) == len(baseline) and all(value > before for value, before in zip(now, baseline, strict=True))
+        ),
+        f"inbound {kind} {field} did not grow past {baseline}",
+    )
 
 
 def wait_for_frames_to_advance(person: Page) -> None:
     wait_for_inbound_growth(person, "video", "framesDecoded", inbound_per_connection(person, "video", "framesDecoded"))
+
+
+def wait_for_the_picture(person: Page) -> None:
+    wait_for_frames_to_advance(person)
+    expect(person.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(person.locator(PICTURE_ONLY_ON_THE_TILES).first).to_be_visible(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def expect_the_tile_to_play_audio(person: Page, video_selector: str) -> None:
@@ -322,3 +600,85 @@ def expect_both_legal_links(screen: Locator) -> None:
         expect(link).to_have_attribute("href", url)
         expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_attribute("rel", "noopener")
+
+
+def open_host(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any], *scripts: str
+) -> tuple[Page, str]:
+    host = record_page_errors(open_person(**form_factor), page_errors)
+    add_init_scripts(host, (RECORD_PEER_CONNECTIONS, *scripts))
+    return host, start_call(host, base_url)
+
+
+def open_call(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any], *scripts: str
+) -> tuple[Page, Page, str]:
+    host, invite_link = open_host(open_person, base_url, page_errors, form_factor, *scripts)
+    guest = join(open_person, invite_link, form_factor, (RECORD_PEER_CONNECTIONS,), page_errors)
+    wait_for_peer_count(host, 1)
+    wait_for_peer_count(guest, 1)
+    return host, guest, invite_link
+
+
+def open_more(person: Page) -> Locator:
+    menu = person.locator("#moreMenu")
+    if not menu.is_visible():
+        person.click("#moreBtn")
+    expect(menu).to_be_visible()
+    return menu
+
+
+def toggle_the_lock(host: Page) -> None:
+    open_more(host)
+    host.click("#lockBtn")
+
+
+TOASTS = "#toasts"
+TOAST_ICON = f"{TOASTS} svg path"
+CHECK_ICON_PATH = "M5 12.5l4.5 4.5L19 7.5"
+X_ICON_PATH = "M6 6l12 12M18 6L6 18"
+CLIPBOARD_ALLOWED = {"permissions": [*MEDIA_PERMISSIONS, "clipboard-read", "clipboard-write"]}
+READ_CLIPBOARD = "() => navigator.clipboard.readText()"
+STUB_SHARE = """
+window.sharedArguments = [];
+navigator.share = (argument) => {
+    window.sharedArguments.push(argument);
+    return Promise.resolve();
+};
+"""
+REMOVE_SHARE = "delete Navigator.prototype.share;"
+REJECT_SHARE_WITH = """
+window.shareAttempts = 0;
+navigator.share = () => {
+    window.shareAttempts += 1;
+    return Promise.reject(new DOMException("refused", "%s"));
+};
+"""
+BOX_OF_SETTLED = """
+async (selector) => {
+    const element = document.querySelector(selector);
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    const { left, top, right, bottom, width } = element.getBoundingClientRect();
+    return { left, top, right, bottom, width };
+}
+"""
+TOAST_AND_MENU_BOXES = """
+async (menuSelector) => {
+    const settledBox = async (selector) => {
+        const element = document.querySelector(selector);
+        await Promise.all(element.getAnimations().map((animation) => animation.finished));
+        const { top, bottom } = element.getBoundingClientRect();
+        return { top, bottom };
+    };
+    return {
+        menu: menuSelector && (await settledBox(menuSelector)),
+        toast: await settledBox("#toasts .toast"),
+        viewport: { height: innerHeight },
+    };
+}
+"""
+
+
+def expect_toast(host: Page, text: str, icon_path: str) -> None:
+    expect(host.locator(TOASTS)).to_have_text(text)
+    expect(host.locator(TOAST_ICON)).to_have_attribute("d", icon_path)

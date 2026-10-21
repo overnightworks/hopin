@@ -4,34 +4,47 @@ import { state } from "./state.js";
 const localVideo = document.getElementById("localVideo");
 const localPlaceholder = document.getElementById("localPlaceholder");
 const localContainer = document.getElementById("localContainer");
+const prejoinVideo = document.getElementById("prejoinVideo");
+const prejoinPlaceholder = document.getElementById("prejoinPlaceholder");
+const ownPictures = [
+    { video: localVideo, placeholder: localPlaceholder },
+    { video: prejoinVideo, placeholder: prejoinPlaceholder },
+];
 const stage = document.getElementById("stage");
 const tiles = document.querySelector("#videoGrid .tiles");
 
 const localMuteMark = localContainer.querySelector(".muted");
 const remoteMediaStates = new Map();
+const WAVE_BAR_COUNT = 3;
+const speakingParticipantIds = new Set();
 
 function renderRemoteVideo(participantId) {
     const video = document.getElementById(`video-${participantId}`);
     const placeholder = document.getElementById(`placeholder-${participantId}`);
     if (!video) return;
-    const hasFrames = (video.srcObject?.getVideoTracks() ?? []).some(
+    const pictureArrives = (video.srcObject?.getVideoTracks() ?? []).some(
         (track) => track.readyState === "live" && !track.muted,
     );
+    const canDrawAFrame = video.readyState >= video.HAVE_CURRENT_DATA;
     const announcedOff = remoteMediaStates.get(participantId)?.video === false;
-    const showsVideo = hasFrames && !announcedOff;
+    const showsVideo = pictureArrives && canDrawAFrame && !announcedOff;
     video.classList.toggle("hidden", !showsVideo);
     placeholder.classList.toggle("hidden", showsVideo);
 }
 
-function renderRemoteMuteMark(participantId) {
-    const muteMark = document.querySelector(`#container-${participantId} .muted`);
-    if (!muteMark) return;
-    muteMark.classList.toggle("hidden", remoteMediaStates.get(participantId)?.audio !== false);
+function renderRemoteVoice(participantId) {
+    const container = document.getElementById(`container-${participantId}`);
+    if (!container) return;
+    const muted = remoteMediaStates.get(participantId)?.audio === false;
+    const showsWave = speakingParticipantIds.has(participantId) && !muted;
+    container.querySelector(".muted").classList.toggle("hidden", !muted);
+    container.querySelector(".wave").classList.toggle("hidden", !showsWave);
+    container.classList.toggle("speaking", showsWave);
 }
 
 function renderRemoteMediaState(participantId) {
     renderRemoteVideo(participantId);
-    renderRemoteMuteMark(participantId);
+    renderRemoteVoice(participantId);
 }
 
 function updateGridLayout() {
@@ -45,21 +58,39 @@ function createPersonAvatar() {
     return avatar;
 }
 
+function createWave() {
+    const wave = document.createElement("span");
+    wave.className = "wave hidden";
+    wave.setAttribute("aria-hidden", "true");
+    wave.append(...Array.from({ length: WAVE_BAR_COUNT }, () => document.createElement("i")));
+    return wave;
+}
+
 export function showLocalStream(stream) {
-    localVideo.srcObject = stream;
+    for (const { video } of ownPictures) {
+        video.srcObject = stream;
+    }
     localContainer.classList.toggle("mirror", !state.screenStream);
 }
 
 export function updateLocalPreview() {
-    const showsVideo = state.hasCamera && state.videoEnabled;
-    localVideo.classList.toggle("hidden", !showsVideo);
-    localPlaceholder.classList.toggle("hidden", showsVideo);
+    const showsVideo = state.videoEnabled;
+    for (const { video, placeholder } of ownPictures) {
+        video.classList.toggle("hidden", !showsVideo);
+        placeholder.classList.toggle("hidden", showsVideo);
+    }
     localMuteMark.classList.toggle("hidden", state.audioEnabled);
 }
 
 export function setRemoteMediaState(participantId, mediaState) {
     remoteMediaStates.set(participantId, mediaState);
     renderRemoteMediaState(participantId);
+}
+
+export function setRemoteSpeaking(participantId, speaking) {
+    if (speaking) speakingParticipantIds.add(participantId);
+    else speakingParticipantIds.delete(participantId);
+    renderRemoteVoice(participantId);
 }
 
 export function addRemoteTile(participantId) {
@@ -71,6 +102,7 @@ export function addRemoteTile(participantId) {
     video.id = `video-${participantId}`;
     video.autoplay = true;
     video.playsinline = true;
+    video.addEventListener("loadeddata", () => renderRemoteVideo(participantId));
 
     const placeholder = document.createElement("div");
     placeholder.className = "vid off hidden";
@@ -79,16 +111,23 @@ export function addRemoteTile(participantId) {
 
     const label = document.createElement("span");
     label.className = "name";
-    label.append(localMuteMark.cloneNode(true), `Peer ${participantId.slice(0, 6)}`);
+    label.append(localMuteMark.cloneNode(true), createWave(), "");
 
     container.append(video, placeholder, label, createQualityIndicator());
     tiles.appendChild(container);
     updateGridLayout();
     renderRemoteMediaState(participantId);
+    showRemoteName(participantId);
+}
+
+export function showRemoteName(participantId) {
+    const label = document.querySelector(`#container-${participantId} .name`);
+    if (label) label.lastChild.textContent = state.namesByParticipant.get(participantId) ?? "";
 }
 
 export function removeRemoteTile(participantId) {
     remoteMediaStates.delete(participantId);
+    speakingParticipantIds.delete(participantId);
     const container = document.getElementById(`container-${participantId}`);
     if (!container) return false;
     container.remove();

@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, start_call
+from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, join_by_link, start_call
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -27,7 +27,7 @@ def test_call_two_people_join_see_each_others_video(
     invite_link = start_call(host, base_url)
 
     guest = open_person(**form_factor)
-    guest.goto(invite_link)
+    join_by_link(guest, invite_link)
 
     for person in (host, guest):
         person.wait_for_function(TWO_PLAYING_VIDEOS, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)

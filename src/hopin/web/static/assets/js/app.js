@@ -1,15 +1,9 @@
 import { initChat, registerChatHandlers } from "./chat.js";
-import {
-    hideLockButton,
-    hideShareBox,
-    initControls,
-    renderVideoButton,
-    showLockButton,
-    showShareLink,
-} from "./controls.js";
-import { initDialogs, showLeaveDialog, showSetupDialog } from "./dialogs.js";
+import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
+import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
-import { acquireMedia, stopLocalMedia } from "./media.js";
+import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
+import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {
     loadIceServers,
@@ -17,6 +11,7 @@ import {
     peerCount,
     registerMeshHandlers,
     removeAllPeers,
+    SignedOutError,
 } from "./mesh.js";
 import { playJoinSound, playLeaveSound } from "./sounds.js";
 import {
@@ -27,7 +22,7 @@ import {
     onSessionLost,
 } from "./signaling.js";
 import { initPip } from "./pip.js";
-import { showLocalStream, updateLocalPreview } from "./stage.js";
+import { showLocalStream, showRemoteName } from "./stage.js";
 import { state } from "./state.js";
 import {
     hideParticipantCount,
@@ -36,7 +31,9 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome } from "./home.js";
-import { SCREEN, callUrl, getRoomIdFromUrl, showScreen } from "./router.js";
+import { clearToast } from "./toast.js";
+import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
+import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -51,22 +48,26 @@ function updateLockUI() {
     showLockIndicator(state.isLocked);
 }
 
-function startCall(preferCamera) {
+function startCall() {
+    renderControls();
+    showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return Promise.allSettled([acquireMedia(preferCamera), loadIceServers()]).then((outcomes) => {
-        if (state.intentionalLeave) return;
-        const failure = outcomes.find((outcome) => outcome.status === "rejected");
-        if (failure) {
+    return loadIceServers().then(
+        () => {
+            if (!state.intentionalLeave) connect();
+        },
+        (error_) => {
+            if (state.intentionalLeave) return;
+            if (error_ instanceof SignedOutError) {
+                goThroughSignIn();
+                return;
+            }
             stopLocalMedia();
-            setStatus(failure.reason.message, "error");
-            return;
-        }
-        showLocalStream(state.localStream);
-        renderVideoButton();
-        updateLocalPreview();
-        connect();
-    });
+            renderControls();
+            setStatus(error_.message, "error");
+        },
+    );
 }
 
 function tearDownCall() {
@@ -75,18 +76,21 @@ function tearDownCall() {
     stopLocalMedia();
     disconnect();
     showLocalStream(null);
-    hideShareBox();
+    clearToast();
+    hideWaitingCard();
     hideLockButton();
     hideParticipantCount();
     state.isHost = false;
     state.isLocked = false;
     state.roomId = null;
+    state.namesByParticipant.clear();
     updateLockUI();
 }
 
 function leaveCall() {
+    const wasHost = state.isHost;
     tearDownCall();
-    showEnd(getRoomIdFromUrl() === null ? END_KIND.HOST_LEFT : END_KIND.LEFT);
+    showEnd(wasHost ? END_KIND.HOST_LEFT : END_KIND.LEFT);
 }
 
 function requestLeave() {
@@ -102,20 +106,28 @@ function registerSessionHandlers() {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
-        showShareLink(callUrl(state.roomId));
+        showCallAddress(state.roomId);
+        setCallLink(callUrl(state.roomId));
+        showWaitingCard();
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
     });
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
+        for (const [participantId, name] of Object.entries(data.names)) {
+            state.namesByParticipant.set(participantId, name);
+            showRemoteName(participantId);
+        }
         state.isHost = data.is_host;
         state.isLocked = data.locked;
         state.reconnectAttempt = 0;
+        setCallLink(callUrl(getRoomIdFromUrl()));
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
     });
-    on(SIGNAL_TYPE.PARTICIPANT_JOINED, () => {
+    on(SIGNAL_TYPE.PARTICIPANT_JOINED, (data) => {
+        state.namesByParticipant.set(data.participant_id, data.name);
         playJoinSound();
         updateParticipantCount();
     });
@@ -123,10 +135,12 @@ function registerSessionHandlers() {
     on(SIGNAL_TYPE.ROOM_LOCKED, () => {
         state.isLocked = true;
         updateLockUI();
+        confirmLockChange(true);
     });
     on(SIGNAL_TYPE.ROOM_UNLOCKED, () => {
         state.isLocked = false;
         updateLockUI();
+        confirmLockChange(false);
     });
     on(SIGNAL_TYPE.ROOM_CLOSED, (data) => {
         tearDownCall();
@@ -149,24 +163,22 @@ registerMediaStateHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);
-initDialogs({
-    onSetupStart: startCall,
-    onLeaveConfirmed: leaveCall,
-});
+initDialogs({ onLeaveConfirmed: leaveCall });
 initControls({ onLeaveRequested: requestLeave });
+initInvite();
 initChat();
 initPip();
 initEnd();
-initHome({
-    onStartRequested: () => {
-        showScreen(SCREEN.CALL);
-        showSetupDialog();
+initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });
+initPrejoin({
+    onStart: (kind) => {
+        state.isHost = kind === PREJOIN_KIND.HOST;
+        void startCall();
     },
 });
 
 if (getRoomIdFromUrl()) {
-    showScreen(SCREEN.CALL);
-    void startCall(true);
+    openPrejoin(PREJOIN_KIND.GUEST);
 } else {
     showScreen(SCREEN.HOME);
 }

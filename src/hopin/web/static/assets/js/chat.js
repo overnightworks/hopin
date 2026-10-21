@@ -1,5 +1,6 @@
 import { playMessageSound } from "./sounds.js";
 import { SIGNAL_TYPE, isConnected, on, send } from "./signaling.js";
+import { state } from "./state.js";
 
 const chatPanel = document.getElementById("chatPanel");
 const chatMessages = document.getElementById("chatMessages");
@@ -19,7 +20,7 @@ function appendMessage(text, senderId) {
     if (!isSelf) {
         const senderElement = document.createElement("div");
         senderElement.className = "chat-sender";
-        senderElement.textContent = `Peer ${senderId.slice(0, 6)}`;
+        senderElement.textContent = state.namesByParticipant.get(senderId) ?? "";
         messageElement.appendChild(senderElement);
     }
     messageElement.append(text);
@@ -45,10 +46,15 @@ function sendMessage() {
     chatInput.value = "";
 }
 
+function renderChatButton() {
+    chatButton.classList.toggle("active", chatOpen);
+    chatButton.setAttribute("aria-expanded", String(chatOpen));
+}
+
 function toggleChat() {
     chatOpen = !chatOpen;
     chatPanel.classList.toggle("visible", chatOpen);
-    chatButton.className = chatOpen ? "btn-active" : "btn-secondary";
+    renderChatButton();
     if (chatOpen) {
         unreadMessages = 0;
         chatBadge.classList.remove("visible");
@@ -59,7 +65,7 @@ function toggleChat() {
 function closeChat() {
     chatOpen = false;
     chatPanel.classList.remove("visible");
-    chatButton.className = "btn-secondary";
+    renderChatButton();
 }
 
 export function registerChatHandlers() {

@@ -7,10 +7,11 @@ from playwright.sync_api import Page, ViewportSize, expect
 
 from tests.e2e.conftest import (
     DESKTOP,
-    INVITE_LINK_PATTERN,
+    OTHER_TILE,
     PHONE,
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
+    call_link_of,
     join,
     press_start_call,
     share_the_screen,
@@ -29,7 +30,7 @@ PHONE_VIEWPORT = ViewportSize(**PHONE["viewport"])
 LARGEST_CALL = 6
 DESKTOP_SHAPES = {2: (2, 1), 3: (3, 1), 4: (2, 2), 5: (3, 2), 6: (3, 2)}
 PHONE_SHAPES = {3: (1, 3), 4: (2, 2), 5: (2, 3), 6: (2, 3)}
-PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14, "inset_bottom": 14}
+PHONE_PICTURE_IN_PICTURE = {"width": 104, "height": 152, "inset_right": 14}
 PICTURE_IN_PICTURE_INSET_SIDE = 14
 PICTURE_IN_PICTURE_INSET_TOP = 48
 PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM = 6
@@ -39,6 +40,18 @@ CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
 PHONE_QUALITY_BARS_INSET = {"top": 50, "right": 16}
 QUALITY_BAR_COUNT = 3
 VIGNETTE_GRADIENT = "linear-gradient(to top"
+VIGNETTE_STACKING = """
+(tile) => {
+    const stackOf = (selector) => Number(getComputedStyle(tile.querySelector(selector)).zIndex) || 0;
+    const vignette = getComputedStyle(tile, "::after");
+    return {
+        backgroundImage: vignette.backgroundImage,
+        vignette: Number(vignette.zIndex),
+        video: stackOf("video"),
+        placeholder: stackOf(".vid"),
+    };
+}
+"""
 BOXES_OF_THE_STAGE = """
 () => {
     const boxOf = (element) => {
@@ -132,7 +145,8 @@ def assert_other_tile_fills_stage_beside_the_picture_in_picture(host: Page) -> N
         PHONE_PICTURE_IN_PICTURE["inset_right"], abs=POSITION_TOLERANCE_PIXELS
     )
     assert boxes["stage"]["bottom"] - boxes["self"]["bottom"] == pytest.approx(
-        PHONE_PICTURE_IN_PICTURE["inset_bottom"], abs=POSITION_TOLERANCE_PIXELS
+        host.evaluate(STAGE_BOTTOM_IN_PIXELS) + PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM,
+        abs=POSITION_TOLERANCE_PIXELS,
     )
     assert host.evaluate(ELEMENT_AT_THE_CENTER_OF_THE_OWN_TILE_IS_ITS_OWN)
 
@@ -196,10 +210,9 @@ def test_stage_shows_every_remote_tile_a_quality_pill_of_bare_bars_and_a_vignett
         expect(pill.locator(".quality-bar")).to_have_count(QUALITY_BAR_COUNT)
         assert pill.get_attribute("style") is None
         assert all(bar.get_attribute("style") is None for bar in pill.locator(".quality-bar").all())
-    vignette = host.locator("#videoGrid .tile").first.evaluate(
-        "(tile) => getComputedStyle(tile, '::after').backgroundImage"
-    )
-    assert vignette.startswith(VIGNETTE_GRADIENT)
+    stacking = host.locator(OTHER_TILE).first.evaluate(VIGNETTE_STACKING)
+    assert stacking["backgroundImage"].startswith(VIGNETTE_GRADIENT)
+    assert stacking["video"] < stacking["vignette"] < stacking["placeholder"]
 
 
 def test_stage_lays_out_each_call_size_from_two_to_six_in_the_pictures_shape(
@@ -254,7 +267,7 @@ def test_stage_without_a_camera_shows_the_person_icon_on_the_own_tile(
 
     press_start_call(host, base_url)
 
-    expect(host.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    call_link_of(host)
     placeholder = host.locator("#localPlaceholder")
     expect(placeholder.locator(".av svg")).to_be_visible()
     expect(placeholder).to_have_css("background-color", CAMERA_OFF_SURFACE)

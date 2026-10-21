@@ -1,83 +1,53 @@
 import json
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
 from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
+    ICE_SERVERS_PATH,
     MAX_PARTICIPANTS_PER_ROOM,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
 from tests.e2e.conftest import (
+    COUNT_SOCKETS,
     DESKTOP,
-    ICE_SERVERS_PATH,
+    HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
-    INVITE_LINK_PATTERN,
+    LIVE_TRACK_COUNT,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    MEDIA_REQUEST_IS_HELD,
+    MORE_TRACKS_THAN,
     PHONE,
-    STOP_SHARING_LABEL,
+    RECORD_MEDIA_TRACKS,
+    RELEASE_MEDIA,
+    REQUESTED_TRACK_COUNT,
+    TRACKS_WERE_REQUESTED,
+    add_init_scripts,
+    call_link_of,
     expect_both_legal_links,
+    join_by_link,
+    open_prejoin_by_link,
     press_start_call,
+    press_through_the_prejoin,
+    record_page_errors,
     share_the_screen,
     start_call,
+    toggle_the_lock,
+    wait_until_the_prejoin_media_answered,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 IN_CALL = "In call"
 SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
-# The headless browser has no screen picker, so a canvas and a silent audio destination
-# stand in for a shared screen with its sound.
-RECORD_MEDIA_TRACKS = """
-window.requestedTracks = [];
-window.mediaRequests = 0;
-window.heldMediaRequests = 0;
-let mediaHeld = null;
-window.holdMedia = () => {
-    mediaHeld = new Promise((release) => {
-        window.releaseMedia = (failure) => {
-            mediaHeld = null;
-            release(failure);
-        };
-    });
-};
-const recorded = (request) => async (constraints) => {
-    window.mediaRequests += 1;
-    if (mediaHeld) {
-        window.heldMediaRequests += 1;
-        const failure = await mediaHeld;
-        if (failure) throw new DOMException(failure, failure);
-    }
-    const stream = await request(constraints);
-    window.requestedTracks.push(...stream.getTracks());
-    return stream;
-};
-navigator.mediaDevices.getUserMedia = recorded(navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices));
-navigator.mediaDevices.getDisplayMedia = recorded(async () => {
-    const screenPicture = document.createElement("canvas").captureStream();
-    const screenSound = new AudioContext().createMediaStreamDestination().stream;
-    return new MediaStream([...screenPicture.getTracks(), ...screenSound.getTracks()]);
-});
-"""
-COUNT_SOCKETS = """
-window.socketsOpened = 0;
-const NativeWebSocket = window.WebSocket;
-window.WebSocket = class extends NativeWebSocket {
-    constructor(...options) {
-        super(...options);
-        window.socketsOpened += 1;
-    }
-};
-"""
 # startCall continues in the same microtask drain in which the ICE servers' body is read,
 # so a later poll that sees the flag also sees whatever that continuation did.
 RECORD_ICE_SERVERS_READ = f"""
@@ -90,16 +60,7 @@ Response.prototype.json = async function () {{
 }};
 """
 ICE_SERVERS_WERE_READ = "() => window.iceServersRead"
-HOLD_MEDIA = "window.holdMedia()"
-RELEASE_MEDIA = "window.releaseMedia()"
-FAIL_MEDIA = "window.releaseMedia('NotFoundError')"
-MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
-MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
-TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
-MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
-REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
 PRESS_LEAVE = "document.getElementById('leaveBtn').click()"
-LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
 LEFTOVERS = f"() => ({{ liveTracks: ({LIVE_TRACK_COUNT})(), socketsOpened: window.socketsOpened }})"
 NOTHING_LEFT = {"liveTracks": 0, "socketsOpened": 0}
 
@@ -153,9 +114,11 @@ def form_factor(request: pytest.FixtureRequest) -> dict[str, Any]:
     return dict(request.param)
 
 
-def open_recording_person(open_person: Callable[..., Page], form_factor: dict[str, Any]) -> Page:
+def open_recording_person(
+    open_person: Callable[..., Page], form_factor: dict[str, Any], scripts_after_the_recorder: Sequence[str] = ()
+) -> Page:
     person = open_person(**form_factor)
-    person.add_init_script(RECORD_MEDIA_TRACKS)
+    add_init_scripts(person, [RECORD_MEDIA_TRACKS, *scripts_after_the_recorder])
     return person
 
 
@@ -168,7 +131,7 @@ def hosted_call(open_person: Callable[..., Page], base_url: str, form_factor: di
 @pytest.fixture
 def call(hosted_call: HostedCall, open_person: Callable[..., Page], form_factor: dict[str, Any]) -> Call:
     guest = open_recording_person(open_person, form_factor)
-    guest.goto(hosted_call.invite_link)
+    join_by_link(guest, hosted_call.invite_link)
     expect(guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     return Call(hosted_call.host, hosted_call.invite_link, hosted_call.base_url, guest)
 
@@ -217,66 +180,34 @@ def test_guest_who_leaves_sees_the_left_screen_and_no_live_media_track(call: Cal
     expect_end_screen(call.guest, LEFT_BY_GUEST)
 
 
-def open_person_whose_startup_media_is_held(open_person: Callable[..., Page], form_factor: dict[str, Any]) -> Page:
-    person = open_recording_person(open_person, form_factor)
-    for script in (HOLD_MEDIA, COUNT_SOCKETS, RECORD_ICE_SERVERS_READ):
-        person.add_init_script(script)
-    return person
-
-
-def leave_and_release_the_held_media(person: Page) -> None:
-    person.wait_for_function(MEDIA_REQUEST_IS_HELD)
-    person.evaluate(PRESS_LEAVE)
-    expect_end_title(person, LEFT_BY_HOST)
-    person.evaluate(RELEASE_MEDIA)
-    person.wait_for_function(TRACKS_WERE_REQUESTED)
-
-
-def test_media_arriving_after_the_host_left_is_stopped_before_the_ice_servers_load_and_opens_no_connection(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
+@pytest.mark.parametrize("is_guest", [False, True], ids=["host", "guest"])
+def test_person_who_leaves_while_the_ice_servers_load_opens_no_connection_and_keeps_no_live_track(
+    open_person: Callable[..., Page],
+    base_url: str,
+    form_factor: dict[str, Any],
+    page_errors: list[str],
+    is_guest: bool,
 ) -> None:
-    person = open_person_whose_startup_media_is_held(open_person, form_factor)
+    invite_link = start_call(record_page_errors(open_person(**DESKTOP), page_errors), base_url) if is_guest else None
+    person = record_page_errors(
+        open_recording_person(open_person, form_factor, [COUNT_SOCKETS, RECORD_ICE_SERVERS_READ]), page_errors
+    )
     held_ice_requests: list[Route] = []
     person.route(ICE_SERVERS_URL_PATTERN, lambda route: held_ice_requests.append(route))
     with person.expect_request(ICE_SERVERS_URL_PATTERN):
-        press_start_call(person, base_url)
-    leave_and_release_the_held_media(person)
-    expect_end_screen(person, LEFT_BY_HOST)
+        if invite_link is None:
+            press_start_call(person, base_url)
+        else:
+            join_by_link(person, invite_link)
+    expected = LEFT_BY_GUEST if is_guest else LEFT_BY_HOST
+    person.evaluate(PRESS_LEAVE)
+    expect_end_screen(person, expected)
 
     held_ice_requests.pop().continue_()
     person.wait_for_function(ICE_SERVERS_WERE_READ)
 
     assert person.evaluate(LEFTOVERS) == NOTHING_LEFT
-    expect_end_screen(person, LEFT_BY_HOST)
-
-
-def test_media_arriving_after_the_host_left_once_the_ice_servers_loaded_is_stopped_and_opens_no_connection(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
-) -> None:
-    person = open_person_whose_startup_media_is_held(open_person, form_factor)
-    press_start_call(person, base_url)
-    person.wait_for_function(ICE_SERVERS_WERE_READ)
-
-    leave_and_release_the_held_media(person)
-
-    assert person.evaluate(LEFTOVERS) == NOTHING_LEFT
-    expect_end_screen(person, LEFT_BY_HOST)
-
-
-def test_camera_failing_after_the_host_left_asks_for_no_microphone(
-    open_person: Callable[..., Page], base_url: str
-) -> None:
-    person = open_recording_person(open_person, DESKTOP)
-    person.add_init_script(HOLD_MEDIA)
-    press_start_call(person, base_url)
-    person.wait_for_function(MEDIA_REQUEST_IS_HELD)
-    person.evaluate(PRESS_LEAVE)
-    expect_end_title(person, LEFT_BY_HOST)
-
-    person.evaluate(FAIL_MEDIA)
-
-    assert person.evaluate(MEDIA_REQUEST_COUNT) == 1
-    expect_end_title(person, LEFT_BY_HOST)
+    expect_end_screen(person, expected)
 
 
 def start_sharing_the_screen(person: Page, base_url: str) -> None:
@@ -294,7 +225,7 @@ def stop_sharing_the_screen(person: Page, base_url: str) -> None:
 
 def turn_on_a_camera_after_starting_without_one(person: Page, base_url: str) -> None:
     press_start_call(person, base_url, with_camera=False)
-    expect(person.locator("#shareUrl")).to_have_value(INVITE_LINK_PATTERN)
+    call_link_of(person)
     person.evaluate(HOLD_MEDIA)
     person.click("#videoBtn")
 
@@ -324,6 +255,7 @@ def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped
     assert page_errors == []
 
 
+@pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_call: HostedCall) -> None:
     share_the_screen(hosted_call.host)
 
@@ -332,6 +264,7 @@ def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_ca
     expect_end_screen(hosted_call.host, LEFT_BY_HOST)
 
 
+@pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no_live_media_track(
     hosted_call: HostedCall,
 ) -> None:
@@ -341,7 +274,7 @@ def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no
     host.wait_for_function(MEDIA_REQUEST_IS_HELD)
     host.click("#screenBtn")
     host.evaluate(RELEASE_MEDIA)
-    expect(host.locator("#screenBtn")).to_have_text(STOP_SHARING_LABEL)
+    expect(host.locator("#screenBtn")).to_have_attribute("aria-pressed", "true")
 
     leave_with_confirmation(host)
 
@@ -352,6 +285,7 @@ def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:
     guest_leaves(call)
 
     end_screen(call.guest).get_by_role("button", name="Rejoin").click()
+    press_through_the_prejoin(call.guest)
 
     expect(call.guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     expect(end_screen(call.guest)).to_be_hidden()
@@ -366,7 +300,7 @@ def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_
     expect(call.guest.locator("[data-screen=home]")).to_be_visible()
     call.guest.go_back()
     expect(call.guest).to_have_url(call.invite_link)
-    expect(call.guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(call.guest.locator("[data-screen=prejoin]")).to_be_visible()
 
 
 def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None:
@@ -375,22 +309,52 @@ def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None
     expect_end_screen(call.host, LEFT_BY_HOST)
 
 
+def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rejoin_or_dialog(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+) -> None:
+    host = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
+    start_call(host, base_url)
+
+    host.reload()
+    press_through_the_prejoin(host)
+    expect(host.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    host.click("#leaveBtn")
+
+    expect_end_screen(host, LEFT_BY_HOST)
+
+
 def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(call: Call) -> None:
     call.host.evaluate(SEND_END_ROOM)
 
     expect_end_screen(call.guest, ENDED_BY_HOST)
 
 
+def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at_join(
+    hosted_call: HostedCall, open_person: Callable[..., Page], page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    guest = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
+    open_prejoin_by_link(guest, hosted_call.invite_link)
+    wait_until_the_prejoin_media_answered(guest)
+    hosted_call.host.evaluate(SEND_END_ROOM)
+    expect(hosted_call.host.locator("[data-screen=end]")).to_be_visible()
+
+    press_through_the_prejoin(guest)
+
+    expect_end_screen(guest, EXPIRED)
+
+
 def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(call: Call) -> None:
     guest_leaves(call)
-    call.host.click("#lockBtn")
-    expect(call.host.locator("#lockIndicator")).to_have_text("Locked")
-    call.guest.goto(call.invite_link)
+    toggle_the_lock(call.host)
+    expect(call.host.locator("#lockIndicator")).to_be_visible()
+    join_by_link(call.guest, call.invite_link)
     expect_end_screen(call.guest, LOCKED)
 
-    call.host.click("#lockBtn")
-    expect(call.host.locator("#lockIndicator")).to_have_text("")
+    toggle_the_lock(call.host)
+    expect(call.host.locator("#lockIndicator")).to_be_hidden()
     end_screen(call.guest).get_by_role("button", name="Retry").click()
+    expect(call.guest.locator("[data-screen=prejoin]")).to_be_visible()
+    press_through_the_prejoin(call.guest)
 
     expect(call.guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
@@ -399,7 +363,7 @@ def answer_join_with(person: Page, frame: dict[str, Any]) -> None:
     def answer(socket: WebSocketRoute) -> None:
         socket.on_message(lambda _frame: socket.send(json.dumps(frame)))
 
-    person.route_web_socket("**/ws?*", answer)
+    person.route_web_socket("**/ws", answer)
 
 
 @pytest.mark.parametrize(("error", "expected"), REFUSED_JOINS)
@@ -413,7 +377,7 @@ def test_refused_join_shows_the_screen_of_its_reason(
     person = open_recording_person(open_person, form_factor)
     answer_join_with(person, {"type": SignalType.ERROR.value, **error})
 
-    person.goto(hosted_call.invite_link)
+    join_by_link(person, hosted_call.invite_link)
 
     expect_end_screen(person, expected)
 
@@ -431,6 +395,6 @@ def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
         },
     )
 
-    person.goto(hosted_call.invite_link)
+    join_by_link(person, hosted_call.invite_link)
 
     expect_end_screen(person, HOST_GONE)

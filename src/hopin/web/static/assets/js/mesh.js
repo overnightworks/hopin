@@ -2,6 +2,7 @@ import { applyUploadCaps, videoTransceivers } from "./bandwidth.js";
 import { monitorConnectionQuality } from "./quality.js";
 import { watchIceConnection } from "./recovery.js";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
+import { monitorSpeaking } from "./speaking.js";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
 import { state } from "./state.js";
 
@@ -9,8 +10,13 @@ const ICE_SERVERS_PATH = "/api/ice-servers";
 
 let rtcConfiguration = { iceServers: [] };
 
+export class SignedOutError extends Error {}
+
 export async function loadIceServers() {
     const response = await fetch(ICE_SERVERS_PATH);
+    if (response.status === 401) {
+        throw new SignedOutError("Signed out");
+    }
     if (!response.ok) {
         throw new Error(`Could not load ICE servers (${response.status})`);
     }
@@ -19,7 +25,7 @@ export async function loadIceServers() {
 }
 
 const connectionsByParticipant = new Map();
-const answerApplicationsByParticipant = new Map();
+const remoteSignalingByParticipant = new Map();
 let peersChanged = () => {};
 
 export function onPeersChanged(callback) {
@@ -81,13 +87,39 @@ async function createPeerConnection(participantId, initiator) {
     }
 
     monitorConnectionQuality(participantId, connection);
+    monitorSpeaking(participantId, connection);
     return connection;
 }
 
-async function handleOffer(data) {
+function applyInArrivalOrder(participantId, step) {
+    const queue = remoteSignalingByParticipant.get(participantId) ?? { tail: Promise.resolve() };
+    remoteSignalingByParticipant.set(participantId, queue);
+    queue.tail = queue.tail
+        .then(() => {
+            if (remoteSignalingByParticipant.get(participantId) === queue) return step();
+        })
+        .catch(reportError);
+}
+
+async function sendLocalVideoInAnswer(connection) {
+    if (!state.localStream) return;
+    const [videoTrack = null] = state.localStream.getVideoTracks();
+    const answeringReceivers = videoTransceivers(connection).filter(
+        (transceiver) => transceiver.direction === "recvonly" && typeof transceiver.sender.setStreams === "function",
+    );
+    for (const transceiver of answeringReceivers) {
+        transceiver.direction = "sendrecv";
+        transceiver.sender.setStreams(state.localStream);
+    }
+    await Promise.all(answeringReceivers.map((transceiver) => transceiver.sender.replaceTrack(videoTrack)));
+}
+
+async function answerOffer(data) {
     const connection =
         connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    await sendLocalVideoInAnswer(connection);
+    if (connection.signalingState === "closed") return;
     const answer = await connection.createAnswer();
     if (connection.signalingState === "closed") return;
     await connection.setLocalDescription(answer);
@@ -96,12 +128,7 @@ async function handleOffer(data) {
         target: data.from,
         sdp: connection.localDescription,
     });
-}
-
-function handleAnswer(data) {
-    const previous = answerApplicationsByParticipant.get(data.from) ?? Promise.resolve();
-    const applied = previous.then(() => applyAnswer(data));
-    answerApplicationsByParticipant.set(data.from, applied.catch(reportError));
+    await capUploads();
 }
 
 async function applyAnswer(data) {
@@ -110,7 +137,7 @@ async function applyAnswer(data) {
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 }
 
-async function handleIceCandidate(data) {
+async function applyIceCandidate(data) {
     const connection = connectionsByParticipant.get(data.from);
     if (connection && data.candidate) {
         await connection.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -120,7 +147,7 @@ async function handleIceCandidate(data) {
 function removePeer(participantId) {
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
-    answerApplicationsByParticipant.delete(participantId);
+    remoteSignalingByParticipant.delete(participantId);
     void capUploads();
     if (removeRemoteTile(participantId)) peersChanged();
 }
@@ -157,7 +184,7 @@ export function registerMeshHandlers() {
         }
     });
     on(SIGNAL_TYPE.PARTICIPANT_LEFT, (data) => removePeer(data.participant_id));
-    on(SIGNAL_TYPE.OFFER, handleOffer);
-    on(SIGNAL_TYPE.ANSWER, handleAnswer);
-    on(SIGNAL_TYPE.ICE_CANDIDATE, handleIceCandidate);
+    on(SIGNAL_TYPE.OFFER, (data) => applyInArrivalOrder(data.from, () => answerOffer(data)));
+    on(SIGNAL_TYPE.ANSWER, (data) => applyInArrivalOrder(data.from, () => applyAnswer(data)));
+    on(SIGNAL_TYPE.ICE_CANDIDATE, (data) => applyInArrivalOrder(data.from, () => applyIceCandidate(data)));
 }

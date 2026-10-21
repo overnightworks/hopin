@@ -10,6 +10,7 @@ from tests.e2e.conftest import (
     ICE_SERVERS_URL_PATTERN,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     RECORD_PEER_CONNECTIONS,
+    join_by_link,
     press_start_call,
     start_call,
 )
@@ -52,7 +53,7 @@ def test_call_peer_connections_use_the_servers_ice_servers(open_person: Callable
     served = host.request.get(f"{base_url}{ICE_SERVERS_PATH}").json()["iceServers"]
 
     invite_link = start_call(host, base_url)
-    guest.goto(invite_link)
+    join_by_link(guest, invite_link)
 
     for person in (host, guest):
         configurations = person.evaluate(RECORDED_CONFIGURATIONS_AFTER_FIRST, MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
