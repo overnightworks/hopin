@@ -3,6 +3,6 @@ agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
 role = "builder"
 base = "4b1c71b42d39390ff49935e678b2138c416e0fd8"
 branch = "claude/issue-141-socket-signed-in-only"
-scope = ["README.md", "src/hopin/app.py", "src/hopin/signaling/identity.py", "src/hopin/web/static/assets/js/signaling.js", "tests/e2e/conftest.py", "tests/e2e/test_end.py", "tests/e2e/test_same_account.py", "tests/integration/test_server_logging.py", "tests/integration/test_signaling_flow.py", "tests/integration/test_signaling_transport.py", "tests/signed_in.py", "tests/unit/test_identity.py", "tests/unit/test_web.py"]
+scope = ["README.md", "src/hopin/app.py", "src/hopin/signaling/identity.py", "src/hopin/web/static/assets/js/signaling.js", "tests/e2e/conftest.py", "tests/e2e/test_end.py", "tests/e2e/test_mesh.py", "tests/e2e/test_same_account.py", "tests/integration/test_server_logging.py", "tests/integration/test_signaling_flow.py", "tests/integration/test_signaling_transport.py", "tests/signed_in.py", "tests/unit/test_identity.py", "tests/unit/test_web.py"]
 opened_commit = "80bc200fb48721b1b533a956258ad824db38258b"
 whole_reason = "The resolver, its wiring and the browser's URL are one change, or the socket refuses every page or keeps trusting the query; the test files follow because every handshake in them must now carry a seeded session."
