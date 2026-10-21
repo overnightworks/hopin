@@ -73,6 +73,9 @@ class _ExpiredSessionSweep:
         )
         if removed:
             logger.info("expired_sessions_swept", removed=removed)
+        self._schedule_next_unless_stopped()
+
+    def _schedule_next_unless_stopped(self) -> None:
         if not self._stopped:
             self._timer = self._schedule()
 
