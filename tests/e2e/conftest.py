@@ -123,12 +123,22 @@ async ([kind, field]) => {
     }));
 }
 """
-INBOUND_HAS_GROWN = f"""
-async ([kind, field, baseline]) => {{
-    const now = await ({INBOUND_PER_CONNECTION})([kind, field]);
-    return now.length === baseline.length && now.every((value, index) => value > baseline[index]);
+# Playwright's wait_for_function takes the Promise of an async predicate as truthy, so the
+# poll runs inside one evaluate and reports the last values it measured.
+INBOUND_GROWTH_AWAITED = f"""
+async ([kind, field, baseline, timeoutMilliseconds, pollIntervalMilliseconds]) => {{
+    const measure = {INBOUND_PER_CONNECTION};
+    const end = performance.now() + timeoutMilliseconds;
+    while (true) {{
+        const now = await measure([kind, field]);
+        const grown = now.length === baseline.length && now.every((value, index) => value > baseline[index]);
+        const remaining = end - performance.now();
+        if (grown || remaining <= 0) return {{ grown, now }};
+        await new Promise((next) => setTimeout(next, Math.floor(Math.min(pollIntervalMilliseconds, remaining))));
+    }}
 }}
 """
+INBOUND_POLL_INTERVAL_MILLISECONDS = 50
 TILE_AUDIO_IS_ALIVE_AND_UNMUTED = """
 (selector) => {
     const video = document.querySelector(selector);
@@ -532,7 +542,14 @@ def inbound_per_connection(person: Page, kind: str, field: str) -> list[float]:
 
 
 def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
-    person.wait_for_function(INBOUND_HAS_GROWN, arg=[kind, field, baseline], timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    outcome = person.evaluate(
+        INBOUND_GROWTH_AWAITED,
+        [kind, field, baseline, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, INBOUND_POLL_INTERVAL_MILLISECONDS],
+    )
+    assert outcome["grown"], (
+        f"inbound {kind} {field} did not grow past {baseline} within "
+        f"{MEDIA_FLOWING_TIMEOUT_MILLISECONDS} ms; last measured {outcome['now']}"
+    )
 
 
 def wait_for_frames_to_advance(person: Page) -> None:

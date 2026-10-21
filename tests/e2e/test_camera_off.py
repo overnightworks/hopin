@@ -28,11 +28,13 @@ from tests.e2e.conftest import (
     RELEASE_MEDIA,
     add_init_scripts,
     camera_track_states,
+    inbound_per_connection,
     join,
     record_page_errors,
     share_the_screen,
     start_call,
     stop_the_screen_share,
+    wait_for_inbound_growth,
     wait_for_peer_count,
     wait_for_the_light_to_go_out,
     wait_for_the_picture,
@@ -191,6 +193,11 @@ def test_a_later_joiner_gets_no_frame_from_a_camera_that_is_off_and_then_the_pic
     wait_for_peer_count(later_joiner, 1)
 
     expect_the_icon(later_joiner)
+    wait_for_inbound_growth(
+        later_joiner, "audio", "bytesReceived", inbound_per_connection(later_joiner, "audio", "bytesReceived")
+    )
+    assert inbound_per_connection(later_joiner, "video", "framesDecoded") == [0]
+    assert inbound_per_connection(later_joiner, "video", "bytesReceived") == [0]
     wait_for_video_tracks(presser, own=[], senders=[None])
     press_camera_button(presser, pressed=False)
     wait_for_the_picture(later_joiner)
