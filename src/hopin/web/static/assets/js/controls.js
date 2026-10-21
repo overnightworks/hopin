@@ -1,5 +1,6 @@
 import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "./media.js";
 import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
+import { closeOpenMenu, registerMenu } from "./menus.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 import { TOAST_KIND, showToast } from "./toast.js";
@@ -17,11 +18,13 @@ const MENUS = [
         button: document.getElementById("moreBtn"),
         dialog: document.getElementById("moreMenu"),
         firstFocus: ".mi",
+        scrim: overlayScrim,
     },
     {
         button: document.getElementById("inviteBtn"),
         dialog: document.getElementById("inviteMenu"),
         firstFocus: ".invite-copy",
+        scrim: overlayScrim,
     },
 ];
 const lockButton = document.getElementById("lockBtn");
@@ -41,34 +44,6 @@ export function showLockButton(isLocked) {
 
 export function hideLockButton() {
     lockButton.classList.add("hidden");
-}
-
-function closeMenu({ button, dialog }) {
-    overlayScrim.classList.add("hidden");
-    dialog.close();
-    button.classList.remove("active");
-    button.setAttribute("aria-expanded", "false");
-    button.focus();
-}
-
-function openMenu(menu) {
-    for (const other of MENUS) if (other !== menu && other.dialog.open) closeMenu(other);
-    overlayScrim.classList.remove("hidden");
-    menu.dialog.show();
-    menu.button.classList.add("active");
-    menu.button.setAttribute("aria-expanded", "true");
-    const firstItems = menu.dialog.querySelectorAll(menu.firstFocus);
-    [...firstItems].find((item) => item.checkVisibility()).focus();
-}
-
-function toggleMenu(menu) {
-    if (menu.dialog.open) closeMenu(menu);
-    else openMenu(menu);
-}
-
-function closeOpenMenu() {
-    const open = MENUS.find((menu) => menu.dialog.open);
-    if (open) closeMenu(open);
 }
 
 export function confirmLockChange(isLocked) {
@@ -141,12 +116,8 @@ export function initControls({ onLeaveRequested }) {
     screenButton.addEventListener("click", () => {
         void handleScreenClick();
     });
-    for (const menu of MENUS) menu.button.addEventListener("click", () => toggleMenu(menu));
-    overlayScrim.addEventListener("click", closeOpenMenu);
+    for (const menu of MENUS) registerMenu(menu);
     document.getElementById("inviteCloseBtn").addEventListener("click", closeOpenMenu);
-    document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeOpenMenu();
-    });
     lockButton.addEventListener("click", handleLockClick);
     leaveButton.addEventListener("click", onLeaveRequested);
 }

@@ -3,6 +3,7 @@ import { confirmLockChange, hideLockButton, initControls, renderControls, showLo
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
+import { initMenus } from "./menus.js";
 import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {
@@ -164,6 +165,7 @@ registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);
 initDialogs({ onLeaveConfirmed: leaveCall });
+initMenus();
 initControls({ onLeaveRequested: requestLeave });
 initInvite();
 initChat();
