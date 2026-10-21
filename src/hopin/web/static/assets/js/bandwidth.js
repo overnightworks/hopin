@@ -12,10 +12,23 @@ function videoSenders(connection) {
     return videoTransceivers(connection).map((transceiver) => transceiver.sender);
 }
 
-async function capSender(sender, maxBitrate) {
+const lastCapBySender = new WeakMap();
+
+async function setCap(sender, maxBitrate) {
     const parameters = sender.getParameters();
     parameters.encodings[0].maxBitrate = maxBitrate;
     await sender.setParameters(parameters);
+}
+
+// A sender accepts one getParameters/setParameters transaction at a time: a second
+// setParameters after another one consumed the transaction is rejected. Caps on one
+// sender therefore run in turn, each reading its parameters right before it sets them.
+function capSender(sender, maxBitrate) {
+    const previous = lastCapBySender.get(sender) ?? Promise.resolve();
+    const cap = previous.then(() => setCap(sender, maxBitrate));
+    // The caller still sees this cap's failure; the queue only waits for it to end.
+    lastCapBySender.set(sender, cap.catch(() => {}));
+    return cap;
 }
 
 export async function applyUploadCaps(connections) {
