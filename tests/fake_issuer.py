@@ -25,6 +25,7 @@ KEY_ID = "the-key-only-this-test-has"
 TOKEN_LIFETIME_SECONDS = 300
 RSA_KEY_BITS = 2048
 AUTHORIZATION_CODE_BYTES = 16
+REFRESH_TOKEN_BYTES = 32
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class FakeIssuer:
         self._client_id = sign_in.settings.oidc_client_id
         self._client_secret = sign_in.client_secret
         self._codes: dict[str, _IssuedCode] = {}
+        self.refresh_token = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
         self.exchanges: list[tuple[TokenRequest, TokenEndpointAnswer | None]] = []
         self.token_endpoint_is_down = False
         self.key_set_is_down = False
@@ -87,7 +89,8 @@ class FakeIssuer:
         issued = self._codes.pop(request.form["code"], None)
         if issued is None or not self._proves_possession(issued, request.form["code_verifier"]):
             return self._refusal(HTTPStatus.BAD_REQUEST, "invalid_grant")
-        return TokenEndpointAnswer(HTTPStatus.OK, json.dumps({"id_token": self._sign(issued)}).encode())
+        body = {"id_token": self._sign(issued), "refresh_token": self.refresh_token}
+        return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
 
     def fetch_key_set(self, url: str) -> bytes:
         del url
