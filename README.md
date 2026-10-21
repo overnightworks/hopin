@@ -53,7 +53,7 @@ make install
 make run
 ```
 
-Set the four required settings (see Configuration) before `make run`: the https issuer and public origin, and the paths of the two secret files. Put no secret value in the environment and no `~/.secrets` path in a command line you share. Without them HopIn refuses to start.
+Set the four required settings (see Configuration) before `make run`: the https issuer and public origin, and the paths of the two secret files. Put no secret value in the environment. Without them HopIn refuses to start.
 
 Once they are set, the server starts on `http://localhost:8080`.
 

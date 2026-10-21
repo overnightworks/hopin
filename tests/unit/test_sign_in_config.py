@@ -65,16 +65,25 @@ class TestSecretFiles:
         assert configs.oidc_client.client_secret.get_secret_value() == sign_in.client_secret
         assert configs.web_auth.session_secret.get_secret_value() == sign_in.session_secret
 
-    @pytest.mark.parametrize("ending", ["\rinside\n", " \n", "\n\n", " ", "\r\n"])
-    def test_a_secret_file_keeps_everything_but_its_final_newline(self, sign_in_settings, ending):
+    @pytest.mark.parametrize(
+        ("ending", "expected_ending"),
+        [
+            ("\rinside\n", "\rinside"),
+            (" \n", " "),
+            ("\n\n", "\n"),
+            (" ", " "),
+            ("\r\n", "\r"),
+        ],
+    )
+    def test_a_secret_file_keeps_everything_but_its_final_newline(self, sign_in_settings, ending, expected_ending):
         settings = sign_in_settings().settings
-        content = secrets.token_urlsafe(36) + ending
-        settings.oidc_client_secret_file.write_bytes(content.encode())
-        settings.session_secret_file.write_bytes(content.encode())
+        secret = secrets.token_urlsafe(36)
+        settings.oidc_client_secret_file.write_bytes((secret + ending).encode())
+        settings.session_secret_file.write_bytes((secret + ending).encode())
 
         configs = build_sign_in_configs(settings)
 
-        expected = content.removesuffix("\n")
+        expected = secret + expected_ending
         assert configs.oidc_client.client_secret.get_secret_value() == expected
         assert configs.web_auth.session_secret.get_secret_value() == expected
 
