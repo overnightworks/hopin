@@ -4,7 +4,7 @@ import pytest
 import structlog.testing
 from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 
-from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
+from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock, SignInStores
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
@@ -28,6 +28,14 @@ def test_stores_satisfy_the_webauth_ports(accounts, sessions):
         LoggingAuditSink(),
     )
     assert len(ports) == 4
+
+
+def test_in_memory_sign_in_stores_load_a_session_for_an_account_created_through_them():
+    stores = SignInStores.in_memory()
+    account = stores.accounts.create_for_subject("subject", "name", "user")
+    session = stores.sessions.create(account.id, now=NOW, expires_at=LATER)
+    assert stores.sessions.load(session.id) == session
+    assert stores.sessions.load(session.id).user == account
 
 
 class TestSessionCreation:

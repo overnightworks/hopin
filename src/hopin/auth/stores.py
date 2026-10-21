@@ -139,3 +139,18 @@ class LoggingAuditSink:
 
     def account_event(self, event: AccountEvent) -> None:
         logger.info("account_event", kind=event.kind.value, subject_id=event.subject_id, role=event.role)
+
+
+@dataclass(frozen=True)
+class SignInStores:
+    accounts: InMemoryAccounts
+    sessions: InMemorySessions
+    lock: ProcessWriteLock
+    audit: LoggingAuditSink
+
+    @classmethod
+    def in_memory(cls) -> "SignInStores":
+        accounts = InMemoryAccounts()
+        return cls(
+            accounts=accounts, sessions=InMemorySessions(accounts), lock=ProcessWriteLock(), audit=LoggingAuditSink()
+        )
