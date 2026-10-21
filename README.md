@@ -183,6 +183,7 @@ src/hopin/
 │               ├── bandwidth.js  # Upload cap by call size
 │               ├── media.js      # Camera, microphone, screen share
 │               ├── quality.js    # Round-trip indicator
+│               ├── speaking.js   # Who is speaking, from the level of the arriving sound
 │               ├── chat.js       # Chat panel
 │               ├── media-state.js # Who is muted or has the camera off
 │               ├── sounds.js     # Notification sounds

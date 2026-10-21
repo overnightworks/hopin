@@ -58,6 +58,7 @@ The page is markup, two stylesheets and ES modules, served from
 | `bandwidth.js` | the video upload budget and the cap on each video sender |
 | `media.js` | local media, camera and screen share |
 | `quality.js` | round-trip indicator |
+| `speaking.js` | who is speaking: the level of each other person's arriving sound |
 | `chat.js` | chat panel and messages |
 | `media-state.js` | announces the own microphone and camera state, applies the others' |
 | `sounds.js` | notification sounds |
