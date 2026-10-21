@@ -3,6 +3,6 @@ agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
 role = "builder"
 base = "4c0c3cb4b04576d6f7434480c5d8b3ca4ad5dca3"
 branch = "claude/issue-167-rate-limits"
-scope = ["README.md", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "src/hopin/config/settings.py", "tests/unit/test_config.py", "tests/unit/test_sign_in_rate_limit.py"]
+scope = ["README.md", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "src/hopin/config/settings.py", "tests/e2e/conftest.py", "tests/unit/test_config.py", "tests/unit/test_sign_in_rate_limit.py"]
 opened_commit = "d61de9b607a796bf1de353e60be23e836a894a40"
 whole_reason = "The rate-limit policy, its constants, the trusted-proxies setting and its parse are one install call."
