@@ -2,10 +2,9 @@ import re
 import socket
 import threading
 import time
-from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import uvicorn
@@ -18,6 +17,9 @@ from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.main import uvicorn_options
 from tests.sign_in_settings import build_sign_in_settings
 from tests.signed_in import SeededMember, parsed_set_cookies, seed_member
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Sequence
 
 LOOPBACK_HOST = "127.0.0.1"
 READINESS_POLL_INTERVAL_SECONDS = 0.1

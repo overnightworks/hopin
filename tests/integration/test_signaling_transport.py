@@ -1,8 +1,8 @@
 import asyncio
 import json
 import socket
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -15,6 +15,9 @@ from hopin.auth.stores import SignInStores
 from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
 from hopin.signaling.replay import SEQUENCE_KEY
 from tests.signed_in import SeededMember, handshake_headers, seed_member
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 LOCALHOST = "127.0.0.1"
 CLEAN_CLOSE_CODE = 1000

@@ -1,8 +1,10 @@
 import asyncio
-from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 

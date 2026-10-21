@@ -1,10 +1,15 @@
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from webauth.dependencies import current_user_dependency
-from webauth.ports import AuthenticatedUser, SessionRecordStore
+from webauth.ports import AuthenticatedUser
 
 from hopin.config.constants import ACCOUNT_PATH
 from hopin.web.routes import READ_METHODS
+
+if TYPE_CHECKING:
+    from webauth.ports import SessionRecordStore
 
 
 class AccountName(BaseModel):

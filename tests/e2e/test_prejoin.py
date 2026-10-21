@@ -1,7 +1,6 @@
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import pytest
@@ -40,6 +39,9 @@ from tests.e2e.conftest import (
     wait_for_the_picture,
     wait_until_the_prejoin_media_answered,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 pytestmark = pytest.mark.e2e
 

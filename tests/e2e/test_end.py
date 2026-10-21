@@ -1,8 +1,7 @@
 import json
 import re
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, expect
@@ -42,6 +41,9 @@ from tests.e2e.conftest import (
     toggle_the_lock,
     wait_until_the_prejoin_media_answered,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 pytestmark = pytest.mark.e2e
 

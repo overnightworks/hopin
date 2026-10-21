@@ -3,10 +3,10 @@ import json
 import logging
 import secrets
 import socket
-from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -20,6 +20,9 @@ from hopin.auth.stores import SignInStores
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.main import main
 from tests.signed_in import SeededMember, handshake_headers, seed_member
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Callable, Iterator
 
 LOCALHOST = "127.0.0.1"
 UVICORN_LOGGER_NAMES = ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi")

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -14,6 +14,9 @@ from tests.e2e.conftest import (
     start_call,
     toggle_the_lock,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

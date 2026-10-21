@@ -1,4 +1,5 @@
 import secrets
+from typing import TYPE_CHECKING
 
 import pytest
 import structlog
@@ -19,10 +20,12 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from hopin.config.settings import ServerSettings
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.signed_in import cookie_header, seed_member
+
+if TYPE_CHECKING:
+    from hopin.config.settings import ServerSettings
 
 SESSION_COOKIE = "__Host-session_id"
 

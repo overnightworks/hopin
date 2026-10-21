@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -16,6 +15,9 @@ from tests.e2e.conftest import (
     record_page_errors,
     wait_until_the_prejoin_media_answered,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -15,6 +14,9 @@ from tests.e2e.conftest import (
     record_page_errors,
 )
 from tests.sign_in_settings import TEST_ISSUER
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 

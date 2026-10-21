@@ -1,7 +1,7 @@
-from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -31,6 +31,9 @@ from hopin.config.constants import (
 )
 from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}

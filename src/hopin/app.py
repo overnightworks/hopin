@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import structlog
 from fastapi import FastAPI
 from webauth.config import install_web_auth_config
@@ -15,13 +17,15 @@ from hopin.auth.sign_in import (
 )
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import PERMISSIONS_POLICY
-from hopin.config.settings import ServerSettings
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.routes import create_router
+
+if TYPE_CHECKING:
+    from hopin.config.settings import ServerSettings
 
 
 def create_app(

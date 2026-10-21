@@ -1,12 +1,14 @@
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
 from starlette.concurrency import run_in_threadpool
-from starlette.websockets import WebSocket
 from webauth.dependencies import ConnectionRefusal, authenticate_websocket
-from webauth.ports import SessionRecordStore
 
 from hopin.rooms.models import Account
+
+if TYPE_CHECKING:
+    from starlette.websockets import WebSocket
+    from webauth.ports import SessionRecordStore
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
