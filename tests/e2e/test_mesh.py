@@ -106,7 +106,7 @@ window.localUfrags = async (connection) => {
     const stats = await connection.getStats();
     const transport = [...stats.values()].find((report) => report.type === "transport");
     const description = connection.localDescription.sdp;
-    return { statsUfrag: transport.iceLocalUsernameFragment, sdpUfrag: /a=ice-ufrag:(\\S+)/.exec(description)[1] };
+    return { statsUfrag: transport?.iceLocalUsernameFragment, sdpUfrag: /a=ice-ufrag:(\\S+)/.exec(description)[1] };
 };
 """
 FORCE_STATE = "(state) => window.forceFirstConnectionInto(state)"
