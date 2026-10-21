@@ -10,6 +10,7 @@ from tests.e2e.conftest import (
     OTHER_TILE,
     PHONE,
     RECORD_PEER_CONNECTIONS,
+    add_init_scripts,
     join,
     record_page_errors,
     start_call,
@@ -72,10 +73,31 @@ TILES_THAT_RANG = "() => [...new Set(window.speakingLog.filter((entry) => entry.
 RING_CHANGES_SO_FAR = """
 () => window.speakingLog.map((entry) => entry.speaking).join()
 """
-SOUND_IS_ARRIVING = """
-() => window.recordedConnections.some((connection) => connection.getReceivers()
-    .filter((receiver) => receiver.track.kind === "audio")
-    .some((receiver) => receiver.getSynchronizationSources().length > 0))
+# The floor and the freshness window are speaking.js's own; the page reads them from its source.
+SCENARIO_SOUND_IS_ARRIVING = """
+async (band) => {
+    const source = await (await fetch("/static/js/speaking.js")).text();
+    const constant = (name) => Number(source.match(new RegExp(`const ${name} = ([0-9.]+);`))[1]);
+    const floor = constant("SPEAKING_LEVEL_FLOOR");
+    const freshness = constant("SOUND_FRESHNESS_MS");
+    const inBand = {
+        loud: (level) => level >= floor,
+        hum: (level) => level > 0 && level < floor,
+        silent: (level) => level === 0,
+    }[band];
+    const arrives = () => {
+        const now = performance.timeOrigin + performance.now();
+        return window.recordedConnections.some((connection) => connection.getReceivers()
+            .filter((receiver) => receiver.track.kind === "audio")
+            .flatMap((receiver) => receiver.getSynchronizationSources())
+            .some((entry) => now - entry.timestamp <= freshness && inBand(entry.audioLevel)));
+    };
+    const giveUpAt = performance.now() + 10_000;
+    while (!arrives()) {
+        if (performance.now() > giveUpAt) throw new Error(`no ${band} sound arrived`);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+}
 """
 RING_LOOK = """
 (tile) => {
@@ -125,8 +147,7 @@ def host_a_call(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> tuple[Page, str]:
     host = record_page_errors(open_person(**form_factor), page_errors)
-    host.add_init_script(SPEAK_ON_DEMAND)
-    host.add_init_script(RECORD_PEER_CONNECTIONS)
+    add_init_scripts(host, [SPEAK_ON_DEMAND, RECORD_PEER_CONNECTIONS])
     return host, start_call(host, base_url)
 
 
@@ -158,9 +179,9 @@ def expect_a_ringing_tile(viewer: Page) -> None:
     expect(viewer.locator(f"{OTHER_TILE}.speaking .name .wave")).to_be_visible()
 
 
-def expect_no_ringing_tile(viewer: Page, milliseconds: int = OBSERVATION_MILLISECONDS) -> None:
-    # Detection can only ring once sound arrives, so the window opens after it does.
-    viewer.wait_for_function(SOUND_IS_ARRIVING)
+def expect_no_ringing_tile(viewer: Page, sound: str, milliseconds: int = OBSERVATION_MILLISECONDS) -> None:
+    # Detection can only ring once the scenario's own sound arrives, so the window opens after it does.
+    viewer.evaluate(SCENARIO_SOUND_IS_ARRIVING, sound)
     viewer.wait_for_timeout(milliseconds)
     assert viewer.evaluate(TILES_THAT_RANG) == []
 
@@ -237,7 +258,7 @@ def test_speaking_muted_guest_shows_the_mute_mark_and_never_rings_until_unmuted(
     expect(host.locator(OTHER_WAVE)).to_be_hidden()
     expect(host.locator(f"{OTHER_TILE}.speaking")).to_have_count(0)
     host.evaluate("window.speakingLog = []")
-    expect_no_ringing_tile(host)
+    expect_no_ringing_tile(host, "silent")
 
     guest.click("#muteBtn")
     expect_a_ringing_tile(host)
@@ -251,7 +272,7 @@ def test_speaking_muted_guest_never_rings_although_loud_sound_still_arrives(
     expect(host.locator(OTHER_MUTE_MARK)).to_be_visible()
     guest.evaluate(f"window.speak({LOUD}); window.voiceTrack.enabled = true")
 
-    expect_no_ringing_tile(host)
+    expect_no_ringing_tile(host, "loud")
     expect(host.locator(OTHER_MUTE_MARK)).to_be_visible()
 
 
@@ -263,7 +284,7 @@ def test_speaking_host_rings_on_the_guests_page_and_never_on_the_hosts_own_tile(
     host.evaluate(f"window.speak({LOUD})")
 
     expect_a_ringing_tile(guest)
-    expect_no_ringing_tile(host)
+    expect_no_ringing_tile(host, "silent")
     expect(host.locator("#localContainer .wave")).to_have_count(0)
 
 
@@ -300,7 +321,7 @@ def test_speaking_hum_under_the_floor_never_rings(
     host, guest = start_call_with_guests(open_person, base_url, page_errors)
     guest.evaluate(f"window.speak({HUM_UNDER_THE_FLOOR})")
 
-    expect_no_ringing_tile(host, HUM_OBSERVATION_MILLISECONDS)
+    expect_no_ringing_tile(host, "hum", HUM_OBSERVATION_MILLISECONDS)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
