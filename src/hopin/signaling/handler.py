@@ -17,6 +17,9 @@ from hopin.config.constants import (
     RESUME_TOKEN_BYTES,
     RESUME_WINDOW_SECONDS,
     SEAT_CLOSED_BY_SERVER_CODE,
+    SERVER_ERROR_CLOSE_CODE,
+    SESSION_ENDED_CLOSE_CODE,
+    SESSION_RECHECK_SECONDS,
     WEBSOCKET_DISCONNECT_EVENT,
     ResumeRefusalCause,
     RoomClosedReason,
@@ -81,6 +84,8 @@ class Connection:
     peer_id: PeerId
     frames_received: int = 0
     dropped: bool = False
+    recheck: TimerHandle | None = None
+    ended: bool = False
 
 
 @dataclass(frozen=True)
@@ -133,9 +138,10 @@ class SignalingHandler:
         await websocket.accept()
         peer_id = _mint_peer_id()
         self._peers[peer_id] = Peer(account=account, websocket=websocket)
-        await logger.ainfo("client_connected", peer_id=peer_id, account=account.id)
+        await logger.ainfo("client_connected", peer_id=peer_id)
 
         connection = Connection(websocket=websocket, peer_id=peer_id)
+        connection.recheck = self._schedule_recheck(connection)
         try:
             await self._process_messages(connection)
         finally:
@@ -151,9 +157,48 @@ class SignalingHandler:
                 return
             text = frame.get("text")
             if text is not None:
+                if not await self._session_admits(connection):
+                    return
                 await self._handle_message(connection, text)
 
+    def _schedule_recheck(self, connection: Connection) -> TimerHandle:
+        return self._scheduler.call_later(SESSION_RECHECK_SECONDS, partial(self._recheck_on_tick, connection))
+
+    async def _recheck_on_tick(self, connection: Connection) -> None:
+        if connection.ended:
+            return
+        if await self._session_admits(connection) and self._serves_seat(connection):
+            connection.recheck = self._schedule_recheck(connection)
+
+    async def _session_admits(self, connection: Connection) -> bool:
+        try:
+            account = await self._identity_resolver.resolve(connection.websocket)
+        except Exception:
+            await self._end_session(connection, SERVER_ERROR_CLOSE_CODE)
+            raise
+        if account is not None:
+            return True
+        await self._end_session(connection, SESSION_ENDED_CLOSE_CODE)
+        return False
+
+    def _serves_seat(self, connection: Connection) -> bool:
+        peer = self._peers.get(connection.peer_id)
+        return not connection.ended and peer is not None and peer.websocket is connection.websocket
+
+    async def _end_session(self, connection: Connection, close_code: int) -> None:
+        # A check can be suspended across a drop or a takeover; the seat then belongs to someone else.
+        if not self._serves_seat(connection):
+            return
+        peer_id = connection.peer_id
+        connection.ended = True
+        await logger.ainfo("session_ended", peer_id=peer_id)
+        await self._handle_disconnect(peer_id)
+        await _close_socket(connection.websocket, close_code)
+
     async def _end_connection(self, connection: Connection) -> None:
+        connection.ended = True
+        if connection.recheck is not None:
+            connection.recheck.cancel()
         peer = self._peers.get(connection.peer_id)
         if peer is None or peer.websocket is not connection.websocket:
             return
@@ -560,11 +605,11 @@ class SignalingHandler:
         )
 
 
-async def _close_socket(websocket: WebSocket) -> None:
+async def _close_socket(websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
     if not _is_connected(websocket):
         return
     try:
-        await websocket.close(code=SEAT_CLOSED_BY_SERVER_CODE)
+        await websocket.close(code=code)
     except WebSocketDisconnect:
         await logger.ainfo("closed_socket_already_gone")
 
