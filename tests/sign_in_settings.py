@@ -1,8 +1,11 @@
 import secrets
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from hopin.config.settings import ServerSettings
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 TEST_ISSUER = "https://issuer.test.invalid/realms/test"
 TEST_PUBLIC_ORIGIN = "https://hopin.test.invalid"

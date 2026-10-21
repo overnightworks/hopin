@@ -2,7 +2,7 @@
 name = "hopin"
 version = "0.1.0"
 description = "Self-hosted video call service using WebRTC"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
     "overnightworks-webauth @ https://github.com/overnightworks/webauth/releases/download/v0.20.0/overnightworks_webauth-0.20.0-py3-none-any.whl",
@@ -30,7 +30,7 @@ packages = ["src/hopin"]
 
 [tool.ruff]
 src = ["src", "scripts", "tests"]
-target-version = "py312"
+target-version = "py314"
 line-length = 120
 
 [tool.ruff.lint]
@@ -60,6 +60,9 @@ select = [
 ]
 ignore = []
 
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-decorators = ["fastapi.APIRouter.api_route", "fastapi.APIRouter.get"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
     "S101",    # allow assert in tests
@@ -76,7 +79,7 @@ indent-style = "space"
 # --- Mypy ---
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_return_any = true
@@ -148,6 +151,6 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "pytest-playwright>=0.10.0",
-    "ruff>=0.15.6",
+    "ruff>=0.17.0",
     "vulture>=2.15",
 ]

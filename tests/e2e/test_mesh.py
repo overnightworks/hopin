@@ -1,11 +1,10 @@
 import json
 import re
-from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Error as PlaywrightError
@@ -38,6 +37,9 @@ from tests.e2e.conftest import (
     wait_for_peer_count,
     wait_for_the_picture,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 pytestmark = pytest.mark.e2e
 

@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 from http import HTTPStatus
-from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import structlog
@@ -11,7 +11,6 @@ from pydantic import SecretStr
 from webauth.config import SessionLifetime, WebAuthConfig, web_auth_config
 from webauth.cookies import issue_session_cookies
 from webauth.https_client import fetch_key_set_over_https
-from webauth.jwt_verification import KeySetFetch
 from webauth.oidc import OidcClientConfig, OidcRefusal, OidcRelyingParty, TokenRequestPost
 from webauth.oidc_login import (
     AdmissionConfig,
@@ -23,7 +22,6 @@ from webauth.oidc_login import (
     start_login,
 )
 from webauth.oidc_transport import post_token_request_over_https
-from webauth.ports import AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 from webauth.proxies import TrustedProxies
 from webauth.rate_limit import SingleProcessRateLimitBackend
 
@@ -39,8 +37,15 @@ from hopin.config.constants import (
     RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
 )
-from hopin.config.settings import ServerSettings
 from hopin.web.routes import STATIC_DIR
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from webauth.jwt_verification import KeySetFetch
+    from webauth.ports import AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
+
+    from hopin.config.settings import ServerSettings
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
 NO_ACCESS_BODY = "No access"
@@ -89,7 +94,7 @@ def build_sign_in_configs(settings: ServerSettings) -> SignInConfigs:
 def _read_secret_file(path: Path, setting: str) -> SecretStr:
     try:
         content = path.read_bytes().decode("utf-8").removesuffix("\n")
-    except (OSError, UnicodeDecodeError):
+    except OSError, UnicodeDecodeError:
         raise SignInConfigurationError(f"{setting} names a file that cannot be read") from None
     if not content:
         raise SignInConfigurationError(f"{setting} names an empty file") from None

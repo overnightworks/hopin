@@ -1,6 +1,6 @@
 import json
 import re
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pytest
 from playwright.sync_api import Page, Route, WebSocketRoute, expect
@@ -17,7 +17,11 @@ from tests.e2e.conftest import (
     start_call,
 )
 from tests.sign_in_settings import TEST_ISSUER
-from tests.signed_in import SeededMember
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from tests.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 

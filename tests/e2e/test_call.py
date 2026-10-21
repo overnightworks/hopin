@@ -1,10 +1,13 @@
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from playwright.sync_api import Page
 
 from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, join_by_link, start_call
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from playwright.sync_api import Page
 
 pytestmark = pytest.mark.e2e
 

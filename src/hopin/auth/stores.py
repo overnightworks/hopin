@@ -1,13 +1,17 @@
 import secrets
 import threading
-from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 import structlog
-from pydantic import SecretStr
-from webauth.ports import AccountEvent
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from datetime import datetime
+
+    from pydantic import SecretStr
+    from webauth.ports import AccountEvent
 
 SESSION_ID_BYTES = 32
 
@@ -172,7 +176,7 @@ class SignInStores:
     audit: LoggingAuditSink
 
     @classmethod
-    def in_memory(cls) -> "SignInStores":
+    def in_memory(cls) -> SignInStores:
         accounts = InMemoryAccounts()
         return cls(
             accounts=accounts, sessions=InMemorySessions(accounts), lock=ProcessWriteLock(), audit=LoggingAuditSink()

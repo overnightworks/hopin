@@ -1,9 +1,9 @@
 from contextlib import nullcontext
+from typing import TYPE_CHECKING
 
 from webauth.dependencies import LoginRedirect
 from webauth.middleware import SessionGate
 from webauth.policies import PathRules, PublicRule
-from webauth.ports import SessionRecordStore
 
 from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
@@ -12,6 +12,9 @@ from hopin.config.constants import (
     RETURN_TO_QUERY_PARAMETER,
     STATIC_PATH,
 )
+
+if TYPE_CHECKING:
+    from webauth.ports import SessionRecordStore
 
 PUBLIC_PATHS = frozenset(
     {

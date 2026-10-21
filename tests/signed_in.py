@@ -1,15 +1,20 @@
 import secrets
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from http.cookies import Morsel, SimpleCookie
+from typing import TYPE_CHECKING
 
 from starlette.responses import Response
-from webauth.config import WebAuthConfig
 from webauth.cookies import issue_session_cookies
 
-from hopin.auth.stores import SignInStores, StoredAccount, StoredSession
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from webauth.config import WebAuthConfig
+
+    from hopin.auth.stores import SignInStores, StoredAccount, StoredSession
 
 SUBJECT_BYTES = 12
 
@@ -31,7 +36,7 @@ def cookie_header(set_cookie_headers: Iterable[str]) -> str:
     return "; ".join(f"{name}={morsel.value}" for name, morsel in parsed_set_cookies(set_cookie_headers))
 
 
-def handshake_headers(member: "SeededMember | None", origin: str | None = TEST_PUBLIC_ORIGIN) -> dict[str, str]:
+def handshake_headers(member: SeededMember | None, origin: str | None = TEST_PUBLIC_ORIGIN) -> dict[str, str]:
     """The headers of a socket handshake: the origin, and the member's cookies when there is one."""
     headers = {} if origin is None else {"origin": origin}
     if member is not None:
