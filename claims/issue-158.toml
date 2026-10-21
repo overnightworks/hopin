@@ -1,0 +1,8 @@
+claim_id = "5467ac95e69d4a919dd2f2c138c8cd65"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "54a4702c211896b5c703d7a3e6d0313199389be2"
+branch = "claude/issue-158-backchannel-logout"
+scope = ["README.md", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "tests/fake_issuer.py", "tests/unit/test_gate.py", "tests/unit/test_sign_in_routes.py"]
+opened_commit = "ec55b6880902743a28a1128ef3c83d9bfb354166"
+whole_reason = "The route is unreachable until its CSRF exemption, public rule and body cap land in the same install call."
