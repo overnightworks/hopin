@@ -1,9 +1,11 @@
+import itertools
 import re
 import socket
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -22,6 +24,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
 LOOPBACK_HOST = "127.0.0.1"
+# Every e2e person gets an address of their own from this private range, as behind a proxy.
+PERSON_ADDRESS_BASE = IPv4Address("10.0.0.0")
+person_address_offsets = itertools.count(1)
 READINESS_POLL_INTERVAL_SECONDS = 0.1
 READINESS_DEADLINE_SECONDS = 20
 SERVER_STOP_TIMEOUT_SECONDS = 10
@@ -314,6 +319,7 @@ def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServ
         host=LOOPBACK_HOST,
         port=port,
         public_origin=f"https://{LOOPBACK_HOST}:{port}",
+        trusted_proxies=LOOPBACK_HOST,
     )
     stores = SignInStores.in_memory()
     app = create_app(sign_in.settings, stores=stores)
@@ -379,7 +385,10 @@ def open_person(
         username: str | None = None,
         **device_options: Any,
     ) -> Page:
-        context = browser.new_context(**{**browser_context_args, **device_options})
+        person_address = PERSON_ADDRESS_BASE + next(person_address_offsets)
+        context = browser.new_context(
+            **{**browser_context_args, "extra_http_headers": {"X-Forwarded-For": str(person_address)}, **device_options}
+        )
         contexts.append(context)
         page = context.new_page()
         if signed_in:
