@@ -51,6 +51,9 @@ STATUS = "#status"
 OWN_CAMERA_OFF = "#localPlaceholder:not(.hidden)"
 CAMERA_ERROR_STATUS = "No camera found (NotFoundError)"
 IN_CALL_STATUS = "In call"
+# About one second of Opus (20 ms packets): the first video bytes of a camera that is on arrive within
+# about 0.1 s of the first audio, so a zero-video read after this many packets sees an off camera.
+AUDIO_PACKETS_THAT_SPAN_FIRST_VIDEO = 50.0
 RECORDED_PERSON = (RECORD_MEDIA_TRACKS, RECORD_PEER_CONNECTIONS, COUNT_OFFERS)
 
 
@@ -193,9 +196,7 @@ def test_a_later_joiner_gets_no_frame_from_a_camera_that_is_off_and_then_the_pic
     wait_for_peer_count(later_joiner, 1)
 
     expect_the_icon(later_joiner)
-    wait_for_inbound_growth(
-        later_joiner, "audio", "bytesReceived", inbound_per_connection(later_joiner, "audio", "bytesReceived")
-    )
+    wait_for_inbound_growth(later_joiner, "audio", "packetsReceived", [AUDIO_PACKETS_THAT_SPAN_FIRST_VIDEO])
     assert inbound_per_connection(later_joiner, "video", "framesDecoded") == [0]
     assert inbound_per_connection(later_joiner, "video", "bytesReceived") == [0]
     wait_for_video_tracks(presser, own=[], senders=[None])

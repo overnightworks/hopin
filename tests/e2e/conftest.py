@@ -525,18 +525,33 @@ def inbound_per_connection(person: Page, kind: str, field: str) -> list[float]:
     return [float(value) for value in person.evaluate(INBOUND_PER_CONNECTION, [kind, field])]
 
 
-def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
-    # A Python deadline loop: wait_for_function takes the Promise of an async predicate as truthy.
-    deadline = time.monotonic() + MEDIA_FLOWING_TIMEOUT_MILLISECONDS / 1000
+def poll_until[Measured](
+    person: Page,
+    measure: Callable[[], Measured],
+    reached: Callable[[Measured], bool],
+    failure: str,
+    deadline_seconds: float = MEDIA_FLOWING_TIMEOUT_MILLISECONDS / 1000,
+) -> Measured:
+    # A Python deadline loop: wait_for_function takes the Promise of an async predicate as truthy,
+    # and each round trip to the page keeps the mesh relay pumping.
+    deadline = time.monotonic() + deadline_seconds
     while True:
-        now = inbound_per_connection(person, kind, field)
-        if len(now) == len(baseline) and all(value > before for value, before in zip(now, baseline, strict=True)):
-            return
-        assert time.monotonic() < deadline, (
-            f"inbound {kind} {field} did not grow past {baseline} within "
-            f"{MEDIA_FLOWING_TIMEOUT_MILLISECONDS} ms; last measured {now}"
-        )
+        measured = measure()
+        if reached(measured):
+            return measured
+        assert time.monotonic() < deadline, f"{failure} within {deadline_seconds} s; last measured {measured}"
         person.wait_for_timeout(INBOUND_POLL_INTERVAL_MILLISECONDS)
+
+
+def wait_for_inbound_growth(person: Page, kind: str, field: str, baseline: list[float]) -> None:
+    poll_until(
+        person,
+        lambda: inbound_per_connection(person, kind, field),
+        lambda now: (
+            len(now) == len(baseline) and all(value > before for value, before in zip(now, baseline, strict=True))
+        ),
+        f"inbound {kind} {field} did not grow past {baseline}",
+    )
 
 
 def wait_for_frames_to_advance(person: Page) -> None:

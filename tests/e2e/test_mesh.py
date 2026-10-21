@@ -1,6 +1,5 @@
 import json
 import re
-import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -32,6 +31,7 @@ from tests.e2e.conftest import (
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
     join_by_link,
+    poll_until,
     start_call,
     turn_the_camera_on,
     wait_for_frames_to_advance,
@@ -199,13 +199,13 @@ BLANK_QUALITY_BARS = """
 })
 """
 QUALITY_BARS_PAINTED = '() => document.querySelector(".connection-quality[data-quality]") !== null'
-EVERY_VIDEO_TARGET_IS_AT_MOST = """
-async ([peerCount, ceiling]) => {
+VIDEO_TARGET_BITRATES = """
+async () => {
     const open = window.recordedConnections.filter((connection) => connection.signalingState !== "closed");
     const reports = (await Promise.all(open.map((connection) => connection.getStats())))
         .flatMap((stats) => [...stats.values()])
         .filter((report) => report.type === "outbound-rtp" && report.kind === "video");
-    return reports.length === peerCount && reports.every((report) => report.targetBitrate <= ceiling);
+    return reports.map((report) => report.targetBitrate);
 }
 """
 
@@ -346,10 +346,7 @@ def pump_until(
     deadline_seconds: int = PUMP_DEADLINE_SECONDS,
     failure: str = "the awaited signaling traffic never happened",
 ) -> None:
-    deadline = time.monotonic() + deadline_seconds
-    while not condition():
-        assert time.monotonic() < deadline, failure
-        person.evaluate("() => 0")
+    poll_until(person, condition, bool, failure, deadline_seconds)
 
 
 def _restart_delay(person: Page, attempt: int) -> int:
@@ -532,6 +529,15 @@ def _wait_for_video_caps(people: list[Page], peer_count: int, expected_cap: int)
         _wait_for(person, EVERY_VIDEO_CAP_IS, [peer_count, expected_cap])
 
 
+def _wait_for_video_targets_at_most(person: Page, peer_count: int, ceiling: int) -> None:
+    poll_until(
+        person,
+        lambda: person.evaluate(VIDEO_TARGET_BITRATES),
+        lambda targets: len(targets) == peer_count and None not in targets and max(targets) <= ceiling,
+        f"the video targets did not fall to {ceiling} for {peer_count} connections",
+    )
+
+
 def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Callable[..., Page], base_url: str) -> None:
     people = [open_person() for _ in range(SIX_PEOPLE)]
     for person in people:
@@ -546,7 +552,7 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
 
     _wait_for_video_caps(people, *FIVE_CAPS_PER_CONNECTION)
     for person in people:
-        _wait_for(person, EVERY_VIDEO_TARGET_IS_AT_MOST, FIVE_CAPS_PER_CONNECTION)
+        _wait_for_video_targets_at_most(person, *FIVE_CAPS_PER_CONNECTION)
 
     people[-1].close()
     _wait_for_video_caps(people[:-1], *FOUR_CAPS_PER_CONNECTION)
