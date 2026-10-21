@@ -342,6 +342,11 @@
   font-weight: 600;
 }
 
+.btn--wide {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .btn--s {
   padding: 5px 11px;
   font-size: 13px;
@@ -472,4 +477,83 @@
   margin: 0;
   font-size: 13.5px;
   color: var(--ink);
+}
+
+/* Sign-in states: signed out, no access, login failed. One centred card;
+ * the wordmark text, the h1 and the button words are the product's. */
+
+.login {
+  padding: 56px 28px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.login-card {
+  width: 320px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-wrap: anywhere;
+}
+
+.login h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.wordmark {
+  font-weight: 600;
+  letter-spacing: .04em;
+  font-size: 14px;
+}
+
+.wordmark span {
+  color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 520px) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions .btn {
+    box-sizing: border-box;
+  }
+}
+
+/* Legal links slot, at the bottom of the sign-in page. */
+
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.login .legal-links {
+  justify-content: center;
+}
+
+.linkish {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1px;
+}
+
+.linkish:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

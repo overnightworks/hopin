@@ -13,7 +13,7 @@ from httpx2 import Response
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
 
-from hopin.auth.sign_in import IssuerTransports, build_sign_in_configs, create_sign_in_router
+from hopin.auth.sign_in import LOGIN_FAILED_PAGE, IssuerTransports, build_sign_in_configs, create_sign_in_router
 from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
 from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
@@ -157,8 +157,12 @@ def assert_refused(
     harness: SignInHarness, response: Response, body: str, *, cleared_under_start_name: bool = True
 ) -> None:
     assert response.status_code == 403
-    assert response.headers["content-type"].startswith("text/plain")
-    assert response.text == body
+    if body == LOGIN_FAILED:
+        assert response.headers["content-type"].startswith("text/html")
+        assert response.content == LOGIN_FAILED_PAGE.read_bytes()
+    else:
+        assert response.headers["content-type"].startswith("text/plain")
+        assert response.text == body
     cookies = set_cookies(response)
     assert SESSION_COOKIE not in cookies
     assert HINT_COOKIE not in cookies

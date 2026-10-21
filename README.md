@@ -165,9 +165,10 @@ src/hopin/
 │   ├── routes.py         # HTTP route definitions
 │   └── static/
 │       ├── index.html    # Video call page (markup only)
+│       ├── login-failed.html  # Login failed card, ui-console's sign-in markup
 │       └── assets/       # Served at /static
 │           ├── css/
-│           │   ├── ui-console.css  # Vendored verbatim from ui-console v0.2.0, loaded first
+│           │   ├── ui-console.css  # Vendored verbatim from ui-console v0.3.1, loaded first
 │           │   └── hopin.css
 │           └── js/       # ES modules, app.js is the entry point
 │               ├── app.js        # Wiring, call start and leave
