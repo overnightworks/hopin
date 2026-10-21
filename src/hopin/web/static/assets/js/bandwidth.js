@@ -23,6 +23,9 @@ const CAP_ATTEMPTS = 3;
 async function setCap(sender, maxBitrate) {
     for (let attempt = 1; ; attempt++) {
         const parameters = sender.getParameters();
+        // A sender of a closed connection reports no encodings: its peer left while this
+        // cap waited its turn, so there is nothing left to cap.
+        if (parameters.encodings.length === 0) return;
         parameters.encodings[0].maxBitrate = maxBitrate;
         try {
             await sender.setParameters(parameters);
