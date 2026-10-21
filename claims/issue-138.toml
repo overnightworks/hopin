@@ -1,8 +1,0 @@
-claim_id = "62ef034612ab497d8de3c290edab1e32"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "6916589732cc4054574499c04ef92c745b7c1cdf"
-branch = "claude/issue-138-e2e-waits-really-wait"
-scope = ["tests/e2e/conftest.py", "tests/e2e/test_camera_off.py", "tests/e2e/test_media.py", "tests/e2e/test_media_wait.py", "tests/e2e/test_mesh.py", "tests/e2e/test_prejoin.py"]
-opened_commit = "a8327acf717d06f07f39178f686334038b7a44cb"
-whole_reason = "The helper and its callers share one wait contract; fixing the helper may need a caller's expectation adjusted in the same change, or a module turns red without its owner knowing why."
