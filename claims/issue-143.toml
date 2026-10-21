@@ -1,0 +1,8 @@
+claim_id = "8d4084bfd369443689aaa77c2a990914"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "74100bf06eadbdebd35a3a0cefaf58daaea1cb62"
+branch = "claude/issue-143-signaling-test-polish"
+scope = [".github/workflows/ci.yml", "src/hopin/config/constants.py", "src/hopin/signaling/handler.py", "tests/integration/test_signaling_flow.py", "tests/unit/test_signaling_resume.py"]
+opened_commit = "a0bbf9f269df519296f11af60a77e57db24697d2"
+whole_reason = "Three carried behaviour-neutral fixes in the signaling tests and their close code; the rename reaches every reader of the constant."
