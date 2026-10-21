@@ -27,9 +27,9 @@ class Output:
     read: Callable[[], str]
 
 
-def _logger_state() -> list[tuple[list[logging.Handler], int, bool]]:
+def _logger_state() -> list[tuple[list[logging.Handler], int, bool, bool]]:
     loggers = [logging.getLogger(name) for name in UVICORN_LOGGER_NAMES]
-    return [(list(item.handlers), item.level, item.propagate) for item in loggers]
+    return [(list(item.handlers), item.level, item.propagate, item.disabled) for item in loggers]
 
 
 @contextmanager
@@ -38,11 +38,12 @@ def preserved_uvicorn_loggers() -> Iterator[None]:
     try:
         yield
     finally:
-        for name, (handlers, level, propagate) in zip(UVICORN_LOGGER_NAMES, before, strict=True):
+        for name, (handlers, level, propagate, disabled) in zip(UVICORN_LOGGER_NAMES, before, strict=True):
             item = logging.getLogger(name)
             item.handlers[:] = handlers
             item.setLevel(level)
             item.propagate = propagate
+            item.disabled = disabled
 
 
 @pytest.fixture
@@ -96,17 +97,20 @@ async def _join_and_close(port: int, target: str) -> None:
 class TestServerLogging:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("make_request", "target_template", "path"),
+        ("make_request", "target_template", "path", "sentinel_is_absent"),
         [
             pytest.param(
-                _get, f"{AUTH_CALLBACK_PATH}?code={{0}}&state={{0}}", AUTH_CALLBACK_PATH, id="sign_in_callback"
+                _get, f"{AUTH_CALLBACK_PATH}?code={{0}}&state={{0}}", AUTH_CALLBACK_PATH, True, id="sign_in_callback"
             ),
-            pytest.param(_join_and_close, f"{WEBSOCKET_PATH}?id={{0}}", WEBSOCKET_PATH, id="websocket_handshake"),
-            pytest.param(_get, HEALTH_PATH, HEALTH_PATH, id="health_check"),
+            # structlog's client_connected line prints the account id until #79 finding 14 removes it.
+            pytest.param(
+                _join_and_close, f"{WEBSOCKET_PATH}?id={{0}}", WEBSOCKET_PATH, False, id="websocket_handshake"
+            ),
+            pytest.param(_get, f"{HEALTH_PATH}?probe={{0}}", HEALTH_PATH, True, id="health_check"),
         ],
     )
     async def test_request_leaves_no_line_in_the_server_output(
-        self, started_server: Output, make_request, target_template: str, path: str
+        self, started_server: Output, make_request, target_template: str, path: str, sentinel_is_absent: bool
     ) -> None:
         sentinel = secrets.token_urlsafe(16)
         target = target_template.format(sentinel)
@@ -116,6 +120,8 @@ class TestServerLogging:
         output = started_server.read()
         assert target not in output
         assert path not in output
+        if sentinel_is_absent:
+            assert sentinel not in output
 
     @pytest.mark.asyncio
     async def test_invalid_request_still_leaves_a_warning(self, started_server: Output) -> None:
@@ -124,9 +130,15 @@ class TestServerLogging:
         assert "Invalid HTTP request received" in started_server.read()
 
     def test_logger_state_is_restored_when_the_fixture_ends(self) -> None:
-        before = _logger_state()
         with preserved_uvicorn_loggers():
-            uvicorn.Config(object(), log_level="warning", access_log=False)
-            assert _logger_state() != before
+            for name in UVICORN_LOGGER_NAMES:
+                item = logging.getLogger(name)
+                item.setLevel(logging.DEBUG)
+                item.propagate = True
+                item.disabled = True
+            before = _logger_state()
+            with preserved_uvicorn_loggers():
+                uvicorn.Config(object(), log_level="warning", access_log=False)
+                assert _logger_state() != before
 
-        assert _logger_state() == before
+            assert _logger_state() == before
