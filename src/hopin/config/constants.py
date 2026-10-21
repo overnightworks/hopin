@@ -17,6 +17,9 @@ AUTH_CALLBACK_PATH = "/auth/callback"
 LOGIN_PATH = "/login"
 NO_ACCESS_PATH = "/no-access"
 LOGOUT_PATH = "/logout"
+BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout"
+DEFAULT_REQUEST_BODY_MAX_BYTES = 4 * 1024
+BACKCHANNEL_LOGOUT_BODY_MAX_BYTES = 32 * 1024
 
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
 

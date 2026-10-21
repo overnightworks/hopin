@@ -29,6 +29,7 @@ TOKEN_LIFETIME_SECONDS = 300
 RSA_KEY_BITS = 2048
 AUTHORIZATION_CODE_BYTES = 16
 REFRESH_TOKEN_BYTES = 32
+BACKCHANNEL_LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"  # NOSONAR(S5332)
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,19 @@ class FakeIssuer:
             claims=claims,
         )
         return f"code={code}&state={parameters['state'][0]}"
+
+    def logout_token(self, subject: str, *, audience: str | None = None, issued_at: int | None = None) -> str:
+        """The Logout Token the issuer posts to a client's back-channel logout URL."""
+        issued = int(time.time()) if issued_at is None else issued_at
+        claims = {
+            "iss": self._issuer,
+            "aud": self._client_id if audience is None else audience,
+            "iat": issued,
+            "exp": issued + TOKEN_LIFETIME_SECONDS,
+            "sub": subject,
+            "events": {BACKCHANNEL_LOGOUT_EVENT: {}},
+        }
+        return jwt.encode(claims, self._key, algorithm="RS256", headers={"kid": KEY_ID, "typ": "logout+jwt"})
 
     def post_token_request(self, request: TokenRequest) -> TokenEndpointAnswer:
         if self.token_endpoint_is_down:

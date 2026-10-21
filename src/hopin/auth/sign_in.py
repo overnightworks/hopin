@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import SecretStr
 from webauth.config import SessionLifetime, WebAuthConfig, web_auth_config
@@ -16,10 +17,12 @@ from webauth.oidc_login import (
     AdmissionConfig,
     AdmissionRefusal,
     AdmittedLogin,
+    BackchannelLogoutResult,
     NoAdmins,
     finish_login,
     log_out,
     open_session,
+    receive_backchannel_logout,
     start_login,
 )
 from webauth.oidc_transport import post_token_request_over_https
@@ -29,6 +32,7 @@ from webauth.rate_limit import SingleProcessRateLimitBackend
 from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
+    BACKCHANNEL_LOGOUT_PATH,
     HOME_PATH,
     LOGIN_GROUP,
     LOGIN_PATH,
@@ -200,6 +204,23 @@ def create_sign_in_router(
             relying_party, request, answer, web_auth_config(request), sessions=sessions, lock=lock
         )
         return answer
+
+    @router.post(BACKCHANNEL_LOGOUT_PATH)
+    async def backchannel_logout(request: Request) -> Response:
+        # No catch-all: a failure before the lock ends nothing and answers 500, and one after it
+        # (the audit) answers 500 with the sessions already ended, which the in-memory stores cannot roll back.
+        result = await run_in_threadpool(
+            receive_backchannel_logout,
+            relying_party,
+            await request.body(),
+            request.headers.get("content-type"),
+            accounts=accounts,
+            sessions=sessions,
+            lock=lock,
+            audit=audit,
+        )
+        accepted = result is BackchannelLogoutResult.ACCEPTED
+        return Response(status_code=HTTPStatus.OK if accepted else HTTPStatus.BAD_REQUEST)
 
     @router.api_route(LOGIN_PATH, methods=READ_METHODS)
     def signed_out() -> FileResponse:
