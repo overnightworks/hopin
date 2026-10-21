@@ -4,6 +4,7 @@ from collections.abc import Callable
 import pytest
 from playwright.sync_api import Page, WebSocketRoute, expect
 
+from hopin.config.constants import SignalType
 from tests.e2e.conftest import (
     DESKTOP,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
@@ -31,14 +32,20 @@ def say_in_chat(person: Page, text: str) -> None:
     person.click("#chatSend")
 
 
-def drop_the_socket_once(person: Page) -> Callable[[], None]:
+def drop_the_socket_once(person: Page) -> tuple[Callable[[], None], list[str]]:
+    """Relay the person's socket; the returned function drops it, the list collects the types the server sent."""
     sides: list[WebSocketRoute] = []
+    server_frame_types: list[str] = []
+
+    def relay_from_server(browser_side: WebSocketRoute, frame: str | bytes) -> None:
+        server_frame_types.append(json.loads(frame)["type"])
+        browser_side.send(frame)
 
     def relay(browser_side: WebSocketRoute) -> None:
         server_side = browser_side.connect_to_server()
         sides[:] = [browser_side, server_side]
         browser_side.on_message(lambda frame: server_side.send(frame))
-        server_side.on_message(lambda frame: browser_side.send(frame))
+        server_side.on_message(lambda frame: relay_from_server(browser_side, frame))
 
     person.route_web_socket("**/ws", relay)
 
@@ -46,7 +53,7 @@ def drop_the_socket_once(person: Page) -> Callable[[], None]:
         for side in sides:
             side.close()
 
-    return drop
+    return drop, server_frame_types
 
 
 @BOTH_FORM_FACTORS
@@ -111,13 +118,15 @@ def test_tile_keeps_the_username_after_the_other_persons_socket_resumes(
     host = record_page_errors(open_person(username="anna", **DESKTOP), page_errors)
     invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **DESKTOP), page_errors)
-    drop_socket = drop_the_socket_once(guest)
+    drop_socket, server_frame_types = drop_the_socket_once(guest)
     join_by_link(guest, invite_link)
     expect(host.locator(TILE_NAME)).to_have_text("ben", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
     drop_socket()
 
+    expect(guest.locator("#status")).to_contain_text("Reconnecting")
     expect(guest.locator("#status")).to_have_text("In call", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    assert SignalType.RESUMED.value in server_frame_types
     expect(host.locator(TILE_NAME)).to_have_text("ben")
 
 
@@ -126,7 +135,7 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
 ) -> None:
     host = record_page_errors(open_person(username=MARKUP_NAME, **DESKTOP), page_errors)
     host.goto(f"{base_url}/")
-    greeting_is_text = host.locator(HOME_HEADING).inner_text() == f"Hi, {MARKUP_NAME}"
+    expect(host.locator(HOME_HEADING)).to_have_text(f"Hi, {MARKUP_NAME}")
     invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **DESKTOP), page_errors)
     join_by_link(guest, invite_link)
@@ -134,7 +143,6 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
 
     expect(guest.locator(TILE_NAME)).to_have_text(MARKUP_NAME, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     expect(guest.locator(CHAT_SENDER)).to_have_text(MARKUP_NAME)
-    assert greeting_is_text
     assert guest.locator("#videoGrid .name b, #chatMessages b").count() == 0
 
 
@@ -144,6 +152,8 @@ def test_home_keeps_hi_there_when_the_account_answer_fails(
     person = record_page_errors(open_person(**DESKTOP), page_errors)
     person.route(ACCOUNT_ROUTE, lambda route: route.fulfill(status=500, body=json.dumps({})))
 
-    person.goto(f"{base_url}/")
+    with person.expect_response(ACCOUNT_ROUTE):
+        person.goto(f"{base_url}/")
+    person.evaluate("() => fetch('/api/account').then((answer) => answer.text())")
 
     expect(person.locator(HOME_HEADING)).to_have_text("Hi there")

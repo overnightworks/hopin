@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -226,15 +227,21 @@ class TestJoinExistingRoom:
             {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "p1", "name": "p1"}
         ]
 
-    async def test_joiner_is_told_the_names_of_the_others_by_their_participant_ids(self, handler, room_manager):
-        room, _sockets = seat_in_room(handler, room_manager, "host1")
-        handler._peers["host1"].account = Account(id="host-account", name="felix")
-        joiner_ws = register_peer(handler, "p1")
+    async def test_joiner_is_told_the_names_of_the_others_by_their_participant_ids(self, handler):
+        host_socket = FakeSocket([text_frame(join_message())], account=Account(id="host-account", name="felix"))
+        host_connection = asyncio.create_task(handler.handle_websocket(host_socket))
+        await host_socket.idle.wait()
+        joiner_socket = FakeSocket(
+            [text_frame(join_message(host_socket.sent[0]["room_id"])), disconnect_frame(1000)],
+            account=account_named("ben"),
+        )
 
-        await deliver(handler, "p1", join_message(room.room_id))
+        await handler.handle_websocket(joiner_socket)
+        host_socket.push(disconnect_frame(1000))
+        await host_connection
 
-        [existing] = frames_of_type(joiner_ws, SignalType.EXISTING_PARTICIPANTS)
-        assert existing["names"] == {"host1": "felix"}
+        [existing] = [frame for frame in joiner_socket.sent if frame["type"] == SignalType.EXISTING_PARTICIPANTS.value]
+        assert existing["names"] == {host_socket.sent[0]["participant_id"]: "felix"}
 
 
 class TestRelay:
