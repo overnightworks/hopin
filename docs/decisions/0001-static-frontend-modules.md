@@ -25,15 +25,15 @@ The page is markup, two stylesheets and ES modules, served from
   reachable, so the page is served only at its routes, never from the mount.
 - Every screen carries its own `<nav class="legal">` copy (a static page has no
   templating). The guard test pins that each distinct `data-screen` value holds
-  exactly one, with both URLs; the call screen is one element whose nav sits
-  below the stage until the floating control bar (row 19) moves it into More.
+  exactly one, with both URLs; the call screen is one element whose nav sits in
+  its More menu.
 - HopIn reuses no class name that `ui-console.css` defines, because its grammar
   classes would otherwise style HopIn's markup. Six names are defined in both
   the picture and ui-console: `.btn` (now `.button`) and `.glyph` (now
   `.brand-mark`) are renamed; `.field` and `.sub` (row 16), `.row` (rows 19 and
   21) and `.banner` (row 21) are renamed by the row that builds them. A unit
   test enforces the rule.
-- Showing and hiding is the `hidden` class. Styles set from script go through
+- Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,
   and no module runs another module's code at load. Leaving the call and the
