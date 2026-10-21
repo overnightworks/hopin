@@ -167,31 +167,46 @@ LOCAL_VIDEO_PLAYING = "() => document.getElementById('localVideo').videoWidth > 
 # The headless browser has no screen picker, so a canvas and a silent audio destination
 # stand in for a shared screen with its sound.
 RECORD_MEDIA_TRACKS = """
+const SCREEN_COLOUR = "rgb(255, 0, 0)";
 window.requestedTracks = [];
+window.cameraTracks = [];
 window.mediaRequests = 0;
 window.heldMediaRequests = 0;
-let mediaHeld = null;
-window.holdMedia = () => {
-    mediaHeld = new Promise((release) => {
-        window.releaseMedia = () => {
-            mediaHeld = null;
-            release();
-        };
+const holds = { camera: null, screen: null };
+window.holdMedia = (source) => {
+    const sources = source ? [source] : Object.keys(holds);
+    const hold = new Promise((release, reject) => {
+        const lift = () => sources.forEach((held) => { holds[held] = null; });
+        window.releaseMedia = () => { lift(); release(); };
+        window.rejectMedia = () => { lift(); reject(new DOMException("no camera", "NotFoundError")); };
     });
+    sources.forEach((held) => { holds[held] = hold; });
 };
-const recorded = (request) => async (constraints) => {
+const recorded = (source, request) => async (constraints) => {
     window.mediaRequests += 1;
-    if (mediaHeld) {
+    if (holds[source]) {
         window.heldMediaRequests += 1;
-        await mediaHeld;
+        await holds[source];
     }
     const stream = await request(constraints);
     window.requestedTracks.push(...stream.getTracks());
+    if (source === "camera") window.cameraTracks.push(...stream.getVideoTracks());
     return stream;
 };
-navigator.mediaDevices.getUserMedia = recorded(navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices));
-navigator.mediaDevices.getDisplayMedia = recorded(async () => {
-    const screenPicture = document.createElement("canvas").captureStream();
+navigator.mediaDevices.getUserMedia = recorded(
+    "camera",
+    navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices),
+);
+navigator.mediaDevices.getDisplayMedia = recorded("screen", async () => {
+    const canvas = document.createElement("canvas");
+    const screenPicture = canvas.captureStream();
+    const [screenTrack] = screenPicture.getVideoTracks();
+    const repaint = setInterval(() => {
+        if (screenTrack.readyState === "ended") return clearInterval(repaint);
+        const painter = canvas.getContext("2d");
+        painter.fillStyle = SCREEN_COLOUR;
+        painter.fillRect(0, 0, canvas.width, canvas.height);
+    }, 100);
     const screenSound = new AudioContext().createMediaStreamDestination().stream;
     return new MediaStream([...screenPicture.getTracks(), ...screenSound.getTracks()]);
 });
@@ -207,13 +222,57 @@ window.WebSocket = class extends NativeWebSocket {
 };
 """
 HOLD_MEDIA = "window.holdMedia()"
+HOLD_CAMERA_REQUESTS = 'window.holdMedia("camera")'
+HOLD_SCREEN_REQUESTS = 'window.holdMedia("screen")'
 RELEASE_MEDIA = "window.releaseMedia()"
+REJECT_MEDIA = "window.rejectMedia()"
 MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
 MEDIA_REQUEST_IS_HELD = "() => window.heldMediaRequests > 0"
 TRACKS_WERE_REQUESTED = "() => window.requestedTracks.length > 0"
 MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
 REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
 LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
+CAMERA_TRACK_STATES = "() => window.cameraTracks.map((track) => track.readyState)"
+LATE_CAMERA_IS_STOPPED = """
+(before) => window.cameraTracks.length > before
+    && window.cameraTracks.every((track) => track.readyState === "ended")
+"""
+VIDEO_TRACKS_NOW = """
+() => {
+    const own = document.getElementById("localVideo").srcObject?.getVideoTracks() ?? [];
+    const senders = window.recordedConnections
+        .filter((connection) => connection.signalingState !== "closed")
+        .flatMap((connection) => connection.getTransceivers())
+        .filter((transceiver) => transceiver.receiver.track.kind === "video")
+        .map((transceiver) => transceiver.sender.track);
+    const stateOf = (track) => (track.enabled ? track.readyState : `${track.readyState} disabled`);
+    return {
+        own: own.map(stateOf),
+        senders: senders.map((track) => {
+            if (!track) return null;
+            return own.includes(track) ? stateOf(track) : `foreign ${stateOf(track)}`;
+        }),
+    };
+}
+"""
+TILE_SHOWS_THE_SCREEN = """
+(selector) => {
+    const video = document.querySelector(selector);
+    if (!video.videoWidth) return false;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const painter = canvas.getContext("2d");
+    painter.drawImage(video, 0, 0, 1, 1);
+    const [red, green, blue] = painter.getImageData(0, 0, 1, 1).data;
+    return red > 200 && green < 60 && blue < 60;
+}
+"""
+VIDEO_TRACKS_ARE = f"""
+(expected) => {{
+    const now = ({VIDEO_TRACKS_NOW})();
+    return JSON.stringify(now) === JSON.stringify(expected);
+}}
+"""
 PREJOIN_MICROPHONE = "#prejoinMicBtn"
 PREJOIN_CAMERA = "#prejoinCamBtn"
 PREJOIN_START = "#prejoinStartBtn"
@@ -436,6 +495,32 @@ def stop_the_screen_share(person: Page) -> None:
 def share_then_stop_the_screen_share(person: Page) -> None:
     share_the_screen(person)
     stop_the_screen_share(person)
+
+
+def wait_for_video_tracks(person: Page, own: list[str], senders: list[str | None]) -> None:
+    """Wait until the own stream and every video sender hold exactly these tracks, by `readyState`.
+
+    A disabled track reads "<readyState> disabled". A sender whose track is not in the own stream
+    reads "foreign <state>"; no track reads None.
+    """
+    person.wait_for_function(
+        VIDEO_TRACKS_ARE, arg={"own": own, "senders": senders}, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
+
+
+def camera_track_states(person: Page) -> list[str]:
+    return person.evaluate(CAMERA_TRACK_STATES)
+
+
+def wait_for_the_light_to_go_out(person: Page) -> None:
+    person.wait_for_function(
+        "() => window.cameraTracks.every((track) => track.readyState === 'ended')",
+        timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    )
+
+
+def wait_for_the_tile_to_show_the_screen(person: Page) -> None:
+    person.wait_for_function(TILE_SHOWS_THE_SCREEN, arg=OTHER_VIDEO, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def wait_for_peer_count(person: Page, count: int) -> None:

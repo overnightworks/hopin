@@ -4,6 +4,7 @@ import { showLocalStream, updateLocalPreview } from "./stage.js";
 import { state } from "./state.js";
 
 let mediaSession = 0;
+let cameraRequest = 0;
 let screenShareChange = null;
 
 function stopTracks(stream) {
@@ -12,23 +13,31 @@ function stopTracks(stream) {
     }
 }
 
+export class CameraError extends Error {
+    constructor(cause) {
+        super(cause.message, { cause });
+        this.name = cause.name;
+    }
+}
+
 // A permission prompt or the screen picker can stay open past the end of the call.
 // stopLocalMedia ends the session, so a stream that arrives after it, or a request
 // that would start after it, belongs to no call: it is stopped and changes nothing.
-async function acquireStream(session, request, adopt) {
+// A camera request also stops when a newer press, a share or the end of the call
+// overtook it (isCurrent).
+async function acquireStream(session, request, adopt, isCurrent = () => true) {
     if (session !== mediaSession) return;
     const stream = await request();
-    if (session !== mediaSession) {
+    if (session !== mediaSession || !isCurrent()) {
         stopTracks(stream);
         return;
     }
     adopt(stream);
 }
 
-function adoptLocalStream(stream, hasCamera) {
+function adoptLocalStream(stream, cameraOn) {
     state.localStream = stream;
-    state.hasCamera = hasCamera;
-    state.videoEnabled = hasCamera;
+    state.videoEnabled = cameraOn;
 }
 
 function dropVideoTrack() {
@@ -89,33 +98,46 @@ export function toggleAudio() {
     localMediaChanged();
 }
 
-export function toggleVideo() {
-    state.videoEnabled = !state.videoEnabled;
-    for (const track of state.localStream.getVideoTracks()) {
-        track.enabled = state.videoEnabled;
+async function openCamera(adopt) {
+    cameraRequest += 1;
+    const ticket = cameraRequest;
+    const isCurrent = () => ticket === cameraRequest;
+    try {
+        await acquireStream(
+            mediaSession,
+            () => navigator.mediaDevices.getUserMedia({ video: true }),
+            (cameraStream) => adopt(cameraStream.getVideoTracks()[0]),
+            isCurrent,
+        );
+    } catch (error) {
+        if (isCurrent()) throw new CameraError(error);
     }
-    localMediaChanged();
 }
 
+function sendNoVideo() {
+    dropVideoTrack();
+    void replaceVideoTrackOnPeers(null);
+}
+
+// While a share runs the choice is only recorded; the share's end applies it.
 export async function addCamera() {
-    await acquireStream(
-        mediaSession,
-        () => navigator.mediaDevices.getUserMedia({ video: true }),
-        (cameraStream) => {
-            const cameraTrack = cameraStream.getVideoTracks()[0];
-            replaceVideoTrack(cameraTrack);
-            state.hasCamera = true;
-            state.videoEnabled = true;
-            localMediaChanged();
-        },
-    );
+    if (state.screenStream) {
+        state.videoEnabled = true;
+        localMediaChanged();
+        return;
+    }
+    await openCamera((cameraTrack) => {
+        replaceVideoTrack(cameraTrack);
+        state.videoEnabled = true;
+        localMediaChanged();
+    });
 }
 
 // Stopping the track, not only disabling it, turns the camera's light off.
 export function releaseCamera() {
-    dropVideoTrack();
-    state.hasCamera = false;
+    cameraRequest += 1;
     state.videoEnabled = false;
+    if (!state.screenStream) sendNoVideo();
     localMediaChanged();
 }
 
@@ -126,15 +148,18 @@ async function stopScreenShare() {
     }
     stopTracks(state.screenStream);
     state.screenStream = null;
-    await acquireStream(
-        mediaSession,
-        () => navigator.mediaDevices.getUserMedia({ video: true }),
-        (cameraStream) => {
-            const cameraTrack = cameraStream.getVideoTracks()[0];
-            cameraTrack.enabled = state.videoEnabled;
-            replaceVideoTrack(cameraTrack);
-        },
-    );
+    if (!state.videoEnabled) {
+        sendNoVideo();
+        return;
+    }
+    try {
+        await openCamera(replaceVideoTrack);
+    } catch (error) {
+        state.videoEnabled = false;
+        sendNoVideo();
+        localMediaChanged();
+        throw error;
+    }
 }
 
 async function startScreenShare(onEnded) {
@@ -142,6 +167,7 @@ async function startScreenShare(onEnded) {
         mediaSession,
         () => navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }),
         (screenStream) => {
+            cameraRequest += 1;
             state.screenStream = screenStream;
             const screenTrack = screenStream.getVideoTracks()[0];
             replaceVideoTrack(screenTrack);
@@ -178,6 +204,7 @@ export function toggleScreenShare(onEnded) {
 
 export function stopLocalMedia() {
     mediaSession += 1;
+    cameraRequest += 1;
     if (state.localStream) {
         stopTracks(state.localStream);
         state.localStream = null;
