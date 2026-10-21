@@ -35,10 +35,13 @@ webauth:
   `.brand-mark`) are renamed; `.field` and `.sub` (row 16), `.row` (rows 19 and
   21) and `.banner` (row 21) are renamed by the row that builds them. A unit
   test enforces the rule.
-- The sign-in pages (`login-failed.html`) are ui-console's sign-in markup with
-  its classes and wording, and load both stylesheets. The no-reuse rule and the
-  legal-only `<a>` rule above are about `index.html` and `hopin.css`; a sign-in
-  page links the two legal URLs and `/auth/start`.
+- The sign-in pages (`login-failed.html`, `login.html` for Signed out and
+  `no-access.html`) are ui-console's sign-in markup with its classes and
+  wording, and load both stylesheets. The no-reuse rule and the legal-only `<a>`
+  rule above are about `index.html` and `hopin.css`; a sign-in page links the
+  two legal URLs and `/auth/start`. No access posts one same-origin form to
+  `/logout`, so the Content-Security-Policy adds the issuer's origin to
+  `form-action` for the redirect to its end-session endpoint.
 - Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
   the CSSOM, which the policy allows. Handlers come from `addEventListener`.
 - `app.js` is the only entry point and the only wiring. No module imports it,

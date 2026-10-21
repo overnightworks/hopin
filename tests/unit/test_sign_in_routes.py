@@ -22,11 +22,14 @@ from hopin.config.constants import (
     AUTH_START_PATH,
     HOME_PATH,
     LOGIN_GROUP,
+    LOGIN_PATH,
+    LOGOUT_PATH,
+    NO_ACCESS_PATH,
     RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
 )
 from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 
 SESSION_COOKIE = "__Host-session_id"
 PENDING_COOKIE_PREFIX = "__Host-oidc_pending_"
@@ -34,8 +37,6 @@ HINT_COOKIE = "__Secure-oidc_id_token_hint"
 WHO_AM_I_PATH = "/who-am-i"
 SUBJECT = "subject-1"
 USERNAME = "alice"
-NO_ACCESS = "No access"
-LOGIN_FAILED = "Login failed"
 
 
 @dataclass
@@ -155,16 +156,16 @@ def cookie_scope(raw_cookie: str) -> tuple[str, frozenset[str]]:
     return name_and_value.split("=", 1)[0], frozenset(kept)
 
 
-def assert_refused(
-    harness: SignInHarness, response: Response, body: str, *, cleared_under_start_name: bool = True
-) -> None:
+def assert_refused(harness: SignInHarness, response: Response, *, cleared_under_start_name: bool = True) -> None:
     assert response.status_code == 403
-    if body == LOGIN_FAILED:
-        assert response.headers["content-type"].startswith("text/html")
-        assert response.content == LOGIN_FAILED_PAGE.read_bytes()
-    else:
-        assert response.headers["content-type"].startswith("text/plain")
-        assert response.text == body
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.content == LOGIN_FAILED_PAGE.read_bytes()
+    assert_pending_login_cleared(harness, response, cleared_under_start_name=cleared_under_start_name)
+
+
+def assert_pending_login_cleared(
+    harness: SignInHarness, response: Response, *, cleared_under_start_name: bool = True
+) -> None:
     cookies = set_cookies(response)
     assert SESSION_COOKIE not in cookies
     assert HINT_COOKIE not in cookies
@@ -262,13 +263,45 @@ class TestAdmittedLogin:
         ]
 
 
+class TestLogout:
+    def test_a_member_is_signed_out_here_and_sent_to_the_issuers_end_session_with_their_hint(self, harness):
+        browser = harness.browser()
+        callback = harness.sign_in_through(browser)
+        hint = browser.cookies.get(HINT_COOKIE, path=LOGOUT_PATH)
+        session_id = harness.who(browser)["session_id"]
+
+        response = browser.post(LOGOUT_PATH)
+
+        location = urlsplit(response.headers["location"])
+        query = parse_qs(location.query)
+        cookies = set_cookies(response)
+        assert callback.status_code == 303
+        assert response.status_code == 303
+        assert (
+            f"{location.scheme}://{location.netloc}{location.path}" == f"{TEST_ISSUER}/protocol/openid-connect/logout"
+        )
+        assert query == {
+            "client_id": [harness.sign_in.settings.oidc_client_id],
+            "post_logout_redirect_uri": [TEST_PUBLIC_ORIGIN + LOGIN_PATH],
+            "id_token_hint": [hint],
+        }
+        assert harness.sessions.load(session_id) is None
+        assert harness.who(browser) == {"user": None}
+        assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
+        assert {"max-age=0", "path=/logout"} <= cookies[HINT_COOKIE]
+
+
 class TestRefusedLogin:
     @pytest.mark.parametrize(
         "groups", [[], None, [f"{LOGIN_GROUP}2"], ["/apps"], ["/apps/songmaker"]], ids=lambda groups: str(groups)
     )
-    def test_a_non_member_gets_no_access_and_no_account(self, harness, groups):
-        response = harness.sign_in_through(harness.browser(), groups=groups)
-        assert_refused(harness, response, NO_ACCESS)
+    def test_a_non_member_is_sent_to_no_access_and_gets_no_account(self, harness, groups):
+        browser = harness.browser()
+        response = harness.sign_in_through(browser, groups=groups)
+        assert response.status_code == 303
+        assert response.headers["location"] == NO_ACCESS_PATH
+        assert_pending_login_cleared(harness, response)
+        assert harness.who(browser) == {"user": None}
         assert harness.accounts.get(SUBJECT) is None
 
     def test_an_altered_state_is_refused_before_any_token_request(self, harness):
@@ -279,7 +312,7 @@ class TestRefusedLogin:
         )
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query.replace('state=', 'state=x')}")
         # webauth clears the cookie named for the state it was handed, which is not the one the start set
-        assert_refused(harness, response, LOGIN_FAILED, cleared_under_start_name=False)
+        assert_refused(harness, response, cleared_under_start_name=False)
         assert harness.issuer.exchanges == []
 
     def test_another_browsers_callback_is_refused_and_spends_nothing_of_the_first(self, harness):
@@ -291,7 +324,7 @@ class TestRefusedLogin:
         refused = intruder.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert harness.issuer.exchanges == []
         admitted = owner.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(harness, refused, LOGIN_FAILED, cleared_under_start_name=False)
+        assert_refused(harness, refused, cleared_under_start_name=False)
         assert harness.who(intruder) == {"user": None}
         assert admitted.status_code == 303
         assert harness.who(owner)["user"] == {"id": SUBJECT, "username": USERNAME}
@@ -303,14 +336,14 @@ class TestRefusedLogin:
         swapped = with_query_value(start.headers["location"], claim, "swapped")
         query = harness.issuer.authorize(swapped, subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME)
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(harness, response, LOGIN_FAILED)
+        assert_refused(harness, response)
         assert harness.who(browser) == {"user": None}
 
     def test_try_again_on_the_login_failed_page_signs_in_to_the_home_not_the_first_requested_page(self, harness):
         browser = harness.browser()
         harness.start(browser, "/c/first-requested")
         refused = browser.get(f"{AUTH_CALLBACK_PATH}?state=forged&code=x")
-        assert_refused(harness, refused, LOGIN_FAILED, cleared_under_start_name=False)
+        assert_refused(harness, refused, cleared_under_start_name=False)
         again = re.search(r'href="([^"]+)">Try again</a>', refused.text)
         assert again is not None
 
@@ -333,8 +366,8 @@ class TestRefusedLogin:
         with_copy = browser.get(f"{AUTH_CALLBACK_PATH}?{query}", headers={"cookie": f"{pending_name}={pending_value}"})
         requests_after_copy = len(harness.issuer.exchanges)
         without_copy = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(harness, with_copy, LOGIN_FAILED)
-        assert_refused(harness, without_copy, LOGIN_FAILED)
+        assert_refused(harness, with_copy)
+        assert_refused(harness, without_copy)
         assert len(harness.issuer.exchanges) == requests_after_copy == 2
         assert harness.who(browser)["user"] == {"id": SUBJECT, "username": USERNAME}
         assert harness.sessions.delete_for_user(SUBJECT) == 1
@@ -365,7 +398,7 @@ class TestRefusedLogin:
         if breakage == "access denied":
             query = f"error=access_denied&state={parse_qs(urlsplit(start.headers['location']).query)['state'][0]}"
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        assert_refused(harness, response, LOGIN_FAILED)
+        assert_refused(harness, response)
         assert harness.who(browser) == {"user": None}
 
 
@@ -423,7 +456,7 @@ class TestLogs:
         harness = make_harness(windows_line_ending=True)
         with structlog.testing.capture_logs() as logs:
             response = harness.sign_in_through(harness.browser())
-        assert_refused(harness, response, LOGIN_FAILED)
+        assert_refused(harness, response)
         assert [(log["reason"], log["idp_error"]) for log in logs if log["event"] == "sign_in_refused"] == [
             ("token-request-refused", "invalid_client")
         ]

@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse
 from pydantic import SecretStr
 from webauth.config import SessionLifetime, WebAuthConfig, web_auth_config
 from webauth.cookies import issue_session_cookies
@@ -19,6 +19,7 @@ from webauth.oidc_login import (
     AdmittedLogin,
     NoAdmins,
     finish_login,
+    log_out,
     open_session,
     start_login,
 )
@@ -34,17 +35,19 @@ from hopin.config.constants import (
     LOGIN_GROUP,
     LOGIN_PATH,
     LOGOUT_PATH,
+    NO_ACCESS_PATH,
     OIDC_LEEWAY_SECONDS,
     OIDC_SCOPES,
     RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.settings import ServerSettings
-from hopin.web.routes import STATIC_DIR
+from hopin.web.routes import READ_METHODS, STATIC_DIR
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
-NO_ACCESS_BODY = "No access"
 LOGIN_FAILED_PAGE = STATIC_DIR / "login-failed.html"
+SIGNED_OUT_PAGE = STATIC_DIR / "login.html"
+NO_ACCESS_PAGE = STATIC_DIR / "no-access.html"
 
 logger = structlog.get_logger()
 
@@ -185,13 +188,35 @@ def create_sign_in_router(
         answer.headers["location"] = outcome.return_to or HOME_PATH
         return answer
 
+    @router.post(LOGOUT_PATH)
+    def logout(request: Request) -> Response:
+        answer = Response(status_code=HTTPStatus.SEE_OTHER)
+        answer.headers["location"] = log_out(
+            relying_party, request, answer, web_auth_config(request), sessions=sessions, lock=lock
+        )
+        return answer
+
+    @router.api_route(LOGIN_PATH, methods=READ_METHODS)
+    def signed_out() -> FileResponse:
+        return FileResponse(SIGNED_OUT_PAGE)
+
+    @router.api_route(NO_ACCESS_PATH, methods=READ_METHODS)
+    def no_access() -> FileResponse:
+        return FileResponse(NO_ACCESS_PAGE)
+
     return router
+
+
+def end_session_origin(oidc_client: OidcClientConfig) -> str:
+    """The origin a form may post to when the browser is redirected to the issuer's end-session endpoint."""
+    endpoint = urlsplit(oidc_client.end_session_endpoint)
+    return f"{endpoint.scheme}://{endpoint.netloc}"
 
 
 def _refusal_response(refusal: OidcRefusal | AdmissionRefusal, *, carrying: Response) -> Response:
     _log_refusal(refusal)
     if refusal is AdmissionRefusal.NOT_A_MEMBER:
-        response: Response = PlainTextResponse(NO_ACCESS_BODY, status_code=HTTPStatus.FORBIDDEN)
+        response: Response = Response(status_code=HTTPStatus.SEE_OTHER, headers={"location": NO_ACCESS_PATH})
     else:
         response = FileResponse(LOGIN_FAILED_PAGE, status_code=HTTPStatus.FORBIDDEN)
     for cookie in carrying.headers.getlist("set-cookie"):

@@ -9,6 +9,9 @@ from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     HEALTH_PATH,
+    LOGIN_PATH,
+    LOGOUT_PATH,
+    NO_ACCESS_PATH,
     RETURN_TO_QUERY_PARAMETER,
     STATIC_PATH,
 )
@@ -18,6 +21,9 @@ PUBLIC_PATHS = frozenset(
         HEALTH_PATH,
         AUTH_START_PATH,
         AUTH_CALLBACK_PATH,
+        LOGIN_PATH,
+        NO_ACCESS_PATH,
+        LOGOUT_PATH,
         f"{STATIC_PATH}/css/ui-console.css",
         f"{STATIC_PATH}/css/hopin.css",
     }
