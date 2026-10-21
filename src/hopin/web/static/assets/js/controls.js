@@ -11,9 +11,19 @@ const LOCK_TOAST = Object.freeze({ LOCKED: "Call locked", UNLOCKED: "Call unlock
 const muteButton = document.getElementById("muteBtn");
 const videoButton = document.getElementById("videoBtn");
 const screenButton = document.getElementById("screenBtn");
-const moreButton = document.getElementById("moreBtn");
-const moreMenu = document.getElementById("moreMenu");
-const moreScrim = document.getElementById("moreScrim");
+const overlayScrim = document.getElementById("overlayScrim");
+const MENUS = [
+    {
+        button: document.getElementById("moreBtn"),
+        dialog: document.getElementById("moreMenu"),
+        firstFocus: ".mi",
+    },
+    {
+        button: document.getElementById("inviteBtn"),
+        dialog: document.getElementById("inviteMenu"),
+        firstFocus: "#inviteCopyBtn, #inviteCopyLinkBtn",
+    },
+];
 const lockButton = document.getElementById("lockBtn");
 const leaveButton = document.getElementById("leaveBtn");
 
@@ -33,29 +43,32 @@ export function hideLockButton() {
     lockButton.classList.add("hidden");
 }
 
-function isMoreOpen() {
-    return moreMenu.open;
+function closeMenu({ button, dialog }) {
+    overlayScrim.classList.add("hidden");
+    dialog.close();
+    button.classList.remove("active");
+    button.setAttribute("aria-expanded", "false");
+    button.focus();
 }
 
-function openMore() {
-    moreScrim.classList.remove("hidden");
-    moreMenu.show();
-    moreButton.classList.add("active");
-    moreButton.setAttribute("aria-expanded", "true");
-    moreMenu.querySelector(".mi:not(.hidden)").focus();
+function openMenu(menu) {
+    for (const other of MENUS) if (other !== menu && other.dialog.open) closeMenu(other);
+    overlayScrim.classList.remove("hidden");
+    menu.dialog.show();
+    menu.button.classList.add("active");
+    menu.button.setAttribute("aria-expanded", "true");
+    const firstItems = menu.dialog.querySelectorAll(menu.firstFocus);
+    [...firstItems].find((item) => item.checkVisibility()).focus();
 }
 
-function closeMore() {
-    moreScrim.classList.add("hidden");
-    moreMenu.close();
-    moreButton.classList.remove("active");
-    moreButton.setAttribute("aria-expanded", "false");
-    moreButton.focus();
+function toggleMenu(menu) {
+    if (menu.dialog.open) closeMenu(menu);
+    else openMenu(menu);
 }
 
-function toggleMore() {
-    if (isMoreOpen()) closeMore();
-    else openMore();
+function closeOpenMenu() {
+    const open = MENUS.find((menu) => menu.dialog.open);
+    if (open) closeMenu(open);
 }
 
 export function confirmLockChange(isLocked) {
@@ -120,10 +133,11 @@ export function initControls({ onLeaveRequested }) {
     screenButton.addEventListener("click", () => {
         void handleScreenClick();
     });
-    moreButton.addEventListener("click", toggleMore);
-    moreScrim.addEventListener("click", closeMore);
+    for (const menu of MENUS) menu.button.addEventListener("click", () => toggleMenu(menu));
+    overlayScrim.addEventListener("click", closeOpenMenu);
+    document.getElementById("inviteCloseBtn").addEventListener("click", closeOpenMenu);
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && isMoreOpen()) closeMore();
+        if (event.key === "Escape") closeOpenMenu();
     });
     lockButton.addEventListener("click", handleLockClick);
     leaveButton.addEventListener("click", onLeaveRequested);

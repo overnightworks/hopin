@@ -47,6 +47,36 @@ navigator.share = () => {
 TABS_TO_REACH_COPY_LINK_AT_MOST = 20
 SEED_CLIPBOARD = "(text) => navigator.clipboard.writeText(text)"
 READ_CLIPBOARD = "() => navigator.clipboard.readText()"
+TOAST_MILLISECONDS = 2400
+FADE_GRACE_MILLISECONDS = 300
+REDUCED_MOTION = {"reduced_motion": "reduce"}
+START_TIMING_A_TOAST = """
+() => {
+    window.toastStood = new Promise((resolve) => {
+        let appeared = null;
+        new MutationObserver(() => {
+            const standing = document.querySelector("#toasts .toast") !== null;
+            if (standing && appeared === null) appeared = performance.now();
+            if (!standing && appeared !== null) resolve(performance.now() - appeared);
+        }).observe(document.getElementById("toasts"), { childList: true });
+    });
+}
+"""
+DIMS_BEFORE_IT_IS_REMOVED = """
+() => new Promise((resolve) => {
+    let wasFullyShown = false;
+    let dimmed = false;
+    const sample = () => {
+        const toast = document.querySelector("#toasts .toast");
+        if (!toast) return resolve(dimmed);
+        const opacity = Number(getComputedStyle(toast).opacity);
+        if (opacity === 1) wasFullyShown = true;
+        else if (wasFullyShown) dimmed = true;
+        requestAnimationFrame(sample);
+    };
+    sample();
+})
+"""
 
 
 def open_host(
@@ -226,3 +256,39 @@ def test_keyboard_reaches_copy_link_and_enter_copies(
     host.keyboard.press("Enter")
 
     expect_toast(host, "Link copied", CHECK_ICON_PATH)
+
+
+def test_a_toast_fades_out_before_it_is_removed(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
+    host.click(COPY_BUTTON)
+    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+
+    assert host.evaluate(DIMS_BEFORE_IT_IS_REMOVED)
+
+
+def test_a_toast_is_gone_within_its_time_under_reduced_motion(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED, **REDUCED_MOTION})
+    host.evaluate(START_TIMING_A_TOAST)
+
+    host.click(COPY_BUTTON)
+
+    assert host.evaluate("window.toastStood") < TOAST_MILLISECONDS + FADE_GRACE_MILLISECONDS
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_toast_started_just_before_leave_does_not_stand_over_the_end_screen(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    host = start_as_host(open_person, base_url, page_errors, {**form_factor, **CLIPBOARD_ALLOWED})
+    host.click(COPY_BUTTON)
+    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+
+    host.click("#leaveBtn")
+    host.click("#leaveYes")
+
+    expect(host.locator("[data-screen=end]")).to_be_visible()
+    assert host.evaluate("() => document.getElementById('toasts').childElementCount") == 0

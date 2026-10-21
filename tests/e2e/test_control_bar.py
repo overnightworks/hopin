@@ -29,8 +29,8 @@ VISIBLE_BAR_BUTTONS = f"{BAR} button:visible"
 ROUND_BUTTON_PIXELS = 52
 LEAVE_PILL_PIXELS = {"desktop": 72, "phone": 52}
 BAR_NAMES = {
-    "desktop": ["Mute", "Camera off", "Share screen", "Chat", "More", "Leave"],
-    "phone": ["Mute", "Camera off", "Chat", "More", "Leave"],
+    "desktop": ["Mute", "Camera off", "Share screen", "Invite", "Chat", "More", "Leave"],
+    "phone": ["Mute", "Camera off", "Invite", "Chat", "More", "Leave"],
 }
 CLIPBOARD_ALLOWED = {"permissions": [*MEDIA_PERMISSIONS, "clipboard-read", "clipboard-write"]}
 OTHER_MUTE_MARK = ".tile:not(.self) .name .muted"
