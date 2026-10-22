@@ -57,7 +57,10 @@ class _SessionRow:
 
 
 class InMemoryAccounts:
-    """Accounts of one process, keyed by the issuer's subject and compared exactly."""
+    """Accounts of one process, keyed by the issuer's subject and compared exactly.
+
+    Never calls into `InMemorySessions`: the lock order is the sessions guard, then this one.
+    """
 
     def __init__(self) -> None:
         self._by_subject: dict[str, StoredAccount] = {}
@@ -77,6 +80,10 @@ class InMemoryAccounts:
             self._by_subject[subject] = account
         return account
 
+    def remove(self, user_id: str) -> None:
+        with self._guard:
+            self._by_subject.pop(user_id, None)
+
     def set_role(self, user_id: str, role: str) -> StoredAccount:
         with self._guard:
             existing = self._by_subject[user_id]
@@ -86,17 +93,21 @@ class InMemoryAccounts:
 
 
 class InMemorySessions:
-    """Sessions of one process; each record answers its account from the accounts store, as a join would."""
+    """Sessions of one process; each record answers its account from the accounts store, as a join would.
 
-    def __init__(self, accounts: InMemoryAccounts) -> None:
+    Every path that joins a row to its account, or removes the account, does so inside this guard (taken after
+    the `ProcessWriteLock` when the caller holds it, before the accounts' own), so a row and its account are
+    both there or both gone for every reader.
+    """
+
+    def __init__(self, accounts: InMemoryAccounts, guard: threading.Lock) -> None:
         self._accounts = accounts
         self._rows: dict[str, _SessionRow] = {}
-        self._guard = threading.Lock()
+        self._guard = guard
 
     def create(
         self, user_id: str, *, now: datetime, expires_at: datetime, refresh_token: SecretStr | None
     ) -> StoredSession:
-        user = self._accounts.existing(user_id)
         row = _SessionRow(
             id=secrets.token_urlsafe(SESSION_ID_BYTES),
             user_id=user_id,
@@ -105,6 +116,7 @@ class InMemorySessions:
             refresh_token=refresh_token,
         )
         with self._guard:
+            user = self._accounts.existing(user_id)
             self._drop_expired(now)
             self._rows[row.id] = row
         return _joined(row, user)
@@ -122,7 +134,7 @@ class InMemorySessions:
     def load(self, session_id: str) -> StoredSession | None:
         with self._guard:
             row = self._rows.get(session_id)
-        return None if row is None else _joined(row, self._accounts.existing(row.user_id))
+            return None if row is None else _joined(row, self._accounts.existing(row.user_id))
 
     def person_records(self, subject: str) -> PersonRecords:
         """What the store holds about one subject, without a session id or token; sessions oldest first."""
@@ -158,10 +170,12 @@ class InMemorySessions:
             self._rows.pop(session_id, None)
 
     def delete_for_user(self, user_id: str) -> int:
+        """Ends every session of the subject and removes the account, also when no session was left."""
         with self._guard:
             ended = [id_ for id_, row in self._rows.items() if row.user_id == user_id]
             for session_id in ended:
                 del self._rows[session_id]
+            self._accounts.remove(user_id)
         return len(ended)
 
     def prune_overflow(self, user_id: str, keep_newest: int) -> None:
@@ -215,5 +229,8 @@ class SignInStores:
     def in_memory(cls) -> SignInStores:
         accounts = InMemoryAccounts()
         return cls(
-            accounts=accounts, sessions=InMemorySessions(accounts), lock=ProcessWriteLock(), audit=LoggingAuditSink()
+            accounts=accounts,
+            sessions=InMemorySessions(accounts, threading.Lock()),
+            lock=ProcessWriteLock(),
+            audit=LoggingAuditSink(),
         )
