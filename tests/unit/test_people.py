@@ -88,6 +88,16 @@ def admin(person, config):
     return person("olga", role=config.admin_role)
 
 
+def stored_state_of_anna(stores, scene):
+    """Everything stored about anna: her account, her collection and each complete session, secrets revealed."""
+    sessions = []
+    for session_id in scene.session_ids:
+        stored = stores.sessions.load(session_id)
+        refresh_token = None if stored.refresh_token is None else stored.refresh_token.get_secret_value()
+        sessions.append((stored.id, stored.user, stored.created_at, stored.expires_at, refresh_token))
+    return stores.accounts.get("anna"), stores.sessions.person_records("anna"), sessions
+
+
 def ask(client, subject, member=None, *, method="GET", headers=None):
     return client.request(
         method, export_path(subject), headers={**handshake_headers(member, origin=None), **(headers or {})}
@@ -100,6 +110,7 @@ class Scene:
 
     room_id: str
     refresh_token: str
+    session_ids: list[str]
     chat_text: str
     ben_chat_text: str
     session_times: list[tuple[datetime, datetime]]
@@ -141,6 +152,7 @@ def scene(client, stores, person):
         yield Scene(
             room_id=created["room_id"],
             refresh_token=refresh_token,
+            session_ids=[anna.session.id, older.id],
             chat_text=chat_text,
             ben_chat_text=ben_chat_text,
             session_times=[
@@ -311,7 +323,7 @@ class TestWhoMayExport:
     @pytest.mark.parametrize("method", ["POST", "DELETE"])
     @pytest.mark.parametrize("subject_path", [export_path("anna"), "/api/admin/people/anna"])
     def test_offers_no_way_to_change_a_person(self, client, admin, scene, stores, method, subject_path):
-        before = (stores.accounts.get("anna"), stores.sessions.person_records("anna"))
+        before = stored_state_of_anna(stores, scene)
 
         answer = client.request(
             method,
@@ -320,8 +332,8 @@ class TestWhoMayExport:
         )
 
         assert answer.status_code in {404, 405}
-        assert before == (stores.accounts.get("anna"), stores.sessions.person_records("anna"))
-        assert len(before[1].sessions) == 2
+        assert stored_state_of_anna(stores, scene) == before
+        assert len(before[2]) == 2
 
 
 class TestCaching:
