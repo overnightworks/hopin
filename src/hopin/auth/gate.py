@@ -30,6 +30,7 @@ PUBLIC_PATHS = frozenset(
         LOGOUT_PATH,
         f"{STATIC_PATH}/css/ui-console.css",
         f"{STATIC_PATH}/css/hopin.css",
+        f"{STATIC_PATH}/img/hopin.svg",
     }
 )
 LOGIN_REDIRECT = LoginRedirect(path=AUTH_START_PATH, redirect_query_param=RETURN_TO_QUERY_PARAMETER)

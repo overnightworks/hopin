@@ -1,6 +1,7 @@
 import hashlib
 import re
 from html.parser import HTMLParser
+from xml.etree import ElementTree
 
 import pytest
 from fastapi import FastAPI
@@ -138,6 +139,8 @@ VOID_TAGS = {
     "track",
     "wbr",
 }
+FAVICON_FILE = STATIC_DIR / "assets" / "img" / "hopin.svg"
+FAVICON_URL = f"{STATIC_PATH}/img/hopin.svg"
 URL_ATTRIBUTES = {"src", "href", "xlink:href"}
 
 
@@ -154,6 +157,7 @@ class PageInventory(HTMLParser):
         self.submit_labels: list[str] = []
         self._in_submit_button = False
         self.stylesheets: list[str] = []
+        self.icons: list[dict[str, str | None]] = []
         self.class_values: list[str] = []
         self.screens: set[str] = set()
         self.legal_navs_by_screen: dict[str, list[list[str]]] = {}
@@ -180,6 +184,8 @@ class PageInventory(HTMLParser):
             self.inline_scripts += 1
         if tag == "link" and attributes.get("rel") == "stylesheet":
             self.stylesheets.append(attributes["href"])
+        if tag == "link" and attributes.get("rel") == "icon":
+            self.icons.append(attributes)
         if "class" in attributes:
             self.class_values.append(attributes["class"])
         if tag == "form":
@@ -370,6 +376,14 @@ class TestNoAccessPage:
 class TestPageShell:
     def test_every_page_loads_ui_console_before_hopin(self, every_page_inventory):
         assert every_page_inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
+
+    def test_every_page_links_the_brand_mark_as_its_one_svg_icon(self, every_page_inventory):
+        assert every_page_inventory.icons == [{"rel": "icon", "type": "image/svg+xml", "href": FAVICON_URL}]
+
+    def test_the_icon_is_an_svg_document_in_utf8_with_the_brand_mark_viewbox(self):
+        # The file is the repository's own, never untrusted input.
+        root = ElementTree.fromstring(FAVICON_FILE.read_bytes().decode("utf-8"))  # noqa: S314
+        assert (root.tag, root.get("viewBox")) == ("{http://www.w3.org/2000/svg}svg", "0 0 24 24")
 
     def test_vendored_ui_console_is_byte_identical_to_its_release(self):
         assert hashlib.sha256(UI_CONSOLE_CSS.read_bytes()).hexdigest() == UI_CONSOLE_SHA256
