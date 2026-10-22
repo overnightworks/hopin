@@ -13,6 +13,8 @@ from webauth.policies import (
     CacheControlRule,
     CspDirective,
     CsrfPolicy,
+    RateLimitPolicy,
+    RateLimitRule,
     SecurityHeadersPolicy,
     default_content_security_policy,
 )
@@ -30,10 +32,14 @@ from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     BACKCHANNEL_LOGOUT_BODY_MAX_BYTES,
     BACKCHANNEL_LOGOUT_PATH_RULES,
+    DEFAULT_RATE_LIMIT_BUDGET,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
     NO_CACHE_PATH_RULES,
     PERMISSIONS_POLICY,
+    RATE_LIMIT_EXEMPT_PATH_RULES,
     SESSION_SWEEP_SECONDS,
+    SIGN_IN_PATH_RULES,
+    SIGN_IN_RATE_LIMIT_BUDGET,
 )
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
@@ -159,6 +165,11 @@ def create_app(
         body_size=BodySizePolicy(
             default_max_bytes=DEFAULT_REQUEST_BODY_MAX_BYTES,
             rules=(BodySizeRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, max_bytes=BACKCHANNEL_LOGOUT_BODY_MAX_BYTES),),
+        ),
+        rate_limit=RateLimitPolicy(
+            default=DEFAULT_RATE_LIMIT_BUDGET,
+            rules=(RateLimitRule(paths=SIGN_IN_PATH_RULES, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
+            exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
         session_gate=session_gate(sign_in_stores.sessions),
     )

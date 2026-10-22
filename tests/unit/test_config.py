@@ -69,6 +69,7 @@ class TestServerSettings:
         assert settings.stun_server == STUN_SERVER_URL
         assert settings.max_participants_per_room == MAX_PARTICIPANTS_PER_ROOM
         assert settings.oidc_client_id == OIDC_CLIENT_ID
+        assert settings.trusted_proxies == ""
 
     def test_override_via_environment(self, sign_in_settings):
         sign_in = sign_in_settings()
@@ -79,6 +80,7 @@ class TestServerSettings:
             "HOPIN_MAX_PARTICIPANTS_PER_ROOM": "3",
             "HOPIN_STUN_SERVER": "stun:stun.example.test:3478",
             "HOPIN_OIDC_CLIENT_ID": "other-client",
+            "HOPIN_TRUSTED_PROXIES": "10.0.0.0/8,127.0.0.1",
         }
         with patch.dict(os.environ, env):
             settings = ServerSettings()
@@ -87,6 +89,7 @@ class TestServerSettings:
             assert settings.max_participants_per_room == 3
             assert settings.stun_server == "stun:stun.example.test:3478"
             assert settings.oidc_client_id == "other-client"
+            assert settings.trusted_proxies == "10.0.0.0/8,127.0.0.1"
             assert settings.oidc_issuer == sign_in.settings.oidc_issuer
             assert settings.public_origin == sign_in.settings.public_origin
             assert settings.oidc_client_secret_file == sign_in.settings.oidc_client_secret_file
