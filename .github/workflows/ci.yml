@@ -68,7 +68,7 @@ jobs:
   e2e:
     name: End-to-end
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -87,10 +87,26 @@ jobs:
           uv sync --locked --no-install-project --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
+      # apt on the runner can stall on a slow mirror; each attempt is bounded so
+      # a stall costs one retry instead of the test budget.
       - name: Install Chromium
+        id: install-chromium
+        continue-on-error: true
+        timeout-minutes: 6
         run: playwright install --with-deps chromium
 
+      - name: Install Chromium again
+        if: steps.install-chromium.outcome == 'failure'
+        timeout-minutes: 6
+        run: |
+          # The timed-out attempt leaves its apt-get running and holding the dpkg lock.
+          sudo pkill -x apt-get || true
+          sudo pkill -x apt || true
+          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+          playwright install --with-deps chromium
+
       - name: Run the end-to-end tests
+        timeout-minutes: 10
         run: pytest -m e2e --no-cov --tracing retain-on-failure --screenshot only-on-failure --output test-results
 
       - name: Upload the traces
