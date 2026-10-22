@@ -187,7 +187,8 @@ class TestSeatsOfAnErasedPerson:
         assert guest.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
         advance(HOST_GRACE_SECONDS)
         closed = guest.receive_json()
-        assert (closed["type"], closed["reason"]) == (SignalType.ROOM_CLOSED.value, RoomClosedReason.HOST_GONE.value)
+        assert closed["type"] == SignalType.ROOM_CLOSED.value
+        assert closed["reason"] == RoomClosedReason.HOST_GONE.value
         ben_cookies = {"cookie": cookie_header(members("ben").set_cookie_headers)}
         assert client.get(f"{CALL_PATH}/{room_id}", headers=ben_cookies).status_code == NOT_FOUND
 
@@ -233,7 +234,8 @@ class TestSeatsOfAnErasedPerson:
 
         advance(SESSION_RECHECK_SECONDS)
 
-        assert [close_code_of(in_first), close_code_of(in_second)] == [SESSION_ENDED_CLOSE_CODE] * 2
+        assert close_code_of(in_first) == SESSION_ENDED_CLOSE_CODE
+        assert close_code_of(in_second) == SESSION_ENDED_CLOSE_CODE
 
 
 class TestRequestsOfAnErasedPerson:
@@ -247,7 +249,8 @@ class TestRequestsOfAnErasedPerson:
         navigation = client.get(HOME_PATH, headers={**cookies, "accept": "text/html"})
         api_call = client.get(ACCOUNT_PATH, headers=cookies)
 
-        assert (navigation.status_code, api_call.status_code) == (FOUND_ELSEWHERE, UNAUTHENTICATED)
+        assert navigation.status_code == FOUND_ELSEWHERE
+        assert api_call.status_code == UNAUTHENTICATED
 
 
 def export_of(client, admin, subject):
@@ -273,6 +276,9 @@ class TestExportAfterTheErasure:
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         data_after, withheld_after = export_of(client, admin, "anna")
 
-        assert (data_before["account"], data_before["sessions"], len(data_before["seats"])) == (None, [], 1)
+        assert data_before["account"] is None
+        assert data_before["sessions"] == []
+        assert len(data_before["seats"]) == 1
         assert withheld_before["resume_token"] == 1
-        assert (data_after, set(withheld_after.values())) == ({"account": None, "sessions": [], "seats": []}, {0})
+        assert data_after == {"account": None, "sessions": [], "seats": []}
+        assert set(withheld_after.values()) == {0}
