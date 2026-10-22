@@ -1,0 +1,8 @@
+claim_id = "24113e5b55c04e0099a037ef504ad90a"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "d3d42768676c1380dd2fff3021f980f1ce86db24"
+branch = "claude/issue-189-turn-credentials-through-one-provider-po"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "quality/baseline.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "src/hopin/config/secret_files.py", "src/hopin/config/settings.py", "src/hopin/web/ice_servers.py", "src/hopin/web/turn_relay.py", "tests/integration/test_turn_relay.py", "tests/integration/test_turn_transport.py", "tests/unit/test_app.py", "tests/unit/test_config.py", "tests/unit/test_ice_servers.py", "tests/unit/test_sign_in_config.py", "uv.lock"]
+opened_commit = "4756faa506866ee07127c8d104b35b2a3403b6e7"
+whole_reason = "The TURN setting, the start refusal, the adapter and its transport are reachable only together, and the shared secret-file reader is their one owner."
