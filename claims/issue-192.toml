@@ -1,7 +1,0 @@
-claim_id = "3ff6dbb5db7e42d0ad4655f3b5c89ae2"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "9ea6f76ba227ab0de20162c35ec9c9a4f142b783"
-branch = "claude/issue-192-a-refused-relay-no-longer-writes-the-bro"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/signaling/handler.py", "tests/unit/test_signaling.py"]
-opened_commit = "8e98d03423bf1f213a64daa7519d9d7fd4343bc3"
