@@ -183,10 +183,8 @@ class TestSeatsOfAnErasedPerson:
         advance(SESSION_RECHECK_SECONDS)
 
         assert close_code_of(host) == SESSION_ENDED_CLOSE_CODE
-        assert [guest.receive_json()["type"] for _ in range(2)] == [
-            SignalType.HOST_AWAY.value,
-            SignalType.PARTICIPANT_LEFT.value,
-        ]
+        heard = [guest.receive_json()["type"] for _ in range(2)]
+        assert heard == [SignalType.HOST_AWAY.value, SignalType.PARTICIPANT_LEFT.value]
         advance(HOST_GRACE_SECONDS)
         closed = guest.receive_json()
         assert (closed["type"], closed["reason"]) == (SignalType.ROOM_CLOSED.value, RoomClosedReason.HOST_GONE.value)
