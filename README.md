@@ -95,7 +95,7 @@ This gives you a public URL like `https://abc123.ngrok.io` that you share instea
 
 ## Room Security
 
-Only members of `/apps/hopin` reach HopIn. Every page sends a signed-out person through Keycloak and back to the page they asked for, and an API call without a session gets 401. Only `/health` (which answers just its status), the two sign-in routes, the three sign-in pages (`/login`, `/no-access` and the failure page), `/logout` and the stylesheets those pages load are public. Log out ends the HopIn session in this browser and then the Keycloak session; it only answers a form posted from HopIn itself, so another site cannot trigger it. `/auth/backchannel-logout` is public for Keycloak's POST only: a signed logout token from Keycloak ends every HopIn session of that person, on every device. Only Keycloak should reach it, so keep it off the public internet.
+Only members of `/apps/hopin` reach HopIn. Every page sends a signed-out person through Keycloak and back to the page they asked for, and an API call without a session gets 401. Only `/health` (which answers just its status), the two sign-in routes, the three sign-in pages (`/login`, `/no-access` and the failure page), `/logout` and the stylesheets those pages load are public. Log out ends the HopIn session in this browser and then the Keycloak session; it only answers a form posted from HopIn itself, so another site cannot trigger it. `/auth/backchannel-logout` is public for Keycloak's POST only: a signed logout token from Keycloak ends every HopIn session of that person, on every device. Only Keycloak should reach it, so keep it off the public internet. Each address may make 40 sign-in requests (`/auth/start` and `/auth/callback`, 20 complete sign-ins) in 10 minutes and 600 requests a minute on every other path, and gets 429 beyond that; `/health` and `/auth/backchannel-logout` are never limited.
 
 HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone. Anyone whose connection drops keeps their place for 30 seconds and picks it up again without the call noticing; a host who is not back within those 30 seconds is away for the remaining 30 of the 60.
 
@@ -123,6 +123,7 @@ All settings can be overridden via environment variables:
 | `HOPIN_OIDC_CLIENT_SECRET_FILE` | required | Absolute path of the file holding that client's secret |
 | `HOPIN_PUBLIC_ORIGIN` | required | HopIn's own https origin, without a path or trailing slash |
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
+| `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits; empty trusts none, so every request counts against its direct peer |
 
 HopIn refuses to start without the four required settings, or when a secret file cannot be read, and says which setting is at fault, never what a file holds.
 

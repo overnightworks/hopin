@@ -30,3 +30,10 @@ class TestMain:
         main()
         assert mock_run.call_args[1]["access_log"] is False
         assert mock_run.call_args[1]["log_level"] == UVICORN_LOG_LEVEL
+
+    @patch("hopin.main.uvicorn.run")
+    def test_leaves_the_client_address_to_the_trusted_proxy_setting(self, mock_run, sign_in_settings, monkeypatch):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        main()
+        assert mock_run.call_args[1]["proxy_headers"] is False

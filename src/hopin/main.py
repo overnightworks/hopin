@@ -12,6 +12,7 @@ class UvicornOptions(TypedDict):
     port: int
     ws: str
     access_log: bool
+    proxy_headers: bool
     log_level: str
 
 
@@ -21,6 +22,7 @@ def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
         port=settings.port,
         ws=UVICORN_WEBSOCKET_IMPLEMENTATION,
         access_log=False,
+        proxy_headers=False,
         log_level=UVICORN_LOG_LEVEL,
     )
 
