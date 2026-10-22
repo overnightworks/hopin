@@ -174,6 +174,8 @@ src/hopin/
 │           ├── css/
 │           │   ├── ui-console.css  # Vendored verbatim from ui-console v0.3.1, loaded first
 │           │   └── hopin.css
+│           ├── img/
+│           │   └── hopin.svg       # The brand mark, every page's icon
 │           └── js/       # ES modules, app.js is the entry point
 │               ├── app.js        # Wiring, call start and leave
 │               ├── router.js     # The address and the screen, call links

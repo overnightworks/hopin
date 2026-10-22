@@ -42,6 +42,9 @@ class ManualScheduler:
         self._timers.append(timer)
         return timer
 
+    def has_pending_timer(self):
+        return any(timer.pending for timer in self._timers)
+
     async def advance(self, seconds):
         target = self._now + seconds
         while due := [timer for timer in self._timers if timer.pending and timer.deadline <= target]:

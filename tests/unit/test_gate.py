@@ -17,7 +17,7 @@ from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
-from hopin.auth.sign_in import NO_ACCESS_PAGE, SIGNED_OUT_PAGE, build_sign_in_configs
+from hopin.auth.sign_in import LOGIN_FAILED_PAGE, NO_ACCESS_PAGE, SIGNED_OUT_PAGE, build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ACCOUNT_PATH,
@@ -43,6 +43,8 @@ if TYPE_CHECKING:
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
 STYLESHEETS = ["/static/css/ui-console.css", "/static/css/hopin.css"]
+FAVICON = "/static/img/hopin.svg"
+STATIC_FILES = ["/static/js/app.js", *STYLESHEETS, FAVICON]
 LOOKALIKE_PATHS = [
     "/health/",
     "/HEALTH",
@@ -52,6 +54,9 @@ LOOKALIKE_PATHS = [
     "/login/",
     "/LOGIN",
     "/no-access/x",
+    "/static/img/hopin.svg/",
+    "/static/img/hopin.svgx",
+    "/static/img/other.svg",
     "/logout/",
     f"{BACKCHANNEL_LOGOUT_PATH}/",
     f"{BACKCHANNEL_LOGOUT_PATH}x",
@@ -151,6 +156,10 @@ class TestSignedOut:
     @pytest.mark.parametrize("path", [*STYLESHEETS, *SIGN_IN_PAGES])
     def test_the_sign_in_pages_and_their_stylesheets_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
+
+    def test_the_favicon_loads_signed_out_as_an_svg(self, application):
+        response = application.get(FAVICON, **BROWSER_ACCEPT)
+        assert (response.status_code, response.headers["content-type"]) == (200, "image/svg+xml")
 
     @pytest.mark.parametrize("path", LOOKALIKE_PATHS)
     def test_a_path_that_only_looks_like_a_public_path_is_gated(self, application, path):
@@ -357,6 +366,26 @@ class TestBackchannelLogout:
 
     def test_other_paths_keep_their_cache_headers(self, application):
         assert application.get(HEALTH_PATH).headers.get("cache-control") != "no-store"
+
+
+class TestRevalidation:
+    @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access", *STATIC_FILES])
+    def test_every_page_and_static_file_answers_no_cache_with_its_etag(self, application, path):
+        member = application.seed()
+        with hosted_room(application, member) as room_id:
+            response = application.get(path.replace("abc", room_id), member, **BROWSER_ACCEPT)
+        assert (response.headers["cache-control"], "etag" in response.headers) == ("no-cache", True)
+
+    @pytest.mark.parametrize("path", STATIC_FILES)
+    def test_a_static_file_still_answers_304_to_its_etag(self, application, path):
+        member = application.seed()
+        etag = application.get(path, member).headers["etag"]
+        assert application.get(path, member, **{"if-none-match": etag}).status_code == 304
+
+    def test_the_login_failed_page_is_revalidated(self, application):
+        response = application.get(AUTH_CALLBACK_PATH, **BROWSER_ACCEPT)
+        assert (response.status_code, response.content) == (403, LOGIN_FAILED_PAGE.read_bytes())
+        assert response.headers["cache-control"] == "no-cache"
 
 
 class TestSessionLifetime:

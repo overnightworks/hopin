@@ -24,6 +24,11 @@ BACKCHANNEL_LOGOUT_PATH_RULES = PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PA
 DEFAULT_REQUEST_BODY_MAX_BYTES = 4 * 1024
 BACKCHANNEL_LOGOUT_BODY_MAX_BYTES = 32 * 1024
 
+NO_CACHE_PATH_RULES = PathRules(
+    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, AUTH_CALLBACK_PATH}),
+    prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
+)
+
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
 
 OIDC_CLIENT_ID = "hopin"
@@ -32,6 +37,7 @@ RETURN_TO_QUERY_PARAMETER = "next"
 OIDC_SCOPES = ("openid", "profile", "groups")
 OIDC_LEEWAY_SECONDS = 30
 SESSION_LIFETIME_SECONDS = 12 * 60 * 60
+SESSION_SWEEP_SECONDS = 10 * 60
 
 STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
 
