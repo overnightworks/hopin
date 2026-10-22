@@ -1,8 +1,0 @@
-claim_id = "f3b29434dd9e493a9d968fc9b01badb6"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "fe890d334898bbc357735113fff12016519a52c0"
-branch = "claude/issue-168-sign-in-after-session-end"
-scope = ["README.md", "docs/decisions/0001-static-frontend-modules.md", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/signaling.js", "tests/e2e/test_sign_in.py"]
-opened_commit = "3bc822eade8a9dbe85c67118c707a286d31ceadc"
-whole_reason = "The close code's handler, its wiring in app.js, the ADR rule it extends and its e2e proof change together."
