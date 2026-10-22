@@ -4,7 +4,7 @@ How HopIn is built, how a call runs and what it trusts. For what HopIn is and ho
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser. HopIn's server never sees audio or video. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates) between the members of one room.
+A call is a full mesh: every browser sends its media straight to every other browser. HopIn's server never sees audio or video. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume.
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ flowchart LR
     A & B & C -. address discovery .-> T[STUN server]
 ```
 
-The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. Today the only server beyond HopIn's own is a STUN server; media always goes peer to peer.
+The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the only ICE server configured is a STUN server, and media always goes peer to peer.
 
 ## 2. Building Block View
 
@@ -42,6 +42,8 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 | `rooms` | rooms, participants, their capacity and lock |
 | `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers |
 | `web` | pages, static files, the health route and the ICE server list |
+| `main` | starts the server |
+| `errors` | HopIn's exception types |
 | `people.py` | the admin download of what HopIn holds about one person |
 | `app.py` | the one place that wires the packages and installs the webauth middleware |
 
@@ -85,13 +87,13 @@ sequenceDiagram
 **Frames.** Messages are JSON over the WebSocket; the signal types are `SignalType` in `src/hopin/config/constants.py` and `signaling/handler.py` handles them. Invariants:
 
 - The server identifies a socket by its webauth session at the handshake and names every peer with an id it mints, so peers address each other only by those ids. A relay reaches only members of the sender's room.
-- Every server frame carries a `seq`, and every client frame after a socket's first does too. Each side keeps its last `REPLAY_LOG_LIMIT` frames; a frame at or below the last `seq` received is ignored.
+- Every server frame carries a `seq`, and every client frame after a socket's first does too, except `resumed` and `resume_refused`: the server writes them without one and the browser handles them before it filters by `seq`. Each side keeps its last `REPLAY_LOG_LIMIT` frames; a frame at or below the last `seq` received is ignored.
 - A frame longer than `MAX_SIGNALING_FRAME_LENGTH` is refused and neither relayed nor kept.
 - The resume token is a secret of the seat: it travels only in frames to its owner, changes with every resume and is never logged.
 
 **Room lifecycle.**
 
-- The host is the account that started the call, not a connection. Only the host locks, unlocks and ends the call; a locked room refuses new joins and keeps its members.
+- The host is the account that started the call, not a connection. Only the host locks, unlocks and ends the call; a locked room keeps its members and refuses new joins except from the host's account, which can return, subject to capacity.
 - A dropped member keeps the seat for `RESUME_WINDOW_SECONDS` and takes it back with the resume token, replaying the frames missed. A refused resume is answered alike for every cause and the page joins afresh.
 - When the host's last connection drops, the call waits `HOST_GRACE_SECONDS` for the host to return and then ends for everyone.
 - Every `SESSION_RECHECK_SECONDS`, and on every frame, the socket's session is checked again. When it has ended, the server closes the socket with `SESSION_ENDED_CLOSE_CODE`; the page stops the call and signs in again. A back-channel logout ends every session of that person.
@@ -110,19 +112,19 @@ One container, built from `Dockerfile` and run by `compose.yaml` behind the edge
 
 **Persistence.** None. What HopIn holds about a person, and what an admin may download, is in the README under A Person's Data.
 
-**Logging.** structlog lines carry peer ids, room ids and event kinds. Secrets, tokens and message contents are never logged; the `account_event` line carries the person's Keycloak id.
+**Logging.** structlog lines carry peer ids, room ids, event kinds, causes and reasons, close codes, identity-provider error codes and exceptions without local variables; the `account_event` line carries the person's Keycloak id and role. One value comes from the client: a refused relay logs the `target` as the browser gave it (`signaling/handler.py`, `relay_outside_room`). Tokens, secrets and chat text are never logged.
 
 ### Trust
 
 The model is HopIn's own; no operator ruling narrows it.
 
-- **A member's browser** reaches pages, the API and `/ws` with a session. It controls everything it sends: frames, names it claims in chat and media state, its own address. HopIn trusts none of it beyond the session: the server mints peer ids, checks host actions against the account, caps frame length and applies the rate limits.
+- **A member's browser** reaches pages, the API and `/ws` with a session. It controls everything it sends (chat lines, its media state, connection descriptions) and its own address. HopIn trusts none of it beyond the session: the names others see come from the Keycloak account, the sender of each relayed frame is the server-minted peer id, and host actions are checked against the account. The protections differ by route: HTTP requests are rate-limited (webauth's middleware covers HTTP scopes only); the WebSocket is admitted only with a session and an allowed Origin (`signaling/identity.py`) and each frame is capped at `MAX_SIGNALING_FRAME_LENGTH`; there is no per-frame rate limit.
 - **Anyone without a session** reaches only `PUBLIC_PATHS`, the sign-in routes and Keycloak's logout POST. HopIn trusts nothing they send and rate limits them by address.
-- **Keycloak** decides who is a member and who is an admin; HopIn trusts its signed tokens from the one configured issuer, and a signed logout token to end sessions. The back-channel route should stay off the public internet.
+- **Keycloak** decides who is a member and who is an admin; HopIn trusts its signed tokens from the one configured issuer, and a logout token signed by that issuer to end sessions. HopIn checks that token, not who sent it, and relies on the proxy in front to keep the back-channel route off the public internet ([edge's README](https://github.com/overnightworks/edge)).
 - **The proxy hops** named in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`, which the rate limits key on. A hop that is wrongly listed lets a person choose their counted address; empty trusts none.
 - **The other participants of a call** see each other's addresses (peer-to-peer media reveals them) and receive relayed frames: names, chat lines, media state, connection descriptions. A member is trusted with that much and no more: they cannot address people outside their room, or act as host.
 - **The STUN server** learns the address of every browser that asks and can answer wrongly, which at worst prevents a connection; it never carries media. The operator chooses it by `HOPIN_STUN_SERVER`.
-- **The operator's settings and secret files** are trusted fully: they hold the client secret and the session signing key, are read at start from files and never enter the environment, and HopIn names only the failing setting when one is wrong.
+- **The operator's settings and secret files** are trusted fully: the settings are `HOPIN_` environment variables, but the client secret and the session signing key are read at start from the files they name and never enter the environment, and HopIn names only the failing setting when one is wrong.
 
 ## 6. Architectural Decisions
 

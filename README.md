@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![CI](https://github.com/overnightworks/hopin/actions/workflows/ci.yml/badge.svg)](https://github.com/overnightworks/hopin/actions/workflows/ci.yml)
 
-HopIn is a self-hosted video call service. A signed-in member starts a call and shares its link, and friends join in the browser with nothing to install. The server only coordinates who connects to whom; audio and video flow directly between the browsers.
+HopIn is a self-hosted video call service. A signed-in member starts a call and shares its link, and friends join in the browser with nothing to install. The server signs people in and relays the setup messages and chat between the members of a call, but never media: audio and video flow directly between the browsers.
 
 Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a call runs and what it trusts: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -12,7 +12,7 @@ Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a 
 - **Screen sharing**, switchable with the camera mid-call
 - **Microphone and camera** muted independently, with a preview before joining
 - **Chat** beside the video
-- **Room lock**: the host locks the call from the More menu, so no new person joins; the host unlocks at any time
+- **Room lock**: the host locks the call from the More menu, so no new person joins except the host's own account, which can return while there is room; the host unlocks at any time
 - **Reconnect**: a dropped connection keeps its place for a short while; the call waits for a dropped host before it ends
 - **No frameworks** in the browser: plain HTML, CSS and ES modules
 
@@ -21,6 +21,8 @@ Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a 
 You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings from Configuration, and start the server with `make run`; it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
 Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start.
+
+Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
 
 Press "Start a call" and share the generated link.
 
@@ -42,7 +44,7 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ## Configuration
 
-`src/hopin/config/settings.py` owns the settings; every one is an environment variable.
+`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix. The client secret and the session signing key are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
 
 | Variable | Default | Description |
 |---|---|---|

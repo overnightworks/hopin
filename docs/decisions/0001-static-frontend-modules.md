@@ -47,7 +47,7 @@ webauth:
 - `app.js` is the only entry point and the only wiring. No module imports it,
   and no module runs another module's code at load. Leaving the call and the
   peer teardown when a session is lost (a refused resume or a reconnect that
-  gave up) or ended (the server closes with 4002, and the page signs in again)
+  gave up) or ended (the server closes with `SESSION_ENDED_CLOSE_CODE`, and the page signs in again)
   live there, so `signaling.js` never imports `mesh.js`.
 - `signaling.js` offers `on(type, handler)`; each module registers the message
   types it handles, so a slice adds a handler instead of editing a `switch`.
