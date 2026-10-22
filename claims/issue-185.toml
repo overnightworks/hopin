@@ -1,7 +1,0 @@
-claim_id = "8fba2bba7c8245bf9b5c87da42130f56"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "a5f79c3b070d64bcea13a5078d7eba322fdad067"
-branch = "claude/issue-185-agents-md-keeps-only-what-an-agent-canno"
-scope = ["AGENTS.md"]
-opened_commit = "658a194e39a47616d2aa9fac7009d3bdf75fe69e"
