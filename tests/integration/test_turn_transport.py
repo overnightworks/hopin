@@ -324,7 +324,7 @@ class TestSilenceHoldsOnlyInsideEachCall:
 
     def test_records_of_another_thread_arrive_when_the_calls_fail(self, origin, urllib3_records):
         sentinel = secrets.token_hex(8)
-        nonces = [secrets.token_hex(8) for _ in range(2)]
+        nonces = [secrets.token_hex(8) for _ in range(3)]
         first = HeldCall(
             origin,
             http_response("200 OK", b"short", extra_header=malformed_header_line(sentinel), declared_length=100),
@@ -333,6 +333,7 @@ class TestSilenceHoldsOnlyInsideEachCall:
         second = HeldCall(origin, http_response("200 OK", b"short", declared_length=100), nonce=nonces[1])
 
         first.finish()
+        emit_unrelated_records(nonces[2])
         second.finish()
 
         assert_only_unrelated_records_arrived(urllib3_records, nonces, [first, second])
