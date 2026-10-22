@@ -1,7 +1,0 @@
-claim_id = "f0bc9ea419494707894b8d9df0507c22"
-agent = "claude"
-role = "builder"
-base = "b8f8c4e14e83e74659788e76ccd8af90863e16d5"
-branch = "claude/issue-202-the-end-to-end-job-no-longer-times-out-w"
-scope = [".github/workflows/ci.yml", "AGENTS.md"]
-opened_commit = "e583cb236631c2d5fb3068c590cdaeaf13ed4a6f"
