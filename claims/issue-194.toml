@@ -1,7 +1,0 @@
-claim_id = "39ca068aace747288d04803fc05c8fcb"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "1aa8b2040554445d34c8cbb1780cfca4445c3352"
-branch = "claude/issue-194-the-production-compose-joins-the-back-ch"
-scope = ["README.md", "compose.yaml", "docs/ARCHITECTURE.md"]
-opened_commit = "1ba41da4e081a97ebbd0ccdd3764295293bc5add"
