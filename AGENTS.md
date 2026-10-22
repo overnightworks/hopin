@@ -15,9 +15,6 @@ The `Makefile` owns the targets. Traps:
 
 ## Where things live
 
-- A new top-level module under `src/hopin/` needs its place in the `layers` contract
-  in `pyproject.toml` (`[tool.importlinter]`), or quality's `import-contract` check
-  turns CI red.
 - A setting added to or changed in `src/hopin/config/settings.py` updates README's
   Configuration table in the same change.
 - `quality/config.toml` configures the shared gate and has no `legacy` key, so legacy
@@ -29,7 +26,6 @@ The `Makefile` owns the targets. Traps:
 
 - The `# NOSONAR(<bare rule key>) reason` grammar, and why a `python:`-prefixed key
   fails, are in the `sonar-distributor` skill, section "Marker grammar".
-- Record the refusal of a code route on the distributor issue before adding the marker.
 - A ruff suppression is `# noqa: <code>` with bare codes only; prose after the code is
   read as a further code and SonarPython reports `python:S7632`. The reason goes in a
   comment above the line.
