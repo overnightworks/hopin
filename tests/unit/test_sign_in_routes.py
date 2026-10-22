@@ -1,6 +1,7 @@
 import json
 import re
 import secrets
+import threading
 import time
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -116,7 +117,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         if key_set_of is not None:
             transports = IssuerTransports(transports.post_token_request, key_set_of.fetch_key_set)
         accounts = InMemoryAccounts()
-        sessions = InMemorySessions(accounts)
+        sessions = InMemorySessions(accounts, threading.Lock())
         app = FastAPI()
         install_web_auth_config(app, configs.web_auth)
         app.include_router(
@@ -352,16 +353,19 @@ class TestBackchannelLogout:
             session_ids.append(harness.who(browser)["session_id"])
         return session_ids
 
-    def test_a_valid_token_ends_every_session_of_its_subject_and_no_one_elses(self, harness):
+    def test_a_valid_token_ends_every_session_and_removes_the_account_of_its_subject_and_no_one_elses(self, harness):
         anna = self.sign_in_on_devices(harness, "anna")
         (other,) = self.sign_in_on_devices(harness, "ben", devices=1)
+        ben = harness.accounts.get("ben")
 
         with structlog.testing.capture_logs() as logs:
             response = harness.post_logout_token(harness.issuer.logout_token("anna"))
 
         assert response.status_code == 200
         assert [harness.sessions.load(session_id) for session_id in anna] == [None, None]
+        assert harness.accounts.get("anna") is None
         assert harness.sessions.load(other) is not None
+        assert harness.accounts.get("ben") == ben
         ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
         assert [log["subject_id"] for log in ended] == ["anna"]
         assert USERNAME not in json.dumps(logs)
@@ -371,6 +375,42 @@ class TestBackchannelLogout:
 
         assert response.status_code == 200
         assert harness.accounts.get("stranger") is None
+
+    def test_a_token_for_a_subject_without_a_session_removes_the_account_and_logs_no_logout(self, harness):
+        harness.accounts.create_for_subject("anna", USERNAME, role="user")
+
+        with structlog.testing.capture_logs() as logs:
+            response = harness.post_logout_token(harness.issuer.logout_token("anna"))
+
+        assert response.status_code == 200
+        assert harness.accounts.get("anna") is None
+        assert [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value] == []
+
+    def test_the_same_token_sent_again_is_accepted_and_changes_nothing(self, harness):
+        self.sign_in_on_devices(harness, "anna", devices=1)
+        token = harness.issuer.logout_token("anna")
+        harness.post_logout_token(token)
+
+        with structlog.testing.capture_logs() as logs:
+            response = harness.post_logout_token(token)
+
+        assert response.status_code == 200
+        assert harness.accounts.get("anna") is None
+        assert [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value] == []
+
+    def test_a_person_signs_in_again_after_the_erasure_and_gets_a_new_account_and_session(self, harness):
+        old_browser = harness.browser()
+        harness.sign_in_through(old_browser, subject="anna")
+        harness.post_logout_token(harness.issuer.logout_token("anna"))
+
+        with structlog.testing.capture_logs() as logs:
+            new_browser = harness.browser()
+            harness.sign_in_through(new_browser, subject="anna")
+
+        created = [log for log in logs if log.get("kind") == AccountEventKind.USER_CREATED.value]
+        assert [(log["subject_id"], log["role"]) for log in created] == [("anna", "user")]
+        assert harness.who(old_browser) == {"user": None}
+        assert harness.who(new_browser)["user"] == {"id": "anna", "username": USERNAME}
 
     @pytest.mark.parametrize(
         "forge",
@@ -388,6 +428,7 @@ class TestBackchannelLogout:
 
         assert response.status_code == 400
         assert harness.sessions.load(session_id) is not None
+        assert harness.accounts.get("anna") is not None
 
     def test_a_token_sent_as_json_answers_400_and_ends_nothing(self, harness):
         (session_id,) = self.sign_in_on_devices(harness, "anna", devices=1)
@@ -396,6 +437,7 @@ class TestBackchannelLogout:
 
         assert response.status_code == 400
         assert harness.sessions.load(session_id) is not None
+        assert harness.accounts.get("anna") is not None
 
     def test_an_unreachable_key_set_answers_400_and_ends_nothing(self, harness):
         account = harness.accounts.create_for_subject("anna", USERNAME, role="user")
@@ -407,6 +449,7 @@ class TestBackchannelLogout:
 
         assert response.status_code == 400
         assert harness.sessions.load(session.id) is not None
+        assert harness.accounts.get("anna") == account
 
     def test_an_audit_failure_after_the_deletion_answers_500_with_the_sessions_already_ended(self, make_harness):
         harness = make_harness(audit=FailingAuditSink())
