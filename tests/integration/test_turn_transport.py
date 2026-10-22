@@ -94,7 +94,10 @@ class Origin:
         with connection:
             head = b""
             while b"\r\n\r\n" not in head:
-                head += connection.recv(4096)
+                chunk = connection.recv(4096)
+                if not chunk:
+                    return
+                head += chunk
             head, _, body = head.partition(b"\r\n\r\n")
             method, path, _ = head.split(b"\r\n")[0].decode().split(" ")
             headers = dict(line.decode().split(": ", 1) for line in head.split(b"\r\n")[1:])
@@ -238,22 +241,24 @@ class TestTransport:
         assert failure_of(lambda: post(url, "token")).reason in set(TurnRelayFailure)
 
 
-def emit_unrelated_records(nonce: str) -> None:
-    def emit() -> None:
-        logging.getLogger("urllib3.connectionpool").debug("unrelated %s", nonce)
-        try:
-            raise ValueError(nonce)
-        except ValueError:
-            logging.getLogger("urllib3.connection").warning("unrelated %s", nonce, exc_info=True)
+def log_unrelated_records(nonce: str) -> None:
+    logging.getLogger("urllib3.connectionpool").debug("unrelated %s", nonce)
+    try:
+        raise ValueError(nonce)
+    except ValueError:
+        logging.getLogger("urllib3.connection").warning("unrelated %s", nonce, exc_info=True)
 
-    thread = threading.Thread(target=emit)
+
+def emit_unrelated_records(nonce: str) -> None:
+    thread = threading.Thread(target=log_unrelated_records, args=(nonce,))
     thread.start()
     thread.join()
 
 
 class HeldCall(threading.Thread):
-    def __init__(self, origin: Origin, answer: bytes, *, held: bool = True) -> None:
+    def __init__(self, origin: Origin, answer: bytes, *, held: bool = True, nonce: str | None = None) -> None:
         super().__init__()
+        self.nonce = nonce
         self.key_id, self.path = unique_key_path()
         self.token = secrets.token_urlsafe(32)
         self.url = origin.serve(self.path, answer, held=held)
@@ -267,6 +272,8 @@ class HeldCall(threading.Thread):
             post(self.url, self.token)
         except TurnRelayUnavailableError as error:
             self.error = error
+        if self.nonce is not None:
+            log_unrelated_records(self.nonce)
 
     def finish(self) -> None:
         self.origin.release[self.path].set()
@@ -317,19 +324,18 @@ class TestSilenceHoldsOnlyInsideEachCall:
 
     def test_records_of_another_thread_arrive_when_the_calls_fail(self, origin, urllib3_records):
         sentinel = secrets.token_hex(8)
+        nonces = [secrets.token_hex(8) for _ in range(2)]
         first = HeldCall(
             origin,
             http_response("200 OK", b"short", extra_header=malformed_header_line(sentinel), declared_length=100),
+            nonce=nonces[0],
         )
-        second = HeldCall(origin, http_response("200 OK", b"short", declared_length=100))
-        nonces = [secrets.token_hex(8) for _ in range(3)]
+        second = HeldCall(origin, http_response("200 OK", b"short", declared_length=100), nonce=nonces[1])
 
         first.finish()
-        emit_unrelated_records(nonces[0])
         second.finish()
-        emit_unrelated_records(nonces[1])
 
-        assert_only_unrelated_records_arrived(urllib3_records, nonces[:2], [first, second])
+        assert_only_unrelated_records_arrived(urllib3_records, nonces, [first, second])
         assert not any(sentinel in line for line in urllib3_records)
         assert all(call.error is not None for call in (first, second))
         assert all(

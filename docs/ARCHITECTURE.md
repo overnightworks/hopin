@@ -39,11 +39,11 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 
 | Package | Job |
 |---|---|
-| `config` | settings from the environment, application constants, enums |
+| `config` | settings from the environment, application constants, enums, the shared secret-file reader and `StartRefusedError` |
 | `auth` | sign-in against Keycloak through webauth, the session gate, the in-memory stores of accounts and sessions |
 | `rooms` | rooms, participants, their capacity and lock |
 | `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers |
-| `web` | pages, static files, the health route and the ICE server list |
+| `web` | pages, static files, the health route, the ICE server list and the TURN provider adapter |
 | `main` | starts the server |
 | `errors` | HopIn's exception types |
 | `people.py` | the admin download of what HopIn holds about one person |
