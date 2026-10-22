@@ -38,6 +38,7 @@ export const ROOM_CLOSED_REASON = {
 
 
 const NORMAL_CLOSURE_CODE = 1000;
+const SESSION_ENDED_CLOSE_CODE = 4002;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
 const WEBSOCKET_PATH = "/ws";
 
@@ -49,6 +50,7 @@ let seat = null;
 let sentLog = new SentLog();
 let lastDispatchedSeq = 0;
 let sessionLost = () => {};
+let sessionEnded = () => {};
 
 export function on(type, handler) {
     handlersByType.set(type, [...(handlersByType.get(type) ?? []), handler]);
@@ -56,6 +58,10 @@ export function on(type, handler) {
 
 export function onSessionLost(callback) {
     sessionLost = callback;
+}
+
+export function onSessionEnded(callback) {
+    sessionEnded = callback;
 }
 
 export function send(message) {
@@ -175,9 +181,14 @@ function scheduleReconnect() {
     reconnectTimer = setTimeout(connect, delay);
 }
 
-function handleClose() {
+function handleClose(event) {
     socketIsLive = false;
     if (state.intentionalLeave) return;
+    if (event.code === SESSION_ENDED_CLOSE_CODE) {
+        endSession();
+        sessionEnded();
+        return;
+    }
     const heldSeat = seat !== null;
     if (heldSeat && state.reconnectAttempt < RECONNECT_DELAYS_MS.length) {
         scheduleReconnect();

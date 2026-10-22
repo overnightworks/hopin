@@ -21,6 +21,7 @@ import {
     connect,
     disconnect,
     on,
+    onSessionEnded,
     onSessionLost,
 } from "./signaling.js";
 import { initPip } from "./pip.js";
@@ -165,6 +166,10 @@ registerMediaStateHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
 onSessionLost(removeAllPeers);
+onSessionEnded(() => {
+    tearDownCall();
+    goThroughSignIn();
+});
 initDialogs({ onLeaveConfirmed: leaveCall });
 initMenus();
 initControls({ onLeaveRequested: requestLeave });
