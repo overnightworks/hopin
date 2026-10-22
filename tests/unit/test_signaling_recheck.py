@@ -280,7 +280,7 @@ class TestSuspendedEnding:
         await asyncio.wait_for(held_log.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
 
         resolver.release.set()
-        await link.tasks[guest.socket]
+        await asyncio.wait_for(link.tasks[guest.socket], timeout=HELD_TIMEOUT_SECONDS)
         held_log.release.set()
         await ticking
 
