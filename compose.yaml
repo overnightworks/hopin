@@ -34,7 +34,7 @@ secrets:
     file: ${HOME}/.secrets/hopin/session-secret
 
 networks:
-  # HOPIN_TRUSTED_PROXIES names this network's gateway, and edge allocated the subnet (edge#254).
+  # HOPIN_TRUSTED_PROXIES names this network's gateway, and edge allocated the subnet.
   default:
     name: hopin_default
     ipam:

@@ -62,7 +62,7 @@ Once they are set, the server starts on `http://localhost:8080`.
 
 ### Run in a Container
 
-`compose.yaml` follows the app rules of [edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule): `edge.name: hopin`, no published host port, `restart: unless-stopped` and a healthcheck on `/health`. It answers on port 8080 inside its own network.
+`compose.yaml` carries edge's routing label `edge.name: hopin` ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)), publishes no host port, restarts `unless-stopped` and has a healthcheck on `/health`. It answers on port 8080 inside its own network.
 
 - It sets the issuer, the public origin, the paths of the two secret files and `HOPIN_TRUSTED_PROXIES`; the values are `compose.yaml`'s.
 - It mounts `~/.secrets/keycloak/clients/hopin` and `~/.secrets/hopin/session-secret` read-only, each 0644 inside its 0700 directory so the container's user can read it. Their values never enter the environment.
