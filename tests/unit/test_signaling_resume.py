@@ -194,6 +194,11 @@ async def link(handler):
     await link.close_all()
 
 
+def next_pending_timer(scheduler):
+    """The earliest timer still pending: a park's window ends before any socket's session re-check."""
+    return min((timer for timer in scheduler._timers if timer.pending), key=lambda timer: timer.deadline)
+
+
 async def host_and_guest(link):
     host = await link.join("host")
     guest = await link.join("guest", host.socket.sent[0]["room_id"])
@@ -293,7 +298,7 @@ class TestParkingAndWindow:
     ):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        [window_expiry] = [timer for timer in scheduler._timers if timer.pending]
+        window_expiry = next_pending_timer(scheduler)
         window_expiry.pending = False
 
         await guest.resume()
@@ -307,7 +312,7 @@ class TestParkingAndWindow:
     ):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        [first_expiry] = [timer for timer in scheduler._timers if timer.pending]
+        first_expiry = next_pending_timer(scheduler)
         await guest.resume()
         await guest.accept_resumption()
         await guest.drop()

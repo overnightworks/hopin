@@ -51,6 +51,7 @@ MIN_PARTICIPANTS_PER_ROOM = 2
 MAX_PARTICIPANTS_PER_ROOM = 6
 HOST_GRACE_SECONDS = 60
 RESUME_WINDOW_SECONDS = 30
+SESSION_RECHECK_SECONDS = 60
 RESUME_TOKEN_BYTES = 32
 REPLAY_LOG_LIMIT = 256
 MAX_SIGNALING_FRAME_LENGTH = 65536
@@ -63,6 +64,9 @@ POLICY_VIOLATION_CLOSE_CODE = 1008
 # The server closes a socket that no longer serves a seat: a resume took the seat over,
 # a resume could not catch the seat up, or the room ended.
 SEAT_CLOSED_BY_SERVER_CODE = 4001
+# The server closes a socket whose sign-in ended; 1011 closes one whose sign-in check itself failed.
+SESSION_ENDED_CLOSE_CODE = 4002
+SERVER_ERROR_CLOSE_CODE = 1011
 PEER_ID_BYTES = 16
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
 UVICORN_LOG_LEVEL = "warning"

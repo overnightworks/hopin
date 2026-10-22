@@ -1,5 +1,5 @@
 from contextlib import ExitStack
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,6 +16,7 @@ from hopin.config.constants import (
     HOST_GRACE_SECONDS,
     LOGIN_GROUP,
     SEAT_CLOSED_BY_SERVER_CODE,
+    SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
     ErrorReason,
     RoomClosedReason,
@@ -181,7 +182,7 @@ class TestConnect:
 
         assert (room["type"], room["is_host"]) == (SignalType.ROOM_CREATED.value, True)
         [connected] = events_named(logs, "client_connected")
-        assert connected["account"] == member.account.id
+        assert "account" not in connected
         assert expires_at(stores, member) > before
 
     def test_query_names_nobody_so_another_accounts_id_does_not_make_the_socket_host(self, client, member_named):
@@ -217,10 +218,71 @@ class TestConnect:
         assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
         permitted_fields = {
             "refused": ("handshake_refused", {"event", "reason", "log_level"}),
-            "admitted": ("client_connected", {"event", "peer_id", "account", "log_level"}),
+            "admitted": ("client_connected", {"event", "peer_id", "log_level"}),
         }
         event, fields = permitted_fields[scenario]
         assert [set(entry) for entry in events_named(logs, event)] == [fields]
+
+    def test_logs_of_a_refused_recheck_carry_no_account_username_cookie_or_session_id(self, client, stores, seed, logs):
+        member = seed()
+        with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member)) as ws:
+            ws.send_json({"type": SignalType.JOIN.value})
+            ws.receive_json()
+            stores.sessions.delete(member.session.id)
+            ws.send_json({"type": SignalType.CHAT.value, "seq": 1, "message": "hello"})
+            with pytest.raises(WebSocketDisconnect):
+                ws.receive_json()
+
+        cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
+        secrets_in_logs = [member.account.username, member.account.id, member.session.id]
+        assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
+        assert [set(entry) for entry in events_named(logs, "handshake_refused")] == [{"event", "reason", "log_level"}]
+        assert [set(entry) for entry in events_named(logs, "session_ended")] == [{"event", "peer_id", "log_level"}]
+
+
+@pytest.mark.integration
+class TestSessionRecheck:
+    def test_guest_whose_session_ended_is_closed_before_its_next_frame_reaches_the_host(
+        self, connect, stores, member_named
+    ):
+        host_ws, room_id = open_room(connect, "host")
+        guest_ws, _ = join_room(connect, "guest", room_id)
+        guest_peer_id = host_ws.receive_json()["participant_id"]
+        stores.sessions.delete(member_named("guest").session.id)
+
+        guest_ws.send_json({"type": SignalType.MEDIA_STATE.value, "seq": 1, "audio": False, "video": True})
+
+        with pytest.raises(WebSocketDisconnect) as closed:
+            guest_ws.receive_json()
+        assert closed.value.code == SESSION_ENDED_CLOSE_CODE
+        left = host_ws.receive_json()
+        assert (left["type"], left["participant_id"]) == (SignalType.PARTICIPANT_LEFT.value, guest_peer_id)
+        _, joined = join_room(connect, "late", room_id)
+        assert joined["type"] != SignalType.ERROR.value
+
+    def test_member_whose_session_expired_is_closed_at_its_next_frame(self, connect, stores, member_named):
+        ws, _ = open_room(connect, "host")
+        expired = datetime.now(UTC) - timedelta(hours=1)
+        stores.sessions.touch(member_named("host").session.id, expires_at=expired)
+
+        ws.send_json({"type": "no-such-signal", "seq": 1})
+
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_json()
+        assert closed.value.code == SESSION_ENDED_CLOSE_CODE
+
+    def test_frame_of_a_live_member_renews_the_session_never_past_its_absolute_cap(self, connect, stores, member_named):
+        ws, _ = open_room(connect, "host")
+        member = member_named("host")
+        absolute_cap = member.session.expires_at
+        shortened = absolute_cap - timedelta(hours=3)
+        stores.sessions.touch(member.session.id, expires_at=shortened)
+
+        ws.send_json({"type": "no-such-signal", "seq": 1})
+        assert ws.receive_json()["type"] == SignalType.ERROR.value
+
+        renewed = expires_at(stores, member)
+        assert shortened < renewed <= absolute_cap
 
 
 @pytest.mark.integration
