@@ -257,13 +257,15 @@ class TestSessionRecheck:
         assert closed.value.code == SESSION_ENDED_CLOSE_CODE
         left = host_ws.receive_json()
         assert (left["type"], left["participant_id"]) == (SignalType.PARTICIPANT_LEFT.value, guest_peer_id)
+        _, joined = join_room(connect, "late", room_id)
+        assert joined["type"] != SignalType.ERROR.value
 
     def test_member_whose_session_expired_is_closed_at_its_next_frame(self, connect, stores, member_named):
         ws, _ = open_room(connect, "host")
         expired = datetime.now(UTC) - timedelta(hours=1)
         stores.sessions.touch(member_named("host").session.id, expires_at=expired)
 
-        ws.send_json({"type": SignalType.CHAT.value, "seq": 1, "message": "hello"})
+        ws.send_json({"type": "no-such-signal", "seq": 1})
 
         with pytest.raises(WebSocketDisconnect) as closed:
             ws.receive_json()

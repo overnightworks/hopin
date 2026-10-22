@@ -160,7 +160,7 @@ src/hopin/
 │   └── manager.py        # Room lifecycle management
 ├── signaling/
 │   ├── handler.py        # WebSocket signaling for WebRTC
-│   ├── identity.py       # Who a socket is, resolved at the handshake
+│   ├── identity.py       # Who a socket is, resolved at the handshake and re-checked at every frame and every minute
 │   ├── replay.py         # Numbered log of the frames a seat missed while away
 │   └── scheduler.py      # Timer port, injected so the host grace is testable
 ├── web/

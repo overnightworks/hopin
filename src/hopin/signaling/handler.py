@@ -157,7 +157,7 @@ class SignalingHandler:
                 return
             text = frame.get("text")
             if text is not None:
-                if not await self._session_admits(connection):
+                if not await self._session_admits(connection) or not self._serves_seat(connection):
                     return
                 await self._handle_message(connection, text)
 
@@ -181,9 +181,12 @@ class SignalingHandler:
         await self._end_session(connection, SESSION_ENDED_CLOSE_CODE)
         return False
 
-    def _serves_seat(self, connection: Connection) -> bool:
+    def _holds_seat(self, connection: Connection) -> bool:
         peer = self._peers.get(connection.peer_id)
-        return not connection.ended and peer is not None and peer.websocket is connection.websocket
+        return peer is not None and peer.websocket is connection.websocket
+
+    def _serves_seat(self, connection: Connection) -> bool:
+        return not connection.ended and self._holds_seat(connection)
 
     async def _end_session(self, connection: Connection, close_code: int) -> None:
         # A check can be suspended across a drop or a takeover; the seat then belongs to someone else.
@@ -192,25 +195,26 @@ class SignalingHandler:
         peer_id = connection.peer_id
         connection.ended = True
         await logger.ainfo("session_ended", peer_id=peer_id)
+        if not self._holds_seat(connection):
+            return
         await self._handle_disconnect(peer_id)
         await _close_socket(connection.websocket, close_code)
 
     async def _end_connection(self, connection: Connection) -> None:
         connection.ended = True
         connection.recheck.cancel()
-        peer = self._peers.get(connection.peer_id)
-        if peer is None or peer.websocket is not connection.websocket:
+        if not self._holds_seat(connection):
             return
         if connection.dropped and connection.peer_id in self._peer_rooms:
-            await self._park(connection.peer_id, peer)
+            await self._park(connection.peer_id, self._peers[connection.peer_id])
         else:
             await self._handle_disconnect(connection.peer_id)
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:
         peer_id = connection.peer_id
-        peer = self._peers.get(peer_id)
-        if peer is None or peer.websocket is not connection.websocket:
+        if not self._holds_seat(connection):
             return
+        peer = self._peers[peer_id]
         is_first_frame = connection.frames_received == 0
         connection.frames_received += 1
 
