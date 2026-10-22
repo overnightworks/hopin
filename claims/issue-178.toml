@@ -1,7 +1,0 @@
-claim_id = "d3a90655c0d6456abd75b1544316ed53"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "728cb6f9900f93e4cc11b7f08a83821a5c729c38"
-branch = "claude/issue-178-import-contracts"
-scope = ["AGENTS.md", "pyproject.toml"]
-opened_commit = "d73b190677c4d5e022003a646ebb9672463471d9"
