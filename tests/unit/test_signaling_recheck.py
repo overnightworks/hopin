@@ -299,6 +299,40 @@ class TestSuspendedEnding:
         await asyncio.wait_for(link.tasks[guest.socket], timeout=HELD_TIMEOUT_SECONDS)
         assert host.frames(SignalType.CHAT) == []
 
+    @pytest.mark.parametrize(
+        ("check", "close_code"),
+        [("refuses", SESSION_ENDED_CLOSE_CODE), ("raises", SERVER_ERROR_CLOSE_CODE)],
+    )
+    @pytest.mark.parametrize("earlier_frame", ["none", "admitted_and_held"])
+    async def test_frame_whose_own_check_ends_the_handler_while_the_tick_is_in_its_log_still_gets_the_tick_close(
+        self, link, scheduler, resolver, held_log, check, close_code, earlier_frame
+    ):
+        host, guest = await host_and_guest(link)
+        if earlier_frame == "admitted_and_held":
+            resolver.held_admitted.add(guest.socket)
+            guest.socket.push(text_frame({"type": SignalType.CHAT.value, "message": "first"}, seq=1))
+            await asyncio.wait_for(resolver.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
+        if check == "refuses":
+            guest.socket.account = None
+        else:
+            resolver.failing[guest.socket] = RuntimeError("store unavailable")
+        ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await asyncio.wait_for(held_log.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
+        guest.socket.push(text_frame({"type": SignalType.CHAT.value, "message": "second"}, seq=2))
+        resolver.release.set()
+        handler_task = link.tasks[guest.socket]
+        await asyncio.wait({handler_task}, timeout=HELD_TIMEOUT_SECONDS)
+
+        held_log.release.set()
+        outcomes = await asyncio.wait_for(
+            asyncio.gather(ticking, handler_task, return_exceptions=True), timeout=HELD_TIMEOUT_SECONDS
+        )
+
+        assert guest.socket.closed_with == close_code
+        assert [type(outcome) is RuntimeError for outcome in outcomes] == [check == "raises"] * 2
+        assert host.frames(SignalType.CHAT) == []
+        assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
+
 
 class TestOtherEnds:
     async def test_socket_closed_normally_is_not_ended_again_when_the_tick_passes(self, link, scheduler):

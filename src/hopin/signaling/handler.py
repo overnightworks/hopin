@@ -195,11 +195,11 @@ class SignalingHandler:
             return
         peer_id = connection.peer_id
         connection.ended = True
+        await _close_socket(connection.websocket, close_code)
         await logger.ainfo("session_ended", peer_id=peer_id)
         if not self._holds_seat(connection):
             return
         await self._handle_disconnect(peer_id)
-        await _close_socket(connection.websocket, close_code)
 
     async def _end_connection(self, connection: Connection) -> None:
         connection.ended = True
