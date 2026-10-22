@@ -196,7 +196,7 @@ class TestFrame:
         guest.socket.push({"type": "websocket.receive", "text": '{"type": "chat", "message": "hi", "seq": 1}'})
 
         with pytest.raises(RuntimeError, match="store unavailable"):
-            await link.tasks[guest.socket]
+            await asyncio.wait_for(link.tasks[guest.socket], timeout=HELD_TIMEOUT_SECONDS)
 
         assert guest.socket.closed_with == SERVER_ERROR_CLOSE_CODE
         assert host.frames(SignalType.CHAT) == []
@@ -323,12 +323,13 @@ class TestSuspendedEnding:
         handler_task = link.tasks[guest.socket]
         await asyncio.wait({handler_task}, timeout=HELD_TIMEOUT_SECONDS)
 
+        assert handler_task.done()
+        assert guest.socket.closed_with == close_code
         held_log.release.set()
         outcomes = await asyncio.wait_for(
             asyncio.gather(ticking, handler_task, return_exceptions=True), timeout=HELD_TIMEOUT_SECONDS
         )
 
-        assert guest.socket.closed_with == close_code
         assert [type(outcome) is RuntimeError for outcome in outcomes] == [check == "raises"] * 2
         assert host.frames(SignalType.CHAT) == []
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
