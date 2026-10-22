@@ -45,6 +45,8 @@ docs/decisions/  # decision records
 quality/         # config.toml of the shared quality gate
 ```
 
+The dependency direction between these packages is the `layers` contract in `pyproject.toml` (`[tool.importlinter]`), which quality's `import-contract` rule enforces in CI, so a new top-level module needs its layer there.
+
 ## Tests
 
 - `tests/unit/` mirrors `src/hopin/`; `tests/integration/` covers WebSocket and
