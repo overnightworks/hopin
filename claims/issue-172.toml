@@ -1,7 +1,0 @@
-claim_id = "db62ac64d540460eaf751c6007eec0e3"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "21d566c8ec919c5604be1929184e891c977d93e8"
-branch = "claude/issue-172-cap-skips-closed"
-scope = ["src/hopin/web/static/assets/js/bandwidth.js"]
-opened_commit = "a3b95b5569d6c01e8f7b61f6576f013d03db741b"
