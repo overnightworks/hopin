@@ -13,9 +13,19 @@ services:
       HOPIN_PUBLIC_ORIGIN: https://hopin.hallucinai.de
       HOPIN_SESSION_SECRET_FILE: /run/secrets/session_secret
       HOPIN_TRUSTED_PROXIES: "172.31.255.1,127.0.0.1"
+      HOPIN_TURN_PROVIDER: cloudflare
+      HOPIN_TURN_KEY_ID_FILE: /run/secrets/turn_key_id
+      HOPIN_TURN_API_TOKEN_FILE: /run/secrets/turn_api_token
     secrets:
       - oidc_client_secret
       - session_secret
+      - turn_key_id
+      - turn_api_token
+    networks:
+      default: {}
+      backchannel:
+        aliases:
+          - hopin.hallucinai.de
     healthcheck:
       test:
         - CMD
@@ -32,6 +42,10 @@ secrets:
     file: ${HOME}/.secrets/keycloak/clients/hopin
   session_secret:
     file: ${HOME}/.secrets/hopin/session-secret
+  turn_key_id:
+    file: ${HOME}/.secrets/cloudflare/turn-hopin/key-id
+  turn_api_token:
+    file: ${HOME}/.secrets/cloudflare/turn-hopin/api-token
 
 networks:
   # HOPIN_TRUSTED_PROXIES names this network's gateway, and edge allocated the subnet.
@@ -41,3 +55,7 @@ networks:
       config:
         - subnet: 172.31.255.0/24
           gateway: 172.31.255.1
+  # Keycloak reaches the back-channel logout route on this network; edge creates it.
+  backchannel:
+    name: hal_backchannel_hopin
+    external: true
