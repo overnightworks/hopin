@@ -39,6 +39,20 @@ class TestAppend:
         assert "seq" not in frame
 
 
+class TestLength:
+    def test_counts_the_frames_held_after_the_oldest_were_dropped_and_after_a_superseded_one_went(self):
+        log = ReplayLog(limit=LOG_LIMIT)
+        assert len(log) == 0
+
+        for text in "abcde":
+            log.append(chat(text))
+        assert len(log) == LOG_LIMIT
+
+        log.append(description(SignalType.OFFER, "alice"))
+        log.append(description(SignalType.OFFER, "alice"))
+        assert len(log) == LOG_LIMIT
+
+
 class TestSince:
     def test_answers_the_kept_frames_after_the_given_seq_in_order(self):
         log = ReplayLog()

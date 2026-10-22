@@ -35,12 +35,14 @@ from hopin.config.constants import (
     DEFAULT_RATE_LIMIT_BUDGET,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
     NO_CACHE_PATH_RULES,
+    PEOPLE_PATH_RULES,
     PERMISSIONS_POLICY,
     RATE_LIMIT_EXEMPT_PATH_RULES,
     SESSION_SWEEP_SECONDS,
     SIGN_IN_PATH_RULES,
     SIGN_IN_RATE_LIMIT_BUDGET,
 )
+from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
@@ -104,6 +106,17 @@ def _session_sweep_lifespan(
     return lifespan
 
 
+def _configure_logging() -> None:
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
+            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
+        ],
+    )
+
+
 def create_app(
     settings: ServerSettings,
     *,
@@ -113,14 +126,7 @@ def create_app(
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(settings)
 
-    structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.add_log_level,
-            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
-            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
-        ],
-    )
+    _configure_logging()
 
     sign_in_stores = stores if stores is not None else SignInStores.in_memory()
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
@@ -136,6 +142,7 @@ def create_app(
     app.include_router(create_router(signaling_handler, room_manager))
     app.include_router(create_ice_servers_router(settings.stun_server))
     app.include_router(create_account_router())
+    app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     app.include_router(
@@ -158,6 +165,7 @@ def create_app(
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
                 CacheControlRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, value="no-store"),
+                CacheControlRule(paths=PEOPLE_PATH_RULES, value="no-store"),
                 CacheControlRule(paths=NO_CACHE_PATH_RULES, value="no-cache"),
             ),
         ),

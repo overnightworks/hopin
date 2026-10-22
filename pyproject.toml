@@ -154,11 +154,12 @@ containers = ["hopin"]
 # Every top-level module of hopin stands in exactly one layer, so a new one is
 # placed by a decision rather than slipping in between. `main` starts the server
 # and `app` is the composition root: nothing imports `main`, and only `main`
-# imports `app`. Sign-in sits above the web routes it guards, the routes above
-# the signaling and room services they are handed, and `config` is the floor
-# every package reads.
+# imports `app`. The person export joins sign-in's sessions with signaling's
+# seats, so `people` sits above both. Sign-in sits above the web routes it
+# guards, the routes above the signaling and room services they are handed, and
+# `config` is the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"

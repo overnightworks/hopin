@@ -19,6 +19,7 @@ from webauth.ports import AccountEventKind
 from hopin.auth.sign_in import LOGIN_FAILED_PAGE, IssuerTransports, build_sign_in_configs, create_sign_in_router
 from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
 from hopin.config.constants import (
+    ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     BACKCHANNEL_LOGOUT_PATH,
@@ -251,6 +252,26 @@ class TestAdmittedLogin:
         ] == [True]
         assert who["user"] == {"id": SUBJECT, "username": USERNAME}
         assert session.expires_at - session.created_at == timedelta(seconds=SESSION_LIFETIME_SECONDS)
+
+    @pytest.mark.parametrize(
+        ("groups", "admin"),
+        [
+            ([LOGIN_GROUP], False),
+            ([f"{LOGIN_GROUP}/team"], False),
+            ([f"{LOGIN_GROUP}/administrators"], False),
+            ([ADMIN_GROUP], True),
+            ([f"{ADMIN_GROUP}/team"], True),
+        ],
+    )
+    def test_the_role_follows_the_groups_at_each_sign_in(self, harness, groups, admin):
+        harness.sign_in_through(harness.browser(), groups=groups)
+        expected = harness.config.admin_role if admin else harness.config.user_role
+        assert harness.accounts.get(SUBJECT).role == expected
+
+    def test_a_member_who_left_the_admin_group_is_a_user_again_at_the_next_sign_in(self, harness):
+        harness.sign_in_through(harness.browser(), groups=[ADMIN_GROUP])
+        harness.sign_in_through(harness.browser(), groups=[LOGIN_GROUP])
+        assert harness.accounts.get(SUBJECT).role == harness.config.user_role
 
     def test_the_issued_refresh_token_is_held_in_the_session_row_as_a_secret(self, harness):
         browser = harness.browser()

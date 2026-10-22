@@ -20,6 +20,9 @@ class ReplayLog:
         self._last_seq = 0
         self._floor = 0
 
+    def __len__(self) -> int:
+        return len(self._frames)
+
     def append(self, frame: dict[str, Any]) -> dict[str, Any]:
         if frame[TYPE_KEY] in _DESCRIPTION_TYPES:
             self._drop_superseded_by(frame)

@@ -35,6 +35,19 @@ class StoredSession:
 
 
 @dataclass(frozen=True)
+class SessionTimes:
+    started_at: datetime
+    expires_at: datetime
+    holds_refresh_token: bool
+
+
+@dataclass(frozen=True)
+class PersonRecords:
+    account: StoredAccount | None
+    sessions: tuple[SessionTimes, ...]
+
+
+@dataclass(frozen=True)
 class _SessionRow:
     id: str = field(repr=False)
     user_id: str
@@ -110,6 +123,19 @@ class InMemorySessions:
         with self._guard:
             row = self._rows.get(session_id)
         return None if row is None else _joined(row, self._accounts.existing(row.user_id))
+
+    def person_records(self, subject: str) -> PersonRecords:
+        """What the store holds about one subject, without a session id or token; sessions oldest first."""
+        with self._guard:
+            rows = sorted(
+                (row for row in self._rows.values() if row.user_id == subject), key=lambda row: row.created_at
+            )
+            account = self._accounts.get(subject)
+        sessions = tuple(
+            SessionTimes(row.created_at, row.expires_at, holds_refresh_token=row.refresh_token is not None)
+            for row in rows
+        )
+        return PersonRecords(account=account, sessions=sessions)
 
     def touch(self, session_id: str, *, expires_at: datetime) -> bool:
         with self._guard:

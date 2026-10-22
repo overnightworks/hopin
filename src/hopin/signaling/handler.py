@@ -48,6 +48,13 @@ class Park:
 
 
 @dataclass(frozen=True)
+class SeatSnapshot:
+    call_id: str | None
+    host: bool
+    replay_frames: int
+
+
+@dataclass(frozen=True)
 class HostGrace:
     host_peer_id: str
     deadline: float
@@ -128,6 +135,17 @@ class SignalingHandler:
         self._graces: dict[str, HostGrace] = {}
         self._peers: dict[PeerId, Peer] = {}
         self._peer_rooms: dict[str, str] = {}
+
+    def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
+        """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
+        return tuple(
+            self._snapshot_of(peer_id, peer) for peer_id, peer in self._peers.items() if peer.account.id == account_id
+        )
+
+    def _snapshot_of(self, peer_id: PeerId, peer: Peer) -> SeatSnapshot:
+        room_id = self._peer_rooms.get(peer_id)
+        hosted = room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(peer.account)
+        return SeatSnapshot(call_id=room_id, host=hosted, replay_frames=len(peer.log))
 
     async def handle_websocket(self, websocket: WebSocket) -> None:
         account = await self._identity_resolver.resolve(websocket)

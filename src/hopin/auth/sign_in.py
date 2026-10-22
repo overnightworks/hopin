@@ -18,7 +18,6 @@ from webauth.oidc_login import (
     AdmissionRefusal,
     AdmittedLogin,
     BackchannelLogoutResult,
-    NoAdmins,
     finish_login,
     log_out,
     open_session,
@@ -30,6 +29,7 @@ from webauth.proxies import TrustedProxies
 from webauth.rate_limit import SingleProcessRateLimitBackend
 
 from hopin.config.constants import (
+    ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     BACKCHANNEL_LOGOUT_PATH,
@@ -168,9 +168,7 @@ def create_sign_in_router(
         wall_clock=web_auth.wall_clock,
         monotonic_clock=time.monotonic,
     )
-    admission = AdmissionConfig(
-        bound_issuer=oidc_client.issuer, login_group=LOGIN_GROUP, admin_group=NoAdmins.IN_THIS_APP
-    )
+    admission = AdmissionConfig(bound_issuer=oidc_client.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP)
     router = APIRouter()
 
     @router.get(AUTH_START_PATH)

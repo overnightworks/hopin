@@ -38,6 +38,7 @@ src/hopin/
 ├── signaling/   # WebSocket signaling server
 ├── rooms/       # room and session management
 ├── web/         # HTTP routes, static files
+├── people.py    # the admin export of one person's data
 └── errors.py    # custom exception types
 scripts/         # repository tooling that CI and `make check` run
 docs/mockups/    # the blessed pictures a surface change starts from

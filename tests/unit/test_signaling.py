@@ -8,6 +8,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
+    RESUME_WINDOW_SECONDS,
     ErrorReason,
     RoomClosedReason,
     SignalType,
@@ -348,6 +349,31 @@ class TestLockUnlock:
 
         assert sent_types(sockets["host1"]) == [SignalType.ROOM_UNLOCKED.value]
         assert room.locked is False
+
+
+class TestSeatsOf:
+    async def test_lists_the_seats_of_one_account_a_parked_one_until_its_window_ends(
+        self, handler, room_manager, scheduler
+    ):
+        room, _ = seat_in_room(handler, room_manager, "host1", "ben")
+        guest = FakeSocket(
+            [text_frame(join_message(room.room_id)), disconnect_frame(1006)], account=account_named("anna")
+        )
+        await handler.handle_websocket(guest)
+
+        [parked] = handler.seats_of("anna")
+        assert (parked.call_id, parked.host, parked.replay_frames) == (room.room_id, False, len(guest.sent))
+        assert [(seat.call_id, seat.host) for seat in handler.seats_of("host1")] == [(room.room_id, True)]
+        assert [(seat.call_id, seat.host) for seat in handler.seats_of("ben")] == [(room.room_id, False)]
+
+        await scheduler.advance(RESUME_WINDOW_SECONDS)
+
+        assert handler.seats_of("anna") == ()
+
+    async def test_lists_a_seat_that_has_not_joined_a_call_without_a_call_id(self, handler):
+        register_peer(handler, "anna")
+
+        assert [(seat.call_id, seat.host) for seat in handler.seats_of("anna")] == [(None, False)]
 
 
 class TestHandleWebsocket:
