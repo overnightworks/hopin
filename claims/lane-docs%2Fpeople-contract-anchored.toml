@@ -1,0 +1,7 @@
+claim_id = "5c4f1ee328b84ffc91bc33bb5b3803d2"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "79c72614af984e5b23401a497bd089c2ae6d9301"
+branch = "docs/people-contract-anchored"
+scope = ["README.md"]
+opened_commit = "dcde965cf8d2f934c29d73d1cf9049fee88294eb"
