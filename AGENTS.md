@@ -24,11 +24,7 @@ The `Makefile` owns the targets. Traps:
 
 ## Scanner exceptions
 
-- The `# NOSONAR(<bare rule key>) reason` grammar, and why a `python:`-prefixed key
-  fails, are in the `sonar-distributor` skill, section "Marker grammar".
-- A ruff suppression is `# noqa: <code>` with bare codes only; prose after the code is
-  read as a further code and SonarPython reports `python:S7632`. The reason goes in a
-  comment above the line.
+- The scanner marker traps are in the `sonar-distributor` skill, section "Marker grammar".
 
 ## Local rules awaiting the operator's ruling
 
