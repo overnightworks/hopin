@@ -1,0 +1,7 @@
+claim_id = "5770e29b89b84237bae04cff03a0431c"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "728cb6f9900f93e4cc11b7f08a83821a5c729c38"
+branch = "claude/issue-174-production-compose"
+scope = ["README.md", "compose.yaml"]
+opened_commit = "df8267c5142718f81fe817db5229fd7d395e9031"
