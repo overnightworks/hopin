@@ -6,6 +6,16 @@ services:
       traefik.enable: "true"
       edge.name: hopin
       traefik.http.services.hopin.loadbalancer.server.port: "8080"
+      traefik.docker.network: hopin_default
+    environment:
+      HOPIN_OIDC_ISSUER: https://auth.hallucinai.de/realms/hallucinai
+      HOPIN_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      HOPIN_PUBLIC_ORIGIN: https://hopin.hallucinai.de
+      HOPIN_SESSION_SECRET_FILE: /run/secrets/session_secret
+      HOPIN_TRUSTED_PROXIES: "172.31.255.1,127.0.0.1"
+    secrets:
+      - oidc_client_secret
+      - session_secret
     healthcheck:
       test:
         - CMD
@@ -16,3 +26,18 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+
+secrets:
+  oidc_client_secret:
+    file: ${HOME}/.secrets/keycloak/clients/hopin
+  session_secret:
+    file: ${HOME}/.secrets/hopin/session-secret
+
+networks:
+  # HOPIN_TRUSTED_PROXIES names this network's gateway, and edge allocated the subnet.
+  default:
+    name: hopin_default
+    ipam:
+      config:
+        - subnet: 172.31.255.0/24
+          gateway: 172.31.255.1
