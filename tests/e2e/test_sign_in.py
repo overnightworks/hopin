@@ -222,6 +222,9 @@ window.addEventListener("beforeunload", () => window.noteTheLeaving({{
 }}));
 """
 # Playwright waits for the navigation that a click starts, and this click is the last thing the test does.
+THE_LOCAL_TRACKS_THAT_ARE_LIVE = (
+    "() => document.getElementById('localVideo').srcObject.getTracks().filter((t) => t.readyState === 'live').length"
+)
 CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS = "() => { setTimeout(() => document.getElementById('muteBtn').click()); }"
 
 
@@ -251,6 +254,8 @@ def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_s
     wait_for_peer_count(host, 1)
     wait_for_peer_count(guest, 1)
     documents = record_document_requests(guest)
+    sockets_opened_after_the_session_ended: list[Any] = []
+    guest.on("websocket", lambda socket: sockets_opened_after_the_session_ended.append(socket))
     e2e_server.stores.sessions.delete(member_of(guest).session.id)
 
     guest.evaluate(CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS)
@@ -259,7 +264,10 @@ def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_s
     room_path = urlsplit(invite_link).path
     expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=invite_link, next_path=room_path.replace("/", "%2F"))
     assert leavings == [{"liveTracks": 0, "peerStates": ["closed"], "socketsOpened": 1}]
+    assert sockets_opened_after_the_session_ended == []
     expect(host.locator(OTHER_TILE)).to_have_count(0)
+    expect(host.locator('[data-screen="call"]')).to_be_visible()
+    assert host.evaluate(THE_LOCAL_TRACKS_THAT_ARE_LIVE) > 0
 
 
 def test_a_member_who_follows_a_call_link_from_another_site_lands_on_the_pre_join_without_the_sign_in(
