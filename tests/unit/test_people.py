@@ -31,8 +31,6 @@ from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.signed_in import handshake_headers, seed_member
 
-ARCHIVE_CONTENT_TYPE = "application/zip"
-ARCHIVE_DISPOSITION = 'attachment; filename="hopin-person-export.zip"'
 WITHHELD_KINDS = ["session_id", "refresh_token", "resume_token", "call_replay_frame"]
 ZERO_WITHHELD = [
     {"kind": kind, "count": 0, "reason": reason}
@@ -172,8 +170,8 @@ class TestExportOfAPerson:
 
         names, export = read_archive(answer.content)
         assert answer.status_code == 200
-        assert answer.headers["content-type"] == ARCHIVE_CONTENT_TYPE
-        assert answer.headers["content-disposition"] == ARCHIVE_DISPOSITION
+        assert answer.headers["content-type"] == "application/zip"
+        assert answer.headers["content-disposition"] == 'attachment; filename="hopin-person-export.zip"'
         assert names == ["export.json"]
         assert list(export) == ["people_export", "app", "subject", "exported_at", "data", "files", "withheld"]
         assert (export["people_export"], export["app"], export["subject"], export["files"]) == (1, "hopin", "anna", [])

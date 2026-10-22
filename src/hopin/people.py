@@ -56,6 +56,12 @@ class PersonData(BaseModel):
     seats: list[SeatEntry]
 
 
+class FileEntry(BaseModel):
+    path: str
+    kind: str
+    bytes: int
+
+
 class WithheldEntry(BaseModel):
     kind: WithheldKind
     count: int
@@ -68,7 +74,7 @@ class PersonExport(BaseModel):
     subject: str
     exported_at: datetime
     data: PersonData
-    files: list[str]
+    files: list[FileEntry]
     withheld: list[WithheldEntry]
 
 
