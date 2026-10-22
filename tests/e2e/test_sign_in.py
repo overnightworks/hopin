@@ -9,16 +9,23 @@ from webauth.dependencies import admit_session, session_id_from_request
 from webauth.ports import AuthenticatedUser
 
 from tests.e2e.conftest import (
+    COUNT_SOCKETS,
     DESKTOP,
     ICE_SERVERS_URL_PATTERN,
+    LIVE_TRACK_COUNT,
+    OTHER_TILE,
     PHONE,
     PREJOIN_START,
+    RECORD_MEDIA_TRACKS,
     RECORD_PEER_CONNECTIONS,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     RunningServer,
+    add_init_scripts,
     join,
+    join_by_link,
     open_host,
     open_prejoin,
+    poll_until,
     record_page_errors,
     share_the_screen,
     start_call,
@@ -202,6 +209,65 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     assert ice_servers.value.status == 401
     expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=f"{e2e_server.base_url}/", next_path="%2F")
     assert not any("Could not load ICE servers" in status for status in statuses)
+
+
+# The issuer's error page has no media devices.
+RECORD_THE_MEDIA_WHERE_THERE_IS_ANY = f"if (navigator.mediaDevices) {{ {RECORD_MEDIA_TRACKS} }}"
+# beforeunload runs once the page starts to leave, after its own teardown and before any request goes out.
+NOTE_THE_STATE_WHEN_THE_PAGE_LEAVES = f"""
+window.addEventListener("beforeunload", () => window.noteTheLeaving({{
+    liveTracks: ({LIVE_TRACK_COUNT})(),
+    peerStates: window.recordedConnections.map((connection) => connection.signalingState),
+    socketsOpened: window.socketsOpened,
+}}));
+"""
+# Playwright waits for the navigation that a click starts, and this click is the last thing the test does.
+THE_LOCAL_TRACKS_THAT_ARE_LIVE = (
+    "() => document.getElementById('localVideo').srcObject.getTracks().filter((t) => t.readyState === 'live').length"
+)
+CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS = "() => { setTimeout(() => document.getElementById('muteBtn').click()); }"
+
+
+@FORM_FACTORS
+def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_sign_in(
+    open_person: Callable[..., Page],
+    member_of: Callable[[Page], SeededMember],
+    e2e_server: RunningServer,
+    form_factor: dict[str, Any],
+    page_errors: list[str],
+) -> None:
+    host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, form_factor)
+    guest = open_person(**form_factor)
+    leavings: list[dict[str, Any]] = []
+    guest.expose_function("noteTheLeaving", lambda state: leavings.append(state))
+    guest = record_page_errors(guest, page_errors)
+    add_init_scripts(
+        guest,
+        (
+            RECORD_THE_MEDIA_WHERE_THERE_IS_ANY,
+            RECORD_PEER_CONNECTIONS,
+            COUNT_SOCKETS,
+            NOTE_THE_STATE_WHEN_THE_PAGE_LEAVES,
+        ),
+    )
+    join_by_link(guest, invite_link)
+    wait_for_peer_count(host, 1)
+    wait_for_peer_count(guest, 1)
+    documents = record_document_requests(guest)
+    sockets_opened_after_the_session_ended: list[Any] = []
+    guest.on("websocket", lambda socket: sockets_opened_after_the_session_ended.append(socket))
+    e2e_server.stores.sessions.delete(member_of(guest).session.id)
+
+    guest.evaluate(CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS)
+
+    poll_until(guest, lambda: len(documents), lambda seen: seen == 3, "the page went through the sign-in")
+    room_path = urlsplit(invite_link).path
+    expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=invite_link, next_path=room_path.replace("/", "%2F"))
+    assert leavings == [{"liveTracks": 0, "peerStates": ["closed"], "socketsOpened": 1}]
+    assert sockets_opened_after_the_session_ended == []
+    expect(host.locator(OTHER_TILE)).to_have_count(0)
+    expect(host.locator('[data-screen="call"]')).to_be_visible()
+    assert host.evaluate(THE_LOCAL_TRACKS_THAT_ARE_LIVE) > 0
 
 
 def test_a_member_who_follows_a_call_link_from_another_site_lands_on_the_pre_join_without_the_sign_in(
