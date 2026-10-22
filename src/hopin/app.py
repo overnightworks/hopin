@@ -35,6 +35,7 @@ from hopin.config.constants import (
     DEFAULT_RATE_LIMIT_BUDGET,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
     NO_CACHE_PATH_RULES,
+    PEOPLE_PATH_RULES,
     PERMISSIONS_POLICY,
     RATE_LIMIT_EXEMPT_PATH_RULES,
     SESSION_SWEEP_SECONDS,
@@ -46,6 +47,7 @@ from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Scheduler, TimerHandle
 from hopin.web.ice_servers import create_ice_servers_router
+from hopin.web.people import create_people_router
 from hopin.web.routes import create_router
 
 if TYPE_CHECKING:
@@ -136,6 +138,7 @@ def create_app(
     app.include_router(create_router(signaling_handler, room_manager))
     app.include_router(create_ice_servers_router(settings.stun_server))
     app.include_router(create_account_router())
+    app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     app.include_router(
@@ -158,6 +161,7 @@ def create_app(
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
                 CacheControlRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, value="no-store"),
+                CacheControlRule(paths=PEOPLE_PATH_RULES, value="no-store"),
                 CacheControlRule(paths=NO_CACHE_PATH_RULES, value="no-cache"),
             ),
         ),

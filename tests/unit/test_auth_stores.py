@@ -6,7 +6,15 @@ import structlog.testing
 from pydantic import SecretStr
 from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 
-from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock, SignInStores
+from hopin.auth.stores import (
+    InMemoryAccounts,
+    InMemorySessions,
+    LoggingAuditSink,
+    PersonRecords,
+    ProcessWriteLock,
+    SessionTimes,
+    SignInStores,
+)
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
@@ -178,6 +186,41 @@ class TestRefreshToken:
         created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(value))
         shown = repr(created) + repr(sessions.load(created.id)) + repr(sessions) + repr(vars(sessions))
         assert value not in shown
+
+
+class TestPersonRecords:
+    def test_answers_the_subjects_account_and_session_times_oldest_first_without_an_id_or_a_token(
+        self, accounts, sessions
+    ):
+        anna = accounts.create_for_subject("anna", "anna-name", "user")
+        ben = accounts.create_for_subject("ben", "ben-name", "user")
+        newest = sessions.create(anna.id, now=NOW, expires_at=LATER, refresh_token=None)
+        oldest = sessions.create(
+            anna.id,
+            now=NOW - timedelta(hours=1),
+            expires_at=LATER,
+            refresh_token=SecretStr(secrets.token_urlsafe()),
+        )
+        sessions.create(ben.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(secrets.token_urlsafe()))
+
+        records = sessions.person_records("anna")
+
+        assert records.account == anna
+        assert records.sessions == (
+            SessionTimes(NOW - timedelta(hours=1), LATER, holds_refresh_token=True),
+            SessionTimes(NOW, LATER, holds_refresh_token=False),
+        )
+        assert {oldest.id, newest.id}.isdisjoint(vars(records.sessions[0]).values())
+        assert not {"id", "refresh_token"} & set(vars(records.sessions[0]))
+
+    def test_answers_the_account_alone_when_it_has_no_session_and_nothing_for_an_unknown_subject(
+        self, accounts, sessions
+    ):
+        accounts.create_for_subject("anna", "anna-name", "user")
+
+        assert sessions.person_records("anna").sessions == ()
+        assert sessions.person_records("ghost") == PersonRecords(account=None, sessions=())
+        assert accounts.get("ghost") is None
 
 
 def test_write_lock_can_be_held_twice_one_after_the_other():

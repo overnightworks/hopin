@@ -14,6 +14,8 @@ HEALTH_PATH = "/health"
 STATIC_PATH = "/static"
 ICE_SERVERS_PATH = "/api/ice-servers"
 ACCOUNT_PATH = "/api/account"
+PEOPLE_PATH = "/api/admin/people"
+PERSON_EXPORT_PATH = f"{PEOPLE_PATH}/{{subject}}/export"
 AUTH_START_PATH = "/auth/start"
 AUTH_CALLBACK_PATH = "/auth/callback"
 LOGIN_PATH = "/login"
@@ -30,6 +32,8 @@ SIGN_IN_PATH_RULES = PathRules(exact=frozenset({AUTH_START_PATH, AUTH_CALLBACK_P
 # Keycloak posts from shared server addresses and the health check is the edge's readiness probe.
 RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PATH, HEALTH_PATH}))
 
+PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
+
 NO_CACHE_PATH_RULES = PathRules(
     exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, AUTH_CALLBACK_PATH}),
     prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
@@ -39,6 +43,9 @@ PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), 
 
 OIDC_CLIENT_ID = "hopin"
 LOGIN_GROUP = "/apps/hopin"
+ADMIN_GROUP = f"{LOGIN_GROUP}/admin"
+PEOPLE_EXPORT_VERSION = 1
+EXPORT_APP_NAME = "hopin"
 RETURN_TO_QUERY_PARAMETER = "next"
 OIDC_SCOPES = ("openid", "profile", "groups")
 OIDC_LEEWAY_SECONDS = 30
