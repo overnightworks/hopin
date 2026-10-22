@@ -1,4 +1,5 @@
 import secrets
+import threading
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -14,6 +15,7 @@ from hopin.auth.stores import (
     ProcessWriteLock,
     SessionTimes,
     SignInStores,
+    StoredAccount,
 )
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
@@ -27,7 +29,7 @@ def accounts() -> InMemoryAccounts:
 
 @pytest.fixture
 def sessions(accounts: InMemoryAccounts) -> InMemorySessions:
-    return InMemorySessions(accounts)
+    return InMemorySessions(accounts, threading.Lock())
 
 
 def test_stores_satisfy_the_webauth_ports(accounts, sessions):
@@ -111,6 +113,85 @@ class TestSessionRenewalAndEnd:
         assert sessions.delete_for_user(first.id) == 2
         assert [sessions.load(session.id) for session in ended] == [None, None]
         assert sessions.load(others.id) is not None
+        assert (accounts.get(first.id), accounts.get(second.id)) == (None, second)
+
+    def test_delete_for_user_removes_the_account_also_when_no_session_was_left(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        assert sessions.delete_for_user(user.id) == 0
+        assert accounts.get(user.id) is None
+
+    def test_delete_for_user_of_an_unknown_subject_answers_zero_and_changes_nothing(self, accounts, sessions):
+        other = accounts.create_for_subject("other", "name", "user")
+        assert sessions.delete_for_user("ghost") == 0
+        assert accounts.get(other.id) == other
+
+
+class GuardProbingAccounts(InMemoryAccounts):
+    """Before an account read answers, tries to run an erasure on a thread that has the sessions guard to itself.
+
+    The erasure only gets through when the read runs outside the guard; the probe then reports it.
+    """
+
+    def __init__(self, guard: threading.Lock) -> None:
+        super().__init__()
+        self._sessions_guard = guard
+        self.sessions: InMemorySessions | None = None
+        self.victim: str | None = None
+        self.read_ran_outside_the_guard = False
+
+    def existing(self, user_id: str) -> StoredAccount:
+        if self._sessions_guard.acquire(blocking=False):
+            self._sessions_guard.release()
+            self.read_ran_outside_the_guard = True
+            assert self.sessions is not None
+            assert self.victim is not None
+            self.sessions.delete_for_user(self.victim)
+        return super().existing(user_id)
+
+
+class TestRemovalAgainstJoins:
+    @pytest.fixture
+    def probed(self):
+        guard = threading.Lock()
+        accounts = GuardProbingAccounts(guard)
+        sessions = InMemorySessions(accounts, guard)
+        accounts.sessions = sessions
+        accounts.victim = "anna"
+        accounts.create_for_subject("anna", "anna", "user")
+        return accounts, sessions
+
+    def test_load_joins_the_account_inside_the_guard_so_an_erasure_never_meets_a_half_joined_row(self, probed):
+        accounts, sessions = probed
+        session = sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"))
+        accounts.read_ran_outside_the_guard = False
+
+        loaded = sessions.load(session.id)
+        sessions.delete_for_user("anna")
+
+        assert loaded == session
+        assert not accounts.read_ran_outside_the_guard
+        assert sessions.load(session.id) is None
+        assert accounts.get("anna") is None
+
+    def test_create_checks_the_account_inside_the_guard_so_no_session_outlives_it(self, probed):
+        accounts, sessions = probed
+
+        session = sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"))
+        assert not accounts.read_ran_outside_the_guard
+        assert sessions.load(session.id) == session
+        assert sessions.delete_for_user("anna") == 1
+
+        assert sessions.load(session.id) is None
+        assert accounts.get("anna") is None
+
+    def test_create_for_a_removed_account_raises_and_stores_no_session(self, accounts, sessions):
+        accounts.create_for_subject("anna", "anna", "user")
+        sessions.delete_for_user("anna")
+
+        with pytest.raises(KeyError):
+            sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"))
+
+        assert sessions.person_records("anna").sessions == ()
 
     @pytest.mark.parametrize(("keep_newest", "kept_ages"), [(1, [2]), (0, [])])
     def test_prune_overflow_keeps_the_newest_by_created_at(self, accounts, sessions, keep_newest, kept_ages):
