@@ -295,6 +295,7 @@ class TestRelay:
             await deliver(handler, "p1", {"type": SignalType.OFFER.value, "target": sentinel, "sdp": "x"})
 
         [refusal] = [log for log in logs if log["event"] == "relay_outside_room"]
+        assert set(refusal) == {"event", "peer_id", "log_level"}
         assert refusal["peer_id"] == "p1"
         assert sentinel not in repr(logs)
         captured = capsys.readouterr()
