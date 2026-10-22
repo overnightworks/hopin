@@ -188,8 +188,9 @@ class TestRemovalAgainstJoins:
         accounts.create_for_subject("anna", "anna", "user")
         sessions.delete_for_user("anna")
 
+        refresh_token = SecretStr("refresh")
         with pytest.raises(KeyError):
-            sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"))
+            sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=refresh_token)
 
         assert sessions.person_records("anna").sessions == ()
 

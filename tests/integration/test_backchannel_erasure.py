@@ -153,7 +153,7 @@ class TestSeatsOfAnErasedPerson:
         self, sockets, erase
     ):
         host, guest, _ = a_call_with_a_guest(sockets, "ben", "anna")
-        assert erase("anna").status_code == 200
+        assert erase("anna").is_success
 
         chat(guest, "after the erasure")
 
