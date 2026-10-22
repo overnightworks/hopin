@@ -138,6 +138,13 @@ class GuardProbingAccounts(InMemoryAccounts):
         self.sessions: InMemorySessions | None = None
         self.victim: str | None = None
         self.read_ran_outside_the_guard = False
+        self.removal_ran_outside_the_guard = False
+
+    def remove(self, user_id: str) -> None:
+        if self._sessions_guard.acquire(blocking=False):
+            self._sessions_guard.release()
+            self.removal_ran_outside_the_guard = True
+        super().remove(user_id)
 
     def existing(self, user_id: str) -> StoredAccount:
         if self._sessions_guard.acquire(blocking=False):
@@ -183,6 +190,14 @@ class TestRemovalAgainstJoins:
 
         assert sessions.load(session.id) is None
         assert accounts.get("anna") is None
+
+    def test_delete_for_user_removes_the_account_inside_the_guard(self, probed):
+        accounts, sessions = probed
+
+        sessions.delete_for_user("anna")
+
+        assert accounts.get("anna") is None
+        assert not accounts.removal_ran_outside_the_guard
 
     def test_create_for_a_removed_account_raises_and_stores_no_session(self, accounts, sessions):
         accounts.create_for_subject("anna", "anna", "user")

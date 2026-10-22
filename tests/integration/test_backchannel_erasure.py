@@ -189,6 +189,8 @@ class TestSeatsOfAnErasedPerson:
         closed = guest.receive_json()
         assert closed["type"] == SignalType.ROOM_CLOSED.value
         assert closed["reason"] == RoomClosedReason.HOST_GONE.value
+        with pytest.raises(WebSocketDisconnect):
+            guest.receive_json()
         ben_cookies = {"cookie": cookie_header(members("ben").set_cookie_headers)}
         assert client.get(f"{CALL_PATH}/{room_id}", headers=ben_cookies).status_code == NOT_FOUND
 
