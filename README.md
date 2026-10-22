@@ -69,7 +69,7 @@ HopIn refuses to start without the four required settings, or when a secret file
 | `make test-all` | unit and integration tests |
 | `make e2e` | browser end-to-end tests |
 
-[AGENTS.md](AGENTS.md) holds the stack, the remaining commands, the tests and CI.
+[AGENTS.md](AGENTS.md) is guidance for coding agents.
 
 ## Documentation
 
