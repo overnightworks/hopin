@@ -402,7 +402,7 @@ class SignalingHandler:
             raise InvalidMessageError("target must be a string")
         sender_room = self._peer_rooms.get(peer_id)
         if sender_room is None or self._peer_rooms.get(target_id) != sender_room:
-            await logger.ainfo("relay_outside_room", peer_id=peer_id, target=target_id)
+            await logger.ainfo("relay_outside_room", peer_id=peer_id)
             return
         await self._send(
             target_id,

@@ -114,7 +114,7 @@ One container, built from `Dockerfile` and run by `compose.yaml` behind the edge
 
 **Persistence.** None. What HopIn holds about a person, and what an admin may download, is in the README under A Person's Data.
 
-**Logging.** structlog lines carry peer ids, room ids, event kinds, causes and reasons, close codes and exceptions without local variables; the `account_event` line carries the person's Keycloak id and role. No event has a field for chat text, tokens or secrets, but two fields carry what a browser sent: a refused relay's `target`, verbatim up to the frame cap (`signaling/handler.py`, `relay_outside_room`; #79 finding 27 owns it), and the identity provider's error code from the sign-in callback, which webauth keeps only as a short code-shaped token (`auth/sign_in.py`, `sign_in_refused`). Whatever a client puts into those two fields reaches the log.
+**Logging.** structlog lines carry peer ids, room ids, event kinds, causes and reasons, close codes and exceptions without local variables; the `account_event` line carries the person's Keycloak id and role. No event has a field for chat text, tokens or secrets, but one field carries what a browser sent: the identity provider's error code from the sign-in callback, which webauth keeps only as a short code-shaped token (`auth/sign_in.py`, `sign_in_refused`). Whatever a client puts into that field reaches the log.
 
 ### Trust
 
