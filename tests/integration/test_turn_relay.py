@@ -111,9 +111,10 @@ def write_file_state(path: Path, state) -> None:
         path.write_bytes(state)
 
 
-def refusal_of(settings, transport: FakeTransport | None = None) -> StartRefusedError:
+def refusal_of(settings) -> StartRefusedError:
+    transport = FakeTransport()
     with pytest.raises(StartRefusedError) as refusal:
-        create_app(settings, turn_transport=transport or FakeTransport())
+        create_app(settings, turn_transport=transport)
     return refusal.value
 
 
