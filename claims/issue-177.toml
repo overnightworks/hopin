@@ -1,0 +1,8 @@
+claim_id = "4639f585a94249bd83c1ae79151fc01a"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "d3d42768676c1380dd2fff3021f980f1ce86db24"
+branch = "claude/issue-177-keycloak-s-back-channel-logout-also-remo"
+scope = ["README.md", "src/hopin/auth/stores.py", "tests/integration/test_backchannel_erasure.py", "tests/unit/test_auth_stores.py", "tests/unit/test_sign_in_routes.py"]
+opened_commit = "6866d18d3eb63309a58b0c0c47f7cd5f5a520275"
+whole_reason = "The account removal, the lock order that keeps every join consistent with it, and the README's erasure paragraph are one change."
