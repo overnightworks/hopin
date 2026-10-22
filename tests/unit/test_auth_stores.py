@@ -67,6 +67,18 @@ class TestSessionCreation:
         assert sessions.load(expiring_now.id) is not None
 
 
+class TestExpiredSessionSweep:
+    def test_delete_expired_removes_only_sessions_expired_before_now_and_answers_the_count(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        created_at = NOW - timedelta(hours=13)
+        expired = sessions.create(user.id, now=created_at, expires_at=NOW - timedelta(hours=1), refresh_token=None)
+        expiring_now = sessions.create(user.id, now=created_at, expires_at=NOW, refresh_token=None)
+        live = sessions.create(user.id, now=created_at, expires_at=LATER, refresh_token=None)
+        assert sessions.delete_expired(NOW) == 1
+        survivors = [sessions.load(session.id) is not None for session in (expired, expiring_now, live)]
+        assert survivors == [False, True, True]
+
+
 class TestSessionRenewalAndEnd:
     def test_touch_of_an_unknown_id_answers_false_and_creates_nothing(self, sessions):
         assert sessions.touch("unknown", expires_at=LATER) is False

@@ -92,3 +92,20 @@ def test_retired_addresses_answer_not_found(open_person: Callable[..., Page], ba
 
     assert response is not None
     assert response.status == 404
+
+
+@pytest.mark.parametrize("path", ["/", "/login"])
+def test_page_declares_an_icon_that_loads_and_never_asks_for_favicon_ico(
+    open_person: Callable[..., Page], base_url: str, path: str
+) -> None:
+    page = open_person(signed_in=path == "/", **DESKTOP)
+    requested: list[str] = []
+    page.on("request", lambda request: requested.append(request.url))
+
+    page.goto(f"{base_url}{path}", wait_until="networkidle")
+    icon_url = page.locator("link[rel=icon]").evaluate("link => link.href")
+    # Headless Chromium never fetches a tab icon, so the declared address is fetched as the browser would.
+    icon = page.request.get(icon_url)
+
+    assert (icon.status, icon.headers["content-type"]) == (200, "image/svg+xml")
+    assert f"{base_url}/favicon.ico" not in requested

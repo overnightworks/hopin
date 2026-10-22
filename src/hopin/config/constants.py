@@ -30,6 +30,11 @@ SIGN_IN_PATH_RULES = PathRules(exact=frozenset({AUTH_START_PATH, AUTH_CALLBACK_P
 # Keycloak posts from shared server addresses and the health check is the edge's readiness probe.
 RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PATH, HEALTH_PATH}))
 
+NO_CACHE_PATH_RULES = PathRules(
+    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, AUTH_CALLBACK_PATH}),
+    prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
+)
+
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
 
 OIDC_CLIENT_ID = "hopin"
@@ -38,6 +43,7 @@ RETURN_TO_QUERY_PARAMETER = "next"
 OIDC_SCOPES = ("openid", "profile", "groups")
 OIDC_LEEWAY_SECONDS = 30
 SESSION_LIFETIME_SECONDS = 12 * 60 * 60
+SESSION_SWEEP_SECONDS = 10 * 60
 
 STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
 
