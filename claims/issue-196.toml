@@ -1,0 +1,8 @@
+claim_id = "4e654baa01bb4785bac3c757070bf05a"
+agent = "claude"
+role = "builder"
+base = "9066e660c798c6744f79479ee51a213e6ae4a828"
+branch = "claude/issue-196-hopin-on-webauth-0-21-0-the-export-s-adm"
+scope = ["pyproject.toml", "src/hopin/people.py", "tests/unit/test_people.py", "uv.lock"]
+opened_commit = "9bca24973a397b32471e86eacd1c873f1d04e82e"
+whole_reason = "The pin, the lock and the one call site change together: the new import exists only in 0.21.0."
