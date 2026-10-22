@@ -98,7 +98,12 @@ jobs:
       - name: Install Chromium again
         if: steps.install-chromium.outcome == 'failure'
         timeout-minutes: 6
-        run: playwright install --with-deps chromium
+        run: |
+          # The timed-out attempt leaves its apt-get running and holding the dpkg lock.
+          sudo pkill -x apt-get || true
+          sudo pkill -x apt || true
+          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+          playwright install --with-deps chromium
 
       - name: Run the end-to-end tests
         timeout-minutes: 10
