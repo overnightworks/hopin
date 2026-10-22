@@ -320,7 +320,7 @@ class TestWhoMayExport:
         )
 
         assert answer.status_code in {404, 405}
-        assert (stores.accounts.get("anna"), stores.sessions.person_records("anna")) == before
+        assert before == (stores.accounts.get("anna"), stores.sessions.person_records("anna"))
         assert len(before[1].sessions) == 2
 
 
