@@ -9,7 +9,15 @@ from fastapi.testclient import TestClient
 
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError, build_sign_in_configs
-from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, BACKCHANNEL_LOGOUT_PATH, HEALTH_PATH, LOGIN_PATH
+from hopin.config.constants import (
+    ACCOUNT_PATH,
+    AUTH_CALLBACK_PATH,
+    AUTH_START_PATH,
+    BACKCHANNEL_LOGOUT_PATH,
+    HEALTH_PATH,
+    LOGIN_PATH,
+    NO_ACCESS_PATH,
+)
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -75,7 +83,11 @@ class Deployment:
         query = self.issuer.authorize(
             start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna"
         )
-        return browser.get(f"{AUTH_CALLBACK_PATH}?{query}").status_code
+        callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+        assert callback.headers["location"] != NO_ACCESS_PATH
+        account = browser.get(ACCOUNT_PATH)
+        assert (account.status_code, account.json()) == (HTTPStatus.OK, {"name": "anna"})
+        return callback.status_code
 
     def post_malformed_logout_token(self, browser: TestClient, path: str = BACKCHANNEL_LOGOUT_PATH) -> int:
         return browser.post(path, content="logout_token=not-a-token", headers=FORM_POST).status_code
@@ -182,7 +194,9 @@ class TestExemptions:
 class TestDefaultBudget:
     def test_the_601st_request_in_a_minute_is_refused_and_the_next_minute_is_open(self, exhausted_default):
         browser = exhausted_default.client()
-        assert browser.get(LOGIN_PATH).status_code == HTTPStatus.TOO_MANY_REQUESTS
+        refused = browser.get(LOGIN_PATH)
+        assert refused.status_code == HTTPStatus.TOO_MANY_REQUESTS
+        assert refused.headers["retry-after"] == str(DEFAULT_WINDOW_SECONDS)
 
         exhausted_default.clock.advance(DEFAULT_WINDOW_SECONDS)
         assert browser.get(LOGIN_PATH).status_code == HTTPStatus.OK
