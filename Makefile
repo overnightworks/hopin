@@ -4,12 +4,12 @@ install:
 	uv sync --all-extras
 
 lint:
-	uv run ruff check src tests scripts
+	uv run ruff check .
 	uv run ruff format --check src tests scripts
 	uv run mypy src scripts
 
 format:
-	uv run ruff check --fix src tests scripts
+	uv run ruff check --fix .
 	uv run ruff format src tests scripts
 
 test:
