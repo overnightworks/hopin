@@ -4,11 +4,11 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from webauth.config import web_auth_config
-from webauth.middleware import admitted_user
+from webauth.middleware import admitted_admin
 
 from hopin.config.constants import EXPORT_APP_NAME, PEOPLE_EXPORT_VERSION, PERSON_EXPORT_PATH
 from hopin.web.routes import READ_METHODS
@@ -117,12 +117,9 @@ def zip_of(export: PersonExport) -> bytes:
 def create_people_router(sessions: InMemorySessions, signaling_handler: SignalingHandler) -> APIRouter:
     router = APIRouter()
 
-    @router.api_route(PERSON_EXPORT_PATH, methods=READ_METHODS)
+    @router.api_route(PERSON_EXPORT_PATH, methods=READ_METHODS, dependencies=[Depends(admitted_admin)])
     async def export_person(request: Request, subject: str) -> Response:
-        requester = admitted_user(request)
         config = web_auth_config(request)
-        if requester is None or requester.role != config.admin_role:
-            raise HTTPException(403)
         # The session store takes a threading lock, so it is read in a worker; the handler's seats are
         # read here on the event loop, where no signaling coroutine can change them meanwhile.
         records = await run_in_threadpool(sessions.person_records, subject)
