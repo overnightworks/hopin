@@ -268,22 +268,35 @@ class TestSuspendedEnding:
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
         assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
 
-    async def test_frame_admitted_after_a_tick_ended_the_connection_is_not_handled(
-        self, link, scheduler, resolver, held_log
+    @pytest.mark.parametrize(
+        ("tick_check", "close_code"),
+        [("refuses", SESSION_ENDED_CLOSE_CODE), ("raises", SERVER_ERROR_CLOSE_CODE)],
+    )
+    async def test_frame_admitted_after_a_tick_ended_the_connection_is_not_handled_and_the_socket_gets_the_tick_close(
+        self, link, scheduler, resolver, held_log, tick_check, close_code
     ):
         host, guest = await host_and_guest(link)
         resolver.held_admitted.add(guest.socket)
         guest.socket.push(text_frame({"type": SignalType.CHAT.value, "message": "late"}, seq=1))
         await asyncio.wait_for(resolver.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
-        guest.socket.account = None
+        if tick_check == "refuses":
+            guest.socket.account = None
+        else:
+            resolver.failing[guest.socket] = RuntimeError("store unavailable")
         ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
         await asyncio.wait_for(held_log.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
 
         resolver.release.set()
-        await asyncio.wait_for(link.tasks[guest.socket], timeout=HELD_TIMEOUT_SECONDS)
         held_log.release.set()
-        await ticking
+        if tick_check == "raises":
+            with pytest.raises(RuntimeError, match="store unavailable"):
+                await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
+        else:
+            await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
 
+        assert guest.socket.closed_with == close_code
+        guest.socket.push(disconnect_frame(close_code))
+        await asyncio.wait_for(link.tasks[guest.socket], timeout=HELD_TIMEOUT_SECONDS)
         assert host.frames(SignalType.CHAT) == []
 
 

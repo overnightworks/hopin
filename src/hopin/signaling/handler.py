@@ -157,9 +157,10 @@ class SignalingHandler:
                 return
             text = frame.get("text")
             if text is not None:
-                if not await self._session_admits(connection) or not self._serves_seat(connection):
+                if not await self._session_admits(connection):
                     return
-                await self._handle_message(connection, text)
+                if self._serves_seat(connection):
+                    await self._handle_message(connection, text)
 
     def _schedule_recheck(self, connection: Connection) -> TimerHandle:
         return self._scheduler.call_later(SESSION_RECHECK_SECONDS, partial(self._recheck_on_tick, connection))
