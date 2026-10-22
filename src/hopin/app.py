@@ -49,9 +49,12 @@ from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Scheduler, TimerHandle
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.routes import create_router
+from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_turn_relay
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
+
+    from webauth.oidc import OidcClientConfig
 
     from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
@@ -117,50 +120,12 @@ def _configure_logging() -> None:
     )
 
 
-def create_app(
-    settings: ServerSettings,
-    *,
-    issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
-    stores: SignInStores | None = None,
-    scheduler: Scheduler | None = None,
-) -> FastAPI:
-    sign_in_configs = build_sign_in_configs(settings)
-
-    _configure_logging()
-
-    sign_in_stores = stores if stores is not None else SignInStores.in_memory()
-    room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
-    timers = scheduler if scheduler is not None else AsyncioScheduler()
-    signaling_handler = SignalingHandler(room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers)
-
-    app = FastAPI(
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
-        lifespan=_session_sweep_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers),
-    )
-    app.include_router(create_router(signaling_handler, room_manager))
-    app.include_router(create_ice_servers_router(settings.stun_server))
-    app.include_router(create_account_router())
-    app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
-    app.state.settings = settings
-    install_web_auth_config(app, sign_in_configs.web_auth)
-    app.include_router(
-        create_sign_in_router(
-            sign_in_configs.oidc_client,
-            sign_in_configs.web_auth,
-            issuer_transports,
-            accounts=sign_in_stores.accounts,
-            sessions=sign_in_stores.sessions,
-            lock=sign_in_stores.lock,
-            audit=sign_in_stores.audit,
-        )
-    )
+def _install_web_auth(app: FastAPI, oidc_client: OidcClientConfig, sessions: InMemorySessions) -> None:
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(
-                added_sources={CspDirective.FORM_ACTION: [end_session_origin(sign_in_configs.oidc_client)]}
+                added_sources={CspDirective.FORM_ACTION: [end_session_origin(oidc_client)]}
             ),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
@@ -179,7 +144,51 @@ def create_app(
             rules=(RateLimitRule(paths=SIGN_IN_PATH_RULES, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
             exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
-        session_gate=session_gate(sign_in_stores.sessions),
+        session_gate=session_gate(sessions),
     )
+
+
+def create_app(
+    settings: ServerSettings,
+    *,
+    issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
+    stores: SignInStores | None = None,
+    scheduler: Scheduler | None = None,
+    turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
+) -> FastAPI:
+    sign_in_configs = build_sign_in_configs(settings)
+    turn_relay = build_turn_relay(settings, turn_transport)
+
+    _configure_logging()
+
+    sign_in_stores = stores if stores is not None else SignInStores.in_memory()
+    room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
+    timers = scheduler if scheduler is not None else AsyncioScheduler()
+    signaling_handler = SignalingHandler(room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers)
+
+    app = FastAPI(
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=_session_sweep_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers),
+    )
+    app.include_router(create_router(signaling_handler, room_manager))
+    app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
+    app.include_router(create_account_router())
+    app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
+    app.state.settings = settings
+    install_web_auth_config(app, sign_in_configs.web_auth)
+    app.include_router(
+        create_sign_in_router(
+            sign_in_configs.oidc_client,
+            sign_in_configs.web_auth,
+            issuer_transports,
+            accounts=sign_in_stores.accounts,
+            sessions=sign_in_stores.sessions,
+            lock=sign_in_stores.lock,
+            audit=sign_in_stores.audit,
+        )
+    )
+    _install_web_auth(app, sign_in_configs.oidc_client, sign_in_stores.sessions)
 
     return app

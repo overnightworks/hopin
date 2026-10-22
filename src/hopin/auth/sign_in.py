@@ -8,7 +8,6 @@ import structlog
 from fastapi import APIRouter, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
-from pydantic import SecretStr
 from webauth.config import SessionLifetime, WebAuthConfig, web_auth_config
 from webauth.cookies import issue_session_cookies
 from webauth.https_client import fetch_key_set_over_https
@@ -43,11 +42,11 @@ from hopin.config.constants import (
     RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
 )
+from hopin.config.secret_files import StartRefusedError, read_secret_file
 from hopin.web.routes import READ_METHODS, STATIC_DIR
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
+    from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
     from webauth.ports import AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
 
@@ -61,7 +60,7 @@ NO_ACCESS_PAGE = STATIC_DIR / "no-access.html"
 logger = structlog.get_logger()
 
 
-class SignInConfigurationError(Exception):
+class SignInConfigurationError(StartRefusedError):
     """The sign-in settings cannot start HopIn; the message names settings, never their values."""
 
 
@@ -85,8 +84,8 @@ ISSUER_OVER_HTTPS = IssuerTransports(
 
 
 def build_sign_in_configs(settings: ServerSettings) -> SignInConfigs:
-    client_secret = _read_secret_file(settings.oidc_client_secret_file, "oidc_client_secret_file")
-    session_secret = _read_secret_file(settings.session_secret_file, "session_secret_file")
+    client_secret = read_secret_file(settings.oidc_client_secret_file, "oidc_client_secret_file")
+    session_secret = read_secret_file(settings.session_secret_file, "session_secret_file")
     try:
         oidc_client = _build_oidc_client(settings, client_secret)
     except ValueError as refusal:
@@ -104,16 +103,6 @@ def _parse_trusted_proxies(raw: str) -> TrustedProxies:
         return TrustedProxies.parse(raw)
     except ValueError:
         raise SignInConfigurationError("trusted_proxies is refused: name addresses or CIDR blocks") from None
-
-
-def _read_secret_file(path: Path, setting: str) -> SecretStr:
-    try:
-        content = path.read_bytes().decode("utf-8").removesuffix("\n")
-    except OSError, UnicodeDecodeError:
-        raise SignInConfigurationError(f"{setting} names a file that cannot be read") from None
-    if not content:
-        raise SignInConfigurationError(f"{setting} names an empty file") from None
-    return SecretStr(content)
 
 
 def _build_oidc_client(settings: ServerSettings, client_secret: SecretStr) -> OidcClientConfig:

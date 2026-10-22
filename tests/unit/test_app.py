@@ -14,7 +14,6 @@ from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
 
 from hopin.app import create_app
-from hopin.auth.sign_in import SignInConfigurationError
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ACCOUNT_PATH,
@@ -25,6 +24,7 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
+from hopin.config.secret_files import StartRefusedError
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.signed_in import cookie_header, seed_member
@@ -61,7 +61,7 @@ class TestCreateApp:
     def test_does_not_start_without_its_sign_in_files(self, sign_in_settings):
         settings = sign_in_settings().settings
         settings.session_secret_file.unlink()
-        with pytest.raises(SignInConfigurationError, match="session_secret_file"):
+        with pytest.raises(StartRefusedError, match="session_secret_file"):
             create_app(settings)
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
@@ -132,6 +132,13 @@ class TestCreateApp:
         settings = sign_in_settings(stun_server="stun:stun.example.test:3478").settings
         response = signed_in_client(settings).get("/api/ice-servers")
         assert response.json() == {"iceServers": [{"urls": ["stun:stun.example.test:3478"]}]}
+
+    def test_with_turn_off_it_serves_stun_only_and_reads_no_turn_file(self, sign_in_settings, tmp_path):
+        settings = sign_in_settings(
+            turn_key_id_file=tmp_path / "missing-key-id", turn_api_token_file=tmp_path / "missing-api-token"
+        ).settings
+        response = signed_in_client(settings).get("/api/ice-servers")
+        assert response.json() == {"iceServers": [{"urls": [settings.stun_server]}]}
 
     @pytest.mark.parametrize("path", ["/", "/static/css/ui-console.css", "/static/css/hopin.css", "/static/js/app.js"])
     def test_serves_the_page_and_its_assets(self, sign_in_settings, path):

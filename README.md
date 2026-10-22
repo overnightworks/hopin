@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![CI](https://github.com/overnightworks/hopin/actions/workflows/ci.yml/badge.svg)](https://github.com/overnightworks/hopin/actions/workflows/ci.yml)
 
-HopIn is a self-hosted video call service. A signed-in member starts a call and shares its link, and friends join in the browser with nothing to install. The server signs people in and relays the setup messages and chat between the members of a call, but never media: audio and video flow directly between the browsers.
+HopIn is a self-hosted video call service. A signed-in member starts a call and shares its link, and friends join in the browser with nothing to install. The server signs people in and relays the setup messages and chat between the members of a call, but never media: audio and video flow directly between the browsers, or through the TURN relay when it is switched on and a direct path fails, still encrypted between the browsers.
 
 Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a call runs and what it trusts: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -44,13 +44,16 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ## Configuration
 
-`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix. The client secret and the session signing key are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
+`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix. The client secret, the session signing key and the two TURN key files are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
 
 | Variable | Default | Description |
 |---|---|---|
 | `HOPIN_HOST` | `0.0.0.0` | Server bind address |
 | `HOPIN_PORT` | `8080` | Server port |
 | `HOPIN_STUN_SERVER` | `stun:stun.cloudflare.com:3478` | STUN server for NAT traversal, served to the browser at `/api/ice-servers` |
+| `HOPIN_TURN_PROVIDER` | `off` | `off` or `cloudflare`. With `cloudflare`, each call start asks the provider for a TURN credential that lives 12 hours and serves it with the STUN entry. Switching off (it takes a restart) stops new TURN credentials only: credentials already handed out stay valid at the provider until their 12 h end |
+| `HOPIN_TURN_KEY_ID_FILE` | unset | Absolute path of the file holding the TURN key's ID; required when TURN is on |
+| `HOPIN_TURN_API_TOKEN_FILE` | unset | Absolute path of the file holding the TURN key's API token; required when TURN is on |
 | `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call, from `2` to `6` |
 | `HOPIN_OIDC_ISSUER` | required | The Keycloak realm URL, https, without a trailing slash |
 | `HOPIN_OIDC_CLIENT_ID` | `hopin` | The Keycloak client HopIn signs in as |
@@ -59,7 +62,7 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 | `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits; empty trusts none, so every request counts against its direct peer |
 
-HopIn refuses to start without the four required settings, or when a secret file cannot be read, and says which setting is at fault, never what a file holds.
+HopIn refuses to start without the four required settings, when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Development
 
