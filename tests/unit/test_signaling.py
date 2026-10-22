@@ -1,5 +1,6 @@
 import asyncio
 import json
+import secrets
 
 import pytest
 import structlog
@@ -283,6 +284,22 @@ class TestRelay:
 
         for ws in (*sockets.values(), *other_sockets.values()):
             ws.send_text.assert_not_called()
+
+    async def test_refused_relay_logs_the_sender_and_never_the_target_the_browser_chose(
+        self, handler, room_manager, capsys
+    ):
+        seat_in_room(handler, room_manager, "p1", "p2")
+        sentinel = secrets.token_hex(16)
+
+        with structlog.testing.capture_logs() as logs:
+            await deliver(handler, "p1", {"type": SignalType.OFFER.value, "target": sentinel, "sdp": "x"})
+
+        [refusal] = [log for log in logs if log["event"] == "relay_outside_room"]
+        assert set(refusal) == {"event", "peer_id", "log_level"}
+        assert refusal["peer_id"] == "p1"
+        assert sentinel not in repr(logs)
+        captured = capsys.readouterr()
+        assert sentinel not in captured.out + captured.err
 
 
 class TestDisconnect:
