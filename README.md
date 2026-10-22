@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![CI](https://github.com/overnightworks/hopin/actions/workflows/ci.yml/badge.svg)](https://github.com/overnightworks/hopin/actions/workflows/ci.yml)
 
-Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. No accounts, no installs, and no third-party services except STUN through a configurable server (Cloudflare by default).
+Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. Only signed-in members of `/apps/hopin` use it, with no installs and no third-party services except STUN through a configurable server (Cloudflare by default).
 
 ## How It Works
 
@@ -33,7 +33,7 @@ The server only handles **signaling** (coordinating who connects to whom). The a
 - **Screen sharing** — switch between camera and screen mid-call
 - **Mute/unmute** audio and video independently
 - **Room locking** — host can lock/unlock the room to prevent new joins
-- **No accounts** — create a room, share the link, done
+- **Members only** — signed-in members of `/apps/hopin` create a room and share the link
 - **Self-hosted** — runs on your machine, your data stays with you
 - **Zero dependencies** in the browser — plain HTML/JS, no frameworks
 
@@ -62,36 +62,13 @@ Once they are set, the server starts on `http://localhost:8080`.
 
 ### Run in a Container
 
-```bash
-docker compose up -d --build
-```
+`compose.yaml` follows the app rules of [edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule): `edge.name: hopin`, no published host port, `restart: unless-stopped` and a healthcheck on `/health`. It answers on port 8080 inside its own network.
 
-The `hopin` service publishes no host port: it is reached through the edge reverse proxy by its
-`edge.name: hopin` label, and answers on port 8080 inside its network. Its healthcheck calls `/health`.
+- It sets the issuer, the public origin, the paths of the two secret files and `HOPIN_TRUSTED_PROXIES`; the values are `compose.yaml`'s.
+- It mounts `~/.secrets/keycloak/clients/hopin` and `~/.secrets/hopin/session-secret` read-only, each 0644 inside its 0700 directory so the container's user can read it. Their values never enter the environment.
+- It pins its own network and names it for Traefik. `HOPIN_TRUSTED_PROXIES` lists that network's gateway and the loopback hop of edge's Traefik, so the rate limits key on the person's address.
 
-The container needs the four required settings and the two secret files mounted read-only. `compose.yaml` does not carry them yet (go-live, #25 row 5), so the service refuses to start until it does.
-
-### Sharing Over the Internet
-
-Your PC is behind a router, so friends can't reach `localhost` directly. Options:
-
-**Option 1: Tunnel (easiest, no router config)**
-
-```bash
-# Using ngrok
-ngrok http 8080
-
-# Using Cloudflare Tunnel
-cloudflared tunnel --url http://localhost:8080
-```
-
-This gives you a public URL like `https://abc123.ngrok.io` that you share instead.
-
-**Option 2: Port forwarding**
-
-1. Forward port `8080` in your router settings to your PC's local IP
-2. Use a free dynamic DNS service (e.g. [DuckDNS](https://www.duckdns.org/)) for a stable URL
-3. Share `http://your-domain.duckdns.org:8080/`
+Edge's `hal` commands are documented in [edge's README](https://github.com/overnightworks/edge#the-commands).
 
 ## Room Security
 
