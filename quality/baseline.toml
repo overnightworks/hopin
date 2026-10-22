@@ -1,0 +1,18 @@
+# Measured by `quality baseline write`. Entries only ever go down.
+
+[ccn."tests/unit/test_web.py"]
+"PageInventory._inspect" = 21
+
+[file_lines]
+"tests/e2e/test_media.py" = 813
+"tests/e2e/test_mesh.py" = 1008
+"tests/unit/test_signaling_resume.py" = 807
+
+[function_lines."src/hopin/app.py"]
+"create_app" = 71
+
+[function_lines."src/hopin/auth/sign_in.py"]
+"create_sign_in_router" = 90
+
+[function_lines."src/hopin/signaling/handler.py"]
+"SignalingHandler._handle_message" = 61
