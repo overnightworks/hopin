@@ -1,0 +1,7 @@
+claim_id = "0e686e69a8c349b5b74d925bcc3777f4"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "a5f79c3b070d64bcea13a5078d7eba322fdad067"
+branch = "fix/ci-runs-make-lint"
+scope = [".github/workflows/ci.yml"]
+opened_commit = "cc9310b5ea9a35396f030e5394fb81c90a3569ca"
