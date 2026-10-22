@@ -140,6 +140,50 @@ show_missing = true
 paths = ["src/hopin"]
 min_confidence = 80
 
+# --- Import contracts ---
+
+[tool.importlinter]
+root_packages = ["hopin"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "layers"
+name = "HopIn's packages depend downwards only"
+type = "layers"
+containers = ["hopin"]
+# Every top-level module of hopin stands in exactly one layer, so a new one is
+# placed by a decision rather than slipping in between. `main` starts the server
+# and `app` is the composition root: nothing imports `main`, and only `main`
+# imports `app`. Sign-in sits above the web routes it guards, the routes above
+# the signaling and room services they are handed, and `config` is the floor
+# every package reads.
+exhaustive = true
+layers = ["main", "app", "auth", "web", "signaling", "rooms", "errors", "config"]
+
+[[tool.importlinter.contracts]]
+id = "sign-in-knows-no-call"
+name = "Sign-in names no room and no signaling"
+type = "forbidden"
+# The layer order lets auth reach the call services below web; sign-in has no
+# reason to. A session's end reaches a call only through what app wires together.
+source_modules = ["hopin.auth"]
+forbidden_modules = ["hopin.rooms", "hopin.signaling"]
+# auth imports two values from hopin.web.routes, which names the handler and the
+# room manager for type checking only; only a direct import is the violation.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "rooms-are-plain-python"
+name = "Rooms name no web framework and no sign-in library"
+type = "forbidden"
+# Room and participant rules are pure logic, callable and testable without a
+# server, a socket or a session.
+source_modules = ["hopin.rooms"]
+forbidden_modules = ["fastapi", "starlette", "uvicorn", "websockets", "webauth"]
+# hopin.config.constants holds webauth's rate-limit values, so every package
+# reaches webauth through config; only a direct import is the violation.
+allow_indirect_imports = true
+
 [dependency-groups]
 dev = [
     "cryptography>=50.0.2",
