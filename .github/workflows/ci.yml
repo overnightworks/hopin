@@ -39,8 +39,12 @@ jobs:
           uv sync --locked --no-install-project --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
+      # The Makefile owns what lint means. UV_NO_SYNC keeps its `uv run` calls
+      # on the environment installed above instead of installing the project.
       - name: Lint
-        run: ruff check .
+        env:
+          UV_NO_SYNC: "1"
+        run: make lint
 
       - name: Check the repository root layout
         run: python scripts/check_root_layout.py
