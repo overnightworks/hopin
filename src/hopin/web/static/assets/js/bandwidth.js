@@ -9,7 +9,7 @@ export function videoTransceivers(connection) {
 }
 
 function videoSenders(connection) {
-    return videoTransceivers(connection).map((transceiver) => transceiver.sender);
+    return videoTransceivers(connection).map((transceiver) => ({ sender: transceiver.sender, connection }));
 }
 
 const lastCapBySender = new WeakMap();
@@ -20,13 +20,14 @@ const CAP_ATTEMPTS = 3;
 // called") while caps overlapped a camera or screen track change; CI showed it in the
 // C9(c) camera-off case. So the cap is read and set again, up to CAP_ATTEMPTS. That is
 // an empirical retry budget, not a guaranteed bound: after the last attempt the error
-// is thrown. Other errors are thrown at once.
-async function setCap(sender, maxBitrate) {
+// is thrown. Other errors are thrown at once. A closed connection has nothing left to
+// cap (its peer left while this cap waited its turn, or this person is leaving), and
+// engines differ in what its senders still report, so its state decides, never the
+// parameters.
+async function setCap({ sender, connection }, maxBitrate) {
     for (let attempt = 1; ; attempt++) {
+        if (connection.signalingState === "closed") return;
         const parameters = sender.getParameters();
-        // A sender of a closed connection reports no encodings: its peer left while this
-        // cap waited its turn, so there is nothing left to cap.
-        if (parameters.encodings.length === 0) return;
         parameters.encodings[0].maxBitrate = maxBitrate;
         try {
             await sender.setParameters(parameters);
@@ -39,16 +40,16 @@ async function setCap(sender, maxBitrate) {
 
 // Caps on one sender run one after another, each reading its parameters right before
 // it sets them, so the latest bitrate is applied last.
-function capSender(sender, maxBitrate) {
-    const previous = lastCapBySender.get(sender) ?? Promise.resolve();
-    const cap = previous.then(() => setCap(sender, maxBitrate));
+function capSender(videoSender, maxBitrate) {
+    const previous = lastCapBySender.get(videoSender.sender) ?? Promise.resolve();
+    const cap = previous.then(() => setCap(videoSender, maxBitrate));
     // The caller still sees this cap's failure; the queue only waits for it to end.
-    lastCapBySender.set(sender, cap.catch(() => {}));
+    lastCapBySender.set(videoSender.sender, cap.catch(() => {}));
     return cap;
 }
 
 export async function applyUploadCaps(connections) {
     const maxBitrate = videoBitrateCap(connections.length);
     const senders = connections.flatMap(videoSenders);
-    await Promise.all(senders.map((sender) => capSender(sender, maxBitrate)));
+    await Promise.all(senders.map((videoSender) => capSender(videoSender, maxBitrate)));
 }
