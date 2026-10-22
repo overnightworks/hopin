@@ -2,88 +2,33 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![CI](https://github.com/overnightworks/hopin/actions/workflows/ci.yml/badge.svg)](https://github.com/overnightworks/hopin/actions/workflows/ci.yml)
 
-Self-hosted video call service using WebRTC. Start a call, share a link, your friends join instantly in the browser. Only signed-in members of `/apps/hopin` use it, with no installs and no third-party services except STUN through a configurable server (Cloudflare by default).
+HopIn is a self-hosted video call service. A signed-in member starts a call and shares its link, and friends join in the browser with nothing to install. The server signs people in and relays the setup messages and chat between the members of a call, but never media: audio and video flow directly between the browsers.
 
-## How It Works
+Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a call runs and what it trusts: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-HopIn uses **WebRTC** with a **mesh topology** for peer-to-peer video calls:
+## What a Call Offers
 
-1. You open the app, check your camera and microphone in a preview, and start the call — a room is created
-2. You share the generated link (e.g. via WhatsApp)
-3. Friends open the link, check their camera and microphone in the same preview, and join — their browser connects directly to yours
-4. Everyone sends and receives video/audio to everyone else
-
-The server only handles **signaling** (coordinating who connects to whom). The actual video/audio data flows directly between browsers via WebRTC.
-
-```
-┌──────────┐     signaling     ┌──────────┐
-│ Browser A├────────────────────┤  Server  │
-└────┬─────┘    (WebSocket)    └────┬─────┘
-     │                              │
-     │  video/audio (peer-to-peer)  │
-     │                              │
-┌────┴─────┐     signaling     ┌────┴─────┐
-│ Browser B├────────────────────┤ Browser C│
-└──────────┘                   └──────────┘
-```
-
-## Features
-
-- **Video calls** with up to 6 participants (mesh topology)
-- **Screen sharing** — switch between camera and screen mid-call
-- **Mute/unmute** audio and video independently
-- **Room locking** — host can lock/unlock the room to prevent new joins
-- **Members only** — signed-in members of `/apps/hopin` create a room and share the link
-- **Self-hosted** — runs on your machine, your data stays with you
-- **Zero dependencies** in the browser — plain HTML/JS, no frameworks
+- **Up to 6 people** in one call, each seeing and hearing everyone else
+- **Screen sharing**, switchable with the camera mid-call
+- **Microphone and camera** muted independently, with a preview before joining
+- **Chat** beside the video
+- **Room lock**: the host locks the call from the More menu, so no new person joins except the host's own account, which can return while there is room; the host unlocks at any time
+- **Reconnect**: a dropped connection keeps its place for a short while; the call waits for a dropped host before it ends
+- **No frameworks** in the browser: plain HTML, CSS and ES modules
 
 ## Quick Start
 
-### Prerequisites
+You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings from Configuration, and start the server with `make run`; it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
-- Python 3.14+
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
+Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start.
 
-### Install and Run
+Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
 
-```bash
-git clone <your-repo-url> hopin
-cd hopin
-make install
-make run
-```
+Press "Start a call" and share the generated link.
 
-Set the four required settings (see Configuration) before `make run`: the https issuer and public origin, and the paths of the two secret files. Put no secret value in the environment. Without them HopIn refuses to start.
+## Run in a Container
 
-Once they are set, the server starts on `http://localhost:8080`.
-
-- Open `http://localhost:8080/` and press "Start a call"
-- Share the generated link with friends
-
-### Run in a Container
-
-`compose.yaml` carries edge's routing label `edge.name: hopin` ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)), publishes no host port, restarts `unless-stopped` and has a healthcheck on `/health`. It answers on port 8080 inside its own network.
-
-- It sets the issuer, the public origin, the paths of the two secret files and `HOPIN_TRUSTED_PROXIES`; the values are `compose.yaml`'s.
-- It mounts `~/.secrets/keycloak/clients/hopin` and `~/.secrets/hopin/session-secret` read-only, each 0644 inside its 0700 directory so the container's user can read it. Their values never enter the environment.
-- It pins its own network and names it for Traefik. `HOPIN_TRUSTED_PROXIES` lists that network's gateway and the loopback hop of edge's Traefik, so the rate limits key on the person's address.
-
-Edge's `hal` commands are documented in [edge's README](https://github.com/overnightworks/edge#the-commands).
-
-## Room Security
-
-Only members of `/apps/hopin` reach HopIn. Every page sends a signed-out person through Keycloak and back to the page they asked for, and an API call without a session gets 401. Only `/health` (which answers just its status), the two sign-in routes, the three sign-in pages (`/login`, `/no-access` and the failure page), `/logout` and the stylesheets those pages load are public. Log out ends the HopIn session in this browser and then the Keycloak session; it only answers a form posted from HopIn itself, so another site cannot trigger it. `/auth/backchannel-logout` is public for Keycloak's POST only: a signed logout token from Keycloak ends every HopIn session of that person, on every device. Only Keycloak should reach it, so keep it off the public internet. Each address may make 40 sign-in requests (`/auth/start` and `/auth/callback`, 20 complete sign-ins) in 10 minutes and 600 requests a minute on every other path, and gets 429 beyond that; `/health` and `/auth/backchannel-logout` are never limited. An open call ends at most 60 seconds after its session ends, and at once when the page sends anything after that; the page then sees close code 4002, stops the call and goes through the sign-in back to the call link.
-
-HopIn gives the host (the account that started the call) one way to control access. The host is the account, not the connection: if the host's connection drops, the call waits 60 seconds for the host to come back, then ends for everyone. Anyone whose connection drops keeps their place for 30 seconds and picks it up again without the call noticing; a host who is not back within those 30 seconds is away for the remaining 30 of the 60.
-
-### Room Locking
-
-The host locks with the "Lock call" switch in the call's More menu. When locked:
-- No new participants can join (the join link is refused as locked)
-- Existing participants stay connected
-- The host can **unlock** at any time (e.g. if a friend disconnects and needs to rejoin)
-
-Both protections are enforced **server-side** — the server rejects unauthorized join attempts regardless of what the client sends.
+`compose.yaml` owns the container's keys: the settings it sets, the two secret files it mounts read-only, its pinned network, its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
 
 ## A Person's Data
 
@@ -99,7 +44,7 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ## Configuration
 
-All settings can be overridden via environment variables:
+`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix. The client secret and the session signing key are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -116,139 +61,23 @@ All settings can be overridden via environment variables:
 
 HopIn refuses to start without the four required settings, or when a secret file cannot be read, and says which setting is at fault, never what a file holds.
 
-Example, with the four required settings already set as above:
-
-```bash
-HOPIN_PORT=3000 HOPIN_MAX_PARTICIPANTS_PER_ROOM=4 make run
-```
-
 ## Development
 
-### Commands
-
-```bash
-make install    # Install all dependencies
-make lint       # Run ruff + mypy (strict mode)
-make format     # Auto-fix formatting
-make test       # Run unit tests with coverage
-make test-all   # Run all tests (unit + integration)
-make dead       # Run vulture dead code detection
-make e2e        # Run the browser end-to-end tests (needs Chromium: uv run playwright install chromium)
-make check      # Run all checks (lint + layout + test + dead)
-make run        # Start the server
-```
-
-### Project Structure
-
-```
-src/hopin/
-├── config/
-│   ├── constants.py      # Application constants and enums
-│   └── settings.py       # Environment-based configuration
-├── rooms/
-│   ├── models.py         # Room and Participant data models
-│   └── manager.py        # Room lifecycle management
-├── signaling/
-│   ├── handler.py        # WebSocket signaling for WebRTC
-│   ├── identity.py       # Who a socket is, resolved at the handshake and re-checked at every frame and every minute
-│   ├── replay.py         # Numbered log of the frames a seat missed while away
-│   └── scheduler.py      # Timer port, injected so the host grace is testable
-├── web/
-│   ├── routes.py         # HTTP route definitions
-│   └── static/
-│       ├── index.html    # Video call page (markup only)
-│       ├── login-failed.html  # Login failed card, ui-console's sign-in markup
-│       ├── login.html    # Signed out card, the logout landing
-│       ├── no-access.html  # No access card, posts the one Log out form
-│       └── assets/       # Served at /static
-│           ├── css/
-│           │   ├── ui-console.css  # Vendored verbatim from ui-console v0.3.1, loaded first
-│           │   └── hopin.css
-│           ├── img/
-│           │   └── hopin.svg       # The brand mark, every page's icon
-│           └── js/       # ES modules, app.js is the entry point
-│               ├── app.js        # Wiring, call start and leave
-│               ├── router.js     # The address and the screen, call links
-│               ├── home.js       # Home screen
-│               ├── account.js    # The account name and the account menu
-│               ├── menus.js      # Every menu's open, close, focus and Escape
-│               ├── prejoin.js    # Pre-join: preview, microphone and camera, Start or Join
-│               ├── end.js        # End and refusal screens
-│               ├── state.js      # Call and local-media state
-│               ├── signaling.js  # WebSocket, resume, message handlers
-│               ├── replay.js     # Numbered log of the frames sent, resent after a resume
-│               ├── mesh.js       # Peer connections
-│               ├── recovery.js   # ICE restart of failed connections
-│               ├── bandwidth.js  # Upload cap by call size
-│               ├── media.js      # Camera, microphone, screen share
-│               ├── quality.js    # Round-trip indicator
-│               ├── speaking.js   # Who is speaking, from the level of the arriving sound
-│               ├── chat.js       # Chat panel
-│               ├── media-state.js # Who is muted or has the camera off
-│               ├── sounds.js     # Notification sounds
-│               ├── stage.js      # The stage: tiles, grid by call size, picture-in-picture
-│               ├── pip.js        # Dragging the phone picture-in-picture
-│               ├── controls.js   # Control bar
-│               ├── invite.js     # The call link: waiting card and Invite, Copy link, Share
-│               ├── toast.js      # Short status messages
-│               ├── status.js     # Call status, lock, participant count
-│               └── dialogs.js    # Leave dialog
-├── errors.py             # Custom exception hierarchy
-├── app.py                # Application factory and wiring
-└── main.py               # Entry point
-
-tests/
-├── unit/                 # Unit tests
-└── integration/          # Integration tests
-```
-
-### Tech Stack
-
-| Component | Technology |
+| Command | For |
 |---|---|
-| Server | FastAPI + uvicorn (async Python) |
-| Real-time | WebSocket (signaling) + WebRTC (media) |
-| Frontend | Vanilla HTML/JS |
-| Type checking | mypy (strict mode) |
-| Linting | ruff |
-| Testing | pytest + pytest-cov |
-| Dead code | vulture |
-| Packaging | uv + hatchling |
+| `make install` | install all dependencies |
+| `make run` | start the server |
+| `make check` | lint, root layout, unit tests and dead code |
+| `make test-all` | unit and integration tests |
+| `make e2e` | browser end-to-end tests |
 
-### Signaling Protocol
+[AGENTS.md](AGENTS.md) is guidance for coding agents.
 
-Messages are JSON over WebSocket. The server identifies each socket by its webauth session at the handshake (the page's Origin must be HopIn's own) and names every peer with an id it mints, so peers address each other only by those ids. The server acts as a relay for connection setup:
+## Documentation
 
-| Signal | Direction | Purpose |
-|---|---|---|
-| `join` | Client → Server | Create or join a room; a seat joins at most one room, and a second `join` is answered `invalid_message` |
-| `room_created` | Server → Client | Room created, here's the ID, with your own `participant_id` and the `resume_token` of your seat |
-| `existing_participants` | Server → Client | List of peers already in the room, `names` mapping each to its Keycloak username, with your own `participant_id` and the `resume_token` of your seat |
-| `resume` | Client → Server | First frame of a new socket: take back the seat `{participant_id, token, last_seq, sent_floor}` after a drop |
-| `resumed` | Server → Client | The seat is yours again: the rotated `resume_token` and `last_seq`, the last client `seq` the server received |
-| `participant_joined` | Server → Client | New peer joined your room, with its Keycloak username as `name` |
-| `participant_left` | Server → Client | Peer left your room |
-| `host_away` | Server → Client | The host's last connection dropped: `seconds_left` until the call ends, `participant_id` of the dropped connection |
-| `host_back` | Server → Client | The host returned within the wait: `participant_id` of the new connection |
-| `media_state` | Client → Server → Client | my microphone and camera are on or off (`audio`, `video`); relayed to the rest of the room with `from`; not kept by the server |
-| `end_room` | Client → Server | The host ends the call for everyone |
-| `room_closed` | Server → Client | The call is over, with `reason`: `host_gone` (the wait ran out; the frame carries `grace_seconds`) or `ended` (the host ended it); after sending it the server forgets every seat of the room and closes its sockets, so a later `resume` is refused |
-| `offer` | Client → Server → Client | WebRTC SDP offer, also an ICE restart (relayed to target) |
-| `answer` | Client → Server → Client | WebRTC SDP answer (relayed to target) |
-| `ice_candidate` | Client → Server → Client | ICE candidate (relayed to target) |
-| `error` | Server → Client | a refusal or a bad frame, with its `reason` (the `full` refusal also carries `capacity`); `resume_refused` answers every failed `resume` alike and the client joins afresh |
-
-Every server frame carries a `seq` and every client frame after a socket's first does too (`resume`, `resumed` and the `resume_refused` error aside, which belong to the new socket and carry none). Each side keeps its last 256 frames, so a resume replays what the other side missed in order, and a frame at or below the last `seq` received is ignored. A frame longer than 65536 characters is answered `invalid_message` and neither relayed nor kept. A newer `offer` or `answer` replaces the older descriptions and candidates to the same peer. The `resume_token` is a secret of the seat: it travels only in frames to its owner, changes with every resume, and is never logged.
-
-### Coding Guidelines
-
-See [AGENTS.md](AGENTS.md) for HopIn's own facts (stack, commands, tests, CI).
-
-## Scaling Considerations
-
-The mesh topology works well for **2–6 participants**. Each participant sends their stream to every other participant, so bandwidth usage grows quadratically.
-
-For larger groups (6+), you would need to add an **SFU** (Selective Forwarding Unit) like [mediasoup](https://mediasoup.org/) or [Janus](https://janus.conf.meetecho.com/). The signaling server would remain largely the same — only the media routing changes.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): context, building blocks, a call's runtime, deployment, trust
+- [docs/decisions/](docs/decisions/): decision records
+- [docs/mockups/](docs/mockups/): the blessed pictures a surface change starts from
 
 ## License
 
