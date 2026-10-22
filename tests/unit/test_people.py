@@ -3,15 +3,15 @@ import json
 import secrets
 import zipfile
 from contextlib import ExitStack
-from dataclasses import dataclass, field
-from datetime import timedelta
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import structlog.testing
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
-from webauth.config import installed_web_auth_config
+from webauth.config import install_web_auth_config, installed_web_auth_config
 
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
@@ -103,6 +103,8 @@ class Scene:
     room_id: str
     refresh_token: str
     chat_text: str
+    ben_chat_text: str
+    session_times: list[tuple[datetime, datetime]]
     ben_subject: str
     anna_frames_held: int
     sensitive: list[str] = field(repr=False)
@@ -117,10 +119,11 @@ def scene(client, stores, person):
     older = stores.sessions.create(
         "anna",
         now=anna.session.created_at - timedelta(hours=1),
-        expires_at=anna.session.expires_at,
+        expires_at=anna.session.expires_at - timedelta(hours=2),
         refresh_token=SecretStr(refresh_token),
     )
     chat_text = secrets.token_urlsafe()
+    ben_chat_text = secrets.token_urlsafe()
     with ExitStack() as open_sockets:
         anna_socket = open_sockets.enter_context(
             client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(anna))
@@ -135,12 +138,17 @@ def scene(client, stores, person):
         frames_to_anna = [created, anna_socket.receive_json()]
         anna_socket.send_json({"type": SignalType.CHAT.value, "message": chat_text, "seq": 1})
         ben_socket.receive_json()
-        ben_socket.send_json({"type": SignalType.CHAT.value, "message": secrets.token_urlsafe(), "seq": 1})
+        ben_socket.send_json({"type": SignalType.CHAT.value, "message": ben_chat_text, "seq": 1})
         frames_to_anna.append(anna_socket.receive_json())
         yield Scene(
             room_id=created["room_id"],
             refresh_token=refresh_token,
             chat_text=chat_text,
+            ben_chat_text=ben_chat_text,
+            session_times=[
+                (older.created_at, anna.session.expires_at - timedelta(hours=2)),
+                (anna.session.created_at, anna.session.expires_at),
+            ],
             ben_subject=ben_subject,
             anna_frames_held=len(frames_to_anna),
             sensitive=[
@@ -152,6 +160,7 @@ def scene(client, stores, person):
                 ben_seat["resume_token"],
                 ben_seat["participant_id"],
                 chat_text,
+                ben_chat_text,
                 ben_subject,
             ],
         )
@@ -169,7 +178,13 @@ class TestExportOfAPerson:
         assert list(export) == ["people_export", "app", "subject", "exported_at", "data", "files", "withheld"]
         assert (export["people_export"], export["app"], export["subject"], export["files"]) == (1, "hopin", "anna", [])
         assert export["data"]["account"] == {"name": "anna", "role": config.user_role}
-        assert len(export["data"]["sessions"]) == 2
+        assert export["data"]["sessions"] == [
+            {
+                "started_at": started.isoformat().replace("+00:00", "Z"),
+                "expires_at": expires.isoformat().replace("+00:00", "Z"),
+            }
+            for started, expires in scene.session_times
+        ]
         assert export["data"]["seats"] == [{"call_id": scene.room_id, "host": True}]
         assert export["withheld"] == [
             {"kind": "session_id", "count": 2, "reason": "secret"},
@@ -178,14 +193,20 @@ class TestExportOfAPerson:
             {"kind": "call_replay_frame", "count": scene.anna_frames_held, "reason": "others"},
         ]
 
-    def test_lists_the_sessions_oldest_first_and_the_export_time_in_whole_seconds(self, client, admin, scene):
+    def test_lists_the_sessions_oldest_first(self, client, admin, scene):
         _, export = read_archive(ask(client, "anna", admin).content)
 
         started = [entry["started_at"] for entry in export["data"]["sessions"]]
         assert len(set(started)) == 2
         assert started == sorted(started)
-        assert export["exported_at"].endswith("Z")
-        assert "." not in export["exported_at"]
+
+    def test_stamps_the_export_with_the_configured_clock_in_whole_seconds(self, app, client, admin, config):
+        export_time = int(config.wall_clock()) + 90
+        install_web_auth_config(app, replace(config, wall_clock=lambda: export_time + 0.75))
+
+        _, export = read_archive(ask(client, "anna", admin).content)
+
+        assert export["exported_at"] == datetime.fromtimestamp(export_time, UTC).isoformat().replace("+00:00", "Z")
 
     def test_holds_neither_a_secret_nor_another_persons_data(self, client, admin, scene):
         answer = ask(client, "anna", admin)
@@ -203,6 +224,7 @@ class TestExportOfAPerson:
         assert len(ben_export["data"]["sessions"]) == 1
         assert ben_export["data"]["seats"] == [{"call_id": scene.room_id, "host": False}]
         assert withheld_counts(ben_export)["session_id"] == 1
+        assert other_case["subject"] == "Anna"
         assert other_case["data"] == {"account": None, "sessions": [], "seats": []}
 
     def test_lists_one_seat_for_each_socket_with_the_host_flag_of_its_room(self, client, admin, person):
@@ -291,6 +313,8 @@ class TestWhoMayExport:
     @pytest.mark.parametrize("method", ["POST", "DELETE"])
     @pytest.mark.parametrize("subject_path", [export_path("anna"), "/api/admin/people/anna"])
     def test_offers_no_way_to_change_a_person(self, client, admin, scene, stores, method, subject_path):
+        before = (stores.accounts.get("anna"), stores.sessions.person_records("anna"))
+
         answer = client.request(
             method,
             subject_path,
@@ -298,8 +322,8 @@ class TestWhoMayExport:
         )
 
         assert answer.status_code in {404, 405}
-        assert stores.accounts.get("anna") is not None
-        assert stores.sessions.person_records("anna").sessions
+        assert (stores.accounts.get("anna"), stores.sessions.person_records("anna")) == before
+        assert len(before[1].sessions) == 2
 
 
 class TestCaching:

@@ -42,12 +42,12 @@ from hopin.config.constants import (
     SIGN_IN_PATH_RULES,
     SIGN_IN_RATE_LIMIT_BUDGET,
 )
+from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Scheduler, TimerHandle
 from hopin.web.ice_servers import create_ice_servers_router
-from hopin.web.people import create_people_router
 from hopin.web.routes import create_router
 
 if TYPE_CHECKING:
