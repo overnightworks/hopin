@@ -106,6 +106,17 @@ def _session_sweep_lifespan(
     return lifespan
 
 
+def _configure_logging() -> None:
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
+            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
+        ],
+    )
+
+
 def create_app(
     settings: ServerSettings,
     *,
@@ -115,14 +126,7 @@ def create_app(
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(settings)
 
-    structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.add_log_level,
-            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
-            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
-        ],
-    )
+    _configure_logging()
 
     sign_in_stores = stores if stores is not None else SignInStores.in_memory()
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
