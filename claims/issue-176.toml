@@ -1,8 +1,0 @@
-claim_id = "f2ee3443d3b84043b54b30b936a725ea"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "728cb6f9900f93e4cc11b7f08a83821a5c729c38"
-branch = "claude/issue-176-people-export"
-scope = ["AGENTS.md", "README.md", "pyproject.toml", "quality/baseline.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/auth/stores.py", "src/hopin/config/constants.py", "src/hopin/people.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/replay.py", "tests/unit/test_auth_stores.py", "tests/unit/test_people.py", "tests/unit/test_replay.py", "tests/unit/test_sign_in_routes.py", "tests/unit/test_signaling.py"]
-opened_commit = "919998939f0caf84d2a50276c91fc586355443d8"
-whole_reason = "The admin role, the export route, its two safe projections and its cache rule are one capability; without seats the export would lie."
