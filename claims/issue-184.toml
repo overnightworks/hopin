@@ -1,7 +1,0 @@
-claim_id = "dc24926706a84f3e8804db815787054c"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "a5f79c3b070d64bcea13a5078d7eba322fdad067"
-branch = "claude/issue-184-the-readme-becomes-hopin-s-front-door-an"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/decisions/0001-static-frontend-modules.md"]
-opened_commit = "57add4b6fa38b99bfad834cdf6766c49ac8b3434"
