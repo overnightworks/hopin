@@ -321,6 +321,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "structlog" },
+    { name = "urllib3" },
     { name = "uvicorn" },
     { name = "websockets" },
 ]
@@ -347,6 +348,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "structlog", specifier = ">=24.4" },
+    { name = "urllib3", specifier = ">=2.6.3,<3" },
     { name = "uvicorn", specifier = ">=0.54.0" },
     { name = "websockets", specifier = ">=17.2" },
 ]

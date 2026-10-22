@@ -13,6 +13,7 @@ from hopin.config.constants import (
     ROOM_ID_LENGTH,
     STUN_SERVER_URL,
     SignalType,
+    TurnProvider,
 )
 from hopin.config.settings import ServerSettings
 
@@ -70,6 +71,9 @@ class TestServerSettings:
         assert settings.max_participants_per_room == MAX_PARTICIPANTS_PER_ROOM
         assert settings.oidc_client_id == OIDC_CLIENT_ID
         assert settings.trusted_proxies == ""
+        assert settings.turn_provider is TurnProvider.OFF
+        assert settings.turn_key_id_file is None
+        assert settings.turn_api_token_file is None
 
     def test_override_via_environment(self, sign_in_settings):
         sign_in = sign_in_settings()
@@ -123,3 +127,29 @@ class TestServerSettings:
         with pytest.raises(ValidationError, match=setting) as refusal:
             sign_in_settings(**{setting: value})
         assert value not in str(refusal.value)
+
+    def test_turn_on_with_both_key_files_is_accepted(self, sign_in_settings, tmp_path):
+        settings = sign_in_settings(
+            turn_provider="cloudflare", turn_key_id_file=tmp_path / "key-id", turn_api_token_file=tmp_path / "token"
+        ).settings
+        assert settings.turn_provider is TurnProvider.CLOUDFLARE
+
+    @pytest.mark.parametrize(
+        ("given", "named"),
+        [
+            ({"turn_key_id_file": "/key-id"}, ["turn_api_token_file"]),
+            ({"turn_api_token_file": "/token"}, ["turn_key_id_file"]),
+            ({}, ["turn_key_id_file", "turn_api_token_file"]),
+        ],
+    )
+    def test_turn_on_without_a_key_file_is_refused_naming_each_missing_setting(self, sign_in_settings, given, named):
+        with pytest.raises(ValidationError) as refusal:
+            sign_in_settings(turn_provider="cloudflare", **given)
+        message = str(refusal.value)
+        assert all(setting in message for setting in named)
+        assert all(path not in message for path in given.values())
+
+    @pytest.mark.parametrize("value", ["bogus", "on", "true"])
+    def test_a_turn_provider_that_is_not_listed_is_refused_naming_its_setting(self, sign_in_settings, value):
+        with pytest.raises(ValidationError, match="turn_provider"):
+            sign_in_settings(turn_provider=value)

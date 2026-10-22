@@ -53,6 +53,8 @@ SESSION_LIFETIME_SECONDS = 12 * 60 * 60
 SESSION_SWEEP_SECONDS = 10 * 60
 
 STUN_SERVER_URL = "stun:stun.cloudflare.com:3478"
+# A call ends with its sign-in, so one credential per call start covers the whole call.
+TURN_CREDENTIAL_TTL_SECONDS = 12 * 60 * 60
 
 MIN_PARTICIPANTS_PER_ROOM = 2
 MAX_PARTICIPANTS_PER_ROOM = 6
@@ -77,6 +79,11 @@ SERVER_ERROR_CLOSE_CODE = 1011
 PEER_ID_BYTES = 16
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
 UVICORN_LOG_LEVEL = "warning"
+
+
+class TurnProvider(StrEnum):
+    OFF = "off"
+    CLOUDFLARE = "cloudflare"
 
 
 class SignalType(StrEnum):

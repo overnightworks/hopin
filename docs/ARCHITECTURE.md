@@ -4,7 +4,7 @@ How HopIn is built, how a call runs and what it trusts. For what HopIn is and ho
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser. HopIn's server never sees audio or video. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume.
+A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. HopIn's server never sees audio or video. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume.
 
 ```mermaid
 flowchart LR
@@ -27,9 +27,11 @@ flowchart LR
     A & B & C -. sign-in redirect .-> K[Keycloak]
     K -. back-channel logout .-> G
     A & B & C -. address discovery .-> T[STUN server]
+    A & B & C -. media, only when a direct path fails .-> R[TURN relay, optional]
+    hopin -. TURN credentials, https .-> R
 ```
 
-The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the only ICE server configured is a STUN server, and media always goes peer to peer.
+The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the ICE servers are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay (an external service; only `web/turn_relay.py` and the configuration name its provider). Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted end to end between the browsers.
 
 ## 2. Building Block View
 
@@ -37,11 +39,11 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 
 | Package | Job |
 |---|---|
-| `config` | settings from the environment, application constants, enums |
+| `config` | settings from the environment, application constants, enums, the shared secret-file reader and `StartRefusedError` |
 | `auth` | sign-in against Keycloak through webauth, the session gate, the in-memory stores of accounts and sessions |
 | `rooms` | rooms, participants, their capacity and lock |
 | `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers |
-| `web` | pages, static files, the health route and the ICE server list |
+| `web` | pages, static files, the health route, the ICE server list and the TURN provider adapter |
 | `main` | starts the server |
 | `errors` | HopIn's exception types |
 | `people.py` | the admin download of what HopIn holds about one person |
@@ -81,7 +83,7 @@ sequenceDiagram
     H-->>A: offer relayed
     A->>H: answer and ICE candidates
     H-->>B: relayed
-    A-->B: audio and video, peer to peer
+    A-->B: audio and video, peer to peer (or through the TURN relay)
 ```
 
 **Frames.** Messages are JSON over the WebSocket; the signal types are `SignalType` in `src/hopin/config/constants.py` and `signaling/handler.py` handles them. Invariants:
@@ -100,7 +102,7 @@ sequenceDiagram
 
 ## 4. Deployment View
 
-One container, built from `Dockerfile` and run by `compose.yaml` behind the edge reverse proxy, which terminates https. It publishes no host port and answers on a network of its own. All state (accounts, sessions, rooms, seats, replay logs, rate limit counters) lives in process memory, so a restart ends every call and every session; there is no database.
+One container, built from `Dockerfile` and run by `compose.yaml` behind the edge reverse proxy, which terminates https. It publishes no host port and answers on a network of its own. All state (accounts, sessions, rooms, seats, replay logs, rate limit counters) lives in process memory, so a restart ends every call and every session; there is no database. The client secret, the session signing key and, when TURN is on, the two TURN key files are read at start from the files the settings name.
 
 ## 5. Crosscutting Concepts
 
@@ -124,7 +126,8 @@ The model is HopIn's own; no operator ruling narrows it.
 - **The proxy hops** named in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`, which the rate limits key on. A hop that is wrongly listed lets a person choose their counted address; empty trusts none.
 - **The other participants of a call** see each other's addresses (peer-to-peer media reveals them) and receive relayed frames: names, chat lines, media state, connection descriptions. A member is trusted with that much and no more: they cannot address people outside their room, or act as host.
 - **The STUN server** learns the address of every browser that asks and can answer wrongly, which at worst prevents a connection; it never carries media. The operator chooses it by `HOPIN_STUN_SERVER`.
-- **The operator's settings and secret files** are trusted fully: the settings are `HOPIN_` environment variables, but the client secret and the session signing key are read at start from the files they name and never enter the environment, and HopIn names only the failing setting when one is wrong.
+- **The TURN provider** (when `HOPIN_TURN_PROVIDER` is not `off`) sees who connects to whom and when, the traffic volume and, when unencrypted, the audio level (#79 finding 26); it sees no media content, which stays encrypted between the browsers. HopIn trusts only its credential answer, and only over https from the provider's fixed endpoint; a failed or malformed answer gives a call STUN only. It bills the operator for relayed traffic.
+- **The operator's settings and secret files** are trusted fully: the settings are `HOPIN_` environment variables, but the client secret, the session signing key and the two TURN key files are read at start from the files they name and never enter the environment, and HopIn names only the failing setting when one is wrong.
 
 ## 6. Architectural Decisions
 
@@ -133,5 +136,5 @@ The model is HopIn's own; no operator ruling narrows it.
 ## 7. Risks and Technical Debt
 
 - Mesh upload grows with every participant, so a call is capped at `MAX_PARTICIPANTS_PER_ROOM`.
-- STUN only: on networks that block direct paths a call cannot connect. TURN is #25 row 7.
+- TURN costs money and stops slowly: the relay is billed per traffic on the operator's provider account, and HopIn sets no cap of its own (the provider's usage alert is the guard). Switching TURN off or stopping HopIn ends new credentials only; a credential already handed out stays valid at the provider for up to 12 hours. With TURN off, calls on networks that block direct paths cannot connect.
 - A restart ends every call and session.

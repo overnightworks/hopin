@@ -6,6 +6,7 @@ from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError, build_sign_in_configs
+from hopin.config.secret_files import StartRefusedError
 
 SECRET_FILE_SETTINGS = ["oidc_client_secret_file", "session_secret_file"]
 SESSION_LENGTH_SECONDS = 12 * 60 * 60
@@ -36,7 +37,7 @@ class TestSecretFiles:
         sentinel = secrets.token_urlsafe(16)
         corrupt_secret_file(settings, setting, state, sentinel)
 
-        with pytest.raises(SignInConfigurationError, match=setting) as refusal:
+        with pytest.raises(StartRefusedError, match=setting) as refusal:
             build_sign_in_configs(settings)
 
         error = refusal.value

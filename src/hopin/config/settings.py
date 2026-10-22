@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.constants import (
@@ -11,6 +11,7 @@ from hopin.config.constants import (
     MIN_PARTICIPANTS_PER_ROOM,
     OIDC_CLIENT_ID,
     STUN_SERVER_URL,
+    TurnProvider,
 )
 
 
@@ -54,3 +55,22 @@ class ServerSettings(BaseSettings):
     session_secret_file: AbsolutePath = Field(repr=False)
     # Addresses and CIDR blocks, comma-separated, of the proxies allowed to name the client in X-Forwarded-For.
     trusted_proxies: str = ""
+    turn_provider: TurnProvider = TurnProvider.OFF
+    turn_key_id_file: AbsolutePath | None = Field(default=None, repr=False)
+    turn_api_token_file: AbsolutePath | None = Field(default=None, repr=False)
+
+    @model_validator(mode="after")
+    def _require_the_turn_key_files_when_turn_is_on(self) -> Self:
+        if self.turn_provider is TurnProvider.OFF:
+            return self
+        missing = [
+            setting
+            for setting, path in [
+                ("turn_key_id_file", self.turn_key_id_file),
+                ("turn_api_token_file", self.turn_api_token_file),
+            ]
+            if path is None
+        ]
+        if missing:
+            raise ValueError(f"{' and '.join(missing)} must be set when turn_provider is {self.turn_provider}")
+        return self
