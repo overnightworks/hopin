@@ -30,4 +30,4 @@ layout:
 check: lint layout test dead
 
 run:
-	uv run hopin
+	uv run hopin serve

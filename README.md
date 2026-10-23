@@ -18,7 +18,7 @@ Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a 
 
 ## Quick Start
 
-You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings from Configuration, and start the server with `make run`; it listens on `HOPIN_HOST` and `HOPIN_PORT`.
+You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
 Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start.
 

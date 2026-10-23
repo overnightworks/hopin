@@ -1,10 +1,14 @@
-from typing import TypedDict
+import argparse
+from typing import TYPE_CHECKING, TypedDict
 
 import uvicorn
 
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class UvicornOptions(TypedDict):
@@ -27,7 +31,15 @@ def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
     )
 
 
-def main() -> None:
+def command_line_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="hopin")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("serve", help="start the server")
+    return parser
+
+
+def main(arguments: Sequence[str] | None = None) -> None:
+    command_line_parser().parse_args(arguments)
     settings = ServerSettings()
     uvicorn.run(create_app(settings), **uvicorn_options(settings))
 
