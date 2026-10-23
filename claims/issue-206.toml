@@ -1,8 +1,0 @@
-claim_id = "977a98147a65410289fc51c3fb2eabbd"
-agent = "claude"
-role = "builder"
-base = "522245fd8d0f498f7b99f07260a2561c5914edf6"
-branch = "claude/issue-206-the-export-of-an-unknown-person-answers"
-scope = ["README.md", "src/hopin/people.py", "tests/integration/test_backchannel_erasure.py", "tests/unit/test_people.py"]
-opened_commit = "985fa01ca8bca062ce64fae60e6d447024a8872f"
-whole_reason = "The contract change shows in the export, its unit tests, the erasure test that reads the export afterwards, and the README line that states it."
