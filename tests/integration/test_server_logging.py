@@ -67,7 +67,7 @@ async def started_server(sign_in_settings, monkeypatch, capfd, uvicorn_loggers_r
         monkeypatch.setenv(name, value)
     stores = SignInStores.in_memory()
     with patch("hopin.main.uvicorn.run") as run, patch("hopin.main.create_app", partial(create_app, stores=stores)):
-        main()
+        main(["serve"])
     app = run.call_args.args[0]
     member = seed_member(stores, installed_web_auth_config(app))
     listening = socket.socket()

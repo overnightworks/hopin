@@ -15,12 +15,15 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 # Dependencies are installed as wheels only: --no-build refuses a source
 # distribution, whose build script would run third-party code during the image
-# build. hopin itself stays out of the environment, as in CI, and runs from src.
+# build. hopin itself is installed in a second step below, after its source is
+# copied, so that the one build that runs is its own, through the exact-pinned
+# hatchling.
 RUN uv sync --locked --no-dev --no-install-project --no-build \
  && useradd --no-create-home --uid 1001 hopin
 COPY src ./src
-ENV PYTHONPATH=/app/src
+# Only the project is installed here; the dependencies are already in place.
+RUN uv sync --locked --no-dev --no-editable
 USER hopin
 
 EXPOSE 8080
-CMD ["python", "-m", "hopin.main"]
+CMD ["hopin", "serve"]
