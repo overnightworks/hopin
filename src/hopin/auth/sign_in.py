@@ -48,7 +48,7 @@ from hopin.web.routes import READ_METHODS, STATIC_DIR
 if TYPE_CHECKING:
     from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
-    from webauth.ports import AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
+    from webauth.ports import AuditSink, SessionRecord, SessionRecordStore, SubjectUserStore, WriteLock
 
     from hopin.config.settings import ServerSettings
 
@@ -131,7 +131,6 @@ def _build_web_auth(
         trusted_proxies=trusted_proxies,
         rate_limits=SingleProcessRateLimitBackend(),
         allowed_hosts_exact=frozenset({urlsplit(settings.public_origin).netloc.lower()}),
-        allowed_hosts_patterns=(),
         session_lifetime=SessionLifetime(
             idle_seconds=SESSION_LIFETIME_SECONDS, absolute_max_age_seconds=SESSION_LIFETIME_SECONDS
         ),
@@ -188,7 +187,7 @@ def create_sign_in_router(
         )
         if not isinstance(outcome, AdmittedLogin):
             return _refusal_response(outcome, carrying=answer)
-        session = open_session(request, config, outcome, sessions=sessions, lock=lock, max_sessions=None)
+        session = _open_session(request, config, outcome, sessions, lock)
         issue_session_cookies(answer, session.id, config)
         answer.status_code = HTTPStatus.SEE_OTHER
         answer.headers["location"] = outcome.return_to or HOME_PATH
@@ -226,6 +225,13 @@ def create_sign_in_router(
         return FileResponse(NO_ACCESS_PAGE)
 
     return router
+
+
+def _open_session(
+    request: Request, config: WebAuthConfig, outcome: AdmittedLogin, sessions: SessionRecordStore, lock: WriteLock
+) -> SessionRecord:
+    """HopIn logs out through `log_out`, so its session rows keep the ID token."""
+    return open_session(request, config, outcome, sessions=sessions, lock=lock, max_sessions=None, keeps_id_token=True)
 
 
 def _refusal_response(refusal: OidcRefusal | AdmissionRefusal, *, carrying: Response) -> Response:

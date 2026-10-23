@@ -145,4 +145,3 @@ class TestBuiltConfigs:
         settings = sign_in_settings(public_origin="https://HopIn.Test.invalid:8443").settings
         web_auth = installed_web_auth_config(create_app(settings))
         assert web_auth.allowed_hosts_exact == frozenset({"hopin.test.invalid:8443"})
-        assert web_auth.allowed_hosts_patterns == ()

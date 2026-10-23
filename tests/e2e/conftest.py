@@ -1,3 +1,4 @@
+import datetime
 import itertools
 import re
 import socket
@@ -10,6 +11,10 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 import uvicorn
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 from playwright.sync_api import Browser, BrowserContext, Locator, Page, expect
 from webauth.config import WebAuthConfig, installed_web_auth_config
 
@@ -22,6 +27,7 @@ from tests.signed_in import SeededMember, parsed_set_cookies, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
+    from pathlib import Path
 
 LOOPBACK_HOST = "127.0.0.1"
 # Every e2e person gets an address of their own from this private range, as behind a proxy.
@@ -285,6 +291,30 @@ def _reserve_free_port() -> int:
         return int(probe.getsockname()[1])
 
 
+def _write_self_signed_certificate(directory: Path) -> tuple[Path, Path]:
+    """A certificate for the loopback address, so the page is served over https like HopIn's public origin."""
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, LOOPBACK_HOST)])
+    now = datetime.datetime.now(datetime.UTC)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(IPv4Address(LOOPBACK_HOST))]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    key_file, certificate_file = directory / "key.pem", directory / "certificate.pem"
+    key_file.write_bytes(
+        key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    )
+    certificate_file.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    return key_file, certificate_file
+
+
 @contextmanager
 def _serving(server: uvicorn.Server) -> Iterator[None]:
     thread = threading.Thread(target=server.run, daemon=True)
@@ -323,9 +353,14 @@ def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServ
     )
     stores = SignInStores.in_memory()
     app = create_app(sign_in.settings, stores=stores)
-    server = uvicorn.Server(uvicorn.Config(app, **uvicorn_options(sign_in.settings)))
+    key_file, certificate_file = _write_self_signed_certificate(tmp_path_factory.mktemp("tls"))
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app, **uvicorn_options(sign_in.settings), ssl_keyfile=str(key_file), ssl_certfile=str(certificate_file)
+        )
+    )
     with _serving(server):
-        yield RunningServer(f"http://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores)
+        yield RunningServer(f"https://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores)
 
 
 @pytest.fixture(scope="session")
@@ -340,7 +375,7 @@ def browser_type_launch_args(browser_type_launch_args: dict[str, Any]) -> dict[s
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args: dict[str, Any]) -> dict[str, Any]:
-    return {**browser_context_args, "permissions": MEDIA_PERMISSIONS}
+    return {**browser_context_args, "permissions": MEDIA_PERMISSIONS, "ignore_https_errors": True}
 
 
 def _playwright_cookie(set_cookie_header: str, config: WebAuthConfig) -> dict[str, Any]:
