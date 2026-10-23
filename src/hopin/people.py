@@ -83,6 +83,7 @@ def build_export(
     subject: str, exported_at: datetime, records: PersonRecords, seats: tuple[SeatSnapshot, ...]
 ) -> PersonExport:
     account = records.account
+    holds_nothing = account is None and not records.sessions and not seats
     held = {
         WithheldKind.SESSION_ID: (len(records.sessions), WithheldReason.SECRET),
         WithheldKind.REFRESH_TOKEN: (
@@ -104,7 +105,9 @@ def build_export(
             seats=[SeatEntry(call_id=seat.call_id, host=seat.host) for seat in seats],
         ),
         files=[],
-        withheld=[WithheldEntry(kind=kind, count=count, reason=reason) for kind, (count, reason) in held.items()],
+        withheld=[]
+        if holds_nothing
+        else [WithheldEntry(kind=kind, count=count, reason=reason) for kind, (count, reason) in held.items()],
     )
 
 

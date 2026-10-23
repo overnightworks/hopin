@@ -283,7 +283,8 @@ class TestExportOfAPerson:
         assert answer.status_code == 200
         assert export["subject"] == "ghost"
         assert export["data"] == {"account": None, "sessions": [], "seats": []}
-        assert export["withheld"] == ZERO_WITHHELD
+        assert export["withheld"] == []
+        assert export["files"] == []
         assert stores.accounts.get("ghost") is None
         assert "ghost" not in json.dumps(logs)
 
