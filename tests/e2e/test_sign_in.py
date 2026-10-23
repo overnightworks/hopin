@@ -154,7 +154,7 @@ def expect_the_sign_in_at_the_issuer(
     assert start == f"{e2e_server.base_url}/auth/start?next={next_path}"
     assert issuer.startswith(TEST_ISSUER)
     redirect_uri = parse_qs(urlsplit(issuer).query)["redirect_uri"]
-    assert redirect_uri == [f"{e2e_server.base_url.replace('http://', 'https://')}/auth/callback"]
+    assert redirect_uri == [f"{e2e_server.base_url}/auth/callback"]
 
 
 @FORM_FACTORS
