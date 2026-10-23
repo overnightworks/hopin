@@ -340,7 +340,7 @@ class TestPersonRecords:
     ):
         anna = accounts.create_for_subject("anna", "anna-name", "user")
         ben = accounts.create_for_subject("ben", "ben-name", "user")
-        newest = sessions.create(anna.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
+        newest = sessions.create(anna.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=None)
         oldest = sessions.create(
             anna.id,
             now=NOW - timedelta(hours=1),
@@ -356,8 +356,8 @@ class TestPersonRecords:
 
         assert records.account == anna
         assert records.sessions == (
-            SessionTimes(NOW - timedelta(hours=1), LATER, holds_refresh_token=True),
-            SessionTimes(NOW, LATER, holds_refresh_token=False),
+            SessionTimes(NOW - timedelta(hours=1), LATER, holds_refresh_token=True, holds_id_token=True),
+            SessionTimes(NOW, LATER, holds_refresh_token=False, holds_id_token=False),
         )
         assert {oldest.id, newest.id}.isdisjoint(vars(records.sessions[0]).values())
         assert not {"id", "refresh_token"} & set(vars(records.sessions[0]))

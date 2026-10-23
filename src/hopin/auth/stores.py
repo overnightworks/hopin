@@ -32,7 +32,7 @@ class StoredSession:
     created_at: datetime
     expires_at: datetime
     refresh_token: SecretStr | None
-    id_token: SecretStr = field(repr=False)
+    id_token: SecretStr | None = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,7 @@ class SessionTimes:
     started_at: datetime
     expires_at: datetime
     holds_refresh_token: bool
+    holds_id_token: bool
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ class _SessionRow:
     created_at: datetime
     expires_at: datetime
     refresh_token: SecretStr | None
-    id_token: SecretStr = field(repr=False)
+    id_token: SecretStr | None = field(repr=False)
 
 
 class InMemoryAccounts:
@@ -114,7 +115,7 @@ class InMemorySessions:
         now: datetime,
         expires_at: datetime,
         refresh_token: SecretStr | None,
-        id_token: SecretStr,
+        id_token: SecretStr | None,
     ) -> StoredSession:
         row = _SessionRow(
             id=secrets.token_urlsafe(SESSION_ID_BYTES),
@@ -153,7 +154,12 @@ class InMemorySessions:
             )
             account = self._accounts.get(subject)
         sessions = tuple(
-            SessionTimes(row.created_at, row.expires_at, holds_refresh_token=row.refresh_token is not None)
+            SessionTimes(
+                row.created_at,
+                row.expires_at,
+                holds_refresh_token=row.refresh_token is not None,
+                holds_id_token=row.id_token is not None,
+            )
             for row in rows
         )
         return PersonRecords(account=account, sessions=sessions)

@@ -208,6 +208,17 @@ class TestExportOfAPerson:
             {"kind": "call_replay_frame", "count": scene.anna_frames_held, "reason": "others"},
         ]
 
+    def test_counts_only_the_sessions_that_hold_an_id_token(self, client, stores, admin, person):
+        anna = person("anna")
+        stores.sessions.create(
+            "anna", now=anna.session.created_at, expires_at=anna.session.expires_at, refresh_token=None, id_token=None
+        )
+
+        _, export = read_archive(ask(client, "anna", admin).content)
+
+        withheld = {entry["kind"]: entry["count"] for entry in export["withheld"]}
+        assert (withheld["session_id"], withheld["id_token"]) == (2, 1)
+
     def test_lists_the_sessions_oldest_first(self, client, admin, scene):
         _, export = read_archive(ask(client, "anna", admin).content)
 

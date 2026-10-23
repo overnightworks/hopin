@@ -131,7 +131,6 @@ def _build_web_auth(
         trusted_proxies=trusted_proxies,
         rate_limits=SingleProcessRateLimitBackend(),
         allowed_hosts_exact=frozenset({urlsplit(settings.public_origin).netloc.lower()}),
-        allowed_hosts_patterns=(),
         session_lifetime=SessionLifetime(
             idle_seconds=SESSION_LIFETIME_SECONDS, absolute_max_age_seconds=SESSION_LIFETIME_SECONDS
         ),
@@ -188,7 +187,9 @@ def create_sign_in_router(
         )
         if not isinstance(outcome, AdmittedLogin):
             return _refusal_response(outcome, carrying=answer)
-        session = open_session(request, config, outcome, sessions=sessions, lock=lock, max_sessions=None)
+        session = open_session(
+            request, config, outcome, sessions=sessions, lock=lock, max_sessions=None, keeps_id_token=True
+        )
         issue_session_cookies(answer, session.id, config)
         answer.status_code = HTTPStatus.SEE_OTHER
         answer.headers["location"] = outcome.return_to or HOME_PATH

@@ -90,7 +90,10 @@ def build_export(
             sum(session.holds_refresh_token for session in records.sessions),
             WithheldReason.SECRET,
         ),
-        WithheldKind.ID_TOKEN: (len(records.sessions), WithheldReason.SECRET),
+        WithheldKind.ID_TOKEN: (
+            sum(session.holds_id_token for session in records.sessions),
+            WithheldReason.SECRET,
+        ),
         WithheldKind.RESUME_TOKEN: (len(seats), WithheldReason.SECRET),
         WithheldKind.CALL_REPLAY_FRAME: (sum(seat.replay_frames for seat in seats), WithheldReason.OTHERS),
     }

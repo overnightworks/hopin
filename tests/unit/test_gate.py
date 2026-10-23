@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
 from webauth.middleware import install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
-from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
+from webauth.policies import CsrfPolicy, SecurityHeadersPolicy, default_content_security_policy
 from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
@@ -65,6 +65,7 @@ LOOKALIKE_PATHS = [
 SIGN_IN_PAGES = {LOGIN_PATH: SIGNED_OUT_PAGE, NO_ACCESS_PATH: NO_ACCESS_PAGE}
 FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
+JSON_POST = {"content-type": "application/json"}
 CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 EXPECTED_CONTENT_SECURITY_POLICY = default_content_security_policy()
@@ -211,12 +212,9 @@ class TestLogout:
         return cleared
 
     def expected_cleared_paths(self, application):
-        return {
-            application.config.session_cookie_name: "Path=/",
-            application.config.csrf_cookie_name: "Path=/",
-        }
+        return {application.config.session_cookie_name: "Path=/"}
 
-    def test_a_member_gets_the_end_session_page_and_loses_the_session_and_both_cookies(self, application):
+    def test_a_member_gets_the_end_session_page_and_loses_the_session_and_its_cookie(self, application):
         member = application.seed()
 
         response = application.request("POST", LOGOUT_PATH, member, **SAME_ORIGIN_FORM_POST)
@@ -252,10 +250,18 @@ class TestLogout:
             CROSS_SITE_FORM_POST,
             {**FORM_POST, "sec-fetch-site": "cross-site"},
             FORM_POST,
+            JSON_POST,
             {**FORM_POST, "sec-fetch-site": "same-site", "origin": "https://evil.test.invalid"},
             {**FORM_POST, "referer": "https://evil.test.invalid/x"},
         ],
-        ids=["foreign-origin", "cross-site", "no-origin-evidence", "sibling-subdomain", "referer-only"],
+        ids=[
+            "foreign-origin",
+            "cross-site",
+            "no-origin-evidence",
+            "json-without-evidence",
+            "sibling-subdomain",
+            "referer-only",
+        ],
     )
     def test_a_logout_another_site_triggers_is_refused_and_keeps_the_session(self, application, headers):
         member = application.seed()
@@ -409,6 +415,7 @@ def install_gate(app: FastAPI, stores: SignInStores) -> None:
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
         ),
+        csrf_origin=CsrfPolicy(),
         session_gate=session_gate(stores.sessions),
     )
 

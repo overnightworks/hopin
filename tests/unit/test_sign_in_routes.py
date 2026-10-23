@@ -99,6 +99,10 @@ class SignInHarness:
             BACKCHANNEL_LOGOUT_PATH, content=urlencode(fields), headers={"content-type": content_type}
         )
 
+    def log_out(self, browser: TestClient) -> Response:
+        """What the page's log-out button sends: a same-origin POST."""
+        return browser.post(LOGOUT_PATH, headers={"sec-fetch-site": "same-origin"})
+
     def who(self, browser: TestClient) -> dict[str, object]:
         return browser.get(WHO_AM_I_PATH).json()
 
@@ -358,7 +362,7 @@ class TestLogout:
         session_id = harness.who(browser)["session_id"]
         id_token = harness.sessions.load(session_id).id_token.get_secret_value()
 
-        response = browser.post(LOGOUT_PATH)
+        response = harness.log_out(browser)
 
         page = EndSessionPage(response.text)
         cookies = set_cookies(response)
@@ -374,14 +378,14 @@ class TestLogout:
         assert harness.sessions.load(session_id) is None
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
-        assert {"max-age=0", "path=/"} <= cookies[harness.config.csrf_cookie_name]
+        assert set(cookies) == {SESSION_COOKIE}
 
     def test_a_logout_whose_row_is_gone_sends_no_hint_so_the_issuer_asks_once(self, harness):
         browser = harness.browser()
         harness.sign_in_through(browser)
         harness.sessions.delete(harness.who(browser)["session_id"])
 
-        page = EndSessionPage(browser.post(LOGOUT_PATH).text)
+        page = EndSessionPage(harness.log_out(browser).text)
 
         assert "id_token_hint" not in page.fields
 
@@ -391,7 +395,7 @@ class TestLogout:
         id_token = harness.sessions.load(harness.who(browser)["session_id"]).id_token.get_secret_value()
 
         with structlog.testing.capture_logs() as logs:
-            response = browser.post(LOGOUT_PATH)
+            response = harness.log_out(browser)
 
         assert id_token not in "".join(response.headers.get_list("set-cookie")) + json.dumps(logs)
 

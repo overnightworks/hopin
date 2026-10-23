@@ -61,7 +61,7 @@ def admitted_account(server: RunningServer, cookie_header: str) -> Authenticated
 
 
 @FORM_FACTORS
-def test_open_person_holds_the_session_and_csrf_cookies_of_its_seeded_member(
+def test_open_person_holds_only_the_session_cookie_of_its_seeded_member(
     open_person: Callable[..., Page],
     member_of: Callable[[Page], SeededMember],
     e2e_server: RunningServer,
@@ -72,12 +72,11 @@ def test_open_person_holds_the_session_and_csrf_cookies_of_its_seeded_member(
 
     held = {cookie["name"]: cookie for cookie in page.context.cookies()}
     config = e2e_server.config
-    assert set(held) == {config.session_cookie_name, config.csrf_cookie_name}
+    assert set(held) == {config.session_cookie_name}
     for cookie in held.values():
         assert (cookie["secure"], cookie["path"], cookie["sameSite"]) == (True, "/", "Lax")
         assert cookie["expires"] > config.wall_clock()
     assert held[config.session_cookie_name]["httpOnly"] is True
-    assert held[config.csrf_cookie_name]["httpOnly"] is False
     assert all(f"{name}={cookie['value']}" in cookie_header for name, cookie in held.items())
     assert admitted_account(e2e_server, cookie_header).id == member_of(page).account.id
 
