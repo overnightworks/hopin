@@ -100,8 +100,8 @@ class SignInHarness:
         )
 
     def log_out(self, browser: TestClient) -> Response:
-        """What the page's log-out button sends: a same-origin POST."""
-        return browser.post(LOGOUT_PATH, headers={"sec-fetch-site": "same-origin"})
+        """What the page's log-out button sends: a POST. This harness has no origin check; test_gate proves it."""
+        return browser.post(LOGOUT_PATH)
 
     def who(self, browser: TestClient) -> dict[str, object]:
         return browser.get(WHO_AM_I_PATH).json()
