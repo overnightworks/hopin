@@ -27,7 +27,7 @@ from hopin.config.constants import (
 from hopin.config.secret_files import StartRefusedError
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, seed_member
+from tests.signed_in import cookie_header, new_id_token, seed_member
 
 if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
@@ -184,10 +184,10 @@ class TestExpiredSessionSweep:
         now = datetime.now(UTC)
         created_at = now - timedelta(hours=2)
         expired = stores.sessions.create(
-            account.id, now=created_at, expires_at=now - timedelta(hours=1), refresh_token=None
+            account.id, now=created_at, expires_at=now - timedelta(hours=1), refresh_token=None, id_token=new_id_token()
         )
         live = stores.sessions.create(
-            account.id, now=created_at, expires_at=now + timedelta(hours=1), refresh_token=None
+            account.id, now=created_at, expires_at=now + timedelta(hours=1), refresh_token=None, id_token=new_id_token()
         )
         return app, stores.sessions, expired, live
 
@@ -203,7 +203,11 @@ class TestExpiredSessionSweep:
             asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
             now = datetime.now(UTC)
             later = sessions.create(
-                "subject", now=now - timedelta(hours=2), expires_at=now - timedelta(hours=1), refresh_token=None
+                "subject",
+                now=now - timedelta(hours=2),
+                expires_at=now - timedelta(hours=1),
+                refresh_token=None,
+                id_token=new_id_token(),
             )
             asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
             assert sessions.load(later.id) is None
@@ -245,7 +249,11 @@ class TestExpiredSessionSweep:
         now = datetime.now(UTC)
         account = stores.accounts.create_for_subject("subject", "name", "user")
         expired = stores.sessions.create(
-            account.id, now=now - timedelta(hours=2), expires_at=now - timedelta(hours=1), refresh_token=None
+            account.id,
+            now=now - timedelta(hours=2),
+            expires_at=now - timedelta(hours=1),
+            refresh_token=None,
+            id_token=new_id_token(),
         )
 
         async def shut_down_with_the_sweep_queued():

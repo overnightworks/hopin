@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
+LOGOUT_LABEL = "Log out"
 LOGIN_FAILED_PAGE = STATIC_DIR / "login-failed.html"
 SIGNED_OUT_PAGE = STATIC_DIR / "login.html"
 NO_ACCESS_PAGE = STATIC_DIR / "no-access.html"
@@ -117,7 +118,6 @@ def _build_oidc_client(settings: ServerSettings, client_secret: SecretStr) -> Oi
         client_secret=client_secret,
         redirect_uri=settings.public_origin + AUTH_CALLBACK_PATH,
         post_logout_redirect_uri=settings.public_origin + LOGIN_PATH,
-        logout_path=LOGOUT_PATH,
         scopes=OIDC_SCOPES,
         leeway_seconds=OIDC_LEEWAY_SECONDS,
     )
@@ -196,11 +196,9 @@ def create_sign_in_router(
 
     @router.post(LOGOUT_PATH)
     def logout(request: Request) -> Response:
-        answer = Response(status_code=HTTPStatus.SEE_OTHER)
-        answer.headers["location"] = log_out(
-            relying_party, request, answer, web_auth_config(request), sessions=sessions, lock=lock
+        return log_out(
+            relying_party, request, web_auth_config(request), sessions=sessions, lock=lock, button_label=LOGOUT_LABEL
         )
-        return answer
 
     @router.post(BACKCHANNEL_LOGOUT_PATH)
     async def backchannel_logout(request: Request) -> Response:
@@ -228,12 +226,6 @@ def create_sign_in_router(
         return FileResponse(NO_ACCESS_PAGE)
 
     return router
-
-
-def end_session_origin(oidc_client: OidcClientConfig) -> str:
-    """The origin a form may post to when the browser is redirected to the issuer's end-session endpoint."""
-    endpoint = urlsplit(oidc_client.end_session_endpoint)
-    return f"{endpoint.scheme}://{endpoint.netloc}"
 
 
 def _refusal_response(refusal: OidcRefusal | AdmissionRefusal, *, carrying: Response) -> Response:

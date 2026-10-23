@@ -11,7 +11,6 @@ from webauth.policies import (
     BodySizePolicy,
     BodySizeRule,
     CacheControlRule,
-    CspDirective,
     CsrfPolicy,
     RateLimitPolicy,
     RateLimitRule,
@@ -26,7 +25,6 @@ from hopin.auth.sign_in import (
     IssuerTransports,
     build_sign_in_configs,
     create_sign_in_router,
-    end_session_origin,
 )
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
@@ -53,8 +51,6 @@ from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_tur
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
-
-    from webauth.oidc import OidcClientConfig
 
     from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
@@ -120,13 +116,11 @@ def _configure_logging() -> None:
     )
 
 
-def _install_web_auth(app: FastAPI, oidc_client: OidcClientConfig, sessions: InMemorySessions) -> None:
+def _install_web_auth(app: FastAPI, sessions: InMemorySessions) -> None:
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
-            content_security_policy=default_content_security_policy(
-                added_sources={CspDirective.FORM_ACTION: [end_session_origin(oidc_client)]}
-            ),
+            content_security_policy=default_content_security_policy(),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
                 CacheControlRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, value="no-store"),
@@ -189,6 +183,6 @@ def create_app(
             audit=sign_in_stores.audit,
         )
     )
-    _install_web_auth(app, sign_in_configs.oidc_client, sign_in_stores.sessions)
+    _install_web_auth(app, sign_in_stores.sessions)
 
     return app

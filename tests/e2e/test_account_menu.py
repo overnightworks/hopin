@@ -21,6 +21,8 @@ from tests.sign_in_settings import TEST_ISSUER
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pydantic import SecretStr
+
 pytestmark = pytest.mark.e2e
 
 ACCOUNT_ROUTE = f"**{ACCOUNT_PATH}"
@@ -88,7 +90,7 @@ def leave_the_call(host: Page) -> None:
     expect(host.locator("[data-screen=end]")).to_be_visible()
 
 
-def log_out_from_the_open_menu(person: Page, e2e_server: RunningServer) -> None:
+def log_out_from_the_open_menu(person: Page, e2e_server: RunningServer, id_token: SecretStr) -> None:
     documents = []
     person.on("request", lambda request: request.is_navigation_request() and documents.append(request))
 
@@ -98,11 +100,15 @@ def log_out_from_the_open_menu(person: Page, e2e_server: RunningServer) -> None:
 
     post, end_session = documents
     assert (post.method, urlsplit(post.url).path) == ("POST", LOGOUT_PATH)
-    assert post.response().status == 303
-    assert parse_qs(urlsplit(end_session.url).query) == {
-        "client_id": ["hopin"],
-        "post_logout_redirect_uri": [f"https://{urlsplit(e2e_server.base_url).netloc}{LOGIN_PATH}"],
-    }
+    assert post.response().status == 200
+    assert (end_session.method, parse_qs(end_session.post_data)) == (
+        "POST",
+        {
+            "client_id": ["hopin"],
+            "post_logout_redirect_uri": [f"https://{urlsplit(e2e_server.base_url).netloc}{LOGIN_PATH}"],
+            "id_token_hint": [id_token.get_secret_value()],
+        },
+    )
     assert [cookie for cookie in person.context.cookies() if cookie["name"].startswith("__Host-")] == []
 
 
@@ -231,7 +237,7 @@ def test_log_out_from_the_home_menu_ends_the_session_and_leaves_through_the_issu
     person = open_home(open_person, e2e_server.base_url, page_errors, **form_factor)
     person.locator(AVATAR).click()
 
-    log_out_from_the_open_menu(person, e2e_server)
+    log_out_from_the_open_menu(person, e2e_server, member_of(person).session.id_token)
 
     assert e2e_server.stores.sessions.load(member_of(person).session.id) is None
 
@@ -247,7 +253,7 @@ def test_log_out_from_the_end_screen_menu_ends_the_session_the_same_way(
     leave_the_call(host)
     host.locator(AVATAR).click()
 
-    log_out_from_the_open_menu(host, e2e_server)
+    log_out_from_the_open_menu(host, e2e_server, member_of(host).session.id_token)
 
     assert e2e_server.stores.sessions.load(member_of(host).session.id) is None
 

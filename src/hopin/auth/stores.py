@@ -32,6 +32,7 @@ class StoredSession:
     created_at: datetime
     expires_at: datetime
     refresh_token: SecretStr | None
+    id_token: SecretStr = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class _SessionRow:
     created_at: datetime
     expires_at: datetime
     refresh_token: SecretStr | None
+    id_token: SecretStr = field(repr=False)
 
 
 class InMemoryAccounts:
@@ -106,7 +108,13 @@ class InMemorySessions:
         self._guard = guard
 
     def create(
-        self, user_id: str, *, now: datetime, expires_at: datetime, refresh_token: SecretStr | None
+        self,
+        user_id: str,
+        *,
+        now: datetime,
+        expires_at: datetime,
+        refresh_token: SecretStr | None,
+        id_token: SecretStr,
     ) -> StoredSession:
         row = _SessionRow(
             id=secrets.token_urlsafe(SESSION_ID_BYTES),
@@ -114,6 +122,7 @@ class InMemorySessions:
             created_at=now,
             expires_at=expires_at,
             refresh_token=refresh_token,
+            id_token=id_token,
         )
         with self._guard:
             user = self._accounts.existing(user_id)
@@ -196,6 +205,7 @@ def _joined(row: _SessionRow, user: StoredAccount) -> StoredSession:
         created_at=row.created_at,
         expires_at=row.expires_at,
         refresh_token=row.refresh_token,
+        id_token=row.id_token,
     )
 
 
