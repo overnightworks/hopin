@@ -1,0 +1,8 @@
+claim_id = "ee012574e6384e63afbeb692f5a56b46"
+agent = "claude"
+role = "builder"
+base = "38be7a84c85b790450c404ed9c39687fa50315f3"
+branch = "claude/issue-204-hopin-on-webauth-0-22-0"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/auth/stores.py", "src/hopin/people.py", "tests/e2e/test_account_menu.py", "tests/e2e/test_sign_in_pages.py", "tests/fake_issuer.py", "tests/signed_in.py", "tests/unit/test_app.py", "tests/unit/test_auth_stores.py", "tests/unit/test_gate.py", "tests/unit/test_people.py", "tests/unit/test_sign_in_config.py", "tests/unit/test_sign_in_routes.py", "uv.lock"]
+opened_commit = "ec3abdc5d5bc36a05054ca3d73943f02ba3cc570"
+whole_reason = "The breaking port change of webauth 0.22.0 lands at once: the pin decides which create, log_out and OidcClientConfig signatures apply, so the store, the sign-in routes, the CSP wiring, the export and every test that builds them change together or the tree does not type-check."
