@@ -283,4 +283,4 @@ class TestExportAfterTheErasure:
         assert len(data_before["seats"]) == 1
         assert withheld_before["resume_token"] == 1
         assert data_after == {"account": None, "sessions": [], "seats": []}
-        assert set(withheld_after.values()) == {0}
+        assert withheld_after == {}
