@@ -31,6 +31,7 @@ class WithheldReason(StrEnum):
 class WithheldKind(StrEnum):
     SESSION_ID = "session_id"
     REFRESH_TOKEN = "refresh_token"  # noqa: S105
+    ID_TOKEN = "id_token"  # noqa: S105
     RESUME_TOKEN = "resume_token"  # noqa: S105
     CALL_REPLAY_FRAME = "call_replay_frame"
 
@@ -88,6 +89,7 @@ def build_export(
             sum(session.holds_refresh_token for session in records.sessions),
             WithheldReason.SECRET,
         ),
+        WithheldKind.ID_TOKEN: (len(records.sessions), WithheldReason.SECRET),
         WithheldKind.RESUME_TOKEN: (len(seats), WithheldReason.SECRET),
         WithheldKind.CALL_REPLAY_FRAME: (sum(seat.replay_frames for seat in seats), WithheldReason.OTHERS),
     }

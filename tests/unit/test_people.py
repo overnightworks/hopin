@@ -29,12 +29,12 @@ from hopin.config.constants import (
 )
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import handshake_headers, seed_member
+from tests.signed_in import handshake_headers, new_id_token, seed_member
 
-WITHHELD_KINDS = ["session_id", "refresh_token", "resume_token", "call_replay_frame"]
+WITHHELD_KINDS = ["session_id", "refresh_token", "id_token", "resume_token", "call_replay_frame"]
 ZERO_WITHHELD = [
     {"kind": kind, "count": 0, "reason": reason}
-    for kind, reason in zip(WITHHELD_KINDS, ["secret", "secret", "secret", "others"], strict=True)
+    for kind, reason in zip(WITHHELD_KINDS, ["secret", "secret", "secret", "secret", "others"], strict=True)
 ]
 
 
@@ -125,11 +125,13 @@ def scene(client, stores, person):
     ben_subject = f"ben-{secrets.token_hex(4)}"
     ben = person(ben_subject)
     refresh_token = secrets.token_urlsafe()
+    older_id_token = new_id_token()
     older = stores.sessions.create(
         "anna",
         now=anna.session.created_at - timedelta(hours=1),
         expires_at=anna.session.expires_at - timedelta(hours=2),
         refresh_token=SecretStr(refresh_token),
+        id_token=older_id_token,
     )
     chat_text = secrets.token_urlsafe()
     ben_chat_text = secrets.token_urlsafe()
@@ -165,6 +167,8 @@ def scene(client, stores, person):
                 anna.session.id,
                 older.id,
                 refresh_token,
+                anna.session.id_token.get_secret_value(),
+                older_id_token.get_secret_value(),
                 created["resume_token"],
                 created["participant_id"],
                 ben_seat["resume_token"],
@@ -199,6 +203,7 @@ class TestExportOfAPerson:
         assert export["withheld"] == [
             {"kind": "session_id", "count": 2, "reason": "secret"},
             {"kind": "refresh_token", "count": 1, "reason": "secret"},
+            {"kind": "id_token", "count": 2, "reason": "secret"},
             {"kind": "resume_token", "count": 1, "reason": "secret"},
             {"kind": "call_replay_frame", "count": scene.anna_frames_held, "reason": "others"},
         ]

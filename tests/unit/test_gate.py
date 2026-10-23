@@ -3,7 +3,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import urlencode
 
 import pytest
 import structlog.testing
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
 from webauth.middleware import install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
-from webauth.policies import CspDirective, SecurityHeadersPolicy, default_content_security_policy
+from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
 from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
@@ -67,14 +67,7 @@ FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
-EXPECTED_CONTENT_SECURITY_POLICY = default_content_security_policy(
-    added_sources={CspDirective.FORM_ACTION: ["https://issuer.test.invalid"]}
-)
-HINT_COOKIE = "__Secure-oidc_id_token_hint"
-END_SESSION_QUERY_WITHOUT_HINT = {
-    "client_id": ["hopin"],
-    "post_logout_redirect_uri": [f"{TEST_PUBLIC_ORIGIN}{LOGIN_PATH}"],
-}
+EXPECTED_CONTENT_SECURITY_POLICY = default_content_security_policy()
 SESSION_LIFETIME = timedelta(hours=12)
 
 
@@ -221,23 +214,22 @@ class TestLogout:
         return {
             application.config.session_cookie_name: "Path=/",
             application.config.csrf_cookie_name: "Path=/",
-            HINT_COOKIE: "Path=/logout",
         }
 
-    def test_a_member_is_sent_to_the_end_session_and_loses_the_session_and_both_cookies(self, application):
+    def test_a_member_gets_the_end_session_page_and_loses_the_session_and_both_cookies(self, application):
         member = application.seed()
 
         response = application.request("POST", LOGOUT_PATH, member, **SAME_ORIGIN_FORM_POST)
 
-        assert response.status_code == 303
-        location = urlsplit(response.headers["location"])
-        assert f"{location.scheme}://{location.netloc}{location.path}" == END_SESSION_URL
-        assert parse_qs(location.query) == END_SESSION_QUERY_WITHOUT_HINT
+        assert response.status_code == 200
+        assert f'<form method="post" action="{END_SESSION_URL}">' in response.text
+        assert response.headers["cache-control"] == "no-store"
+        assert "form-action https://issuer.test.invalid" in response.headers["content-security-policy"]
         assert application.stores.sessions.load(member.session.id) is None
         assert self.cleared_cookie_paths(response) == self.expected_cleared_paths(application)
 
     @pytest.mark.parametrize("session", ["none", "deleted", "forged"])
-    def test_a_person_without_a_usable_session_still_gets_the_end_session_and_cleared_cookies(
+    def test_a_person_without_a_usable_session_still_gets_the_end_session_page_and_cleared_cookies(
         self, application, session
     ):
         member = application.seed() if session == "deleted" else None
@@ -249,10 +241,9 @@ class TestLogout:
 
         response = application.request("POST", LOGOUT_PATH, member, **headers)
 
-        location = urlsplit(response.headers["location"])
-        assert response.status_code == 303
-        assert f"{location.scheme}://{location.netloc}{location.path}" == END_SESSION_URL
-        assert parse_qs(location.query) == END_SESSION_QUERY_WITHOUT_HINT
+        assert response.status_code == 200
+        assert f'action="{END_SESSION_URL}"' in response.text
+        assert "id_token_hint" not in response.text
         assert self.cleared_cookie_paths(response) == self.expected_cleared_paths(application)
 
     @pytest.mark.parametrize(
@@ -281,7 +272,7 @@ class TestLogout:
 
         response = application.request("POST", LOGOUT_PATH, member, **FORM_POST, **{"sec-fetch-site": "same-origin"})
 
-        assert response.status_code == 303
+        assert response.status_code == 200
         assert application.stores.sessions.load(member.session.id) is None
 
     def test_a_get_is_not_a_logout(self, application):
@@ -437,7 +428,6 @@ class TestSecurityHeaders:
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
             ("GET", AUTH_CALLBACK_PATH, False, {}, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 200) for path in [*STYLESHEETS, *SIGN_IN_PAGES]],
-            ("POST", LOGOUT_PATH, False, SAME_ORIGIN_FORM_POST, 303),
             ("POST", LOGOUT_PATH, False, CROSS_SITE_FORM_POST, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),

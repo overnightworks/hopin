@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from http.cookies import Morsel, SimpleCookie
 from typing import TYPE_CHECKING
 
+from pydantic import SecretStr
 from starlette.responses import Response
 from webauth.cookies import issue_session_cookies
 
@@ -17,6 +18,10 @@ if TYPE_CHECKING:
     from hopin.auth.stores import SignInStores, StoredAccount, StoredSession
 
 SUBJECT_BYTES = 12
+
+
+def new_id_token() -> SecretStr:
+    return SecretStr(secrets.token_urlsafe())
 
 
 @dataclass(frozen=True)
@@ -61,7 +66,9 @@ def seed_member(
         account = stores.accounts.create_for_subject(f"subject-{suffix}", f"member-{suffix}", role=config.user_role)
     now = datetime.fromtimestamp(int(config.wall_clock()), UTC)
     lifetime = timedelta(seconds=config.session_lifetime.absolute_max_age_seconds) if expires_in is None else expires_in
-    session = stores.sessions.create(account.id, now=now, expires_at=now + lifetime, refresh_token=None)
+    session = stores.sessions.create(
+        account.id, now=now, expires_at=now + lifetime, refresh_token=None, id_token=new_id_token()
+    )
     response = Response()
     issue_session_cookies(response, session.id, config)
     return SeededMember(

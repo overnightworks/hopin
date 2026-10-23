@@ -5,6 +5,7 @@ import threading
 import time
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from html.parser import HTMLParser
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -17,7 +18,13 @@ from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_conf
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
 from webauth.ports import AccountEventKind
 
-from hopin.auth.sign_in import LOGIN_FAILED_PAGE, IssuerTransports, build_sign_in_configs, create_sign_in_router
+from hopin.auth.sign_in import (
+    LOGIN_FAILED_PAGE,
+    LOGOUT_LABEL,
+    IssuerTransports,
+    build_sign_in_configs,
+    create_sign_in_router,
+)
 from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
 from hopin.config.constants import (
     ADMIN_GROUP,
@@ -34,6 +41,7 @@ from hopin.config.constants import (
 )
 from tests.fake_issuer import FakeIssuer
 from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.signed_in import new_id_token
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -42,7 +50,6 @@ if TYPE_CHECKING:
 
 SESSION_COOKIE = "__Host-session_id"
 PENDING_COOKIE_PREFIX = "__Host-oidc_pending_"
-HINT_COOKIE = "__Secure-oidc_id_token_hint"
 WHO_AM_I_PATH = "/who-am-i"
 SUBJECT = "subject-1"
 USERNAME = "alice"
@@ -193,7 +200,6 @@ def assert_pending_login_cleared(
 ) -> None:
     cookies = set_cookies(response)
     assert SESSION_COOKIE not in cookies
-    assert HINT_COOKIE not in cookies
     set_by_start = {
         cookie_scope(raw)
         for started in harness.started
@@ -247,12 +253,21 @@ class TestAdmittedLogin:
         assert {"httponly", "secure", "samesite=lax", "path=/", f"max-age={SESSION_LIFETIME_SECONDS}"} <= cookies[
             SESSION_COOKIE
         ]
-        assert "path=/logout" in cookies[HINT_COOKIE]
         assert [
             "max-age=0" in attributes for name, attributes in cookies.items() if name.startswith(PENDING_COOKIE_PREFIX)
         ] == [True]
         assert who["user"] == {"id": SUBJECT, "username": USERNAME}
         assert session.expires_at - session.created_at == timedelta(seconds=SESSION_LIFETIME_SECONDS)
+
+    def test_the_id_token_lives_in_the_session_row_and_in_no_cookie(self, harness):
+        browser = harness.browser()
+        response = harness.sign_in_through(browser)
+        issued = json.loads(harness.issuer.exchanges[-1][1].body)["id_token"]
+        session = harness.sessions.load(harness.who(browser)["session_id"])
+        cookies_set = response.headers.get_list("set-cookie")
+        assert session.id_token.get_secret_value() == issued
+        assert issued not in "".join(cookies_set) + "".join(browser.cookies.values())
+        assert issued not in repr(session)
 
     @pytest.mark.parametrize(
         ("groups", "admin"),
@@ -308,33 +323,77 @@ class TestAdmittedLogin:
         ]
 
 
+class EndSessionPage(HTMLParser):
+    """The form webauth's logout page posts: its action, hidden fields and button text."""
+
+    def __init__(self, markup: str) -> None:
+        super().__init__()
+        self.action = ""
+        self.fields: dict[str, str] = {}
+        self.button_label = ""
+        self._in_button = False
+        self.feed(markup)
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == "form":
+            self.action = attributes["action"]
+        elif tag == "input":
+            self.fields[attributes["name"]] = attributes["value"]
+        elif tag == "button":
+            self._in_button = True
+
+    def handle_endtag(self, tag):
+        self._in_button = self._in_button and tag != "button"
+
+    def handle_data(self, data):
+        if self._in_button:
+            self.button_label += data
+
+
 class TestLogout:
-    def test_a_member_is_signed_out_here_and_sent_to_the_issuers_end_session_with_their_hint(self, harness):
+    def test_a_member_is_signed_out_here_and_gets_the_page_that_posts_their_id_token_to_the_issuer(self, harness):
         browser = harness.browser()
-        callback = harness.sign_in_through(browser)
-        hint = browser.cookies.get(HINT_COOKIE, path=LOGOUT_PATH)
+        harness.sign_in_through(browser)
         session_id = harness.who(browser)["session_id"]
+        id_token = harness.sessions.load(session_id).id_token.get_secret_value()
 
         response = browser.post(LOGOUT_PATH)
 
-        location = urlsplit(response.headers["location"])
-        query = parse_qs(location.query)
+        page = EndSessionPage(response.text)
         cookies = set_cookies(response)
-        assert callback.status_code == 303
-        assert response.status_code == 303
-        assert (
-            f"{location.scheme}://{location.netloc}{location.path}" == f"{TEST_ISSUER}/protocol/openid-connect/logout"
-        )
-        assert query == {
-            "client_id": [harness.sign_in.settings.oidc_client_id],
-            "post_logout_redirect_uri": [TEST_PUBLIC_ORIGIN + LOGIN_PATH],
-            "id_token_hint": [hint],
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert page.action == f"{TEST_ISSUER}/protocol/openid-connect/logout"
+        assert page.fields == {
+            "client_id": harness.sign_in.settings.oidc_client_id,
+            "post_logout_redirect_uri": TEST_PUBLIC_ORIGIN + LOGIN_PATH,
+            "id_token_hint": id_token,
         }
+        assert page.button_label == LOGOUT_LABEL
         assert harness.sessions.load(session_id) is None
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
         assert {"max-age=0", "path=/"} <= cookies[harness.config.csrf_cookie_name]
-        assert {"max-age=0", "path=/logout"} <= cookies[HINT_COOKIE]
+
+    def test_a_logout_whose_row_is_gone_sends_no_hint_so_the_issuer_asks_once(self, harness):
+        browser = harness.browser()
+        harness.sign_in_through(browser)
+        harness.sessions.delete(harness.who(browser)["session_id"])
+
+        page = EndSessionPage(browser.post(LOGOUT_PATH).text)
+
+        assert "id_token_hint" not in page.fields
+
+    def test_the_id_token_reaches_neither_a_cookie_nor_a_log_line_on_logout(self, harness):
+        browser = harness.browser()
+        harness.sign_in_through(browser)
+        id_token = harness.sessions.load(harness.who(browser)["session_id"]).id_token.get_secret_value()
+
+        with structlog.testing.capture_logs() as logs:
+            response = browser.post(LOGOUT_PATH)
+
+        assert id_token not in "".join(response.headers.get_list("set-cookie")) + json.dumps(logs)
 
 
 class FailingAuditSink(LoggingAuditSink):
@@ -442,7 +501,9 @@ class TestBackchannelLogout:
     def test_an_unreachable_key_set_answers_400_and_ends_nothing(self, harness):
         account = harness.accounts.create_for_subject("anna", USERNAME, role="user")
         now = datetime.now(UTC)
-        session = harness.sessions.create(account.id, now=now, expires_at=now + timedelta(hours=1), refresh_token=None)
+        session = harness.sessions.create(
+            account.id, now=now, expires_at=now + timedelta(hours=1), refresh_token=None, id_token=new_id_token()
+        )
         harness.issuer.key_set_is_down = True
 
         response = harness.post_logout_token(harness.issuer.logout_token("anna"))

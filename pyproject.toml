@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-webauth @ https://github.com/overnightworks/webauth/releases/download/v0.21.0/overnightworks_webauth-0.21.0-py3-none-any.whl",
+    "overnightworks-webauth @ https://github.com/overnightworks/webauth/releases/download/v0.22.0/overnightworks_webauth-0.22.0-py3-none-any.whl",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "structlog>=24.4",

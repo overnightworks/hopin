@@ -9,7 +9,7 @@
 "tests/unit/test_signaling_resume.py" = 807
 
 [function_lines."src/hopin/auth/sign_in.py"]
-"create_sign_in_router" = 88
+"create_sign_in_router" = 86
 
 [function_lines."src/hopin/signaling/handler.py"]
 "SignalingHandler._handle_message" = 61

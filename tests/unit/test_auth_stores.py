@@ -17,6 +17,7 @@ from hopin.auth.stores import (
     SignInStores,
     StoredAccount,
 )
+from tests.signed_in import new_id_token
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
@@ -45,7 +46,7 @@ def test_stores_satisfy_the_webauth_ports(accounts, sessions):
 def test_in_memory_sign_in_stores_load_a_session_for_an_account_created_through_them():
     stores = SignInStores.in_memory()
     account = stores.accounts.create_for_subject("subject", "name", "user")
-    session = stores.sessions.create(account.id, now=NOW, expires_at=LATER, refresh_token=None)
+    session = stores.sessions.create(account.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
     assert stores.sessions.load(session.id) == session
     assert stores.sessions.load(session.id).user == account
 
@@ -53,7 +54,10 @@ def test_in_memory_sign_in_stores_load_a_session_for_an_account_created_through_
 class TestSessionCreation:
     def test_create_mints_distinct_url_safe_ids_of_43_characters(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        created = [sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None) for _ in range(1000)]
+        created = [
+            sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
+            for _ in range(1000)
+        ]
         assert len({session.id for session in created}) == 1000
         assert {len(session.id) for session in created} == {43}
         assert all(
@@ -63,16 +67,22 @@ class TestSessionCreation:
 
     def test_create_stores_the_given_instants_and_the_account(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         assert (session.created_at, session.expires_at, session.user) == (NOW, LATER, user)
 
     def test_create_drops_a_session_expired_before_now_and_keeps_one_expiring_at_now(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
         expired = sessions.create(
-            user.id, now=NOW - timedelta(hours=2), expires_at=NOW - timedelta(seconds=1), refresh_token=None
+            user.id,
+            now=NOW - timedelta(hours=2),
+            expires_at=NOW - timedelta(seconds=1),
+            refresh_token=None,
+            id_token=new_id_token(),
         )
-        expiring_now = sessions.create(user.id, now=NOW - timedelta(hours=2), expires_at=NOW, refresh_token=None)
-        sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        expiring_now = sessions.create(
+            user.id, now=NOW - timedelta(hours=2), expires_at=NOW, refresh_token=None, id_token=new_id_token()
+        )
+        sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         assert sessions.load(expired.id) is None
         assert sessions.load(expiring_now.id) is not None
 
@@ -81,9 +91,13 @@ class TestExpiredSessionSweep:
     def test_delete_expired_removes_only_sessions_expired_before_now_and_answers_the_count(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
         created_at = NOW - timedelta(hours=13)
-        expired = sessions.create(user.id, now=created_at, expires_at=NOW - timedelta(hours=1), refresh_token=None)
-        expiring_now = sessions.create(user.id, now=created_at, expires_at=NOW, refresh_token=None)
-        live = sessions.create(user.id, now=created_at, expires_at=LATER, refresh_token=None)
+        expired = sessions.create(
+            user.id, now=created_at, expires_at=NOW - timedelta(hours=1), refresh_token=None, id_token=new_id_token()
+        )
+        expiring_now = sessions.create(
+            user.id, now=created_at, expires_at=NOW, refresh_token=None, id_token=new_id_token()
+        )
+        live = sessions.create(user.id, now=created_at, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         assert sessions.delete_expired(NOW) == 1
         survivors = [sessions.load(session.id) is not None for session in (expired, expiring_now, live)]
         assert survivors == [False, True, True]
@@ -96,7 +110,7 @@ class TestSessionRenewalAndEnd:
 
     def test_touch_of_a_known_id_writes_the_expiry_and_keeps_created_at(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         renewed_expiry = LATER + timedelta(hours=1)
         assert sessions.touch(session.id, expires_at=renewed_expiry) is True
         loaded = sessions.load(session.id)
@@ -108,8 +122,11 @@ class TestSessionRenewalAndEnd:
     def test_delete_for_user_answers_the_count_and_leaves_other_users(self, accounts, sessions):
         first = accounts.create_for_subject("first", "name", "user")
         second = accounts.create_for_subject("second", "name", "user")
-        ended = [sessions.create(first.id, now=NOW, expires_at=LATER, refresh_token=None) for _ in range(2)]
-        others = sessions.create(second.id, now=NOW, expires_at=LATER, refresh_token=None)
+        ended = [
+            sessions.create(first.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
+            for _ in range(2)
+        ]
+        others = sessions.create(second.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         assert sessions.delete_for_user(first.id) == 2
         assert [sessions.load(session.id) for session in ended] == [None, None]
         assert sessions.load(others.id) is not None
@@ -169,7 +186,9 @@ class TestRemovalAgainstJoins:
 
     def test_load_joins_the_account_inside_the_guard_so_an_erasure_never_meets_a_half_joined_row(self, probed):
         accounts, sessions = probed
-        session = sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"))
+        session = sessions.create(
+            "anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"), id_token=new_id_token()
+        )
         accounts.read_ran_outside_the_guard = False
 
         loaded = sessions.load(session.id)
@@ -183,7 +202,9 @@ class TestRemovalAgainstJoins:
     def test_create_checks_the_account_inside_the_guard_so_no_session_outlives_it(self, probed):
         accounts, sessions = probed
 
-        session = sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"))
+        session = sessions.create(
+            "anna", now=NOW, expires_at=LATER, refresh_token=SecretStr("refresh"), id_token=new_id_token()
+        )
         assert not accounts.read_ran_outside_the_guard
         assert sessions.load(session.id) == session
         assert sessions.delete_for_user("anna") == 1
@@ -204,8 +225,9 @@ class TestRemovalAgainstJoins:
         sessions.delete_for_user("anna")
 
         refresh_token = SecretStr("refresh")
+        id_token = new_id_token()
         with pytest.raises(KeyError):
-            sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=refresh_token)
+            sessions.create("anna", now=NOW, expires_at=LATER, refresh_token=refresh_token, id_token=id_token)
 
         assert sessions.person_records("anna").sessions == ()
 
@@ -213,7 +235,9 @@ class TestRemovalAgainstJoins:
     def test_prune_overflow_keeps_the_newest_by_created_at(self, accounts, sessions, keep_newest, kept_ages):
         user = accounts.create_for_subject("subject", "name", "user")
         by_age = {
-            age: sessions.create(user.id, now=NOW + timedelta(minutes=age), expires_at=LATER, refresh_token=None)
+            age: sessions.create(
+                user.id, now=NOW + timedelta(minutes=age), expires_at=LATER, refresh_token=None, id_token=new_id_token()
+            )
             for age in (0, 1, 2)
         }
         sessions.prune_overflow(user.id, keep_newest)
@@ -236,14 +260,14 @@ class TestAccounts:
 
     def test_set_role_changes_the_role_a_session_loads_with(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        session = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         accounts.set_role(user.id, "admin")
         assert sessions.load(session.id).user.role == "admin"
 
 
 def test_no_record_shows_a_session_id_in_its_repr(accounts, sessions):
     user = accounts.create_for_subject("subject", "name", "user")
-    created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+    created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
     shown = repr(created) + repr(sessions.load(created.id))
     assert created.id not in shown
 
@@ -252,25 +276,25 @@ class TestRefreshToken:
     def test_a_session_created_with_a_refresh_token_loads_with_it(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
         token = SecretStr(secrets.token_urlsafe())
-        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=token)
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=token, id_token=new_id_token())
         assert created.refresh_token == token
         assert sessions.load(created.id).refresh_token == token
 
     def test_a_session_created_without_one_loads_without_it(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         assert sessions.load(created.id).refresh_token is None
 
     def test_replace_on_a_live_session_stores_the_new_token(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         token = SecretStr(secrets.token_urlsafe())
         assert sessions.replace_refresh_token(created.id, refresh_token=token) is True
         assert sessions.load(created.id).refresh_token == token
 
     def test_replace_on_an_unknown_or_deleted_session_answers_false_and_creates_nothing(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
-        deleted = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None)
+        deleted = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         sessions.delete(deleted.id)
         for session_id in (deleted.id, secrets.token_urlsafe()):
             replaced = sessions.replace_refresh_token(session_id, refresh_token=SecretStr(secrets.token_urlsafe()))
@@ -280,9 +304,34 @@ class TestRefreshToken:
     def test_no_repr_shows_the_token_value(self, accounts, sessions):
         user = accounts.create_for_subject("subject", "name", "user")
         value = secrets.token_urlsafe()
-        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(value))
+        created = sessions.create(
+            user.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(value), id_token=new_id_token()
+        )
         shown = repr(created) + repr(sessions.load(created.id)) + repr(sessions) + repr(vars(sessions))
         assert value not in shown
+
+
+class TestIdToken:
+    def test_a_session_loads_with_the_id_token_it_was_created_with(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        token = new_id_token()
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=token)
+        assert sessions.load(created.id).id_token == token
+
+    def test_touch_and_replacing_the_refresh_token_leave_it_unchanged(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        token = new_id_token()
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=token)
+        sessions.touch(created.id, expires_at=LATER + timedelta(hours=1))
+        sessions.replace_refresh_token(created.id, refresh_token=SecretStr(secrets.token_urlsafe()))
+        assert sessions.load(created.id).id_token == token
+
+    def test_no_repr_shows_the_token_value(self, accounts, sessions):
+        user = accounts.create_for_subject("subject", "name", "user")
+        token = new_id_token()
+        created = sessions.create(user.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=token)
+        shown = repr(created) + repr(sessions.load(created.id)) + repr(sessions) + repr(vars(sessions))
+        assert token.get_secret_value() not in shown
 
 
 class TestPersonRecords:
@@ -291,14 +340,17 @@ class TestPersonRecords:
     ):
         anna = accounts.create_for_subject("anna", "anna-name", "user")
         ben = accounts.create_for_subject("ben", "ben-name", "user")
-        newest = sessions.create(anna.id, now=NOW, expires_at=LATER, refresh_token=None)
+        newest = sessions.create(anna.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
         oldest = sessions.create(
             anna.id,
             now=NOW - timedelta(hours=1),
             expires_at=LATER,
             refresh_token=SecretStr(secrets.token_urlsafe()),
+            id_token=new_id_token(),
         )
-        sessions.create(ben.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(secrets.token_urlsafe()))
+        sessions.create(
+            ben.id, now=NOW, expires_at=LATER, refresh_token=SecretStr(secrets.token_urlsafe()), id_token=new_id_token()
+        )
 
         records = sessions.person_records("anna")
 

@@ -160,23 +160,25 @@ def test_log_out_ends_the_session_and_the_loop_stops_at_the_issuers_end_session_
     person.on("console", lambda message: console_messages.append(message.text))
     documents = []
     person.on("request", lambda request: request.is_navigation_request() and documents.append(request))
+    id_token = member_of(person).session.id_token
     person.goto(f"{e2e_server.base_url}{NO_ACCESS_PATH}")
 
-    # The test issuer's host does not resolve and Playwright cannot answer a redirect's target, so the
-    # browser reaching the end-session request (not blocked by form-action) is where the loop ends here.
+    # The test issuer's host does not resolve, so the browser's request for the end-session endpoint
+    # (not blocked by the logout page's form-action) is where the loop ends here.
     with person.expect_event("requestfailed", lambda request: request.url.startswith(END_SESSION_URL)):
         person.get_by_role("button", name="Log out").click()
 
     assert [(request.method, urlsplit(request.url).path) for request in documents] == [
         ("GET", NO_ACCESS_PATH),
         ("POST", LOGOUT_PATH),
-        ("GET", END_SESSION_PATH),
+        ("POST", END_SESSION_PATH),
     ]
-    assert documents[1].response().status == 303
+    assert documents[1].response().status == 200
     assert documents[2].failure == ISSUER_NOT_REACHABLE
-    assert parse_qs(urlsplit(documents[2].url).query) == {
+    assert parse_qs(documents[2].post_data) == {
         "client_id": ["hopin"],
         "post_logout_redirect_uri": [f"https://{urlsplit(e2e_server.base_url).netloc}{LOGIN_PATH}"],
+        "id_token_hint": [id_token.get_secret_value()],
     }
     assert [cookie for cookie in person.context.cookies() if cookie["name"].startswith("__Host-")] == []
     assert e2e_server.stores.sessions.load(member_of(person).session.id) is None
