@@ -1,8 +1,0 @@
-claim_id = "e131e73ddde940b3a3f5375ed5f90c3c"
-agent = "claude"
-role = "builder"
-base = "daab5cf559fdbbdfb4aa6783a0990805df3a7c3b"
-branch = "claude/issue-212-hopin-on-webauth-0-23-0"
-scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/auth/stores.py", "src/hopin/people.py", "tests/e2e/conftest.py", "tests/e2e/test_sign_in.py", "tests/signed_in.py", "tests/unit/test_auth_stores.py", "tests/unit/test_gate.py", "tests/unit/test_people.py", "tests/unit/test_sign_in_config.py", "tests/unit/test_sign_in_routes.py", "uv.lock"]
-opened_commit = "593eef759d4113e6f6c62db3db4a24acec467998"
-whole_reason = "webauth 0.23.0's two breaking changes land at once with the pin: the install parameters, the store signature, the export count and every test that posts or pins the CSRF cookie change together, or the tree does not type-check."
