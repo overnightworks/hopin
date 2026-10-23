@@ -21,8 +21,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project --no-build \
  && useradd --no-create-home --uid 1001 hopin
 COPY src ./src
-# Only the project is installed here; the dependencies are already in place.
-RUN uv sync --locked --no-dev --no-editable
+# Only the project is installed here, as a wheel built from the copied source;
+# --no-build keeps the install itself from running any other build script.
+RUN uv build --wheel --out-dir /tmp/wheel \
+ && uv pip install --python /opt/venv/bin/python --no-deps --no-build /tmp/wheel/*.whl \
+ && rm -r /tmp/wheel
 USER hopin
 
 EXPOSE 8080
