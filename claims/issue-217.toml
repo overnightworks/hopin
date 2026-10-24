@@ -1,0 +1,7 @@
+claim_id = "adbf37a046d84808968058e88815c811"
+agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
+role = "builder"
+base = "9f3ce45540e121069b52357d7fe086e00c14d34a"
+branch = "claude/issue-217-close-uv-lock-advisories"
+scope = ["pyproject.toml", "uv.lock"]
+opened_commit = "57e2a530d50776f75ac4c5bc639f521511592a2b"
