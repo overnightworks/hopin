@@ -1,7 +1,0 @@
-claim_id = "72372710359b44059b87552a6ced80de"
-agent = "Claude 53b3004c-3d70-4a80-a84e-3af2e5069be5"
-role = "builder"
-base = "9f3ce45540e121069b52357d7fe086e00c14d34a"
-branch = "claude/issue-214-adopt-quality-v0-6-0"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", "quality/config.toml"]
-opened_commit = "995f984d3668f9d965588537c2376edd3c9b8239"
