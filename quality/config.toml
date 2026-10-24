@@ -1,2 +1,6 @@
 [gate]
 mandatory_jobs = ["Lint and test", "End-to-end"]
+
+[[root.allow]]
+entry = "Makefile"
+reason = "make finds its Makefile only in the directory it runs from"
