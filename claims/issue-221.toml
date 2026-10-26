@@ -1,0 +1,8 @@
+claim_id = "0d20c5cf5c124997afec1ac95472d399"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "9092dfd516fde1d857e9357d4056d6ce28d8e17c"
+branch = "claude/issue-221-dead-values-and-layout-gate"
+scope = [".github/workflows/ci.yml", ".pre-commit-config.yaml", "Makefile", "README.md", "pyproject.toml", "scripts/check_root_layout.py", "sonar-project.properties", "src/hopin/config/constants.py", "src/hopin/web/static/assets/js/invite.js", "tests/scripts", "tests/unit/test_config.py"]
+opened_commit = "8f9b3ec002054d7bce0af04dab5742f51fcebbbb"
+whole_reason = "One cleanup: removing the predecessor script touches every file that pins scripts/, and the two dead values and the CI step are too small to land alone."
