@@ -4,6 +4,7 @@ from functools import partial
 from typing import TYPE_CHECKING, assert_never
 
 import structlog
+from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
@@ -41,8 +42,6 @@ from hopin.signaling.seats import (
 )
 
 if TYPE_CHECKING:
-    from starlette.websockets import WebSocket
-
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Scheduler, TimerHandle
