@@ -7,8 +7,8 @@ SEQUENCE_KEY = "seq"
 SENDER_KEY = "from"
 TYPE_KEY = "type"
 
-_DESCRIPTION_TYPES = frozenset({SignalType.OFFER, SignalType.ANSWER})
-_SUPERSEDED_BY_A_DESCRIPTION = _DESCRIPTION_TYPES | {SignalType.ICE_CANDIDATE}
+DESCRIPTION_TYPES = frozenset({SignalType.OFFER, SignalType.ANSWER})
+SUPERSEDED_BY_A_DESCRIPTION = DESCRIPTION_TYPES | {SignalType.ICE_CANDIDATE}
 
 
 class ReplayLog:
@@ -24,7 +24,7 @@ class ReplayLog:
         return len(self._frames)
 
     def append(self, frame: dict[str, Any]) -> dict[str, Any]:
-        if frame[TYPE_KEY] in _DESCRIPTION_TYPES:
+        if frame[TYPE_KEY] in DESCRIPTION_TYPES:
             self._drop_superseded_by(frame)
         self._last_seq += 1
         sequenced = {**frame, SEQUENCE_KEY: self._last_seq}
@@ -44,5 +44,5 @@ class ReplayLog:
         self._frames = deque(
             frame
             for frame in self._frames
-            if not (frame[TYPE_KEY] in _SUPERSEDED_BY_A_DESCRIPTION and frame.get(SENDER_KEY) == sender)
+            if not (frame[TYPE_KEY] in SUPERSEDED_BY_A_DESCRIPTION and frame.get(SENDER_KEY) == sender)
         )

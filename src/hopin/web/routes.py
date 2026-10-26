@@ -12,6 +12,7 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
+from hopin.web.wire import WIRE_MODULE_MEDIA_TYPE, WIRE_MODULE_PATH, render_wire_module
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
@@ -21,6 +22,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 PAGE = STATIC_DIR / "index.html"
 ASSETS_DIR = STATIC_DIR / "assets"
 READ_METHODS = ["GET", "HEAD"]
+WIRE_MODULE_CONTENT = render_wire_module()
 
 
 def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager) -> APIRouter:
@@ -39,6 +41,10 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
         if not room_manager.has_room(room_id):
             return PlainTextResponse("Room not found", status_code=404)
         return FileResponse(PAGE)
+
+    @router.api_route(WIRE_MODULE_PATH, methods=READ_METHODS)
+    def wire_module() -> Response:
+        return Response(WIRE_MODULE_CONTENT, media_type=WIRE_MODULE_MEDIA_TYPE)
 
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)
