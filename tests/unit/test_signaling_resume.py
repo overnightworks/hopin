@@ -19,7 +19,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.rooms.models import Account
-from hopin.signaling.handler import Peer
+from hopin.signaling.seats import Peer
 from tests.unit.conftest import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
