@@ -36,6 +36,7 @@ from hopin.signaling.frames import (
     UnlockFrame,
     decode_frame,
 )
+from hopin.signaling.replay import sequence_of
 from hopin.signaling.seats import (
     Connection,
     Peer,
@@ -426,13 +427,13 @@ class SignalingHandler:
             if not seat.log.reaches_back_to(cursor):
                 await self._release_unresumable_seat(peer_id)
                 return
-            pending = seat.log.next_after(cursor)
-            if pending is None:
+            pending = seat.log.since(cursor)
+            if not pending:
                 seat.replaying = False
                 return
-            if not await self._seats.write(websocket, pending.frame):
+            if not await self._seats.write(websocket, pending[0]):
                 return
-            cursor = pending.seq
+            cursor = sequence_of(pending[0])
 
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
