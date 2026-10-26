@@ -261,7 +261,7 @@ class SignalingHandler:
                 await self._handle_chat(peer_id, frame)
             case MediaStateFrame():
                 await self._handle_media_state(peer_id, frame)
-            case EndRoomFrame():
+            case EndRoomFrame():  # pragma: no branch - ResumeFrame never reaches dispatch
                 await self._handle_end_room(peer_id)
 
     async def _handle_join(self, peer_id: PeerId, frame: JoinFrame) -> None:
