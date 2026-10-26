@@ -196,7 +196,7 @@ async def link(handler):
 
 def next_pending_timer(scheduler):
     """The earliest timer still pending: a park's window ends before any socket's session re-check."""
-    return min((timer for timer in scheduler._timers if timer.pending), key=lambda timer: timer.deadline)
+    return min(scheduler.pending_timers(), key=lambda timer: timer.deadline)
 
 
 async def host_and_guest(link):
@@ -257,7 +257,7 @@ class TestParkingAndWindow:
         socket.push(disconnect_frame(1006))
         await link.tasks[socket]
 
-        assert handler._peers == {}
+        assert handler.seats_of("stranger") == ()
 
     @pytest.mark.parametrize("silent_seconds", [5, RESUME_WINDOW_SECONDS - 0.1])
     async def test_guest_resuming_inside_the_window_keeps_its_seat_and_the_others_hear_nothing(

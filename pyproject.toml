@@ -70,7 +70,6 @@ runtime-evaluated-decorators = ["fastapi.APIRouter.api_route", "fastapi.APIRoute
     "S104",    # allow binding to all interfaces in test assertions
     "ANN",     # relax annotations in tests
     "ARG",     # allow unused arguments in fixtures
-    "SLF001",  # allow private member access for unit testing internals
 ]
 
 [tool.ruff.format]

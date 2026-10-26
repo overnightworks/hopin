@@ -1,8 +1,8 @@
 import asyncio
-import json
 import secrets
 
 import pytest
+import pytest_asyncio
 import structlog
 import structlog.testing
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
@@ -15,7 +15,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.rooms.models import Account
-from hopin.signaling.handler import Connection, Peer, SignalingHandler
+from hopin.signaling.handler import SignalingHandler
 from tests.unit.conftest import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
@@ -24,9 +24,9 @@ from tests.unit.conftest import (
     SocketAccountResolver,
     account_named,
     disconnect_frame,
-    make_ws_mock,
     text_frame,
 )
+from tests.unit.test_signaling_resume import Browser, Link
 
 pytestmark = pytest.mark.asyncio
 
@@ -40,77 +40,107 @@ class RaisingIdentityResolver:
         raise ResolverError
 
 
-def register_peer(handler, peer_id, account_id=None):
-    ws = make_ws_mock()
-    handler._peers[peer_id] = Peer(account=account_named(account_id or peer_id), websocket=ws)
-    return ws
+async def raise_disconnect(_text):
+    raise WebSocketDisconnect(code=1006)
 
 
-def seat_in_room(handler, room_manager, host, *guests):
-    """Register the host and guests as connected peers sharing one room, as joins would leave them."""
-    sockets = {name: register_peer(handler, name) for name in (host, *guests)}
-    room = room_manager.create_room(host, account_named(host))
-    handler._peer_rooms[host] = room.room_id
+@pytest_asyncio.fixture
+async def link(handler):
+    link = Link(handler)
+    yield link
+    await link.close_all()
+
+
+async def connect(link, name):
+    """A browser whose socket is open but has not joined a room."""
+    browser = Browser(link, name)
+    browser.sockets.append(await link.open(account_named(name)))
+    return browser
+
+
+def clear_sent(*browsers):
+    """Forget what the browsers were sent so far, so a test judges only what follows its arrangement."""
+    for browser in browsers:
+        for socket in browser.sockets:
+            socket.sent.clear()
+
+
+async def seat_in_room(link, room_manager, host, *guests):
+    """The host and guests joined into one room by real joins, with the join chatter forgotten."""
+    browsers = {host: await link.join(host)}
+    room_id = browsers[host].sockets[0].sent[0]["room_id"]
     for guest in guests:
-        room_manager.add_participant(room.room_id, guest, account_named(guest))
-        handler._peer_rooms[guest] = room.room_id
-    return room, sockets
+        browsers[guest] = await link.join(guest, room_id)
+    clear_sent(*browsers.values())
+    return room_manager.get_room(room_id), browsers
 
 
-async def deliver(handler, peer_id, message):
-    """Hand the handler the next frame of the peer's current socket, numbered as a browser would."""
-    peer = handler._peers[peer_id]
-    raw = message if isinstance(message, str) else json.dumps({**message, "seq": peer.received_seq + 1})
-    await handler._handle_message(Connection(peer.websocket, peer_id, frames_received=1), raw)
+async def deliver(browser, message):
+    """Hand the handler the browser's next frame: a string as typed, a dict numbered as a browser would."""
+    if isinstance(message, str):
+        browser.socket.push({"type": "websocket.receive", "text": message})
+        await browser.link.settle(browser.socket)
+    else:
+        await browser.say(message)
 
 
-def numbered_frames(ws):
-    return [json.loads(call.args[0]) for call in ws.send_text.call_args_list]
+def sent_frames(browser):
+    """The frames the browser was sent, without the sequence numbers a test about content does not care for."""
+    return [
+        {key: value for key, value in frame.items() if key != "seq"}
+        for socket in browser.sockets
+        for frame in socket.sent
+    ]
 
 
-def sent_frames(ws):
-    """The frames the socket was sent, without the sequence numbers a test about content does not care for."""
-    return [{key: value for key, value in frame.items() if key != "seq"} for frame in numbered_frames(ws)]
+def sent_types(browser):
+    return [frame["type"] for frame in sent_frames(browser)]
 
 
-def sent_types(ws):
-    return [frame["type"] for frame in sent_frames(ws)]
-
-
-def join_unknown_room(_handler, _room_manager):
+async def join_unknown_room(_link, _room_manager, _sender):
     return {"type": SignalType.JOIN.value, "room_id": "nonexistent"}
 
 
-def join_locked_room(_handler, room_manager):
+async def join_locked_room(_link, room_manager, _sender):
     room = room_manager.create_room("host1", account_named("host1"))
     room_manager.set_room_locked(room.room_id, account_named("host1"), locked=True)
     return {"type": SignalType.JOIN.value, "room_id": room.room_id}
 
 
-def join_full_room(_handler, room_manager):
+async def join_full_room(_link, room_manager, _sender):
     room = room_manager.create_room("host1", account_named("host1"))
     for index in range(ROOM_LIMIT - 1):
         room_manager.add_participant(room.room_id, f"member{index}", account_named(f"member{index}"))
     return {"type": SignalType.JOIN.value, "room_id": room.room_id}
 
 
-def lock_as_participant(handler, room_manager):
-    room = room_manager.create_room("host1", account_named("host1"))
-    room_manager.add_participant(room.room_id, "sender", account_named("sender"))
-    handler._peer_rooms["sender"] = room.room_id
+def stranger_sends(request):
+    async def arrange(_link, _room_manager, _sender):
+        return request
+
+    return arrange
+
+
+async def join_host_room(link, sender):
+    host = await link.join("host1")
+    await sender.send_raw(join_message(host.sockets[0].sent[0]["room_id"]))
+    return host
+
+
+async def lock_as_participant(link, _room_manager, sender):
+    await join_host_room(link, sender)
     return {"type": SignalType.LOCK_ROOM.value}
 
 
-def end_room_as_participant(handler, room_manager):
-    lock_as_participant(handler, room_manager)
+async def end_room_as_participant(link, _room_manager, sender):
+    await join_host_room(link, sender)
     return {"type": SignalType.END_ROOM.value}
 
 
-def lock_while_host_is_away(handler, room_manager):
-    request = lock_as_participant(handler, room_manager)
-    room_id = handler._peer_rooms["sender"]
-    room_manager.remove_participant(room_id, "host1")
-    return request
+async def lock_while_host_is_away(link, _room_manager, sender):
+    host = await join_host_room(link, sender)
+    await host.drop(1000)
+    return {"type": SignalType.LOCK_ROOM.value}
 
 
 class TestHandleMessageRefusals:
@@ -123,44 +153,46 @@ class TestHandleMessageRefusals:
             pytest.param(ErrorReason.NOT_HOST, lock_as_participant, None, id="lock_as_participant"),
             pytest.param(ErrorReason.NOT_HOST, end_room_as_participant, None, id="end_room_as_participant"),
             pytest.param(ErrorReason.NOT_HOST, lock_while_host_is_away, None, id="lock_while_host_is_away"),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: "not json", "Invalid JSON", id="not_json"),
+            pytest.param(ErrorReason.INVALID_MESSAGE, stranger_sends("not json"), "Invalid JSON", id="not_json"),
             pytest.param(
-                ErrorReason.INVALID_MESSAGE, lambda *_: "[]", "Message must be a JSON object", id="json_array"
+                ErrorReason.INVALID_MESSAGE, stranger_sends("[]"), "Message must be a JSON object", id="json_array"
             ),
-            pytest.param(ErrorReason.INVALID_MESSAGE, lambda *_: {"foo": "bar"}, "Missing signal type", id="no_type"),
+            pytest.param(
+                ErrorReason.INVALID_MESSAGE, stranger_sends({"foo": "bar"}), "Missing signal type", id="no_type"
+            ),
             pytest.param(
                 ErrorReason.INVALID_MESSAGE,
-                lambda *_: {"type": "unknown"},
+                stranger_sends({"type": "unknown"}),
                 "Unknown signal type: unknown",
                 id="unknown_type",
             ),
             pytest.param(
-                ErrorReason.INVALID_MESSAGE, lambda *_: {"type": []}, "Missing signal type", id="non_string_type"
+                ErrorReason.INVALID_MESSAGE, stranger_sends({"type": []}), "Missing signal type", id="non_string_type"
             ),
             pytest.param(
                 ErrorReason.INVALID_MESSAGE,
-                lambda *_: {"type": SignalType.OFFER.value, "target": []},
+                stranger_sends({"type": SignalType.OFFER.value, "target": []}),
                 "target must be a string",
                 id="non_string_target",
             ),
             pytest.param(
                 ErrorReason.INVALID_MESSAGE,
-                lambda *_: {"type": SignalType.JOIN.value, "room_id": {}},
+                stranger_sends({"type": SignalType.JOIN.value, "room_id": {}}),
                 "room_id must be a string",
                 id="non_string_room_id",
             ),
         ],
     )
     async def test_handle_message_refused_request_sends_one_error_frame_with_reason_and_message(
-        self, handler, room_manager, reason, arrange, detail
+        self, link, room_manager, reason, arrange, detail
     ):
-        ws = register_peer(handler, "sender")
-        raw_data = arrange(handler, room_manager)
+        sender = await connect(link, "sender")
+        raw_data = await arrange(link, room_manager, sender)
+        clear_sent(sender)
 
-        await deliver(handler, "sender", raw_data)
+        await deliver(sender, raw_data)
 
-        ws.send_text.assert_called_once()
-        response = json.loads(ws.send_text.call_args[0][0])
+        [response] = sender.socket.sent
         assert response["type"] == SignalType.ERROR.value
         assert response["reason"] == reason.value
         assert response["message"]
@@ -168,65 +200,64 @@ class TestHandleMessageRefusals:
         if detail is not None:
             assert response["message"] == detail
 
-    async def test_handle_message_full_room_refusal_carries_the_capacity(self, handler, room_manager):
-        ws = register_peer(handler, "sender")
-        raw_data = join_full_room(handler, room_manager)
+    async def test_handle_message_full_room_refusal_carries_the_capacity(self, link, room_manager):
+        sender = await connect(link, "sender")
+        raw_data = await join_full_room(link, room_manager, sender)
 
-        await deliver(handler, "sender", raw_data)
+        await deliver(sender, raw_data)
 
-        response = json.loads(ws.send_text.call_args[0][0])
+        response = sender.socket.sent[-1]
         assert response["capacity"] == ROOM_LIMIT
 
 
 class TestJoinCreateRoom:
-    async def test_creating_a_room_answers_room_created_and_seats_the_creator(self, handler, room_manager):
-        ws = register_peer(handler, "host1")
+    async def test_creating_a_room_answers_room_created_and_seats_the_creator(self, link, room_manager):
+        host = await connect(link, "host1")
 
-        await deliver(handler, "host1", join_message())
-        await deliver(handler, "host1", {"type": SignalType.LOCK_ROOM.value})
+        await deliver(host, join_message())
+        await deliver(host, {"type": SignalType.LOCK_ROOM.value})
 
-        assert sent_types(ws) == [SignalType.ROOM_CREATED.value, SignalType.ROOM_LOCKED.value]
-        assert room_manager.get_room(sent_frames(ws)[0]["room_id"]).locked
+        assert sent_types(host) == [SignalType.ROOM_CREATED.value, SignalType.ROOM_LOCKED.value]
+        assert room_manager.get_room(sent_frames(host)[0]["room_id"]).locked
 
 
 class TestJoinExistingRoom:
     async def test_second_join_from_a_seat_in_a_room_is_refused_and_the_first_room_is_unchanged(
-        self, handler, room_manager
+        self, link, room_manager
     ):
-        room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
         other_room = room_manager.create_room("host2", account_named("host2"))
 
-        await deliver(handler, "p1", join_message(other_room.room_id))
-        await deliver(handler, "p1", join_message())
-        await deliver(handler, "p1", {"type": SignalType.CHAT.value, "message": "still here"})
+        await deliver(browsers["p1"], join_message(other_room.room_id))
+        await deliver(browsers["p1"], join_message())
+        await deliver(browsers["p1"], {"type": SignalType.CHAT.value, "message": "still here"})
 
-        assert [frame["reason"] for frame in frames_of_type(sockets["p1"], SignalType.ERROR)] == [
+        assert [frame["reason"] for frame in frames_of_type(browsers["p1"], SignalType.ERROR)] == [
             ErrorReason.INVALID_MESSAGE.value
         ] * 2
-        assert frames_of_type(sockets["host1"], SignalType.CHAT) == [
-            {"type": SignalType.CHAT.value, "message": "still here", "from": "p1"}
+        assert frames_of_type(browsers["host1"], SignalType.CHAT) == [
+            {"type": SignalType.CHAT.value, "message": "still here", "from": browsers["p1"].peer_id}
         ]
-        assert room.participant_ids == ["host1", "p1"]
+        assert room.participant_ids == [browsers["host1"].peer_id, browsers["p1"].peer_id]
         assert other_room.participant_ids == ["host2"]
 
-    async def test_refused_second_join_is_not_logged_as_a_join(self, handler, room_manager):
-        seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_refused_second_join_is_not_logged_as_a_join(self, link, room_manager):
+        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
         with structlog.testing.capture_logs() as logs:
-            await deliver(handler, "p1", join_message())
+            await deliver(browsers["p1"], join_message())
 
         assert [log["event"] for log in logs if log["event"] in ("room_created", "participant_joined")] == []
 
-    async def test_joiner_gets_the_existing_participants_and_they_hear_of_the_joiner(self, handler, room_manager):
-        room, sockets = seat_in_room(handler, room_manager, "host1")
-        joiner_ws = register_peer(handler, "p1")
+    async def test_joiner_gets_the_existing_participants_and_they_hear_of_the_joiner(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1")
 
-        await deliver(handler, "p1", join_message(room.room_id))
+        joiner = await link.join("p1", room.room_id)
 
-        [existing] = frames_of_type(joiner_ws, SignalType.EXISTING_PARTICIPANTS)
-        assert "host1" in existing["participants"]
-        assert sent_frames(sockets["host1"]) == [
-            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "p1", "name": "p1"}
+        [existing] = frames_of_type(joiner, SignalType.EXISTING_PARTICIPANTS)
+        assert browsers["host1"].peer_id in existing["participants"]
+        assert sent_frames(browsers["host1"]) == [
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": joiner.peer_id, "name": "p1"}
         ]
 
     async def test_joiner_is_told_the_names_of_the_others_by_their_participant_ids(self, handler):
@@ -255,78 +286,80 @@ class TestRelay:
             (SignalType.ICE_CANDIDATE, {"candidate": "test_candidate"}),
         ],
     )
-    async def test_signal_is_relayed_to_the_target_with_its_sender(self, handler, room_manager, signal_type, payload):
-        _room, sockets = seat_in_room(handler, room_manager, "p1", "p2")
+    async def test_signal_is_relayed_to_the_target_with_its_sender(self, link, room_manager, signal_type, payload):
+        _room, browsers = await seat_in_room(link, room_manager, "p1", "p2")
 
-        await deliver(handler, "p1", {"type": signal_type.value, "target": "p2", **payload})
+        await deliver(browsers["p1"], {"type": signal_type.value, "target": browsers["p2"].peer_id, **payload})
 
-        [relayed] = sent_frames(sockets["p2"])
-        assert {"type": signal_type.value, "from": "p1", **payload}.items() <= relayed.items()
+        [relayed] = sent_frames(browsers["p2"])
+        assert {"type": signal_type.value, "from": browsers["p1"].peer_id, **payload}.items() <= relayed.items()
 
     @pytest.mark.parametrize("signal_type", [SignalType.OFFER, SignalType.ANSWER, SignalType.ICE_CANDIDATE])
     @pytest.mark.parametrize(
-        ("sender", "route"),
+        ("sender", "target"),
         [
-            pytest.param("p1", {}, id="without_target"),
-            pytest.param("p1", {"target": "outsider"}, id="to_a_peer_in_another_room"),
-            pytest.param("p1", {"target": "loner"}, id="to_a_peer_in_no_room"),
-            pytest.param("loner", {"target": "p1"}, id="from_a_sender_in_no_room"),
+            pytest.param("p1", None, id="without_target"),
+            pytest.param("p1", "outsider", id="to_a_peer_in_another_room"),
+            pytest.param("p1", "never-seated", id="to_a_peer_that_holds_no_seat_in_the_room"),
+            pytest.param("loner", "p1", id="from_a_sender_in_no_room"),
         ],
     )
     async def test_relay_that_has_no_recipient_in_the_senders_room_reaches_nobody(
-        self, handler, room_manager, signal_type, sender, route
+        self, link, room_manager, signal_type, sender, target
     ):
-        _room, sockets = seat_in_room(handler, room_manager, "p1", "p2")
-        _other_room, other_sockets = seat_in_room(handler, room_manager, "outsider")
-        sockets["loner"] = register_peer(handler, "loner")
+        _room, browsers = await seat_in_room(link, room_manager, "p1", "p2")
+        _other_room, other_browsers = await seat_in_room(link, room_manager, "outsider")
+        browsers |= other_browsers | {"loner": await connect(link, "loner")}
+        route = {} if target is None else {"target": browsers[target].peer_id if target in browsers else target}
 
-        await deliver(handler, sender, {"type": signal_type.value, **route})
+        await deliver(browsers[sender], {"type": signal_type.value, **route})
 
-        for ws in (*sockets.values(), *other_sockets.values()):
-            ws.send_text.assert_not_called()
+        assert [frame for browser in browsers.values() for frame in sent_frames(browser)] == []
 
     async def test_refused_relay_logs_the_sender_and_never_the_target_the_browser_chose(
-        self, handler, room_manager, capsys
+        self, link, room_manager, capsys
     ):
-        seat_in_room(handler, room_manager, "p1", "p2")
+        _room, browsers = await seat_in_room(link, room_manager, "p1", "p2")
         sentinel = secrets.token_hex(16)
 
         with structlog.testing.capture_logs() as logs:
-            await deliver(handler, "p1", {"type": SignalType.OFFER.value, "target": sentinel, "sdp": "x"})
+            await deliver(browsers["p1"], {"type": SignalType.OFFER.value, "target": sentinel, "sdp": "x"})
 
         [refusal] = [log for log in logs if log["event"] == "relay_outside_room"]
         assert set(refusal) == {"event", "peer_id", "log_level"}
-        assert refusal["peer_id"] == "p1"
+        assert refusal["peer_id"] == browsers["p1"].peer_id
         assert sentinel not in repr(logs)
         captured = capsys.readouterr()
         assert sentinel not in captured.out + captured.err
 
 
 class TestDisconnect:
-    async def test_guest_leaving_tells_the_others_without_host_away_and_the_room_stays(self, handler, room_manager):
-        room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_guest_leaving_tells_the_others_without_host_away_and_the_room_stays(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await handler._handle_disconnect("p1")
+        await browsers["p1"].drop(1000)
 
-        assert sent_frames(sockets["host1"]) == [{"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": "p1"}]
+        assert sent_frames(browsers["host1"]) == [
+            {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": browsers["p1"].peer_id}
+        ]
         assert room_manager.has_room(room.room_id)
 
-    async def test_last_guest_leaving_keeps_the_room(self, handler, room_manager):
-        room, _sockets = seat_in_room(handler, room_manager, "host1", "p1")
-        await handler._handle_disconnect("p1")
-        await handler._handle_disconnect("host1")
+    async def test_last_guest_leaving_keeps_the_room(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
+        await browsers["p1"].drop(1000)
+        await browsers["host1"].drop(1000)
         assert room_manager.has_room(room.room_id)
 
-    async def test_disconnect_without_room_is_safe(self, handler):
-        register_peer(handler, "c1")
-        await handler._handle_disconnect("c1")
-        assert "c1" not in handler._peers
+    async def test_disconnect_without_room_is_safe(self, link, handler):
+        browser = await connect(link, "c1")
+        await browser.drop(1000)
+        assert handler.seats_of("c1") == ()
 
-    async def test_disconnect_from_deleted_room(self, handler):
-        register_peer(handler, "p1")
-        handler._peer_rooms["p1"] = "deleted_room"
-        await handler._handle_disconnect("p1")
-        assert "p1" not in handler._peer_rooms
+    async def test_disconnect_from_deleted_room(self, link, handler, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "p1")
+        room_manager.remove_room(room.room_id)
+        await browsers["p1"].drop(1000)
+        assert handler.seats_of("p1") == ()
 
 
 class TestPeerInNoRoom:
@@ -340,39 +373,39 @@ class TestPeerInNoRoom:
             pytest.param({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True}, id="media_state"),
         ],
     )
-    async def test_room_request_from_a_peer_in_no_room_is_ignored(self, handler, message):
-        ws = register_peer(handler, "c1")
+    async def test_room_request_from_a_peer_in_no_room_is_ignored(self, link, message):
+        browser = await connect(link, "c1")
 
-        await deliver(handler, "c1", message)
+        await deliver(browser, message)
 
-        ws.send_text.assert_not_called()
+        assert browser.socket.sent == []
 
 
 class TestLockUnlock:
-    async def test_host_can_lock_room(self, handler, room_manager):
-        room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_host_can_lock_room(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(handler, "host1", {"type": SignalType.LOCK_ROOM.value})
+        await deliver(browsers["host1"], {"type": SignalType.LOCK_ROOM.value})
 
-        assert sent_types(sockets["host1"]) == [SignalType.ROOM_LOCKED.value]
-        assert sent_types(sockets["p1"]) == [SignalType.ROOM_LOCKED.value]
+        assert sent_types(browsers["host1"]) == [SignalType.ROOM_LOCKED.value]
+        assert sent_types(browsers["p1"]) == [SignalType.ROOM_LOCKED.value]
         assert room.locked is True
 
-    async def test_host_can_unlock_room(self, handler, room_manager):
-        room, sockets = seat_in_room(handler, room_manager, "host1")
+    async def test_host_can_unlock_room(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1")
         room_manager.set_room_locked(room.room_id, account_named("host1"), locked=True)
 
-        await deliver(handler, "host1", {"type": SignalType.UNLOCK_ROOM.value})
+        await deliver(browsers["host1"], {"type": SignalType.UNLOCK_ROOM.value})
 
-        assert sent_types(sockets["host1"]) == [SignalType.ROOM_UNLOCKED.value]
+        assert sent_types(browsers["host1"]) == [SignalType.ROOM_UNLOCKED.value]
         assert room.locked is False
 
 
 class TestSeatsOf:
     async def test_lists_the_seats_of_one_account_a_parked_one_until_its_window_ends(
-        self, handler, room_manager, scheduler
+        self, link, handler, room_manager, scheduler
     ):
-        room, _ = seat_in_room(handler, room_manager, "host1", "ben")
+        room, _ = await seat_in_room(link, room_manager, "host1", "ben")
         guest = FakeSocket(
             [text_frame(join_message(room.room_id)), disconnect_frame(1006)], account=account_named("anna")
         )
@@ -387,8 +420,8 @@ class TestSeatsOf:
 
         assert handler.seats_of("anna") == ()
 
-    async def test_lists_a_seat_that_has_not_joined_a_call_without_a_call_id(self, handler):
-        register_peer(handler, "anna")
+    async def test_lists_a_seat_that_has_not_joined_a_call_without_a_call_id(self, link, handler):
+        await connect(link, "anna")
 
         assert [(seat.call_id, seat.host) for seat in handler.seats_of("anna")] == [(None, False)]
 
@@ -455,32 +488,39 @@ class TestHandleWebsocket:
 
 
 class TestChat:
-    async def test_chat_broadcasts_to_other_participants(self, handler, room_manager):
-        _room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_chat_broadcasts_to_other_participants(self, link, room_manager):
+        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(handler, "host1", {"type": SignalType.CHAT.value, "message": "hello"})
+        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": "hello"})
 
-        assert sent_frames(sockets["p1"]) == [{"type": SignalType.CHAT.value, "message": "hello", "from": "host1"}]
-        sockets["host1"].send_text.assert_not_called()
+        assert sent_frames(browsers["p1"]) == [
+            {"type": SignalType.CHAT.value, "message": "hello", "from": browsers["host1"].peer_id}
+        ]
+        assert browsers["host1"].socket.sent == []
 
-    async def test_chat_empty_message_is_ignored(self, handler, room_manager):
-        _room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_chat_empty_message_is_ignored(self, link, room_manager):
+        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(handler, "host1", {"type": SignalType.CHAT.value, "message": ""})
+        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": ""})
 
-        sockets["p1"].send_text.assert_not_called()
+        assert browsers["p1"].socket.sent == []
 
 
 class TestMediaState:
-    async def test_media_state_reaches_every_other_participant_with_from(self, handler, room_manager):
-        _, sockets = seat_in_room(handler, room_manager, "host1", "p1", "p2")
+    async def test_media_state_reaches_every_other_participant_with_from(self, link, room_manager):
+        _, browsers = await seat_in_room(link, room_manager, "host1", "p1", "p2")
 
-        await deliver(handler, "p1", {"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
+        await deliver(browsers["p1"], {"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
 
-        expected = {"type": SignalType.MEDIA_STATE.value, "from": "p1", "audio": False, "video": True}
-        assert sent_frames(sockets["host1"]) == [expected]
-        assert sent_frames(sockets["p2"]) == [expected]
-        assert sockets["p1"].send_text.call_count == 0
+        expected = {
+            "type": SignalType.MEDIA_STATE.value,
+            "from": browsers["p1"].peer_id,
+            "audio": False,
+            "video": True,
+        }
+        assert sent_frames(browsers["host1"]) == [expected]
+        assert sent_frames(browsers["p2"]) == [expected]
+        assert browsers["p1"].socket.sent == []
 
     @pytest.mark.parametrize(
         "state",
@@ -492,44 +532,46 @@ class TestMediaState:
         ],
     )
     async def test_media_state_without_boolean_audio_and_video_is_answered_invalid_message(
-        self, handler, room_manager, state
+        self, link, room_manager, state
     ):
-        _, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+        _, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(handler, "p1", {"type": SignalType.MEDIA_STATE.value, **state})
+        await deliver(browsers["p1"], {"type": SignalType.MEDIA_STATE.value, **state})
 
-        assert [frame["reason"] for frame in sent_frames(sockets["p1"])] == [ErrorReason.INVALID_MESSAGE.value]
-        assert sockets["host1"].send_text.call_count == 0
+        assert [frame["reason"] for frame in sent_frames(browsers["p1"])] == [ErrorReason.INVALID_MESSAGE.value]
+        assert browsers["host1"].socket.sent == []
 
 
 class TestSend:
-    async def test_send_to_connected_client(self, handler):
-        ws = register_peer(handler, "c1")
-        await handler._send("c1", {"type": "test"})
-        ws.send_text.assert_called_once()
+    async def test_send_to_unknown_client_is_safe_and_the_connected_one_is_still_served(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "c1")
+        room_manager.add_participant(room.room_id, "unknown", account_named("unknown"))
 
-    async def test_send_to_unknown_client_is_safe(self, handler):
-        await handler._send("unknown", {"type": "test"})
+        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": "test"})
+
+        assert sent_types(browsers["c1"]) == [SignalType.CHAT.value]
+        assert browsers["host1"].socket.sent == []
 
     @pytest.mark.parametrize("closed_state", ["client_state", "application_state"])
-    async def test_send_to_a_peer_whose_socket_is_closed_sends_nothing(self, handler, closed_state):
-        ws = register_peer(handler, "c1")
-        setattr(ws, closed_state, WebSocketState.DISCONNECTED)
-        await handler._send("c1", {"type": "test"})
-        ws.send_text.assert_not_called()
+    async def test_send_to_a_peer_whose_socket_is_closed_sends_nothing(self, link, room_manager, closed_state):
+        _room, browsers = await seat_in_room(link, room_manager, "host1", "c1")
+        setattr(browsers["c1"].socket, closed_state, WebSocketState.DISCONNECTED)
+
+        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": "test"})
+
+        assert browsers["c1"].socket.sent == []
 
 
 class TestSendToGonePeer:
-    async def test_relay_to_peer_whose_send_raises_disconnect_keeps_the_sender_running(self, handler, room_manager):
-        _room, sockets = seat_in_room(handler, room_manager, "p1", "p2")
-        sender_ws, gone_ws = sockets["p1"], sockets["p2"]
-        gone_ws.send_text.side_effect = WebSocketDisconnect(code=1006)
+    async def test_relay_to_peer_whose_send_raises_disconnect_keeps_the_sender_running(self, link, room_manager):
+        _room, browsers = await seat_in_room(link, room_manager, "p1", "p2")
+        sender, gone = browsers["p1"], browsers["p2"]
+        gone.socket.send_text = raise_disconnect
 
-        await deliver(handler, "p1", {"type": SignalType.OFFER.value, "target": "p2"})
-        await deliver(handler, "p1", "not json")
+        await deliver(sender, {"type": SignalType.OFFER.value, "target": gone.peer_id})
+        await deliver(sender, "not json")
 
-        response = json.loads(sender_ws.send_text.call_args[0][0])
-        assert response["reason"] == ErrorReason.INVALID_MESSAGE.value
+        assert sender.socket.sent[-1]["reason"] == ErrorReason.INVALID_MESSAGE.value
 
     async def test_relay_to_missing_targets_through_handle_websocket_sends_the_sender_no_frame(self, handler):
         socket = FakeSocket(
@@ -542,17 +584,13 @@ class TestSendToGonePeer:
         await handler.handle_websocket(socket)
         assert socket.sent == []
 
-    async def test_relay_through_handle_websocket_to_vanished_peer_still_answers_later_frames(
-        self, handler, room_manager
-    ):
-        gone_ws = register_peer(handler, "gone")
-        gone_ws.send_text.side_effect = WebSocketDisconnect(code=1006)
-        room = room_manager.create_room("gone", account_named("gone"))
-        handler._peer_rooms["gone"] = room.room_id
+    async def test_relay_through_handle_websocket_to_vanished_peer_still_answers_later_frames(self, link, handler):
+        gone = await link.join("gone")
+        gone.socket.send_text = raise_disconnect
         socket = FakeSocket(
             [
-                text_frame({"type": SignalType.JOIN.value, "room_id": room.room_id}),
-                text_frame({"type": SignalType.OFFER.value, "target": "gone"}, seq=1),
+                text_frame(join_message(gone.sockets[0].sent[0]["room_id"])),
+                text_frame({"type": SignalType.OFFER.value, "target": gone.peer_id}, seq=1),
                 {"type": "websocket.receive", "text": "not json"},
                 disconnect_frame(1000),
             ]
@@ -562,8 +600,14 @@ class TestSendToGonePeer:
         assert errors == [ErrorReason.INVALID_MESSAGE.value]
 
     async def test_send_over_a_transport_that_fails_is_a_no_op_via_starlette_translation(self, handler):
+        inbound = [
+            {"type": "websocket.connect"},
+            text_frame(join_message()),
+            {"type": "websocket.disconnect", "code": 1000},
+        ]
+
         async def receive():
-            return {"type": "websocket.connect"}
+            return inbound.pop(0)
 
         async def failing_send(message):
             if message["type"] == "websocket.accept":
@@ -572,51 +616,45 @@ class TestSendToGonePeer:
 
         scope = {"type": "websocket", "path": "/ws", "headers": [], "query_string": b""}
         websocket = WebSocket(scope, receive, failing_send)
-        await websocket.accept()
-        handler._peers["p1"] = Peer(account=ADMITTED_ACCOUNT, websocket=websocket)
+        websocket.account = ADMITTED_ACCOUNT
 
         with structlog.testing.capture_logs() as logs:
-            await handler._send("p1", {"type": "test"})
+            await handler.handle_websocket(websocket)
 
-        assert [log["event"] for log in logs] == ["send_to_gone_peer"]
+        assert [log["event"] for log in logs if log["event"] == "send_to_gone_peer"] == ["send_to_gone_peer"]
 
 
 def join_message(room_id=None):
     return {"type": SignalType.JOIN.value, "room_id": room_id}
 
 
-def frames_of_type(ws, signal_type):
-    return [frame for frame in sent_frames(ws) if frame["type"] == signal_type.value]
+def frames_of_type(browser, signal_type):
+    return [frame for frame in sent_frames(browser) if frame["type"] == signal_type.value]
 
 
-async def drop_host(handler, room_manager, *guests):
-    room, sockets = seat_in_room(handler, room_manager, "host1", *guests)
-    await handler._handle_disconnect("host1")
-    return room, sockets
-
-
-async def host_rejoins(handler, room_id, peer_id="host-back"):
-    ws = register_peer(handler, peer_id, account_id="host1")
-    await deliver(handler, peer_id, join_message(room_id))
-    return ws
+async def drop_host(link, room_manager, *guests):
+    room, browsers = await seat_in_room(link, room_manager, "host1", *guests)
+    await browsers["host1"].drop(1000)
+    return room, browsers
 
 
 class TestHostGrace:
     async def test_last_host_connection_dropping_sends_host_away_then_participant_left_and_keeps_the_room(
-        self, handler, room_manager
+        self, link, room_manager
     ):
-        room, sockets = await drop_host(handler, room_manager, "p1")
+        room, browsers = await drop_host(link, room_manager, "p1")
 
-        assert sent_frames(sockets["p1"]) == [
-            {"type": SignalType.HOST_AWAY.value, "seconds_left": 60, "participant_id": "host1"},
-            {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": "host1"},
+        host_id = browsers["host1"].peer_id
+        assert sent_frames(browsers["p1"]) == [
+            {"type": SignalType.HOST_AWAY.value, "seconds_left": 60, "participant_id": host_id},
+            {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": host_id},
         ]
         assert room_manager.has_room(room.room_id)
 
     async def test_room_survives_until_the_grace_runs_out_then_closes_for_every_peer_as_host_gone(
-        self, handler, room_manager, scheduler
+        self, link, room_manager, scheduler
     ):
-        room, sockets = await drop_host(handler, room_manager, "p1", "p2")
+        room, browsers = await drop_host(link, room_manager, "p1", "p2")
 
         await scheduler.advance(59)
         assert room_manager.has_room(room.room_id)
@@ -627,25 +665,22 @@ class TestHostGrace:
             "reason": RoomClosedReason.HOST_GONE.value,
             "grace_seconds": HOST_GRACE_SECONDS,
         }
-        assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == [closed]
-        assert frames_of_type(sockets["p2"], SignalType.ROOM_CLOSED) == [closed]
+        assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == [closed]
+        assert frames_of_type(browsers["p2"], SignalType.ROOM_CLOSED) == [closed]
         assert not room_manager.has_room(room.room_id)
 
-    async def test_former_member_of_a_closed_room_cannot_lock_or_chat(self, handler, room_manager, scheduler):
-        _room, sockets = await drop_host(handler, room_manager, "p1", "p2")
+    async def test_former_member_of_a_closed_room_cannot_lock_or_chat(self, link, room_manager, scheduler):
+        _room, browsers = await drop_host(link, room_manager, "p1", "p2")
         await scheduler.advance(60)
-        frames_before = {name: len(sent_frames(ws)) for name, ws in sockets.items()}
+        frames_before = {name: len(sent_frames(browser)) for name, browser in browsers.items()}
 
-        stale_connection = Connection(sockets["p1"], "p1", frames_received=1)
-        await handler._handle_message(stale_connection, json.dumps({"type": SignalType.LOCK_ROOM.value, "seq": 1}))
-        await handler._handle_message(
-            stale_connection, json.dumps({"type": SignalType.CHAT.value, "message": "hi", "seq": 2})
-        )
+        await deliver(browsers["p1"], {"type": SignalType.LOCK_ROOM.value})
+        await deliver(browsers["p1"], {"type": SignalType.CHAT.value, "message": "hi"})
 
-        assert {name: len(sent_frames(ws)) for name, ws in sockets.items()} == frames_before
+        assert {name: len(sent_frames(browser)) for name, browser in browsers.items()} == frames_before
 
-    async def test_room_of_a_host_who_was_alone_closes_when_the_grace_runs_out(self, handler, room_manager, scheduler):
-        room, _sockets = await drop_host(handler, room_manager)
+    async def test_room_of_a_host_who_was_alone_closes_when_the_grace_runs_out(self, link, room_manager, scheduler):
+        room, _browsers = await drop_host(link, room_manager)
 
         assert room_manager.has_room(room.room_id)
         await scheduler.advance(60)
@@ -653,108 +688,109 @@ class TestHostGrace:
         assert not room_manager.has_room(room.room_id)
 
     async def test_host_account_rejoining_within_the_grace_is_host_again_and_the_room_stays(
-        self, handler, room_manager, scheduler
+        self, link, room_manager, scheduler
     ):
-        room, sockets = await drop_host(handler, room_manager, "p1")
+        room, browsers = await drop_host(link, room_manager, "p1")
         await scheduler.advance(30)
 
-        returning_ws = await host_rejoins(handler, room.room_id)
+        returning = await link.join("host1", room.room_id)
         await scheduler.advance(60)
 
-        [existing] = frames_of_type(returning_ws, SignalType.EXISTING_PARTICIPANTS)
+        [existing] = frames_of_type(returning, SignalType.EXISTING_PARTICIPANTS)
         assert existing["is_host"] is True
-        assert sent_frames(sockets["p1"])[-2:] == [
-            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": "host-back", "name": "host1"},
-            {"type": SignalType.HOST_BACK.value, "participant_id": "host-back"},
+        assert sent_frames(browsers["p1"])[-2:] == [
+            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": returning.peer_id, "name": "host1"},
+            {"type": SignalType.HOST_BACK.value, "participant_id": returning.peer_id},
         ]
-        assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == []
+        assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == []
         assert room_manager.has_room(room.room_id)
 
-    async def test_host_who_was_alone_finds_the_room_on_reload(self, handler, room_manager, scheduler):
-        room, _sockets = await drop_host(handler, room_manager)
+    async def test_host_who_was_alone_finds_the_room_on_reload(self, link, room_manager, scheduler):
+        room, _browsers = await drop_host(link, room_manager)
 
-        returning_ws = await host_rejoins(handler, room.room_id)
+        returning = await link.join("host1", room.room_id)
         await scheduler.advance(60)
 
-        assert frames_of_type(returning_ws, SignalType.EXISTING_PARTICIPANTS)[0]["is_host"] is True
+        assert frames_of_type(returning, SignalType.EXISTING_PARTICIPANTS)[0]["is_host"] is True
         assert room_manager.has_room(room.room_id)
 
-    async def test_host_account_is_admitted_past_the_lock_during_the_grace(self, handler, room_manager):
-        room, sockets = await drop_host(handler, room_manager, "p1")
+    async def test_host_account_is_admitted_past_the_lock_during_the_grace(self, link, room_manager):
+        room, browsers = await drop_host(link, room_manager, "p1")
         room.locked = True
 
-        returning_ws = await host_rejoins(handler, room.room_id)
+        returning = await link.join("host1", room.room_id)
 
-        assert frames_of_type(returning_ws, SignalType.EXISTING_PARTICIPANTS)[0]["locked"] is True
-        assert frames_of_type(sockets["p1"], SignalType.HOST_BACK)
+        assert frames_of_type(returning, SignalType.EXISTING_PARTICIPANTS)[0]["locked"] is True
+        assert frames_of_type(browsers["p1"], SignalType.HOST_BACK)
 
-    async def test_host_account_returns_into_its_reserved_seat_of_an_otherwise_full_room(self, handler, room_manager):
+    async def test_host_account_returns_into_its_reserved_seat_of_an_otherwise_full_room(self, link, room_manager):
         guests = [f"g{index}" for index in range(ROOM_LIMIT - 1)]
-        room, _sockets = await drop_host(handler, room_manager, *guests)
-        stranger_ws = register_peer(handler, "stranger")
-        await deliver(handler, "stranger", join_message(room.room_id))
+        room, _browsers = await drop_host(link, room_manager, *guests)
+        stranger = await connect(link, "stranger")
+        await deliver(stranger, join_message(room.room_id))
 
-        returning_ws = await host_rejoins(handler, room.room_id)
+        returning = await link.join("host1", room.room_id)
 
-        assert frames_of_type(stranger_ws, SignalType.ERROR)[0]["reason"] == ErrorReason.FULL.value
-        assert frames_of_type(returning_ws, SignalType.EXISTING_PARTICIPANTS)
+        assert frames_of_type(stranger, SignalType.ERROR)[0]["reason"] == ErrorReason.FULL.value
+        assert frames_of_type(returning, SignalType.EXISTING_PARTICIPANTS)
 
     async def test_joiner_during_the_grace_gets_host_away_with_the_seconds_left_after_the_existing_list(
-        self, handler, room_manager, scheduler
+        self, link, room_manager, scheduler
     ):
-        room, sockets = await drop_host(handler, room_manager, "p1")
+        room, browsers = await drop_host(link, room_manager, "p1")
         await scheduler.advance(20)
-        joiner_ws = register_peer(handler, "p2")
 
-        await deliver(handler, "p2", join_message(room.room_id))
+        joiner = await connect(link, "p2")
+        await joiner.send_raw(join_message(room.room_id))
 
-        assert sent_types(joiner_ws) == [SignalType.EXISTING_PARTICIPANTS.value, SignalType.HOST_AWAY.value]
-        assert frames_of_type(joiner_ws, SignalType.HOST_AWAY)[0]["seconds_left"] == 40
-        assert frames_of_type(sockets["p1"], SignalType.HOST_BACK) == []
+        assert sent_types(joiner) == [SignalType.EXISTING_PARTICIPANTS.value, SignalType.HOST_AWAY.value]
+        assert frames_of_type(joiner, SignalType.HOST_AWAY)[0]["seconds_left"] == 40
+        assert frames_of_type(browsers["p1"], SignalType.HOST_BACK) == []
 
-    async def test_host_with_two_connections_keeps_the_room_hosted_when_one_drops(self, handler, room_manager):
-        room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
-        second_ws = await host_rejoins(handler, room.room_id, "host-second")
+    async def test_host_with_two_connections_keeps_the_room_hosted_when_one_drops(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
+        second = await link.join("host1", room.room_id)
 
-        await handler._handle_disconnect("host1")
-        await deliver(handler, "host-second", {"type": SignalType.LOCK_ROOM.value})
+        await browsers["host1"].drop(1000)
+        await deliver(second, {"type": SignalType.LOCK_ROOM.value})
 
-        assert frames_of_type(sockets["p1"], SignalType.HOST_AWAY) == []
-        assert frames_of_type(second_ws, SignalType.ROOM_LOCKED)
-        assert frames_of_type(second_ws, SignalType.EXISTING_PARTICIPANTS)[0]["is_host"] is True
+        assert frames_of_type(browsers["p1"], SignalType.HOST_AWAY) == []
+        assert frames_of_type(second, SignalType.ROOM_LOCKED)
+        assert frames_of_type(second, SignalType.EXISTING_PARTICIPANTS)[0]["is_host"] is True
 
     @pytest.mark.parametrize("signal_type", [SignalType.LOCK_ROOM, SignalType.UNLOCK_ROOM])
     async def test_lock_and_unlock_during_the_grace_answer_not_host_and_leave_the_lock_alone(
-        self, handler, room_manager, signal_type
+        self, link, room_manager, signal_type
     ):
-        room, sockets = await drop_host(handler, room_manager, "p1")
+        room, browsers = await drop_host(link, room_manager, "p1")
 
-        await deliver(handler, "p1", {"type": signal_type.value})
+        await deliver(browsers["p1"], {"type": signal_type.value})
 
-        assert frames_of_type(sockets["p1"], SignalType.ERROR)[0]["reason"] == ErrorReason.NOT_HOST.value
+        assert frames_of_type(browsers["p1"], SignalType.ERROR)[0]["reason"] == ErrorReason.NOT_HOST.value
         assert room.locked is False
 
 
 class TestEndRoom:
-    async def test_host_ending_the_room_closes_it_as_ended_for_every_peer_including_the_host(
-        self, handler, room_manager
-    ):
-        room, sockets = seat_in_room(handler, room_manager, "host1", "p1")
+    async def test_host_ending_the_room_closes_it_as_ended_for_every_peer_including_the_host(self, link, room_manager):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(handler, "host1", {"type": SignalType.END_ROOM.value})
+        await deliver(browsers["host1"], {"type": SignalType.END_ROOM.value})
 
         closed = {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.ENDED.value}
-        assert frames_of_type(sockets["host1"], SignalType.ROOM_CLOSED) == [closed]
-        assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == [closed]
+        assert frames_of_type(browsers["host1"], SignalType.ROOM_CLOSED) == [closed]
+        assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == [closed]
         assert not room_manager.has_room(room.room_id)
 
 
 class TestExpiryRace:
-    async def test_expiry_after_the_host_returned_does_nothing(self, handler, room_manager):
-        room, sockets = await drop_host(handler, room_manager, "p1")
-        await host_rejoins(handler, room.room_id)
+    async def test_expiry_after_the_host_returned_does_nothing(self, link, room_manager, scheduler):
+        room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
+        await scheduler.advance(10)
+        await browsers["host1"].drop(1000)
+        [grace_timer] = [timer for timer in scheduler.pending_timers() if timer.deadline == 10 + HOST_GRACE_SECONDS]
+        await link.join("host1", room.room_id)
 
-        await handler._expire_grace(room.room_id)
+        await grace_timer.callback()
 
-        assert frames_of_type(sockets["p1"], SignalType.ROOM_CLOSED) == []
+        assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == []
         assert room_manager.has_room(room.room_id)

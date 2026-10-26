@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 import pytest_asyncio
@@ -14,7 +15,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.signaling import handler as handler_module
-from hopin.signaling.handler import SignalingHandler
+from hopin.signaling.handler import Connection, SignalingHandler
 from tests.unit.conftest import account_named, disconnect_frame, text_frame
 from tests.unit.test_signaling_resume import Link, host_and_guest
 
@@ -93,7 +94,7 @@ async def link(room_manager, scheduler, resolver):
 
 
 def pending_ticks(scheduler):
-    return [timer for timer in scheduler._timers if timer.pending]
+    return scheduler.pending_timers()
 
 
 def ticks_due_at(scheduler, deadline):
@@ -385,3 +386,15 @@ class TestOtherEnds:
         assert guest.socket.closed_with == closed_with
         assert [entry for entry in logs if entry["event"] == "session_ended"] == []
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
+
+    async def test_frame_for_a_seat_the_handler_no_longer_holds_is_ignored(self, link):
+        host, guest = await host_and_guest(link)
+        stale = Connection(guest.socket, guest.peer_id, frames_received=1)
+        await host.say({"type": SignalType.END_ROOM.value})
+        frames_before = [len(browser.socket.sent) for browser in (host, guest)]
+        frame = json.dumps({"type": SignalType.CHAT.value, "message": "hi", "seq": 1})
+
+        # The message loop checks the seat before it calls; only a direct call reaches this guard
+        await link.handler._handle_message(stale, frame)  # noqa: SLF001
+
+        assert [len(browser.socket.sent) for browser in (host, guest)] == frames_before
