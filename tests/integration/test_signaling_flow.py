@@ -1,15 +1,21 @@
+from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import pytest
+import structlog
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
+from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     HOST_GRACE_SECONDS,
     LOGIN_GROUP,
+    MAX_LIVE_SEATS_PER_ACCOUNT,
     SEAT_CLOSED_BY_SERVER_CODE,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
@@ -18,22 +24,65 @@ from hopin.config.constants import (
     SignalType,
 )
 from tests.fake_issuer import FakeIssuer
-from tests.integration.signaling_calls import (
-    ABNORMAL_CLOSE_CODE,
-    POLICY_VIOLATION_CODE,
-    events_named,
-    join_room,
-    open_room,
-    resume_frame,
-)
 from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, handshake_headers, parsed_set_cookies
+from tests.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+POLICY_VIOLATION_CODE = 1008
+
+
+@pytest.fixture
+def stores():
+    return SignInStores.in_memory()
+
+
+@pytest.fixture
+def app(sign_in_settings, stores):
+    settings = sign_in_settings(max_participants_per_room=3).settings
+    return create_app(settings, stores=stores)
+
+
+@pytest.fixture
+def client(app):
+    with TestClient(app) as shared_portal_client:
+        yield shared_portal_client
+
+
+@pytest.fixture
+def seed(app, stores) -> Callable[..., SeededMember]:
+    config = installed_web_auth_config(app)
+    return lambda **options: seed_member(stores, config, **options)
+
+
+@pytest.fixture
+def member_named(seed) -> Callable[[str], SeededMember]:
+    """The same label is the same member, so a reload or a second socket stays the same account."""
+    members: dict[str, SeededMember] = {}
+
+    def member(label: str) -> SeededMember:
+        if label not in members:
+            members[label] = seed()
+        return members[label]
+
+    return member
+
+
+@pytest.fixture
+def logs(client):
+    with structlog.testing.capture_logs() as captured:
+        yield captured
 
 
 def refused_with_code(client, headers, path=WEBSOCKET_PATH):
     with pytest.raises(WebSocketDisconnect) as refused, client.websocket_connect(path, headers=headers):
         pass
     return refused.value.code
+
+
+def events_named(logs, event):
+    return [entry for entry in logs if entry["event"] == event]
 
 
 def expires_at(stores, member):
@@ -48,8 +97,44 @@ def joined_room(client, member):
         return ws.receive_json()
 
 
+def number_frames_after_the_first(websocket):
+    """Make send_json number each frame after the socket's first, as the browser does."""
+    send_unnumbered = websocket.send_json
+    sent = 0
+
+    def send_json(data):
+        nonlocal sent
+        send_unnumbered(data if sent == 0 else {**data, "seq": sent})
+        sent += 1
+
+    websocket.send_json = send_json
+    return websocket
+
+
 def without_seq(frame):
     return {key: value for key, value in frame.items() if key != "seq"}
+
+
+@pytest.fixture
+def connect(client, member_named):
+    with ExitStack() as sessions:
+        yield lambda account: number_frames_after_the_first(
+            sessions.enter_context(
+                client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member_named(account)))
+            )
+        )
+
+
+def open_room(connect, account):
+    ws = connect(account)
+    ws.send_json({"type": SignalType.JOIN.value})
+    return ws, ws.receive_json()["room_id"]
+
+
+def join_room(connect, account, room_id):
+    ws = connect(account)
+    ws.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+    return ws, ws.receive_json()
 
 
 @pytest.mark.integration
@@ -567,6 +652,20 @@ class TestPeersAreServerMinted:
         assert response["reason"] == ErrorReason.INVALID_MESSAGE.value
 
 
+ABNORMAL_CLOSE_CODE = 4999
+
+
+def resume_frame(seat, **overrides):
+    return {
+        "type": SignalType.RESUME.value,
+        "participant_id": seat["participant_id"],
+        "token": seat["resume_token"],
+        "last_seq": seat["seq"],
+        "sent_floor": 0,
+        **overrides,
+    }
+
+
 @pytest.mark.integration
 class TestResume:
     def test_guest_whose_socket_dropped_resumes_on_a_new_socket_and_the_host_hears_nothing(self, connect):
@@ -623,3 +722,94 @@ class TestResume:
         with pytest.raises(WebSocketDisconnect) as superseded:
             guest_ws.receive_json()
         assert superseded.value.code == SEAT_CLOSED_BY_SERVER_CODE
+
+
+def open_idle_sockets(connect, account, count):
+    return [connect(account) for _ in range(count)]
+
+
+def assert_refused_for_too_many_calls(websocket):
+    refusal = websocket.receive_json()
+    with pytest.raises(WebSocketDisconnect) as closed:
+        websocket.receive_json()
+    assert (refusal, closed.value.code) == (
+        {
+            "type": SignalType.ERROR.value,
+            "reason": ErrorReason.TOO_MANY_CALLS.value,
+            "message": refusal["message"],
+            "limit": MAX_LIVE_SEATS_PER_ACCOUNT,
+        },
+        POLICY_VIOLATION_CODE,
+    )
+
+
+def assert_admitted(websocket):
+    websocket.send_json({"type": SignalType.JOIN.value})
+    assert websocket.receive_json()["type"] == SignalType.ROOM_CREATED.value
+
+
+@pytest.mark.integration
+class TestCallCap:
+    def test_socket_beyond_the_cap_gets_the_refusal_frame_and_a_policy_close(self, connect):
+        """#238 line 1: a socket past the cap is refused with too_many_calls and closed."""
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+
+        assert_refused_for_too_many_calls(connect("busy"))
+
+    def test_other_account_is_admitted_while_one_account_is_at_the_cap(self, connect):
+        """#238 line 1: the cap is per account, so another account still gets in."""
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+
+        assert_admitted(connect("other"))
+
+    def test_refused_socket_opens_no_seat_so_closing_a_live_one_lets_a_new_socket_in(self, connect):
+        """#238 line 1: a refusal holds no seat, and closing a live call frees room for a new one."""
+        live = open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+        assert_refused_for_too_many_calls(connect("busy"))
+        live[0].close()
+
+        assert_admitted(connect("busy"))
+
+    def test_parked_seat_does_not_count_toward_the_cap(self, connect):
+        """#238 line 1: only live calls count, a seat parked for resume does not."""
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, _ = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        guest_ws.close(code=ABNORMAL_CLOSE_CODE)
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT - 1)
+
+        assert_admitted(connect("busy"))
+
+    def test_resume_is_admitted_when_the_old_socket_is_the_cap_overlap(self, connect):
+        """#238 line 1: a takeover that replaces a live socket does not need a free seat."""
+        host_ws, room_id = open_room(connect, "host1")
+        _, seat = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT - 2)
+        resumed_ws = connect("busy")
+
+        resumed_ws.send_json(resume_frame(seat))
+
+        assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
+
+    def test_resume_at_the_cap_ends_with_the_refusal(self, connect):
+        """#238 line 1: a resume refused at the cap ends with the too_many_calls refusal."""
+        host_ws, room_id = open_room(connect, "host1")
+        _, seat = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT - 1)
+        resumed_ws = connect("busy")
+
+        resumed_ws.send_json(resume_frame(seat))
+
+        assert_refused_for_too_many_calls(resumed_ws)
+
+    def test_refusal_log_carries_the_cap_only(self, connect, member_named, logs):
+        """#238 line 1: the refusal is logged with the limit and no account or session detail."""
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+        assert_refused_for_too_many_calls(connect("busy"))
+
+        member = member_named("busy")
+        secrets_in_logs = [member.account.username, member.account.id, member.session.id]
+        assert [set(entry) for entry in events_named(logs, "too_many_calls")] == [{"event", "limit", "log_level"}]
+        assert [secret for secret in secrets_in_logs if secret in str(logs)] == []
