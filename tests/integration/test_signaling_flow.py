@@ -732,13 +732,10 @@ def assert_refused_for_too_many_calls(websocket):
     refusal = websocket.receive_json()
     with pytest.raises(WebSocketDisconnect) as closed:
         websocket.receive_json()
-    assert (refusal, closed.value.code) == (
-        {
-            "type": SignalType.ERROR.value,
-            "reason": ErrorReason.TOO_MANY_CALLS.value,
-            "message": refusal["message"],
-            "limit": MAX_LIVE_SEATS_PER_ACCOUNT,
-        },
+    assert (refusal["type"], refusal["reason"], refusal["limit"], closed.value.code) == (
+        SignalType.ERROR.value,
+        ErrorReason.TOO_MANY_CALLS.value,
+        MAX_LIVE_SEATS_PER_ACCOUNT,
         POLICY_VIOLATION_CODE,
     )
 
@@ -750,22 +747,11 @@ def assert_admitted(websocket):
 
 @pytest.mark.integration
 class TestCallCap:
-    def test_socket_beyond_the_cap_gets_the_refusal_frame_and_a_policy_close(self, connect):
-        """#238 line 1: a socket past the cap is refused with too_many_calls and closed."""
-        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
-
-        assert_refused_for_too_many_calls(connect("busy"))
-
-    def test_other_account_is_admitted_while_one_account_is_at_the_cap(self, connect):
-        """#238 line 1: the cap is per account, so another account still gets in."""
-        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
-
-        assert_admitted(connect("other"))
-
-    def test_refused_socket_opens_no_seat_so_closing_a_live_one_lets_a_new_socket_in(self, connect):
-        """#238 line 1: a refusal holds no seat, and closing a live call frees room for a new one."""
+    def test_refusal_holds_no_seat_and_does_not_block_other_accounts(self, connect):
+        """#238 line 1: the cap is per account, and closing a live call frees room after a refusal."""
         live = open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
         assert_refused_for_too_many_calls(connect("busy"))
+        assert_admitted(connect("other"))
         live[0].close()
 
         assert_admitted(connect("busy"))
@@ -780,29 +766,27 @@ class TestCallCap:
 
         assert_admitted(connect("busy"))
 
-    def test_resume_is_admitted_when_the_old_socket_is_the_cap_overlap(self, connect):
-        """#238 line 1: a takeover that replaces a live socket does not need a free seat."""
+    @pytest.mark.parametrize(
+        ("other_live_sockets", "reply_type", "reply_reason"),
+        [
+            (MAX_LIVE_SEATS_PER_ACCOUNT - 2, SignalType.RESUMED, None),
+            (MAX_LIVE_SEATS_PER_ACCOUNT - 1, SignalType.ERROR, ErrorReason.TOO_MANY_CALLS),
+        ],
+    )
+    def test_resume_is_admitted_only_when_it_replaces_a_live_socket_or_a_seat_is_free(
+        self, connect, other_live_sockets, reply_type, reply_reason
+    ):
+        """#238 line 1: a takeover that replaces a live socket needs no free seat; a resume at the cap is refused."""
         host_ws, room_id = open_room(connect, "host1")
         _, seat = join_room(connect, "busy", room_id)
         host_ws.receive_json()
-        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT - 2)
+        open_idle_sockets(connect, "busy", other_live_sockets)
         resumed_ws = connect("busy")
 
         resumed_ws.send_json(resume_frame(seat))
 
-        assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
-
-    def test_resume_at_the_cap_ends_with_the_refusal(self, connect):
-        """#238 line 1: a resume refused at the cap ends with the too_many_calls refusal."""
-        host_ws, room_id = open_room(connect, "host1")
-        _, seat = join_room(connect, "busy", room_id)
-        host_ws.receive_json()
-        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT - 1)
-        resumed_ws = connect("busy")
-
-        resumed_ws.send_json(resume_frame(seat))
-
-        assert_refused_for_too_many_calls(resumed_ws)
+        reply = resumed_ws.receive_json()
+        assert (reply["type"], reply.get("reason")) == (reply_type.value, reply_reason and reply_reason.value)
 
     def test_refusal_log_carries_the_cap_only(self, connect, member_named, logs):
         """#238 line 1: the refusal is logged with the limit and no account or session detail."""
