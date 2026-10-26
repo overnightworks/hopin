@@ -3,14 +3,13 @@ import math
 import secrets
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Any, NewType, TypeGuard
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
-    MAX_SIGNALING_FRAME_LENGTH,
     NORMAL_CLOSE_CODES,
     PEER_ID_BYTES,
     POLICY_VIOLATION_CLOSE_CODE,
@@ -26,6 +25,19 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError, RoomNotFoundError
+from hopin.signaling.frames import (
+    ChatFrame,
+    ClientFrame,
+    JoinFrame,
+    LockFrame,
+    MediaStateFrame,
+    PeerId,
+    RelayFrame,
+    ResumeClaim,
+    ResumeFrame,
+    UnlockFrame,
+    decode_frame,
+)
 from hopin.signaling.replay import SEQUENCE_KEY, ReplayLog
 
 if TYPE_CHECKING:
@@ -35,9 +47,6 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
-
-
-PeerId = NewType("PeerId", str)
 
 
 @dataclass(frozen=True)
@@ -95,36 +104,12 @@ class Connection:
     ended: bool = False
 
 
-@dataclass(frozen=True)
-class ResumeClaim:
-    participant_id: PeerId
-    token: str
-    last_seq: int
-    sent_floor: int
-
-    @classmethod
-    def from_frame(cls, data: dict[str, Any]) -> ResumeClaim:
-        participant_id = data.get("participant_id")
-        token = data.get("token")
-        last_seq = data.get("last_seq")
-        sent_floor = data.get("sent_floor")
-        if not (isinstance(participant_id, str) and isinstance(token, str)):
-            raise ResumeRefusedError(ResumeRefusalCause.MALFORMED)
-        if not (_is_sequence_number(last_seq) and _is_sequence_number(sent_floor)):
-            raise ResumeRefusedError(ResumeRefusalCause.MALFORMED)
-        return cls(PeerId(participant_id), token, last_seq, sent_floor)
-
-
 def _token_matches(claimed: str, expected: str) -> bool:
     try:
         claimed_bytes = claimed.encode()
     except UnicodeEncodeError:
         return False
     return secrets.compare_digest(claimed_bytes, expected.encode())
-
-
-def _is_sequence_number(value: object) -> TypeGuard[int]:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 class SignalingHandler:
@@ -231,70 +216,54 @@ class SignalingHandler:
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:
         peer_id = connection.peer_id
-        if not self._holds_seat(connection):
-            return
         peer = self._peers[peer_id]
         is_first_frame = connection.frames_received == 0
         connection.frames_received += 1
 
-        if len(raw_data) > MAX_SIGNALING_FRAME_LENGTH:
-            await self._send_error(peer_id, InvalidMessageError("Message too long"))
-            return
-
         try:
-            data = json.loads(raw_data)
-        except json.JSONDecodeError:
-            await self._send_error(peer_id, InvalidMessageError("Invalid JSON"))
+            incoming = decode_frame(raw_data)
+        except InvalidMessageError as refusal:
+            await self._send_error(peer_id, refusal)
             return
 
-        if not isinstance(data, dict):
-            await self._send_error(peer_id, InvalidMessageError("Message must be a JSON object"))
-            return
-
-        signal_type = data.get("type")
-        if not isinstance(signal_type, str):
-            await self._send_error(peer_id, InvalidMessageError("Missing signal type"))
-            return
-
-        if signal_type == SignalType.RESUME.value:
-            await self._handle_resume(connection, data, is_first_frame=is_first_frame)
+        if isinstance(incoming.frame, ResumeFrame):
+            await self._handle_resume(connection, incoming.frame, is_first_frame=is_first_frame)
             return
 
         if not is_first_frame:
-            seq = data.get(SEQUENCE_KEY)
-            if not _is_sequence_number(seq):
+            if incoming.sequence is None:
                 await self._send_error(peer_id, InvalidMessageError("Missing sequence number"))
                 return
-            if seq <= peer.received_seq:
+            if incoming.sequence <= peer.received_seq:
                 return
-            peer.received_seq = seq
-
-        handlers: dict[str, Any] = {
-            SignalType.JOIN.value: self._handle_join,
-            SignalType.OFFER.value: self._handle_relay,
-            SignalType.ANSWER.value: self._handle_relay,
-            SignalType.ICE_CANDIDATE.value: self._handle_relay,
-            SignalType.LOCK_ROOM.value: self._handle_lock,
-            SignalType.UNLOCK_ROOM.value: self._handle_unlock,
-            SignalType.CHAT.value: self._handle_chat,
-            SignalType.MEDIA_STATE.value: self._handle_media_state,
-            SignalType.END_ROOM.value: self._handle_end_room,
-        }
-
-        handler = handlers.get(signal_type)
-        if handler is None:
-            await self._send_error(peer_id, InvalidMessageError(f"Unknown signal type: {signal_type}"))
-            return
+            peer.received_seq = incoming.sequence
 
         try:
-            await handler(peer_id, data)
+            if isinstance(incoming.frame, InvalidMessageError):
+                raise incoming.frame
+            await self._dispatch(peer_id, incoming.frame)
         except HopInError as exc:
             await self._send_error(peer_id, exc)
 
-    async def _handle_join(self, peer_id: PeerId, data: dict[str, Any]) -> None:
-        room_id = data.get("room_id")
-        if room_id is not None and not isinstance(room_id, str):
-            raise InvalidMessageError("room_id must be a string")
+    async def _dispatch(self, peer_id: PeerId, frame: ClientFrame) -> None:
+        match frame:
+            case JoinFrame():
+                await self._handle_join(peer_id, frame)
+            case RelayFrame():
+                await self._handle_relay(peer_id, frame)
+            case LockFrame():
+                await self._set_locked(peer_id, locked=True)
+            case UnlockFrame():
+                await self._set_locked(peer_id, locked=False)
+            case ChatFrame():
+                await self._handle_chat(peer_id, frame)
+            case MediaStateFrame():
+                await self._handle_media_state(peer_id, frame)
+            case _:
+                await self._handle_end_room(peer_id)
+
+    async def _handle_join(self, peer_id: PeerId, frame: JoinFrame) -> None:
+        room_id = frame.room_id
         if peer_id in self._peer_rooms:
             raise InvalidMessageError("This seat is already in a room")
 
@@ -347,12 +316,6 @@ class SignalingHandler:
 
         await logger.ainfo("participant_joined", room_id=room_id, participant=peer_id)
 
-    async def _handle_lock(self, peer_id: PeerId, _data: dict[str, Any]) -> None:
-        await self._set_locked(peer_id, locked=True)
-
-    async def _handle_unlock(self, peer_id: PeerId, _data: dict[str, Any]) -> None:
-        await self._set_locked(peer_id, locked=False)
-
     async def _set_locked(self, peer_id: PeerId, *, locked: bool) -> None:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
@@ -362,28 +325,25 @@ class SignalingHandler:
         await self._broadcast_to_room(room_id, {"type": signal_type.value})
         await logger.ainfo(signal_type.value, room_id=room.room_id, by=peer_id)
 
-    async def _handle_end_room(self, peer_id: PeerId, _data: dict[str, Any]) -> None:
+    async def _handle_end_room(self, peer_id: PeerId) -> None:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
             return
         self._room_manager.get_room_for_host(room_id, self._account_of(peer_id))
         await self._end_room(room_id, RoomClosedReason.ENDED)
 
-    async def _handle_chat(self, peer_id: PeerId, data: dict[str, Any]) -> None:
+    async def _handle_chat(self, peer_id: PeerId, frame: ChatFrame) -> None:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
             return
-        message = data.get("message", "")
+        message = frame.message
         if not message:
             return
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
         await self._send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
 
-    async def _handle_media_state(self, peer_id: PeerId, data: dict[str, Any]) -> None:
-        audio, video = data.get("audio"), data.get("video")
-        if not isinstance(audio, bool) or not isinstance(video, bool):
-            raise InvalidMessageError("media_state needs boolean audio and video")
+    async def _handle_media_state(self, peer_id: PeerId, frame: MediaStateFrame) -> None:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
             return
@@ -391,15 +351,13 @@ class SignalingHandler:
         others = [pid for pid in room.participant_ids if pid != peer_id]
         await self._send_all(
             others,
-            {"type": SignalType.MEDIA_STATE.value, "from": peer_id, "audio": audio, "video": video},
+            {"type": SignalType.MEDIA_STATE.value, "from": peer_id, "audio": frame.audio, "video": frame.video},
         )
 
-    async def _handle_relay(self, peer_id: PeerId, data: dict[str, Any]) -> None:
-        target_id = data.get("target")
+    async def _handle_relay(self, peer_id: PeerId, frame: RelayFrame) -> None:
+        target_id = frame.target
         if target_id is None:
             return
-        if not isinstance(target_id, str):
-            raise InvalidMessageError("target must be a string")
         sender_room = self._peer_rooms.get(peer_id)
         if sender_room is None or self._peer_rooms.get(target_id) != sender_room:
             await logger.ainfo("relay_outside_room", peer_id=peer_id)
@@ -407,9 +365,9 @@ class SignalingHandler:
         await self._send(
             target_id,
             {
-                "type": data["type"],
-                "sdp": data.get("sdp"),
-                "candidate": data.get("candidate"),
+                "type": frame.kind.value,
+                "sdp": frame.sdp,
+                "candidate": frame.candidate,
                 "from": peer_id,
             },
         )
@@ -458,11 +416,11 @@ class SignalingHandler:
         if peer is not None and peer.park is not None and peer.park.generation == generation:
             await self._handle_disconnect(peer_id)
 
-    async def _handle_resume(self, connection: Connection, data: dict[str, Any], *, is_first_frame: bool) -> None:
+    async def _handle_resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
         try:
             if not is_first_frame:
                 raise ResumeRefusedError(ResumeRefusalCause.NOT_FIRST_FRAME)
-            claim = ResumeClaim.from_frame(data)
+            claim = frame.require_claim()
             seat = self._matching_seat(connection, claim)
             gap = self._gap_before_resume(seat, claim)
             if gap is not None:
