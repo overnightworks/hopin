@@ -1,0 +1,8 @@
+claim_id = "cf92509c6dbf40d09c7351110150e06b"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "9ef053c45bf5c65a7c2f4a67bd6a141ef69ce7e1"
+branch = "claude/issue-228-outgoing-frames-json-alias"
+scope = ["src/hopin/errors.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/replay.py", "tests/integration/test_signaling_transport.py"]
+opened_commit = "0387f234fbf98b20326f34c86083b00302df8f77"
+whole_reason = "One type alias across the outgoing side of signaling and its error fields, with the key move that keeps replay above frames."
