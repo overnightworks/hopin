@@ -1,10 +1,11 @@
-import { ERROR_REASON, ROOM_CLOSED_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "./wire.js";
+import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "./wire.js";
 import { SentLog } from "./replay.js";
 import { getRoomIdFromUrl } from "./router.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 
-export { SIGNAL_TYPE, ERROR_REASON, ROOM_CLOSED_REASON };
+export { SIGNAL_TYPE, ERROR_REASON };
+export { ROOM_CLOSED_REASON } from "./wire.js";
 
 const NORMAL_CLOSURE_CODE = 1000;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
