@@ -1,0 +1,7 @@
+claim_id = "319b0e7b9ec14fb1965b4870d8e834eb"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "2318eb0b09d544bd083c9d8f91715ca3d29e27a3"
+branch = "claude/issue-226-typed-client-frames"
+scope = ["src/hopin/signaling/frames.py", "src/hopin/signaling/handler.py", "tests/unit/test_signaling_recheck.py"]
+opened_commit = "3453329584817eab502f9fc33350243f5ccda4ff"
