@@ -164,8 +164,8 @@ id = "signaling-layers"
 name = "Signaling's modules depend downwards only"
 type = "layers"
 containers = ["hopin.signaling"]
-# The handler drives the seats; seats keep the replay logs; replay logs hold frames.
-layers = ["handler", "(routing)", "seats", "replay", "frames"]
+# The handler drives room routing; routing drives the seats; seats keep the replay logs; replay logs hold frames.
+layers = ["handler", "routing", "seats", "replay", "frames"]
 
 [[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"
