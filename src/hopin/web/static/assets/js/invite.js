@@ -34,7 +34,7 @@ export function hideWaitingCard() {
     card.classList.add("hidden");
 }
 
-export async function copyCallLink() {
+async function copyCallLink() {
     try {
         await navigator.clipboard.writeText(callLink);
     } catch {
@@ -44,7 +44,7 @@ export async function copyCallLink() {
     showToast(TEXTS.COPIED, TOAST_KIND.DONE);
 }
 
-export async function shareCallLink() {
+async function shareCallLink() {
     try {
         await navigator.share({ url: callLink });
     } catch (error) {

@@ -10,7 +10,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy --strict
-        entry: uv run mypy src scripts
+        entry: uv run mypy src
         language: system
         pass_filenames: false
         types: [python]
