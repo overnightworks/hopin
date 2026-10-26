@@ -86,7 +86,7 @@ sequenceDiagram
     A-->B: audio and video, peer to peer (or through the TURN relay)
 ```
 
-**Frames.** Messages are JSON over the WebSocket; the signal types are `SignalType` in `src/hopin/config/constants.py` `signaling/handler.py` decodes and dispatches them, `signaling/routing.py` owns rooms, host grace and fan-out, and `signaling/seats.py` owns seats, delivery, parking, resume and replay. The browser takes these tokens from `/static/js/wire.js`, which `web/wire.py` renders from the Python owners ([ADR 0002](decisions/0002-served-wire-vocabulary.md)). Invariants:
+**Frames.** Messages are JSON over the WebSocket; the signal types are `SignalType` in `src/hopin/config/constants.py`; `signaling/handler.py` decodes and dispatches them, `signaling/routing.py` owns rooms, host grace and fan-out, and `signaling/seats.py` owns seats, delivery, parking, resume and replay. The browser takes these tokens from `/static/js/wire.js`, which `web/wire.py` renders from the Python owners ([ADR 0002](decisions/0002-served-wire-vocabulary.md)). Invariants:
 
 - The server identifies a socket by its webauth session at the handshake and names every peer with an id it mints, so peers address each other only by those ids. A relay reaches only members of the sender's room.
 - Every server frame carries a `seq`, and every client frame after a socket's first does too, except `resumed` and `resume_refused`: the server writes them without one and the browser handles them before it filters by `seq`. Each side keeps its last `REPLAY_LOG_LIMIT` frames; a frame at or below the last `seq` received is ignored.
