@@ -42,8 +42,11 @@ class ManualScheduler:
         self._timers.append(timer)
         return timer
 
+    def pending_timers(self):
+        return [timer for timer in self._timers if timer.pending]
+
     def has_pending_timer(self):
-        return any(timer.pending for timer in self._timers)
+        return bool(self.pending_timers())
 
     async def advance(self, seconds):
         target = self._now + seconds
