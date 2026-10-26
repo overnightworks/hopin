@@ -160,6 +160,14 @@ exhaustive = true
 layers = ["main", "app", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
+id = "signaling-layers"
+name = "Signaling's modules depend downwards only"
+type = "layers"
+containers = ["hopin.signaling"]
+# The handler drives the seats; seats keep the replay logs; replay logs hold frames.
+layers = ["handler", "(routing)", "seats", "replay", "frames"]
+
+[[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"
 name = "Sign-in names no room and no signaling"
 type = "forbidden"

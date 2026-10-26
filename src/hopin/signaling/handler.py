@@ -1,20 +1,16 @@
-import json
 import math
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
-from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
     NORMAL_CLOSE_CODES,
-    PEER_ID_BYTES,
     POLICY_VIOLATION_CLOSE_CODE,
-    RESUME_TOKEN_BYTES,
-    RESUME_WINDOW_SECONDS,
     SEAT_CLOSED_BY_SERVER_CODE,
     SERVER_ERROR_CLOSE_CODE,
     SESSION_ENDED_CLOSE_CODE,
@@ -40,11 +36,18 @@ from hopin.signaling.frames import (
     UnlockFrame,
     decode_frame,
 )
-from hopin.signaling.replay import ReplayLog, sequence_of
+from hopin.signaling.seats import (
+    Connection,
+    Peer,
+    Seats,
+    SeatSnapshot,
+    closed_by_server,
+    is_connected,
+    mint_resume_token,
+)
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
-    from hopin.rooms.models import Account
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
@@ -52,58 +55,10 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
-class Park:
-    generation: int
-    dropped_at: float
-    timer: TimerHandle
-
-
-@dataclass(frozen=True)
-class SeatSnapshot:
-    call_id: str | None
-    host: bool
-    replay_frames: int
-
-
-@dataclass(frozen=True)
 class HostGrace:
     host_peer_id: str
     deadline: float
     timer: TimerHandle
-
-
-def _mint_peer_id() -> PeerId:
-    return PeerId(secrets.token_urlsafe(PEER_ID_BYTES))
-
-
-def _mint_resume_token() -> str:
-    return secrets.token_urlsafe(RESUME_TOKEN_BYTES)
-
-
-@dataclass
-class Peer:
-    """A seat: the account behind it, the socket that currently serves it and what a resume needs."""
-
-    account: Account
-    websocket: WebSocket
-    resume_token: str = field(default_factory=_mint_resume_token, repr=False)
-    log: ReplayLog = field(default_factory=ReplayLog, repr=False)
-    received_seq: int = 0
-    replaying: bool = False
-    park: Park | None = None
-    parks_started: int = 0
-
-
-@dataclass
-class Connection:
-    """One socket's run through the message loop; its peer id changes when it resumes a seat."""
-
-    websocket: WebSocket
-    peer_id: PeerId
-    frames_received: int = 0
-    dropped: bool = False
-    recheck: TimerHandle = field(init=False)
-    ended: bool = False
 
 
 def _token_matches(claimed: str, expected: str) -> bool:
@@ -120,14 +75,12 @@ class SignalingHandler:
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
         self._graces: dict[str, HostGrace] = {}
-        self._peers: dict[PeerId, Peer] = {}
+        self._seats = Seats(scheduler, on_seat_lost=self._handle_disconnect)
         self._peer_rooms: dict[str, str] = {}
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
-        return tuple(
-            self._snapshot_of(peer_id, peer) for peer_id, peer in self._peers.items() if peer.account.id == account_id
-        )
+        return tuple(self._snapshot_of(peer_id, peer) for peer_id, peer in self._seats.held_by(account_id))
 
     def _snapshot_of(self, peer_id: PeerId, peer: Peer) -> SeatSnapshot:
         room_id = self._peer_rooms.get(peer_id)
@@ -141,8 +94,7 @@ class SignalingHandler:
             return
 
         await websocket.accept()
-        peer_id = _mint_peer_id()
-        self._peers[peer_id] = Peer(account=account, websocket=websocket)
+        peer_id = self._seats.open_seat(account, websocket)
         await logger.ainfo("client_connected", peer_id=peer_id)
 
         connection = Connection(websocket=websocket, peer_id=peer_id)
@@ -156,7 +108,7 @@ class SignalingHandler:
         while True:
             frame = await connection.websocket.receive()
             if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
-                if frame["code"] not in NORMAL_CLOSE_CODES and not _closed_by_server(connection.websocket):
+                if frame["code"] not in NORMAL_CLOSE_CODES and not closed_by_server(connection.websocket):
                     connection.dropped = True
                     await logger.aerror("websocket_error", peer_id=connection.peer_id, code=frame["code"])
                 return
@@ -188,7 +140,7 @@ class SignalingHandler:
         return False
 
     def _holds_seat(self, connection: Connection) -> bool:
-        peer = self._peers.get(connection.peer_id)
+        peer = self._seats.find(connection.peer_id)
         return peer is not None and peer.websocket is connection.websocket
 
     def _serves_seat(self, connection: Connection) -> bool:
@@ -212,13 +164,13 @@ class SignalingHandler:
         if not self._holds_seat(connection):
             return
         if connection.dropped and connection.peer_id in self._peer_rooms:
-            await self._park(connection.peer_id, self._peers[connection.peer_id])
+            await self._seats.park(connection.peer_id, self._seats.seat(connection.peer_id))
         else:
             await self._handle_disconnect(connection.peer_id)
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:
         peer_id = connection.peer_id
-        peer = self._peers[peer_id]
+        peer = self._seats.seat(peer_id)
         is_first_frame = connection.frames_received == 0
         connection.frames_received += 1
 
@@ -275,46 +227,47 @@ class SignalingHandler:
             await self._join_room(peer_id, room_id)
 
     async def _create_room(self, peer_id: PeerId) -> None:
-        room = self._room_manager.create_room(peer_id, self._account_of(peer_id))
+        room = self._room_manager.create_room(peer_id, self._seats.account_of(peer_id))
         self._peer_rooms[peer_id] = room.room_id
-        await self._send(
+        await self._seats.send(
             peer_id,
             {
                 "type": SignalType.ROOM_CREATED.value,
                 "room_id": room.room_id,
                 "is_host": True,
-                **self._seat_credentials(peer_id),
+                **self._seats.credentials(peer_id),
             },
         )
         await logger.ainfo("room_created", room_id=room.room_id, host=peer_id)
 
     async def _join_room(self, peer_id: PeerId, room_id: str) -> None:
-        account = self._account_of(peer_id)
+        account = self._seats.account_of(peer_id)
         room = self._room_manager.add_participant(room_id, peer_id, account)
         self._peer_rooms[peer_id] = room_id
         host_returned = room.is_hosted_by(account) and self._cancel_grace(room_id)
         grace = self._graces.get(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
 
-        await self._send(
+        await self._seats.send(
             peer_id,
             {
                 "type": SignalType.EXISTING_PARTICIPANTS.value,
+                # A copy: the frame goes into the seat's replay log, and a list[str] is not a JSON value list.
                 "participants": [*others],
-                "names": {pid: self._account_of(pid).name for pid in others},
+                "names": {pid: self._seats.account_of(pid).name for pid in others},
                 "is_host": room.is_hosted_by(account),
                 "locked": room.locked,
-                **self._seat_credentials(peer_id),
+                **self._seats.credentials(peer_id),
             },
         )
         if grace is not None:
-            await self._send(peer_id, self._host_away_frame(grace))
-        await self._send_all(
+            await self._seats.send(peer_id, self._host_away_frame(grace))
+        await self._seats.send_all(
             others,
             {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id, "name": account.name},
         )
         if host_returned:
-            await self._send_all(others, {"type": SignalType.HOST_BACK.value, "participant_id": peer_id})
+            await self._seats.send_all(others, {"type": SignalType.HOST_BACK.value, "participant_id": peer_id})
 
         await logger.ainfo("participant_joined", room_id=room_id, participant=peer_id)
 
@@ -322,7 +275,7 @@ class SignalingHandler:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
             return
-        room = self._room_manager.set_room_locked(room_id, self._account_of(peer_id), locked=locked)
+        room = self._room_manager.set_room_locked(room_id, self._seats.account_of(peer_id), locked=locked)
         signal_type = SignalType.ROOM_LOCKED if locked else SignalType.ROOM_UNLOCKED
         await self._broadcast_to_room(room_id, {"type": signal_type.value})
         await logger.ainfo(signal_type.value, room_id=room.room_id, by=peer_id)
@@ -331,7 +284,7 @@ class SignalingHandler:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
             return
-        self._room_manager.get_room_for_host(room_id, self._account_of(peer_id))
+        self._room_manager.get_room_for_host(room_id, self._seats.account_of(peer_id))
         await self._end_room(room_id, RoomClosedReason.ENDED)
 
     async def _handle_chat(self, peer_id: PeerId, frame: ChatFrame) -> None:
@@ -343,7 +296,7 @@ class SignalingHandler:
             return
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
-        await self._send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
+        await self._seats.send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
 
     async def _handle_media_state(self, peer_id: PeerId, frame: MediaStateFrame) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -351,7 +304,7 @@ class SignalingHandler:
             return
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
-        await self._send_all(
+        await self._seats.send_all(
             others,
             {"type": SignalType.MEDIA_STATE.value, "from": peer_id, "audio": frame.audio, "video": frame.video},
         )
@@ -364,7 +317,7 @@ class SignalingHandler:
         if sender_room is None or self._peer_rooms.get(target_id) != sender_room:
             await logger.ainfo("relay_outside_room", peer_id=peer_id)
             return
-        await self._send(
+        await self._seats.send(
             target_id,
             {
                 "type": frame.kind.value,
@@ -375,7 +328,7 @@ class SignalingHandler:
         )
 
     async def _handle_disconnect(self, peer_id: PeerId) -> None:
-        peer = self._forget_seat(peer_id)
+        peer = self._seats.forget(peer_id)
         left_at = self._scheduler.now()
         if peer is not None and peer.park is not None:
             left_at = peer.park.dropped_at
@@ -394,29 +347,10 @@ class SignalingHandler:
 
         if room.is_hosted_by(leaver.account) and not room.host_present:
             grace = self._start_grace(room_id, peer_id, left_at + HOST_GRACE_SECONDS)
-            await self._send_all(remaining, self._host_away_frame(grace))
+            await self._seats.send_all(remaining, self._host_away_frame(grace))
 
-        await self._send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
+        await self._seats.send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
         await logger.ainfo("participant_left", room_id=room_id, participant=peer_id)
-
-    def _forget_seat(self, peer_id: PeerId) -> Peer | None:
-        peer = self._peers.pop(peer_id, None)
-        if peer is not None and peer.park is not None:
-            peer.park.timer.cancel()
-        return peer
-
-    async def _park(self, peer_id: PeerId, peer: Peer) -> None:
-        peer.parks_started += 1
-        generation = peer.parks_started
-        timer = self._scheduler.call_later(RESUME_WINDOW_SECONDS, partial(self._expire_park, peer_id, generation))
-        peer.park = Park(generation=generation, dropped_at=self._scheduler.now(), timer=timer)
-        peer.replaying = False
-        await logger.ainfo("seat_parked", peer_id=peer_id)
-
-    async def _expire_park(self, peer_id: PeerId, generation: int) -> None:
-        peer = self._peers.get(peer_id)
-        if peer is not None and peer.park is not None and peer.park.generation == generation:
-            await self._handle_disconnect(peer_id)
 
     async def _handle_resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
         try:
@@ -434,12 +368,12 @@ class SignalingHandler:
         await self._take_over_seat(connection, seat, claim)
 
     def _matching_seat(self, connection: Connection, claim: ResumeClaim) -> Peer:
-        seat = self._peers.get(claim.participant_id)
+        seat = self._seats.find(claim.participant_id)
         if seat is None:
             raise ResumeRefusedError(ResumeRefusalCause.UNKNOWN_SEAT)
         if not _token_matches(claim.token, seat.resume_token):
             raise ResumeRefusedError(ResumeRefusalCause.CREDENTIAL_MISMATCH)
-        if self._account_of(connection.peer_id).id != seat.account.id:
+        if self._seats.account_of(connection.peer_id).id != seat.account.id:
             raise ResumeRefusedError(ResumeRefusalCause.WRONG_ACCOUNT)
         return seat
 
@@ -452,13 +386,13 @@ class SignalingHandler:
         return None
 
     async def _release_unresumable_seat(self, peer_id: PeerId) -> None:
-        seat = self._peers[peer_id]
+        seat = self._seats.seat(peer_id)
         await self._handle_disconnect(peer_id)
         await _close_socket(seat.websocket)
 
     async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
         await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
-        await self._write(
+        await self._seats.write(
             connection.websocket,
             {"type": SignalType.ERROR.value, "reason": refusal.reason.value, "message": str(refusal)},
         )
@@ -468,14 +402,14 @@ class SignalingHandler:
         if seat.park is not None:
             seat.park.timer.cancel()
             seat.park = None
-        self._forget_seat(connection.peer_id)
+        self._seats.forget(connection.peer_id)
         connection.peer_id = claim.participant_id
         seat.websocket = connection.websocket
-        seat.resume_token = _mint_resume_token()
+        seat.resume_token = mint_resume_token()
         seat.replaying = True
 
         await _close_socket(superseded)
-        await self._write(
+        await self._seats.write(
             connection.websocket,
             {
                 "type": SignalType.RESUMED.value,
@@ -488,17 +422,17 @@ class SignalingHandler:
 
     async def _replay(self, websocket: WebSocket, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
         cursor = last_seq
-        while self._peers.get(peer_id) is seat and seat.websocket is websocket:
+        while self._seats.find(peer_id) is seat and seat.websocket is websocket:
             if not seat.log.reaches_back_to(cursor):
                 await self._release_unresumable_seat(peer_id)
                 return
-            pending = seat.log.since(cursor)
-            if not pending:
+            pending = seat.log.next_after(cursor)
+            if pending is None:
                 seat.replaying = False
                 return
-            if not await self._write(websocket, pending[0]):
+            if not await self._seats.write(websocket, pending.frame):
                 return
-            cursor = sequence_of(pending[0])
+            cursor = pending.seq
 
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
@@ -527,8 +461,8 @@ class SignalingHandler:
         frame: JsonObject = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
         if reason is RoomClosedReason.HOST_GONE:
             frame["grace_seconds"] = HOST_GRACE_SECONDS
-        await self._send_all(recipients, frame)
-        seats = [self._forget_seat(PeerId(peer_id)) for peer_id in recipients]
+        await self._seats.send_all(recipients, frame)
+        seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
             await _close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
@@ -540,43 +474,11 @@ class SignalingHandler:
             "participant_id": grace.host_peer_id,
         }
 
-    def _account_of(self, peer_id: str) -> Account:
-        return self._peers[PeerId(peer_id)].account
-
     async def _broadcast_to_room(self, room_id: str, data: JsonObject) -> None:
-        await self._send_all(self._room_manager.get_room(room_id).participant_ids, data)
-
-    async def _send_all(self, peer_ids: list[str], data: JsonObject) -> None:
-        for peer_id in peer_ids:
-            await self._send(peer_id, data)
-
-    async def _send(self, peer_id: str, data: JsonObject) -> None:
-        # The browser drops frames at or below the last seq it dispatched, so nothing may await
-        # between assigning a frame's seq in the log and writing it.
-        peer = self._peers.get(PeerId(peer_id))
-        if peer is None:
-            return
-        frame = peer.log.append(data)
-        if peer.replaying or peer.park is not None:
-            return
-        await self._write(peer.websocket, frame, peer_id)
-
-    @staticmethod
-    async def _write(websocket: WebSocket, frame: JsonObject, peer_id: str | None = None) -> bool:
-        if not _is_connected(websocket):
-            return False
-        try:
-            await websocket.send_text(json.dumps(frame))
-        except WebSocketDisconnect:
-            await logger.ainfo("send_to_gone_peer", peer_id=peer_id)
-            return False
-        return True
-
-    def _seat_credentials(self, peer_id: PeerId) -> dict[str, str]:
-        return {"participant_id": peer_id, "resume_token": self._peers[peer_id].resume_token}
+        await self._seats.send_all(self._room_manager.get_room(room_id).participant_ids, data)
 
     async def _send_error(self, peer_id: PeerId, error: HopInError) -> None:
-        await self._send(
+        await self._seats.send(
             peer_id,
             {
                 "type": SignalType.ERROR.value,
@@ -588,19 +490,9 @@ class SignalingHandler:
 
 
 async def _close_socket(websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
-    if not _is_connected(websocket):
+    if not is_connected(websocket):
         return
     try:
         await websocket.close(code=code)
     except WebSocketDisconnect:
         await logger.ainfo("closed_socket_already_gone")
-
-
-def _closed_by_server(websocket: WebSocket) -> bool:
-    return websocket.application_state == WebSocketState.DISCONNECTED
-
-
-def _is_connected(websocket: WebSocket) -> bool:
-    return (
-        websocket.client_state == WebSocketState.CONNECTED and websocket.application_state == WebSocketState.CONNECTED
-    )

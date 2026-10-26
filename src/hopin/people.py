@@ -15,7 +15,8 @@ from hopin.web.routes import READ_METHODS
 
 if TYPE_CHECKING:
     from hopin.auth.stores import InMemorySessions, PersonRecords
-    from hopin.signaling.handler import SeatSnapshot, SignalingHandler
+    from hopin.signaling.handler import SignalingHandler
+    from hopin.signaling.seats import SeatSnapshot
 
 EXPORT_MEMBER_NAME = "export.json"
 EXPORT_DISPOSITION = 'attachment; filename="hopin-person-export.zip"'
