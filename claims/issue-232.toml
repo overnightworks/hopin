@@ -1,8 +1,0 @@
-claim_id = "787b3bfa65db48b8ace4582a609ace35"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "fe5019ecb22fe66904cd4390110bb56837f1d252"
-branch = "claude/issue-232-resume-into-seats"
-scope = ["quality/baseline.toml", "src/hopin/signaling/frames.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/replay.py", "src/hopin/signaling/seats.py", "tests/unit/test_replay.py"]
-opened_commit = "0752401062c5a7b35174d60690e451e6b78eeaa3"
-whole_reason = "The resume protocol moves whole into the module that owns the fields it writes, with the two follow-ups on the lines it touches and the one test of the changed return."
