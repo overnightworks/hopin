@@ -20,7 +20,7 @@ WIRE_MODULE_MEDIA_TYPE = "text/javascript"
 
 
 def _members(vocabulary: type[StrEnum]) -> dict[str, str]:
-    return {member.name: member.value for member in vocabulary}
+    return {name: member.value for name, member in vocabulary.__members__.items()}
 
 
 def wire_vocabulary() -> dict[str, object]:
