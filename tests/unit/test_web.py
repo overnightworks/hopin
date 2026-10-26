@@ -28,7 +28,7 @@ from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
-from tests.unit.conftest import SocketAccountResolver
+from tests.support.signaling_fakes import SocketAccountResolver
 
 
 @pytest.fixture

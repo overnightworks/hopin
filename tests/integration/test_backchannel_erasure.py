@@ -26,10 +26,10 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
-from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, handshake_headers, seed_member
-from tests.unit.conftest import ManualScheduler
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signaling_fakes import ManualScheduler
+from tests.support.signed_in import cookie_header, handshake_headers, seed_member
 
 ABNORMAL_CLOSE_CODE = 4999
 FOUND_ELSEWHERE = 302

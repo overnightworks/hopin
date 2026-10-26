@@ -19,7 +19,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.main import main
-from tests.signed_in import SeededMember, handshake_headers, seed_member
+from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator

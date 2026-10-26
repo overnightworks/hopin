@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.sign_in_settings import SignInSettings, build_sign_in_settings
+from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -13,7 +13,7 @@ from tests.e2e.conftest import (
     expect_both_legal_links,
     record_page_errors,
 )
-from tests.sign_in_settings import TEST_ISSUER
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable

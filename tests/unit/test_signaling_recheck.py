@@ -15,8 +15,8 @@ from hopin.config.constants import (
 )
 from hopin.signaling import handler as handler_module
 from hopin.signaling.handler import SignalingHandler
-from tests.unit.conftest import account_named, disconnect_frame, text_frame
-from tests.unit.test_signaling_resume import Link, host_and_guest
+from tests.signaling.support.browsers import Link, host_and_guest
+from tests.support.signaling_fakes import account_named, disconnect_frame, text_frame
 
 pytestmark = pytest.mark.asyncio
 

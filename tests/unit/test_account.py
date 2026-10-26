@@ -5,8 +5,8 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import ACCOUNT_PATH
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, seed_member
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signed_in import cookie_header, seed_member
 
 
 @pytest.fixture

@@ -8,7 +8,7 @@ from pydantic import SecretStr
 from starlette.responses import Response
 from webauth.cookies import issue_session_cookies
 
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

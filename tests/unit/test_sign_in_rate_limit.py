@@ -18,13 +18,13 @@ from hopin.config.constants import (
     LOGIN_PATH,
     NO_ACCESS_PATH,
 )
-from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.sign_in_settings import SignInSettings
+    from tests.support.sign_in_settings import SignInSettings
 
 SIGN_IN_BUDGET_REQUESTS = 40
 SIGN_IN_WINDOW_SECONDS = 600

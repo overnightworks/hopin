@@ -33,9 +33,9 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
-from tests.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

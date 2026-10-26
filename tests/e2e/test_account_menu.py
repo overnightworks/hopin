@@ -16,7 +16,7 @@ from tests.e2e.conftest import (
     start_call,
     wait_until_the_prejoin_media_answered,
 )
-from tests.sign_in_settings import TEST_ISSUER
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable

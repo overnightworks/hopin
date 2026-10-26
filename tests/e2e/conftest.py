@@ -22,8 +22,8 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.main import uvicorn_options
-from tests.sign_in_settings import build_sign_in_settings
-from tests.signed_in import SeededMember, parsed_set_cookies, seed_member
+from tests.support.sign_in_settings import build_sign_in_settings
+from tests.support.signed_in import SeededMember, parsed_set_cookies, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence

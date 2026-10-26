@@ -7,8 +7,8 @@ from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH
 from hopin.rooms.models import Account
 from hopin.signaling.identity import SessionIdentityResolver
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, seed_member
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signed_in import cookie_header, seed_member
 
 
 def handshake(app, headers: dict[str, str]) -> WebSocket:

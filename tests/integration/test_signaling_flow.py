@@ -23,9 +23,9 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
-from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Callable
