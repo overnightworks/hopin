@@ -40,12 +40,8 @@ class ReplayLog:
     def reaches_back_to(self, last_seq: int) -> bool:
         return last_seq >= self._floor
 
-    def since(self, last_seq: int) -> list[JsonObject]:
-        return [kept.frame for kept in self._frames if kept.seq > last_seq]
-
-    def seq_after(self, last_seq: int) -> int:
-        """The seq of the oldest kept frame past `last_seq`; only call when `since` is not empty."""
-        return next(kept.seq for kept in self._frames if kept.seq > last_seq)
+    def since(self, last_seq: int) -> list[SequencedFrame]:
+        return [kept for kept in self._frames if kept.seq > last_seq]
 
     def _drop_superseded_by(self, description: JsonObject) -> None:
         sender = description.get(SENDER_KEY)

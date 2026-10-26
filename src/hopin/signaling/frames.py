@@ -81,9 +81,8 @@ class ResumeFrame:
         return self.claim
 
 
-type ClientFrame = (
-    JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | ChatFrame | MediaStateFrame | ResumeFrame
-)
+type DispatchedFrame = JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | ChatFrame | MediaStateFrame
+type ClientFrame = DispatchedFrame | ResumeFrame
 
 
 @dataclass(frozen=True)

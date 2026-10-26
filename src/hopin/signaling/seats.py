@@ -7,8 +7,16 @@ from typing import TYPE_CHECKING
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
-from hopin.config.constants import PEER_ID_BYTES, RESUME_TOKEN_BYTES, RESUME_WINDOW_SECONDS
-from hopin.signaling.frames import JsonObject, PeerId
+from hopin.config.constants import (
+    PEER_ID_BYTES,
+    RESUME_TOKEN_BYTES,
+    RESUME_WINDOW_SECONDS,
+    SEAT_CLOSED_BY_SERVER_CODE,
+    ResumeRefusalCause,
+    SignalType,
+)
+from hopin.errors import ResumeRefusedError
+from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumeFrame
 from hopin.signaling.replay import ReplayLog
 
 if TYPE_CHECKING:
@@ -141,6 +149,96 @@ class Seats:
     def credentials(self, peer_id: PeerId) -> dict[str, str]:
         return {"participant_id": peer_id, "resume_token": self._peers[peer_id].resume_token}
 
+    async def resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
+        try:
+            if not is_first_frame:
+                raise ResumeRefusedError(ResumeRefusalCause.NOT_FIRST_FRAME)
+            claim = frame.require_claim()
+            seat = self._matching_seat(connection, claim)
+            gap = self._gap_before_resume(seat, claim)
+            if gap is not None:
+                await self._release_unresumable_seat(claim.participant_id)
+                raise ResumeRefusedError(gap)
+        except ResumeRefusedError as refusal:
+            await self._refuse_resume(connection, refusal)
+            return
+        await self._take_over_seat(connection, seat, claim)
+
+    def _matching_seat(self, connection: Connection, claim: ResumeClaim) -> Peer:
+        seat = self.find(claim.participant_id)
+        if seat is None:
+            raise ResumeRefusedError(ResumeRefusalCause.UNKNOWN_SEAT)
+        if not _token_matches(claim.token, seat.resume_token):
+            raise ResumeRefusedError(ResumeRefusalCause.CREDENTIAL_MISMATCH)
+        if self.account_of(connection.peer_id).id != seat.account.id:
+            raise ResumeRefusedError(ResumeRefusalCause.WRONG_ACCOUNT)
+        return seat
+
+    @staticmethod
+    def _gap_before_resume(seat: Peer, claim: ResumeClaim) -> ResumeRefusalCause | None:
+        if not seat.log.reaches_back_to(claim.last_seq):
+            return ResumeRefusalCause.SERVER_LOG_TOO_SHORT
+        if claim.sent_floor > seat.received_seq:
+            return ResumeRefusalCause.BROWSER_LOG_TOO_SHORT
+        return None
+
+    async def _release_unresumable_seat(self, peer_id: PeerId) -> None:
+        seat = self.seat(peer_id)
+        await self._on_seat_lost(peer_id)
+        await close_socket(seat.websocket)
+
+    async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
+        await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
+        await self.write(
+            connection.websocket,
+            {"type": SignalType.ERROR.value, "reason": refusal.reason.value, "message": str(refusal)},
+        )
+
+    async def _take_over_seat(self, connection: Connection, seat: Peer, claim: ResumeClaim) -> None:
+        superseded = seat.websocket
+        if seat.park is not None:
+            seat.park.timer.cancel()
+            seat.park = None
+        self.forget(connection.peer_id)
+        connection.peer_id = claim.participant_id
+        seat.websocket = connection.websocket
+        seat.resume_token = mint_resume_token()
+        seat.replaying = True
+
+        await close_socket(superseded)
+        await self.write(
+            connection.websocket,
+            {
+                "type": SignalType.RESUMED.value,
+                "resume_token": seat.resume_token,
+                "last_seq": seat.received_seq,
+            },
+        )
+        await self._replay(connection.websocket, claim.participant_id, seat, claim.last_seq)
+        await logger.ainfo("seat_resumed", peer_id=claim.participant_id)
+
+    async def _replay(self, websocket: WebSocket, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
+        cursor = last_seq
+        while self.find(peer_id) is seat and seat.websocket is websocket:
+            if not seat.log.reaches_back_to(cursor):
+                await self._release_unresumable_seat(peer_id)
+                return
+            pending = seat.log.since(cursor)
+            if not pending:
+                seat.replaying = False
+                return
+            if not await self.write(websocket, pending[0].frame):
+                return
+            cursor = pending[0].seq
+
+
+def _token_matches(claimed: str, expected: str) -> bool:
+    try:
+        claimed_bytes = claimed.encode()
+    except UnicodeEncodeError:
+        return False
+    return secrets.compare_digest(claimed_bytes, expected.encode())
+
 
 def closed_by_server(websocket: WebSocket) -> bool:
     return websocket.application_state == WebSocketState.DISCONNECTED
@@ -150,3 +248,12 @@ def is_connected(websocket: WebSocket) -> bool:
     return (
         websocket.client_state == WebSocketState.CONNECTED and websocket.application_state == WebSocketState.CONNECTED
     )
+
+
+async def close_socket(websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
+    if not is_connected(websocket):
+        return
+    try:
+        await websocket.close(code=code)
+    except WebSocketDisconnect:
+        await logger.ainfo("closed_socket_already_gone")
