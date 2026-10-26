@@ -9,7 +9,9 @@ from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, exp
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
     ICE_SERVERS_PATH,
+    MAX_LIVE_SEATS_PER_ACCOUNT,
     MAX_PARTICIPANTS_PER_ROOM,
+    WEBSOCKET_PATH,
     ErrorReason,
     RoomClosedReason,
     SignalType,
@@ -92,6 +94,17 @@ LOCKED = EndScreenText(
 FULL = EndScreenText(
     "Call is full", f"A call has room for {CAPACITY} people.", ("Back to start",), pill=f"{CAPACITY}/{CAPACITY}"
 )
+TOO_MANY_CALLS = EndScreenText(
+    "Too many calls open",
+    f"Your account is in {MAX_LIVE_SEATS_PER_ACCOUNT} calls. Leave one to join this one.",
+    ("Back to start",),
+)
+OPEN_SOCKETS_AND_WAIT = f"""async (count) => {{
+    const url = location.origin.replace("http", "ws") + {json.dumps(WEBSOCKET_PATH)};
+    const sockets = Array.from({{ length: count }}, () => new WebSocket(url));
+    await Promise.all(sockets.map((socket) => new Promise((resolve) => socket.addEventListener("open", resolve))));
+    window.heldSockets = sockets;
+}}"""
 REFUSED_JOINS = [
     pytest.param({"reason": ErrorReason.NOT_FOUND.value}, EXPIRED, id="expired"),
     pytest.param({"reason": ErrorReason.FULL.value, "capacity": CAPACITY}, FULL, id="full"),
@@ -382,6 +395,20 @@ def test_refused_join_shows_the_screen_of_its_reason(
     join_by_link(person, hosted_call.invite_link)
 
     expect_end_screen(person, expected)
+
+
+def test_person_whose_account_is_in_the_maximum_of_calls_sees_the_refusal_and_does_not_retry(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+) -> None:
+    person = record_page_errors(open_recording_person(open_person, form_factor, [COUNT_SOCKETS]), page_errors)
+    other_device = open_person(same_account_as=person, **DESKTOP)
+    other_device.goto(f"{base_url}/")
+    other_device.evaluate(OPEN_SOCKETS_AND_WAIT, MAX_LIVE_SEATS_PER_ACCOUNT)
+
+    press_start_call(person, base_url)
+
+    expect_end_screen(person, TOO_MANY_CALLS)
+    assert person.evaluate(LEFTOVERS) == {"liveTracks": 0, "socketsOpened": 1}
 
 
 def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
