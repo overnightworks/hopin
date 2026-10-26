@@ -1,8 +1,0 @@
-claim_id = "cae65dea5d4a49dc894934763eb110e4"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "3b6fc163ba06291a8d63fa4159d89687a171622a"
-branch = "claude/issue-238-one-account-is-in-at-most-8-hopin-calls"
-scope = ["docs/ARCHITECTURE.md", "docs/mockups/hopin-call.html", "src/hopin/config/constants.py", "src/hopin/errors.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/seats.py", "src/hopin/web/static/assets/js/end.js", "tests/e2e/test_end.py", "tests/integration/test_signaling_flow.py"]
-opened_commit = "c16b30f8e01984963059218d1fbdc5565c63d98b"
-whole_reason = "One cap across the server's admission and the end screen that explains it; splitting would ship a refusal the person sees only as 'Disconnected'."
