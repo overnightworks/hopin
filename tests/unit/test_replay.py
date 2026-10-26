@@ -119,3 +119,13 @@ class TestSuperseding:
         log.append(candidate("alice"))
 
         assert seqs(log.since(0)) == [1, 2]
+
+
+class TestSeqAfter:
+    def test_seq_after_names_the_oldest_kept_frame_past_the_cursor(self):
+        log = ReplayLog(limit=LOG_LIMIT)
+        for _ in range(5):
+            log.append(chat())
+
+        assert log.seq_after(0) == 3
+        assert log.seq_after(3) == 4
