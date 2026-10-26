@@ -4,13 +4,16 @@ from typing import TYPE_CHECKING, NewType, TypeGuard
 
 from hopin.config.constants import MAX_SIGNALING_FRAME_LENGTH, ResumeRefusalCause, SignalType
 from hopin.errors import InvalidMessageError, ResumeRefusedError
-from hopin.signaling.replay import SEQUENCE_KEY, TYPE_KEY
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 type JsonValue = str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None
 type JsonObject = dict[str, JsonValue]
+
+SEQUENCE_KEY = "seq"
+SENDER_KEY = "from"
+TYPE_KEY = "type"
 
 PeerId = NewType("PeerId", str)
 
