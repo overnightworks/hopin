@@ -58,7 +58,7 @@ TURN_CREDENTIAL_TTL_SECONDS = 12 * 60 * 60
 
 MIN_PARTICIPANTS_PER_ROOM = 2
 MAX_PARTICIPANTS_PER_ROOM = 6
-# One account in more calls than this exhausts the process for everyone; a limit above the few devices a person has.
+# Bounds one account's /ws sockets, which webauth's HTTP rate limit does not cover; above the few devices a person uses.
 MAX_LIVE_SEATS_PER_ACCOUNT = 8
 HOST_GRACE_SECONDS = 60
 RESUME_WINDOW_SECONDS = 30
