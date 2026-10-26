@@ -732,8 +732,8 @@ def assert_refused_for_too_many_calls(websocket):
     refusal = websocket.receive_json()
     with pytest.raises(WebSocketDisconnect) as closed:
         websocket.receive_json()
-    assert (refusal["type"], refusal["reason"], refusal["limit"], closed.value.code) == (
-        SignalType.ERROR.value,
+    assert (set(refusal), refusal["reason"], refusal["limit"], closed.value.code) == (
+        {"type", "reason", "message", "limit"},
         ErrorReason.TOO_MANY_CALLS.value,
         MAX_LIVE_SEATS_PER_ACCOUNT,
         POLICY_VIOLATION_CODE,
