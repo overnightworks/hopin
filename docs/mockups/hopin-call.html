@@ -905,6 +905,7 @@ const PRESETS = {
   expired: () => fresh({ screen: "end", endKind: "expired" }),
   locked: () => fresh({ screen: "end", endKind: "locked", role: "guest" }),
   full: () => fresh({ screen: "end", endKind: "full", role: "guest" }),
+  toomany: () => fresh({ screen: "end", endKind: "toomany", role: "guest" }),
   noaccess: () => fresh({ screen: "signin", signinKind: "noaccess" }),
   loginfailed: () => fresh({ screen: "signin", signinKind: "loginfailed" }),
 };
@@ -914,7 +915,7 @@ const CHIP_GROUPS = [
   ["Vorschau", [["pre-host", "Anruf starten"], ["pre-guest", "Einladung öffnen"], ["pre-blocked", "Kamera blockiert"], ["pre-nocam", "Keine Kamera"]]],
   ["Im Anruf", [["alone", "Allein"], ["invite", "Einladen"], ["call2", "2 Personen"], ["call4", "4 Personen"], ["call6", "6 Personen"], ["share", "Bildschirm"], ["chat", "Chat"], ["more", "More"], ["people", "Teilnehmer"]]],
   ["Probleme", [["reconnect", "Neu verbinden"], ["hostwait", "Host weg"], ["peer", "Verbindungsproblem"]]],
-  ["Ende", [["leave", "Host verlässt"], ["ended", "Beendet"], ["expired", "Link abgelaufen"], ["locked", "Gesperrt"], ["full", "Voll"], ["noaccess", "Kein Zugang"], ["loginfailed", "Login failed"]]],
+  ["Ende", [["leave", "Host verlässt"], ["ended", "Beendet"], ["expired", "Link abgelaufen"], ["locked", "Gesperrt"], ["full", "Voll"], ["toomany", "Zu viele Anrufe"], ["noaccess", "Kein Zugang"], ["loginfailed", "Login failed"]]],
 ];
 const CHIP_ALIAS = { left: "ended", hostgone: "ended", signout: "home" };
 
@@ -945,6 +946,7 @@ const CAPTIONS = {
   expired: ["Kein #25-Satz", "Der Link gehört zu einem Anruf, den es nicht mehr gibt. Eine Aktion: „Back to start“."],
   locked: ["Zeile 7", "Die Host-Person hat gesperrt; wer neu kommt, sieht das und kann es nochmal versuchen."],
   full: ["Kein #25-Satz", "Sechs von sechs Plätzen sind belegt."],
+  toomany: ["Zeile 1", "Das Konto ist schon in 8 Anrufen (Tabs und Geräte zusammen); der 9. wird abgelehnt und versucht es nicht erneut. Gleiches Bild wie „Voll“, nur andere Worte."],
   noaccess: ["Zeile 1 · 4", "Angemeldet, aber nicht in der Gruppe /apps/hopin: kein Name, weil eine Absage keine Identität trägt. Ein Weg: „Log out“. „Back“ entfällt (#25 Lesart 7, Vorgabe vom 21.10.2026); der Operator kann stattdessen einen festen Link zu https://hallucinai.de bestimmen."],
   loginfailed: ["Zeile 1 · 4", "Anmeldung fehlgeschlagen auf /auth/callback: ein Weg, „Try again“. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.1)."],
 };
@@ -1103,6 +1105,7 @@ function preView() {
 }
 
 const minutes = (seconds) => Math.max(1, Math.round(seconds / 60));
+const MAX_CALLS_PER_ACCOUNT = 8;
 const END_SCREENS = {
   ended: () => ({ icon: "ended", tone: "", title: "Call ended", text: `You ended the call for everyone after ${minutes(S.elapsed)} min.`, actions: [["home", "Back to start", "primary"]] }),
   left: () => ({ icon: "ended", tone: "", title: "You left the call", text: "The others are still talking.", actions: [["home", "Back to start", "primary"], ["rejoin", "Rejoin", "text"]] }),
@@ -1110,6 +1113,7 @@ const END_SCREENS = {
   expired: () => ({ icon: "hourglass", tone: "", title: "This link has expired", text: "The call is over. Ask for a new link.", actions: [["home", "Back to start", "primary"]] }),
   locked: () => ({ icon: "lock", tone: "warn", title: "Call is locked", text: "The host isn't letting anyone new in right now. Try again in a moment.", actions: [["retry-lock", "Retry", "primary"], ["home", "Back to start", "text"]] }),
   full: () => ({ icon: "users", tone: "warn", title: "Call is full", pill: `${MAX_PEOPLE}/${MAX_PEOPLE}`, text: `A call has room for ${MAX_PEOPLE} people.`, actions: [["home", "Back to start", "primary"]] }),
+  toomany: () => ({ icon: "users", tone: "warn", title: "Too many calls open", text: `Your account is in ${MAX_CALLS_PER_ACCOUNT} calls. Leave one to join this one.`, actions: [["home", "Back to start", "primary"]] }),
 };
 
 function endView() {

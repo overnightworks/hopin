@@ -8,6 +8,7 @@ import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
+    MAX_LIVE_SEATS_PER_ACCOUNT,
     PEER_ID_BYTES,
     RESUME_TOKEN_BYTES,
     RESUME_WINDOW_SECONDS,
@@ -15,8 +16,8 @@ from hopin.config.constants import (
     ResumeRefusalCause,
     SignalType,
 )
-from hopin.errors import ResumeRefusedError
-from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumeFrame
+from hopin.errors import ResumeRefusedError, TooManyCallsError
+from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumeFrame, error_frame
 from hopin.signaling.replay import ReplayLog
 
 if TYPE_CHECKING:
@@ -85,6 +86,10 @@ class Seats:
         self._peers: dict[PeerId, Peer] = {}
 
     def open_seat(self, account: Account, websocket: WebSocket) -> PeerId:
+        """Opens a seat; a parked seat holds no socket, so only live ones count toward the account's cap."""
+        live_seats = sum(1 for _, peer in self.held_by(account.id) if peer.park is None)
+        if live_seats >= MAX_LIVE_SEATS_PER_ACCOUNT:
+            raise TooManyCallsError
         peer_id = mint_peer_id()
         self._peers[peer_id] = Peer(account=account, websocket=websocket)
         return peer_id
@@ -189,10 +194,7 @@ class Seats:
 
     async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
         await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
-        await self.write(
-            connection.websocket,
-            {"type": SignalType.ERROR.value, "reason": refusal.reason.value, "message": str(refusal)},
-        )
+        await self.write(connection.websocket, error_frame(refusal))
 
     async def _take_over_seat(self, connection: Connection, seat: Peer, claim: ResumeClaim) -> None:
         superseded = seat.websocket

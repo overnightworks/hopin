@@ -15,6 +15,7 @@ from hopin.config.constants import (
     AUTH_START_PATH,
     HOST_GRACE_SECONDS,
     LOGIN_GROUP,
+    MAX_LIVE_SEATS_PER_ACCOUNT,
     SEAT_CLOSED_BY_SERVER_CODE,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
@@ -721,3 +722,78 @@ class TestResume:
         with pytest.raises(WebSocketDisconnect) as superseded:
             guest_ws.receive_json()
         assert superseded.value.code == SEAT_CLOSED_BY_SERVER_CODE
+
+
+def open_idle_sockets(connect, account, count):
+    return [connect(account) for _ in range(count)]
+
+
+def assert_refused_for_too_many_calls(websocket):
+    refusal = websocket.receive_json()
+    with pytest.raises(WebSocketDisconnect) as closed:
+        websocket.receive_json()
+    assert (set(refusal), refusal["reason"], refusal["limit"], closed.value.code) == (
+        {"type", "reason", "message", "limit"},
+        ErrorReason.TOO_MANY_CALLS.value,
+        MAX_LIVE_SEATS_PER_ACCOUNT,
+        POLICY_VIOLATION_CODE,
+    )
+
+
+def assert_admitted(websocket):
+    websocket.send_json({"type": SignalType.JOIN.value})
+    assert websocket.receive_json()["type"] == SignalType.ROOM_CREATED.value
+
+
+@pytest.mark.integration
+class TestCallCap:
+    def test_refusal_holds_no_seat_and_does_not_block_other_accounts(self, connect):
+        """#238 line 1: the cap is per account, and closing a live call frees room after a refusal."""
+        live = open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+        assert_refused_for_too_many_calls(connect("busy"))
+        assert_admitted(connect("other"))
+        live[0].close()
+
+        assert_admitted(connect("busy"))
+
+    def test_parked_seat_does_not_count_toward_the_cap(self, connect):
+        """#238 line 1: only live calls count, a seat parked for resume does not."""
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, _ = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        guest_ws.close(code=ABNORMAL_CLOSE_CODE)
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT - 1)
+
+        assert_admitted(connect("busy"))
+
+    @pytest.mark.parametrize(
+        ("other_live_sockets", "reply_type", "reply_reason"),
+        [
+            (MAX_LIVE_SEATS_PER_ACCOUNT - 2, SignalType.RESUMED, None),
+            (MAX_LIVE_SEATS_PER_ACCOUNT - 1, SignalType.ERROR, ErrorReason.TOO_MANY_CALLS),
+        ],
+    )
+    def test_resume_is_admitted_only_when_it_replaces_a_live_socket_or_a_seat_is_free(
+        self, connect, other_live_sockets, reply_type, reply_reason
+    ):
+        """#238 line 1: a takeover that replaces a live socket needs no free seat; a resume at the cap is refused."""
+        host_ws, room_id = open_room(connect, "host1")
+        _, seat = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        open_idle_sockets(connect, "busy", other_live_sockets)
+        resumed_ws = connect("busy")
+
+        resumed_ws.send_json(resume_frame(seat))
+
+        reply = resumed_ws.receive_json()
+        assert (reply["type"], reply.get("reason")) == (reply_type.value, reply_reason and reply_reason.value)
+
+    def test_refusal_log_carries_the_cap_only(self, connect, member_named, logs):
+        """#238 line 1: the refusal is logged with the limit and no account or session detail."""
+        open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+        assert_refused_for_too_many_calls(connect("busy"))
+
+        member = member_named("busy")
+        secrets_in_logs = [member.account.username, member.account.id, member.session.id]
+        assert [set(entry) for entry in events_named(logs, "too_many_calls")] == [{"event", "limit", "log_level"}]
+        assert [secret for secret in secrets_in_logs if secret in str(logs)] == []

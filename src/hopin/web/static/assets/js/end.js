@@ -9,6 +9,7 @@ export const END_KIND = {
     EXPIRED: "expired",
     LOCKED: "locked",
     FULL: "full",
+    TOO_MANY_CALLS: "too_many_calls",
 };
 
 const ICON = { ENDED: "ended", HOURGLASS: "hourglass", LOCK: "lock", USERS: "users" };
@@ -63,12 +64,20 @@ const END_VIEWS = {
         text: ({ capacity }) => `A call has room for ${capacity} people.`,
         actions: [ACTION.HOME],
     },
+    [END_KIND.TOO_MANY_CALLS]: {
+        icon: ICON.USERS,
+        warn: true,
+        title: "Too many calls open",
+        text: ({ limit }) => `Your account is in ${limit} calls. Leave one to join this one.`,
+        actions: [ACTION.HOME],
+    },
 };
 
 const REFUSAL_KINDS = {
     [ERROR_REASON.NOT_FOUND]: END_KIND.EXPIRED,
     [ERROR_REASON.LOCKED]: END_KIND.LOCKED,
     [ERROR_REASON.FULL]: END_KIND.FULL,
+    [ERROR_REASON.TOO_MANY_CALLS]: END_KIND.TOO_MANY_CALLS,
 };
 
 const CLOSED_ROOM_KINDS = {
