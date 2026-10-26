@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, NewType, TypeGuard
 
 from hopin.config.constants import MAX_SIGNALING_FRAME_LENGTH, ResumeRefusalCause, SignalType
-from hopin.errors import InvalidMessageError, ResumeRefusedError
+from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -16,6 +16,15 @@ SENDER_KEY = "from"
 TYPE_KEY = "type"
 
 PeerId = NewType("PeerId", str)
+
+
+def error_frame(error: HopInError) -> JsonObject:
+    return {
+        TYPE_KEY: SignalType.ERROR.value,
+        "reason": error.reason.value,
+        "message": str(error),
+        **error.frame_fields(),
+    }
 
 
 def _is_sequence_number(value: object) -> TypeGuard[int]:

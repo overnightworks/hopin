@@ -58,6 +58,8 @@ TURN_CREDENTIAL_TTL_SECONDS = 12 * 60 * 60
 
 MIN_PARTICIPANTS_PER_ROOM = 2
 MAX_PARTICIPANTS_PER_ROOM = 6
+# One account in more calls than this exhausts the process for everyone; a limit above the few devices a person has.
+MAX_LIVE_SEATS_PER_ACCOUNT = 8
 HOST_GRACE_SECONDS = 60
 RESUME_WINDOW_SECONDS = 30
 SESSION_RECHECK_SECONDS = 60
@@ -117,6 +119,7 @@ class ErrorReason(StrEnum):
     NOT_HOST = "not_host"
     INVALID_MESSAGE = "invalid_message"
     RESUME_REFUSED = "resume_refused"
+    TOO_MANY_CALLS = "too_many_calls"
 
 
 class RoomClosedReason(StrEnum):

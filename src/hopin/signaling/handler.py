@@ -11,9 +11,8 @@ from hopin.config.constants import (
     SESSION_ENDED_CLOSE_CODE,
     SESSION_RECHECK_SECONDS,
     WEBSOCKET_DISCONNECT_EVENT,
-    SignalType,
 )
-from hopin.errors import HopInError, InvalidMessageError
+from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
 from hopin.signaling.frames import (
     ChatFrame,
     DispatchedFrame,
@@ -26,6 +25,7 @@ from hopin.signaling.frames import (
     ResumeFrame,
     UnlockFrame,
     decode_frame,
+    error_frame,
 )
 from hopin.signaling.routing import RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot, close_socket, closed_by_server
@@ -62,7 +62,11 @@ class SignalingHandler:
             return
 
         await websocket.accept()
-        peer_id = self._seats.open_seat(account, websocket)
+        try:
+            peer_id = self._seats.open_seat(account, websocket)
+        except TooManyCallsError as refusal:
+            await self._refuse_beyond_cap(websocket, refusal)
+            return
         await logger.ainfo("client_connected", peer_id=peer_id)
 
         connection = Connection(websocket=websocket, peer_id=peer_id)
@@ -71,6 +75,11 @@ class SignalingHandler:
             await self._process_messages(connection)
         finally:
             await self._end_connection(connection)
+
+    async def _refuse_beyond_cap(self, websocket: WebSocket, refusal: TooManyCallsError) -> None:
+        await logger.ainfo("too_many_calls", **refusal.frame_fields())
+        await self._seats.write(websocket, error_frame(refusal))
+        await close_socket(websocket, POLICY_VIOLATION_CLOSE_CODE)
 
     async def _process_messages(self, connection: Connection) -> None:
         while True:
@@ -187,12 +196,4 @@ class SignalingHandler:
                 assert_never(frame)
 
     async def _send_error(self, peer_id: PeerId, error: HopInError) -> None:
-        await self._seats.send(
-            peer_id,
-            {
-                "type": SignalType.ERROR.value,
-                "reason": error.reason.value,
-                "message": str(error),
-                **error.frame_fields(),
-            },
-        )
+        await self._seats.send(peer_id, error_frame(error))

@@ -1,6 +1,6 @@
 from typing import ClassVar
 
-from hopin.config.constants import ErrorReason, ResumeRefusalCause
+from hopin.config.constants import MAX_LIVE_SEATS_PER_ACCOUNT, ErrorReason, ResumeRefusalCause
 
 
 class HopInError(Exception):
@@ -56,3 +56,13 @@ class ResumeRefusedError(HopInError):
     def __init__(self, cause: ResumeRefusalCause) -> None:
         super().__init__("Resume refused")
         self.cause = cause
+
+
+class TooManyCallsError(HopInError):
+    reason = ErrorReason.TOO_MANY_CALLS
+
+    def __init__(self) -> None:
+        super().__init__("Account is in too many calls")
+
+    def frame_fields(self) -> dict[str, int]:
+        return {"limit": MAX_LIVE_SEATS_PER_ACCOUNT}

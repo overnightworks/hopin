@@ -15,6 +15,7 @@ from hopin.config.constants import (
     AUTH_START_PATH,
     HOST_GRACE_SECONDS,
     LOGIN_GROUP,
+    MAX_LIVE_SEATS_PER_ACCOUNT,
     SEAT_CLOSED_BY_SERVER_CODE,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
@@ -721,3 +722,101 @@ class TestResume:
         with pytest.raises(WebSocketDisconnect) as superseded:
             guest_ws.receive_json()
         assert superseded.value.code == SEAT_CLOSED_BY_SERVER_CODE
+
+
+def open_socket_as(client, member_named, account):
+    return client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member_named(account)))
+
+
+@pytest.fixture
+def idle_sockets(client, member_named):
+    """Opens the account's idle sockets, in a count the test names, and closes them after the test."""
+    with ExitStack() as sessions:
+        yield lambda account, count: [
+            sessions.enter_context(open_socket_as(client, member_named, account)) for _ in range(count)
+        ]
+
+
+def assert_refused_for_too_many_calls(websocket):
+    refusal = websocket.receive_json()
+    with pytest.raises(WebSocketDisconnect) as closed:
+        websocket.receive_json()
+    assert (refusal, closed.value.code) == (
+        {
+            "type": SignalType.ERROR.value,
+            "reason": ErrorReason.TOO_MANY_CALLS.value,
+            "message": refusal["message"],
+            "limit": MAX_LIVE_SEATS_PER_ACCOUNT,
+        },
+        POLICY_VIOLATION_CODE,
+    )
+
+
+def assert_admitted(websocket):
+    websocket.send_json({"type": SignalType.JOIN.value})
+    assert websocket.receive_json()["type"] == SignalType.ROOM_CREATED.value
+
+
+@pytest.mark.integration
+class TestCallCap:
+    def test_socket_beyond_the_cap_gets_the_refusal_frame_and_a_policy_close(self, client, member_named, idle_sockets):
+        idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+
+        with open_socket_as(client, member_named, "busy") as ninth:
+            assert_refused_for_too_many_calls(ninth)
+
+    def test_other_account_is_admitted_while_one_account_is_at_the_cap(self, client, member_named, idle_sockets):
+        idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+
+        with open_socket_as(client, member_named, "other") as other:
+            assert_admitted(other)
+
+    def test_refused_socket_opens_no_seat_so_closing_a_live_one_lets_a_new_socket_in(
+        self, client, member_named, idle_sockets
+    ):
+        live = idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+        with open_socket_as(client, member_named, "busy") as ninth:
+            assert_refused_for_too_many_calls(ninth)
+        live[0].close()
+
+        with open_socket_as(client, member_named, "busy") as admitted:
+            assert_admitted(admitted)
+
+    def test_parked_seat_does_not_count_toward_the_cap(self, client, connect, member_named, idle_sockets):
+        host_ws, room_id = open_room(connect, "host1")
+        guest_ws, _ = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        guest_ws.close(code=ABNORMAL_CLOSE_CODE)
+        idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT - 1)
+
+        with open_socket_as(client, member_named, "busy") as admitted:
+            assert_admitted(admitted)
+
+    def test_resume_is_admitted_when_the_old_socket_is_the_cap_overlap(self, connect, idle_sockets):
+        host_ws, room_id = open_room(connect, "host1")
+        _, seat = join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT - 2)
+        resumed_ws = connect("busy")
+
+        resumed_ws.send_json(resume_frame(seat))
+
+        assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
+
+    def test_resume_at_the_cap_ends_with_the_refusal(self, connect, idle_sockets):
+        host_ws, room_id = open_room(connect, "host1")
+        join_room(connect, "busy", room_id)
+        host_ws.receive_json()
+        idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT - 1)
+
+        assert_refused_for_too_many_calls(connect("busy"))
+
+    def test_refusal_log_carries_the_cap_only(self, client, member_named, logs, idle_sockets):
+        idle_sockets("busy", MAX_LIVE_SEATS_PER_ACCOUNT)
+        with open_socket_as(client, member_named, "busy") as ninth:
+            assert_refused_for_too_many_calls(ninth)
+
+        member = member_named("busy")
+        secrets_in_logs = [member.account.username, member.account.id, member.session.id]
+        assert [set(entry) for entry in events_named(logs, "too_many_calls")] == [{"event", "limit", "log_level"}]
+        assert [secret for secret in secrets_in_logs if secret in str(logs)] == []
