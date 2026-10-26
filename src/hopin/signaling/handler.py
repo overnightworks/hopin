@@ -1,29 +1,26 @@
 import math
-import secrets
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, assert_never
 
 import structlog
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
     NORMAL_CLOSE_CODES,
     POLICY_VIOLATION_CLOSE_CODE,
-    SEAT_CLOSED_BY_SERVER_CODE,
     SERVER_ERROR_CLOSE_CODE,
     SESSION_ENDED_CLOSE_CODE,
     SESSION_RECHECK_SECONDS,
     WEBSOCKET_DISCONNECT_EVENT,
-    ResumeRefusalCause,
     RoomClosedReason,
     SignalType,
 )
-from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError, RoomNotFoundError
+from hopin.errors import HopInError, InvalidMessageError, RoomNotFoundError
 from hopin.signaling.frames import (
     ChatFrame,
-    ClientFrame,
+    DispatchedFrame,
     EndRoomFrame,
     JoinFrame,
     JsonObject,
@@ -31,7 +28,6 @@ from hopin.signaling.frames import (
     MediaStateFrame,
     PeerId,
     RelayFrame,
-    ResumeClaim,
     ResumeFrame,
     UnlockFrame,
     decode_frame,
@@ -41,9 +37,8 @@ from hopin.signaling.seats import (
     Peer,
     Seats,
     SeatSnapshot,
+    close_socket,
     closed_by_server,
-    is_connected,
-    mint_resume_token,
 )
 
 if TYPE_CHECKING:
@@ -59,14 +54,6 @@ class HostGrace:
     host_peer_id: str
     deadline: float
     timer: TimerHandle
-
-
-def _token_matches(claimed: str, expected: str) -> bool:
-    try:
-        claimed_bytes = claimed.encode()
-    except UnicodeEncodeError:
-        return False
-    return secrets.compare_digest(claimed_bytes, expected.encode())
 
 
 class SignalingHandler:
@@ -152,7 +139,7 @@ class SignalingHandler:
             return
         peer_id = connection.peer_id
         connection.ended = True
-        await _close_socket(connection.websocket, close_code)
+        await close_socket(connection.websocket, close_code)
         await logger.ainfo("session_ended", peer_id=peer_id)
         if not self._holds_seat(connection):
             return
@@ -181,7 +168,7 @@ class SignalingHandler:
             return
 
         if isinstance(incoming.frame, ResumeFrame):
-            await self._handle_resume(connection, incoming.frame, is_first_frame=is_first_frame)
+            await self._seats.resume(connection, incoming.frame, is_first_frame=is_first_frame)
             return
 
         if not is_first_frame:
@@ -199,7 +186,7 @@ class SignalingHandler:
         except HopInError as exc:
             await self._send_error(peer_id, exc)
 
-    async def _dispatch(self, peer_id: PeerId, frame: ClientFrame) -> None:
+    async def _dispatch(self, peer_id: PeerId, frame: DispatchedFrame) -> None:
         match frame:
             case JoinFrame():
                 await self._handle_join(peer_id, frame)
@@ -213,8 +200,10 @@ class SignalingHandler:
                 await self._handle_chat(peer_id, frame)
             case MediaStateFrame():
                 await self._handle_media_state(peer_id, frame)
-            case EndRoomFrame():  # pragma: no branch - ResumeFrame never reaches dispatch
+            case EndRoomFrame():
                 await self._handle_end_room(peer_id)
+            case _:  # pragma: no cover - the type checker proves the match exhaustive
+                assert_never(frame)
 
     async def _handle_join(self, peer_id: PeerId, frame: JoinFrame) -> None:
         room_id = frame.room_id
@@ -352,89 +341,6 @@ class SignalingHandler:
         await self._seats.send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
         await logger.ainfo("participant_left", room_id=room_id, participant=peer_id)
 
-    async def _handle_resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
-        try:
-            if not is_first_frame:
-                raise ResumeRefusedError(ResumeRefusalCause.NOT_FIRST_FRAME)
-            claim = frame.require_claim()
-            seat = self._matching_seat(connection, claim)
-            gap = self._gap_before_resume(seat, claim)
-            if gap is not None:
-                await self._release_unresumable_seat(claim.participant_id)
-                raise ResumeRefusedError(gap)
-        except ResumeRefusedError as refusal:
-            await self._refuse_resume(connection, refusal)
-            return
-        await self._take_over_seat(connection, seat, claim)
-
-    def _matching_seat(self, connection: Connection, claim: ResumeClaim) -> Peer:
-        seat = self._seats.find(claim.participant_id)
-        if seat is None:
-            raise ResumeRefusedError(ResumeRefusalCause.UNKNOWN_SEAT)
-        if not _token_matches(claim.token, seat.resume_token):
-            raise ResumeRefusedError(ResumeRefusalCause.CREDENTIAL_MISMATCH)
-        if self._seats.account_of(connection.peer_id).id != seat.account.id:
-            raise ResumeRefusedError(ResumeRefusalCause.WRONG_ACCOUNT)
-        return seat
-
-    @staticmethod
-    def _gap_before_resume(seat: Peer, claim: ResumeClaim) -> ResumeRefusalCause | None:
-        if not seat.log.reaches_back_to(claim.last_seq):
-            return ResumeRefusalCause.SERVER_LOG_TOO_SHORT
-        if claim.sent_floor > seat.received_seq:
-            return ResumeRefusalCause.BROWSER_LOG_TOO_SHORT
-        return None
-
-    async def _release_unresumable_seat(self, peer_id: PeerId) -> None:
-        seat = self._seats.seat(peer_id)
-        await self._handle_disconnect(peer_id)
-        await _close_socket(seat.websocket)
-
-    async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
-        await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
-        await self._seats.write(
-            connection.websocket,
-            {"type": SignalType.ERROR.value, "reason": refusal.reason.value, "message": str(refusal)},
-        )
-
-    async def _take_over_seat(self, connection: Connection, seat: Peer, claim: ResumeClaim) -> None:
-        superseded = seat.websocket
-        if seat.park is not None:
-            seat.park.timer.cancel()
-            seat.park = None
-        self._seats.forget(connection.peer_id)
-        connection.peer_id = claim.participant_id
-        seat.websocket = connection.websocket
-        seat.resume_token = mint_resume_token()
-        seat.replaying = True
-
-        await _close_socket(superseded)
-        await self._seats.write(
-            connection.websocket,
-            {
-                "type": SignalType.RESUMED.value,
-                "resume_token": seat.resume_token,
-                "last_seq": seat.received_seq,
-            },
-        )
-        await self._replay(connection.websocket, claim.participant_id, seat, claim.last_seq)
-        await logger.ainfo("seat_resumed", peer_id=claim.participant_id)
-
-    async def _replay(self, websocket: WebSocket, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
-        cursor = last_seq
-        while self._seats.find(peer_id) is seat and seat.websocket is websocket:
-            if not seat.log.reaches_back_to(cursor):
-                await self._release_unresumable_seat(peer_id)
-                return
-            pending = seat.log.since(cursor)
-            if not pending:
-                seat.replaying = False
-                return
-            next_cursor = seat.log.seq_after(cursor)
-            if not await self._seats.write(websocket, pending[0]):
-                return
-            cursor = next_cursor
-
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
         grace = HostGrace(host_peer_id=host_peer_id, deadline=deadline, timer=timer)
@@ -465,7 +371,7 @@ class SignalingHandler:
         await self._seats.send_all(recipients, frame)
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
-            await _close_socket(websocket)
+            await close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> JsonObject:
@@ -488,12 +394,3 @@ class SignalingHandler:
                 **error.frame_fields(),
             },
         )
-
-
-async def _close_socket(websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
-    if not is_connected(websocket):
-        return
-    try:
-        await websocket.close(code=code)
-    except WebSocketDisconnect:
-        await logger.ainfo("closed_socket_already_gone")

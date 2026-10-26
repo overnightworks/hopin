@@ -59,7 +59,7 @@ class TestSince:
         for text in "abcd":
             log.append(chat(text))
 
-        assert [frame["message"] for frame in log.since(2)] == ["c", "d"]
+        assert [kept.frame["message"] for kept in log.since(2)] == ["c", "d"]
 
     def test_answers_nothing_when_the_reader_is_caught_up(self):
         log = ReplayLog()
@@ -74,7 +74,7 @@ class TestSizeLimit:
         for _ in range(LOG_LIMIT + 2):
             log.append(chat())
 
-        assert seqs(log.since(0)) == [3, 4, 5]
+        assert [kept.seq for kept in log.since(0)] == [3, 4, 5]
         assert not log.reaches_back_to(1)
         assert log.reaches_back_to(2)
 
@@ -98,7 +98,7 @@ class TestSuperseding:
 
         log.append(description(newer, "alice", sdp="newest"))
 
-        assert [(frame["type"], frame.get("from")) for frame in log.since(0)] == [
+        assert [(kept.frame["type"], kept.frame.get("from")) for kept in log.since(0)] == [
             (SignalType.OFFER.value, "bob"),
             (SignalType.ICE_CANDIDATE.value, "bob"),
             (SignalType.CHAT.value, None),
@@ -110,7 +110,7 @@ class TestSuperseding:
         log.append(description(SignalType.OFFER, "alice"))
         log.append(description(SignalType.OFFER, "alice"))
 
-        assert seqs(log.since(0)) == [2]
+        assert [kept.seq for kept in log.since(0)] == [2]
         assert log.reaches_back_to(0)
 
     def test_a_candidate_after_a_description_is_kept(self):
@@ -118,4 +118,4 @@ class TestSuperseding:
         log.append(description(SignalType.OFFER, "alice"))
         log.append(candidate("alice"))
 
-        assert seqs(log.since(0)) == [1, 2]
+        assert [kept.seq for kept in log.since(0)] == [1, 2]
