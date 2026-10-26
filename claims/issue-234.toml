@@ -1,0 +1,8 @@
+claim_id = "0567cef6dbd34611a31f3d8036ee39c3"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "65e24c42674c72b3b15d07f06bfdabab077d1ce6"
+branch = "claude/issue-234-room-routing"
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "quality/baseline.toml", "src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py"]
+opened_commit = "e785f3e14207c00057baec74639aa29c8075fcc5"
+whole_reason = "Room routing moves whole with its state, its one contract line and the doc sentence that names its owner."
