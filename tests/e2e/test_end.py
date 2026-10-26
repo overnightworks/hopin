@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
+GOING_AWAY_CLOSE_CODE = 1001
 IN_CALL = "In call"
 SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
 # startCall continues in the same microtask drain in which the ICE servers' body is read,
@@ -105,6 +106,7 @@ OPEN_SOCKETS_AND_WAIT = f"""async (count) => {{
     await Promise.all(sockets.map((socket) => new Promise((resolve) => socket.addEventListener("open", resolve))));
     window.heldSockets = sockets;
 }}"""
+RECONNECT_DELAYS = 'async () => (await import("/static/js/signaling.js")).RECONNECT_DELAYS_MS'
 REFUSED_JOINS = [
     pytest.param({"reason": ErrorReason.NOT_FOUND.value}, EXPIRED, id="expired"),
     pytest.param({"reason": ErrorReason.FULL.value, "capacity": CAPACITY}, FULL, id="full"),
@@ -400,6 +402,7 @@ def test_refused_join_shows_the_screen_of_its_reason(
 def test_person_whose_account_is_in_the_maximum_of_calls_sees_the_refusal_and_does_not_retry(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
+    """#238 line 1: a person whose account is in the maximum of calls sees the refusal and does not retry."""
     person = record_page_errors(open_recording_person(open_person, form_factor, [COUNT_SOCKETS]), page_errors)
     other_device = open_person(same_account_as=person, **DESKTOP)
     other_device.goto(f"{base_url}/")
@@ -409,6 +412,58 @@ def test_person_whose_account_is_in_the_maximum_of_calls_sees_the_refusal_and_do
 
     expect_end_screen(person, TOO_MANY_CALLS)
     assert person.evaluate(LEFTOVERS) == {"liveTracks": 0, "socketsOpened": 1}
+
+
+def cut_the_socket_on_demand(person: Page) -> Callable[..., None]:
+    """Relay the person's sockets; the returned function cuts the latest one, with or without telling the server."""
+    sides: list[WebSocketRoute] = []
+
+    def relay(browser_side: WebSocketRoute) -> None:
+        server_side = browser_side.connect_to_server()
+        sides[:] = [browser_side, server_side]
+        browser_side.on_message(lambda frame: server_side.send(frame))
+        server_side.on_message(lambda frame: browser_side.send(frame))
+
+    person.route_web_socket("**/ws", relay)
+
+    def cut(*, server_notices: bool) -> None:
+        browser_side, server_side = sides
+        if not server_notices:
+            browser_side.on_close(lambda code, reason: None)
+        browser_side.close(code=GOING_AWAY_CLOSE_CODE, reason="cut")
+        if server_notices:
+            server_side.close()
+
+    return cut
+
+
+@pytest.mark.parametrize("server_notices", [True, False], ids=["dropped", "taken_over"])
+def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_does_not_retry(
+    hosted_call: HostedCall,
+    open_person: Callable[..., Page],
+    form_factor: dict[str, Any],
+    page_errors: list[str],
+    server_notices: bool,
+) -> None:
+    """#238 line 1: a reconnect refused at the maximum of calls ends with the same refusal screen, without a retry."""
+    guest = record_page_errors(open_recording_person(open_person, form_factor, [COUNT_SOCKETS]), page_errors)
+    cut = cut_the_socket_on_demand(guest)
+    guest.clock.install()
+    join_by_link(guest, hosted_call.invite_link)
+    expect(guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    delays = [int(delay) for delay in guest.evaluate(RECONNECT_DELAYS)]
+    other_device = open_person(same_account_as=guest, **DESKTOP)
+    other_device.goto(f"{hosted_call.base_url}/")
+
+    cut(server_notices=server_notices)
+    expect(guest.locator("#status")).to_have_text(f"Reconnecting in {delays[0] // 1000}s...")
+    live_elsewhere = MAX_LIVE_SEATS_PER_ACCOUNT if server_notices else MAX_LIVE_SEATS_PER_ACCOUNT - 1
+    other_device.evaluate(OPEN_SOCKETS_AND_WAIT, live_elsewhere)
+    guest.clock.run_for(delays[0])
+
+    expect_end_screen(guest, TOO_MANY_CALLS)
+    guest.clock.run_for(sum(delays))
+    assert guest.evaluate(LEFTOVERS) == {"liveTracks": 0, "socketsOpened": 2}
 
 
 def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
