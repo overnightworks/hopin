@@ -30,6 +30,8 @@ Press "Start a call" and share the generated link.
 
 `compose.yaml` owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
 
+Production runs from edge's catalog: `hal apply` on a `vYYYY.MM.DD.N` tag of `master` publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands, and [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs.
+
 ## A Person's Data
 
 HopIn holds a person's account (name and role), their sessions and their seats in a call only in memory; a restart forgets all of it. Members of `/apps/hopin/admin` (or a group below it) download what HopIn holds about one person in their signed-in browser at `/api/admin/people/<keycloak id>/export`, by the person's Keycloak id compared exactly. The answer is a ZIP holding `export.json`.
