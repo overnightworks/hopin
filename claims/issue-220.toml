@@ -1,8 +1,0 @@
-claim_id = "067a51f604664f16ac582b16a2188c42"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "9092dfd516fde1d857e9357d4056d6ce28d8e17c"
-branch = "claude/issue-220-signaling-tests-public-entry"
-scope = ["pyproject.toml", "tests/unit/conftest.py", "tests/unit/test_signaling.py", "tests/unit/test_signaling_recheck.py", "tests/unit/test_signaling_resume.py"]
-opened_commit = "6f578ef1beae32c387be90ca7c8fc4d990a7748c"
-whole_reason = "One rule (no private access in signaling tests) across the three signaling test modules, their shared conftest and the one lint line that enforces it."
