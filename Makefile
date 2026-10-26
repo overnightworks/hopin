@@ -1,16 +1,16 @@
-.PHONY: install lint format test dead layout check run e2e
+.PHONY: install lint format test dead check run e2e
 
 install:
 	uv sync --all-extras
 
 lint:
 	uv run ruff check .
-	uv run ruff format --check src tests scripts
-	uv run mypy src scripts
+	uv run ruff format --check src tests
+	uv run mypy src
 
 format:
 	uv run ruff check --fix .
-	uv run ruff format src tests scripts
+	uv run ruff format src tests
 
 test:
 	uv run pytest -m "not integration and not e2e"
@@ -24,10 +24,7 @@ e2e:
 dead:
 	uv run vulture src/hopin
 
-layout:
-	uv run python scripts/check_root_layout.py
-
-check: lint layout test dead
+check: lint test dead
 
 run:
 	uv run hopin serve

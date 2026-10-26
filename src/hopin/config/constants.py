@@ -91,7 +91,6 @@ class SignalType(StrEnum):
     ANSWER = "answer"
     ICE_CANDIDATE = "ice_candidate"
     JOIN = "join"
-    LEAVE = "leave"
     ERROR = "error"
     ROOM_CREATED = "room_created"
     PARTICIPANT_JOINED = "participant_joined"

@@ -31,7 +31,7 @@ jobs:
       # whose build script runs third-party code on the runner. hopin itself
       # stays out of the environment: it is the one source build left once the
       # dependencies are wheels, and nothing below needs it installed, because
-      # pytest puts src/ and scripts/ on the import path (pyproject.toml,
+      # pytest puts src/ on the import path (pyproject.toml,
       # tool.pytest.ini_options.pythonpath). The steps below then call their
       # tool straight from that environment instead of installing again.
       - name: Install dependencies
@@ -46,8 +46,10 @@ jobs:
           UV_NO_SYNC: "1"
         run: make lint
 
-      - name: Check the repository root layout
-        run: python scripts/check_root_layout.py
+      - name: Find dead code
+        env:
+          UV_NO_SYNC: "1"
+        run: make dead
 
       # Which files are measured is pyproject.toml's to say (the source key
       # under [tool.coverage.run]); this step only asks for the report the

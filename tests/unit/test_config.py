@@ -43,7 +43,7 @@ class TestSignalType:
             assert isinstance(signal_type.value, str)
 
     def test_contains_required_types(self):
-        required = {"offer", "answer", "ice_candidate", "join", "leave", "error"}
+        required = {"offer", "answer", "ice_candidate", "join", "error"}
         actual = {s.value for s in SignalType}
         assert required.issubset(actual)
 

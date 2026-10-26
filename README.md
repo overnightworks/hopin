@@ -80,7 +80,7 @@ HopIn refuses to start without the four required settings, when a secret file ca
 |---|---|
 | `make install` | install all dependencies |
 | `make run` | start the server |
-| `make check` | lint, root layout, unit tests and dead code |
+| `make check` | lint, unit tests and dead code |
 | `make test-all` | unit and integration tests |
 | `make e2e` | browser end-to-end tests |
 
