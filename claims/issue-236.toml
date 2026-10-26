@@ -1,7 +1,0 @@
-claim_id = "f483375809f34715b17ddfe384858216"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "74737530122f2597118bea2fc5e89eec4d73b915"
-branch = "claude/issue-236-go-live"
-scope = ["README.md"]
-opened_commit = "1ee9bad14e92f6024f55bba6b03626040141bc8d"
