@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "a1d3eeb49fa224ce9394a8af5866a61df4c53eb2"
 branch = "claude/issue-230-seat-registry-to-seats"
-scope = ["pyproject.toml", "quality/baseline.toml", "src/hopin/people.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/seats.py", "tests/unit/test_signaling_resume.py"]
+scope = ["pyproject.toml", "quality/baseline.toml", "src/hopin/people.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/replay.py", "src/hopin/signaling/seats.py", "tests/unit/test_signaling_resume.py"]
 opened_commit = "2a1b2798baa3abd035da82e0d23702be2e749b38"
 whole_reason = "The seat registry moves whole with its one contract and the two import pins it changes; a half move leaves Peer with two writers."
