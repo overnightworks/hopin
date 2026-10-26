@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 from html.parser import HTMLParser
 from xml.etree import ElementTree
@@ -14,12 +15,19 @@ from hopin.config.constants import (
     HEALTH_PATH,
     HOME_PATH,
     LOGOUT_PATH,
+    REPLAY_LOG_LIMIT,
+    SESSION_ENDED_CLOSE_CODE,
     STATIC_PATH,
+    WEBSOCKET_PATH,
+    ErrorReason,
+    RoomClosedReason,
+    SignalType,
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
+from hopin.web.wire import WIRE_MODULE_PATH
 from tests.unit.conftest import SocketAccountResolver
 
 
@@ -41,13 +49,34 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_four_routes_and_the_static_mount(self, signaling_handler, room_manager):
+    def test_returns_five_routes_and_the_static_mount(self, signaling_handler, room_manager):
         router = create_router(signaling_handler, room_manager)
-        assert len(router.routes) == 5
+        assert len(router.routes) == 6
 
     def test_static_dir_points_to_web_static(self):
         assert STATIC_DIR.name == "static"
         assert STATIC_DIR.parent.name == "web"
+
+
+class TestWireModule:
+    def test_serves_the_python_vocabulary_as_a_javascript_module(self, client):
+        response = client.get(WIRE_MODULE_PATH)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/javascript")
+        exports = {
+            name: json.loads(value)
+            for name, value in re.findall(r"^export const (\w+) = (.*);$", response.text, re.MULTILINE)
+        }
+        assert exports == {
+            "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
+            "ERROR_REASON": {member.name: member.value for member in ErrorReason},
+            "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
+            "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
+            "WEBSOCKET_PATH": WEBSOCKET_PATH,
+            "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
+            "DESCRIPTION_TYPES": ["answer", "offer"],
+            "SUPERSEDED_BY_A_DESCRIPTION": ["answer", "ice_candidate", "offer"],
+        }
 
 
 class TestHealthEndpoint:

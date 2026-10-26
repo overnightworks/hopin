@@ -1,7 +1,9 @@
-export const REPLAY_LOG_LIMIT = 256;
+import { DESCRIPTION_TYPES, REPLAY_LOG_LIMIT, SUPERSEDED_BY_A_DESCRIPTION } from "./wire.js";
 
-const DESCRIPTION_TYPES = new Set(["offer", "answer"]);
-const SUPERSEDED_BY_A_DESCRIPTION = new Set(["offer", "answer", "ice_candidate"]);
+export { REPLAY_LOG_LIMIT };
+
+const descriptionTypes = new Set(DESCRIPTION_TYPES);
+const supersededByADescription = new Set(SUPERSEDED_BY_A_DESCRIPTION);
 
 export class SentLog {
     #limit;
@@ -18,7 +20,7 @@ export class SentLog {
     }
 
     append(message) {
-        if (DESCRIPTION_TYPES.has(message.type)) this.#dropSupersededBy(message);
+        if (descriptionTypes.has(message.type)) this.#dropSupersededBy(message);
         this.#lastSeq += 1;
         const frame = { ...message, seq: this.#lastSeq };
         this.#frames.push(frame);
@@ -39,7 +41,7 @@ export class SentLog {
     #dropSupersededBy(description) {
         this.#frames = this.#frames.filter(
             (frame) =>
-                !(SUPERSEDED_BY_A_DESCRIPTION.has(frame.type) && frame.target === description.target),
+                !(supersededByADescription.has(frame.type) && frame.target === description.target),
         );
     }
 }

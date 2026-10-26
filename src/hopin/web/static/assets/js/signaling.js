@@ -1,46 +1,14 @@
+import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "./wire.js";
 import { SentLog } from "./replay.js";
 import { getRoomIdFromUrl } from "./router.js";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 
-export const SIGNAL_TYPE = {
-    OFFER: "offer",
-    ANSWER: "answer",
-    ICE_CANDIDATE: "ice_candidate",
-    JOIN: "join",
-    RESUME: "resume",
-    RESUMED: "resumed",
-    ROOM_CREATED: "room_created",
-    PARTICIPANT_JOINED: "participant_joined",
-    PARTICIPANT_LEFT: "participant_left",
-    EXISTING_PARTICIPANTS: "existing_participants",
-    ROOM_CLOSED: "room_closed",
-    ROOM_LOCKED: "room_locked",
-    ROOM_UNLOCKED: "room_unlocked",
-    LOCK_ROOM: "lock_room",
-    UNLOCK_ROOM: "unlock_room",
-    CHAT: "chat",
-    MEDIA_STATE: "media_state",
-    ERROR: "error",
-};
-
-export const ERROR_REASON = {
-    NOT_FOUND: "not_found",
-    LOCKED: "locked",
-    FULL: "full",
-    RESUME_REFUSED: "resume_refused",
-};
-
-export const ROOM_CLOSED_REASON = {
-    HOST_GONE: "host_gone",
-    ENDED: "ended",
-};
-
+export { SIGNAL_TYPE, ERROR_REASON };
+export { ROOM_CLOSED_REASON } from "./wire.js";
 
 const NORMAL_CLOSURE_CODE = 1000;
-const SESSION_ENDED_CLOSE_CODE = 4002;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
-const WEBSOCKET_PATH = "/ws";
 
 const handlersByType = new Map();
 let socket = null;
