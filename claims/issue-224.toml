@@ -1,8 +1,0 @@
-claim_id = "9ac6801fa1a74f1d8f95ebf895b0c5b8"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "c5538cf77491595316652d0fa7128e53b357b889"
-branch = "claude/issue-224-served-wire-vocabulary"
-scope = ["docs/ARCHITECTURE.md", "docs/decisions", "src/hopin/signaling/replay.py", "src/hopin/web/routes.py", "src/hopin/web/static/assets/js/replay.js", "src/hopin/web/static/assets/js/signaling.js", "src/hopin/web/wire.py", "tests/unit/test_web.py"]
-opened_commit = "59bb1c6efe626cbf51ef6d3fa931b83a54924b79"
-whole_reason = "One owner for the protocol tokens has to reach the Python owners, the serving route and both JS consumers in one change."
