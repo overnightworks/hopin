@@ -3,7 +3,7 @@ import math
 import secrets
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
@@ -28,7 +28,9 @@ from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError, Ro
 from hopin.signaling.frames import (
     ChatFrame,
     ClientFrame,
+    EndRoomFrame,
     JoinFrame,
+    JsonObject,
     LockFrame,
     MediaStateFrame,
     PeerId,
@@ -38,7 +40,7 @@ from hopin.signaling.frames import (
     UnlockFrame,
     decode_frame,
 )
-from hopin.signaling.replay import SEQUENCE_KEY, ReplayLog
+from hopin.signaling.replay import ReplayLog, sequence_of
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
@@ -259,7 +261,7 @@ class SignalingHandler:
                 await self._handle_chat(peer_id, frame)
             case MediaStateFrame():
                 await self._handle_media_state(peer_id, frame)
-            case _:
+            case EndRoomFrame():  # pragma: no branch - ResumeFrame never reaches dispatch
                 await self._handle_end_room(peer_id)
 
     async def _handle_join(self, peer_id: PeerId, frame: JoinFrame) -> None:
@@ -298,7 +300,7 @@ class SignalingHandler:
             peer_id,
             {
                 "type": SignalType.EXISTING_PARTICIPANTS.value,
-                "participants": others,
+                "participants": [*others],
                 "names": {pid: self._account_of(pid).name for pid in others},
                 "is_host": room.is_hosted_by(account),
                 "locked": room.locked,
@@ -496,7 +498,7 @@ class SignalingHandler:
                 return
             if not await self._write(websocket, pending[0]):
                 return
-            cursor = pending[0][SEQUENCE_KEY]
+            cursor = sequence_of(pending[0])
 
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
@@ -522,7 +524,7 @@ class SignalingHandler:
         self._cancel_grace(room_id)
         self._room_manager.remove_room(room_id)
 
-        frame: dict[str, Any] = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
+        frame: JsonObject = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
         if reason is RoomClosedReason.HOST_GONE:
             frame["grace_seconds"] = HOST_GRACE_SECONDS
         await self._send_all(recipients, frame)
@@ -531,7 +533,7 @@ class SignalingHandler:
             await _close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
-    def _host_away_frame(self, grace: HostGrace) -> dict[str, Any]:
+    def _host_away_frame(self, grace: HostGrace) -> JsonObject:
         return {
             "type": SignalType.HOST_AWAY.value,
             "seconds_left": math.ceil(grace.deadline - self._scheduler.now()),
@@ -541,14 +543,14 @@ class SignalingHandler:
     def _account_of(self, peer_id: str) -> Account:
         return self._peers[PeerId(peer_id)].account
 
-    async def _broadcast_to_room(self, room_id: str, data: dict[str, Any]) -> None:
+    async def _broadcast_to_room(self, room_id: str, data: JsonObject) -> None:
         await self._send_all(self._room_manager.get_room(room_id).participant_ids, data)
 
-    async def _send_all(self, peer_ids: list[str], data: dict[str, Any]) -> None:
+    async def _send_all(self, peer_ids: list[str], data: JsonObject) -> None:
         for peer_id in peer_ids:
             await self._send(peer_id, data)
 
-    async def _send(self, peer_id: str, data: dict[str, Any]) -> None:
+    async def _send(self, peer_id: str, data: JsonObject) -> None:
         # The browser drops frames at or below the last seq it dispatched, so nothing may await
         # between assigning a frame's seq in the log and writing it.
         peer = self._peers.get(PeerId(peer_id))
@@ -560,7 +562,7 @@ class SignalingHandler:
         await self._write(peer.websocket, frame, peer_id)
 
     @staticmethod
-    async def _write(websocket: WebSocket, frame: dict[str, Any], peer_id: str | None = None) -> bool:
+    async def _write(websocket: WebSocket, frame: JsonObject, peer_id: str | None = None) -> bool:
         if not _is_connected(websocket):
             return False
         try:

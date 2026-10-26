@@ -13,7 +13,7 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
-from hopin.signaling.replay import SEQUENCE_KEY
+from hopin.signaling.frames import SEQUENCE_KEY
 from tests.signed_in import SeededMember, handshake_headers, seed_member
 
 if TYPE_CHECKING:

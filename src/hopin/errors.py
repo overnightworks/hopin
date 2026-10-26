@@ -1,4 +1,4 @@
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from hopin.config.constants import ErrorReason, ResumeRefusalCause
 
@@ -6,7 +6,7 @@ from hopin.config.constants import ErrorReason, ResumeRefusalCause
 class HopInError(Exception):
     reason: ClassVar[ErrorReason]
 
-    def frame_fields(self) -> dict[str, Any]:
+    def frame_fields(self) -> dict[str, int]:
         return {}
 
 
@@ -26,7 +26,7 @@ class RoomFullError(HopInError):
         self.room_id = room_id
         self.capacity = capacity
 
-    def frame_fields(self) -> dict[str, Any]:
+    def frame_fields(self) -> dict[str, int]:
         return {"capacity": self.capacity}
 
 
