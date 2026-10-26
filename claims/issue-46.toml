@@ -1,0 +1,7 @@
+claim_id = "aed0619a4a724b87877357b147565919"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "79a51b4002833a0a46e729ce46193eb6ff53a383"
+branch = "claude/issue-46-before-friends-join-hopin-the-hopin-priv"
+scope = ["docs/ARCHITECTURE.md", "legal/datenschutz.html", "quality/config.toml"]
+opened_commit = "c96e5722fe1ab0d1b5b9ddc4d92fb7f073fed1a2"
