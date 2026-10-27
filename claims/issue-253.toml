@@ -1,0 +1,8 @@
+claim_id = "c50fa753fc7843e5b07772276eec7259"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "f63c37a9b01b13a279a8ba728c99803ee896aacc"
+branch = "claude/issue-253-game-master-one-quiz-question"
+scope = ["README.md", "compose.yaml", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin", "tests", "uv.lock"]
+opened_commit = "9e69920b206deb633557af5780f6c3b3746ce074"
+whole_reason = "The thinnest proof a person notices crosses the agent-service wire, the room fan-out and the page at once; a frame without its page or a menu item without its server would be code ahead of its caller."
