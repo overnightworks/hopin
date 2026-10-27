@@ -24,4 +24,12 @@ transcribed on 21.10.2026 from the shared picture (version 2, blessed
 (KEYCLOAK)", at fd21404) and ui-console v0.3.1 `grammar.html`. They change only
 by re-transcription from there.
 
+The AI game master (#240) was added and blessed by the operator on 27.10.2026
+("ok passt!") as version 2 of
+<https://claude.ai/artifact/Pmozkgd8FsNtopt8miV4A5>. It carries #240's
+expectation lines E1 to E21 as drawn: "Start quiz" in More for everyone, a
+refusal only for the person who tapped, the question card at the top of the
+chat, game master lines marked "Game master" and "AI", and names allowed in
+them (#240 R2).
+
 To view it, open the file in a browser.
