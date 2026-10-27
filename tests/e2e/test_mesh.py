@@ -11,7 +11,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Expect, Page, WebSocketRoute
 
 from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, ErrorReason, SignalType
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import join_by_link, start_call
+from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     COUNT_OFFERS,
     EVERY_VIDEO_CAP_IS,
@@ -29,9 +30,7 @@ from tests.e2e.conftest import (
     TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
-    join_by_link,
     poll_until,
-    start_call,
     turn_the_camera_on,
     wait_for_frames_to_advance,
     wait_for_peer_count,

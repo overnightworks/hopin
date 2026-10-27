@@ -5,23 +5,16 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import join, open_call, open_more, press_start_call, record_page_errors, toggle_the_lock
+from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
+from tests.e2e.support.page_assertions import (
     BOX_OF_SETTLED,
     CHECK_ICON_PATH,
-    DESKTOP,
-    FORM_FACTORS,
-    ICE_SERVERS_URL_PATTERN,
     LEGAL_LINKS,
-    PHONE,
     TOAST_AND_MENU_BOXES,
     expect_both_legal_links,
-    join,
-    open_call,
-    open_more,
-    press_start_call,
-    record_page_errors,
-    toggle_the_lock,
 )
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

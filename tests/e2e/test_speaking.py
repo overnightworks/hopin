@@ -3,17 +3,9 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
-    DESKTOP,
-    FORM_FACTORS,
-    OTHER_TILE,
-    PHONE,
-    RECORD_PEER_CONNECTIONS,
-    add_init_scripts,
-    join,
-    record_page_errors,
-    start_call,
-)
+from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
+from tests.e2e.support.media import OTHER_TILE, RECORD_PEER_CONNECTIONS
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

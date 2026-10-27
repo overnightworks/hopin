@@ -5,19 +5,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, ViewportSize, expect
 
-from tests.e2e.conftest import (
-    DESKTOP,
+from tests.e2e.support.calls import call_link_of, join, press_start_call, start_call
+from tests.e2e.support.media import (
     OTHER_TILE,
-    PHONE,
     REFUSE_THE_CAMERA,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
-    call_link_of,
-    join,
-    press_start_call,
     share_the_screen,
-    start_call,
     stop_the_screen_share,
 )
+from tests.e2e.support.people import DESKTOP, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

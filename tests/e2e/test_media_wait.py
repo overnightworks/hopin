@@ -2,16 +2,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.e2e import conftest
-from tests.e2e.conftest import (
-    DESKTOP,
+from tests.e2e.support import media
+from tests.e2e.support.calls import join, start_call
+from tests.e2e.support.media import (
     RECORD_PEER_CONNECTIONS,
     inbound_per_connection,
-    join,
-    start_call,
     wait_for_inbound_growth,
     wait_for_peer_count,
 )
+from tests.e2e.support.people import DESKTOP
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,7 +30,7 @@ def test_wait_for_inbound_growth_times_out_naming_the_last_values_when_nothing_i
     person.goto("about:blank")
     person.evaluate("window.recordedConnections.push(new RTCPeerConnection())")
     baseline = inbound_per_connection(person, "audio", "bytesReceived")
-    monkeypatch.setattr(conftest, "MEDIA_FLOWING_TIMEOUT_MILLISECONDS", SHORT_WAIT_MILLISECONDS)
+    monkeypatch.setattr(media, "MEDIA_FLOWING_TIMEOUT_MILLISECONDS", SHORT_WAIT_MILLISECONDS)
 
     with pytest.raises(AssertionError, match=r"last measured \[0"):
         wait_for_inbound_growth(person, "audio", "bytesReceived", baseline)

@@ -4,12 +4,11 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
+from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     COUNT_OFFERS,
-    DESKTOP,
     EVERY_VIDEO_CAP_IS,
-    FORM_FACTORS,
     HOLD_CAMERA_REQUESTS,
     HOLD_SCREEN_REQUESTS,
     ICON_ONLY_ON_THE_TILES,
@@ -25,13 +24,9 @@ from tests.e2e.conftest import (
     REFUSE_THE_CAMERA,
     REJECT_MEDIA,
     RELEASE_MEDIA,
-    add_init_scripts,
     camera_track_states,
     inbound_per_connection,
-    join,
-    record_page_errors,
     share_the_screen,
-    start_call,
     stop_the_screen_share,
     wait_for_inbound_growth,
     wait_for_peer_count,
@@ -40,6 +35,7 @@ from tests.e2e.conftest import (
     wait_for_the_tile_to_show_the_screen,
     wait_for_video_tracks,
 )
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -2,7 +2,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.e2e.conftest import DESKTOP, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, PHONE, join_by_link, start_call
+from tests.e2e.support.calls import join_by_link, start_call
+from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+from tests.e2e.support.people import DESKTOP, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
