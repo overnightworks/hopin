@@ -55,11 +55,13 @@ def seed_member(
     *,
     account: StoredAccount | None = None,
     expires_in: timedelta | None = None,
+    refresh_token: str | None = None,
 ) -> SeededMember:
     """Seed a session inside the configured lifetime, and the cookies webauth issues for it.
 
     Without `account` the member is a fresh account; with it, the session is a further device of that account.
-    `expires_in` ends the session that far from now instead of at the full lifetime.
+    `expires_in` ends the session that far from now instead of at the full lifetime. Without `refresh_token`
+    the session holds none, as one opened before HopIn kept them.
     """
     if account is None:
         suffix = secrets.token_hex(SUBJECT_BYTES)
@@ -67,7 +69,11 @@ def seed_member(
     now = datetime.fromtimestamp(int(config.wall_clock()), UTC)
     lifetime = timedelta(seconds=config.session_lifetime.absolute_max_age_seconds) if expires_in is None else expires_in
     session = stores.sessions.create(
-        account.id, now=now, expires_at=now + lifetime, refresh_token=None, id_token=new_id_token()
+        account.id,
+        now=now,
+        expires_at=now + lifetime,
+        refresh_token=None if refresh_token is None else SecretStr(refresh_token),
+        id_token=new_id_token(),
     )
     response = Response()
     issue_session_cookies(response, session.id, config)

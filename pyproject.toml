@@ -5,6 +5,8 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
+    "httpx2>=2.13.1",
+    "overnightworks-agent-runtime-client @ https://github.com/overnightworks/agent-runtime/releases/download/v0.8.0/overnightworks_agent_runtime_client-0.8.0-py3-none-any.whl",
     "overnightworks-webauth @ https://github.com/overnightworks/webauth/releases/download/v0.23.0/overnightworks_webauth-0.23.0-py3-none-any.whl",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
@@ -152,20 +154,22 @@ containers = ["hopin"]
 # Every top-level module of hopin stands in exactly one layer, so a new one is
 # placed by a decision rather than slipping in between. `main` starts the server
 # and `app` is the composition root: nothing imports `main`, and only `main`
-# imports `app`. The person export joins sign-in's sessions with signaling's
-# seats, so `people` sits above both. Sign-in sits above the web routes it
+# imports `app`. `agents` reaches the agent service for signaling's game master
+# port, which only `app` wires. The person export joins sign-in's sessions with
+# signaling's seats, so `people` sits above both. Sign-in sits above the web routes it
 # guards, the routes above the signaling and room services they are handed, and
 # `config` is the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "agents", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"
 name = "Signaling's modules depend downwards only"
 type = "layers"
 containers = ["hopin.signaling"]
-# The handler drives room routing; routing drives the seats; seats keep the replay logs; replay logs hold frames.
-layers = ["handler", "routing", "seats", "replay", "frames"]
+# The handler drives the game and room routing; the game sends through routing's seats; routing drives the seats;
+# seats keep the replay logs; replay logs hold frames.
+layers = ["handler", "game", "routing", "seats", "replay", "frames"]
 
 [[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"
@@ -177,6 +181,26 @@ source_modules = ["hopin.auth"]
 forbidden_modules = ["hopin.rooms", "hopin.signaling"]
 # auth imports two values from hopin.web.routes, which names the handler and the
 # room manager for type checking only; only a direct import is the violation.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "agent-service-only-through-agents"
+name = "Only agents reaches the agent service"
+type = "forbidden"
+# The agent service's wire and its HTTP client are one owner's: signaling defines the port, agents implements it.
+source_modules = [
+    "hopin.main",
+    "hopin.app",
+    "hopin.people",
+    "hopin.auth",
+    "hopin.web",
+    "hopin.signaling",
+    "hopin.rooms",
+    "hopin.errors",
+    "hopin.config",
+]
+forbidden_modules = ["agent_runtime_client", "httpx2"]
+# app imports hopin.agents to wire it; only a direct import is the violation.
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
@@ -194,7 +218,6 @@ allow_indirect_imports = true
 [dependency-groups]
 dev = [
     "cryptography>=50.0.2",
-    "httpx2>=2.13.1",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "pyjwt>=2.15.1",
