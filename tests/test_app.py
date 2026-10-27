@@ -29,6 +29,8 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
 
+pytestmark = pytest.mark.integration
+
 if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
 

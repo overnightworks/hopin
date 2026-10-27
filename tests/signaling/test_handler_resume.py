@@ -30,7 +30,7 @@ from tests.support.signaling_fakes import (
     text_frame,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
 class TestEndedRoomSeats:

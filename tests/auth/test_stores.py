@@ -19,6 +19,8 @@ from hopin.auth.stores import (
 )
 from tests.support.signed_in import new_id_token
 
+pytestmark = pytest.mark.integration
+
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
 

@@ -10,6 +10,8 @@ from hopin.signaling.identity import SessionIdentityResolver
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 
+pytestmark = pytest.mark.integration
+
 
 def handshake(app, headers: dict[str, str]) -> WebSocket:
     scope = {

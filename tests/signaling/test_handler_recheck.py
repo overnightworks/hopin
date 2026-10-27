@@ -18,7 +18,7 @@ from hopin.signaling.handler import SignalingHandler
 from tests.signaling.support.browsers import Link, host_and_guest
 from tests.support.signaling_fakes import account_named, disconnect_frame, text_frame
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 HELD_TIMEOUT_SECONDS = 5
 
