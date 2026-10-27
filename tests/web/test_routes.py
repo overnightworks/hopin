@@ -20,6 +20,8 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
     ErrorReason,
+    GamePhase,
+    GameRefusal,
     RoomClosedReason,
     SignalType,
 )
@@ -34,8 +36,8 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def signaling_handler(room_manager):
-    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
+def signaling_handler(room_manager, game_master):
+    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), game_master)
 
 
 @pytest.fixture
@@ -73,6 +75,8 @@ class TestWireModule:
             "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
             "ERROR_REASON": {member.name: member.value for member in ErrorReason},
             "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
+            "GAME_PHASE": {member.name: member.value for member in GamePhase},
+            "GAME_REFUSAL": {member.name: member.value for member in GameRefusal},
             "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
             "WEBSOCKET_PATH": WEBSOCKET_PATH,
             "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,

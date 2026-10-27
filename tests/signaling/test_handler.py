@@ -20,6 +20,7 @@ from tests.signaling.support.browsers import Browser, Link
 from tests.support.signaling_fakes import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
+    FakeGameMaster,
     FakeSocket,
     ManualScheduler,
     SocketAccountResolver,
@@ -456,14 +457,14 @@ class TestHandleWebsocket:
         assert room_manager.has_room(socket.sent[0]["room_id"]) is True
 
     async def test_refused_handshake_closes_with_policy_violation_without_accepting(self, room_manager):
-        refusing_handler = SignalingHandler(room_manager, SocketAccountResolver(), ManualScheduler())
+        refusing_handler = SignalingHandler(room_manager, SocketAccountResolver(), ManualScheduler(), FakeGameMaster())
         socket = FakeSocket([], account=None)
         await refusing_handler.handle_websocket(socket)
         assert socket.closed_with == 1008
         assert not socket.accepted
 
     async def test_failing_resolver_propagates_without_accepting_the_socket(self, room_manager):
-        failing_handler = SignalingHandler(room_manager, RaisingIdentityResolver(), ManualScheduler())
+        failing_handler = SignalingHandler(room_manager, RaisingIdentityResolver(), ManualScheduler(), FakeGameMaster())
         socket = FakeSocket([])
         with pytest.raises(ResolverError):
             await failing_handler.handle_websocket(socket)

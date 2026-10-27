@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections import deque
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock
 
@@ -7,8 +8,11 @@ from starlette.websockets import WebSocketState
 
 from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT
 from hopin.rooms.models import Account
+from hopin.signaling.game import Question
 
 ROOM_LIMIT = 5
+ARRIVAL_CAP_SECONDS = 5
+DEFAULT_QUESTION = "Wie heißt die Hauptstadt von Portugal?"
 
 
 class SocketAccountResolver:
@@ -95,6 +99,7 @@ class FakeSocket:
     send_gate: asyncio.Event | None = None
     idle: asyncio.Event = field(default_factory=asyncio.Event)
     inbox: asyncio.Queue = field(default_factory=asyncio.Queue)
+    arrived: asyncio.Event = field(default_factory=asyncio.Event)
 
     def __post_init__(self) -> None:
         for frame in self.frames:
@@ -124,3 +129,68 @@ class FakeSocket:
         if self.send_gate is not None:
             await self.send_gate.wait()
         self.sent.append(json.loads(text))
+        self.arrived.set()
+
+    async def wait_until(self, condition) -> None:
+        """Wait until the condition holds, checking it again as each frame arrives rather than by time."""
+        async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
+            while not condition():
+                self.arrived.clear()
+                await self.arrived.wait()
+
+
+@dataclass(eq=False)
+class HeldAsk:
+    """One held call of the fake game master: it answers once released; its cancellation cleanup can be held too."""
+
+    hold_cleanup: bool = False
+    started: asyncio.Event = field(default_factory=asyncio.Event)
+    release: asyncio.Event = field(default_factory=asyncio.Event)
+    cleanup_started: asyncio.Event = field(default_factory=asyncio.Event)
+    cleanup_release: asyncio.Event = field(default_factory=asyncio.Event)
+
+
+@dataclass(eq=False)
+class AskCall:
+    starter: object
+    questions: tuple[str, ...]
+    cancelled: bool = False
+    finished: bool = False
+
+
+class FakeGameMaster:
+    """Answers each call with the next scripted outcome, or raises it when it is an exception; a call can be held."""
+
+    def __init__(self) -> None:
+        self._outcomes: deque = deque()
+        self._holds: deque[HeldAsk] = deque()
+        self.calls: list[AskCall] = []
+
+    def answer_next(self, *outcomes) -> None:
+        self._outcomes.extend(outcomes)
+
+    def hold_next(self, *, hold_cleanup: bool = False) -> HeldAsk:
+        held = HeldAsk(hold_cleanup=hold_cleanup)
+        self._holds.append(held)
+        return held
+
+    async def ask(self, starter, questions):
+        call = AskCall(starter, questions)
+        self.calls.append(call)
+        held = self._holds.popleft() if self._holds else None
+        try:
+            if held is not None:
+                held.started.set()
+                await held.release.wait()
+            outcome = self._outcomes.popleft() if self._outcomes else Question(DEFAULT_QUESTION)
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+        except asyncio.CancelledError:
+            call.cancelled = True
+            if held is not None and held.hold_cleanup:
+                held.cleanup_started.set()
+                await held.cleanup_release.wait()
+            raise
+        finally:
+            call.finished = True

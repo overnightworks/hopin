@@ -7,6 +7,8 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
     ErrorReason,
+    GamePhase,
+    GameRefusal,
     RoomClosedReason,
     SignalType,
 )
@@ -29,6 +31,8 @@ def wire_vocabulary() -> dict[str, object]:
         "SIGNAL_TYPE": _members(SignalType),
         "ERROR_REASON": _members(ErrorReason),
         "ROOM_CLOSED_REASON": _members(RoomClosedReason),
+        "GAME_PHASE": _members(GamePhase),
+        "GAME_REFUSAL": _members(GameRefusal),
         "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
         "WEBSOCKET_PATH": WEBSOCKET_PATH,
         "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
