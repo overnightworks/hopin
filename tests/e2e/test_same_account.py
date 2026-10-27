@@ -3,17 +3,9 @@ from typing import TYPE_CHECKING
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
-    DESKTOP,
-    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
-    OTHER_TILE,
-    PHONE,
-    join_by_link,
-    open_more,
-    record_page_errors,
-    start_call,
-    toggle_the_lock,
-)
+from tests.e2e.support.calls import join_by_link, open_more, record_page_errors, start_call, toggle_the_lock
+from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE
+from tests.e2e.support.people import DESKTOP, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

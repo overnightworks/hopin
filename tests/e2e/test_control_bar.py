@@ -4,22 +4,16 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e.conftest import (
-    CLIPBOARD_ALLOWED,
-    DESKTOP,
-    FORM_FACTORS,
+from tests.e2e.support.calls import join, open_call, open_host, press_start_call, record_page_errors
+from tests.e2e.support.media import (
     ICE_SERVERS_URL_PATTERN,
-    PHONE,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
-    join,
-    open_call,
-    open_host,
-    press_start_call,
-    record_page_errors,
     share_the_screen,
     stop_the_screen_share,
     wait_for_peer_count,
 )
+from tests.e2e.support.page_assertions import CLIPBOARD_ALLOWED
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

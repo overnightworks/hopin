@@ -5,18 +5,15 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH, NO_ACCESS_PATH
-from tests.e2e.conftest import (
-    DESKTOP,
-    FORM_FACTORS,
-    PHONE,
-    RunningServer,
-    expect_both_legal_links,
-    record_page_errors,
-)
+from tests.e2e.support.calls import record_page_errors
+from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 

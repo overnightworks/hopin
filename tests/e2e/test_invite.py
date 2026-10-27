@@ -5,14 +5,12 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import open_call, open_more, press_start_call, record_page_errors, start_call
+from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
+from tests.e2e.support.page_assertions import (
     BOX_OF_SETTLED,
     CHECK_ICON_PATH,
     CLIPBOARD_ALLOWED,
-    DESKTOP,
-    FORM_FACTORS,
-    ICE_SERVERS_URL_PATTERN,
-    PHONE,
     READ_CLIPBOARD,
     REJECT_SHARE_WITH,
     REMOVE_SHARE,
@@ -22,12 +20,8 @@ from tests.e2e.conftest import (
     TOASTS,
     X_ICON_PATH,
     expect_toast,
-    open_call,
-    open_more,
-    press_start_call,
-    record_page_errors,
-    start_call,
 )
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

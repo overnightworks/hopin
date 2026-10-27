@@ -4,16 +4,10 @@ from typing import TYPE_CHECKING
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e.conftest import (
-    DESKTOP,
-    ICE_SERVERS_PATH,
-    ICE_SERVERS_URL_PATTERN,
-    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
-    RECORD_PEER_CONNECTIONS,
-    join_by_link,
-    press_start_call,
-    start_call,
-)
+from hopin.config.constants import ICE_SERVERS_PATH
+from tests.e2e.support.calls import join_by_link, press_start_call, start_call
+from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, RECORD_PEER_CONNECTIONS
+from tests.e2e.support.people import DESKTOP
 
 if TYPE_CHECKING:
     from collections.abc import Callable

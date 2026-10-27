@@ -3,18 +3,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
-    DESKTOP,
-    LEGAL_LINKS,
-    PHONE,
+from tests.e2e.support.calls import (
     PREJOIN_START,
-    SMALL_PHONE_LANDSCAPE,
-    expect_both_legal_links,
     open_more,
     open_prejoin,
     record_page_errors,
     wait_until_the_prejoin_media_answered,
 )
+from tests.e2e.support.page_assertions import LEGAL_LINKS, expect_both_legal_links
+from tests.e2e.support.people import DESKTOP, PHONE, SMALL_PHONE_LANDSCAPE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
