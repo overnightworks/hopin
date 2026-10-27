@@ -1,8 +1,0 @@
-claim_id = "0971b7e686a64f05b16204640085bee3"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "79a51b4002833a0a46e729ce46193eb6ff53a383"
-branch = "claude/issue-243-test-helpers-leave-conftest-and-test-mod"
-scope = ["quality/baseline.toml", "tests"]
-opened_commit = "e341450df29b18087afbb42a624b1de411d4ebb4"
-whole_reason = "One helper extraction whose 32 paths are import-line edits around three moved helper groups; splitting it would leave tests importing helpers from two places at once."
