@@ -31,6 +31,8 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
 
+pytestmark = pytest.mark.integration
+
 WITHHELD_KINDS = ["session_id", "refresh_token", "id_token", "resume_token", "call_replay_frame"]
 ZERO_WITHHELD = [
     {"kind": kind, "count": 0, "reason": reason}

@@ -8,6 +8,8 @@ from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError, build_sign_in_configs
 from hopin.config.secret_files import StartRefusedError
 
+pytestmark = pytest.mark.integration
+
 SECRET_FILE_SETTINGS = ["oidc_client_secret_file", "session_secret_file"]
 SESSION_LENGTH_SECONDS = 12 * 60 * 60
 

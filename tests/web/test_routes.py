@@ -30,6 +30,8 @@ from hopin.web.routes import PAGE, STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.signaling_fakes import SocketAccountResolver
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def signaling_handler(room_manager):

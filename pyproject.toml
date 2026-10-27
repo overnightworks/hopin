@@ -109,7 +109,6 @@ addopts = [
     "--cov-fail-under=100",
 ]
 markers = [
-    "unit: unit tests",
     "integration: integration tests",
     "e2e: browser end-to-end tests",
 ]

@@ -21,6 +21,8 @@ from hopin.config.constants import (
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
+pytestmark = pytest.mark.integration
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 

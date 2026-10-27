@@ -15,6 +15,8 @@ from hopin.web.ice_servers import (
 )
 from hopin.web.routes import STATIC_DIR
 
+pytestmark = pytest.mark.integration
+
 ICE_URL_PATTERN = re.compile(r"\b(stuns?|turns?):", re.IGNORECASE)
 
 
