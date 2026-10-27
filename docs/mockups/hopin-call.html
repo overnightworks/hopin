@@ -750,9 +750,7 @@ button { cursor: pointer; }
 .mi:disabled { opacity: .6; cursor: default; }
 .mi:disabled:hover { background: transparent; }
 .mi.thinking .ic { color: var(--busy); animation: rot 1.1s linear infinite; }
-.mi.thinking .ic-spark { animation: none; }
 .quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.4; }
-.desktop .quiet-note { padding-left: 50px; }
 .quiet-note a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .msg.gm { max-width: 90%; }
 .msg.gm small { display: flex; align-items: center; gap: 6px; color: var(--accent-ink); font-weight: 650; }
@@ -773,7 +771,6 @@ button { cursor: pointer; }
 .qcard-row .btn { height: 44px; padding: 0 20px; font-size: 15px; }
 .qcard-status { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
 .qcard-status.sent { color: var(--ok); font-weight: 600; }
-.toasts.held { z-index: 96; }
 .toast.hold { animation: none; max-width: calc(100% - 32px); border-radius: 22px; padding: 12px 18px; pointer-events: auto; }
 .toast.hold span { min-width: 0; }
 .toast-act { flex: none; white-space: nowrap; border: 0; background: transparent; color: var(--toast-act); font-weight: 700; font-size: 14px; padding: 4px 6px; margin-left: 4px; border-radius: 8px; }
@@ -959,7 +956,7 @@ const PRESETS = {
   "quiz-guest": () => quizCall({ overlay: "chat", role: "guest", quizPhase: "running", quizN: 2, chat: sampleChat().concat(quizSoFar(2)) }),
   "quiz-menu": () => quizCall({ overlay: "more", quizPhase: "running", quizN: 2, quizStarter: true }),
   "quiz-menu-guest": () => quizCall({ overlay: "more", role: "guest", quizPhase: "running", quizN: 2 }),
-  "quiz-done": () => quizCall({ overlay: "chat", quizPhase: "done", quizStarter: true, chat: sampleChat().concat(quizSoFar(5), [{ who: "gm", text: QUIZ[4].reveal }, { who: "gm", text: QUIZ_FINAL }]) }),
+  "quiz-done": () => quizCall({ overlay: "chat", quizPhase: "done", quizStarter: true, chat: sampleChat().concat(quizSoFar(QUIZ_LENGTH), [{ who: "gm", text: QUIZ[QUIZ_LENGTH - 1].reveal }, { who: "gm", text: QUIZ_FINAL }]) }),
   "quiz-noai": () => quizCall({ role: "guest", refusal: "noai" }),
   "quiz-signin": () => quizCall({ role: "guest", refusal: "signin" }),
   "quiz-busy": () => quizCall({ role: "guest", refusal: "busy" }),
@@ -977,19 +974,20 @@ const CHIP_GROUPS = [
 ];
 const QUIZ_LENGTH = 5;
 const QUIZ_ASKED = 4;
-const QUIZ_ANSWERED = 2;
+const QUIZ_ANSWERED_SAMPLE = 2;
 const QUIZ = [
-  { q: "Frage 1/5: Welcher Fluss fließt durch Lissabon?", reveal: "Anna hat recht! Es ist der Tejo." },
-  { q: "Frage 2/5: Wie heißt die gelbe Straßenbahn, die durch die Alfama rattert?", reveal: "Ben war am schnellsten: Linie 28." },
-  { q: "Frage 3/5: Welches Gebäck aus Belém ist weltberühmt?", reveal: "Chris und Anna: Pastel de Nata." },
-  { q: "Frage 4/5: In welchem Jahr zerstörte ein Erdbeben Lissabon?", reveal: "Felix hat recht: 1755." },
-  { q: "Frage 5/5: Wie heißt der Stadtteil mit den vielen Fado-Lokalen?", reveal: "Anna ist wieder dran: die Alfama." },
+  { q: `Frage 1/${QUIZ_LENGTH}: Welcher Fluss fließt durch Lissabon?`, reveal: "Anna hat recht! Es ist der Tejo." },
+  { q: `Frage 2/${QUIZ_LENGTH}: Wie heißt die gelbe Straßenbahn, die durch die Alfama rattert?`, reveal: "Ben war am schnellsten: Linie 28." },
+  { q: `Frage 3/${QUIZ_LENGTH}: Welches Gebäck aus Belém ist weltberühmt?`, reveal: "Chris und Anna: Pastel de Nata." },
+  { q: `Frage 4/${QUIZ_LENGTH}: In welchem Jahr zerstörte ein Erdbeben Lissabon?`, reveal: "Felix hat recht: 1755." },
+  { q: `Frage 5/${QUIZ_LENGTH}: Wie heißt der Stadtteil mit den vielen Fado-Lokalen?`, reveal: "Anna ist wieder dran: die Alfama." },
 ];
-const QUIZ_FINAL = "Endstand nach 5 Fragen: Anna 3, Felix 2, Ben 1, Chris 1. Danke fürs Mitspielen!";
+const QUIZ_FINAL = `Endstand nach ${QUIZ_LENGTH} Fragen: Anna 3, Felix 2, Ben 1, Chris 1. Danke fürs Mitspielen!`;
 const quizSoFar = (n) => QUIZ.slice(0, n - 1).flatMap((item) => [{ who: "gm", text: item.q }, { who: "gm", text: item.reveal }]).concat([{ who: "gm", text: QUIZ[n - 1].q }]);
 const quizCall = (over) => fresh({ screen: "call", count: QUIZ_ASKED, elapsed: 812, ...over });
 const CHIP_ALIAS = { left: "ended", hostgone: "ended", signout: "home" };
 
+const GAME_MASTER_ITEM = "#240";
 const CAPTIONS = {
   home: ["Zeile 1 · 4", "Nur angemeldete Mitglieder sehen diese Seite: eine Aktion, „Start a call“. Impressum und Datenschutz stehen leise unten."],
   menu: ["Zeile 1", "Das Keycloak-Konto ist die Identität. Das Menü zeigt den Namen und „Log out“, sonst nichts."],
@@ -1019,19 +1017,19 @@ const CAPTIONS = {
   full: ["Kein #25-Satz", "Sechs von sechs Plätzen sind belegt."],
   toomany: ["Zeile 1", "Das Konto ist schon in 8 Anrufen (Tabs und Geräte zusammen); der 9. wird abgelehnt und versucht es nicht erneut. Gleiches Bild wie „Voll“, nur andere Worte."],
   noaccess: ["Zeile 1 · 4", "Angemeldet, aber nicht in der Gruppe /apps/hopin: kein Name, weil eine Absage keine Identität trägt. Ein Weg: „Log out“. „Back“ entfällt (#25 Lesart 7, Vorgabe vom 21.10.2026); der Operator kann stattdessen einen festen Link zu https://hallucinai.de bestimmen."],
-  "quiz-start": ["E1 · E11", "Auch ein Gast sieht „Start quiz“ im Menü „More“, direkt unter „Participants“; ein Tipp lässt den Spielleiter eine Frage für alle in den Chat stellen. Darunter steht leise, was die Leitung verlässt. Probier „Start quiz“: Der Punkt dreht sich, dann steht die erste Frage im Chat.", "#240"],
-  "quiz-thinking": ["E10", "Während ein Lauf unterwegs ist, sehen alle „Game master is thinking…“, der Punkt ist gesperrt und dreht sich. Ein zweiter Start wird nur der tippenden Person abgelehnt.", "#240"],
-  "quiz-first": ["E1 · E6 · I3", "Schritt 1: Die Frage steht für alle im Chat, links wie bei anderen Personen, aber mit „Game master“, Abzeichen „AI“, Akzent-Umriss und ohne Initialen. Text bleibt Text, nie Markup.", "#240"],
-  "quiz-run": ["E4 · E5", "Schritt 2: Die Frage-Karte steht oben im Chat; Antworten gehen in das Antwortfeld, nicht in den Chat. Die startende Person sieht zusätzlich „Reveal“. Probier „Send“ und „Reveal“.", "#240"],
-  "quiz-answered": ["E4 · E18", "Nach „Send“ steht „Answer sent · 2 of 4 answered“; die eigene Antwort lässt sich bis zur Auflösung überschreiben, die der anderen sieht erst die Auflösung.", "#240"],
-  "quiz-guest": ["E4 · E8", "Aus Sicht einer Person, die das Quiz nicht gestartet hat: dieselbe Karte, aber ohne „Reveal“. Der Spielleiter darf Mitspielende beim Namen nennen („Anna hat recht!“).", "#240"],
-  "quiz-menu": ["E8", "Läuft ein Quiz, sehen die startende Person und der Host im Menü „End quiz“. Probier es.", "#240"],
-  "quiz-menu-guest": ["E8", "Alle anderen sehen „Quiz running“, gesperrt; Gäste beenden kein Quiz.", "#240"],
-  "quiz-done": ["E5", "Nach fünf Fragen kommt der Endstand als Zeile des Spielleiters in den Chat; „Start quiz“ ist danach wieder frei.", "#240"],
-  "quiz-noai": ["E11", "Ohne Zugang zeigt ein Tipp nur der tippenden Person „Your account has no AI access.“; der Punkt bleibt für alle sichtbar und ist sofort wieder frei. Der Anruf läuft weiter.", "#240"],
-  "quiz-signin": ["E12", "Sitzung von vor der Umstellung (ohne Erneuerungs-Token): nur der tippenden Person „Sign in again to use the game master.“ mit „Sign in“. Der Anruf läuft weiter.", "#240"],
-  "quiz-busy": ["E13", "Ist der Spielleiter belegt, steht nur bei der tippenden Person „The game master is busy. Try again in 30 s.“; der Punkt ist wieder frei.", "#240"],
-  "quiz-error": ["E13", "Bei einem Fehler steht nur bei der tippenden Person „The game master is unavailable right now.“; der Punkt ist wieder frei. Der Anruf läuft weiter.", "#240"],
+  "quiz-start": ["E1 · E11", "Auch ein Gast sieht „Start quiz“ im Menü „More“, direkt unter „Participants“; ein Tipp lässt den Spielleiter eine Frage für alle in den Chat stellen. Darunter steht leise, was die Leitung verlässt. Probier „Start quiz“: Der Punkt dreht sich, dann steht die erste Frage im Chat.", GAME_MASTER_ITEM],
+  "quiz-thinking": ["E10", "Während ein Lauf unterwegs ist, sehen alle „Game master is thinking…“, der Punkt ist gesperrt und dreht sich. Ein zweiter Start wird nur der tippenden Person abgelehnt.", GAME_MASTER_ITEM],
+  "quiz-first": ["E1 · E6 · I3", "Schritt 1: Die Frage steht für alle im Chat, links wie bei anderen Personen, aber mit „Game master“, Abzeichen „AI“, Akzent-Umriss und ohne Initialen. Text bleibt Text, nie Markup.", GAME_MASTER_ITEM],
+  "quiz-run": ["E4 · E5", "Schritt 2: Die Frage-Karte steht oben im Chat; Antworten gehen in das Antwortfeld, nicht in den Chat. Die startende Person sieht zusätzlich „Reveal“. Probier „Send“ und „Reveal“.", GAME_MASTER_ITEM],
+  "quiz-answered": ["E4 · E18", "Nach „Send“ steht „Answer sent · 2 of 4 answered“; die eigene Antwort lässt sich bis zur Auflösung überschreiben, die der anderen sieht erst die Auflösung.", GAME_MASTER_ITEM],
+  "quiz-guest": ["E4 · E8", "Aus Sicht einer Person, die das Quiz nicht gestartet hat: dieselbe Karte, aber ohne „Reveal“. Der Spielleiter darf Mitspielende beim Namen nennen („Anna hat recht!“).", GAME_MASTER_ITEM],
+  "quiz-menu": ["E8", "Läuft ein Quiz, sehen die startende Person und der Host im Menü „End quiz“. Probier es.", GAME_MASTER_ITEM],
+  "quiz-menu-guest": ["E8", "Alle anderen sehen „Quiz running“, gesperrt; Gäste beenden kein Quiz.", GAME_MASTER_ITEM],
+  "quiz-done": ["E5", "Nach fünf Fragen kommt der Endstand als Zeile des Spielleiters in den Chat; „Start quiz“ ist danach wieder frei.", GAME_MASTER_ITEM],
+  "quiz-noai": ["E11", "Ohne Zugang zeigt ein Tipp nur der tippenden Person „Your account has no AI access.“; der Punkt bleibt für alle sichtbar und ist sofort wieder frei. Der Anruf läuft weiter.", GAME_MASTER_ITEM],
+  "quiz-signin": ["E12", "Sitzung von vor der Umstellung (ohne Erneuerungs-Token): nur der tippenden Person „Sign in again to use the game master.“ mit „Sign in“. Der Anruf läuft weiter.", GAME_MASTER_ITEM],
+  "quiz-busy": ["E13", "Ist der Spielleiter belegt, steht nur bei der tippenden Person „The game master is busy. Try again in 30 s.“; der Punkt ist wieder frei.", GAME_MASTER_ITEM],
+  "quiz-error": ["E13", "Bei einem Fehler steht nur bei der tippenden Person „The game master is unavailable right now.“; der Punkt ist wieder frei. Der Anruf läuft weiter.", GAME_MASTER_ITEM],
   loginfailed: ["Zeile 1 · 4", "Anmeldung fehlgeschlagen auf /auth/callback: ein Weg, „Try again“. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.1)."],
 };
 
@@ -1052,7 +1050,6 @@ function viewKey() {
   return S.count === 1 ? "alone" : "call" + S.count;
 }
 
-const quizBusy = () => S.quizPhase === "thinking" || S.quizPhase === "running";
 const mayEndQuiz = () => S.role === "host" || S.quizStarter;
 function quizViewKey() {
   const phase = S.quizPhase;
@@ -1389,21 +1386,24 @@ function inviteBody() {
 
 function questionCard() {
   const sent = Boolean(S.quizAnswer);
+  const answered = Math.min(QUIZ_ANSWERED_SAMPLE, S.count);
   const status = sent
-    ? `<p class="qcard-status sent">${ic("check", 16, 2.4)}Answer sent · ${QUIZ_ANSWERED} of ${QUIZ_ASKED} answered</p>`
-    : `<p class="qcard-status">${QUIZ_ANSWERED - 1} of ${QUIZ_ASKED} answered</p>`;
+    ? `<p class="qcard-status sent">${ic("check", 16, 2.4)}Answer sent · ${answered} of ${S.count} answered</p>`
+    : `<p class="qcard-status">${answered - 1} of ${S.count} answered</p>`;
   const reveal = S.quizStarter ? `<button type="button" class="qcard-reveal" data-act="quiz-reveal">Reveal</button>` : "";
   return `<form class="qcard" data-form="answer"><div class="qcard-head"><span class="qcard-tag">${ic("spark", 14, 2)}Question ${S.quizN} of ${QUIZ_LENGTH}</span>${reveal}</div>
-    <p class="qcard-q">${QUIZ[S.quizN - 1].q.replace(/^Frage \d\/\d: /, "")}</p>
-    <div class="qcard-row"><input id="answerInput" autocomplete="off" placeholder="Your answer" aria-label="Your answer" value="${S.quizAnswer || ""}"><button class="btn btn-primary">Send</button></div>${status}</form>`;
+    <p class="qcard-q">${QUIZ[S.quizN - 1].q.replace(/^Frage \d+\/\d+: /, "")}</p>
+    <div class="qcard-row"><input id="answerInput" autocomplete="off" placeholder="Your answer" aria-label="Your answer"><button class="btn btn-primary">Send</button></div>${status}</form>`;
 }
+
+const asText = (text) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 function chatBody() {
   const masterLine = (text) => `<div class="msg gm"><small>${ic("spark", 14, 2)}Game master<span class="ai-badge">AI</span></small><p>${text}</p></div>`;
   const msgs = S.chat.map((m) => {
     if (m.who === "gm") return masterLine(m.text);
     const mine = m.who === SELF;
-    return `<div class="msg ${mine ? "me" : ""}"><small>${mine ? "You" : PEOPLE[m.who].name}</small><p>${m.text}</p></div>`;
+    return `<div class="msg ${mine ? "me" : ""}"><small>${mine ? "You" : PEOPLE[m.who].name}</small><p>${asText(m.text)}</p></div>`;
   }).join("") + (S.quizPhase === "thinking"
     ? `<div class="msg gm typing" role="status" aria-label="Game master is thinking"><small>${ic("spark", 14, 2)}Game master<span class="ai-badge">AI</span></small><p><i></i><i></i><i></i></p></div>`
     : "");
@@ -1454,7 +1454,7 @@ function overlayView() {
 
 const REFUSALS = {
   noai: ["lock", "Your account has no AI access.", ""],
-  signin: ["alert", "Sign in again to use the game master.", `<button class="toast-act" data-act="quiz-signin">Sign in</button>`],
+  signin: ["alert", "Sign in again to use the game master.", `<button class="toast-act" data-act="quiz-signin-open">Sign in</button>`],
   busy: ["hourglass", "The game master is busy. Try again in 30 s.", ""],
   error: ["alert", "The game master is unavailable right now.", ""],
 };
@@ -1521,6 +1521,8 @@ function render() {
   if (path) path.textContent = pagePath();
   const msgs = $("#msgs");
   if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  const answerInput = $("#answerInput");
+  if (answerInput) answerInput.value = S.quizAnswer || "";
   placePopovers();
   placePip();
   syncControls();
@@ -1704,7 +1706,7 @@ const ACTIONS = {
   "quiz-start": () => startQuiz(),
   "quiz-end": () => { S.quizPhase = "idle"; S.quizAnswer = null; toast("Quiz ended", "x"); },
   "quiz-reveal": () => revealQuestion(),
-  "quiz-signin": () => toast("Keycloak sign-in opens here", "external"),
+  "quiz-signin-open": () => toast("Keycloak sign-in opens here", "external"),
 };
 
 const QUIZ_THINK_MS = 1800;
@@ -1760,8 +1762,6 @@ function onFrameSubmit(event) {
   S.chat.push({ who: SELF, text });
   render();
   $("#chatInput").focus();
-  const msgs = $("#msgs");
-  msgs.scrollTop = msgs.scrollHeight;
 }
 
 function onFrameChange(event) {
