@@ -1,8 +1,0 @@
-claim_id = "79454c4db5a049fa93cfcb60e05f92f0"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "68515de5104de326f2f0e277f7e0feaea6c3213d"
-branch = "claude/issue-249-bump-quality-to-v0-7-0-and-mark-the-adap"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", "pyproject.toml", "quality/config.toml", "tests"]
-opened_commit = "288110a0053079cb629959b2f09829b33ede23c3"
-whole_reason = "One bump whose new layout rules may touch any test module, plus one mark line per adapter-bound test module; splitting the marks from the bump would land a release pin the marks were cut for."
