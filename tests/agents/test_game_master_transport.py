@@ -1,21 +1,31 @@
 import asyncio
+import secrets
 import socket
 
 import pytest
 import structlog.testing
 from agent_runtime_client.sse import encode_event
-from agent_runtime_client.wire import PROTOCOL_VERSION, RunStarted, Succeeded
+from agent_runtime_client.wire import PROTOCOL_VERSION, RejectionCode, RunRejection, RunStarted, Succeeded
 
 from hopin.agents import AGENT_SERVICE_OVER_HTTP
 from hopin.config.constants import GameRefusal
 from hopin.signaling.game import Question, Refused
 from tests.agents.support.world import build_world, cancelled, wait_in_a_worker
-from tests.support.loopback_origin import LOCALHOST, HeldStream, Origin, http_response, streamed_head
+from tests.support.loopback_origin import (
+    BEARER_ECHO,
+    LOCALHOST,
+    HeldStream,
+    Origin,
+    http_response,
+    streamed_head,
+)
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 RUNS_PATH = "/runs"
 RUN_ID = "0b6f9a52-3c41-4f0e-9d5c-1f2a3b4c5d6e"
+# Far more than the kernel's socket buffers hold, so an origin that sends all of it was read to the end.
+OVERSIZED_BYTES = 32 * 1024 * 1024
 
 
 @pytest.fixture
@@ -88,7 +98,17 @@ async def test_a_redirect_is_not_followed(world, origin):
     assert origin.paths_requested() == [RUNS_PATH]
 
 
-async def test_a_refused_connection_is_one_attempt_and_unavailable(world):
+async def test_a_connection_dropped_before_the_answer_is_one_attempt_and_unavailable(world, origin):
+    origin.serve(RUNS_PATH, b"")
+    starter, _ = world.starter()
+
+    outcome = await over_http(world, origin).ask(starter, ())
+
+    assert outcome == Refused(GameRefusal.UNAVAILABLE)
+    assert (origin.connections, origin.paths_requested()) == (1, [RUNS_PATH])
+
+
+async def test_a_refused_connection_is_unavailable_and_logged_by_its_error_type(world):
     with socket.socket() as unused:
         unused.bind((LOCALHOST, 0))
         port = unused.getsockname()[1]
@@ -101,4 +121,74 @@ async def test_a_refused_connection_is_one_attempt_and_unavailable(world):
     assert outcome == Refused(GameRefusal.UNAVAILABLE)
     assert [log for log in logs if log["event"] == "agent_service_refused"] == [
         {"event": "agent_service_refused", "log_level": "info", "error": "ConnectError"}
+    ]
+
+
+def refusals(logs):
+    return [log for log in logs if log["event"] == "agent_service_refused"]
+
+
+def bearer_sent_to(origin):
+    [(_, _, headers, _)] = origin.requests
+    return headers["Authorization"].removeprefix("Bearer ")
+
+
+async def test_the_answers_status_line_and_headers_reach_no_log(world, origin, stdlib_records):
+    sentinel = f"Sentinel-{secrets.token_hex(8)}"
+    echo = f"{BEARER_ECHO.decode()} {sentinel}"
+    rejection = RunRejection(v=PROTOCOL_VERSION, code=RejectionCode.UNAVAILABLE, message="refused")
+    origin.serve(
+        RUNS_PATH,
+        http_response(f"503 {echo}", rejection.model_dump_json().encode(), extra_header=f"X-Echo: {echo}\r\n".encode()),
+    )
+    starter, _ = world.starter()
+
+    with structlog.testing.capture_logs() as logs:
+        outcome = await over_http(world, origin).ask(starter, ())
+
+    shown = repr(logs) + "".join(stdlib_records)
+    assert outcome == Refused(GameRefusal.UNAVAILABLE)
+    for secret in (bearer_sent_to(origin), sentinel):
+        assert secret not in shown
+    assert refusals(logs) == [
+        {"event": "agent_service_refused", "log_level": "info", "status": 503, "code": "unavailable"}
+    ]
+
+
+async def test_an_answer_the_transport_cannot_read_is_unavailable_and_logged_by_its_error_type_only(
+    world, origin, stdlib_records
+):
+    sentinel = f"Sentinel-{secrets.token_hex(8)}"
+    origin.serve(RUNS_PATH, b"HTTP/1.1 5x3 " + BEARER_ECHO + b" " + sentinel.encode() + b"\r\n\r\n")
+    starter, _ = world.starter()
+
+    with structlog.testing.capture_logs() as logs:
+        outcome = await over_http(world, origin).ask(starter, ())
+
+    shown = repr(logs) + "".join(stdlib_records)
+    assert outcome == Refused(GameRefusal.UNAVAILABLE)
+    for secret in (bearer_sent_to(origin), sentinel):
+        assert secret not in shown
+    assert refusals(logs) == [{"event": "agent_service_refused", "log_level": "info", "error": "RemoteProtocolError"}]
+
+
+async def test_an_oversized_rejection_is_closed_unread_and_unavailable(world):
+    origin = Origin()
+    origin.serve(
+        RUNS_PATH,
+        http_response(
+            "503 Service Unavailable", b" " * OVERSIZED_BYTES, extra_header=b"Content-Type: application/json\r\n"
+        ),
+    )
+    starter, _ = world.starter()
+    try:
+        with structlog.testing.capture_logs() as logs:
+            outcome = await over_http(world, origin).ask(starter, ())
+    finally:
+        await asyncio.to_thread(origin.close)
+
+    assert outcome == Refused(GameRefusal.UNAVAILABLE)
+    assert origin.cut_short == [RUNS_PATH]
+    assert refusals(logs) == [
+        {"event": "agent_service_refused", "log_level": "info", "status": 503, "body": "oversized"}
     ]

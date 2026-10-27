@@ -1,4 +1,6 @@
+import logging
 import re
+from contextlib import aclosing
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -24,6 +26,7 @@ from pydantic import ValidationError
 from hopin.config.constants import (
     GAME_LINE_MAX_CHARACTERS,
     GAME_READ_TIMEOUT_SECONDS,
+    GAME_REJECTION_MAX_BYTES,
     GAME_RETRY_AFTER_FALLBACK_SECONDS,
     GAME_RETRY_AFTER_MAX_SECONDS,
     GameRefusal,
@@ -33,6 +36,7 @@ from hopin.signaling.game import GameOutcome, Question, Refused
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from agent_runtime_client.sse import Decoded
     from starlette.websockets import WebSocket
 
     from hopin.agents.tokens import RunTokens, StarterTokens
@@ -56,6 +60,26 @@ TIMEOUT: Final = httpx2.Timeout(
 WHOLE_SECONDS: Final = re.compile(r"\d+", re.ASCII)
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 NO_ACCESS_CODES: Final = frozenset({RejectionCode.NOT_ENABLED, RejectionCode.FORBIDDEN})
+# The loggers httpx2 and httpcore2 log on: the status line at INFO, the headers and every transport error
+# at DEBUG, where the agent service may echo a token or the game's text. A logger's filter sees only the
+# records logged on that logger, not on its children, so each one gets it; only this package sends through them.
+TRANSPORT_LOGGERS: Final = (
+    "httpx2",
+    "httpcore2.connection",
+    "httpcore2.http11",
+    "httpcore2.http2",
+    "httpcore2.proxy",
+    "httpcore2.socks",
+)
+
+
+def _unlogged(record: logging.LogRecord) -> bool:
+    del record
+    return False
+
+
+for _logger_name in TRANSPORT_LOGGERS:
+    logging.getLogger(_logger_name).addFilter(_unlogged)
 
 
 class AgentServiceGameMaster:
@@ -118,13 +142,28 @@ def _is_event_stream(response: httpx2.Response) -> bool:
 
 
 async def _refusal_of(response: httpx2.Response) -> Refused:
-    code = _rejection_code(await response.aread()) if response.is_error else None
+    body = await _rejection_body(response) if response.is_error else b""
+    if body is None:
+        _log_refusal(status=response.status_code, body="oversized")
+        return UNAVAILABLE
+    code = _rejection_code(body)
     _log_refusal(status=response.status_code, code=None if code is None else code.value)
     if response.status_code == HTTPStatus.FORBIDDEN and code in NO_ACCESS_CODES:
         return Refused(GameRefusal.NO_ACCESS)
     if response.status_code == HTTPStatus.TOO_MANY_REQUESTS and code is RejectionCode.BUSY:
         return Refused(GameRefusal.BUSY, retry_after_seconds=_retry_after_seconds(response))
     return UNAVAILABLE
+
+
+async def _rejection_body(response: httpx2.Response) -> bytes | None:
+    """The body, or None once it outgrows a rejection; the rest stays unread and the connection closes with the run."""
+    body = bytearray()
+    async with aclosing(response.aiter_bytes()) as chunks:
+        async for chunk in chunks:
+            body += chunk
+            if len(body) > GAME_REJECTION_MAX_BYTES:
+                return None
+    return bytes(body)
 
 
 def _rejection_code(body: bytes) -> RejectionCode | None:
@@ -157,7 +196,7 @@ async def _outcome_of_stream(response: httpx2.Response) -> GameOutcome:
     return UNAVAILABLE
 
 
-def _outcome_of_event(item: object) -> GameOutcome | None:
+def _outcome_of_event(item: Decoded) -> GameOutcome | None:
     match item:
         case Succeeded(text=text):
             return Question(_cut(text))

@@ -7,7 +7,7 @@ from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, expect
 
 from hopin.config.constants import GAME_LINE_MAX_CHARACTERS
-from tests.e2e.support.calls import open_call, open_more
+from tests.e2e.support.calls import open_call, open_host, open_more
 from tests.e2e.support.people import DESKTOP
 from tests.support.fake_agent_service import Holds, Rejects, Succeeds
 
@@ -23,6 +23,7 @@ GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
 TYPING = "#chatMessages .game-master.typing"
 TOASTS = "#toasts"
 THINKING = re.compile(r"\bthinking\b")
+PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin"
 
 
 def start_quiz(person: Page) -> None:
@@ -49,6 +50,18 @@ def call_of_two(
 ) -> tuple[Page, Page]:
     host, guest, _ = open_call(open_person, base_url, page_errors, {**DESKTOP, **options})
     return host, guest
+
+
+def test_more_says_under_start_quiz_what_goes_to_the_ai_service(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    host, _ = open_host(open_person, base_url, page_errors, DESKTOP)
+
+    menu = open_more(host)
+
+    note = menu.locator(f"{START_QUIZ} + .quiet-note")
+    expect(note).to_have_text("Quiz questions come from an AI service. Chat does not go there. Datenschutz")
+    expect(note.get_by_role("link", name="Datenschutz")).to_have_attribute("href", PRIVACY_NOTICE)
 
 
 def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(

@@ -1,12 +1,11 @@
 import asyncio
-import logging
 import secrets
 from http import HTTPStatus
 
 import httpx2
 import pytest
 import structlog.testing
-from agent_runtime_client.wire import FailureCode, RejectionCode
+from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode
 
 from hopin.config.constants import GameRefusal
 from hopin.signaling.game import Question, Refused
@@ -26,7 +25,9 @@ from tests.support.fake_agent_service import (
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
-LOGGERS_THAT_MUST_STAY_SILENT = ("httpx2", "httpcore2", "urllib3", "webauth")
+# The stream decoder names an unsupported version by the first characters of its repr.
+SHOWN_PREFIX_LENGTH = 16
+RUN_ID = "0b6f9a52-3c41-4f0e-9d5c-1f2a3b4c5d6e"
 
 
 @pytest.fixture
@@ -97,6 +98,20 @@ class TestTokens:
                 "idp_error": "unauthorized_client",
             }
         ]
+
+    async def test_an_issuer_error_outside_the_oauth_vocabulary_is_logged_as_other_and_never_by_its_text(self, world):
+        starter, _ = world.starter()
+        credential_shaped = secrets.token_urlsafe(32)
+        world.issuer.refuses_workload_grants = True
+        world.issuer.workload_refusal_error = credential_shaped
+
+        with structlog.testing.capture_logs() as logs:
+            outcome = await world.game_master.ask(starter, ())
+
+        assert outcome == Refused(GameRefusal.UNAVAILABLE)
+        assert credential_shaped not in repr(logs)
+        [refused] = [log for log in logs if log["event"] == "game_master_token_refused"]
+        assert refused["idp_error"] == "other"
 
 
 class TestHeldGrants:
@@ -310,26 +325,6 @@ class TestWhatLeaves:
         assert {"authorization", "agent-workload-token"} <= run.header_names
 
 
-@pytest.fixture
-def stdlib_records():
-    records = []
-
-    class Keep(logging.Handler):
-        def emit(self, record):
-            records.append(logging.Formatter().format(record))
-
-    handler = Keep(logging.DEBUG)
-    loggers = [logging.getLogger(name) for name in LOGGERS_THAT_MUST_STAY_SILENT]
-    levels = [logger.level for logger in loggers]
-    for logger in loggers:
-        logger.addHandler(handler)
-        logger.setLevel(logging.DEBUG)
-    yield records
-    for logger, level in zip(loggers, levels, strict=True):
-        logger.removeHandler(handler)
-        logger.setLevel(level)
-
-
 class TestNothingLeaksIntoLogs:
     @pytest.mark.parametrize(
         "answer_with_the_secrets",
@@ -339,7 +334,18 @@ class TestNothingLeaksIntoLogs:
                 id="rejection-message",
             ),
             pytest.param(Fails(FailureCode.INTERNAL_ERROR, message="{secrets}"), id="failed-message"),
-            pytest.param(SendsBytes(b"id: 0\nevent: run_started\ndata: {secrets}\n\n"), id="malformed-frame"),
+            pytest.param(
+                SendsBytes(b'id: 0\nevent: run_started\ndata: {"v": "{secrets}", "type": "run_started"}\n\n'),
+                id="unsupported-version",
+            ),
+            pytest.param(
+                SendsBytes(
+                    b"id: 0\nevent: {secrets}\ndata: "
+                    + f'{{"v": {PROTOCOL_VERSION}, "type": "{{secrets}}", "run_id": "{RUN_ID}", "seq": 0}}'.encode()
+                    + b"\n\n"
+                ),
+                id="unknown-type",
+            ),
         ],
     )
     async def test_neither_the_token_nor_the_game_text_reaches_a_log_or_the_outcome(
@@ -358,7 +364,7 @@ class TestNothingLeaksIntoLogs:
         shown = repr(logs) + "".join(stdlib_records) + repr(outcome)
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         for secret in (run.person_token, refresh_token, sentinel):
-            assert secret not in shown
+            assert secret[:SHOWN_PREFIX_LENGTH] not in shown
         assert [log["event"] for log in logs if log["event"] == "agent_service_refused"] == ["agent_service_refused"]
 
     async def test_a_successful_answer_carries_the_question_and_logs_nothing_of_it(self, world, stdlib_records):

@@ -69,6 +69,7 @@ class FakeIssuer:
         self.key_set_is_down = False
         self.refuses_refresh_grants = False
         self.refuses_workload_grants = False
+        self.workload_refusal_error = "unauthorized_client"
         self._guard = threading.Lock()
         self._subjects_of_refresh_tokens: dict[str, str] = {}
         self._subjects_of_access_tokens: dict[str, str] = {}
@@ -176,7 +177,7 @@ class FakeIssuer:
 
     def _workload_access(self) -> TokenEndpointAnswer:
         if self.refuses_workload_grants:
-            return self._refusal(HTTPStatus.BAD_REQUEST, "unauthorized_client")
+            return self._refusal(HTTPStatus.BAD_REQUEST, self.workload_refusal_error)
         access_token = secrets.token_urlsafe(ACCESS_TOKEN_BYTES)
         with self._guard:
             self._workload_tokens.add(access_token)

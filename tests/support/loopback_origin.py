@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 
 LOCALHOST = "127.0.0.1"
 ARRIVAL_CAP_SECONDS = 10
+# A scripted answer holds this where the origin echoes the request's bearer token, as a careless service might.
+BEARER_ECHO = b"<<bearer>>"
 
 
 def http_response(
@@ -41,6 +43,8 @@ class Origin:
     """A loopback HTTP origin: it answers each path from a script and can hold an answer until released.
 
     A path served with streams answers its requests with them in arrival order, so two runs can be held at once.
+    `connections` counts the connections it accepted; `cut_short` names each path whose answer the client
+    closed the connection on before the origin had sent all of it.
     """
 
     requests: list[tuple[str, str, dict[str, str], bytes]] = field(default_factory=list)
@@ -49,6 +53,8 @@ class Origin:
     scripts: dict[str, bytes] = field(default_factory=dict)
     streams: dict[str, deque[HeldStream]] = field(default_factory=dict)
     held_streams: list[HeldStream] = field(default_factory=list)
+    connections: int = 0
+    cut_short: list[str] = field(default_factory=list)
     listener: socket.socket = field(default_factory=socket.socket)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -93,6 +99,7 @@ class Origin:
                 connection, _ = self.listener.accept()
             except OSError:
                 return
+            self.connections += 1
             self._start(self._answer, connection)
 
     def _start(self, target, *args) -> None:
@@ -116,9 +123,9 @@ class Origin:
             self.received[path].set()
             self.release[path].wait(ARRIVAL_CAP_SECONDS)
             try:
-                connection.sendall(self.scripts[path])
+                connection.sendall(self.scripts[path].replace(BEARER_ECHO, _bearer_of(request).encode()))
             except OSError:
-                return
+                self.cut_short.append(path)
 
     def _stream(self, connection: socket.socket, stream: HeldStream) -> None:
         connection.sendall(stream.first)
@@ -147,6 +154,12 @@ def _read_request(connection: socket.socket) -> tuple[str, str, dict[str, str], 
     while len(body) < content_length:
         body += connection.recv(4096)
     return method, path, headers, body
+
+
+def _bearer_of(request: tuple[str, str, dict[str, str], bytes]) -> str:
+    _, _, headers, _ = request
+    authorization = next((value for name, value in headers.items() if name.lower() == "authorization"), "")
+    return authorization.removeprefix("Bearer ")
 
 
 def _watch_for_close(connection: socket.socket, peer_closed: threading.Event) -> None:

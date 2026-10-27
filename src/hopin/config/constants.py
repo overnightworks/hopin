@@ -85,6 +85,8 @@ GAME_HISTORY_LIMIT = 20
 GAME_LINE_MAX_CHARACTERS = 600
 GAME_RETRY_AFTER_MAX_SECONDS = 600
 GAME_RETRY_AFTER_FALLBACK_SECONDS = 30
+# A run rejection is one small JSON object; a longer answer is no rejection and is not read further.
+GAME_REJECTION_MAX_BYTES = 16 * 1024
 # Four of the agent service's fifteen-second heartbeats.
 GAME_READ_TIMEOUT_SECONDS = 60
 GAME_RUN_DEADLINE_SECONDS = 90

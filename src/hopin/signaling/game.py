@@ -69,6 +69,7 @@ class _Run:
     ask: asyncio.Task[GameOutcome]
     phase: GamePhase = GamePhase.THINKING
     told_thinking: set[str] = field(default_factory=set)
+    broken_writes: list[Exception] = field(default_factory=list)
     driver: asyncio.Task[None] = field(init=False)
     deadline: TimerHandle = field(init=False)
 
@@ -133,7 +134,8 @@ class Game:
             await asyncio.wait(self._drivers)
 
     async def _drive(self, room_id: str, run: _Run) -> None:
-        # Never cancelled, so no socket write is cut short; the room's end only cancels `ask`.
+        # Never cancelled, so no socket write is cut short; the room's end only cancels `ask`. A seat's
+        # broken write is held until the run is delivered, so the room keeps the run until `ask` has ended.
         try:
             await self._announce_thinking(room_id, run)
             await asyncio.wait({run.ask})
@@ -144,6 +146,8 @@ class Game:
         finally:
             if self._runs.get(room_id) is run:
                 del self._runs[room_id]
+        if run.broken_writes:
+            raise run.broken_writes[0]
 
     async def _deliver(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         if self._runs.get(room_id) is not run:
@@ -152,7 +156,7 @@ class Game:
             self._questions.setdefault(room_id, deque(maxlen=GAME_HISTORY_LIMIT)).append(outcome.text)
             await self._send_to_room(room_id, run, {TYPE_KEY: SignalType.GAME_LINE.value, "text": outcome.text})
         else:
-            await self._seats.send(run.starter, _refusal_frame(outcome))
+            await self._send_each(room_id, run, [run.starter], _refusal_frame(outcome))
         if self._runs.get(room_id) is not run:
             return
         # Idle's recipients are read in the same step that turns the phase idle, so a seat that joins
@@ -177,7 +181,10 @@ class Game:
         for peer_id in recipients:
             if self._runs.get(room_id) is not run:
                 return
-            await self._seats.send(peer_id, frame)
+            try:
+                await self._seats.send(peer_id, frame)
+            except Exception as error:  # re-raised by the driver once every other seat has its frames
+                run.broken_writes.append(error)
 
     def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         shown = "question" if isinstance(outcome, Question) else outcome.reason.value

@@ -9,6 +9,7 @@ from hopin.config.constants import (
     GAME_RUN_DEADLINE_SECONDS,
     HOST_GRACE_SECONDS,
     MAX_PARTICIPANTS_PER_ROOM,
+    ROOM_ID_LENGTH,
     GamePhase,
     GameRefusal,
     SignalType,
@@ -17,11 +18,18 @@ from hopin.rooms.manager import RoomManager
 from hopin.signaling.game import Question, Refused
 from hopin.signaling.handler import SignalingHandler
 from tests.signaling.support.browsers import Browser, Link
-from tests.support.signaling_fakes import DEFAULT_QUESTION, SocketAccountResolver, account_named, text_frame
+from tests.support.signaling_fakes import (
+    DEFAULT_QUESTION,
+    ROOM_LIMIT,
+    SocketAccountResolver,
+    account_named,
+    text_frame,
+)
 
 pytestmark = pytest.mark.asyncio
 
 START = {"type": SignalType.GAME_START.value}
+END_ROOM = {"type": SignalType.END_ROOM.value}
 GAME_TYPES = frozenset({SignalType.GAME_PHASE, SignalType.GAME_LINE, SignalType.GAME_REFUSED})
 THINKING = {"type": SignalType.GAME_PHASE.value, "phase": GamePhase.THINKING.value}
 IDLE = {"type": SignalType.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
@@ -314,12 +322,15 @@ class TestRoomEnd:
     async def test_ending_the_call_while_asking_cancels_the_run_and_sends_no_game_frame(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
-
-        await host.say({"type": SignalType.END_ROOM.value})
-        await link.handler.shut_down()
-
         [call] = game_master.calls
-        assert (call.cancelled, call.finished) == (True, True)
+
+        with structlog.testing.capture_logs() as logs:
+            await host.say(END_ROOM)
+            await yield_until(lambda: call.finished)
+            assert call.cancelled
+            await link.handler.shut_down()
+
+        assert_no_driver_failed(logs)
         assert_no_game_frame_after_room_closed([host, guest])
 
     async def test_ending_the_call_while_the_line_is_held_at_a_seat_sends_no_game_frame_after_room_closed(
@@ -333,11 +344,13 @@ class TestRoomEnd:
         held.release.set()
         await sent(host, line())
 
-        push_unsettled(host, {"type": SignalType.END_ROOM.value})
-        await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
-        gate.set()
-        await link.handler.shut_down()
+        with structlog.testing.capture_logs() as logs:
+            push_unsettled(host, END_ROOM)
+            await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
+            gate.set()
+            await link.handler.shut_down()
 
+        assert_no_driver_failed(logs)
         assert_no_game_frame_after_room_closed([host, guest, third])
         assert line() in game_frames(guest)
         assert line() not in game_frames(third)
@@ -347,13 +360,16 @@ class TestRoomEnd:
     ):
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
-
-        await host.drop(code=1000)
-        await scheduler.advance(HOST_GRACE_SECONDS)
-        await link.handler.shut_down()
-
         [call] = game_master.calls
-        assert (call.cancelled, call.finished) == (True, True)
+
+        with structlog.testing.capture_logs() as logs:
+            await host.drop(code=1000)
+            await scheduler.advance(HOST_GRACE_SECONDS)
+            await yield_until(lambda: call.finished)
+            assert call.cancelled
+            await link.handler.shut_down()
+
+        assert_no_driver_failed(logs)
         assert guest.frames(SignalType.ROOM_CLOSED)
         assert_no_game_frame_after_room_closed([guest])
 
@@ -361,24 +377,42 @@ class TestRoomEnd:
         host, guest = await call_of(link, "host", "guest")
 
         push_unsettled(host, START)
-        push_unsettled(host, {"type": SignalType.END_ROOM.value})
+        push_unsettled(host, END_ROOM)
         await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
         await link.handler.shut_down()
 
         assert game_frames(host) == game_frames(guest) == []
         assert game_master.calls == []
 
-    async def test_a_new_call_starts_with_no_earlier_question(self, link, game_master):
+
+class RoomIdUsedAgain(RoomManager):
+    """Hands every new room the same id, as chance may hand a later call the id of one that ended."""
+
+    def _generate_room_id(self):
+        return "r" * ROOM_ID_LENGTH
+
+
+class TestARoomIdUsedAgain:
+    @pytest.fixture
+    def room_manager(self):
+        return RoomIdUsedAgain(max_participants_per_room=ROOM_LIMIT)
+
+    async def test_a_new_call_under_an_ended_calls_room_id_starts_with_no_earlier_question(self, link, game_master):
         [host] = await call_of(link, "host")
         await host.say(START)
         await sent(host, IDLE)
-        await host.say({"type": SignalType.END_ROOM.value})
+        await host.say(END_ROOM)
 
         [again] = await call_of(link, "again")
         await again.say(START)
         await sent(again, IDLE)
 
+        assert again.socket.sent[0]["room_id"] == host.socket.sent[0]["room_id"]
         assert game_master.calls[-1].questions == ()
+
+
+def assert_no_driver_failed(logs):
+    assert [log for log in logs if log["event"] == "game_driver_failed"] == []
 
 
 def push_unsettled(browser, data):
@@ -408,7 +442,7 @@ class TestShutdown:
     async def test_shutting_down_waits_for_a_run_whose_cleanup_outlives_its_room(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
         held = await start_and_hold(game_master, guest, hold_cleanup=True)
-        await host.say({"type": SignalType.END_ROOM.value})
+        await host.say(END_ROOM)
         await held.cleanup_started.wait()
 
         asyncio.get_running_loop().call_soon(held.cleanup_release.set)
@@ -417,24 +451,62 @@ class TestShutdown:
         assert game_master.calls[0].finished
 
 
+async def broken_write(_text):
+    raise RuntimeError("a write that broke")
+
+
+def driver_failed(logs):
+    return {"event": "game_driver_failed", "log_level": "error", "error": "RuntimeError"} in logs
+
+
 class TestBrokenWrite:
-    async def test_a_write_that_fails_ends_the_run_logged_by_its_type_and_frees_the_room(self, link, game_master):
-        host, guest = await call_of(link, "host", "guest")
+    async def test_a_write_that_fails_at_one_seat_leaves_the_line_and_idle_to_the_others_and_is_logged_by_its_type(
+        self, link, game_master
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
         held = await start_and_hold(game_master, host)
-        await sent(guest, THINKING)
+        await sent(third, THINKING)
+        guest.socket.send_text = broken_write
 
-        async def fail(_text):
-            raise RuntimeError("a write that broke")
-
-        guest.socket.send_text = fail
         with structlog.testing.capture_logs() as logs:
             held.release.set()
-            await sent(host, line())
-            await link.handler.shut_down()
-
-        assert {"event": "game_driver_failed", "log_level": "error", "error": "RuntimeError"} in logs
+            await sent_to_all([host, third], IDLE)
+            await yield_until(lambda: driver_failed(logs))
         await host.say(START)
-        await sent(host, THINKING, times=2)
+        await sent(host, IDLE, times=2)
+
+        assert game_frames(host) == game_frames(third) == [THINKING, line(), IDLE, THINKING, line(), IDLE]
+        assert "a write that broke" not in repr(logs)
+
+    async def test_a_write_that_fails_while_announcing_thinking_leaves_the_run_the_rooms_until_it_ends(
+        self, link, game_master
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        guest.socket.send_text = broken_write
+
+        with structlog.testing.capture_logs() as logs:
+            held = await start_and_hold(game_master, host)
+            await sent(third, THINKING)
+            await third.say(START)
+            await sent(third, refused(GameRefusal.ALREADY_ANSWERING))
+            held.release.set()
+            await sent_to_all([host, third], IDLE)
+            await yield_until(lambda: driver_failed(logs))
+
+        assert len(game_master.calls) == 1
+        assert game_frames(host) == [THINKING, line(), IDLE]
+        assert game_frames(third) == [THINKING, refused(GameRefusal.ALREADY_ANSWERING), line(), IDLE]
+
+    async def test_a_write_that_fails_while_announcing_thinking_leaves_the_run_to_shutdown(self, link, game_master):
+        host, guest = await call_of(link, "host", "guest")
+        guest.socket.send_text = broken_write
+        await start_and_hold(game_master, host)
+        await sent(host, THINKING)
+
+        await link.handler.shut_down()
+
+        [call] = game_master.calls
+        assert (call.cancelled, call.finished) == (True, True)
 
 
 class TestSeatsComingAndGoing:
