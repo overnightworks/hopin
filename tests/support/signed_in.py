@@ -49,6 +49,12 @@ def handshake_headers(member: SeededMember | None, origin: str | None = TEST_PUB
     return headers
 
 
+def new_account(stores: SignInStores, config: WebAuthConfig) -> StoredAccount:
+    """A member's account under a fresh subject."""
+    suffix = secrets.token_hex(SUBJECT_BYTES)
+    return stores.accounts.create_for_subject(f"subject-{suffix}", f"member-{suffix}", role=config.user_role)
+
+
 def seed_member(
     stores: SignInStores,
     config: WebAuthConfig,
@@ -64,8 +70,7 @@ def seed_member(
     the session holds none, as one opened before HopIn kept them.
     """
     if account is None:
-        suffix = secrets.token_hex(SUBJECT_BYTES)
-        account = stores.accounts.create_for_subject(f"subject-{suffix}", f"member-{suffix}", role=config.user_role)
+        account = new_account(stores, config)
     now = datetime.fromtimestamp(int(config.wall_clock()), UTC)
     lifetime = timedelta(seconds=config.session_lifetime.absolute_max_age_seconds) if expires_in is None else expires_in
     session = stores.sessions.create(

@@ -14,6 +14,7 @@ from agent_runtime_client.wire import RejectionCode
 from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
+from hopin.agents.game_master import NEXT_QUESTION_REQUEST
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, GamePhase, GameRefusal, SignalType
@@ -24,8 +25,6 @@ from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
 
 pytestmark = pytest.mark.integration
-
-NEXT_QUESTION_REQUEST = "Stelle die nächste Quizfrage."
 
 
 class Seat:

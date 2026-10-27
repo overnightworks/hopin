@@ -16,8 +16,10 @@ from tests.e2e.support.server import (
     _serving,
     _write_self_signed_certificate,
 )
+from tests.support.fake_agent_service import FakeAgentService
+from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
-from tests.support.signed_in import SeededMember, seed_member
+from tests.support.signed_in import SeededMember, new_account, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -36,7 +38,14 @@ def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServ
         trusted_proxies=LOOPBACK_HOST,
     )
     stores = SignInStores.in_memory()
-    app = create_app(sign_in.settings, stores=stores)
+    issuer = FakeIssuer(sign_in)
+    agent_service = FakeAgentService(issuer)
+    app = create_app(
+        sign_in.settings,
+        stores=stores,
+        issuer_transports=issuer.transports,
+        agent_transport=agent_service.transport,
+    )
     key_file, certificate_file = _write_self_signed_certificate(tmp_path_factory.mktemp("tls"))
     server = uvicorn.Server(
         uvicorn.Config(
@@ -44,7 +53,9 @@ def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServ
         )
     )
     with _serving(server):
-        yield RunningServer(f"https://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores)
+        yield RunningServer(
+            f"https://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores, issuer, agent_service
+        )
 
 
 @pytest.fixture(scope="session")
@@ -86,6 +97,7 @@ def open_person(
         signed_in: bool = True,
         same_account_as: Page | None = None,
         username: str | None = None,
+        with_refresh_token: bool = True,
         **device_options: Any,
     ) -> Page:
         person_address = PERSON_ADDRESS_BASE + next(person_address_offsets)
@@ -100,7 +112,10 @@ def open_person(
                 account = e2e_server.stores.accounts.create_for_subject(
                     f"subject-{username}", username, role=e2e_server.config.user_role
                 )
-            member = seed_member(e2e_server.stores, e2e_server.config, account=account)
+            if account is None:
+                account = new_account(e2e_server.stores, e2e_server.config)
+            refresh_token = e2e_server.issuer.refresh_token_for(account.id) if with_refresh_token else None
+            member = seed_member(e2e_server.stores, e2e_server.config, account=account, refresh_token=refresh_token)
             context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
             seeded_members[page] = member
         return page

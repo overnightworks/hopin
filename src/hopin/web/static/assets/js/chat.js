@@ -9,9 +9,11 @@ const chatSend = document.getElementById("chatSend");
 const chatButton = document.getElementById("chatBtn");
 const chatClose = document.getElementById("chatClose");
 const chatBadge = document.getElementById("chatBadge");
+const gameMasterSenderTemplate = document.getElementById("gameMasterSenderTemplate");
 
 let chatOpen = false;
 let unreadMessages = 0;
+let gameMasterTyping = null;
 
 function appendMessage(text, senderId) {
     const isSelf = senderId === null;
@@ -24,17 +26,58 @@ function appendMessage(text, senderId) {
         messageElement.appendChild(senderElement);
     }
     messageElement.append(text);
-    chatMessages.appendChild(messageElement);
+    showMessage(messageElement);
+}
+
+function showMessage(messageElement) {
+    // The game master's typing bubble stays last while it thinks.
+    chatMessages.insertBefore(messageElement, gameMasterTyping);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function receiveMessage(text, senderId) {
-    appendMessage(text, senderId);
+function gameMasterBubble() {
+    const messageElement = document.createElement("div");
+    messageElement.className = "chat-msg other game-master";
+    messageElement.append(gameMasterSenderTemplate.content.firstElementChild.cloneNode(true));
+    return messageElement;
+}
+
+function countUnread() {
     if (!chatOpen) {
         unreadMessages++;
         chatBadge.textContent = unreadMessages;
         chatBadge.classList.add("visible");
         playMessageSound();
+    }
+}
+
+function receiveMessage(text, senderId) {
+    appendMessage(text, senderId);
+    countUnread();
+}
+
+export function receiveGameMasterLine(text) {
+    const messageElement = gameMasterBubble();
+    messageElement.append(text);
+    showMessage(messageElement);
+    countUnread();
+}
+
+export function showGameMasterThinking(isThinking) {
+    if (isThinking === (gameMasterTyping !== null)) return;
+    if (isThinking) {
+        gameMasterTyping = gameMasterBubble();
+        gameMasterTyping.classList.add("typing");
+        gameMasterTyping.setAttribute("role", "status");
+        gameMasterTyping.setAttribute("aria-label", "Game master is thinking");
+        const dots = document.createElement("p");
+        dots.append(...Array.from({ length: 3 }, () => document.createElement("i")));
+        gameMasterTyping.append(dots);
+        chatMessages.appendChild(gameMasterTyping);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    } else {
+        gameMasterTyping.remove();
+        gameMasterTyping = null;
     }
 }
 

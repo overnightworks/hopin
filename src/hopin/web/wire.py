@@ -2,7 +2,9 @@ import json
 from typing import TYPE_CHECKING
 
 from hopin.config.constants import (
+    AUTH_START_PATH,
     REPLAY_LOG_LIMIT,
+    RETURN_TO_QUERY_PARAMETER,
     SESSION_ENDED_CLOSE_CODE,
     STATIC_PATH,
     WEBSOCKET_PATH,
@@ -35,6 +37,8 @@ def wire_vocabulary() -> dict[str, object]:
         "GAME_REFUSAL": _members(GameRefusal),
         "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
         "WEBSOCKET_PATH": WEBSOCKET_PATH,
+        "AUTH_START_PATH": AUTH_START_PATH,
+        "RETURN_TO_QUERY_PARAMETER": RETURN_TO_QUERY_PARAMETER,
         "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
         "DESCRIPTION_TYPES": sorted(DESCRIPTION_TYPES),
         "SUPERSEDED_BY_A_DESCRIPTION": sorted(SUPERSEDED_BY_A_DESCRIPTION),
