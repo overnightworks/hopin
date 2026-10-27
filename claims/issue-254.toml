@@ -1,8 +1,0 @@
-claim_id = "51a62c3db0244e568ec0a5d8ac45b75d"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "d77dd96e7f87a777bc30033094e8197b2ea26b7e"
-branch = "claude/issue-254-compose-relying-party-once"
-scope = ["quality/baseline.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "tests/auth/test_sign_in_routes.py"]
-opened_commit = "5ecbdaaf3d54d13e278b55ee38d5760578b98952"
-whole_reason = "The two production files and the one test harness that calls the changed signature, plus the size baseline the shrinking function may lower."
