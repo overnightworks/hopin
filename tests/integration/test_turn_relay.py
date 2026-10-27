@@ -15,8 +15,8 @@ from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.ice_servers import TurnRelayFailure, TurnRelayUnavailableError
 from hopin.web.turn_relay import TurnAnswer, build_turn_relay
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, seed_member
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signed_in import cookie_header, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping

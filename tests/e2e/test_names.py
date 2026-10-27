@@ -16,12 +16,12 @@ from tests.e2e.conftest import (
     record_page_errors,
     start_call,
 )
-from tests.sign_in_settings import TEST_ISSUER
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.signed_in import SeededMember
+    from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 

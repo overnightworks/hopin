@@ -17,7 +17,7 @@ from hopin.auth.stores import (
     SignInStores,
     StoredAccount,
 )
-from tests.signed_in import new_id_token
+from tests.support.signed_in import new_id_token
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)

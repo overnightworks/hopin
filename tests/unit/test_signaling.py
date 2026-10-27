@@ -16,7 +16,8 @@ from hopin.config.constants import (
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
-from tests.unit.conftest import (
+from tests.signaling.support.browsers import Browser, Link
+from tests.support.signaling_fakes import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
     FakeSocket,
@@ -26,7 +27,6 @@ from tests.unit.conftest import (
     disconnect_frame,
     text_frame,
 )
-from tests.unit.test_signaling_resume import Browser, Link
 
 pytestmark = pytest.mark.asyncio
 

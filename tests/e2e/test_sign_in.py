@@ -32,12 +32,12 @@ from tests.e2e.conftest import (
     wait_for_peer_count,
     wait_until_the_prejoin_media_answered,
 )
-from tests.sign_in_settings import TEST_ISSUER
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.signed_in import SeededMember
+    from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 

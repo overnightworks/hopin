@@ -22,7 +22,7 @@ from webauth.oidc import TokenEndpointAnswer, TokenEndpointError, TokenRequest
 from hopin.auth.sign_in import IssuerTransports
 
 if TYPE_CHECKING:
-    from tests.sign_in_settings import SignInSettings
+    from tests.support.sign_in_settings import SignInSettings
 
 KEY_ID = "the-key-only-this-test-has"
 TOKEN_LIFETIME_SECONDS = 300

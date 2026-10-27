@@ -39,9 +39,9 @@ from hopin.config.constants import (
     RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
 )
-from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
-from tests.signed_in import new_id_token
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.support.signed_in import new_id_token
 
 if TYPE_CHECKING:
     from collections.abc import Callable

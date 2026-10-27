@@ -25,9 +25,9 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.config.secret_files import StartRefusedError
-from tests.fake_issuer import FakeIssuer
-from tests.sign_in_settings import TEST_PUBLIC_ORIGIN
-from tests.signed_in import cookie_header, new_id_token, seed_member
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signed_in import cookie_header, new_id_token, seed_member
 
 if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
