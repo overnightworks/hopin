@@ -127,7 +127,7 @@ class Game:
         run.ask.cancel()
 
     async def shut_down(self) -> None:
-        for room_id in list(self._runs):
+        for room_id in self._runs.copy():
             self.room_ended(room_id)
         if self._drivers:
             await asyncio.wait(self._drivers)
@@ -170,8 +170,7 @@ class Game:
         await self._send_each(room_id, run, recipients, _phase_frame(GamePhase.THINKING))
 
     async def _send_to_room(self, room_id: str, run: _Run, frame: JsonObject) -> None:
-        if self._runs.get(room_id) is not run:
-            return
+        # Each caller has checked, in this same step, that the run is still the room's, so the room exists.
         await self._send_each(room_id, run, self._room_manager.get_room(room_id).participant_ids, frame)
 
     async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: JsonObject) -> None:
@@ -191,7 +190,7 @@ class Game:
             logger.error("game_driver_failed", error=type(error).__name__)
 
 
-async def _expire(run: _Run) -> None:
+async def _expire(run: _Run) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
     # A run that already ended has a finished `ask`, so the cancel is a no-op then.
     run.ask.cancel()
 

@@ -31,7 +31,8 @@ function appendMessage(text, senderId) {
 
 function showMessage(messageElement) {
     // The game master's typing bubble stays last while it thinks.
-    chatMessages.insertBefore(messageElement, gameMasterTyping);
+    if (gameMasterTyping === null) chatMessages.append(messageElement);
+    else gameMasterTyping.before(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 

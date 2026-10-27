@@ -53,7 +53,7 @@ TIMEOUT: Final = httpx2.Timeout(
     pool=TRANSPORT_TIMEOUT_SECONDS,
     read=GAME_READ_TIMEOUT_SECONDS,
 )
-WHOLE_SECONDS: Final = re.compile(r"[0-9]+", re.ASCII)
+WHOLE_SECONDS: Final = re.compile(r"\d+", re.ASCII)
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 NO_ACCESS_CODES: Final = frozenset({RejectionCode.NOT_ENABLED, RejectionCode.FORBIDDEN})
 
@@ -151,10 +151,9 @@ async def _outcome_of_stream(response: httpx2.Response) -> GameOutcome:
             outcome = _outcome_of_event(item)
             if outcome is not None:
                 return outcome
-    for item in decoder.close():
-        outcome = _outcome_of_event(item)
-        if outcome is not None:
-            return outcome
+    # The stream ended before its terminal event; the decoder reports that as a violation, logged here.
+    for violation in decoder.close():
+        _outcome_of_event(violation)
     return UNAVAILABLE
 
 

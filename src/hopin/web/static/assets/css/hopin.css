@@ -1057,6 +1057,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    max-width: calc(100% - 32px);
     padding: 10px 16px;
     border-radius: 999px;
     background: var(--toast-bg);
@@ -1067,7 +1068,6 @@ body {
     animation: toast-in var(--motion-fade) ease;
 }
 .toast.leaving { animation: toast-out var(--motion-fade) ease forwards; }
-.toast { max-width: calc(100% - 32px); }
 .toast span { min-width: 0; }
 .toast:has(.toast-act) { border-radius: 22px; padding: 10px 12px 10px 16px; pointer-events: auto; }
 .toast-act { flex: none; white-space: nowrap; border: 0; background: transparent; color: var(--toast-act); font: inherit; font-weight: 700; padding: 4px 6px; border-radius: 8px; cursor: pointer; }
