@@ -1,8 +1,0 @@
-claim_id = "b54247f896b04f36a7cfb80fa5eb029b"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "d99f38d879904d8f794fa6e4e5ddbd85310a2255"
-branch = "claude/issue-247-tests-move-to-the-mirrored-layout-under"
-scope = [".pre-commit-config.yaml", "Makefile", "README.md", "docs/decisions/0001-static-frontend-modules.md", "pyproject.toml", "quality/baseline.toml", "tests"]
-opened_commit = "32da657ba92454d9b3dd2620b30d8b05dcbe8768"
-whole_reason = "One move of the test tree to the mirrored layout; the importlib switch, the __init__.py removal and the folder moves only work together, as quality#175 rules one moves-only PR."
