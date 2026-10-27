@@ -13,6 +13,7 @@ Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a 
 - **Microphone and camera** muted independently, with a preview before joining
 - **Chat** beside the video
 - **Room lock**: the host locks the call from the More menu, so no new person joins except the host's own account, which can return while there is room; the host unlocks at any time
+- **Game master**: anyone in a call taps Start quiz in the More menu, and an AI asks everyone a quiz question in the chat, marked AI; it runs on the tapper's own AI access
 - **Reconnect**: a dropped connection keeps its place for a short while; the call waits for a dropped host before it ends
 - **No frameworks** in the browser: plain HTML, CSS and ES modules
 
@@ -37,10 +38,12 @@ Production runs from edge's catalog: `hal apply` on a `vYYYY.MM.DD.N` tag of `ma
 HopIn holds a person's account (name and role), their sessions and their seats in a call only in memory; a restart forgets all of it. Members of `/apps/hopin/admin` (or a group below it) download what HopIn holds about one person in their signed-in browser at `/api/admin/people/<keycloak id>/export`, by the person's Keycloak id compared exactly. The answer is a ZIP holding `export.json`.
 
 - **Listed:** the account's name and role, each session's start and end, and each seat's call link id and whether the person hosts that call. A seat that has not joined a call has no call link id.
-- **Withheld, only counted:** session ids, refresh tokens, ID tokens and resume tokens (secrets), and the frames held for a resume in the person's own seats, which can carry other participants' names, chat lines, media state or connection descriptions.
+- **Withheld, only counted:** session ids, refresh tokens, ID tokens and resume tokens (secrets), and the frames held for a resume in the person's own seats, which can carry other participants' names, chat lines, the game master's questions, media state or connection descriptions.
 - **Unknown id:** an id HopIn does not know answers an empty export (empty `data`, `files` and `withheld`) and creates nothing.
 - **Not counted:** copies of the person's own frames in other participants' replay buffers (their name, chat lines, media state, connection descriptions), which stay until newer frames push them out and which HopIn cannot trace to the person once the seat has ended, and a call the person hosts during its 60-second grace.
 - **Logs:** the `account_event` log lines carry the person's Keycloak id until the host's log period ends. They are described here and not part of the export.
+
+**The game master.** Each tap of Start quiz is one run at the fleet's agent service, made on the tapper's account: HopIn spends the session's refresh token once for a fresh access token, keeps the rotated one in the session, and sends the quiz prompt, the call's earlier questions (the newest 20) and the request for the next one, with that access token and HopIn's own workload token. A run sends no chat line, no name and no media. The question reaches everyone in the call; HopIn keeps the call's questions in memory until the call ends, and never logs a prompt, a question or what the service answered.
 
 The shape of `export.json` follows the fleet's shared people contract (`docs/people.md` in the edge repository). HopIn admits only an admin's signed-in browser session, not an access token, so hal cannot call the route yet.
 
