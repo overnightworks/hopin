@@ -23,6 +23,7 @@ from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
+    build_relying_party,
     build_sign_in_configs,
     create_sign_in_router,
 )
@@ -174,9 +175,7 @@ def create_app(
     install_web_auth_config(app, sign_in_configs.web_auth)
     app.include_router(
         create_sign_in_router(
-            sign_in_configs.oidc_client,
-            sign_in_configs.web_auth,
-            issuer_transports,
+            build_relying_party(sign_in_configs, issuer_transports),
             accounts=sign_in_stores.accounts,
             sessions=sign_in_stores.sessions,
             lock=sign_in_stores.lock,

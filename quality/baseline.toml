@@ -8,7 +8,7 @@
 "tests/e2e/test_mesh.py" = 1007
 
 [function_lines."src/hopin/auth/sign_in.py"]
-"create_sign_in_router" = 86
+"create_sign_in_router" = 77
 
 [clones."tests/auth/test_sign_in_backchannel_erasure.py"]
 host_a_call = [["tests/signaling/test_handler_flow.py", "open_room"]]

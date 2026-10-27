@@ -22,6 +22,7 @@ from hopin.auth.sign_in import (
     LOGIN_FAILED_PAGE,
     LOGOUT_LABEL,
     IssuerTransports,
+    build_relying_party,
     build_sign_in_configs,
     create_sign_in_router,
 )
@@ -135,9 +136,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         install_web_auth_config(app, configs.web_auth)
         app.include_router(
             create_sign_in_router(
-                configs.oidc_client,
-                configs.web_auth,
-                transports,
+                build_relying_party(configs, transports),
                 accounts=accounts,
                 sessions=sessions,
                 lock=ProcessWriteLock(),
