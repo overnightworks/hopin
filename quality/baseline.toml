@@ -1,6 +1,6 @@
 # Measured by `quality baseline write`. Entries only ever go down.
 
-[ccn."tests/unit/test_web.py"]
+[ccn."tests/web/test_routes.py"]
 "PageInventory._inspect" = 21
 
 [file_lines]
@@ -9,6 +9,9 @@
 
 [function_lines."src/hopin/auth/sign_in.py"]
 "create_sign_in_router" = 86
+
+[clones."tests/auth/test_sign_in_backchannel_erasure.py"]
+host_a_call = [["tests/signaling/test_handler_flow.py", "open_room"]]
 
 [clones."tests/e2e/test_account_menu.py"]
 "test_session_that_ended_goes_through_the_sign_in_once_when_the_account_answers_401.end_the_session_and_answer_401" = [["tests/e2e/test_names.py", "test_home_whose_session_ended_goes_through_the_sign_in_when_the_account_answers_401.end_the_session_and_answer_401"]]
@@ -19,6 +22,3 @@ call_with_watcher_and_no_camera = [["tests/e2e/test_media.py", "camera_less_call
 
 [clones."tests/e2e/test_mesh.py"]
 _say_in_chat = [["tests/e2e/test_names.py", "say_in_chat"]]
-
-[clones."tests/integration/test_backchannel_erasure.py"]
-host_a_call = [["tests/integration/test_signaling_flow.py", "open_room"]]

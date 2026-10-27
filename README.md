@@ -82,8 +82,7 @@ HopIn refuses to start without the four required settings, when a secret file ca
 |---|---|
 | `make install` | install all dependencies |
 | `make run` | start the server |
-| `make check` | lint, unit tests and dead code |
-| `make test-all` | unit and integration tests |
+| `make check` | lint, tests and dead code |
 | `make e2e` | browser end-to-end tests |
 
 [AGENTS.md](AGENTS.md) is guidance for coding agents.
