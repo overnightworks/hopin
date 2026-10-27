@@ -5,7 +5,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.support.calls import join, open_call, open_more, press_start_call, record_page_errors, toggle_the_lock
+from tests.e2e.support.calls import (
+    join,
+    more_legal_links,
+    open_call,
+    open_more,
+    press_start_call,
+    record_page_errors,
+    toggle_the_lock,
+)
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
 from tests.e2e.support.page_assertions import (
     BOX_OF_SETTLED,
@@ -103,11 +111,11 @@ def test_more_holds_both_legal_links_and_a_click_opens_one_in_a_new_tab_while_th
 ) -> None:
     host, _, _ = open_call(open_person, base_url, page_errors, form_factor)
     host.context.route("https://hallucinai.de/**", lambda route: route.fulfill(status=200, body="legal"))
-    menu = open_more(host)
+    legal_links = more_legal_links(host)
 
-    expect_both_legal_links(menu)
+    expect_both_legal_links(legal_links)
     with host.context.expect_page() as opened:
-        menu.get_by_role("link", name="Datenschutz").click()
+        legal_links.get_by_role("link", name="Datenschutz").click()
 
     assert opened.value.url == LEGAL_LINKS["Datenschutz"]
     expect(host.locator("#status")).to_have_text("In call")
@@ -241,4 +249,4 @@ def test_more_stays_usable_and_the_bar_enabled_after_a_failed_start(
     expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
     expect(host.locator("#stage .cbar")).to_be_enabled()
     expect(host.locator(MORE_BUTTON)).to_be_enabled()
-    expect_both_legal_links(open_more(host))
+    expect_both_legal_links(more_legal_links(host))
