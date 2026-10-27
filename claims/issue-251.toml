@@ -1,0 +1,7 @@
+claim_id = "52fc8cfbde5d452ba6a51f95b2f3f3fc"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "5bc363b61b0307489e438acc782882ae34df1efd"
+branch = "claude/issue-251-picture-ai-game-master"
+scope = ["docs/mockups/README.md", "docs/mockups/hopin-call.html"]
+opened_commit = "bd79f0db7283654c61e7939a98ae4ae4912a8da4"
