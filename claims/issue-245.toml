@@ -1,8 +1,0 @@
-claim_id = "0e06b98c92c649b986ebcdd5098ae3ce"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "11b878c9d8b6f7d1c58f5cceeda730e85d924b30"
-branch = "claude/issue-245-e2e-helpers-leave-tests-e2e-conftest-py"
-scope = ["quality/baseline.toml", "tests/conftest.py", "tests/e2e"]
-opened_commit = "5bf8599ac2b05f1f9f75f51c372e0f046db34b85"
-whole_reason = "One extraction from one conftest whose 21 importers change only their import lines; splitting it would leave e2e modules importing the same helpers from two places."
