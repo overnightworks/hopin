@@ -12,6 +12,7 @@ from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
     call_link_of,
+    join,
     open_call,
     open_host,
     open_more,
@@ -39,6 +40,10 @@ TYPING = "#chatMessages .game-master.typing"
 TOASTS = "#toasts"
 CARD = "#chatPanel .qcard"
 REVEAL = "Reveal"
+SEND = "Send"
+YOUR_ANSWER = "Your answer"
+STATUS = ".qcard-status"
+MORE_PROGRESS = "#gameProgress"
 THINKING = re.compile(r"\bthinking\b")
 QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
 QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
@@ -205,7 +210,7 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
         expect(card.locator(".qcard-tag")).to_have_text(QUESTION_ONE)
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
     expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_visible()
-    expect(host.locator(CARD).get_by_role("button")).to_have_count(0)
+    expect(host.locator(CARD).get_by_role("button", name=REVEAL)).to_have_count(0)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -233,6 +238,73 @@ def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_opens_the_ne
         expect(lines.nth(1)).to_contain_text("Der Tejo.")
         expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
         expect(person.locator(CARD).locator(".qcard-q")).to_have_text("Zweite?")
+
+
+def answer_on_card(person: Page, text: str) -> None:
+    card = person.locator(CARD)
+    card.get_by_label(YOUR_ANSWER).fill(text)
+    card.get_by_role("button", name=SEND).click()
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_its_own(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    agent_service.answer_next(
+        Succeeds("Welcher Fluss fließt durch Lissabon?"), Succeeds("Der Tejo."), Succeeds("Zweite?")
+    )
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+
+    answer_on_card(guest, "Mondego")
+
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(host.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    for person in (host, guest):
+        expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
+    expect(host.get_by_text("Mondego")).to_have_count(0)
+    answer_on_card(guest, "Guadiana")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    answer_on_card(host, "Tejo")
+
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES)).to_have_count(3)
+        expect(person.locator(GAME_MASTER_LINES).nth(1)).to_contain_text("Der Tejo.")
+        expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+        expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
+        expect(person.locator("#chatMessages")).not_to_contain_text("Guadiana")
+        close_chat(person)
+        expect(open_more(person).locator(MORE_PROGRESS)).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+        expect(open_more(person).locator(START_QUIZ)).to_contain_text("Quiz running")
+    assert not any("Mondego" in str(run.request) or "Guadiana" in str(run.request) for run in agent_service.runs)
+
+
+def test_a_page_that_joins_during_a_question_has_no_card_and_plays_from_the_next(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+) -> None:
+    host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    agent_service.answer_next(Succeeds("Erste?"), Succeeds("Der Tejo."), Succeeds("Zweite?"))
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+    late = join(open_person, invite_link, DESKTOP, (), page_errors)
+    open_chat(late)
+
+    expect(late.locator(CARD)).to_have_count(0)
+    answer_on_card(host, "A")
+    answer_on_card(guest, "B")
+
+    expect(late.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+    answer_on_card(late, "C")
+    expect(late.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 3 answered")
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
