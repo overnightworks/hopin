@@ -23,13 +23,18 @@ from tests.game.support.table_world import (
     REVEAL,
     REVEAL_LINE,
     START,
+    answer,
     answering,
     asked,
+    assert_no_driver_failed,
+    assert_no_game_frame_after_room_closed,
+    broken_write,
     call_of,
     game_frames,
     hold_writes_from,
     line,
     open_a_question,
+    push_unsettled,
     question,
     refused,
     sent,
@@ -129,7 +134,7 @@ class TestOneRun:
             "duration_ms": 3000,
         }
 
-    @pytest.mark.parametrize("frame", [START, REVEAL], ids=["start", "reveal"])
+    @pytest.mark.parametrize("frame", [START, REVEAL, answer("Lissabon")], ids=["start", "reveal", "answer"])
     async def test_a_frame_from_outside_a_room_is_ignored(self, link, game_master, frame):
         loner = Browser(link, "loner")
         loner.sockets.append(await link.open(account_named("loner")))
@@ -484,23 +489,6 @@ class TestARoomIdUsedAgain:
         assert game_master.calls[-1].transcript == OPENING
 
 
-def assert_no_driver_failed(logs):
-    assert [log for log in logs if log["event"] == "game_driver_failed"] == []
-
-
-def push_unsettled(browser, data):
-    """Hand the handler the browser's next frame without waiting for the handler to go idle."""
-    browser.sent_count += 1
-    browser.socket.push(text_frame(data, seq=browser.sent_count))
-
-
-def assert_no_game_frame_after_room_closed(browsers):
-    for browser in browsers:
-        frames = [frame for socket in browser.sockets for frame in socket.sent]
-        [closed] = [frame["seq"] for frame in frames if frame["type"] == SignalType.ROOM_CLOSED.value]
-        assert [frame for frame in frames if frame["type"] in GAME_TYPES and frame["seq"] > closed] == []
-
-
 class TestShutdown:
     async def test_shutting_down_cancels_a_held_run_and_waits_for_it(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
@@ -533,10 +521,6 @@ class TestShutdown:
         await shut_down_within_cap(link.handler)
 
         assert game_master.calls[0].finished
-
-
-async def broken_write(_text):
-    raise RuntimeError("a write that broke")
 
 
 def driver_failed(logs):

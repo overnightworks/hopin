@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Final, Protocol
 
 import structlog
 
+from hopin.errors import InvalidMessageError
 from hopin.game.quiz import QUIZ_ROUNDS, Quiz
 from hopin.game.vocabulary import (
     BROWSER_MODULE,
@@ -18,7 +19,7 @@ from hopin.game.vocabulary import (
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from starlette.requests import HTTPConnection
 
@@ -70,6 +71,14 @@ def _line_frame(line: Line, quiz: Quiz) -> JsonObject:
     if quiz.is_asking:
         frame["round"] = quiz.round
     return frame
+
+
+def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId]) -> JsonObject:
+    return {
+        TYPE_KEY: GameSignal.GAME_ANSWER_COUNT.value,
+        "answered": quiz.answered_count(present),
+        "players": len(quiz.players & present),
+    }
 
 
 def _refusal_frame(refusal: Refused) -> JsonObject:
@@ -130,6 +139,8 @@ class Game:
                 await self._start(peer_id)
             case GameSignal.GAME_REVEAL:
                 await self._reveal(peer_id)
+            case GameSignal.GAME_ANSWER:
+                await self._answer(peer_id, frame.data)
             case _:
                 return False
         return True
@@ -154,6 +165,44 @@ class Game:
             self._run(room_id, quiz.revealing())
         elif quiz is None or quiz.starter != peer_id:
             await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.NOT_STARTER)))
+
+    async def _answer(self, peer_id: PeerId, data: JsonObject) -> None:
+        room_id = self._rooms.room_of(peer_id)
+        if room_id is None:
+            return
+        text = data.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise InvalidMessageError("An answer needs text")
+        quiz = self._quizzes.get(room_id)
+        if quiz is None or not quiz.may_answer(peer_id):
+            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ANSWER_CLOSED)))
+            return
+        answered = quiz.with_answer(peer_id, text.strip())
+        self._quizzes[room_id] = answered
+        present = self._present_players(room_id, answered)
+        await self._send_answer_count(room_id, answered, present)
+        if self._reveal_is_due(room_id, answered, present):
+            self._run(room_id, answered.revealing())
+
+    def _present_players(self, room_id: str, quiz: Quiz) -> frozenset[PeerId]:
+        """The players still in the room; a parked seat stays in it until its grace ends."""
+        return frozenset(player for player in quiz.players if self._rooms.room_of(player) == room_id)
+
+    async def _send_answer_count(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> None:
+        frame = _answer_count_frame(quiz, present)
+        broken_writes = await self._send_isolated(
+            self._rooms.members(room_id), frame, lambda: self._quizzes.get(room_id) is quiz
+        )
+        for error in broken_writes:
+            # The sender's connection and the reveal check go on; only the type is logged, never the text.
+            logger.error("game_answer_count_failed", error=type(error).__name__)
+
+    def _reveal_is_due(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> bool:
+        return (
+            self._quizzes.get(room_id) is quiz
+            and quiz.everyone_answered(present)
+            and self._rooms.room_of(quiz.starter) == room_id
+        )
 
     def _run(self, room_id: str, quiz: Quiz) -> None:
         # The quiz, the run, its tasks and its deadline exist before any await, so a second tap already finds them.
@@ -220,8 +269,9 @@ class Game:
         if not self._is_live(room_id, run):
             return
         if isinstance(outcome, Line):
-            await self._send_to_room(room_id, run, _line_frame(outcome, run.quiz))
-            quiz = run.quiz.answered(outcome.text)
+            recipients = self._rooms.members(room_id)
+            await self._send_each(room_id, run, recipients, _line_frame(outcome, run.quiz))
+            quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
             await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(outcome))
             quiz = None
@@ -285,13 +335,22 @@ class Game:
         await self._send_each(room_id, run, self._rooms.members(room_id), frame)
 
     async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: JsonObject) -> None:
+        # Re-raised by the driver once every other seat has its frames.
+        run.broken_writes.extend(await self._send_isolated(recipients, frame, lambda: self._is_live(room_id, run)))
+
+    async def _send_isolated(
+        self, recipients: list[str], frame: JsonObject, still_wanted: Callable[[], bool]
+    ) -> list[Exception]:
+        """Send the frame to each recipient while it is wanted; a seat's broken write never keeps the others from it."""
+        broken_writes: list[Exception] = []
         for peer_id in recipients:
-            if not self._is_live(room_id, run):
-                return
+            if not still_wanted():
+                break
             try:
                 await self._rooms.send(peer_id, frame)
-            except Exception as error:  # re-raised by the driver once every other seat has its frames
-                run.broken_writes.append(error)
+            except Exception as error:
+                broken_writes.append(error)
+        return broken_writes
 
     def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         shown = "line" if isinstance(outcome, Line) else outcome.reason.value

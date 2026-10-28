@@ -7,12 +7,14 @@ from hopin.config.constants import SignalType
 from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, Speaker, Turn
 from hopin.game.vocabulary import GamePhase, GameSignal
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
-from tests.support.signaling_fakes import ARRIVAL_CAP_SECONDS
+from tests.support.signaling_fakes import ARRIVAL_CAP_SECONDS, text_frame
 
 START = {"type": GameSignal.GAME_START.value}
 REVEAL = {"type": GameSignal.GAME_REVEAL.value}
 END_ROOM = {"type": SignalType.END_ROOM.value}
-GAME_TYPES = frozenset({GameSignal.GAME_PHASE, GameSignal.GAME_LINE, GameSignal.GAME_REFUSED})
+GAME_TYPES = frozenset(
+    {GameSignal.GAME_PHASE, GameSignal.GAME_LINE, GameSignal.GAME_REFUSED, GameSignal.GAME_ANSWER_COUNT}
+)
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
 REVEAL_LINE = "Lissabon."
@@ -48,6 +50,14 @@ def line(text):
 def asked(starter, text=DEFAULT_QUESTION):
     """What every seat sees of a question the starter's tap asked."""
     return [thinking(starter), question(text), answering(starter)]
+
+
+def answer(text):
+    return {"type": GameSignal.GAME_ANSWER.value, "text": text}
+
+
+def answer_count(answered, players):
+    return {"type": GameSignal.GAME_ANSWER_COUNT.value, "answered": answered, "players": players}
 
 
 def refused(reason, **fields):
@@ -97,6 +107,12 @@ async def yield_until(condition):
     raise AssertionError("the condition never held")
 
 
+async def let_every_task_run():
+    """Let the other tasks run to their next wait; for the absence of a step that no frame announces."""
+    for _ in range(YIELD_CAP):
+        await asyncio.sleep(0)
+
+
 async def call_of(link, *names):
     host = await link.join(names[0])
     room_id = host.socket.sent[0]["room_id"]
@@ -116,6 +132,10 @@ async def open_a_question(call, starter):
     await sent_to_all(call, answering(starter))
 
 
+async def broken_write(_text):
+    raise RuntimeError("a write that broke")
+
+
 def hold_writes_from(browser, frame):
     """Hold the browser's writes from the frame on until the returned gate opens."""
     gate = asyncio.Event()
@@ -128,3 +148,20 @@ def hold_writes_from(browser, frame):
 
     browser.socket.send_text = send_text_once_open
     return gate
+
+
+def push_unsettled(browser, data):
+    """Hand the handler the browser's next frame without waiting for the handler to go idle."""
+    browser.sent_count += 1
+    browser.socket.push(text_frame(data, seq=browser.sent_count))
+
+
+def assert_no_driver_failed(logs):
+    assert [log for log in logs if log["event"] == "game_driver_failed"] == []
+
+
+def assert_no_game_frame_after_room_closed(browsers):
+    for browser in browsers:
+        frames = [frame for socket in browser.sockets for frame in socket.sent]
+        [closed] = [frame["seq"] for frame in frames if frame["type"] == SignalType.ROOM_CLOSED.value]
+        assert [frame for frame in frames if frame["type"] in GAME_TYPES and frame["seq"] > closed] == []

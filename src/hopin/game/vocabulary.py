@@ -15,6 +15,8 @@ GAME_RUN_DEADLINE_SECONDS = 90
 class GameSignal(StrEnum):
     GAME_START = "game_start"
     GAME_REVEAL = "game_reveal"
+    GAME_ANSWER = "game_answer"
+    GAME_ANSWER_COUNT = "game_answer_count"
     GAME_PHASE = "game_phase"
     GAME_LINE = "game_line"
     GAME_REFUSED = "game_refused"
@@ -33,6 +35,7 @@ class GameRefusal(StrEnum):
     ALREADY_ANSWERING = "already_answering"
     QUIZ_RUNNING = "quiz_running"
     NOT_STARTER = "not_starter"
+    ANSWER_CLOSED = "answer_closed"
     UNAVAILABLE = "unavailable"
 
 
