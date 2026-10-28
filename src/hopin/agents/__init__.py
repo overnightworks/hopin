@@ -22,7 +22,8 @@ def agent_service_game_master(
     web_auth: WebAuthConfig,
     transport: AgentTransport,
 ) -> AgentServiceGameMaster:
-    """Build the game master; as a side effect, silence the HTTP and sign-in loggers that could write a token."""
+    """Build the game master; as a side effect, silence the httpx2 and httpcore2 transport loggers
+    that could write a token."""
     silence_transport_logs()
     return AgentServiceGameMaster(
         agent_service_url=agent_service_url,
