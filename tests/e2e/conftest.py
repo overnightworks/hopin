@@ -1,25 +1,10 @@
 from typing import TYPE_CHECKING, Any
 
 import pytest
-import uvicorn
-from webauth.config import installed_web_auth_config
 
-from hopin.app import create_app
-from hopin.auth.stores import SignInStores
-from hopin.game import GameSettings, game_feature
-from hopin.main import uvicorn_options
 from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
 from tests.e2e.support.people import PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
-from tests.e2e.support.server import (
-    LOOPBACK_HOST,
-    RunningServer,
-    _reserve_free_port,
-    _serving,
-    _write_self_signed_certificate,
-)
-from tests.game.support.fake_agent_service import FakeAgentService
-from tests.support.fake_issuer import FakeIssuer
-from tests.support.sign_in_settings import build_sign_in_settings
+from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.signed_in import SeededMember, new_account, seed_member
 
 if TYPE_CHECKING:
@@ -29,39 +14,22 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(scope="session")
-def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
-    port = _reserve_free_port()
-    sign_in = build_sign_in_settings(
-        tmp_path_factory.mktemp("sign-in"),
-        host=LOOPBACK_HOST,
-        port=port,
-        public_origin=f"https://{LOOPBACK_HOST}:{port}",
-        trusted_proxies=LOOPBACK_HOST,
-    )
-    stores = SignInStores.in_memory()
-    issuer = FakeIssuer(sign_in)
-    agent_service = FakeAgentService(issuer)
-    app = create_app(
-        sign_in.settings,
-        stores=stores,
-        issuer_transports=issuer.transports,
-        call_feature=game_feature(GameSettings(), transport=agent_service.transport),
-    )
-    key_file, certificate_file = _write_self_signed_certificate(tmp_path_factory.mktemp("tls"))
-    server = uvicorn.Server(
-        uvicorn.Config(
-            app, **uvicorn_options(sign_in.settings), ssl_keyfile=str(key_file), ssl_certfile=str(certificate_file)
-        )
-    )
-    with _serving(server):
-        yield RunningServer(
-            f"https://{LOOPBACK_HOST}:{port}", installed_web_auth_config(app), stores, issuer, agent_service
-        )
+def core_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
+    """HopIn with no feature wired into its calls."""
+    loopback = loopback_sign_in(tmp_path_factory.mktemp("sign-in"))
+    with running_hopin(loopback, tmp_path_factory.mktemp("tls")) as server:
+        yield server
+
+
+@pytest.fixture
+def e2e_server(core_server: RunningServer) -> RunningServer:
+    """The server a test's people use; a directory whose tests need a feature overrides it."""
+    return core_server
 
 
 @pytest.fixture(scope="session")
-def base_url(e2e_server: RunningServer) -> str:
-    return e2e_server.base_url
+def base_url(core_server: RunningServer) -> str:
+    return core_server.base_url
 
 
 @pytest.fixture(scope="session")

@@ -20,6 +20,7 @@ from tests.e2e.support.page_assertions import (
     CHECK_ICON_PATH,
     LEGAL_LINKS,
     TOAST_AND_MENU_BOXES,
+    VISIBLE_MORE_ENTRIES,
     expect_both_legal_links,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
@@ -39,19 +40,6 @@ POPOVER_WIDTH_PIXELS = 280
 POPOVER_BOTTOM_GAP_PIXELS = 88
 CENTRE_TOLERANCE_PIXELS = 2
 VIDEO_TAP_HEIGHT_PIXELS = 200
-VISIBLE_MENU_ENTRIES = """
-() => {
-    const entryName = (element) => {
-        if (element.id === "lockBtn") return "Lock call";
-        if (element.id === "gameStartBtn") return "Start quiz";
-        if (element.classList.contains("sep")) return "separator";
-        return element.textContent.trim();
-    };
-    return [...document.querySelectorAll("#moreMenu #lockBtn, #moreMenu #gameStartBtn, #moreMenu .sep, #moreMenu a.mi")]
-        .filter((element) => element.getClientRects().length)
-        .map(entryName);
-}
-"""
 COLOUR_OF = "(selector) => getComputedStyle(document.querySelector(selector)).color"
 THE_TAG_AT_THE_TOP = "#stage .ctop .left #lockIndicator"
 
@@ -98,7 +86,7 @@ def test_host_opens_more_as_a_sheet_on_a_phone_and_a_popover_on_a_desktop(
         assert abs((menu["left"] + menu["right"]) / 2 - (more["left"] + more["right"]) / 2) <= CENTRE_TOLERANCE_PIXELS
     expect(host.locator(MORE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(MORE_BUTTON)).to_have_class("cb active")
-    assert host.evaluate(VISIBLE_MENU_ENTRIES) == ["Lock call", "Start quiz", "separator", *LEGAL_LINKS]
+    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", "separator", *LEGAL_LINKS]
     lock_colour = host.evaluate(COLOUR_OF, LOCK_SWITCH)
     for label in LEGAL_LINKS:
         assert host.evaluate(COLOUR_OF, f"a.mi[href='{LEGAL_LINKS[label]}']") == lock_colour
@@ -120,19 +108,6 @@ def test_more_holds_both_legal_links_and_a_click_opens_one_in_a_new_tab_while_th
     assert opened.value.url == LEGAL_LINKS["Datenschutz"]
     expect(host.locator("#status")).to_have_text("In call")
     expect(host.locator(MORE_MENU)).to_be_visible()
-
-
-@pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_guest_more_holds_start_quiz_and_the_two_links_and_starts_on_start_quiz(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
-) -> None:
-    _, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
-
-    menu = open_more(guest)
-
-    assert guest.evaluate(VISIBLE_MENU_ENTRIES) == ["Start quiz", "separator", *LEGAL_LINKS]
-    expect(menu.locator(LOCK_SWITCH)).to_be_hidden()
-    expect(menu.locator("#gameStartBtn")).to_be_focused()
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

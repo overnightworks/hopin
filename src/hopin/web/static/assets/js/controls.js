@@ -13,10 +13,11 @@ const muteButton = document.getElementById("muteBtn");
 const videoButton = document.getElementById("videoBtn");
 const screenButton = document.getElementById("screenBtn");
 const overlayScrim = document.getElementById("overlayScrim");
+const moreMenu = document.getElementById("moreMenu");
 const MENUS = [
     {
         button: document.getElementById("moreBtn"),
-        dialog: document.getElementById("moreMenu"),
+        dialog: moreMenu,
         firstFocus: ".mi",
         scrim: overlayScrim,
     },
@@ -33,6 +34,11 @@ const leaveButton = document.getElementById("leaveBtn");
 export function renderDeviceToggle(button, isOn) {
     button.classList.toggle("off", !isOn);
     button.setAttribute("aria-pressed", String(!isOn));
+}
+
+/** Put `items` into More, below Lock call and above the legal links. */
+export function addMoreItems(...items) {
+    moreMenu.querySelector(".sep").before(...items);
 }
 
 export function showLockButton(isLocked) {

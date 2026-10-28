@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Final, Protocol
 import structlog
 
 from hopin.game.vocabulary import (
+    BROWSER_MODULE,
     GAME_HISTORY_LIMIT,
     GAME_RUN_DEADLINE_SECONDS,
     SIGNAL_TYPES,
@@ -96,6 +97,10 @@ class Game:
     @property
     def wire_exports(self) -> Mapping[str, Mapping[str, str]]:
         return WIRE_EXPORTS
+
+    @property
+    def browser_module(self) -> str:
+        return BROWSER_MODULE
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         if frame.signal_type != GameSignal.GAME_START:

@@ -46,6 +46,10 @@ class CallFeature(Protocol):
     def wire_exports(self) -> Mapping[str, Mapping[str, str]]:
         """The further named exports it adds to the browser's wire module; none may be a core export."""
 
+    @property
+    def browser_module(self) -> str:
+        """The URL of its browser module, whose `install(core)` the page awaits before signaling connects."""
+
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         """Handle the frame and say so, or say it is none of the feature's."""
 

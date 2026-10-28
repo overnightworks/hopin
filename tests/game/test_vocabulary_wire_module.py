@@ -24,15 +24,22 @@ def members(vocabulary):
     return {member.name: member.value for member in vocabulary}
 
 
-def test_the_wire_module_carries_the_games_signal_types_phases_and_refusals(handler, room_manager):
+def test_the_wire_module_carries_the_games_signal_types_phases_refusals_and_its_served_browser_module(
+    handler, room_manager
+):
     app = FastAPI()
     app.include_router(create_router(handler, room_manager))
+    browser = TestClient(app)
 
-    exports = served_exports(TestClient(app).get(WIRE_MODULE_PATH).text)
+    exports = served_exports(browser.get(WIRE_MODULE_PATH).text)
 
     assert exports["SIGNAL_TYPE"] == {**members(SignalType), **members(GameSignal)}
     assert exports["GAME_PHASE"] == members(GamePhase)
     assert exports["GAME_REFUSAL"] == members(GameRefusal)
+    [game_module] = exports["FEATURE_MODULES"]
+    served_module = browser.get(game_module)
+    assert served_module.status_code == 200
+    assert "javascript" in served_module.headers["content-type"]
 
 
 @patch("hopin.main.uvicorn.run")

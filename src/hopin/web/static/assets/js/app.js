@@ -1,9 +1,15 @@
 import { initAccount } from "./account.js";
-import { initChat, registerChatHandlers } from "./chat.js";
-import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
+import { initChat, pinLast, receiveLine, registerChatHandlers } from "./chat.js";
+import {
+    addMoreItems,
+    confirmLockChange,
+    hideLockButton,
+    initControls,
+    renderControls,
+    showLockButton,
+} from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
-import { initGame, registerGameHandlers, resetGame } from "./game.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
 import { initMenus } from "./menus.js";
 import { stopLocalMedia } from "./media.js";
@@ -21,9 +27,11 @@ import {
     SIGNAL_TYPE,
     connect,
     disconnect,
+    isConnected,
     on,
     onSessionEnded,
     onSessionLost,
+    send,
 } from "./signaling.js";
 import { initPip } from "./pip.js";
 import { showLocalStream, showRemoteName } from "./stage.js";
@@ -35,9 +43,34 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome, showGreeting } from "./home.js";
-import { clearToast } from "./toast.js";
+import { TOAST_KIND, clearToast, showToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
+import { FEATURE_MODULES } from "./wire.js";
+
+const callEndedHooks = [];
+// What a feature's browser module may reach; its `install` gets it before signaling connects.
+const FEATURE_CORE = Object.freeze({
+    on,
+    send,
+    isConnected,
+    showToast,
+    toastKind: TOAST_KIND,
+    addMoreItems,
+    receiveChatLine: receiveLine,
+    pinLastChatLine: pinLast,
+    onCallEnded: (hook) => {
+        callEndedHooks.push(hook);
+    },
+});
+// Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
+// A feature that fails to load never stops the call; it resolves to whether every feature is in.
+const featuresInstalled = Promise.all(
+    FEATURE_MODULES.map(async (moduleUrl) => (await import(moduleUrl)).install(FEATURE_CORE)),
+).then(
+    () => true,
+    () => false,
+);
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -57,9 +90,11 @@ function startCall() {
     showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    return loadIceServers().then(
-        () => {
-            if (!state.intentionalLeave) connect();
+    return Promise.all([loadIceServers(), featuresInstalled]).then(
+        ([, everyFeatureInstalled]) => {
+            if (state.intentionalLeave) return;
+            if (!everyFeatureInstalled) showToast("An add-on could not load.", TOAST_KIND.WARNING);
+            connect();
         },
         (error_) => {
             if (state.intentionalLeave) return;
@@ -81,7 +116,7 @@ function tearDownCall() {
     disconnect();
     showLocalStream(null);
     clearToast();
-    resetGame();
+    for (const hook of callEndedHooks) hook();
     hideWaitingCard();
     hideLockButton();
     hideParticipantCount();
@@ -164,7 +199,6 @@ function registerSessionHandlers() {
 
 registerMeshHandlers();
 registerChatHandlers();
-registerGameHandlers();
 registerMediaStateHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
@@ -178,7 +212,6 @@ initMenus();
 initControls({ onLeaveRequested: requestLeave });
 initInvite();
 initChat();
-initGame();
 initPip();
 initEnd();
 initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });

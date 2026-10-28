@@ -30,7 +30,7 @@ def _members(vocabulary: type[StrEnum]) -> dict[str, str]:
 
 def wire_vocabulary(feature: CallFeature | None) -> dict[str, object]:
     """The protocol tokens the browser shares with the server, by their exported JS name, the feature's included."""
-    core = _core_vocabulary()
+    core = {**_core_vocabulary(), "FEATURE_MODULES": [] if feature is None else [feature.browser_module]}
     if feature is None:
         return core
     clashes = sorted(name for name in feature.wire_exports if name in core)
