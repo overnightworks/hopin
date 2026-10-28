@@ -188,20 +188,18 @@ class Game:
             run.ended = True
             run.deadline.cancel()
             run.ask.cancel()
+        recipients = self._rooms.members(room_id)
         try:
             for frame in (ENDED_FRAME, IDLE_FRAME):
-                await self._send_ended_quiz(room_id, ended, frame)
+                broken_writes = await self._send_isolated(
+                    recipients, frame, lambda: self._quizzes.get(room_id) is ended
+                )
+                for error in broken_writes:
+                    # Only the type is logged, never a name or an answer.
+                    logger.error("game_end_failed", error=type(error).__name__)
         finally:
             if self._quizzes.get(room_id) is ended:
                 del self._quizzes[room_id]
-
-    async def _send_ended_quiz(self, room_id: str, ended: Quiz, frame: JsonObject) -> None:
-        broken_writes = await self._send_isolated(
-            self._rooms.members(room_id), frame, lambda: self._quizzes.get(room_id) is ended
-        )
-        for error in broken_writes:
-            # Only the type is logged, never a name or an answer.
-            logger.error("game_end_failed", error=type(error).__name__)
 
     async def _answer(self, peer_id: PeerId, data: JsonObject) -> None:
         room_id = self._rooms.room_of(peer_id)

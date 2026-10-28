@@ -17,6 +17,7 @@ from tests.game.support.table_world import (
     asked,
     assert_no_driver_failed,
     assert_no_game_frame_after_room_closed,
+    broken_write,
     call_of,
     game_frames,
     hold_writes_from,
@@ -169,3 +170,21 @@ class TestEndAgainstTheRoomsEnd:
         assert_no_driver_failed(logs)
         assert_no_game_frame_after_room_closed([host, guest, starter])
         assert ENDED not in game_frames(starter)
+
+
+class TestEndWithABrokenWrite:
+    async def test_a_write_that_fails_at_one_seat_leaves_ended_and_idle_to_the_others_and_is_logged_by_its_type(
+        self, link
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        await open_a_question([host, guest, third], host)
+        guest.socket.send_text = broken_write
+
+        with structlog.testing.capture_logs() as logs:
+            await host.say(END)
+            await sent_to_all([host, third], IDLE)
+
+        for browser in (host, third):
+            assert game_frames(browser) == [*asked(host), ENDED, IDLE]
+        assert [log["error"] for log in logs if log["event"] == "game_end_failed"] == ["RuntimeError"] * 2
+        assert "a write that broke" not in repr(logs)
