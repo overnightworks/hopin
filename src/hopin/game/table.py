@@ -92,10 +92,10 @@ class _Run:
     """A room's run; the record itself is the run's generation, and it starts once its previous run has ended."""
 
     quiz: Quiz
-    started_at: float
     previous: asyncio.Task[None] | None
     ask: asyncio.Task[GameOutcome]
     broken_writes: list[Exception] = field(default_factory=list)
+    started_at: float = field(init=False)
     driver: asyncio.Task[None] = field(init=False)
     deadline: TimerHandle = field(init=False)
 
@@ -163,7 +163,6 @@ class Game:
         previous = runs[-1].driver if runs else None
         run = _Run(
             quiz=quiz,
-            started_at=self._scheduler.now(),
             previous=previous,
             ask=asyncio.create_task(self._ask_after(previous, starter, quiz.transcript)),
         )
@@ -204,6 +203,7 @@ class Game:
         try:
             if run.previous is not None:
                 await asyncio.wait({run.previous})
+            run.started_at = self._scheduler.now()
             await self._announce_thinking(room_id, run)
             await asyncio.wait({run.ask})
             outcome = _outcome_of(run.ask)
@@ -231,8 +231,17 @@ class Game:
         # here, a seat that joins later is greeted by `seat_joined`, and idle greets no one.
         if quiz is None or quiz.is_over:
             await self._end_quiz(room_id, run)
+        elif quiz.awaits_game_master:
+            await self._chain(room_id, run, quiz)
         else:
             await self._open_question(room_id, run, quiz)
+
+    async def _chain(self, room_id: str, run: _Run, quiz: Quiz) -> None:
+        """Run the quiz's next request at once, on the starter's token and with no idle in between."""
+        if self._rooms.room_of(quiz.starter) is None:
+            await self._end_quiz(room_id, run)
+        else:
+            self._run(room_id, quiz)
 
     async def _open_question(self, room_id: str, run: _Run, quiz: Quiz) -> None:
         self._quizzes[room_id] = quiz

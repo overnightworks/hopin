@@ -6,6 +6,7 @@ import pytest
 from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
+from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import BROWSER_MODULE, GAME_LINE_MAX_CHARACTERS
 from tests.e2e.support.calls import (
     PREJOIN_START,
@@ -39,7 +40,8 @@ TOASTS = "#toasts"
 CARD = "#chatPanel .qcard"
 REVEAL = "Reveal"
 THINKING = re.compile(r"\bthinking\b")
-QUIZ_RUNNING = re.compile(r"^Quiz running\s+Question 1 of 1$")
+QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
+QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
 PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 BROWSER_STYLESHEET = BROWSER_MODULE.replace("game.js", "game.css")
 RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT = """
@@ -200,14 +202,14 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
     for person in (host, guest):
         open_chat(person)
         card = person.locator(CARD)
-        expect(card.locator(".qcard-tag")).to_have_text("Question 1 of 1")
+        expect(card.locator(".qcard-tag")).to_have_text(QUESTION_ONE)
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
     expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_visible()
     expect(host.locator(CARD).get_by_role("button")).to_have_count(0)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_frees_start_quiz(
+def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_opens_the_next_question(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
@@ -215,7 +217,9 @@ def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_frees_start_
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
-    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"), Succeeds("Der Tejo."))
+    agent_service.answer_next(
+        Succeeds("Welcher Fluss fließt durch Lissabon?"), Succeeds("Der Tejo."), Succeeds("Zweite?")
+    )
     start_quiz(guest)
     for person in (host, guest):
         open_chat(person)
@@ -225,8 +229,75 @@ def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_frees_start_
 
     for person in (host, guest):
         lines = person.locator(GAME_MASTER_LINES)
-        expect(lines).to_have_count(2)
-        expect(lines.last).to_contain_text("Der Tejo.")
+        expect(lines).to_have_count(3)
+        expect(lines.nth(1)).to_contain_text("Der Tejo.")
+        expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+        expect(person.locator(CARD).locator(".qcard-q")).to_have_text("Zweite?")
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_both_pages_show_the_game_master_thinking_while_the_reveal_runs_and_until_the_next_question_opens(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    reveal_run, next_question_run = Holds(then=Succeeds("Der Tejo.")), Holds(then=Succeeds("Zweite?"))
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"), reveal_run, next_question_run)
+    start_quiz(guest)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+
+    guest.locator(CARD).get_by_role("button", name=REVEAL).click()
+
+    for person in (host, guest):
+        expect(person.locator(TYPING)).to_be_visible()
+    expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_disabled()
+    reveal_run.release.set()
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).last).to_contain_text("Der Tejo.")
+        expect(person.locator(TYPING)).to_be_visible()
+        expect(person.locator(CARD)).to_have_count(0)
+    next_question_run.release.set()
+    for person in (host, guest):
+        expect(person.locator(CARD).locator(".qcard-q")).to_have_text("Zweite?")
+        expect(person.locator(TYPING)).to_have_count(0)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_start_quiz(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    lines = [text for number in range(1, QUIZ_ROUNDS + 1) for text in (f"Frage {number}?", f"Antwort {number}.")] + [
+        "Ihr wart großartig."
+    ]
+    final_score_run = Holds(then=Succeeds(lines[-1]))
+    agent_service.answer_next(*map(Succeeds, lines[:-1]), final_score_run)
+    start_quiz(guest)
+    for person in (host, guest):
+        open_chat(person)
+
+    for number in range(1, QUIZ_ROUNDS + 1):
+        for person in (host, guest):
+            expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question {number} of {QUIZ_ROUNDS}")
+        guest.locator(CARD).get_by_role("button", name=REVEAL).click()
+
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).last).to_contain_text(f"Antwort {QUIZ_ROUNDS}.")
+        expect(person.locator(TYPING)).to_be_visible()
+        expect(person.locator(CARD)).to_have_count(0)
+    final_score_run.release.set()
+
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES)).to_contain_text(lines)
         expect(person.locator(CARD)).to_have_count(0)
         close_chat(person)
         open_more(person)
