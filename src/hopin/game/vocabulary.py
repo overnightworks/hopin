@@ -3,6 +3,7 @@ from enum import StrEnum
 from hopin.config.constants import STATIC_PATH
 
 GAME_LINE_MAX_CHARACTERS = 600
+GAME_ANSWER_MAX_CHARACTERS = 200
 GAME_RETRY_AFTER_MAX_SECONDS = 600
 GAME_RETRY_AFTER_FALLBACK_SECONDS = 30
 # A run rejection is one small JSON object; a longer answer is no rejection and is not read further.
@@ -36,6 +37,7 @@ class GameRefusal(StrEnum):
     QUIZ_RUNNING = "quiz_running"
     NOT_STARTER = "not_starter"
     ANSWER_CLOSED = "answer_closed"
+    ANSWER_TOO_LONG = "answer_too_long"
     UNAVAILABLE = "unavailable"
 
 

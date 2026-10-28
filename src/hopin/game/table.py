@@ -9,6 +9,7 @@ from hopin.errors import InvalidMessageError
 from hopin.game.quiz import QUIZ_ROUNDS, Quiz
 from hopin.game.vocabulary import (
     BROWSER_MODULE,
+    GAME_ANSWER_MAX_CHARACTERS,
     GAME_RUN_DEADLINE_SECONDS,
     SIGNAL_TYPES,
     WIRE_EXPORTS,
@@ -177,7 +178,10 @@ class Game:
         if quiz is None or not quiz.may_answer(peer_id):
             await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ANSWER_CLOSED)))
             return
-        answered = quiz.with_answer(peer_id, text.strip())
+        if len(text.strip()) > GAME_ANSWER_MAX_CHARACTERS:
+            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ANSWER_TOO_LONG)))
+            return
+        answered = quiz.with_answer(peer_id, self._rooms.name_of(peer_id), text.strip())
         self._quizzes[room_id] = answered
         present = self._present_players(room_id, answered)
         await self._send_answer_count(room_id, answered, present)

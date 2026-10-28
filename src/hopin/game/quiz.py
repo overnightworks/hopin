@@ -1,5 +1,6 @@
 """A quiz's rules: its rounds, its transcript and who may reveal. Pure; the table runs it."""
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Final
@@ -9,7 +10,10 @@ if TYPE_CHECKING:
 
 QUIZ_ROUNDS: Final = 5
 NEXT_QUESTION_REQUEST: Final = "Stelle die nächste Quizfrage."
-REVEAL_REQUEST: Final = "Löse die Frage auf."
+REVEAL_REQUEST: Final = (
+    "Löse die Frage auf. Die nächste Zeile listet die Antworten der Mitspielenden als JSON, "
+    'je Antwort mit "name" und "antwort"; eine leere Liste heißt, dass niemand geantwortet hat.'
+)
 FINAL_SCORE_REQUEST: Final = "Das war die letzte Frage. Nenne den Endstand."
 
 
@@ -35,6 +39,7 @@ class QuizStep(Enum):
 @dataclass(frozen=True)
 class PlayerAnswer:
     player: PeerId
+    name: str = field(repr=False)
     text: str = field(repr=False)
 
 
@@ -70,9 +75,9 @@ class Quiz:
     def may_answer(self, peer_id: PeerId) -> bool:
         return self.step is QuizStep.ANSWERING and peer_id in self.players
 
-    def with_answer(self, player: PeerId, text: str) -> Quiz:
+    def with_answer(self, player: PeerId, name: str, text: str) -> Quiz:
         """The quiz once the player's answer is in; it replaces the player's earlier one."""
-        answers = (*(answer for answer in self.answers if answer.player != player), PlayerAnswer(player, text))
+        answers = (*(answer for answer in self.answers if answer.player != player), PlayerAnswer(player, name, text))
         return Quiz(
             self.starter,
             step=self.step,
@@ -90,7 +95,7 @@ class Quiz:
         return bool(waited_for) and self.answered_count(present) == len(waited_for)
 
     def revealing(self) -> Quiz:
-        transcript = (*self.transcript, Turn(Speaker.HOPIN, REVEAL_REQUEST))
+        transcript = (*self.transcript, Turn(Speaker.HOPIN, self._reveal_request()))
         return Quiz(
             self.starter,
             step=QuizStep.REVEALING,
@@ -99,6 +104,11 @@ class Quiz:
             players=self.players,
             answers=self.answers,
         )
+
+    def _reveal_request(self) -> str:
+        """The fixed request and, on its own line, the given answers as JSON, so no name or answer can pose as more."""
+        given = [{"name": answer.name, "antwort": answer.text} for answer in self.answers]
+        return f"{REVEAL_REQUEST}\n{json.dumps(given, ensure_ascii=False)}"
 
     def heard(self, line: str, players: frozenset[PeerId]) -> Quiz:
         """The quiz once the game master's line answers the step's request, with the request that follows.

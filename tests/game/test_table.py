@@ -9,7 +9,7 @@ from hopin.config.constants import (
     ROOM_ID_LENGTH,
     SignalType,
 )
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, REVEAL_REQUEST, Speaker, Turn
+from hopin.game.quiz import NEXT_QUESTION_REQUEST, Speaker, Turn
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal
 from hopin.rooms.manager import RoomManager
@@ -25,6 +25,7 @@ from tests.game.support.table_world import (
     START,
     answer,
     answering,
+    answers_in_reveal,
     asked,
     assert_no_driver_failed,
     assert_no_game_frame_after_room_closed,
@@ -162,11 +163,11 @@ class TestReveal:
 
         [_, reveal, _] = game_master.calls
         assert reveal.starter is call[1].socket
-        assert reveal.transcript == (
+        assert reveal.transcript[:2] == (
             Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),
             Turn(Speaker.GAME_MASTER, "Frage?"),
-            Turn(Speaker.HOPIN, REVEAL_REQUEST),
         )
+        assert answers_in_reveal(reveal.transcript[2].text) == []
 
     async def test_every_seat_sees_thinking_then_the_reveal_line_then_the_next_question_without_idle(
         self, link, game_master

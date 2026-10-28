@@ -30,6 +30,10 @@ class CallRooms:
         """Send as the call core sends: logged for a resume, held while the seat is parked or replaying."""
         await self._routing.seats.send(peer_id, frame)
 
+    def name_of(self, peer_id: PeerId) -> str:
+        """The name the call shows for the seat; the seat must exist."""
+        return self._routing.seats.account_of(peer_id).name
+
     def connection_of(self, peer_id: PeerId) -> HTTPConnection:
         """The connection that serves the seat now, carrying its sign-in."""
         return self._routing.seats.seat(peer_id).websocket

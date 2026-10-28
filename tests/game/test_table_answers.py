@@ -5,13 +5,14 @@ import structlog.testing
 
 from hopin.config.constants import ErrorReason, SignalType
 from hopin.game.table import Line
-from hopin.game.vocabulary import GameRefusal, GameSignal
+from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GameRefusal, GameSignal
 from tests.game.support.table_world import (
     REVEAL,
     START,
     answer,
     answer_count,
     answering,
+    answers_in_reveal,
     asked,
     broken_write,
     call_of,
@@ -40,6 +41,11 @@ QUESTION_TWO = "Zweite?"
 
 def script_two_questions(game_master):
     game_master.answer_next(Line("Frage?"), Line("Lissabon."), Line(QUESTION_TWO))
+
+
+def revealed_answers(game_master):
+    """The answers the first question's reveal run was asked to name; the second run of the game master."""
+    return answers_in_reveal(game_master.calls[1].transcript[-1].text)
 
 
 def revealed_into_question_two(starter):
@@ -134,6 +140,10 @@ async def test_a_parked_player_holds_the_reveal_back_until_it_answers_after_its_
         answer_count(1, 2),
         answer_count(2, 2),
         *revealed_into_question_two(host),
+    ]
+    assert revealed_answers(game_master) == [
+        {"name": "host", "antwort": "Porto"},
+        {"name": "guest", "antwort": "Lissabon"},
     ]
 
 
@@ -293,7 +303,100 @@ async def test_a_seat_whose_write_breaks_does_not_stop_the_counts_the_reveal_or_
     assert host.socket.closed_with is None
 
 
-async def test_no_log_event_carries_an_answer(link, game_master):
+async def test_the_automatic_reveal_run_gets_each_players_newest_answer_with_the_name(link, game_master):
+    host, guest = await call_of(link, "host", "guest")
+    script_two_questions(game_master)
+    await open_a_question([host, guest], host)
+
+    await guest.say(answer("Porto"))
+    await guest.say(answer(PRIVATE_ANSWER))
+    await host.say(answer("Lissabon"))
+    await sent_to_all([host, guest], answering(host, 2))
+
+    assert revealed_answers(game_master) == [
+        {"name": "guest", "antwort": PRIVATE_ANSWER},
+        {"name": "host", "antwort": "Lissabon"},
+    ]
+
+
+async def test_the_starters_reveal_before_everyone_answered_lists_only_those_who_answered(link, game_master):
+    host, guest, third = await call_of(link, "host", "guest", "third")
+    script_two_questions(game_master)
+    await open_a_question([host, guest, third], host)
+
+    await guest.say(answer("Porto"))
+    await host.say(REVEAL)
+    await sent_to_all([host, guest, third], answering(host, 2))
+
+    assert revealed_answers(game_master) == [{"name": "guest", "antwort": "Porto"}]
+
+
+async def test_the_reveal_run_gets_the_newest_answer_when_two_players_answers_race(link, game_master):
+    host, guest, third = await call_of(link, "host", "guest", "third")
+    script_two_questions(game_master)
+    await open_a_question([host, guest, third], host)
+    gate = hold_writes_from(guest, answer_count(3, 3))
+    await host.say(answer("Porto"))
+    await guest.say(answer("Lissabon"))
+
+    push_unsettled(third, answer("Faro"))
+    await sent(host, answer_count(3, 3))
+    push_unsettled(host, answer("Tejo"))
+    await sent(host, answer_count(3, 3), times=2)
+    gate.set()
+    await sent_to_all([host, guest, third], answering(host, 2))
+    await let_every_task_run()
+
+    assert len(game_master.calls) == 3
+    assert {"name": "host", "antwort": "Tejo"} in revealed_answers(game_master)
+    assert {"name": "host", "antwort": "Porto"} not in revealed_answers(game_master)
+
+
+async def test_an_answer_over_the_cap_is_refused_to_its_sender_alone_and_counts_nothing(link, game_master):
+    host, guest = await call_of(link, "host", "guest")
+    await open_a_question([host, guest], host)
+
+    await guest.say(answer("x" * (GAME_ANSWER_MAX_CHARACTERS + 1)))
+    await sent(guest, refused(GameRefusal.ANSWER_TOO_LONG))
+
+    assert game_frames(guest) == [*asked(host), refused(GameRefusal.ANSWER_TOO_LONG)]
+    assert game_frames(host) == asked(host)
+    await host.say(answer("Porto"))
+    await sent_to_all([host, guest], answer_count(1, 2))
+
+
+async def test_an_answer_of_exactly_the_cap_with_spaces_around_it_is_accepted(link, game_master):
+    host, guest = await call_of(link, "host", "guest")
+    await open_a_question([host, guest], host)
+
+    await guest.say(answer(f"  {'x' * GAME_ANSWER_MAX_CHARACTERS}  "))
+
+    await sent_to_all([host, guest], answer_count(1, 2))
+
+
+async def test_an_over_long_overwrite_keeps_the_earlier_answer_for_the_reveal(link, game_master):
+    host, guest = await call_of(link, "host", "guest")
+    script_two_questions(game_master)
+    await open_a_question([host, guest], host)
+
+    await guest.say(answer("Porto"))
+    await guest.say(answer("x" * (GAME_ANSWER_MAX_CHARACTERS + 1)))
+    await sent(guest, refused(GameRefusal.ANSWER_TOO_LONG))
+    await host.say(answer("Lissabon"))
+    await sent_to_all([host, guest], answering(host, 2))
+
+    assert {"name": "guest", "antwort": "Porto"} in revealed_answers(game_master)
+
+
+async def test_a_closed_question_refuses_an_over_long_answer_as_closed(link, game_master):
+    _, guest = await call_of(link, "host", "guest")
+
+    await guest.say(answer("x" * (GAME_ANSWER_MAX_CHARACTERS + 1)))
+
+    assert [frame["reason"] for frame in guest.frames(GameSignal.GAME_REFUSED)] == [GameRefusal.ANSWER_CLOSED.value]
+
+
+async def test_no_log_event_carries_an_answer_or_a_name(link, game_master):
     host, guest = await call_of(link, "host", "guest")
     script_two_questions(game_master)
     await open_a_question([host, guest], host)
@@ -303,16 +406,6 @@ async def test_no_log_event_carries_an_answer(link, game_master):
         await host.say(answer(PRIVATE_ANSWER))
         await sent_to_all([host, guest], answering(host, 2))
 
-    assert PRIVATE_ANSWER not in json.dumps(logs, default=str)
-
-
-async def test_the_reveal_run_gets_no_answer_in_its_transcript(link, game_master):
-    host, guest = await call_of(link, "host", "guest")
-    script_two_questions(game_master)
-    await open_a_question([host, guest], host)
-
-    await guest.say(answer(PRIVATE_ANSWER))
-    await host.say(answer(PRIVATE_ANSWER))
-    await sent_to_all([host, guest], answering(host, 2))
-
-    assert all(PRIVATE_ANSWER not in turn.text for call in game_master.calls for turn in call.transcript)
+    logged = json.dumps(logs, default=str)
+    assert PRIVATE_ANSWER not in logged
+    assert "guest" not in logged

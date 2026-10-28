@@ -2,7 +2,7 @@ import { AUTH_START_PATH, GAME_PHASE, GAME_REFUSAL, RETURN_TO_QUERY_PARAMETER, S
 
 const SPARK_PATHS = '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
 const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">Start quiz<small>The game master asks the call</small></span><span class="grow running-only">Quiz running<small id="gameProgress"></small></span><span class="grow thinking-only">Game master is thinking…</span></button>
-<p class="quiet-note"><span>Quiz questions come from an AI service. Chat does not go there. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>`;
+<p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>`;
 const CARD_MARKUP = `<section class="qcard" aria-label="Quiz question"><div class="qcard-head"><span class="qcard-tag"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg></span><button type="button" class="qcard-reveal">Reveal</button></div><p class="qcard-q"></p><form class="qcard-form"><div class="qcard-row"><input class="qcard-input" type="text" autocomplete="off" placeholder="Your answer" aria-label="Your answer"><button type="submit" class="btn btn--primary qcard-send">Send</button></div><p class="qcard-status" aria-live="polite"></p></form></section>`;
 const SENDER_MARKUP = `<div class="chat-sender game-master-sender"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg>Game master<span class="ai-badge">AI</span></div>`;
 
@@ -21,6 +21,7 @@ let awaitingAnswer = false;
 let answerForm = null;
 let answerCount = null;
 let answerSent = false;
+let answerSentBeforeLastSend = false;
 
 function fromMarkup(markup) {
     const template = document.createElement("template");
@@ -63,6 +64,11 @@ const REFUSAL_TOAST = {
     [GAME_REFUSAL.QUIZ_RUNNING]: () => ["A quiz is already running.", core.toastKind.WAIT, null],
     [GAME_REFUSAL.NOT_STARTER]: () => ["Only the person who started the quiz can reveal.", core.toastKind.LOCKED, null],
     [GAME_REFUSAL.ANSWER_CLOSED]: () => ["This question is already closed.", core.toastKind.LOCKED, null],
+    [GAME_REFUSAL.ANSWER_TOO_LONG]: () => [
+        "Your answer is too long. Shorten it and send again.",
+        core.toastKind.WARNING,
+        null,
+    ],
     [GAME_REFUSAL.UNAVAILABLE]: () => ["The game master is unavailable right now.", core.toastKind.WARNING, null],
 };
 
@@ -111,6 +117,7 @@ function cardElement() {
     answerForm.addEventListener("submit", sendAnswer);
     answerCount = null;
     answerSent = false;
+    answerSentBeforeLastSend = false;
     return card;
 }
 
@@ -119,6 +126,7 @@ function sendAnswer(event) {
     const text = answerForm.querySelector(".qcard-input").value.trim();
     if (text === "" || !core.isConnected()) return;
     core.send({ type: SIGNAL_TYPE.GAME_ANSWER, text });
+    answerSentBeforeLastSend = answerSent;
     answerSent = true;
     renderCard();
 }
@@ -205,6 +213,7 @@ function receiveAnswerCount(frame) {
 function showRefusal(frame) {
     awaitingAnswer = false;
     if (frame.reason === GAME_REFUSAL.ANSWER_CLOSED) answerSent = false;
+    if (frame.reason === GAME_REFUSAL.ANSWER_TOO_LONG) answerSent = answerSentBeforeLastSend;
     render();
     const toastOf = REFUSAL_TOAST[frame.reason] ?? REFUSAL_TOAST[GAME_REFUSAL.UNAVAILABLE];
     core.showToast(...toastOf(frame));
