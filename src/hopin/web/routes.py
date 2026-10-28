@@ -1,3 +1,4 @@
+import hopin.game  # noqa: F401
 from pathlib import Path
 from typing import TYPE_CHECKING
 
