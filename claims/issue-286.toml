@@ -1,8 +1,0 @@
-claim_id = "415cb534366b4149a66d7edbea38cf67"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "8af1c5b0caf6b7c8e71b63ab2aa4f9fb56552b49"
-branch = "claude/issue-286-end-quiz"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/mockups/hopin-call.html", "src/hopin/game/quiz.py", "src/hopin/game/table.py", "src/hopin/game/vocabulary.py", "src/hopin/signaling/features.py", "src/hopin/web/static/assets/game", "tests/e2e/game/test_game_master.py", "tests/game/support/table_world.py", "tests/game/test_quiz.py", "tests/game/test_table.py", "tests/game/test_table_declined_frames.py", "tests/game/test_table_end.py"]
-opened_commit = "4c5fa9846c89938e54d8ee8791c9c76d34ca56d1"
-whole_reason = "End's frame, its rule, its port read and the menu item are one step a person can see, and the refused run's notice shares End's frame and toast."
