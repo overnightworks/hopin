@@ -89,10 +89,11 @@ class _Phase:
 
 @dataclass(eq=False)
 class _Run:
-    """A room's one run in flight; the record itself is the run's generation."""
+    """A room's run; the record itself is the run's generation, and it starts once its previous run has ended."""
 
     quiz: Quiz
     started_at: float
+    previous: asyncio.Task[None] | None
     ask: asyncio.Task[GameOutcome]
     broken_writes: list[Exception] = field(default_factory=list)
     driver: asyncio.Task[None] = field(init=False)
@@ -100,14 +101,14 @@ class _Run:
 
 
 class Game:
-    """Runs one quiz per room: at most one game master run in flight, its frames to the room's seats in order."""
+    """Runs one quiz per room: its runs one after another, each run's frames to the room's seats in order."""
 
     def __init__(self, rooms: CallRooms, scheduler: Scheduler, game_master: GameMaster) -> None:
         self._rooms = rooms
         self._scheduler = scheduler
         self._game_master = game_master
         self._quizzes: dict[str, Quiz] = {}
-        self._runs: dict[str, _Run] = {}
+        self._runs: dict[str, list[_Run]] = {}
         self._phases: dict[str, _Phase] = {}
         self._drivers: set[asyncio.Task[None]] = set()
 
@@ -156,16 +157,20 @@ class Game:
 
     def _run(self, room_id: str, quiz: Quiz) -> None:
         # The quiz, the run, its tasks and its deadline exist before any await, so a second tap already finds them.
+        # A reveal can arrive while the question run still delivers answering; it then waits for that run's end.
         starter = self._rooms.connection_of(quiz.starter)
+        runs = self._runs.setdefault(room_id, [])
+        previous = runs[-1].driver if runs else None
         run = _Run(
             quiz=quiz,
             started_at=self._scheduler.now(),
-            ask=asyncio.create_task(self._game_master.ask(starter, quiz.transcript)),
+            previous=previous,
+            ask=asyncio.create_task(self._ask_after(previous, starter, quiz.transcript)),
         )
         run.driver = asyncio.create_task(self._drive(room_id, run))
         run.deadline = self._scheduler.call_later(GAME_RUN_DEADLINE_SECONDS, partial(_expire, run))
         self._quizzes[room_id] = quiz
-        self._runs[room_id] = run
+        runs.append(run)
         self._phases[room_id] = _Phase(_quiz_phase_frame(GamePhase.THINKING, quiz))
         self._drivers.add(run.driver)
         run.driver.add_done_callback(self._driver_finished)
@@ -179,17 +184,16 @@ class Game:
             await self._rooms.send(peer_id, phase.frame)
 
     def room_ended(self, room_id: str) -> None:
-        """Forget the room's quiz and run; the run's driver finishes on its own and sends nothing more."""
+        """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
         self._quizzes.pop(room_id, None)
         self._phases.pop(room_id, None)
-        run = self._runs.pop(room_id, None)
-        if run is None:
-            return
-        run.deadline.cancel()
-        run.ask.cancel()
+        for run in self._runs.pop(room_id, []):
+            run.deadline.cancel()
+            run.ask.cancel()
 
     async def shut_down(self) -> None:
-        for room_id in self._runs.copy():
+        # A quiz waiting for its reveal has no run, and a run delivering idle has no quiz any more.
+        for room_id in {*self._quizzes, *self._runs}:
             self.room_ended(room_id)
         if self._drivers:
             await asyncio.wait(self._drivers)
@@ -198,6 +202,8 @@ class Game:
         # Never cancelled, so no socket write is cut short; the room's end only cancels `ask`. A seat's
         # broken write is held until the run is delivered, so the room keeps the run until `ask` has ended.
         try:
+            if run.previous is not None:
+                await asyncio.wait({run.previous})
             await self._announce_thinking(room_id, run)
             await asyncio.wait({run.ask})
             outcome = _outcome_of(run.ask)
@@ -205,13 +211,13 @@ class Game:
             self._log_run(room_id, run, outcome)
             await self._deliver(room_id, run, outcome)
         finally:
-            if self._runs.get(room_id) is run:
-                del self._runs[room_id]
+            if self._is_live(room_id, run):
+                self._forget(room_id, run)
         if run.broken_writes:
             raise run.broken_writes[0]
 
     async def _deliver(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
-        if self._runs.get(room_id) is not run:
+        if not self._is_live(room_id, run):
             return
         if isinstance(outcome, Line):
             await self._send_to_room(room_id, run, _line_frame(outcome, run.quiz))
@@ -219,7 +225,7 @@ class Game:
         else:
             await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(outcome))
             quiz = None
-        if self._runs.get(room_id) is not run:
+        if not self._is_live(room_id, run):
             return
         # Each phase's recipients are read in the same step that sets it, so every seat seated now is told
         # here, a seat that joins later is greeted by `seat_joined`, and idle greets no one.
@@ -240,9 +246,25 @@ class Game:
         del self._phases[room_id]
         await self._send_to_room(room_id, run, IDLE_FRAME)
 
+    async def _ask_after(
+        self, previous: asyncio.Task[None] | None, starter: HTTPConnection, transcript: tuple[Turn, ...]
+    ) -> GameOutcome:
+        if previous is not None:
+            await asyncio.wait({previous})
+        return await self._game_master.ask(starter, transcript)
+
+    def _is_live(self, room_id: str, run: _Run) -> bool:
+        return run in self._runs.get(room_id, [])
+
+    def _forget(self, room_id: str, run: _Run) -> None:
+        runs = self._runs[room_id]
+        runs.remove(run)
+        if not runs:
+            del self._runs[room_id]
+
     async def _announce_thinking(self, room_id: str, run: _Run) -> None:
         # A seat greeted while the run was starting already holds its thinking frame; each seat gets one.
-        if self._runs.get(room_id) is not run:
+        if not self._is_live(room_id, run):
             return
         phase = self._phases[room_id]
         recipients = [peer_id for peer_id in self._rooms.members(room_id) if peer_id not in phase.told]
@@ -255,7 +277,7 @@ class Game:
 
     async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: JsonObject) -> None:
         for peer_id in recipients:
-            if self._runs.get(room_id) is not run:
+            if not self._is_live(room_id, run):
                 return
             try:
                 await self._rooms.send(peer_id, frame)

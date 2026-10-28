@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 import pytest_asyncio
@@ -415,6 +416,35 @@ class TestOneRunPerRoom:
         assert len(game_master.calls) == 2
         assert_phases_in_order([host, guest, third], ["thinking", "answering", "thinking", "idle"])
 
+    async def test_a_reveal_while_answering_is_held_at_a_seat_runs_after_every_seat_has_answering(
+        self, link, game_master
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        gate = hold_writes_from(guest, answering(host))
+
+        await host.say(START)
+        await sent(host, answering(host))
+        await host.say(REVEAL)
+        gate.set()
+        await sent_to_all([host, guest, third], IDLE)
+
+        assert len(game_master.calls) == 2
+        assert_phases_in_order([host, guest, third], ["thinking", "answering", "thinking", "idle"])
+
+
+def hold_writes_from(browser, frame):
+    """Hold the browser's writes from the frame on until the returned gate opens."""
+    gate = asyncio.Event()
+    send_text = browser.socket.send_text
+
+    async def send_text_once_open(text):
+        if without_seq(json.loads(text)) == frame:
+            browser.socket.send_gate = gate
+        await send_text(text)
+
+    browser.socket.send_text = send_text_once_open
+    return gate
+
 
 def assert_phases_in_order(browsers, phases):
     for browser in browsers:
@@ -574,6 +604,17 @@ class TestShutdown:
         [call] = game_master.calls
         assert (call.cancelled, call.finished) == (True, True)
         assert game_frames(host) == game_frames(guest) == [thinking(guest)]
+
+    async def test_shutting_down_during_answering_ends_the_quiz_so_a_reveal_finds_none(self, link, game_master):
+        host, guest = await call_of(link, "host", "guest")
+        await open_a_question([host, guest], guest)
+
+        await shut_down_within_cap(link.handler)
+        await guest.say(REVEAL)
+        await sent(guest, refused(GameRefusal.NOT_STARTER))
+
+        assert game_frames(host) == asked(guest)
+        assert len(game_master.calls) == 1
 
     async def test_shutting_down_waits_for_a_run_whose_cleanup_outlives_its_room(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")

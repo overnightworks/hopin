@@ -1,6 +1,6 @@
 """A quiz's rules: its rounds, its transcript and who may reveal. Pure; the table runs it."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Final
 
@@ -51,11 +51,11 @@ class Quiz:
         return peer_id == self.starter and self.step is QuizStep.ANSWERING
 
     def revealing(self) -> Quiz:
-        return replace(
-            self, step=QuizStep.REVEALING, transcript=(*self.transcript, Turn(Speaker.HOPIN, REVEAL_REQUEST))
-        )
+        transcript = (*self.transcript, Turn(Speaker.HOPIN, REVEAL_REQUEST))
+        return Quiz(self.starter, step=QuizStep.REVEALING, round=self.round, transcript=transcript)
 
     def answered(self, line: str) -> Quiz:
         """The quiz once the game master's line answers the step's request."""
         step = QuizStep.ANSWERING if self.is_asking else QuizStep.OVER
-        return replace(self, step=step, transcript=(*self.transcript, Turn(Speaker.GAME_MASTER, line)))
+        transcript = (*self.transcript, Turn(Speaker.GAME_MASTER, line))
+        return Quiz(self.starter, step=step, round=self.round, transcript=transcript)
