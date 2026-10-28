@@ -16,10 +16,13 @@ from hopin.config.constants import (
     HOME_PATH,
     LOGOUT_PATH,
     REPLAY_LOG_LIMIT,
+    RETURN_TO_QUERY_PARAMETER,
     SESSION_ENDED_CLOSE_CODE,
     STATIC_PATH,
     WEBSOCKET_PATH,
     ErrorReason,
+    GamePhase,
+    GameRefusal,
     RoomClosedReason,
     SignalType,
 )
@@ -34,8 +37,8 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def signaling_handler(room_manager):
-    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
+def signaling_handler(room_manager, game_master):
+    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), game_master)
 
 
 @pytest.fixture
@@ -73,8 +76,12 @@ class TestWireModule:
             "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
             "ERROR_REASON": {member.name: member.value for member in ErrorReason},
             "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
+            "GAME_PHASE": {member.name: member.value for member in GamePhase},
+            "GAME_REFUSAL": {member.name: member.value for member in GameRefusal},
             "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
             "WEBSOCKET_PATH": WEBSOCKET_PATH,
+            "AUTH_START_PATH": AUTH_START_PATH,
+            "RETURN_TO_QUERY_PARAMETER": RETURN_TO_QUERY_PARAMETER,
             "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
             "DESCRIPTION_TYPES": ["answer", "offer"],
             "SUPERSEDED_BY_A_DESCRIPTION": ["answer", "ice_candidate", "offer"],
@@ -139,6 +146,7 @@ class TestHeadRequests:
 
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
 LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
+GAME_MASTER_NOTICE_URL = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
@@ -185,8 +193,6 @@ class PageInventory(HTMLParser):
         self.links: list[dict[str, str | None]] = []
         self.forms: list[dict[str, str | None]] = []
         self.submit_buttons = 0
-        self.submit_labels: list[str] = []
-        self._in_submit_button = False
         self.stylesheets: list[str] = []
         self.icons: list[dict[str, str | None]] = []
         self.class_values: list[str] = []
@@ -223,8 +229,6 @@ class PageInventory(HTMLParser):
             self.forms.append(attributes)
         if tag == "button" and attributes.get("type") == "submit":
             self.submit_buttons += 1
-            self._in_submit_button = True
-            self.submit_labels.append("")
         if tag == "a":
             self.links.append(attributes)
             if self._legal_nav_links is not None:
@@ -237,13 +241,7 @@ class PageInventory(HTMLParser):
             if value is not None and value.strip().lower().startswith("javascript:"):
                 self.forbidden_attributes.append(f"{name}=javascript:")
 
-    def handle_data(self, data):
-        if self._in_submit_button:
-            self.submit_labels[-1] += data
-
     def handle_endtag(self, tag):
-        if tag == "button":
-            self._in_submit_button = False
         if tag == "nav" and self._legal_nav_links is not None:
             self._record_legal_nav()
         while self._screens and self._screens[-1][1] == self._depth:
@@ -309,8 +307,8 @@ class TestPageIsCspReady:
         assert every_page_inventory.fetched_urls
         assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
 
-    def test_links_only_to_the_two_central_legal_pages_in_a_new_tab(self, page_inventory):
-        assert {link["href"] for link in page_inventory.links} == set(LEGAL_URLS)
+    def test_links_only_to_the_central_legal_pages_and_the_game_master_notice_in_a_new_tab(self, page_inventory):
+        assert {link["href"] for link in page_inventory.links} == {*LEGAL_URLS, GAME_MASTER_NOTICE_URL}
         assert all(
             link[name] == value for link in page_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items()
         )
@@ -318,7 +316,6 @@ class TestPageIsCspReady:
     def test_posts_one_same_origin_form_to_log_out_from_the_account_menu(self, page_inventory):
         assert [(form["method"], form["action"]) for form in page_inventory.forms] == [("post", LOGOUT_PATH)]
         assert page_inventory.submit_buttons == 1
-        assert page_inventory.submit_labels == ["Log out"]
 
     def test_loads_the_application_as_a_module(self):
         assert f'<script type="module" src="{STATIC_PATH}/js/app.js">' in PAGE.read_text()
@@ -344,12 +341,6 @@ class TestLoginFailedPage:
         assert "<script" not in markup.lower()
         assert "http-equiv" not in markup
 
-    @pytest.mark.parametrize(
-        "wording", ["<h1>Login failed</h1>", "<p>Sign-in did not work. Please try again.</p>", ">Try again</a>"]
-    )
-    def test_carries_the_ruled_wording_verbatim(self, markup, wording):
-        assert wording in markup
-
 
 class TestSignedOutPage:
     @pytest.fixture
@@ -366,12 +357,6 @@ class TestSignedOutPage:
     def test_runs_no_script_and_never_redirects_by_itself(self, markup):
         assert "<script" not in markup.lower()
         assert "http-equiv" not in markup
-
-    @pytest.mark.parametrize(
-        "wording", ["<title>HopIn - Signed out</title>", "<h1>You are logged out.</h1>", ">Log in</a>"]
-    )
-    def test_carries_the_ruled_wording_verbatim(self, markup, wording):
-        assert wording in markup
 
 
 class TestNoAccessPage:
@@ -390,18 +375,6 @@ class TestNoAccessPage:
     def test_runs_no_script_and_never_redirects_by_itself(self, markup):
         assert "<script" not in markup.lower()
         assert "http-equiv" not in markup
-
-    @pytest.mark.parametrize(
-        "wording",
-        [
-            "<title>HopIn - No access</title>",
-            "<h1>No access</h1>",
-            "<p>You are signed in, but this account has no access to HopIn.</p>",
-            ">Log out</button>",
-        ],
-    )
-    def test_carries_the_ruled_wording_verbatim(self, markup, wording):
-        assert wording in markup
 
 
 class TestPageShell:

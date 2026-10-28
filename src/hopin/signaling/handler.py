@@ -17,6 +17,7 @@ from hopin.signaling.frames import (
     ChatFrame,
     DispatchedFrame,
     EndRoomFrame,
+    GameStartFrame,
     JoinFrame,
     LockFrame,
     MediaStateFrame,
@@ -27,11 +28,13 @@ from hopin.signaling.frames import (
     decode_frame,
     error_frame,
 )
+from hopin.signaling.game import Game
 from hopin.signaling.routing import RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
+    from hopin.signaling.game import GameMaster
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
@@ -39,12 +42,26 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 class SignalingHandler:
-    def __init__(self, room_manager: RoomManager, identity_resolver: IdentityResolver, scheduler: Scheduler) -> None:
+    def __init__(
+        self,
+        room_manager: RoomManager,
+        identity_resolver: IdentityResolver,
+        scheduler: Scheduler,
+        game_master: GameMaster,
+    ) -> None:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
-        self._routing = RoomRouting(room_manager, scheduler)
+        self._routing = RoomRouting(room_manager, scheduler, self._room_ended)
         self._seats = self._routing.seats
+        self._game = Game(self._routing, room_manager, scheduler, game_master)
+
+    def _room_ended(self, room_id: str) -> None:
+        self._game.room_ended(room_id)
+
+    async def shut_down(self) -> None:
+        """Cancel every game master run and wait until each has closed its connection."""
+        await self._game.shut_down()
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
@@ -181,6 +198,7 @@ class SignalingHandler:
         match frame:
             case JoinFrame():
                 await self._routing.handle_join(peer_id, frame)
+                await self._game.greet(peer_id)
             case RelayFrame():
                 await self._routing.handle_relay(peer_id, frame)
             case LockFrame():
@@ -193,6 +211,8 @@ class SignalingHandler:
                 await self._routing.handle_media_state(peer_id, frame)
             case EndRoomFrame():
                 await self._routing.handle_end_room(peer_id)
+            case GameStartFrame():
+                await self._game.start(peer_id)
             case _:  # pragma: no cover - the type checker proves the match exhaustive
                 assert_never(frame)
 

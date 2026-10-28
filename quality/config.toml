@@ -4,3 +4,15 @@ mandatory_jobs = ["Lint and test", "End-to-end", "Coverage"]
 [[root.allow]]
 entry = "Makefile"
 reason = "make finds its Makefile only in the directory it runs from"
+
+[[gate.loosened]]
+what = "import contract \"HopIn's packages depend downwards only\" changes layers"
+item = "#253"
+date = 2026-10-28
+reason = "#253 adds the new agents package as a layer between app and people, a tightening the gate reads as a change (overnightworks/quality#217)"
+
+[[gate.loosened]]
+what = "import contract \"Signaling's modules depend downwards only\" changes layers"
+item = "#253"
+date = 2026-10-28
+reason = "#253 adds the new game module as a layer between handler and routing, a tightening the gate reads as a change (overnightworks/quality#217)"

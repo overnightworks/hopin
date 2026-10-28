@@ -105,8 +105,11 @@ def test_a_person_opened_signed_out_holds_no_cookie(
 
 WATCH_THE_STATUS_LINE = """
 document.addEventListener("DOMContentLoaded", () => {
-    new MutationObserver(() => window.noteStatus(document.getElementById("status").textContent))
-        .observe(document.getElementById("status"), { childList: true, characterData: true, subtree: true });
+    const status = document.getElementById("status");
+    if (status) {
+        new MutationObserver(() => window.noteStatus(status.textContent))
+            .observe(status, { childList: true, characterData: true, subtree: true });
+    }
 });
 """
 RECORD_POLICY_VIOLATIONS = """

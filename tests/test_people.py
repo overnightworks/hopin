@@ -27,6 +27,7 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
+from tests.support.fake_agent_service import FakeAgentService, Succeeds
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
@@ -308,6 +309,44 @@ class TestExportOfAPerson:
         assert head.headers["content-type"] == got.headers["content-type"]
         assert head.headers["content-disposition"] == got.headers["content-disposition"]
         assert head.content == b""
+
+
+@pytest.fixture
+def quiz_call(sign_in_settings, stores):
+    """A HopIn whose issuer and agent service are fakes, the service answering the first run with `question`."""
+    sign_in = sign_in_settings()
+    issuer = FakeIssuer(sign_in)
+    service = FakeAgentService(issuer)
+    question = f"Quizfrage {secrets.token_hex(8)}?"
+    service.answer_next(Succeeds(question))
+    app = create_app(
+        sign_in.settings, issuer_transports=issuer.transports, stores=stores, agent_transport=service.transport
+    )
+    with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client:
+        yield client, issuer, installed_web_auth_config(app), question
+
+
+class TestExportAfterAGame:
+    def test_holds_no_game_text_and_counts_the_game_frames_among_the_replay_frames(self, quiz_call, stores):
+        client, issuer, config, question = quiz_call
+        anna_account = stores.accounts.create_for_subject("anna", "anna", config.user_role)
+        anna = seed_member(stores, config, account=anna_account, refresh_token=issuer.refresh_token_for("anna"))
+        olga = seed_member(
+            stores, config, account=stores.accounts.create_for_subject("olga", "olga", config.admin_role)
+        )
+        with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(anna)) as socket:
+            socket.send_json({"type": SignalType.JOIN.value})
+            socket.receive_json()
+            socket.send_json({"type": SignalType.GAME_START.value, "seq": 1})
+            game_frames = [socket.receive_json() for _ in range(3)]
+
+            answer = ask(client, "anna", olga)
+
+        _, export = read_archive(answer.content)
+        assert [frame["type"] for frame in game_frames] == ["game_phase", "game_line", "game_phase"]
+        assert game_frames[1]["text"] == question
+        assert question not in json.dumps(export, ensure_ascii=False)
+        assert withheld_counts(export)["call_replay_frame"] == 1 + len(game_frames)
 
 
 class TestWhoMayExport:

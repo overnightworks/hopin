@@ -119,6 +119,11 @@ def open_more(person: Page) -> Locator:
     return menu
 
 
+def more_legal_links(person: Page) -> Locator:
+    """More's legal links at its foot; the note under Start quiz links the privacy notice too."""
+    return open_more(person).get_by_role("navigation", name="Legal")
+
+
 def toggle_the_lock(host: Page) -> None:
     open_more(host)
     host.click("#lockBtn")

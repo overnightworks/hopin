@@ -1,0 +1,26 @@
+import logging
+
+import pytest
+
+from hopin.agents.game_master import TRANSPORT_LOGGERS
+from tests.agents.support.world import build_world
+
+pytestmark = pytest.mark.integration
+
+
+def test_building_the_game_master_silences_the_transport_loggers(sign_in_settings):
+    loggers = [logging.getLogger(name) for name in TRANSPORT_LOGGERS]
+    saved = [logger.filters.copy() for logger in loggers]
+    for logger in loggers:
+        logger.filters.clear()
+    world = build_world(sign_in_settings())
+
+    try:
+        world.game_master_over(world.service.transport)
+
+        for logger in loggers:
+            record = logger.makeRecord(logger.name, logging.INFO, __file__, 0, "a token", (), None)
+            assert not logger.filter(record)
+    finally:
+        for logger, filters in zip(loggers, saved, strict=True):
+            logger.filters[:] = filters

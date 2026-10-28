@@ -31,6 +31,8 @@ class RoomManager:
             raise RoomNotFoundError(room_id)
         return room
 
+    # Stays synchronous: checking for a free seat and seating are one step, so an await between them
+    # would let concurrent joins pass the cap.
     def add_participant(self, room_id: str, participant_id: str, account: Account) -> Room:
         room = self.get_room(room_id)
         if room.locked and not room.is_hosted_by(account):
