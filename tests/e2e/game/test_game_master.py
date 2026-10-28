@@ -16,6 +16,7 @@ from tests.e2e.support.calls import (
     open_more,
     open_prejoin,
     record_page_errors,
+    start_call,
     wait_until_the_prejoin_media_answered,
 )
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
@@ -37,6 +38,7 @@ TYPING = "#chatMessages .game-master.typing"
 TOASTS = "#toasts"
 THINKING = re.compile(r"\bthinking\b")
 PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
+BROWSER_STYLESHEET = BROWSER_MODULE.replace("game.js", "game.css")
 RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT = """
 window.gameInAtConnect = [];
 const PageWebSocket = window.WebSocket;
@@ -94,6 +96,21 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
     assert host.evaluate("() => window.gameInAtConnect") == [True]
 
 
+@pytest.mark.parametrize("unreachable_file", [BROWSER_MODULE, BROWSER_STYLESHEET])
+def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not_load(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], unreachable_file: str
+) -> None:
+    host = record_page_errors(open_person(**DESKTOP), page_errors)
+    host.route(f"**{unreachable_file}", lambda route: route.abort())
+
+    invite_link = start_call(host, e2e_server.base_url)
+
+    assert invite_link
+    expect(host.locator(TOASTS)).to_have_text("An add-on could not load.")
+    menu = open_more(host)
+    expect(menu.locator(START_QUIZ)).to_have_count(0)
+
+
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for_the_guest(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
@@ -117,7 +134,10 @@ def test_more_says_under_start_quiz_what_goes_to_the_ai_service(
 
     note = menu.locator(f"{START_QUIZ} + .quiet-note")
     expect(note).to_have_text("Quiz questions come from an AI service. Chat does not go there. Datenschutz")
-    expect(note.get_by_role("link", name="Datenschutz")).to_have_attribute("href", PRIVACY_NOTICE)
+    notice = note.get_by_role("link", name="Datenschutz")
+    expect(notice).to_have_attribute("href", PRIVACY_NOTICE)
+    expect(notice).to_have_attribute("target", "_blank")
+    expect(notice).to_have_attribute("rel", "noopener")
 
 
 def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(

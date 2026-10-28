@@ -27,9 +27,11 @@ import {
     SIGNAL_TYPE,
     connect,
     disconnect,
+    isConnected,
     on,
     onSessionEnded,
     onSessionLost,
+    send,
 } from "./signaling.js";
 import { initPip } from "./pip.js";
 import { showLocalStream, showRemoteName } from "./stage.js";
@@ -41,7 +43,7 @@ import {
     showParticipantCount,
 } from "./status.js";
 import { initHome, showGreeting } from "./home.js";
-import { clearToast } from "./toast.js";
+import { TOAST_KIND, clearToast, showToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
 import { FEATURE_MODULES } from "./wire.js";
@@ -50,6 +52,10 @@ const callEndedHooks = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
 const FEATURE_CORE = Object.freeze({
     on,
+    send,
+    isConnected,
+    showToast,
+    toastKind: TOAST_KIND,
     addMoreItems,
     receiveChatLine: receiveLine,
     pinLastChatLine: pinLast,
@@ -58,8 +64,12 @@ const FEATURE_CORE = Object.freeze({
     },
 });
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
+// A feature that fails to load never stops the call; it resolves to whether every feature is in.
 const featuresInstalled = Promise.all(
     FEATURE_MODULES.map(async (moduleUrl) => (await import(moduleUrl)).install(FEATURE_CORE)),
+).then(
+    () => true,
+    () => false,
 );
 
 function updateParticipantCount() {
@@ -81,8 +91,10 @@ function startCall() {
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
     return Promise.all([loadIceServers(), featuresInstalled]).then(
-        () => {
-            if (!state.intentionalLeave) connect();
+        ([, everyFeatureInstalled]) => {
+            if (state.intentionalLeave) return;
+            if (!everyFeatureInstalled) showToast("An add-on could not load.", TOAST_KIND.WARNING);
+            connect();
         },
         (error_) => {
             if (state.intentionalLeave) return;

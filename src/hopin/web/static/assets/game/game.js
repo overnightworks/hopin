@@ -1,5 +1,3 @@
-import { isConnected, send } from "../js/signaling.js";
-import { TOAST_KIND, showToast } from "../js/toast.js";
 import { AUTH_START_PATH, GAME_PHASE, GAME_REFUSAL, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "../js/wire.js";
 
 const SPARK_PATHS = '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
@@ -44,15 +42,15 @@ function busyText(frame) {
 }
 
 const REFUSAL_TOAST = {
-    [GAME_REFUSAL.NO_ACCESS]: () => ["Your account has no AI access.", TOAST_KIND.LOCKED, null],
+    [GAME_REFUSAL.NO_ACCESS]: () => ["Your account has no AI access.", core.toastKind.LOCKED, null],
     [GAME_REFUSAL.SIGN_IN_AGAIN]: () => [
         "Sign in again to use the game master.",
-        TOAST_KIND.WARNING,
+        core.toastKind.WARNING,
         { label: "Sign in", onAct: signInAgain },
     ],
-    [GAME_REFUSAL.BUSY]: (frame) => [busyText(frame), TOAST_KIND.WAIT, null],
-    [GAME_REFUSAL.ALREADY_ANSWERING]: () => ["The game master is already answering.", TOAST_KIND.WAIT, null],
-    [GAME_REFUSAL.UNAVAILABLE]: () => ["The game master is unavailable right now.", TOAST_KIND.WARNING, null],
+    [GAME_REFUSAL.BUSY]: (frame) => [busyText(frame), core.toastKind.WAIT, null],
+    [GAME_REFUSAL.ALREADY_ANSWERING]: () => ["The game master is already answering.", core.toastKind.WAIT, null],
+    [GAME_REFUSAL.UNAVAILABLE]: () => ["The game master is unavailable right now.", core.toastKind.WARNING, null],
 };
 
 function gameMasterBubble() {
@@ -94,17 +92,17 @@ function render() {
 }
 
 function startQuiz() {
-    if (!isConnected()) return;
+    if (!core.isConnected()) return;
     awaitingAnswer = true;
     render();
-    send({ type: SIGNAL_TYPE.GAME_START });
+    core.send({ type: SIGNAL_TYPE.GAME_START });
 }
 
 function showRefusal(frame) {
     awaitingAnswer = false;
     render();
     const toastOf = REFUSAL_TOAST[frame.reason] ?? REFUSAL_TOAST[GAME_REFUSAL.UNAVAILABLE];
-    showToast(...toastOf(frame));
+    core.showToast(...toastOf(frame));
 }
 
 function reset() {
