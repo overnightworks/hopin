@@ -1,8 +1,0 @@
-claim_id = "9a0e4f72a0e84fc2972ab5ba8c8656e3"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "f63c37a9b01b13a279a8ba728c99803ee896aacc"
-branch = "claude/issue-260-coverage-over-all-layers"
-scope = [".github/workflows/ci.yml", "AGENTS.md", "Makefile", "pyproject.toml", "quality/config.toml"]
-opened_commit = "05ab483b733f76a8a62684379dbefc1a00d4f0f9"
-whole_reason = "One measurement change: the CI jobs, the pytest options, the gate's mandatory jobs and the agent note that names where 100 % is judged move together or the gate lies."
