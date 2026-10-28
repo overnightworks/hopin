@@ -23,6 +23,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
+from tests.signaling.support.served_sessions import ServedSessions
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, parsed_set_cookies, seed_member
@@ -46,7 +47,7 @@ def app(sign_in_settings, stores):
 
 @pytest.fixture
 def client(app):
-    with TestClient(app) as shared_portal_client:
+    with TestClient(ServedSessions(app)) as shared_portal_client:
         yield shared_portal_client
 
 
@@ -231,8 +232,7 @@ class TestConnect:
             ws.receive_json()
             stores.sessions.delete(member.session.id)
             ws.send_json({"type": SignalType.CHAT.value, "seq": 1, "message": "hello"})
-            with pytest.raises(WebSocketDisconnect):
-                ws.receive_json()
+            client.app.receive_the_close_and_wait_for_the_session_to_end(ws)
 
         cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
         secrets_in_logs = [member.account.username, member.account.id, member.session.id]
