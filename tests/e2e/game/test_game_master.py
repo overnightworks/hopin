@@ -15,8 +15,8 @@ from tests.e2e.support.calls import (
     open_host,
     open_more,
     open_prejoin,
+    press_start_call,
     record_page_errors,
-    start_call,
     wait_until_the_prejoin_media_answered,
 )
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
@@ -103,10 +103,10 @@ def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not
     host = record_page_errors(open_person(**DESKTOP), page_errors)
     host.route(f"**{unreachable_file}", lambda route: route.abort())
 
-    invite_link = start_call(host, e2e_server.base_url)
+    press_start_call(host, e2e_server.base_url)
 
-    assert invite_link
     expect(host.locator(TOASTS)).to_have_text("An add-on could not load.")
+    assert call_link_of(host)
     menu = open_more(host)
     expect(menu.locator(START_QUIZ)).to_have_count(0)
 
