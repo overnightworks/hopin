@@ -11,7 +11,7 @@ The `Makefile` owns the targets. Traps:
   (`flock /tmp/probe-stack.lock make e2e`). It needs Playwright's Chromium installed
   once; the `End-to-end` job in `.github/workflows/ci.yml` owns that install step.
 - CI's `Coverage` job judges 100 % over unit, integration and end-to-end data
-  together; a local run reports coverage but does not judge it.
+  together; no local run judges it.
 
 ## Where things live
 
