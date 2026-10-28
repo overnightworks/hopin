@@ -400,7 +400,9 @@ class Game:
         return broken_writes
 
     def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
-        shown = "ended" if run.ended else "line" if isinstance(outcome, Line) else outcome.reason.value
+        shown = "line" if isinstance(outcome, Line) else outcome.reason.value
+        if run.ended:
+            shown = "ended"
         duration_ms = round((self._scheduler.now() - run.started_at) * MILLISECONDS_PER_SECOND)
         logger.info("game_master_run", room_id=room_id, outcome=shown, duration_ms=duration_ms)
 
