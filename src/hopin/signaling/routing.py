@@ -168,8 +168,7 @@ class RoomRouting:
         )
 
     async def handle_disconnect(self, peer_id: PeerId) -> None:
-        if (departure := self.leave(peer_id)) is not None:
-            await self.announce(departure)
+        await self.announce(self.leave(peer_id))
 
     def leave(self, peer_id: PeerId) -> Departure | None:
         """Forgets the seat and its place in the room without awaiting, so a server's end leaves no seat to park
@@ -194,7 +193,9 @@ class RoomRouting:
             self._start_grace(room_id, peer_id, left_at + HOST_GRACE_SECONDS)
         return Departure(room_id=room_id, peer_id=peer_id, remaining=room.participant_ids, host_left=host_left)
 
-    async def announce(self, departure: Departure) -> None:
+    async def announce(self, departure: Departure | None) -> None:
+        if departure is None:
+            return
         # Read now, not at the leave: a host back before the announcement has cancelled the grace.
         grace = self._graces.get(departure.room_id)
         if departure.host_left and grace is not None:
