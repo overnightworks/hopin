@@ -14,11 +14,13 @@ from agent_runtime_client.wire import RejectionCode
 from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
-from hopin.agents.game_master import NEXT_QUESTION_REQUEST
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
-from hopin.config.constants import WEBSOCKET_PATH, GamePhase, GameRefusal, SignalType
-from tests.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
+from hopin.config.constants import WEBSOCKET_PATH, SignalType
+from hopin.game import GameSettings, game_feature
+from hopin.game.agent_service import NEXT_QUESTION_REQUEST
+from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
+from tests.game.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
@@ -46,7 +48,7 @@ class Seat:
         self._socket.send_json({**frame, "seq": self._sent})
 
     def start(self):
-        self.send({"type": SignalType.GAME_START.value})
+        self.send({"type": GameSignal.GAME_START.value})
 
     def chat(self, text):
         self.send({"type": SignalType.CHAT.value, "message": text})
@@ -107,22 +109,22 @@ def call(sign_in_settings):
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        agent_transport=service.transport,
+        call_feature=game_feature(GameSettings(), transport=service.transport),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         yield Call(issuer, service, stores, client, sockets)
 
 
 def phase(game_phase):
-    return {"type": SignalType.GAME_PHASE.value, "phase": game_phase.value}
+    return {"type": GameSignal.GAME_PHASE.value, "phase": game_phase.value}
 
 
 def line(text=DEFAULT_QUESTION):
-    return {"type": SignalType.GAME_LINE.value, "text": text}
+    return {"type": GameSignal.GAME_LINE.value, "text": text}
 
 
 def refused(reason):
-    return {"type": SignalType.GAME_REFUSED.value, "reason": reason.value}
+    return {"type": GameSignal.GAME_REFUSED.value, "reason": reason.value}
 
 
 def chat_text_of(frame):
@@ -306,7 +308,7 @@ async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_se
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        agent_transport=service.transport,
+        call_feature=game_feature(GameSettings(), transport=service.transport),
     )
     config = installed_web_auth_config(app)
     account = stores.accounts.create_for_subject("subject-anna", "anna", role=config.user_role)
@@ -320,7 +322,7 @@ async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_se
             assert (await from_app.get())["type"] == "websocket.accept"
             await to_app.put({"type": "websocket.receive", "text": json.dumps({"type": SignalType.JOIN.value})})
             await from_app.get()
-            game_start = {"type": SignalType.GAME_START.value, "seq": 1}
+            game_start = {"type": GameSignal.GAME_START.value, "seq": 1}
             await to_app.put({"type": "websocket.receive", "text": json.dumps(game_start)})
             await held.started.wait_async()
         runs_logged = [log["outcome"] for log in logs if log["event"] == "game_master_run"]

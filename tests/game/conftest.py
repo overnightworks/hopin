@@ -1,6 +1,12 @@
 import logging
+from functools import partial
 
 import pytest
+
+from hopin.game.table import Game
+from hopin.signaling.handler import SignalingHandler
+from tests.game.support.fake_game_master import FakeGameMaster
+from tests.support.signaling_fakes import SocketAccountResolver
 
 LOGGERS_THAT_MUST_STAY_SILENT = ("httpx2", "httpcore2", "urllib3", "webauth")
 
@@ -24,3 +30,19 @@ def stdlib_records():
     for logger, level in zip(loggers, levels, strict=True):
         logger.removeHandler(handler)
         logger.setLevel(level)
+
+
+@pytest.fixture
+def game_master():
+    return FakeGameMaster()
+
+
+@pytest.fixture
+def game(scheduler, game_master):
+    """The game as `create_app` builds it, its game master a fake."""
+    return partial(Game, scheduler=scheduler, game_master=game_master)
+
+
+@pytest.fixture
+def handler(room_manager, scheduler, game):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, game)

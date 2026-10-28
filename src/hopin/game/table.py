@@ -6,20 +6,24 @@ from typing import TYPE_CHECKING, Final, Protocol
 
 import structlog
 
-from hopin.config.constants import (
+from hopin.game.vocabulary import (
     GAME_HISTORY_LIMIT,
     GAME_RUN_DEADLINE_SECONDS,
+    SIGNAL_TYPES,
+    WIRE_EXPORTS,
     GamePhase,
     GameRefusal,
-    SignalType,
+    GameSignal,
 )
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
 if TYPE_CHECKING:
-    from starlette.websockets import WebSocket
+    from collections.abc import Mapping
 
-    from hopin.rooms.manager import RoomManager
-    from hopin.signaling.routing import RoomRouting
+    from starlette.requests import HTTPConnection
+
+    from hopin.signaling.features import CallRooms
+    from hopin.signaling.frames import ForeignFrame
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -42,7 +46,7 @@ type GameOutcome = Question | Refused
 
 
 class GameMaster(Protocol):
-    async def ask(self, starter: WebSocket, questions: tuple[str, ...]) -> GameOutcome:
+    async def ask(self, starter: HTTPConnection, questions: tuple[str, ...]) -> GameOutcome:
         """The next question on the starter's access, after `questions`, or why there is none.
 
         Raises nothing but `CancelledError`; a cancelled call has closed its connection when it ends.
@@ -50,11 +54,11 @@ class GameMaster(Protocol):
 
 
 def _phase_frame(phase: GamePhase) -> JsonObject:
-    return {TYPE_KEY: SignalType.GAME_PHASE.value, "phase": phase.value}
+    return {TYPE_KEY: GameSignal.GAME_PHASE.value, "phase": phase.value}
 
 
 def _refusal_frame(refusal: Refused) -> JsonObject:
-    frame: JsonObject = {TYPE_KEY: SignalType.GAME_REFUSED.value, "reason": refusal.reason.value}
+    frame: JsonObject = {TYPE_KEY: GameSignal.GAME_REFUSED.value, "reason": refusal.reason.value}
     if refusal.retry_after_seconds is not None:
         frame["retry_after_seconds"] = refusal.retry_after_seconds
     return frame
@@ -77,32 +81,42 @@ class _Run:
 class Game:
     """Runs the game master for each room: at most one run in flight, its frames to the room's seats in order."""
 
-    def __init__(
-        self, routing: RoomRouting, room_manager: RoomManager, scheduler: Scheduler, game_master: GameMaster
-    ) -> None:
-        self._routing = routing
-        self._seats = routing.seats
-        self._room_manager = room_manager
+    def __init__(self, rooms: CallRooms, scheduler: Scheduler, game_master: GameMaster) -> None:
+        self._rooms = rooms
         self._scheduler = scheduler
         self._game_master = game_master
         self._runs: dict[str, _Run] = {}
         self._questions: dict[str, deque[str]] = {}
         self._drivers: set[asyncio.Task[None]] = set()
 
-    async def start(self, peer_id: PeerId) -> None:
-        room_id = self._routing.room_of(peer_id)
+    @property
+    def signal_types(self) -> Mapping[str, str]:
+        return SIGNAL_TYPES
+
+    @property
+    def wire_exports(self) -> Mapping[str, Mapping[str, str]]:
+        return WIRE_EXPORTS
+
+    async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
+        if frame.signal_type != GameSignal.GAME_START:
+            return False
+        await self._start(peer_id)
+        return True
+
+    async def _start(self, peer_id: PeerId) -> None:
+        room_id = self._rooms.room_of(peer_id)
         if room_id is None:
             return
         if room_id in self._runs:
-            await self._seats.send(peer_id, _refusal_frame(Refused(GameRefusal.ALREADY_ANSWERING)))
+            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ALREADY_ANSWERING)))
             return
         # The record, its tasks and its deadline exist before any await, so a second start already finds it.
         questions = tuple(self._questions.get(room_id, ()))
-        starter_socket = self._seats.seat(peer_id).websocket
+        starter = self._rooms.connection_of(peer_id)
         run = _Run(
             starter=peer_id,
             started_at=self._scheduler.now(),
-            ask=asyncio.create_task(self._game_master.ask(starter_socket, questions)),
+            ask=asyncio.create_task(self._game_master.ask(starter, questions)),
         )
         run.driver = asyncio.create_task(self._drive(room_id, run))
         run.deadline = self._scheduler.call_later(GAME_RUN_DEADLINE_SECONDS, partial(_expire, run))
@@ -110,13 +124,13 @@ class Game:
         self._drivers.add(run.driver)
         run.driver.add_done_callback(self._driver_finished)
 
-    async def greet(self, peer_id: PeerId) -> None:
+    async def seat_joined(self, peer_id: PeerId) -> None:
         """Tell a seat that just joined that its room's game master is thinking."""
-        room_id = self._routing.room_of(peer_id)
+        room_id = self._rooms.room_of(peer_id)
         run = None if room_id is None else self._runs.get(room_id)
         if run is not None and run.phase is GamePhase.THINKING and peer_id not in run.told_thinking:
             run.told_thinking.add(peer_id)
-            await self._seats.send(peer_id, _phase_frame(GamePhase.THINKING))
+            await self._rooms.send(peer_id, _phase_frame(GamePhase.THINKING))
 
     def room_ended(self, room_id: str) -> None:
         """Forget the room's run and questions; the run's driver finishes on its own and sends nothing more."""
@@ -154,7 +168,7 @@ class Game:
             return
         if isinstance(outcome, Question):
             self._questions.setdefault(room_id, deque(maxlen=GAME_HISTORY_LIMIT)).append(outcome.text)
-            await self._send_to_room(room_id, run, {TYPE_KEY: SignalType.GAME_LINE.value, "text": outcome.text})
+            await self._send_to_room(room_id, run, {TYPE_KEY: GameSignal.GAME_LINE.value, "text": outcome.text})
         else:
             await self._send_each(room_id, run, [run.starter], _refusal_frame(outcome))
         if self._runs.get(room_id) is not run:
@@ -168,21 +182,21 @@ class Game:
         # A seat greeted while the run was starting already holds its thinking frame; each seat gets one.
         if self._runs.get(room_id) is not run:
             return
-        seated = self._room_manager.get_room(room_id).participant_ids
+        seated = self._rooms.members(room_id)
         recipients = [peer_id for peer_id in seated if peer_id not in run.told_thinking]
         run.told_thinking.update(recipients)
         await self._send_each(room_id, run, recipients, _phase_frame(GamePhase.THINKING))
 
     async def _send_to_room(self, room_id: str, run: _Run, frame: JsonObject) -> None:
         # Each caller has checked, in this same step, that the run is still the room's, so the room exists.
-        await self._send_each(room_id, run, self._room_manager.get_room(room_id).participant_ids, frame)
+        await self._send_each(room_id, run, self._rooms.members(room_id), frame)
 
     async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: JsonObject) -> None:
         for peer_id in recipients:
             if self._runs.get(room_id) is not run:
                 return
             try:
-                await self._seats.send(peer_id, frame)
+                await self._rooms.send(peer_id, frame)
             except Exception as error:  # re-raised by the driver once every other seat has its frames
                 run.broken_writes.append(error)
 

@@ -33,7 +33,7 @@ flowchart LR
     hopin -. refresh and workload grants .-> K
 ```
 
-The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the ICE servers are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay (an external service; only `web/turn_relay.py` and the configuration name its provider). Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted end to end between the browsers. The agent service is a fleet service on an internal network (`HOPIN_AGENT_SERVICE_URL`); only `agents/` speaks to it, through the `overnightworks-agent-runtime-client` package, and an import-linter contract keeps that client and `httpx2` out of every other package.
+The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the ICE servers are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay (an external service; only `web/turn_relay.py` and the configuration name its provider). Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted end to end between the browsers. The agent service is a fleet service on an internal network (`HOPIN_AGENT_SERVICE_URL`); only the game (`game/`) speaks to it, through the `overnightworks-agent-runtime-client` package, and import-linter contracts keep that client and `httpx2` out of every other package.
 
 ## 2. Building Block View
 
@@ -44,13 +44,15 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 | `config` | settings from the environment, application constants, enums, the shared secret-file reader and `StartRefusedError` |
 | `auth` | sign-in against Keycloak through webauth, the session gate, the in-memory stores of accounts and sessions |
 | `rooms` | rooms, participants, their capacity and lock |
-| `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers, and the game master's one run per call |
-| `agents` | the agent service adapter: the tapper's two tokens and one quiz run over HTTP, turned into a question or a refusal |
+| `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers, and the port for the call's one optional feature (`signaling/features.py`) |
+| `game` | the AI game, optional: the game master's one run per call and the agent service adapter (the tapper's two tokens and one quiz run over HTTP, turned into a question or a refusal) |
 | `web` | pages, static files, the health route, the ICE server list and the TURN provider adapter |
-| `main` | starts the server |
+| `main` | starts the server and switches the game in |
 | `errors` | HopIn's exception types |
 | `people.py` | the admin download of what HopIn holds about one person |
-| `app.py` | the one place that wires the packages and installs the webauth middleware |
+| `app.py` | the one place that wires the packages and installs the webauth middleware; it names no game |
+
+The game plugs into signaling through one port: the handler offers it every frame type the call core does not know (`ForeignFrame`), tells it when a seat joined a room and when a room ended, and shuts it down with the server; through `CallRooms` it reads the rooms and sends to seats like the core does. `create_app` takes it as `call_feature` and builds it on the app's own sign-in and scheduler; `main.py` passes it in on its two lines marked `# game`, and `create_app(settings)` builds the server without it; the browser still loads `game.js` either way. The import contract `call-core-knows-no-game` keeps every other package from reaching the game.
 
 The browser is static ES modules under `src/hopin/web/static/assets/js/` ([ADR 0001](decisions/0001-static-frontend-modules.md)). `app.js` is the only wiring; the other modules group by job:
 
@@ -89,7 +91,7 @@ sequenceDiagram
     A-->B: audio and video, peer to peer (or through the TURN relay)
 ```
 
-**Frames.** Messages are JSON over the WebSocket; the signal types are `SignalType` in `src/hopin/config/constants.py`; `signaling/handler.py` decodes and dispatches them, `signaling/routing.py` owns rooms, host grace and fan-out, and `signaling/seats.py` owns seats, delivery, parking, resume and replay. The browser takes these tokens from `/static/js/wire.js`, which `web/wire.py` renders from the Python owners ([ADR 0002](decisions/0002-served-wire-vocabulary.md)). Invariants:
+**Frames.** Messages are JSON over the WebSocket; the signal types are `SignalType` in `src/hopin/config/constants.py` and the game's `GameSignal` in `src/hopin/game/vocabulary.py`, which `wire.js` carries only while the game is wired in; `signaling/handler.py` decodes and dispatches them, `signaling/routing.py` owns rooms, host grace and fan-out, and `signaling/seats.py` owns seats, delivery, parking, resume and replay. The browser takes these tokens from `/static/js/wire.js`, which `web/wire.py` renders from the Python owners ([ADR 0002](decisions/0002-served-wire-vocabulary.md)). Invariants:
 
 - The server identifies a socket by its webauth session at the handshake and names every peer with an id it mints, so peers address each other only by those ids. A relay reaches only members of the sender's room.
 - Every server frame carries a `seq`, and every client frame after a socket's first does too, except `resumed` and the seat-less error frames (`resume_refused`, `too_many_calls`): the server writes them without one, and a frame without `seq` passes the browser's filter. Each side keeps its last `REPLAY_LOG_LIMIT` frames; a frame at or below the last `seq` received is ignored.
@@ -101,7 +103,7 @@ sequenceDiagram
 - The host is the account that started the call, not a connection. Only the host locks, unlocks and ends the call; a locked room keeps its members and refuses new joins except from the host's account, which can return, subject to capacity.
 - A dropped member keeps the seat for `RESUME_WINDOW_SECONDS` and takes it back with the resume token, replaying the frames missed, unless the account is at its call cap, which counts the old connection while it is still open; then the page ends the call. Any other refused resume is answered alike for every cause and the page joins afresh.
 - When the host's last connection drops, the call waits `HOST_GRACE_SECONDS` for the host to return and then ends for everyone.
-- A call has at most one game master run. `signaling/game.py` sends `game_phase` thinking and then idle to every seat, the question as `game_line` to every seat, and a refusal as `game_refused` to the tapper alone; a start during a run is refused as `already_answering`. A run ends at its answer, after `GAME_RUN_DEADLINE_SECONDS`, when the call ends (no game frame follows `room_closed`) or when the server stops, which cancels the run and waits until its connection has closed.
+- A call has at most one game master run. `game/table.py` sends `game_phase` thinking and then idle to every seat, the question as `game_line` to every seat, and a refusal as `game_refused` to the tapper alone; a start during a run is refused as `already_answering`. A run ends at its answer, after `GAME_RUN_DEADLINE_SECONDS`, when the call ends (no game frame follows `room_closed`) or when the server stops, which cancels the run and waits until its connection has closed.
 - Every `SESSION_RECHECK_SECONDS`, and on every frame, the socket's session is checked again. When it has ended, the server closes the socket with `SESSION_ENDED_CLOSE_CODE`; the page stops the call and signs in again. A back-channel logout ends every session of that person and also removes their HopIn account; the next sign-in creates it again.
 
 ## 4. Deployment View

@@ -6,10 +6,10 @@ import pytest
 from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, expect
 
-from hopin.config.constants import GAME_LINE_MAX_CHARACTERS
+from hopin.game.vocabulary import GAME_LINE_MAX_CHARACTERS
 from tests.e2e.support.calls import open_call, open_host, open_more
 from tests.e2e.support.people import DESKTOP
-from tests.support.fake_agent_service import Holds, Rejects, Succeeds
+from tests.game.support.fake_agent_service import Holds, Rejects, Succeeds
 
 if TYPE_CHECKING:
     from collections.abc import Callable

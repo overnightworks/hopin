@@ -7,10 +7,9 @@ import pytest
 import structlog.testing
 from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode
 
-from hopin.config.constants import GameRefusal
-from hopin.signaling.game import Question, Refused
-from tests.agents.support.world import build_world, cancelled, connection_with, wait_in_a_worker
-from tests.support.fake_agent_service import (
+from hopin.game.table import Question, Refused
+from hopin.game.vocabulary import GameRefusal
+from tests.game.support.fake_agent_service import (
     PERSONS_ACCESS_ECHO,
     CallsATool,
     CancelsTheRun,
@@ -22,6 +21,7 @@ from tests.support.fake_agent_service import (
     SendsBytes,
     Succeeds,
 )
+from tests.game.support.world import build_world, cancelled, connection_with, wait_in_a_worker
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 

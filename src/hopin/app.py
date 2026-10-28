@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
 from fastapi import FastAPI
@@ -18,7 +18,6 @@ from webauth.policies import (
     default_content_security_policy,
 )
 
-from hopin.agents import AGENT_SERVICE_OVER_HTTP, agent_service_game_master
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import (
@@ -54,11 +53,28 @@ from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_tur
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    from hopin.agents.game_master import AgentTransport
+    from webauth.config import WebAuthConfig
+    from webauth.oidc import OidcRelyingParty
+    from webauth.ports import SessionRecordStore
+
     from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
+    from hopin.signaling.features import FeatureFactory
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+class CallFeatureBuilder(Protocol):
+    """Builds the call's one optional feature on the app's own sign-in and scheduler; `main` passes it in."""
+
+    def __call__(
+        self,
+        *,
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        auth_config: WebAuthConfig,
+        scheduler: Scheduler,
+    ) -> FeatureFactory: ...
 
 
 class _ExpiredSessionSweep:
@@ -156,7 +172,7 @@ def create_app(
     stores: SignInStores | None = None,
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
-    agent_transport: AgentTransport = AGENT_SERVICE_OVER_HTTP,
+    call_feature: CallFeatureBuilder | None = None,
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(settings)
     turn_relay = build_turn_relay(settings, turn_transport)
@@ -167,15 +183,18 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    game_master = agent_service_game_master(
-        settings.agent_service_url,
-        relying_party=relying_party,
-        sessions=sign_in_stores.sessions,
-        web_auth=sign_in_configs.web_auth,
-        transport=agent_transport,
+    feature = (
+        None
+        if call_feature is None
+        else call_feature(
+            relying_party=relying_party,
+            sessions=sign_in_stores.sessions,
+            auth_config=sign_in_configs.web_auth,
+            scheduler=timers,
+        )
     )
     signaling_handler = SignalingHandler(
-        room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers, game_master
+        room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers, feature
     )
 
     app = FastAPI(

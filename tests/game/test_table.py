@@ -5,22 +5,19 @@ import pytest_asyncio
 import structlog.testing
 
 from hopin.config.constants import (
-    GAME_HISTORY_LIMIT,
-    GAME_RUN_DEADLINE_SECONDS,
     HOST_GRACE_SECONDS,
     MAX_PARTICIPANTS_PER_ROOM,
     ROOM_ID_LENGTH,
-    GamePhase,
-    GameRefusal,
     SignalType,
 )
+from hopin.game.table import Question, Refused
+from hopin.game.vocabulary import GAME_HISTORY_LIMIT, GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefusal, GameSignal
 from hopin.rooms.manager import RoomManager
-from hopin.signaling.game import Question, Refused
 from hopin.signaling.handler import SignalingHandler
+from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.signaling.support.browsers import Browser, Link
 from tests.support.signaling_fakes import (
     ARRIVAL_CAP_SECONDS,
-    DEFAULT_QUESTION,
     ROOM_LIMIT,
     SocketAccountResolver,
     account_named,
@@ -29,20 +26,20 @@ from tests.support.signaling_fakes import (
 
 pytestmark = pytest.mark.asyncio
 
-START = {"type": SignalType.GAME_START.value}
+START = {"type": GameSignal.GAME_START.value}
 END_ROOM = {"type": SignalType.END_ROOM.value}
-GAME_TYPES = frozenset({SignalType.GAME_PHASE, SignalType.GAME_LINE, SignalType.GAME_REFUSED})
-THINKING = {"type": SignalType.GAME_PHASE.value, "phase": GamePhase.THINKING.value}
-IDLE = {"type": SignalType.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
+GAME_TYPES = frozenset({GameSignal.GAME_PHASE, GameSignal.GAME_LINE, GameSignal.GAME_REFUSED})
+THINKING = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.THINKING.value}
+IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 YIELD_CAP = 100
 
 
 def line(text=DEFAULT_QUESTION):
-    return {"type": SignalType.GAME_LINE.value, "text": text}
+    return {"type": GameSignal.GAME_LINE.value, "text": text}
 
 
 def refused(reason, **fields):
-    return {"type": SignalType.GAME_REFUSED.value, "reason": reason.value, **fields}
+    return {"type": GameSignal.GAME_REFUSED.value, "reason": reason.value, **fields}
 
 
 def without_seq(frame):
@@ -608,12 +605,12 @@ class TestSeatsComingAndGoing:
         assert game_frames(late) == []
 
 
-async def test_six_seats_get_the_line(scheduler, game_master):
+async def test_six_seats_get_the_line(scheduler, game):
     handler = SignalingHandler(
         RoomManager(max_participants_per_room=MAX_PARTICIPANTS_PER_ROOM),
         SocketAccountResolver(),
         scheduler,
-        game_master,
+        game,
     )
     link = Link(handler)
     call = await call_of(link, *[f"person{number}" for number in range(MAX_PARTICIPANTS_PER_ROOM)])

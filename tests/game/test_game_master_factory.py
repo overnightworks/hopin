@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from hopin.agents.game_master import TRANSPORT_LOGGERS
-from tests.agents.support.world import build_world
+from hopin.game.agent_service import TRANSPORT_LOGGERS
+from tests.game.support.world import build_world
 
 pytestmark = pytest.mark.integration
 

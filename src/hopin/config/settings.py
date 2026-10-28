@@ -5,7 +5,6 @@ from pydantic import AfterValidator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.constants import (
-    AGENT_SERVICE_URL,
     DEFAULT_HOST,
     DEFAULT_PORT,
     MAX_PARTICIPANTS_PER_ROOM,
@@ -59,7 +58,6 @@ class ServerSettings(BaseSettings):
     turn_provider: TurnProvider = TurnProvider.OFF
     turn_key_id_file: AbsolutePath | None = Field(default=None, repr=False)
     turn_api_token_file: AbsolutePath | None = Field(default=None, repr=False)
-    agent_service_url: OriginUrl = AGENT_SERVICE_URL
 
     @model_validator(mode="after")
     def _require_the_turn_key_files_when_turn_is_on(self) -> Self:
