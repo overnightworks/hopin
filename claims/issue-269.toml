@@ -1,0 +1,8 @@
+claim_id = "577d84c4207241cbb2f1e819b0bffc14"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "a8b11b6a87f1313712f60648ae64ed1d8360bb70"
+branch = "claude/issue-269-browser-loads-ai-game-only-when-wired"
+scope = ["docs/ARCHITECTURE.md", "src/hopin/game", "src/hopin/signaling/features.py", "src/hopin/web/routes.py", "src/hopin/web/static", "src/hopin/web/wire.py", "tests"]
+opened_commit = "dd56be52d34e79de38a0f59652cc94e976843f93"
+whole_reason = "A browser module move lands with its loader and the e2e switch at once, or the page either loads a missing module or keeps the game in the core."
