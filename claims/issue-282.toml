@@ -1,0 +1,8 @@
+claim_id = "bd2fbec1964147969eacd2eb5fe4ca64"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "6cfd28977580ec0b3bb895bc3be0be041a29733a"
+branch = "claude/issue-282-everyone-answers-privately"
+scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/game/quiz.py", "src/hopin/game/table.py", "src/hopin/game/vocabulary.py", "src/hopin/web/static/assets/game", "tests/e2e/game", "tests/game"]
+opened_commit = "bba21ea047b70d0b164e0830de3b06de18ceaaf5"
+whole_reason = "The answer frame's rule, its server handling and the card's answer field are one step a person can see; neither half is usable alone."
