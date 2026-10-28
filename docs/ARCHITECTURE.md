@@ -52,15 +52,15 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 | `people.py` | the admin download of what HopIn holds about one person |
 | `app.py` | the one place that wires the packages and installs the webauth middleware; it names no game |
 
-The game plugs into signaling through one port: the handler offers it every frame type the call core does not know (`ForeignFrame`), tells it when a seat joined a room and when a room ended, and shuts it down with the server; through `CallRooms` it reads the rooms and sends to seats like the core does. `create_app` takes it as `call_feature` and builds it on the app's own sign-in and scheduler; `main.py` passes it in on its two lines marked `# game`, and `create_app(settings)` builds the server without it, but the page then cannot start: `game.js` imports `GAME_PHASE` and `GAME_REFUSAL` from `wire.js`, which carry them only when the game is wired. The import contract `call-core-knows-no-game` keeps the call core from reaching the game.
+The game plugs into signaling through one port: the handler offers it every frame type the call core does not know (`ForeignFrame`), tells it when a seat joined a room and when a room ended, and shuts it down with the server; through `CallRooms` it reads the rooms and sends to seats like the core does. `create_app` takes it as `call_feature` and builds it on the app's own sign-in and scheduler; `main.py` passes it in on its two lines marked `# game`, and `create_app(settings)` builds the server without it. The page starts with or without the game: `wire.js` lists the wired feature's browser module in `FEATURE_MODULES`, and `app.js` imports it and awaits its `install` before signaling connects, because signaling drops for good a frame no handler takes. `install` gets the call core's few slots: a frame handler, an item in More, a chat line no person wrote or a line pinned last, and a hook for the call's end. The import contract `call-core-knows-no-game` keeps the call core from reaching the game.
 
-The browser is static ES modules under `src/hopin/web/static/assets/js/` ([ADR 0001](decisions/0001-static-frontend-modules.md)). `app.js` is the only wiring; the other modules group by job:
+The browser is static ES modules under `src/hopin/web/static/assets/js/` ([ADR 0001](decisions/0001-static-frontend-modules.md)), and the game's module with its stylesheet under `assets/game/`. `app.js` is the only wiring; the other modules group by job:
 
 - **Screens and navigation:** `router`, `home`, `account`, `menus`, `prejoin`, `end`, `dialogs`
 - **Connection to the server:** `signaling`, `replay` (frames resent after a resume)
 - **Peer connections:** `mesh`, `recovery` (ICE restart), `bandwidth` (upload cap by call size)
 - **Local and remote media:** `media`, `media-state`, `speaking`, `quality`
-- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `game` (Start quiz and the game master's state), `toast`, `sounds`
+- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `toast`, `sounds`
 - **State:** `state`, the one mutable call state, with no DOM
 
 ## 3. Runtime View
