@@ -1,8 +1,6 @@
 import asyncio
-import json
 
 import pytest
-import pytest_asyncio
 import structlog.testing
 
 from hopin.config.constants import (
@@ -11,137 +9,43 @@ from hopin.config.constants import (
     ROOM_ID_LENGTH,
     SignalType,
 )
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, REVEAL_REQUEST, Speaker, Turn
+from hopin.game.quiz import NEXT_QUESTION_REQUEST, REVEAL_REQUEST, Speaker, Turn
 from hopin.game.table import Line, Refused
-from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefusal, GameSignal
+from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
-from tests.signaling.support.browsers import Browser, Link
-from tests.support.signaling_fakes import (
-    ARRIVAL_CAP_SECONDS,
-    ROOM_LIMIT,
-    SocketAccountResolver,
-    account_named,
-    text_frame,
+from tests.game.support.table_world import (
+    END_ROOM,
+    GAME_TYPES,
+    IDLE,
+    OPENING,
+    REVEAL,
+    REVEAL_LINE,
+    START,
+    answering,
+    asked,
+    call_of,
+    game_frames,
+    hold_writes_from,
+    line,
+    open_a_question,
+    question,
+    refused,
+    sent,
+    sent_to_all,
+    sequenced_game_frames,
+    shut_down_within_cap,
+    start_and_hold,
+    thinking,
+    wait_within_cap,
+    without_seq,
+    yield_until,
 )
+from tests.signaling.support.browsers import Browser, Link
+from tests.support.signaling_fakes import ROOM_LIMIT, SocketAccountResolver, account_named, text_frame
 
 pytestmark = pytest.mark.asyncio
-
-START = {"type": GameSignal.GAME_START.value}
-REVEAL = {"type": GameSignal.GAME_REVEAL.value}
-END_ROOM = {"type": SignalType.END_ROOM.value}
-GAME_TYPES = frozenset({GameSignal.GAME_PHASE, GameSignal.GAME_LINE, GameSignal.GAME_REFUSED})
-IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
-OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
-REVEAL_LINE = "Lissabon."
-YIELD_CAP = 100
-
-
-def quiz_phase(phase, starter):
-    return {
-        "type": GameSignal.GAME_PHASE.value,
-        "phase": phase.value,
-        "round": 1,
-        "rounds": QUIZ_ROUNDS,
-        "starter": starter.peer_id,
-    }
-
-
-def thinking(starter):
-    return quiz_phase(GamePhase.THINKING, starter)
-
-
-def answering(starter):
-    return quiz_phase(GamePhase.ANSWERING, starter)
-
-
-def question(text=DEFAULT_QUESTION):
-    return {"type": GameSignal.GAME_LINE.value, "text": text, "round": 1}
-
-
-def line(text):
-    return {"type": GameSignal.GAME_LINE.value, "text": text}
-
-
-def asked(starter, text=DEFAULT_QUESTION):
-    """What every seat sees of a question the starter's tap asked."""
-    return [thinking(starter), question(text), answering(starter)]
-
-
-def refused(reason, **fields):
-    return {"type": GameSignal.GAME_REFUSED.value, "reason": reason.value, **fields}
-
-
-def without_seq(frame):
-    return {key: value for key, value in frame.items() if key != "seq"}
-
-
-def game_frames(browser):
-    """The game frames the browser was sent, over all its sockets, without their sequence numbers."""
-    return [without_seq(frame) for frame in browser.frames(*GAME_TYPES)]
-
-
-def sequenced_game_frames(browser):
-    return [(frame["seq"], without_seq(frame)) for frame in browser.frames(*GAME_TYPES)]
-
-
-async def sent(browser, frame, times=1):
-    """Wait until the browser has been sent the frame `times` times."""
-    await browser.socket.wait_until(lambda: game_frames(browser).count(frame) >= times)
-
-
-async def sent_to_all(browsers, frame, times=1):
-    for browser in browsers:
-        await sent(browser, frame, times)
-
-
-async def wait_within_cap(event):
-    async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
-        await event.wait()
-
-
-async def shut_down_within_cap(handler):
-    """Shut down, failing instead of hanging when a run's ask is never cancelled."""
-    async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
-        await handler.shut_down()
-
-
-@pytest_asyncio.fixture
-async def link(handler, game_master):
-    link = Link(handler)
-    yield link
-    await link.close_all()
-    game_master.release_every_hold()
-    await shut_down_within_cap(handler)
-
-
-async def yield_until(condition):
-    """Let the other tasks run until the condition holds; for a step that no frame announces."""
-    for _ in range(YIELD_CAP):
-        if condition():
-            return
-        await asyncio.sleep(0)
-    raise AssertionError("the condition never held")
-
-
-async def call_of(link, *names):
-    host = await link.join(names[0])
-    room_id = host.socket.sent[0]["room_id"]
-    return [host, *[await link.join(name, room_id) for name in names[1:]]]
-
-
-async def start_and_hold(game_master, browser, **hold_options):
-    held = game_master.hold_next(**hold_options)
-    await browser.say(START)
-    await wait_within_cap(held.started)
-    return held
-
-
-async def open_a_question(call, starter):
-    """The starter's tap, until every seat of the call has the question open."""
-    await starter.say(START)
-    await sent_to_all(call, answering(starter))
 
 
 class TestOneRun:
@@ -249,9 +153,9 @@ class TestReveal:
         await open_a_question(call, call[1])
 
         await call[1].say(REVEAL)
-        await sent_to_all(call, IDLE)
+        await sent_to_all(call, answering(call[1], 2))
 
-        [_, reveal] = game_master.calls
+        [_, reveal, _] = game_master.calls
         assert reveal.starter is call[1].socket
         assert reveal.transcript == (
             Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),
@@ -259,16 +163,25 @@ class TestReveal:
             Turn(Speaker.HOPIN, REVEAL_REQUEST),
         )
 
-    async def test_every_seat_sees_thinking_then_the_reveal_line_then_idle(self, link, game_master):
+    async def test_every_seat_sees_thinking_then_the_reveal_line_then_the_next_question_without_idle(
+        self, link, game_master
+    ):
         call = await call_of(link, "host", "guest")
-        game_master.answer_next(Line("Frage?"), Line(REVEAL_LINE))
+        game_master.answer_next(Line("Frage?"), Line(REVEAL_LINE), Line("Frage 2?"))
         await open_a_question(call, call[1])
 
         await call[1].say(REVEAL)
-        await sent_to_all(call, IDLE)
+        await sent_to_all(call, answering(call[1], 2))
 
         for browser in call:
-            assert game_frames(browser) == [*asked(call[1], "Frage?"), thinking(call[1]), line(REVEAL_LINE), IDLE]
+            assert game_frames(browser) == [
+                *asked(call[1], "Frage?"),
+                thinking(call[1]),
+                line(REVEAL_LINE),
+                thinking(call[1], 2),
+                question("Frage 2?", 2),
+                answering(call[1], 2),
+            ]
 
     async def test_a_reveal_from_another_seat_is_refused_to_that_seat_alone(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
@@ -298,10 +211,17 @@ class TestReveal:
 
         await guest.say(REVEAL)
         held.release.set()
-        await sent_to_all([host, guest], IDLE)
+        await sent_to_all([host, guest], answering(guest, 2))
 
-        assert game_frames(guest) == [*asked(guest), thinking(guest), line(DEFAULT_QUESTION), IDLE]
-        assert len(game_master.calls) == 2
+        assert game_frames(guest) == [
+            *asked(guest),
+            thinking(guest),
+            line(DEFAULT_QUESTION),
+            thinking(guest, 2),
+            question(DEFAULT_QUESTION, 2),
+            answering(guest, 2),
+        ]
+        assert len(game_master.calls) == 3
 
     async def test_a_start_during_an_open_quiz_is_refused_to_its_sender_alone(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
@@ -344,6 +264,7 @@ class TestReveal:
 
     async def test_a_new_quiz_starts_with_an_empty_transcript(self, link, game_master):
         [host] = await call_of(link, "host")
+        game_master.answer_next(Line(DEFAULT_QUESTION), Refused(GameRefusal.UNAVAILABLE))
         await open_a_question([host], host)
         await host.say(REVEAL)
         await sent(host, IDLE)
@@ -411,10 +332,10 @@ class TestOneRunPerRoom:
         gate.set()
         await sent_to_all([host, guest, third], answering(guest))
         await guest.say(REVEAL)
-        await sent_to_all([host, guest, third], IDLE)
+        await sent_to_all([host, guest, third], answering(guest, 2))
 
-        assert len(game_master.calls) == 2
-        assert_phases_in_order([host, guest, third], ["thinking", "answering", "thinking", "idle"])
+        assert len(game_master.calls) == 3
+        assert_phases_in_order([host, guest, third], ["thinking", "answering", "thinking", "thinking", "answering"])
 
     async def test_a_reveal_while_answering_is_held_at_a_seat_runs_after_every_seat_has_answering(
         self, link, game_master
@@ -426,24 +347,10 @@ class TestOneRunPerRoom:
         await sent(host, answering(host))
         await host.say(REVEAL)
         gate.set()
-        await sent_to_all([host, guest, third], IDLE)
+        await sent_to_all([host, guest, third], answering(host, 2))
 
-        assert len(game_master.calls) == 2
-        assert_phases_in_order([host, guest, third], ["thinking", "answering", "thinking", "idle"])
-
-
-def hold_writes_from(browser, frame):
-    """Hold the browser's writes from the frame on until the returned gate opens."""
-    gate = asyncio.Event()
-    send_text = browser.socket.send_text
-
-    async def send_text_once_open(text):
-        if without_seq(json.loads(text)) == frame:
-            browser.socket.send_gate = gate
-        await send_text(text)
-
-    browser.socket.send_text = send_text_once_open
-    return gate
+        assert len(game_master.calls) == 3
+        assert_phases_in_order([host, guest, third], ["thinking", "answering", "thinking", "thinking", "answering"])
 
 
 def assert_phases_in_order(browsers, phases):
@@ -641,7 +548,7 @@ class TestBrokenWrite:
         self, link, game_master
     ):
         host, guest, third = await call_of(link, "host", "guest", "third")
-        game_master.answer_next(Line(DEFAULT_QUESTION), Line(REVEAL_LINE))
+        game_master.answer_next(Line(DEFAULT_QUESTION), Line(REVEAL_LINE), Line("Frage 2?"))
         held = await start_and_hold(game_master, host)
         await sent(third, thinking(host))
         guest.socket.send_text = broken_write
@@ -651,9 +558,20 @@ class TestBrokenWrite:
             await sent_to_all([host, third], answering(host))
             await yield_until(lambda: driver_failed(logs))
         await host.say(REVEAL)
-        await sent(host, IDLE)
+        await sent(host, answering(host, 2))
 
-        assert game_frames(host) == game_frames(third) == [*asked(host), thinking(host), line(REVEAL_LINE), IDLE]
+        assert (
+            game_frames(host)
+            == game_frames(third)
+            == [
+                *asked(host),
+                thinking(host),
+                line(REVEAL_LINE),
+                thinking(host, 2),
+                question("Frage 2?", 2),
+                answering(host, 2),
+            ]
+        )
         assert "a write that broke" not in repr(logs)
 
     async def test_a_write_that_fails_while_announcing_thinking_leaves_the_run_the_rooms_until_it_ends(
@@ -771,8 +689,9 @@ class TestSeatsComingAndGoing:
 
         assert game_frames(late) == [answering(host)]
 
-    async def test_a_joiner_after_the_quiz_sees_no_phase(self, link):
+    async def test_a_joiner_after_the_quiz_sees_no_phase(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
+        game_master.answer_next(Line(DEFAULT_QUESTION), Refused(GameRefusal.UNAVAILABLE))
         await open_a_question([host, guest], host)
         await host.say(REVEAL)
         await sent_to_all([host, guest], IDLE)

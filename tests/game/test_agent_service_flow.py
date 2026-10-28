@@ -124,18 +124,18 @@ def call(sign_in_settings):
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 
 
-def phase(game_phase, starter):
+def phase(game_phase, starter, round_number=1):
     return {
         "type": GameSignal.GAME_PHASE.value,
         "phase": game_phase.value,
-        "round": 1,
+        "round": round_number,
         "rounds": QUIZ_ROUNDS,
         "starter": starter.participant_id,
     }
 
 
-def question(text=DEFAULT_QUESTION):
-    return {"type": GameSignal.GAME_LINE.value, "text": text, "round": 1}
+def question(text=DEFAULT_QUESTION, round_number=1):
+    return {"type": GameSignal.GAME_LINE.value, "text": text, "round": round_number}
 
 
 def line(text):
@@ -156,7 +156,11 @@ def asked(starter, text=DEFAULT_QUESTION):
 
 
 def revealed(starter, text):
-    return [phase(GamePhase.THINKING, starter), line(text), IDLE]
+    return [phase(GamePhase.THINKING, starter), line(text)]
+
+
+def asked_next(starter, text):
+    return [phase(GamePhase.THINKING, starter, 2), question(text, 2), phase(GamePhase.ANSWERING, starter, 2)]
 
 
 def test_a_guests_start_puts_the_question_in_the_hosts_chat_too(call):
@@ -241,28 +245,29 @@ def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent_service(c
 def test_the_reveal_request_holds_the_quiz_so_far_and_no_name(call):
     host_member = call.member()
     host, guest, guest_member = call.host_and_guest(host_member)
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."))
+    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
 
     host.start()
     guest.frames(3)
     host.reveal()
-    host.frames(6)
+    host.frames(8)
 
-    first, second = (run.request for run in call.service.runs)
+    first, second, third = (run.request for run in call.service.runs)
     assert [(message.role.value, message.text) for message in second.turn.messages] == [
         ("user", NEXT_QUESTION_REQUEST),
         ("assistant", "Erste Frage?"),
         ("user", REVEAL_REQUEST),
     ]
+    assert [message.text for message in third.turn.messages][-2:] == ["Lissabon.", NEXT_QUESTION_REQUEST]
     assert second.turn.system == first.turn.system
     assert second.turn.system.startswith("Du bist der Spielleiter")
     names = [host_member.account.username, guest_member.account.username]
     assert [name for name in names if name in second.model_dump_json()] == []
 
 
-def test_the_starters_reveal_uses_the_refresh_token_the_question_run_rotated_in(call):
+def test_each_chained_run_uses_the_refresh_token_the_run_before_it_rotated_in(call):
     _, guest, guest_member = call.host_and_guest()
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."))
+    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
 
     def stored_refresh_token():
         return call.stores.sessions.load(guest_member.session.id).refresh_token.get_secret_value()
@@ -270,12 +275,14 @@ def test_the_starters_reveal_uses_the_refresh_token_the_question_run_rotated_in(
     seeded = stored_refresh_token()
     guest.start()
     guest.frames(3)
-    rotated = stored_refresh_token()
+    after_question = stored_refresh_token()
     guest.reveal()
 
-    assert guest.frames(3) == revealed(guest, "Lissabon.")
-    assert rotated != seeded
-    assert call.refresh_tokens_granted() == [seeded, rotated]
+    assert guest.frames(5) == [*revealed(guest, "Lissabon."), *asked_next(guest, "Zweite Frage?")]
+    granted = call.refresh_tokens_granted()
+    assert granted[:2] == [seeded, after_question]
+    assert len(set(granted)) == 3
+    assert stored_refresh_token() not in granted
 
 
 def test_alone_in_the_call_the_host_gets_the_question(call):

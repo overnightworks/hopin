@@ -158,10 +158,9 @@ function receivePhase(frame) {
 
 function receiveLineFrame(frame) {
     receiveLine(frame.text);
-    if (Number.isInteger(frame.round)) {
-        question = { round: frame.round, text: frame.text };
-        render();
-    }
+    // A line without a round is the reveal or the final score: the card shows only an open question.
+    question = Number.isInteger(frame.round) ? { round: frame.round, text: frame.text } : null;
+    render();
 }
 
 function showRefusal(frame) {
