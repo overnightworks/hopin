@@ -794,3 +794,20 @@ class TestExpiryRace:
 
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == []
         assert room_manager.has_room(room.room_id)
+
+
+class TestSeatCap:
+    async def test_concurrent_joins_seat_exactly_the_room_limit_and_refuse_the_rest_as_full(self, link, room_manager):
+        host = await link.join("host1")
+        room_id = host.socket.sent[0]["room_id"]
+        extra_guests = 3
+        guests = [await connect(link, f"guest{index}") for index in range(ROOM_LIMIT + extra_guests)]
+
+        for guest in guests:
+            guest.socket.push(text_frame(join_message(room_id)))
+        for guest in guests:
+            await link.settle(guest.socket)
+
+        assert len(room_manager.get_room(room_id).participants) == ROOM_LIMIT
+        refusals = [frame for guest in guests for frame in frames_of_type(guest, SignalType.ERROR)]
+        assert [frame["reason"] for frame in refusals] == [ErrorReason.FULL.value] * (extra_guests + 1)
