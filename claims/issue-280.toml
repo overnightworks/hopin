@@ -1,0 +1,8 @@
+claim_id = "84d0b48c813943ad8a7d0e422a1f4fdf"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "10a72395766b935e99106aaa0075a172f6e4bcb0"
+branch = "claude/issue-280-five-questions-final-score"
+scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/game", "src/hopin/web/static/assets/game/game.js", "tests/e2e/game", "tests/game"]
+opened_commit = "f8393c61dce8b3d045321f34ab1dd0ced80ba697"
+whole_reason = "The quiz's round chain, its prompt and the card that follows it are one person-visible step."
