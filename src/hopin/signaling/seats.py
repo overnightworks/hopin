@@ -3,6 +3,7 @@ import secrets
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING
+from weakref import WeakSet
 
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
@@ -84,6 +85,7 @@ class Seats:
         self._scheduler = scheduler
         self._on_seat_lost = on_seat_lost
         self._peers: dict[PeerId, Peer] = {}
+        self._closed_by_server: WeakSet[WebSocket] = WeakSet()
 
     def open_seat(self, account: Account, websocket: WebSocket) -> PeerId:
         """Opens a seat; a parked seat holds no socket, so only live ones count toward the account's cap."""
@@ -190,7 +192,20 @@ class Seats:
     async def _release_unresumable_seat(self, peer_id: PeerId) -> None:
         seat = self.seat(peer_id)
         await self._on_seat_lost(peer_id)
-        await close_socket(seat.websocket)
+        await self.close_socket(seat.websocket)
+
+    def closed_by_server(self, websocket: WebSocket) -> bool:
+        """Whether the server closed this socket itself, as opposed to the network dropping it."""
+        return websocket in self._closed_by_server
+
+    async def close_socket(self, websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
+        if not is_connected(websocket):
+            return
+        self._closed_by_server.add(websocket)
+        try:
+            await websocket.close(code=code)
+        except WebSocketDisconnect:
+            await logger.ainfo("closed_socket_already_gone")
 
     async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
         await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
@@ -207,7 +222,7 @@ class Seats:
         seat.resume_token = mint_resume_token()
         seat.replaying = True
 
-        await close_socket(superseded)
+        await self.close_socket(superseded)
         await self.write(
             connection.websocket,
             {
@@ -242,20 +257,7 @@ def _token_matches(claimed: str, expected: str) -> bool:
     return secrets.compare_digest(claimed_bytes, expected.encode())
 
 
-def closed_by_server(websocket: WebSocket) -> bool:
-    return websocket.application_state == WebSocketState.DISCONNECTED
-
-
 def is_connected(websocket: WebSocket) -> bool:
     return (
         websocket.client_state == WebSocketState.CONNECTED and websocket.application_state == WebSocketState.CONNECTED
     )
-
-
-async def close_socket(websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
-    if not is_connected(websocket):
-        return
-    try:
-        await websocket.close(code=code)
-    except WebSocketDisconnect:
-        await logger.ainfo("closed_socket_already_gone")

@@ -28,7 +28,7 @@ from hopin.signaling.frames import (
     error_frame,
 )
 from hopin.signaling.routing import RoomRouting
-from hopin.signaling.seats import Connection, Peer, SeatSnapshot, close_socket, closed_by_server
+from hopin.signaling.seats import Connection, Peer, SeatSnapshot
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
@@ -79,13 +79,13 @@ class SignalingHandler:
     async def _refuse_beyond_cap(self, websocket: WebSocket, refusal: TooManyCallsError) -> None:
         await logger.ainfo("too_many_calls", **refusal.frame_fields())
         await self._seats.write(websocket, error_frame(refusal))
-        await close_socket(websocket, POLICY_VIOLATION_CLOSE_CODE)
+        await self._seats.close_socket(websocket, POLICY_VIOLATION_CLOSE_CODE)
 
     async def _process_messages(self, connection: Connection) -> None:
         while True:
             frame = await connection.websocket.receive()
             if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
-                if frame["code"] not in NORMAL_CLOSE_CODES and not closed_by_server(connection.websocket):
+                if frame["code"] not in NORMAL_CLOSE_CODES and not self._seats.closed_by_server(connection.websocket):
                     connection.dropped = True
                     await logger.aerror("websocket_error", peer_id=connection.peer_id, code=frame["code"])
                 return
@@ -129,7 +129,7 @@ class SignalingHandler:
             return
         peer_id = connection.peer_id
         connection.ended = True
-        await close_socket(connection.websocket, close_code)
+        await self._seats.close_socket(connection.websocket, close_code)
         await logger.ainfo("session_ended", peer_id=peer_id)
         if not self._holds_seat(connection):
             return

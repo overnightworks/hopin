@@ -15,7 +15,7 @@ from hopin.signaling.frames import (
     PeerId,
     RelayFrame,
 )
-from hopin.signaling.seats import Seats, close_socket
+from hopin.signaling.seats import Seats
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
@@ -212,7 +212,7 @@ class RoomRouting:
         await self._seats.send_all(recipients, frame)
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
-            await close_socket(websocket)
+            await self._seats.close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> JsonObject:
