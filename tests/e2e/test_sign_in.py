@@ -8,36 +8,37 @@ from starlette.requests import Request
 from webauth.dependencies import admit_session, session_id_from_request
 from webauth.ports import AuthenticatedUser
 
-from tests.e2e.conftest import (
-    COUNT_SOCKETS,
-    DESKTOP,
-    ICE_SERVERS_URL_PATTERN,
-    LIVE_TRACK_COUNT,
-    OTHER_TILE,
-    PHONE,
+from tests.e2e.support.calls import (
     PREJOIN_START,
-    RECORD_MEDIA_TRACKS,
-    RECORD_PEER_CONNECTIONS,
-    SHARE_THE_SCREEN_FROM_A_CANVAS,
-    RunningServer,
     add_init_scripts,
     join,
     join_by_link,
     open_host,
     open_prejoin,
-    poll_until,
     record_page_errors,
-    share_the_screen,
     start_call,
-    wait_for_peer_count,
     wait_until_the_prejoin_media_answered,
 )
-from tests.sign_in_settings import TEST_ISSUER
+from tests.e2e.support.media import (
+    COUNT_SOCKETS,
+    ICE_SERVERS_URL_PATTERN,
+    LIVE_TRACK_COUNT,
+    OTHER_TILE,
+    RECORD_MEDIA_TRACKS,
+    RECORD_PEER_CONNECTIONS,
+    SHARE_THE_SCREEN_FROM_A_CANVAS,
+    poll_until,
+    share_the_screen,
+    wait_for_peer_count,
+)
+from tests.e2e.support.people import DESKTOP, PHONE
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.signed_in import SeededMember
+    from tests.e2e.support.server import RunningServer
+    from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 
@@ -104,8 +105,11 @@ def test_a_person_opened_signed_out_holds_no_cookie(
 
 WATCH_THE_STATUS_LINE = """
 document.addEventListener("DOMContentLoaded", () => {
-    new MutationObserver(() => window.noteStatus(document.getElementById("status").textContent))
-        .observe(document.getElementById("status"), { childList: true, characterData: true, subtree: true });
+    const status = document.getElementById("status");
+    if (status) {
+        new MutationObserver(() => window.noteStatus(status.textContent))
+            .observe(status, { childList: true, characterData: true, subtree: true });
+    }
 });
 """
 RECORD_POLICY_VIOLATIONS = """

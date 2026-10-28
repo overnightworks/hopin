@@ -16,33 +16,34 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import (
+    add_init_scripts,
+    call_link_of,
+    join_by_link,
+    open_prejoin_by_link,
+    press_start_call,
+    press_through_the_prejoin,
+    record_page_errors,
+    start_call,
+    toggle_the_lock,
+    wait_until_the_prejoin_media_answered,
+)
+from tests.e2e.support.media import (
     COUNT_SOCKETS,
-    DESKTOP,
     HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
     LIVE_TRACK_COUNT,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     MEDIA_REQUEST_IS_HELD,
     MORE_TRACKS_THAN,
-    PHONE,
     RECORD_MEDIA_TRACKS,
     RELEASE_MEDIA,
     REQUESTED_TRACK_COUNT,
     TRACKS_WERE_REQUESTED,
-    add_init_scripts,
-    call_link_of,
-    expect_both_legal_links,
-    join_by_link,
-    open_prejoin_by_link,
-    press_start_call,
-    press_through_the_prejoin,
-    record_page_errors,
     share_the_screen,
-    start_call,
-    toggle_the_lock,
-    wait_until_the_prejoin_media_answered,
 )
+from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.people import DESKTOP, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

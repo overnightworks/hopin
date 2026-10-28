@@ -6,14 +6,13 @@ import pytest
 from playwright.sync_api import Page, expect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
+from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     AUDIBLE_LEVEL_FLOOR,
     AUDIO_SAMPLE_INTERVAL_MILLISECONDS,
     COUNT_OFFERS,
-    DESKTOP,
     EVERY_VIDEO_CAP_IS,
-    FORM_FACTORS,
     ICON_ONLY_ON_THE_TILES,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
@@ -29,13 +28,9 @@ from tests.e2e.conftest import (
     TILE_AUDIO_LEVEL,
     TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
-    add_init_scripts,
     expect_the_tile_to_play_audio,
     inbound_per_connection,
-    join,
-    record_page_errors,
     share_then_stop_the_screen_share,
-    start_call,
     turn_the_camera_on,
     wait_for_inbound_growth,
     wait_for_peer_count,
@@ -43,6 +38,7 @@ from tests.e2e.conftest import (
     wait_for_the_picture,
     wait_for_video_tracks,
 )
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable

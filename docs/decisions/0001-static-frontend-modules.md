@@ -19,7 +19,7 @@ webauth:
   `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
   same-origin absolute path; an `<a href>` is only one of the two central legal
   URLs, with `target="_blank" rel="noopener"`. CSP limits what the page
-  fetches, not where a link goes. A guard test (`tests/unit/test_web.py`) keeps
+  fetches, not where a link goes. A guard test (`tests/web/test_routes.py`) keeps
   it so.
 - The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
   then `hopin.css`. An upgrade of the first is a new vendoring, never an edit.
@@ -32,7 +32,7 @@ webauth:
   its More menu.
 - HopIn reuses no class name that `ui-console.css` defines, because its grammar
   classes would otherwise style HopIn's markup. A name that both the
-  picture and ui-console define is renamed in HopIn. The unit test
+  picture and ui-console define is renamed in HopIn. The test
   `test_reuses_no_class_name_that_ui_console_defines` enforces the rule.
 - The sign-in pages (`login-failed.html`, `login.html` for Signed out and
   `no-access.html`) are ui-console's sign-in markup with its classes and
@@ -58,4 +58,4 @@ webauth:
   modules as written.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
-- `ui-console.css` is byte-identical to its release and loaded first; the unit test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
+- `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.

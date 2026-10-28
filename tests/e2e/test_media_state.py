@@ -3,16 +3,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
-    FORM_FACTORS,
+from tests.e2e.support.calls import join, start_call
+from tests.e2e.support.media import (
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OTHER_CAMERA_OFF,
     OTHER_TILE,
     OTHER_VIDEO,
     REFUSE_THE_CAMERA,
-    join,
-    start_call,
 )
+from tests.e2e.support.people import FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable

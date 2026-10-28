@@ -7,6 +7,7 @@
     --motion-press: .1s;
     --motion-ring: 1.8s;
     --motion-wave: .9s;
+    --motion-think: 1.1s;
     --accent-hover: #0A5D67;
     --surface-2: #EEF2F4;
     --surface-3: #E3E8EC;
@@ -16,6 +17,7 @@
     --scrim: rgba(14, 18, 22, .36);
     --toast-bg: #1C2128;
     --toast-ink: #F4F6F8;
+    --toast-act: #7FD6DE;
     /* The video stage is dark in both themes; these never change. */
     --stage: #0D1013;
     --stage-2: #171B20;
@@ -46,6 +48,7 @@
     --scrim: rgba(0, 0, 0, .55);
         --toast-bg: #E8ECF0;
         --toast-ink: #14181D;
+        --toast-act: #0A5560;
         color-scheme: dark;
     }
 }
@@ -61,6 +64,7 @@
     --scrim: rgba(0, 0, 0, .55);
     --toast-bg: #E8ECF0;
     --toast-ink: #14181D;
+    --toast-act: #0A5560;
     color-scheme: dark;
 }
 
@@ -211,6 +215,14 @@ body {
     color: #9ca3af;
     margin-bottom: 0.15rem;
 }
+/* The game master's lines carry an accent outline, never a person's colour. */
+.chat-msg.game-master { border: 1.5px solid var(--accent-stage); border-top-left-radius: 2px; }
+.chat-msg .game-master-sender { display: flex; align-items: center; gap: 5px; color: var(--accent-stage); font-weight: 650; }
+.ai-badge { border: 1.5px solid var(--accent-stage); border-radius: 999px; padding: 0 5px; font-size: 0.6rem; line-height: 13px; font-weight: 750; letter-spacing: .04em; }
+.game-master.typing p { display: flex; gap: 5px; align-items: center; height: 18px; }
+.game-master.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); animation: speak var(--motion-think) ease-in-out infinite; }
+.game-master.typing i:nth-child(2) { animation-delay: -.3s; }
+.game-master.typing i:nth-child(3) { animation-delay: -.6s; }
 .chat-input-row {
     display: flex;
     padding: 0.5rem;
@@ -464,6 +476,7 @@ body {
         --motion-press: 0s;
         --motion-ring: 0s;
         --motion-wave: 0s;
+        --motion-think: 0s;
     }
 }
 
@@ -767,7 +780,6 @@ body {
 .overlay:not([open]) { display: none; }
 .grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--line); }
 .sep { height: 1px; margin: 6px 10px; background: var(--line-soft); }
-#lockBtn.hidden + .sep { display: none; }
 .mi {
     display: flex;
     align-items: center;
@@ -790,6 +802,13 @@ body {
 .mi .grow { flex: 1; min-width: 0; }
 .mi small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); }
 .mi .end { display: flex; color: var(--ink-faint); }
+.mi:disabled { opacity: .6; cursor: default; }
+.mi:disabled:hover { background: transparent; }
+.game-item:not(.thinking) .thinking-only, .game-item.thinking .idle-only { display: none; }
+.game-item.thinking .icon { color: var(--busy); animation: rot var(--motion-think) linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.4; }
+.quiet-note a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .overlay .legal { display: block; font-size: inherit; }
 .overlay .legal a, .overlay .legal a:hover { color: var(--ink); text-decoration: none; }
 .switch {
@@ -1040,6 +1059,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    max-width: calc(100% - 32px);
     padding: 10px 16px;
     border-radius: 999px;
     background: var(--toast-bg);
@@ -1050,6 +1070,11 @@ body {
     animation: toast-in var(--motion-fade) ease;
 }
 .toast.leaving { animation: toast-out var(--motion-fade) ease forwards; }
+.toast span { min-width: 0; }
+.toast:has(.toast-act) { border-radius: 22px; padding: 10px 12px 10px 16px; pointer-events: auto; }
+.toast-act { flex: none; white-space: nowrap; border: 0; background: transparent; color: var(--toast-act); font: inherit; font-weight: 700; padding: 4px 6px; border-radius: 8px; cursor: pointer; }
+.toast-act:hover { text-decoration: underline; }
+.toast-act:focus-visible { outline: 2px solid var(--toast-act); outline-offset: 1px; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes toast-out { to { opacity: 0; } }
 @media (min-width: 601px) {

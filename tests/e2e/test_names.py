@@ -6,22 +6,16 @@ import pytest
 from playwright.sync_api import Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
-from tests.e2e.conftest import (
-    DESKTOP,
-    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
-    OTHER_TILE,
-    PHONE,
-    RunningServer,
-    join_by_link,
-    record_page_errors,
-    start_call,
-)
-from tests.sign_in_settings import TEST_ISSUER
+from tests.e2e.support.calls import join_by_link, record_page_errors, start_call
+from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE
+from tests.e2e.support.people import DESKTOP, PHONE
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.signed_in import SeededMember
+    from tests.e2e.support.server import RunningServer
+    from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 

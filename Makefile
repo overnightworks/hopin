@@ -13,9 +13,6 @@ format:
 	uv run ruff format src tests
 
 test:
-	uv run pytest -m "not integration and not e2e"
-
-test-all:
 	uv run pytest -m "not e2e"
 
 e2e:

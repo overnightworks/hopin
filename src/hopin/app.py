@@ -18,11 +18,13 @@ from webauth.policies import (
     default_content_security_policy,
 )
 
+from hopin.agents import AGENT_SERVICE_OVER_HTTP, agent_service_game_master
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
+    build_relying_party,
     build_sign_in_configs,
     create_sign_in_router,
 )
@@ -52,6 +54,7 @@ from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_tur
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
+    from hopin.agents.game_master import AgentTransport
     from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
 
@@ -91,8 +94,11 @@ class _ExpiredSessionSweep:
         self._timer.cancel()
 
 
-def _session_sweep_lifespan(
-    sessions: InMemorySessions, wall_clock: Callable[[], float], scheduler: Scheduler
+def _lifespan(
+    sessions: InMemorySessions,
+    wall_clock: Callable[[], float],
+    scheduler: Scheduler,
+    signaling_handler: SignalingHandler,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -101,6 +107,7 @@ def _session_sweep_lifespan(
             yield
         finally:
             sweep.stop()
+            await signaling_handler.shut_down()
 
     return lifespan
 
@@ -149,6 +156,7 @@ def create_app(
     stores: SignInStores | None = None,
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
+    agent_transport: AgentTransport = AGENT_SERVICE_OVER_HTTP,
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(settings)
     turn_relay = build_turn_relay(settings, turn_transport)
@@ -156,15 +164,25 @@ def create_app(
     _configure_logging()
 
     sign_in_stores = stores if stores is not None else SignInStores.in_memory()
+    relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    signaling_handler = SignalingHandler(room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers)
+    game_master = agent_service_game_master(
+        settings.agent_service_url,
+        relying_party=relying_party,
+        sessions=sign_in_stores.sessions,
+        web_auth=sign_in_configs.web_auth,
+        transport=agent_transport,
+    )
+    signaling_handler = SignalingHandler(
+        room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers, game_master
+    )
 
     app = FastAPI(
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
-        lifespan=_session_sweep_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers),
+        lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
     app.include_router(create_router(signaling_handler, room_manager))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
@@ -174,9 +192,7 @@ def create_app(
     install_web_auth_config(app, sign_in_configs.web_auth)
     app.include_router(
         create_sign_in_router(
-            sign_in_configs.oidc_client,
-            sign_in_configs.web_auth,
-            issuer_transports,
+            relying_party,
             accounts=sign_in_stores.accounts,
             sessions=sign_in_stores.sessions,
             lock=sign_in_stores.lock,

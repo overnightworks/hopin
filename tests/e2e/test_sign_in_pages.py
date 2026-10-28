@@ -5,18 +5,15 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH, NO_ACCESS_PATH
-from tests.e2e.conftest import (
-    DESKTOP,
-    FORM_FACTORS,
-    PHONE,
-    RunningServer,
-    expect_both_legal_links,
-    record_page_errors,
-)
-from tests.sign_in_settings import TEST_ISSUER
+from tests.e2e.support.calls import record_page_errors
+from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 
@@ -50,7 +47,7 @@ def test_a_failed_sign_in_shows_login_failed_with_one_way_out_and_both_legal_lin
 
     card = person.locator(".login-card")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name="Login failed")).to_be_visible()
+    expect(card.get_by_role("heading", name="Login failed", exact=True)).to_be_visible()
     expect(card.locator(".banner--fail")).to_have_text("Sign-in did not work. Please try again.")
     expect(person.locator(CARD_ACTIONS)).to_have_text(["Try again"])
     expect_both_legal_links(person.locator(".legal-links"))
@@ -105,26 +102,39 @@ def open_signed_out_page(
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 @pytest.mark.parametrize(
-    ("path", "heading", "action"),
-    [(LOGIN_PATH, "You are logged out.", "Log in"), (NO_ACCESS_PATH, "No access", "Log out")],
+    ("path", "title", "heading", "action"),
+    [
+        (LOGIN_PATH, "HopIn - Signed out", "You are logged out.", "Log in"),
+        (NO_ACCESS_PATH, "HopIn - No access", "No access", "Log out"),
+    ],
 )
 def test_a_sign_in_state_page_shows_its_heading_its_one_action_and_both_legal_links(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
     path: str,
+    title: str,
     heading: str,
     action: str,
     form_factor: dict[str, Any],
 ) -> None:
     person = open_signed_out_page(open_person, e2e_server, page_errors, path, form_factor)
 
+    expect(person).to_have_title(title)
     card = person.locator(".login-card")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name=heading)).to_be_visible()
+    expect(card.get_by_role("heading", name=heading, exact=True)).to_be_visible()
     expect(card.locator(".btn")).to_have_text([action])
     expect_both_legal_links(person.locator(".legal-links"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_the_no_access_page_says_the_account_is_signed_in_but_has_no_access(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+) -> None:
+    person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, DESKTOP)
+
+    expect(person.locator(".login-card p")).to_have_text("You are signed in, but this account has no access to HopIn.")
 
 
 def test_log_out_is_as_wide_as_the_card_on_a_phone_and_narrower_on_a_desktop(

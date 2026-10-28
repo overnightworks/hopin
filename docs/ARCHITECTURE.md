@@ -4,7 +4,7 @@ How HopIn is built, how a call runs and what it trusts. For what HopIn is and ho
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. HopIn's server never sees audio or video. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume.
+A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. HopIn's server never sees audio or video. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume. For the game master it asks the fleet's agent service for a quiz question, on the account of the person who tapped Start quiz.
 
 ```mermaid
 flowchart LR
@@ -29,9 +29,11 @@ flowchart LR
     A & B & C -. address discovery .-> T[STUN server]
     A & B & C -. media, only when a direct path fails .-> R[TURN relay, optional]
     hopin -. TURN credentials, https .-> R
+    hopin -. quiz run, http, the tapper's token .-> AG[Agent service]
+    hopin -. refresh and workload grants .-> K
 ```
 
-The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the ICE servers are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay (an external service; only `web/turn_relay.py` and the configuration name its provider). Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted end to end between the browsers.
+The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) and Keycloak's back-channel logout POST pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`); the ICE servers are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay (an external service; only `web/turn_relay.py` and the configuration name its provider). Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted end to end between the browsers. The agent service is a fleet service on an internal network (`HOPIN_AGENT_SERVICE_URL`); only `agents/` speaks to it, through the `overnightworks-agent-runtime-client` package, and an import-linter contract keeps that client and `httpx2` out of every other package.
 
 ## 2. Building Block View
 
@@ -42,7 +44,8 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 | `config` | settings from the environment, application constants, enums, the shared secret-file reader and `StartRefusedError` |
 | `auth` | sign-in against Keycloak through webauth, the session gate, the in-memory stores of accounts and sessions |
 | `rooms` | rooms, participants, their capacity and lock |
-| `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers |
+| `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers, and the game master's one run per call |
+| `agents` | the agent service adapter: the tapper's two tokens and one quiz run over HTTP, turned into a question or a refusal |
 | `web` | pages, static files, the health route, the ICE server list and the TURN provider adapter |
 | `main` | starts the server |
 | `errors` | HopIn's exception types |
@@ -55,7 +58,7 @@ The browser is static ES modules under `src/hopin/web/static/assets/js/` ([ADR 0
 - **Connection to the server:** `signaling`, `replay` (frames resent after a resume)
 - **Peer connections:** `mesh`, `recovery` (ICE restart), `bandwidth` (upload cap by call size)
 - **Local and remote media:** `media`, `media-state`, `speaking`, `quality`
-- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `toast`, `sounds`
+- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `game` (Start quiz and the game master's state), `toast`, `sounds`
 - **State:** `state`, the one mutable call state, with no DOM
 
 ## 3. Runtime View
@@ -98,11 +101,12 @@ sequenceDiagram
 - The host is the account that started the call, not a connection. Only the host locks, unlocks and ends the call; a locked room keeps its members and refuses new joins except from the host's account, which can return, subject to capacity.
 - A dropped member keeps the seat for `RESUME_WINDOW_SECONDS` and takes it back with the resume token, replaying the frames missed, unless the account is at its call cap, which counts the old connection while it is still open; then the page ends the call. Any other refused resume is answered alike for every cause and the page joins afresh.
 - When the host's last connection drops, the call waits `HOST_GRACE_SECONDS` for the host to return and then ends for everyone.
+- A call has at most one game master run. `signaling/game.py` sends `game_phase` thinking and then idle to every seat, the question as `game_line` to every seat, and a refusal as `game_refused` to the tapper alone; a start during a run is refused as `already_answering`. A run ends at its answer, after `GAME_RUN_DEADLINE_SECONDS`, when the call ends (no game frame follows `room_closed`) or when the server stops, which cancels the run and waits until its connection has closed.
 - Every `SESSION_RECHECK_SECONDS`, and on every frame, the socket's session is checked again. When it has ended, the server closes the socket with `SESSION_ENDED_CLOSE_CODE`; the page stops the call and signs in again. A back-channel logout ends every session of that person and also removes their HopIn account; the next sign-in creates it again.
 
 ## 4. Deployment View
 
-One container, built from `Dockerfile` and run by `compose.yaml` behind the edge reverse proxy, which terminates https. It publishes no host port and answers on a network of its own; it also sits on the back-channel network, which only Keycloak reaches. All state (accounts, sessions, rooms, seats, replay logs, rate limit counters) lives in process memory, so a restart ends every call and every session; there is no database. The client secret, the session signing key and, when TURN is on, the two TURN key files are read at start from the files the settings name.
+One container, built from `Dockerfile` and run by `compose.yaml` behind the edge reverse proxy, which terminates https. It publishes no host port and answers on a network of its own; it also sits on the back-channel network, which only Keycloak reaches, and on the agent network, where it reaches the agent service. All state (accounts, sessions, rooms, seats, replay logs, rate limit counters) lives in process memory, so a restart ends every call and every session; there is no database. The client secret, the session signing key and, when TURN is on, the two TURN key files are read at start from the files the settings name.
 
 ## 5. Crosscutting Concepts
 
@@ -114,7 +118,7 @@ One container, built from `Dockerfile` and run by `compose.yaml` behind the edge
 
 **Persistence.** None. What HopIn holds about a person, and what an admin may download, is in the README under A Person's Data.
 
-**Logging.** structlog lines carry peer ids, room ids, event kinds, causes and reasons, close codes, the call cap and exceptions without local variables; the `account_event` line carries the person's Keycloak id and role. No event has a field for chat text, tokens or secrets, but one field carries what a browser sent: the identity provider's error code from the sign-in callback, which webauth keeps only as a short code-shaped token (`auth/sign_in.py`, `sign_in_refused`). Whatever a client puts into that field reaches the log.
+**Logging.** structlog lines carry peer ids, room ids, event kinds, causes and reasons, close codes, the call cap and exceptions without local variables; the `account_event` line carries the person's Keycloak id and role. No event has a field for chat text, tokens or secrets, but one field carries what a browser sent: the identity provider's error code from the sign-in callback, which webauth keeps only as a short code-shaped token (`auth/sign_in.py`, `sign_in_refused`). Whatever a client puts into that field reaches the log. The game master logs only codes: `game_master_run` (room id, outcome, duration in milliseconds), `agent_service_refused` (HTTP status, rejection or failure code, stream violation kind, `oversized` for a rejection past `GAME_REJECTION_MAX_BYTES`, or error type), `game_master_token_refused` (which token, webauth's and the issuer's refusal reason, the issuer's error code when it is one of OAuth's token endpoint codes, else `other`) and, for a defect, `game_master_raised` and `game_driver_failed` (the exception type, also for a seat whose write broke while the others got the run's frames); no field carries a prompt, a question, a token or what the agent service answered, and the HTTP client's own loggers (`httpx2`, `httpcore2`) are silenced, since they would log the answer's status line, headers and errors.
 
 ### Trust
 
@@ -122,11 +126,12 @@ The model is HopIn's own; no operator ruling narrows it.
 
 - **A member's browser** reaches pages, the API and `/ws` with a session. It controls everything it sends (chat lines, its media state, connection descriptions) and its own address. HopIn trusts none of it beyond the session: the names others see come from the Keycloak account, the sender of each relayed frame is the server-minted peer id, and host actions are checked against the account. The protections differ by route: HTTP requests are rate-limited (webauth's middleware covers HTTP scopes only) and a state-changing one needs same-origin provenance (`Sec-Fetch-Site: same-origin`, or an `Origin` of HopIn's host over https, on any port when `HOPIN_PUBLIC_ORIGIN` names none and on exactly that port when it names one, when the fetch site is absent or `same-site`; see Request limits); the WebSocket is admitted only with a session and an allowed Origin (`signaling/identity.py`) and each frame is capped at `MAX_SIGNALING_FRAME_LENGTH`; there is no per-frame rate limit. One account holds at most `MAX_LIVE_SEATS_PER_ACCOUNT` live sockets, counted in `Seats` at the handshake, because webauth's rate limit does not cover `/ws`.
 - **Anyone without a session** reaches only `PUBLIC_PATHS`, the sign-in routes and Keycloak's logout POST. HopIn trusts nothing they send and rate limits them by address.
-- **Keycloak** decides who is a member and who is an admin; HopIn trusts its signed tokens from the one configured issuer, and a logout token signed by that issuer to end sessions and remove the person's HopIn account (the next sign-in creates it again). HopIn checks that token, not who sent it, and relies on the proxy in front to keep the back-channel route off the public internet ([edge's README](https://github.com/overnightworks/edge)). The session store holds each login's ID token and refresh token, both secrets: they stay in the session row, which ends with the session, and the ID token leaves the server only once, in the no-store logout page whose form the person's own browser posts to Keycloak as the hint.
+- **Keycloak** decides who is a member and who is an admin; HopIn trusts its signed tokens from the one configured issuer, and a logout token signed by that issuer to end sessions and remove the person's HopIn account (the next sign-in creates it again). HopIn checks that token, not who sent it, and relies on the proxy in front to keep the back-channel route off the public internet ([edge's README](https://github.com/overnightworks/edge)). The session store holds each login's ID token and refresh token, both secrets: they stay in the session row, which ends with the session, and the ID token leaves the server only once, in the no-store logout page whose form the person's own browser posts to Keycloak as the hint. The refresh token is spent once per game master run, for the tapper's access token, and its rotated successor replaces it in the row; a second grant gives HopIn its own workload token.
 - **The proxy hops** named in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`, which the rate limits key on. A hop that is wrongly listed lets a person choose their counted address; empty trusts none.
 - **The other participants of a call** see each other's addresses (peer-to-peer media reveals them) and receive relayed frames: names, chat lines, media state, connection descriptions. A member is trusted with that much and no more: they cannot address people outside their room, or act as host.
 - **The STUN server** learns the address of every browser that asks and can answer wrongly, which at worst prevents a connection; it never carries media. The operator chooses it by `HOPIN_STUN_SERVER`.
 - **The TURN provider** (when `HOPIN_TURN_PROVIDER` is not `off`) sees who connects to whom and when, the traffic volume and, when unencrypted, the audio level (#79 finding 26); it sees no media content, which stays encrypted between the browsers. HopIn trusts only its credential answer, and only over https from the provider's fixed endpoint; a failed or malformed answer gives a call STUN only. It bills the operator for relayed traffic.
+- **The agent service** receives, per run, the tapper's access token (which carries the tapper's own account and name, and no other participant's), HopIn's workload token, the quiz prompt and the call's earlier questions; it decides whether the tapper's account may use AI. HopIn trusts it for no more than one question per run: the answer is cut to `GAME_LINE_MAX_CHARACTERS`, shown as text, never as markup, and anything other than a well-formed answer turns into a refusal for the tapper alone. HopIn reaches it over plain HTTP on the internal agent network, follows no redirect and keeps nothing it says beyond the question.
 - **The operator's settings and secret files** are trusted fully: the settings are `HOPIN_` environment variables, but the client secret, the session signing key and the two TURN key files are read at start from the files they name and never enter the environment, and HopIn names only the failing setting when one is wrong.
 
 ## 6. Architectural Decisions

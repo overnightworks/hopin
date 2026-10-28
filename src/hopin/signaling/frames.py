@@ -60,6 +60,11 @@ class EndRoomFrame:
 
 
 @dataclass(frozen=True)
+class GameStartFrame:
+    pass
+
+
+@dataclass(frozen=True)
 class ChatFrame:
     message: JsonValue
 
@@ -90,7 +95,9 @@ class ResumeFrame:
         return self.claim
 
 
-type DispatchedFrame = JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | ChatFrame | MediaStateFrame
+type DispatchedFrame = (
+    JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | ChatFrame | MediaStateFrame | GameStartFrame
+)
 type ClientFrame = DispatchedFrame | ResumeFrame
 
 
@@ -150,6 +157,7 @@ _DECODERS: dict[str, Callable[[JsonObject, SignalType], ClientFrame]] = {
     SignalType.MEDIA_STATE.value: _decode_media_state,
     SignalType.END_ROOM.value: lambda _data, _kind: EndRoomFrame(),
     SignalType.RESUME.value: _decode_resume,
+    SignalType.GAME_START.value: lambda _data, _kind: GameStartFrame(),
 }
 
 

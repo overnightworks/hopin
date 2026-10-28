@@ -3,6 +3,7 @@ import { initChat, registerChatHandlers } from "./chat.js";
 import { confirmLockChange, hideLockButton, initControls, renderControls, showLockButton } from "./controls.js";
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
+import { initGame, registerGameHandlers, resetGame } from "./game.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
 import { initMenus } from "./menus.js";
 import { stopLocalMedia } from "./media.js";
@@ -80,6 +81,7 @@ function tearDownCall() {
     disconnect();
     showLocalStream(null);
     clearToast();
+    resetGame();
     hideWaitingCard();
     hideLockButton();
     hideParticipantCount();
@@ -162,6 +164,7 @@ function registerSessionHandlers() {
 
 registerMeshHandlers();
 registerChatHandlers();
+registerGameHandlers();
 registerMediaStateHandlers();
 registerSessionHandlers();
 onPeersChanged(updateParticipantCount);
@@ -175,6 +178,7 @@ initMenus();
 initControls({ onLeaveRequested: requestLeave });
 initInvite();
 initChat();
+initGame();
 initPip();
 initEnd();
 initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });

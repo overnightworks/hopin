@@ -3,26 +3,26 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import (
+    add_init_scripts,
+    call_link_of,
+    join,
+    press_start_call,
+    record_page_errors,
+    start_call,
+)
+from tests.e2e.support.page_assertions import (
     CHECK_ICON_PATH,
     CLIPBOARD_ALLOWED,
-    DESKTOP,
-    FORM_FACTORS,
-    PHONE,
     READ_CLIPBOARD,
     REJECT_SHARE_WITH,
     REMOVE_SHARE,
     STUB_SHARE,
     TOASTS,
     X_ICON_PATH,
-    add_init_scripts,
-    call_link_of,
     expect_toast,
-    join,
-    press_start_call,
-    record_page_errors,
-    start_call,
 )
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable

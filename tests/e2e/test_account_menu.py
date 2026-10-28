@@ -6,22 +6,16 @@ import pytest
 from playwright.sync_api import ConsoleMessage, Page, Route, expect
 
 from hopin.config.constants import ACCOUNT_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH
-from tests.e2e.conftest import (
-    DESKTOP,
-    FORM_FACTORS,
-    PHONE,
-    RunningServer,
-    open_prejoin,
-    record_page_errors,
-    start_call,
-    wait_until_the_prejoin_media_answered,
-)
-from tests.sign_in_settings import TEST_ISSUER
+from tests.e2e.support.calls import open_prejoin, record_page_errors, start_call, wait_until_the_prejoin_media_answered
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.sign_in_settings import TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from pydantic import SecretStr
+
+    from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 

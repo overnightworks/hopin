@@ -7,10 +7,22 @@ import pytest
 from playwright.sync_api import Locator, Page, Request, Route, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
-from tests.e2e.conftest import (
+from tests.e2e.support.calls import (
+    PREJOIN_CAMERA,
+    PREJOIN_MICROPHONE,
+    PREJOIN_START,
+    add_init_scripts,
+    call_link_of,
+    join,
+    open_prejoin,
+    open_prejoin_by_link,
+    press_through_the_prejoin,
+    record_page_errors,
+    start_call,
+    wait_until_the_prejoin_media_answered,
+)
+from tests.e2e.support.media import (
     COUNT_SOCKETS,
-    DESKTOP,
-    FORM_FACTORS,
     HOLD_MEDIA,
     ICE_SERVERS_URL_PATTERN,
     ICON_ONLY_ON_THE_TILES,
@@ -19,26 +31,14 @@ from tests.e2e.conftest import (
     MEDIA_REQUEST_COUNT,
     MEDIA_REQUEST_IS_HELD,
     OTHER_TILE,
-    PHONE,
-    PREJOIN_CAMERA,
-    PREJOIN_MICROPHONE,
-    PREJOIN_START,
     RECORD_MEDIA_TRACKS,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
     RELEASE_MEDIA,
-    add_init_scripts,
-    call_link_of,
-    expect_both_legal_links,
-    join,
-    open_prejoin,
-    open_prejoin_by_link,
-    press_through_the_prejoin,
-    record_page_errors,
-    start_call,
     wait_for_the_picture,
-    wait_until_the_prejoin_media_answered,
 )
+from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

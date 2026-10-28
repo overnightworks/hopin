@@ -139,24 +139,25 @@ def _build_web_auth(
     )
 
 
+def build_relying_party(sign_in_configs: SignInConfigs, issuer_transports: IssuerTransports) -> OidcRelyingParty:
+    return OidcRelyingParty(
+        sign_in_configs.oidc_client,
+        post_token_request=issuer_transports.post_token_request,
+        fetch_key_set=issuer_transports.fetch_key_set,
+        wall_clock=sign_in_configs.web_auth.wall_clock,
+        monotonic_clock=time.monotonic,
+    )
+
+
 def create_sign_in_router(
-    oidc_client: OidcClientConfig,
-    web_auth: WebAuthConfig,
-    issuer_transports: IssuerTransports,
+    relying_party: OidcRelyingParty,
     *,
     accounts: SubjectUserStore,
     sessions: SessionRecordStore,
     lock: WriteLock,
     audit: AuditSink,
 ) -> APIRouter:
-    relying_party = OidcRelyingParty(
-        oidc_client,
-        post_token_request=issuer_transports.post_token_request,
-        fetch_key_set=issuer_transports.fetch_key_set,
-        wall_clock=web_auth.wall_clock,
-        monotonic_clock=time.monotonic,
-    )
-    admission = AdmissionConfig(bound_issuer=oidc_client.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP)
+    admission = AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP)
     router = APIRouter()
 
     @router.get(AUTH_START_PATH)
