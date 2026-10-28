@@ -19,9 +19,8 @@ GAME_PATHS = (
 )
 MARKED_FILES = ("src/hopin/main.py", "tests/conftest.py")
 GAME_MARKER = "# game"
+# httpx2 is also a dev dependency (Starlette's TestClient needs it), which this removal leaves.
 GAME_ONLY_PACKAGES = ("overnightworks-agent-runtime-client", "httpx2")
-# Starlette's TestClient, which the core's tests drive, needs httpx2: it stays as a dev dependency.
-TEST_ONLY_PACKAGE = "httpx2"
 REPOSITORY = Path(__file__).resolve().parent.parent
 
 
@@ -49,7 +48,6 @@ def remove_packages(copy: Path) -> None:
         raise SystemExit("remove_game: uv is not on PATH")
     # The arguments are this file's constants; --no-sync leaves installing to the caller.
     subprocess.run([uv, "remove", "--no-sync", *GAME_ONLY_PACKAGES], cwd=copy, check=True)  # noqa: S603
-    subprocess.run([uv, "add", "--no-sync", "--dev", TEST_ONLY_PACKAGE], cwd=copy, check=True)  # noqa: S603
 
 
 def main(arguments: list[str]) -> None:

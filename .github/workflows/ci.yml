@@ -210,13 +210,6 @@ jobs:
           uv sync --locked --no-install-project --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
-      # import-linter is the quality gate's own pin, run here against the copy.
-      - name: Check the import contracts
-        working-directory: ${{ env.COPY }}
-        env:
-          PYTHONPATH: src
-        run: uvx --no-build --from import-linter==2.15 lint-imports
-
       - name: Run the unit tests
         working-directory: ${{ env.COPY }}
         run: pytest -q -m "not e2e" --no-cov
