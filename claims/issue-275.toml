@@ -1,0 +1,8 @@
+claim_id = "41455cdf91c0442d8559b0e27e7e13b2"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "b4f2f81ffcb17d06893fb1c029998346ff129df3"
+branch = "claude/issue-275-refused-recheck-log-test-waits"
+scope = ["tests/signaling/support", "tests/signaling/test_handler_flow.py"]
+opened_commit = "27e4cdfdefdceca6389723b03e9921cbe9e62812"
+whole_reason = "The test and its signaling support helper change together."
