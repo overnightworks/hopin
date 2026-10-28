@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from hopin.config.constants import SignalType
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, Speaker, Turn
+from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, REVEAL_REQUEST, Speaker, Turn
 from hopin.game.vocabulary import GamePhase, GameSignal
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.support.signaling_fakes import ARRIVAL_CAP_SECONDS, text_frame
@@ -19,6 +19,13 @@ IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
 REVEAL_LINE = "Lissabon."
 YIELD_CAP = 100
+
+
+def answers_in_reveal(text):
+    """The answers a reveal request lists: its first line is the fixed request, its second the JSON list."""
+    request, answers = text.split("\n")
+    assert request == REVEAL_REQUEST
+    return json.loads(answers)
 
 
 def quiz_phase(phase, starter, round_number=1):

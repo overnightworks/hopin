@@ -18,9 +18,10 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game import GameSettings, game_feature
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, REVEAL_REQUEST
+from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
 from tests.game.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
+from tests.game.support.table_world import answers_in_reveal
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
@@ -55,6 +56,9 @@ class Seat:
 
     def reveal(self):
         self.send({"type": GameSignal.GAME_REVEAL.value})
+
+    def answer(self, text):
+        self.send({"type": GameSignal.GAME_ANSWER.value, "text": text})
 
     def chat(self, text):
         self.send({"type": SignalType.CHAT.value, "message": text})
@@ -242,7 +246,38 @@ def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent_service(c
     assert [run for run in call.service.runs if chat_text in run.request.model_dump_json()] == []
 
 
-def test_the_reveal_request_holds_the_quiz_so_far_and_no_name(call):
+def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_no_chat_line(call):
+    host_member, guest_member, third_member = call.member(), call.member(), call.member()
+    host, created = call.seat(host_member)
+    guest, _ = call.seat(guest_member, created["room_id"])
+    call.seat(third_member, created["room_id"])
+    host.frames(2)
+    guest.frames(1)
+    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
+    chat_text = f"Plausch {secrets.token_hex(8)}"
+
+    host.start()
+    guest.frames(3)
+    host.answer("Tejo")
+    guest.answer("Mondego")
+    guest.chat(chat_text)
+    host.reveal()
+    host.frames(8)
+
+    second, third_run = (run.request for run in call.service.runs[1:])
+    [_, _, reveal] = second.turn.messages
+    assert reveal.role.value == "user"
+    assert answers_in_reveal(reveal.text) == [
+        {"name": host_member.account.username, "antwort": "Tejo"},
+        {"name": guest_member.account.username, "antwort": "Mondego"},
+    ]
+    assert [message.text for message in third_run.turn.messages][-3] == reveal.text
+    for run in call.service.runs:
+        assert third_member.account.username not in run.request.model_dump_json()
+        assert chat_text not in run.request.model_dump_json()
+
+
+def test_the_reveal_request_holds_the_quiz_so_far_and_an_empty_list_when_nobody_answered(call):
     host_member = call.member()
     host, guest, guest_member = call.host_and_guest(host_member)
     call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
@@ -253,11 +288,11 @@ def test_the_reveal_request_holds_the_quiz_so_far_and_no_name(call):
     host.frames(8)
 
     first, second, third = (run.request for run in call.service.runs)
-    assert [(message.role.value, message.text) for message in second.turn.messages] == [
+    assert [(message.role.value, message.text) for message in second.turn.messages[:2]] == [
         ("user", NEXT_QUESTION_REQUEST),
         ("assistant", "Erste Frage?"),
-        ("user", REVEAL_REQUEST),
     ]
+    assert answers_in_reveal(second.turn.messages[2].text) == []
     assert [message.text for message in third.turn.messages][-2:] == ["Lissabon.", NEXT_QUESTION_REQUEST]
     assert second.turn.system == first.turn.system
     assert second.turn.system.startswith("Du bist der Spielleiter")

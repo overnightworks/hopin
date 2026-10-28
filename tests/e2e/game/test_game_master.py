@@ -7,7 +7,7 @@ from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import BROWSER_MODULE, GAME_LINE_MAX_CHARACTERS
+from hopin.game.vocabulary import BROWSER_MODULE, GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -25,12 +25,14 @@ from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.game.support.fake_agent_service import Holds, Rejects, Succeeds
+from tests.game.support.table_world import answers_in_reveal
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from tests.e2e.support.server import RunningServer
     from tests.game.support.fake_agent_service import FakeAgentService
+    from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 
@@ -140,15 +142,16 @@ def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for
     expect(menu.locator(START_QUIZ)).to_be_focused()
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_more_says_under_start_quiz_what_goes_to_the_ai_service(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, _ = open_host(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    host, _ = open_host(open_person, e2e_server.base_url, page_errors, form_factor)
 
     menu = open_more(host)
 
     note = menu.locator(f"{START_QUIZ} + .quiet-note")
-    expect(note).to_have_text("Quiz questions come from an AI service. Chat does not go there. Datenschutz")
+    expect(note).to_have_text("Game answers and names go to the AI service. Chat does not. Datenschutz")
     notice = note.get_by_role("link", name="Datenschutz")
     expect(notice).to_have_attribute("href", PRIVACY_NOTICE)
     expect(notice).to_have_attribute("target", "_blank")
@@ -252,11 +255,14 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     e2e_server: RunningServer,
     page_errors: list[str],
     agent_service: FakeAgentService,
+    member_of: Callable[[Page], SeededMember],
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    host_name, guest_name = (member_of(person).account.username for person in (host, guest))
+    reveal_line = f"Der Tejo! {host_name} hat recht, {guest_name} tippte auf Guadiana."
     agent_service.answer_next(
-        Succeeds("Welcher Fluss fließt durch Lissabon?"), Succeeds("Der Tejo."), Succeeds("Zweite?")
+        Succeeds("Welcher Fluss fließt durch Lissabon?"), Succeeds(reveal_line), Succeeds("Zweite?")
     )
     start_quiz(host)
     for person in (host, guest):
@@ -276,14 +282,39 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
 
     for person in (host, guest):
         expect(person.locator(GAME_MASTER_LINES)).to_have_count(3)
-        expect(person.locator(GAME_MASTER_LINES).nth(1)).to_contain_text("Der Tejo.")
+        expect(person.locator(GAME_MASTER_LINES).nth(1)).to_contain_text(reveal_line)
         expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
         expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
-        expect(person.locator("#chatMessages")).not_to_contain_text("Guadiana")
         close_chat(person)
         expect(open_more(person).locator(MORE_PROGRESS)).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
         expect(open_more(person).locator(START_QUIZ)).to_contain_text("Quiz running")
-    assert not any("Mondego" in str(run.request) or "Guadiana" in str(run.request) for run in agent_service.runs)
+    reveal_request = agent_service.runs[-2].request.turn.messages[-1].text
+    assert answers_in_reveal(reveal_request) == [
+        {"name": guest_name, "antwort": "Guadiana"},
+        {"name": host_name, "antwort": "Tejo"},
+    ]
+    assert "Mondego" not in str(agent_service.runs[-2].request)
+
+
+def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_sent_mark(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+) -> None:
+    host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+
+    answer_on_card(guest, "x" * (GAME_ANSWER_MAX_CHARACTERS + 1))
+
+    expect(guest.locator(TOASTS)).to_contain_text("Your answer is too long. Shorten it and send again.")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("")
+    expect(host.locator(TOASTS)).not_to_contain_text("too long")
+    expect(host.locator(CARD).locator(STATUS)).to_have_text("")
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
