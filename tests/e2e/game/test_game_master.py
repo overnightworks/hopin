@@ -279,7 +279,8 @@ def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_s
     lines = [text for number in range(1, QUIZ_ROUNDS + 1) for text in (f"Frage {number}?", f"Antwort {number}.")] + [
         "Ihr wart großartig."
     ]
-    agent_service.answer_next(*map(Succeeds, lines))
+    final_score_run = Holds(then=Succeeds(lines[-1]))
+    agent_service.answer_next(*map(Succeeds, lines[:-1]), final_score_run)
     start_quiz(guest)
     for person in (host, guest):
         open_chat(person)
@@ -288,6 +289,12 @@ def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_s
         for person in (host, guest):
             expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question {number} of {QUIZ_ROUNDS}")
         guest.locator(CARD).get_by_role("button", name=REVEAL).click()
+
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).last).to_contain_text(f"Antwort {QUIZ_ROUNDS}.")
+        expect(person.locator(TYPING)).to_be_visible()
+        expect(person.locator(CARD)).to_have_count(0)
+    final_score_run.release.set()
 
     for person in (host, guest):
         expect(person.locator(GAME_MASTER_LINES)).to_contain_text(lines)
