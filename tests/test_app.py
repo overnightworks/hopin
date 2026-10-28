@@ -13,6 +13,7 @@ from starlette.requests import Request
 from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
 
+import hopin.game  # noqa: F401
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
