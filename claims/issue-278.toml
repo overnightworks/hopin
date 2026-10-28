@@ -1,0 +1,8 @@
+claim_id = "ccf441cf07cb4a68918c043d7f1f54d9"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "faa14a71e31c31d9f11bfb47030206de10969853"
+branch = "claude/issue-278-starter-reveals-quiz-question"
+scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/game", "src/hopin/web/static/assets/game", "src/hopin/web/static/assets/js/app.js", "src/hopin/web/static/assets/js/chat.js", "tests/e2e/game", "tests/game"]
+opened_commit = "6c3ed0cddc70ef9c40520af3f77c2a6e5605d229"
+whole_reason = "The card, the reveal frame and the quiz state are one person-visible step; split, each half is code ahead of its caller."
