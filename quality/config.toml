@@ -7,12 +7,18 @@ reason = "make finds its Makefile only in the directory it runs from"
 
 [[gate.loosened]]
 what = "import contract \"HopIn's packages depend downwards only\" changes layers"
-item = "#253"
+item = "#265"
 date = 2026-10-28
-reason = "#253 adds the new agents package as a layer between app and people, a tightening the gate reads as a change (overnightworks/quality#217)"
+reason = "#265 puts the optional game layer where the agents package stood, so the game can be removed again, a tightening the gate reads as a change (overnightworks/quality#217)"
 
 [[gate.loosened]]
 what = "import contract \"Signaling's modules depend downwards only\" changes layers"
-item = "#253"
+item = "#265"
 date = 2026-10-28
-reason = "#253 adds the new game module as a layer between handler and routing, a tightening the gate reads as a change (overnightworks/quality#217)"
+reason = "#265 moves the game out of signaling and puts the feature port in its place, a tightening the gate reads as a change (overnightworks/quality#217)"
+
+[[gate.loosened]]
+what = "import contract \"Only agents reaches the agent service\" removed"
+item = "#265"
+date = 2026-10-28
+reason = "#265 replaces it with the stricter call-core-knows-no-game and agent-service-only-through-the-game contracts, which forbid the same imports without the indirect allowance for the call core"

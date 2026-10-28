@@ -6,6 +6,7 @@ from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
+from hopin.game import GameSettings, game_feature
 from hopin.main import uvicorn_options
 from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
 from tests.e2e.support.people import PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
@@ -16,7 +17,7 @@ from tests.e2e.support.server import (
     _serving,
     _write_self_signed_certificate,
 )
-from tests.support.fake_agent_service import FakeAgentService
+from tests.game.support.fake_agent_service import FakeAgentService
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
 from tests.support.signed_in import SeededMember, new_account, seed_member
@@ -44,7 +45,7 @@ def e2e_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServ
         sign_in.settings,
         stores=stores,
         issuer_transports=issuer.transports,
-        agent_transport=agent_service.transport,
+        call_feature=game_feature(GameSettings(), transport=agent_service.transport),
     )
     key_file, certificate_file = _write_self_signed_certificate(tmp_path_factory.mktemp("tls"))
     server = uvicorn.Server(

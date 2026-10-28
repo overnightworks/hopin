@@ -23,7 +23,8 @@ from agent_runtime_client.wire import (
 )
 from pydantic import ValidationError
 
-from hopin.config.constants import (
+from hopin.game.table import GameOutcome, Question, Refused
+from hopin.game.vocabulary import (
     GAME_LINE_MAX_CHARACTERS,
     GAME_READ_TIMEOUT_SECONDS,
     GAME_REJECTION_MAX_BYTES,
@@ -31,15 +32,14 @@ from hopin.config.constants import (
     GAME_RETRY_AFTER_MAX_SECONDS,
     GameRefusal,
 )
-from hopin.signaling.game import GameOutcome, Question, Refused
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from agent_runtime_client.sse import Decoded
-    from starlette.websockets import WebSocket
+    from starlette.requests import HTTPConnection
 
-    from hopin.agents.tokens import RunTokens, StarterTokens
+    from hopin.game.tokens import RunTokens, StarterTokens
 
 type AgentTransport = Callable[[], httpx2.AsyncBaseTransport]
 
@@ -92,7 +92,7 @@ class AgentServiceGameMaster:
         self._transport = transport
         self._agent = load_agent(QUIZ_AGENT_FILE, [])
 
-    async def ask(self, starter: WebSocket, questions: tuple[str, ...]) -> GameOutcome:
+    async def ask(self, starter: HTTPConnection, questions: tuple[str, ...]) -> GameOutcome:
         tokens = await self._tokens.of(starter)
         if isinstance(tokens, GameRefusal):
             return Refused(tokens)

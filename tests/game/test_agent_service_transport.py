@@ -7,10 +7,10 @@ import structlog.testing
 from agent_runtime_client.sse import encode_event
 from agent_runtime_client.wire import PROTOCOL_VERSION, RejectionCode, RunRejection, RunStarted, Succeeded
 
-from hopin.agents import AGENT_SERVICE_OVER_HTTP
-from hopin.config.constants import GameRefusal
-from hopin.signaling.game import Question, Refused
-from tests.agents.support.world import build_world, cancelled, wait_in_a_worker
+from hopin.game import AGENT_SERVICE_OVER_HTTP
+from hopin.game.table import Question, Refused
+from hopin.game.vocabulary import GameRefusal
+from tests.game.support.world import build_world, cancelled, wait_in_a_worker
 from tests.support.loopback_origin import (
     BEARER_ECHO,
     LOCALHOST,

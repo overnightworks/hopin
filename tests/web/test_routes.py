@@ -1,6 +1,6 @@
 import hashlib
-import json
 import re
+from functools import partial
 from html.parser import HTMLParser
 from xml.etree import ElementTree
 
@@ -21,24 +21,24 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
     ErrorReason,
-    GamePhase,
-    GameRefusal,
     RoomClosedReason,
     SignalType,
 )
 from hopin.rooms.models import Account
+from hopin.signaling.features import FeatureClashError
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
-from tests.support.signaling_fakes import SocketAccountResolver
+from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
+from tests.support.wire_module import served_exports
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def signaling_handler(room_manager, game_master):
-    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), game_master)
+def signaling_handler(room_manager):
+    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
 
 
 @pytest.fixture
@@ -68,16 +68,10 @@ class TestWireModule:
         response = client.get(WIRE_MODULE_PATH)
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/javascript")
-        exports = {
-            name: json.loads(value)
-            for name, value in re.findall(r"^export const (\w+) = (.*);$", response.text, re.MULTILINE)
-        }
-        assert exports == {
+        assert served_exports(response.text) == {
             "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
             "ERROR_REASON": {member.name: member.value for member in ErrorReason},
             "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
-            "GAME_PHASE": {member.name: member.value for member in GamePhase},
-            "GAME_REFUSAL": {member.name: member.value for member in GameRefusal},
             "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
             "WEBSOCKET_PATH": WEBSOCKET_PATH,
             "AUTH_START_PATH": AUTH_START_PATH,
@@ -86,6 +80,13 @@ class TestWireModule:
             "DESCRIPTION_TYPES": ["answer", "offer"],
             "SUPERSEDED_BY_A_DESCRIPTION": ["answer", "ice_candidate", "offer"],
         }
+
+    def test_a_feature_export_named_like_a_core_export_is_refused_at_start(self, room_manager):
+        clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"SAMPLE_REASON": "sample_reason"}})
+        handler = SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), clashing)
+
+        with pytest.raises(FeatureClashError, match="ERROR_REASON"):
+            create_router(handler, room_manager)
 
 
 class TestHealthEndpoint:

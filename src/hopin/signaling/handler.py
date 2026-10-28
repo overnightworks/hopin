@@ -13,11 +13,12 @@ from hopin.config.constants import (
     WEBSOCKET_DISCONNECT_EVENT,
 )
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
+from hopin.signaling.features import CallRooms, build_feature
 from hopin.signaling.frames import (
     ChatFrame,
     DispatchedFrame,
     EndRoomFrame,
-    GameStartFrame,
+    ForeignFrame,
     JoinFrame,
     LockFrame,
     MediaStateFrame,
@@ -28,13 +29,12 @@ from hopin.signaling.frames import (
     decode_frame,
     error_frame,
 )
-from hopin.signaling.game import Game
 from hopin.signaling.routing import RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
 
 if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
-    from hopin.signaling.game import GameMaster
+    from hopin.signaling.features import CallFeature, FeatureFactory
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
@@ -47,21 +47,27 @@ class SignalingHandler:
         room_manager: RoomManager,
         identity_resolver: IdentityResolver,
         scheduler: Scheduler,
-        game_master: GameMaster,
+        feature: FeatureFactory | None = None,
     ) -> None:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
         self._routing = RoomRouting(room_manager, scheduler, self._room_ended)
         self._seats = self._routing.seats
-        self._game = Game(self._routing, room_manager, scheduler, game_master)
+        self._feature = None if feature is None else build_feature(feature, CallRooms(self._routing, room_manager))
+
+    @property
+    def feature(self) -> CallFeature | None:
+        return self._feature
 
     def _room_ended(self, room_id: str) -> None:
-        self._game.room_ended(room_id)
+        if self._feature is not None:
+            self._feature.room_ended(room_id)
 
     async def shut_down(self) -> None:
-        """Cancel every game master run and wait until each has closed its connection."""
-        await self._game.shut_down()
+        """Shut the call's feature down and wait until it has cleaned up."""
+        if self._feature is not None:
+            await self._feature.shut_down()
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
@@ -198,7 +204,8 @@ class SignalingHandler:
         match frame:
             case JoinFrame():
                 await self._routing.handle_join(peer_id, frame)
-                await self._game.greet(peer_id)
+                if self._feature is not None:
+                    await self._feature.seat_joined(peer_id)
             case RelayFrame():
                 await self._routing.handle_relay(peer_id, frame)
             case LockFrame():
@@ -211,10 +218,14 @@ class SignalingHandler:
                 await self._routing.handle_media_state(peer_id, frame)
             case EndRoomFrame():
                 await self._routing.handle_end_room(peer_id)
-            case GameStartFrame():
-                await self._game.start(peer_id)
+            case ForeignFrame():
+                await self._offer_to_feature(peer_id, frame)
             case _:  # pragma: no cover - the type checker proves the match exhaustive
                 assert_never(frame)
+
+    async def _offer_to_feature(self, peer_id: PeerId, frame: ForeignFrame) -> None:
+        if self._feature is None or not await self._feature.on_frame(peer_id, frame):
+            raise InvalidMessageError(f"Unknown signal type: {frame.signal_type}")
 
     async def _send_error(self, peer_id: PeerId, error: HopInError) -> None:
         await self._seats.send(peer_id, error_frame(error))

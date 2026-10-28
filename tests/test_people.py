@@ -27,8 +27,8 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from tests.support.fake_agent_service import FakeAgentService, Succeeds
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.people_export import ask, export_path, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
 
@@ -39,19 +39,6 @@ ZERO_WITHHELD = [
     {"kind": kind, "count": 0, "reason": reason}
     for kind, reason in zip(WITHHELD_KINDS, ["secret", "secret", "secret", "secret", "others"], strict=True)
 ]
-
-
-def export_path(subject):
-    return f"/api/admin/people/{subject}/export"
-
-
-def withheld_counts(export):
-    return {entry["kind"]: entry["count"] for entry in export["withheld"]}
-
-
-def read_archive(content):
-    with zipfile.ZipFile(io.BytesIO(content)) as archive:
-        return archive.namelist(), json.loads(archive.read("export.json"))
 
 
 @pytest.fixture
@@ -99,12 +86,6 @@ def stored_state_of_anna(stores, scene):
         refresh_token = None if stored.refresh_token is None else stored.refresh_token.get_secret_value()
         sessions.append((stored.id, stored.user, stored.created_at, stored.expires_at, refresh_token))
     return stores.accounts.get("anna"), stores.sessions.person_records("anna"), sessions
-
-
-def ask(client, subject, member=None, *, method="GET", headers=None):
-    return client.request(
-        method, export_path(subject), headers={**handshake_headers(member, origin=None), **(headers or {})}
-    )
 
 
 @dataclass
@@ -309,44 +290,6 @@ class TestExportOfAPerson:
         assert head.headers["content-type"] == got.headers["content-type"]
         assert head.headers["content-disposition"] == got.headers["content-disposition"]
         assert head.content == b""
-
-
-@pytest.fixture
-def quiz_call(sign_in_settings, stores):
-    """A HopIn whose issuer and agent service are fakes, the service answering the first run with `question`."""
-    sign_in = sign_in_settings()
-    issuer = FakeIssuer(sign_in)
-    service = FakeAgentService(issuer)
-    question = f"Quizfrage {secrets.token_hex(8)}?"
-    service.answer_next(Succeeds(question))
-    app = create_app(
-        sign_in.settings, issuer_transports=issuer.transports, stores=stores, agent_transport=service.transport
-    )
-    with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client:
-        yield client, issuer, installed_web_auth_config(app), question
-
-
-class TestExportAfterAGame:
-    def test_holds_no_game_text_and_counts_the_game_frames_among_the_replay_frames(self, quiz_call, stores):
-        client, issuer, config, question = quiz_call
-        anna_account = stores.accounts.create_for_subject("anna", "anna", config.user_role)
-        anna = seed_member(stores, config, account=anna_account, refresh_token=issuer.refresh_token_for("anna"))
-        olga = seed_member(
-            stores, config, account=stores.accounts.create_for_subject("olga", "olga", config.admin_role)
-        )
-        with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(anna)) as socket:
-            socket.send_json({"type": SignalType.JOIN.value})
-            socket.receive_json()
-            socket.send_json({"type": SignalType.GAME_START.value, "seq": 1})
-            game_frames = [socket.receive_json() for _ in range(3)]
-
-            answer = ask(client, "anna", olga)
-
-        _, export = read_archive(answer.content)
-        assert [frame["type"] for frame in game_frames] == ["game_phase", "game_line", "game_phase"]
-        assert game_frames[1]["text"] == question
-        assert question not in json.dumps(export, ensure_ascii=False)
-        assert withheld_counts(export)["call_replay_frame"] == 1 + len(game_frames)
 
 
 class TestWhoMayExport:

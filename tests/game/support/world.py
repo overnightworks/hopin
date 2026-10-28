@@ -8,11 +8,10 @@ from typing import TYPE_CHECKING
 import pytest
 from starlette.requests import HTTPConnection
 
-from hopin.agents import agent_service_game_master
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.auth.stores import InMemorySessions, SignInStores
-from hopin.config.constants import AGENT_SERVICE_URL
-from tests.support.fake_agent_service import FakeAgentService
+from hopin.game import AGENT_SERVICE_URL, agent_service_game_master
+from tests.game.support.fake_agent_service import FakeAgentService
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.signed_in import cookie_header, seed_member
 

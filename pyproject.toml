@@ -156,22 +156,22 @@ containers = ["hopin"]
 # Every top-level module of hopin stands in exactly one layer, so a new one is
 # placed by a decision rather than slipping in between. `main` starts the server
 # and `app` is the composition root: nothing imports `main`, and only `main`
-# imports `app`. `agents` reaches the agent service for signaling's game master
-# port, which only `app` wires. The person export joins sign-in's sessions with
-# signaling's seats, so `people` sits above both. Sign-in sits above the web routes it
-# guards, the routes above the signaling and room services they are handed, and
-# `config` is the floor every package reads.
+# imports `app`. The game is optional: it plugs into signaling's feature port,
+# `main` switches it in, and deleting it needs no contract edit. The person export
+# joins sign-in's sessions with signaling's seats, so `people` sits above both.
+# Sign-in sits above the web routes it guards, the routes above the signaling and
+# room services they are handed, and `config` is the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "agents", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "(game)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"
 name = "Signaling's modules depend downwards only"
 type = "layers"
 containers = ["hopin.signaling"]
-# The handler drives the game and room routing; the game sends through routing's seats; routing drives the seats;
-# seats keep the replay logs; replay logs hold frames.
-layers = ["handler", "game", "routing", "seats", "replay", "frames"]
+# The handler drives the call's feature and room routing; the feature port reads and sends through routing;
+# routing drives the seats; seats keep the replay logs; replay logs hold frames.
+layers = ["handler", "features", "routing", "seats", "replay", "frames"]
 
 [[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"
@@ -186,13 +186,12 @@ forbidden_modules = ["hopin.rooms", "hopin.signaling"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-id = "agent-service-only-through-agents"
-name = "Only agents reaches the agent service"
+id = "call-core-knows-no-game"
+name = "The call core knows no game"
 type = "forbidden"
-# The agent service's wire and its HTTP client are one owner's: signaling defines the port, agents implements it.
+# The game must stay removable: the call core reaches neither it nor the agent service
+# it speaks to, not even through another module.
 source_modules = [
-    "hopin.main",
-    "hopin.app",
     "hopin.people",
     "hopin.auth",
     "hopin.web",
@@ -201,8 +200,16 @@ source_modules = [
     "hopin.errors",
     "hopin.config",
 ]
+forbidden_modules = ["hopin.game", "agent_runtime_client", "httpx2"]
+
+[[tool.importlinter.contracts]]
+id = "agent-service-only-through-the-game"
+name = "Only the game reaches the agent service"
+type = "forbidden"
+# The agent service's wire and its HTTP client are the game's alone.
+source_modules = ["hopin.main", "hopin.app"]
 forbidden_modules = ["agent_runtime_client", "httpx2"]
-# app imports hopin.agents to wire it; only a direct import is the violation.
+# main imports hopin.game to switch it in; only a direct import is the violation.
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]

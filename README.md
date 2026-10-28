@@ -43,7 +43,7 @@ HopIn holds a person's account (name and role), their sessions and their seats i
 - **Not counted:** copies of the person's own frames in other participants' replay buffers (their name, chat lines, media state, connection descriptions), which stay until newer frames push them out and which HopIn cannot trace to the person once the seat has ended, and a call the person hosts during its 60-second grace.
 - **Logs:** the `account_event` log lines carry the person's Keycloak id until the host's log period ends. They are described here and not part of the export.
 
-**The game master.** Each tap of Start quiz is one run at the fleet's agent service, made on the tapper's account: HopIn spends the session's refresh token once for a fresh access token, keeps the rotated one in the session, and sends the quiz prompt, the call's earlier questions (the newest 20) and the request for the next one, with that access token and HopIn's own workload token. A run sends no chat line, no other participant's name and no media; the access token carries the tapper's own account and name. The question reaches everyone in the call; HopIn keeps the call's questions in memory until the call ends, and never logs a prompt, a question or what the service answered.
+**The game master.** Each tap of Start quiz is one run at the fleet's agent service, made on the tapper's account: HopIn spends the session's refresh token once for a fresh access token, keeps the rotated one in the session, and sends the quiz prompt, the call's earlier questions (the newest 20) and the request for the next one, with that access token and HopIn's own workload token. A run sends no chat line, no other participant's name and no media; the access token carries the tapper's own account and name. The question reaches everyone in the call; HopIn keeps the call's questions in memory until the call ends, and never logs a prompt, a question or what the service answered. The game's server side lives in `src/hopin/game/`, and `src/hopin/main.py` switches it in.
 
 The shape of `export.json` follows the fleet's shared people contract (`docs/people.md` in the edge repository). HopIn admits only an admin's signed-in browser session, not an access token, so hal cannot call the route yet.
 
@@ -76,7 +76,7 @@ Afterwards the export shows no account and no sessions, and no seats once the ca
 | `HOPIN_PUBLIC_ORIGIN` | required | HopIn's own https origin, without a path or trailing slash |
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 | `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits; empty trusts none, so every request counts against its direct peer |
-| `HOPIN_AGENT_SERVICE_URL` | `http://agent-service:8080` | The agent service's origin, without a path or trailing slash; the game master starts its runs at `/runs` there |
+| `HOPIN_AGENT_SERVICE_URL` | `http://agent-service:8080` | The agent service's origin, without a path or trailing slash; the game master starts its runs at `/runs` there (read by the game's own settings) |
 
 HopIn refuses to start without the four required settings, when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 

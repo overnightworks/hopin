@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from webauth.config import WebAuthConfig
 
     from hopin.auth.stores import SignInStores
-    from tests.support.fake_agent_service import FakeAgentService
+    from tests.game.support.fake_agent_service import FakeAgentService
     from tests.support.fake_issuer import FakeIssuer
 
 LOOPBACK_HOST = "127.0.0.1"

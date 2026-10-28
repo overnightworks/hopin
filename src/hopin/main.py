@@ -6,6 +6,7 @@ import uvicorn
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
+from hopin.game import GameSettings, game_feature  # game
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -41,7 +42,11 @@ def command_line_parser() -> argparse.ArgumentParser:
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
     settings = ServerSettings()
-    uvicorn.run(create_app(settings), **uvicorn_options(settings))
+    app = create_app(
+        settings,
+        call_feature=game_feature(GameSettings()),  # game
+    )
+    uvicorn.run(app, **uvicorn_options(settings))
 
 
 if __name__ == "__main__":

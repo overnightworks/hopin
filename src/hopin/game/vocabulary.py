@@ -1,0 +1,41 @@
+from enum import StrEnum
+
+# A game master run sends the questions this call already asked, so the model does not repeat them.
+GAME_HISTORY_LIMIT = 20
+GAME_LINE_MAX_CHARACTERS = 600
+GAME_RETRY_AFTER_MAX_SECONDS = 600
+GAME_RETRY_AFTER_FALLBACK_SECONDS = 30
+# A run rejection is one small JSON object; a longer answer is no rejection and is not read further.
+GAME_REJECTION_MAX_BYTES = 16 * 1024
+# Four of the agent service's fifteen-second heartbeats.
+GAME_READ_TIMEOUT_SECONDS = 60
+GAME_RUN_DEADLINE_SECONDS = 90
+
+
+class GameSignal(StrEnum):
+    GAME_START = "game_start"
+    GAME_PHASE = "game_phase"
+    GAME_LINE = "game_line"
+    GAME_REFUSED = "game_refused"
+
+
+class GamePhase(StrEnum):
+    IDLE = "idle"
+    THINKING = "thinking"
+
+
+class GameRefusal(StrEnum):
+    NO_ACCESS = "no_access"
+    SIGN_IN_AGAIN = "sign_in_again"
+    BUSY = "busy"
+    ALREADY_ANSWERING = "already_answering"
+    UNAVAILABLE = "unavailable"
+
+
+def _members(vocabulary: type[StrEnum]) -> dict[str, str]:
+    return {name: member.value for name, member in vocabulary.__members__.items()}
+
+
+# What the call core adds to the browser's wire module while the game is wired in.
+SIGNAL_TYPES = _members(GameSignal)
+WIRE_EXPORTS = {"GAME_PHASE": _members(GamePhase), "GAME_REFUSAL": _members(GameRefusal)}
