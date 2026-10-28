@@ -34,6 +34,13 @@ class CallRooms:
         """The name the call shows for the seat; the seat must exist."""
         return self._routing.seats.account_of(peer_id).name
 
+    def is_host(self, peer_id: PeerId) -> bool:
+        """Whether the seat's account hosts the call it sits in; the seat must be in a room."""
+        room_id = self.room_of(peer_id)
+        return room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(
+            self._routing.seats.account_of(peer_id)
+        )
+
     def connection_of(self, peer_id: PeerId) -> HTTPConnection:
         """The connection that serves the seat now, carrying its sign-in."""
         return self._routing.seats.seat(peer_id).websocket

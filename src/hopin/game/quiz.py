@@ -1,4 +1,4 @@
-"""A quiz's rules: its rounds, its transcript and who may reveal. Pure; the table runs it."""
+"""A quiz's rules: its rounds, its transcript and who may reveal or end. Pure; the table runs it."""
 
 import json
 from dataclasses import dataclass, field
@@ -68,6 +68,17 @@ class Quiz:
     @property
     def is_over(self) -> bool:
         return self.step is QuizStep.OVER
+
+    @property
+    def is_opening(self) -> bool:
+        """Whether the run the quiz waits for asks question one, before which nobody has played."""
+        return self.is_asking and self.round == 1
+
+    def may_end(self, peer_id: PeerId, *, hosts_call: bool) -> bool:
+        return peer_id == self.starter or hosts_call
+
+    def ended(self) -> Quiz:
+        return Quiz(self.starter, step=QuizStep.OVER, round=self.round, transcript=())
 
     def may_reveal(self, peer_id: PeerId) -> bool:
         return peer_id == self.starter and self.step is QuizStep.ANSWERING
