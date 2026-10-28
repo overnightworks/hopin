@@ -1,0 +1,8 @@
+claim_id = "2c56bc44727d4d9aad9b2696c9e85dc4"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "f63c37a9b01b13a279a8ba728c99803ee896aacc"
+branch = "claude/issue-256-drop-with-write-keeps-seat"
+scope = ["src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/seats.py", "tests/signaling"]
+opened_commit = "a7294074750b3b87c1de24609119656314c6c35d"
+whole_reason = "One invariant (who closed the socket) has one owner in seats.py and two readers; the regression tests live beside them."
