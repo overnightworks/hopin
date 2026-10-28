@@ -74,7 +74,8 @@ class CallFeatureBuilder(Protocol):
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
-    ) -> FeatureFactory: ...
+    ) -> FeatureFactory:
+        """The factory the signaling handler builds the feature with, once it has its rooms."""
 
 
 class _ExpiredSessionSweep:
