@@ -1,0 +1,8 @@
+claim_id = "83b4f1acc35c4a0a9f05d90dcdcb77f6"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "f63c37a9b01b13a279a8ba728c99803ee896aacc"
+branch = "claude/issue-258-six-seat-cap-and-sign-in-wording"
+scope = ["src/hopin/rooms/manager.py", "tests/e2e/test_sign_in_pages.py", "tests/signaling/test_handler.py", "tests/web/test_routes.py"]
+opened_commit = "b82ea21747a606d7f341ee398901e5b819b80fc0"
+whole_reason = "A bundle of two small audit cards (#219 findings 9 and 7) that land as one lane to share its claim, review and landing; each touches two files."
