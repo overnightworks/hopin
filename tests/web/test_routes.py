@@ -82,7 +82,7 @@ class TestWireModule:
         }
 
     def test_a_feature_export_named_like_a_core_export_is_refused_at_start(self, room_manager):
-        clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"GAME_OVER": "game_over"}})
+        clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"SAMPLE_REASON": "sample_reason"}})
         handler = SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), clashing)
 
         with pytest.raises(FeatureClashError, match="ERROR_REASON"):
