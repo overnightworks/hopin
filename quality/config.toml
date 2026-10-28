@@ -5,11 +5,6 @@ mandatory_jobs = ["Lint and test", "End-to-end", "Coverage"]
 entry = "Makefile"
 reason = "make finds its Makefile only in the directory it runs from"
 
-[[layout.allow]]
-path = "tests/game/test_production_wiring.py"
-rule = "test-layout"
-reason = "it proves main.py switches the game in, and main.py is a core module that must not name the game, so the proof sits with the game and goes when the game is removed"
-
 [[gate.loosened]]
 what = "import contract \"HopIn's packages depend downwards only\" changes layers"
 item = "#265"

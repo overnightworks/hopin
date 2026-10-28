@@ -3,13 +3,10 @@ from functools import partial
 
 import pytest
 
-# Assertion rewriting must be registered before the first import of a support module.
-pytest.register_assert_rewrite("tests.game.support")
-
-from hopin.game.table import Game  # noqa: E402
-from hopin.signaling.handler import SignalingHandler  # noqa: E402
-from tests.game.support.fake_game_master import FakeGameMaster  # noqa: E402
-from tests.support.signaling_fakes import SocketAccountResolver  # noqa: E402
+from hopin.game.table import Game
+from hopin.signaling.handler import SignalingHandler
+from tests.game.support.fake_game_master import FakeGameMaster
+from tests.support.signaling_fakes import SocketAccountResolver
 
 LOGGERS_THAT_MUST_STAY_SILENT = ("httpx2", "httpcore2", "urllib3", "webauth")
 
