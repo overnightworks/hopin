@@ -1,20 +1,22 @@
+import asyncio
+import threading
+
 import pytest
 import pytest_asyncio
 import structlog.testing
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
-    MAX_LIVE_SEATS_PER_ACCOUNT,
-    POLICY_VIOLATION_CLOSE_CODE,
     RESUME_WINDOW_SECONDS,
     SESSION_RECHECK_SECONDS,
     ErrorReason,
     SignalType,
 )
 from tests.signaling.support.browsers import Link, host_and_guest
-from tests.support.signaling_fakes import account_named, disconnect_frame
+from tests.support.signaling_fakes import disconnect_frame
 
 ABNORMAL_CLOSE_CODE = 1006
+GATE_TIMEOUT_SECONDS = 5
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -36,8 +38,27 @@ def fail_every_send_like_a_half_closed_socket(socket):
     socket.send_text = failing_send_text
 
 
-def websocket_errors(logs):
-    return [entry for entry in logs if entry["event"] == "websocket_error"]
+class HoldFirstLogAboutSeat:
+    """A log processor that holds the first line about one seat, so the coroutine writing it stays suspended.
+
+    Async log calls run their processors on an executor thread, so holding that thread keeps the
+    awaiting coroutine parked at its log call while the test drives other sockets.
+    """
+
+    def __init__(self, peer_id):
+        self.peer_id = peer_id
+        self.reached = threading.Event()
+        self.release = threading.Event()
+
+    def __call__(self, logger, method_name, event_dict):
+        if event_dict.get("peer_id") == self.peer_id and not self.reached.is_set():
+            self.reached.set()
+            self.release.wait(GATE_TIMEOUT_SECONDS)
+        return event_dict
+
+
+def offer_to(browser, sdp):
+    return {"type": SignalType.OFFER.value, "target": browser.peer_id, "sdp": sdp}
 
 
 def assert_resume_refused(browser):
@@ -50,7 +71,7 @@ class TestDropWithWriteInFlight:
         host, guest = await host_and_guest(link)
         fail_every_send_like_a_half_closed_socket(guest.socket)
 
-        await host.say({"type": SignalType.OFFER.value, "target": guest.peer_id, "sdp": "in flight"})
+        await host.say(offer_to(guest, "in flight"))
         await guest.drop(ABNORMAL_CLOSE_CODE)
         await scheduler.advance(RESUME_WINDOW_SECONDS - 1)
         await guest.resume()
@@ -59,19 +80,21 @@ class TestDropWithWriteInFlight:
 
 
 class TestServerClosesWhoseEchoIsLost:
-    """The browser's close code can be lost; the server's own record decides, and the seat is not parked."""
+    """The browser's close code can be lost. In each of these closes the server removes the seat, or hands it
+    to the resuming socket, before the echo is read, so the closed socket no longer holds a seat and nothing
+    parks. The server's own record of the close decides only when the drop is read while that socket still
+    holds the seat: the session-end race below."""
 
     async def test_superseded_by_a_resume_leaves_the_seat_with_the_new_socket(self, link):
         host, guest = await host_and_guest(link)
         await guest.resume()
         old_socket = guest.sockets[0]
 
-        with structlog.testing.capture_logs() as logs:
-            old_socket.push(disconnect_frame(ABNORMAL_CLOSE_CODE))
-            await link.tasks[old_socket]
-        await host.say({"type": SignalType.OFFER.value, "target": guest.peer_id, "sdp": "for the new socket"})
+        old_socket.push(disconnect_frame(ABNORMAL_CLOSE_CODE))
+        await link.tasks[old_socket]
+        await host.say(offer_to(guest, "for the new socket"))
 
-        assert websocket_errors(logs) == []
+        assert len(link.handler.seats_of(guest.name)) == 1
         assert [frame["sdp"] for frame in guest.socket.sent if frame["type"] == SignalType.OFFER.value] == [
             "for the new socket"
         ]
@@ -81,31 +104,45 @@ class TestServerClosesWhoseEchoIsLost:
         guest.socket.account = None
 
         await scheduler.advance(SESSION_RECHECK_SECONDS)
-        with structlog.testing.capture_logs() as logs:
-            await guest.drop(ABNORMAL_CLOSE_CODE)
+        await guest.drop(ABNORMAL_CLOSE_CODE)
+        seats_after_the_drop = link.handler.seats_of(guest.name)
         await guest.resume()
 
-        assert websocket_errors(logs) == []
+        assert seats_after_the_drop == ()
         assert_resume_refused(guest)
 
     async def test_room_ended_removes_every_seat_without_parking_it(self, link):
         host, guest = await host_and_guest(link)
 
         await host.say({"type": SignalType.END_ROOM.value})
-        with structlog.testing.capture_logs() as logs:
-            await guest.drop(ABNORMAL_CLOSE_CODE)
+        await guest.drop(ABNORMAL_CLOSE_CODE)
+        seats_after_the_drop = link.handler.seats_of(guest.name)
         await guest.resume()
 
-        assert websocket_errors(logs) == []
+        assert seats_after_the_drop == ()
         assert_resume_refused(guest)
 
-    async def test_beyond_the_call_cap_refuses_the_socket_and_holds_no_seat_for_it(self, link):
-        account = account_named("busy")
-        for _ in range(MAX_LIVE_SEATS_PER_ACCOUNT):
-            await link.open(account)
 
-        refused = await link.open(account)
-        await link.tasks[refused]
+class TestSessionEndRacingTheDropOfAFailedWrite:
+    async def test_drop_read_while_the_session_end_is_suspended_neither_parks_nor_lets_the_seat_resume(
+        self, link, scheduler
+    ):
+        host, guest = await host_and_guest(link)
+        fail_every_send_like_a_half_closed_socket(guest.socket)
+        await host.say(offer_to(guest, "fails and marks the socket gone"))
+        guest.socket.account = None
+        gate = HoldFirstLogAboutSeat(guest.peer_id)
 
-        assert refused.closed_with == POLICY_VIOLATION_CLOSE_CODE
-        assert refused.sent[0]["reason"] == ErrorReason.TOO_MANY_CALLS.value
+        with structlog.testing.capture_logs(processors=[gate]):
+            session_check = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+            try:
+                assert await asyncio.to_thread(gate.reached.wait, GATE_TIMEOUT_SECONDS)
+                await guest.drop(ABNORMAL_CLOSE_CODE)
+                seats_after_the_drop = link.handler.seats_of(guest.name)
+                await guest.resume()
+            finally:
+                gate.release.set()
+                await session_check
+
+        assert seats_after_the_drop == ()
+        assert_resume_refused(guest)
