@@ -6,8 +6,9 @@ import pytest
 from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
+from hopin.config.constants import STATIC_PATH
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import BROWSER_MODULE, GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS
+from hopin.game.vocabulary import BROWSER_MODULE, GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GameSignal
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -22,7 +23,7 @@ from tests.e2e.support.calls import (
     wait_until_the_prejoin_media_answered,
 )
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
-from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES
+from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.game.support.fake_agent_service import Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
@@ -50,6 +51,11 @@ MORE_PROGRESS = "#gameProgress"
 THINKING = re.compile(r"\bthinking\b")
 QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
 QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
+END_QUIZ = re.compile(rf"^End quiz\s+{QUESTION_ONE}$")
+QUIZ_ENDED = "Quiz ended."
+SEND_FRAME_THROUGH_THE_PAGES_SIGNALING = (
+    f"async (type) => (await import('{STATIC_PATH}/js/signaling.js')).send({{ type }})"
+)
 PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 BROWSER_STYLESHEET = BROWSER_MODULE.replace("game.js", "game.css")
 RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT = """
@@ -67,6 +73,15 @@ window.WebSocket = class extends PageWebSocket {
 def start_quiz(person: Page) -> None:
     open_more(person)
     person.click(START_QUIZ)
+
+
+def end_quiz(person: Page) -> None:
+    open_more(person)
+    person.click(START_QUIZ)
+
+
+def send_frame(person: Page, signal_type: GameSignal) -> None:
+    person.evaluate(SEND_FRAME_THROUGH_THE_PAGES_SIGNALING, signal_type.value)
 
 
 def open_chat(person: Page) -> None:
@@ -293,7 +308,8 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
         expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
         close_chat(person)
         expect(open_more(person).locator(MORE_PROGRESS)).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
-        expect(open_more(person).locator(START_QUIZ)).to_contain_text("Quiz running")
+    expect(open_more(host).locator(START_QUIZ)).to_contain_text("End quiz")
+    expect(open_more(guest).locator(START_QUIZ)).to_contain_text("Quiz running")
     reveal_request = agent_service.runs[-2].request.turn.messages[-1].text
     assert answers_in_reveal(reveal_request) == [
         {"name": guest_name, "antwort": "Guadiana"},
@@ -318,8 +334,10 @@ def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_se
     answer_on_card(guest, "x" * (GAME_ANSWER_MAX_CHARACTERS + 1))
 
     expect(guest.locator(TOASTS)).to_contain_text("Your answer is too long. Shorten it and send again.")
-    expect(host.locator(TOASTS)).not_to_contain_text("too long")
     answer_on_card(host, "Tejo")
+    # The host's own count comes after any toast the guest's answer could have sent the host.
+    expect(host.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(host.locator(TOASTS)).not_to_contain_text("too long")
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
     expect(guest.locator(CARD).locator(STATUS)).not_to_have_class(SENT)
 
@@ -418,6 +436,12 @@ def test_both_pages_show_the_game_master_thinking_while_the_reveal_runs_and_unti
     for person in (host, guest):
         expect(person.locator(TYPING)).to_be_visible()
     expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_disabled()
+    for person in (host, guest):
+        close_chat(person)
+        item = open_more(person).locator(START_QUIZ)
+        expect(item).to_have_text("Game master is thinking…", use_inner_text=True)
+        expect(item).to_be_disabled()
+        open_chat(person)
     reveal_run.release.set()
     for person in (host, guest):
         expect(person.locator(GAME_MASTER_LINES).last).to_contain_text("Der Tejo.")
@@ -467,7 +491,7 @@ def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_s
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_while_a_question_is_open_more_says_quiz_running_to_everyone(
+def test_while_a_question_is_open_more_says_end_quiz_to_the_starter_and_quiz_running_to_the_others(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
@@ -479,10 +503,102 @@ def test_while_a_question_is_open_more_says_quiz_running_to_everyone(
 
     start_quiz(host)
 
+    starters_item = open_more(host).locator(START_QUIZ)
+    expect(starters_item).to_have_text(END_QUIZ, use_inner_text=True)
+    expect(starters_item).to_be_enabled()
+    others_item = open_more(guest).locator(START_QUIZ)
+    expect(others_item).to_have_text(QUIZ_RUNNING, use_inner_text=True)
+    expect(others_item).to_be_disabled()
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_starters_end_quiz_shows_everyone_quiz_ended_and_frees_start_quiz(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    runs_before = len(agent_service.runs)
+    start_quiz(guest)
     for person in (host, guest):
-        item = open_more(person).locator(START_QUIZ)
-        expect(item).to_have_text(QUIZ_RUNNING, use_inner_text=True)
-        expect(item).to_be_disabled()
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+
+    for person in (host, guest):
+        close_chat(person)
+    end_quiz(guest)
+
+    for person in (host, guest):
+        expect_toast(person, QUIZ_ENDED, X_ICON_PATH)
+        expect(person.locator(CARD)).to_have_count(0)
+        expect(open_more(person).locator(START_QUIZ)).to_contain_text("Start quiz")
+        expect_idle(person)
+    assert len(agent_service.runs) == runs_before + 1
+
+
+def test_the_hosts_end_quiz_ends_a_guests_quiz_for_everyone(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+) -> None:
+    host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    start_quiz(guest)
+    expect(open_more(host).locator(START_QUIZ)).to_have_text(END_QUIZ, use_inner_text=True)
+
+    end_quiz(host)
+
+    for person in (host, guest):
+        expect_toast(person, QUIZ_ENDED, X_ICON_PATH)
+        expect(open_more(person).locator(START_QUIZ)).to_contain_text("Start quiz")
+        expect_idle(person)
+
+
+def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alone(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+) -> None:
+    host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    start_quiz(host)
+    open_chat(host)
+    expect(host.locator(CARD)).to_be_visible()
+    refusals = {
+        GameSignal.GAME_START: "A quiz is already running.",
+        GameSignal.GAME_REVEAL: "Only the person who started the quiz can reveal.",
+        GameSignal.GAME_END: "Only the person who started the quiz or the host can end it.",
+    }
+
+    for signal_type, toast in refusals.items():
+        send_frame(guest, signal_type)
+        expect(guest.locator(TOASTS)).to_contain_text(toast)
+
+    expect(host.locator(TOASTS)).to_be_empty()
+    expect(host.locator(CARD)).to_be_visible()
+    expect(open_more(host).locator(START_QUIZ)).to_have_text(END_QUIZ, use_inner_text=True)
+
+
+def test_a_refused_reveal_shows_the_starter_the_reason_and_everyone_else_quiz_ended(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+) -> None:
+    host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
+    agent_service.answer_next(
+        Succeeds("Welcher Fluss fließt durch Lissabon?"), Rejects(HTTPStatus.FORBIDDEN, RejectionCode.NOT_ENABLED)
+    )
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+
+    host.locator(CARD).get_by_role("button", name=REVEAL).click()
+
+    expect(host.locator(TOASTS)).to_have_text("Your account has no AI access.")
+    expect_toast(guest, QUIZ_ENDED, X_ICON_PATH)
+    for person in (host, guest):
+        expect(person.locator(CARD)).to_have_count(0)
+        open_more(person)
+        expect_idle(person)
+    expect(host.locator(TOASTS)).not_to_contain_text(QUIZ_ENDED)
 
 
 def test_an_account_without_ai_access_gets_the_toast_alone_and_the_other_returns_to_idle(

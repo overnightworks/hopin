@@ -194,3 +194,47 @@ def test_the_next_rounds_transcript_still_holds_the_reveal_request_with_its_answ
     quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing().heard("Sam hat recht.", PLAYERS)
 
     assert answers_in_reveal(quiz.transcript[-3].text) == [{"name": "Sam", "antwort": "Tejo"}]
+
+
+def every_step_of_a_quiz():
+    return [
+        pytest.param(Quiz(STARTER), id="asking"),
+        pytest.param(open_question(), id="answering"),
+        pytest.param(open_question().revealing(), id="revealing"),
+        pytest.param(last_round_revealed(), id="scoring"),
+    ]
+
+
+@pytest.mark.parametrize("quiz", every_step_of_a_quiz())
+@pytest.mark.parametrize(
+    ("peer_id", "hosts_call", "may_end"),
+    [(STARTER, False, True), (OTHER, True, True), (OTHER, False, False)],
+    ids=["starter", "host who did not start", "another seat"],
+)
+def test_the_starter_or_a_host_may_end_the_quiz_in_every_step(quiz, peer_id, hosts_call, may_end):
+    assert quiz.may_end(peer_id, hosts_call=hosts_call) is may_end
+
+
+def test_an_ended_quiz_is_over_and_holds_no_transcript_players_or_answers():
+    quiz = open_question().with_answer(STARTER, "Sam", "A").ended()
+
+    assert (quiz.is_over, quiz.transcript, quiz.players, quiz.answers) == (True, (), frozenset(), ())
+
+
+def test_nobody_may_answer_reveal_or_end_an_ended_quiz():
+    quiz = open_question().ended()
+
+    assert [quiz.may_answer(STARTER), quiz.may_reveal(STARTER), quiz.may_end(STARTER, hosts_call=True)] == [False] * 3
+
+
+@pytest.mark.parametrize(
+    ("quiz", "is_opening"),
+    [
+        pytest.param(Quiz(STARTER), True, id="round one asking"),
+        pytest.param(open_question(), False, id="round one answering"),
+        pytest.param(open_question().revealing(), False, id="round one revealing"),
+        pytest.param(open_question().revealing().heard("Lissabon.", PLAYERS), False, id="round two asking"),
+    ],
+)
+def test_only_the_first_rounds_asking_is_the_opening_run(quiz, is_opening):
+    assert quiz.is_opening is is_opening

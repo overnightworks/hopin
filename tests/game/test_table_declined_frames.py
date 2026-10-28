@@ -11,6 +11,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
     [
         pytest.param(GameSignal.GAME_LINE.value, id="a game type only the server sends"),
         pytest.param(GameSignal.GAME_ANSWER_COUNT.value, id="another game type only the server sends"),
+        pytest.param(GameSignal.GAME_ENDED.value, id="a third game type only the server sends"),
         pytest.param("unknown", id="a type nobody knows"),
     ],
 )

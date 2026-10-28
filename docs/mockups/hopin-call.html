@@ -1704,7 +1704,7 @@ const ACTIONS = {
   rejoin: () => PRESETS["pre-guest"](),
   "retry-lock": () => PRESETS["pre-guest"](),
   "quiz-start": () => startQuiz(),
-  "quiz-end": () => { S.quizPhase = "idle"; S.quizAnswer = null; toast("Quiz ended", "x"); },
+  "quiz-end": () => { S.quizPhase = "idle"; S.quizAnswer = null; toast("Quiz ended.", "x"); },
   "quiz-reveal": () => revealQuestion(),
   "quiz-signin-open": () => toast("Keycloak sign-in opens here", "external"),
 };

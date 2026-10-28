@@ -16,7 +16,9 @@ from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.game.support.table_world import (
+    END,
     END_ROOM,
+    ENDED,
     GAME_TYPES,
     IDLE,
     OPENING,
@@ -135,7 +137,9 @@ class TestOneRun:
             "duration_ms": 3000,
         }
 
-    @pytest.mark.parametrize("frame", [START, REVEAL, answer("Lissabon")], ids=["start", "reveal", "answer"])
+    @pytest.mark.parametrize(
+        "frame", [START, REVEAL, END, answer("Lissabon")], ids=["start", "reveal", "end", "answer"]
+    )
     async def test_a_frame_from_outside_a_room_is_ignored(self, link, game_master, frame):
         loner = Browser(link, "loner")
         loner.sockets.append(await link.open(account_named("loner")))
@@ -252,7 +256,7 @@ class TestReveal:
         await open_a_question([host, guest], host)
 
         assert game_frames(guest)[:6] == [*asked(guest), thinking(guest), refused(GameRefusal.NO_ACCESS), IDLE]
-        assert game_frames(host)[:5] == [*asked(guest), thinking(guest), IDLE]
+        assert game_frames(host)[:6] == [*asked(guest), thinking(guest), ENDED, IDLE]
 
     async def test_a_reveal_past_its_deadline_ends_the_quiz(self, link, game_master, scheduler):
         host, guest = await call_of(link, "host", "guest")
@@ -266,6 +270,7 @@ class TestReveal:
         await open_a_question([host, guest], host)
 
         assert game_frames(guest)[:6] == [*asked(guest), thinking(guest), refused(GameRefusal.UNAVAILABLE), IDLE]
+        assert game_frames(host)[:6] == [*asked(guest), thinking(guest), ENDED, IDLE]
         assert game_master.calls[1].cancelled
 
     async def test_a_new_quiz_starts_with_an_empty_transcript(self, link, game_master):

@@ -11,9 +11,17 @@ from tests.support.signaling_fakes import ARRIVAL_CAP_SECONDS, text_frame
 
 START = {"type": GameSignal.GAME_START.value}
 REVEAL = {"type": GameSignal.GAME_REVEAL.value}
+END = {"type": GameSignal.GAME_END.value}
+ENDED = {"type": GameSignal.GAME_ENDED.value}
 END_ROOM = {"type": SignalType.END_ROOM.value}
 GAME_TYPES = frozenset(
-    {GameSignal.GAME_PHASE, GameSignal.GAME_LINE, GameSignal.GAME_REFUSED, GameSignal.GAME_ANSWER_COUNT}
+    {
+        GameSignal.GAME_PHASE,
+        GameSignal.GAME_LINE,
+        GameSignal.GAME_REFUSED,
+        GameSignal.GAME_ANSWER_COUNT,
+        GameSignal.GAME_ENDED,
+    }
 )
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
