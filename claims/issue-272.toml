@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "b4f2f81ffcb17d06893fb1c029998346ff129df3"
 branch = "claude/issue-272-removal-drill"
-scope = [".github/workflows/ci.yml", "docs/ARCHITECTURE.md", "pyproject.toml", "scripts/remove_game.py", "tests/conftest.py", "uv.lock"]
+scope = [".github/workflows/ci.yml", "docs/ARCHITECTURE.md", "pyproject.toml", "quality/config.toml", "scripts/remove_game.py", "tests/conftest.py", "uv.lock"]
 opened_commit = "7b70d26be4d742e9b1fc105d603cb63461ccc84b"
 whole_reason = "The script, the CI job that runs it and the conftest marker it reads only prove anything together."
