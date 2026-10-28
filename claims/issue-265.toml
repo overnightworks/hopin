@@ -1,0 +1,8 @@
+claim_id = "8ae8844acb634e9da77a3d78797676fd"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "afc50b9e5261ccfe5245da62a43909b128e643eb"
+branch = "claude/issue-265-game-leaves-the-call-core"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "quality/config.toml", "src/hopin/agents", "src/hopin/app.py", "src/hopin/config", "src/hopin/game", "src/hopin/main.py", "src/hopin/signaling", "src/hopin/web/routes.py", "src/hopin/web/wire.py", "tests"]
+opened_commit = "33a0f375529ab40a13b450d9c96ef29571ce1a5c"
+whole_reason = "A package move lands whole: the moved modules, their one port, the composition and the exhaustive import contracts must change together, or the tree holds two owners and the contracts break."
