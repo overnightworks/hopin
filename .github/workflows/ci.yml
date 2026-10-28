@@ -52,18 +52,20 @@ jobs:
         run: make dead
 
       # Which files are measured is pyproject.toml's to say (the source key
-      # under [tool.coverage.run]); this step only asks for the report the
-      # quality gate's scan reads, so a local run, the pre-commit hook and CI
-      # cannot disagree about the measured set.
+      # under [tool.coverage.run]). 100 % is judged by the Coverage job over
+      # the unit and end-to-end data together, not here.
       - name: Test with coverage
-        run: pytest -q -m "not e2e" --cov-report=xml:coverage.xml
+        env:
+          COVERAGE_FILE: .coverage.unit
+        run: pytest -q -m "not e2e"
 
-      - name: Upload the coverage report
+      - name: Upload the unit coverage data
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage
-          path: coverage.xml
+          name: coverage-data-unit
+          path: .coverage.unit
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
@@ -109,7 +111,19 @@ jobs:
 
       - name: Run the end-to-end tests
         timeout-minutes: 10
-        run: pytest -m e2e --no-cov --tracing retain-on-failure --screenshot only-on-failure --output test-results
+        env:
+          COVERAGE_FILE: .coverage.e2e
+        run: pytest -m e2e --tracing retain-on-failure --screenshot only-on-failure --output test-results
+
+      - name: Upload the end-to-end coverage data
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-e2e
+          path: .coverage.e2e
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Upload the traces
         if: failure()
@@ -120,9 +134,52 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+  coverage:
+    name: Coverage
+    needs: [ci, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --no-install-project --no-build
+          echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
+
+      - name: Fetch the coverage data
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-data-*
+          merge-multiple: true
+
+      # The branch contract: 100 % over unit, integration and end-to-end
+      # together. The xml is the report the quality gate's scan reads.
+      - name: Judge the combined coverage
+        run: |
+          coverage combine .coverage.unit .coverage.e2e
+          coverage report --fail-under=100
+          coverage xml -o coverage.xml
+
+      - name: Upload the coverage report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 1
+
   quality:
     name: quality
-    needs: [ci, e2e]
+    needs: [ci, e2e, coverage]
     if: always()
     permissions:
       contents: read
