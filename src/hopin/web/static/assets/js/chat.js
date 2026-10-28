@@ -13,6 +13,7 @@ const chatBadge = document.getElementById("chatBadge");
 let chatOpen = false;
 let unreadMessages = 0;
 let pinnedLast = null;
+let card = null;
 
 function appendMessage(text, senderId) {
     const isSelf = senderId === null;
@@ -61,6 +62,13 @@ export function pinLast(element) {
     if (element === null) return;
     chatMessages.append(element);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+/** Show `element` between the chat's header and its lines until another element, or null, takes its place. */
+export function showCard(element) {
+    card?.remove();
+    card = element;
+    if (element !== null) chatMessages.before(element);
 }
 
 function sendMessage() {

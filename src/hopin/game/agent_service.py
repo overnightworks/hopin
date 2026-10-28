@@ -23,7 +23,8 @@ from agent_runtime_client.wire import (
 )
 from pydantic import ValidationError
 
-from hopin.game.table import GameOutcome, Question, Refused
+from hopin.game.quiz import Speaker, Turn
+from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
     GAME_LINE_MAX_CHARACTERS,
     GAME_READ_TIMEOUT_SECONDS,
@@ -46,7 +47,6 @@ type AgentTransport = Callable[[], httpx2.AsyncBaseTransport]
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 QUIZ_AGENT_FILE: Final = Path(__file__).parent / "quiz.md"
-NEXT_QUESTION_REQUEST: Final = "Stelle die nächste Quizfrage."
 RUNS_PATH: Final = "/runs"
 EVENT_STREAM: Final = "text/event-stream"
 CUT_MARK: Final = "…"
@@ -59,6 +59,7 @@ TIMEOUT: Final = httpx2.Timeout(
 )
 WHOLE_SECONDS: Final = re.compile(r"\d+", re.ASCII)
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
+ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: TurnRole.ASSISTANT}
 NO_ACCESS_CODES: Final = frozenset({RejectionCode.NOT_ENABLED, RejectionCode.FORBIDDEN})
 # The loggers httpx2 and httpcore2 log on: the status line at INFO, the headers and every transport error
 # at DEBUG, where the agent service may echo a token or the game's text. A logger's filter sees only the
@@ -84,7 +85,7 @@ def silence_transport_logs() -> None:
 
 
 class AgentServiceGameMaster:
-    """Asks the agent service's quiz agent for the next question, on the starter's own access."""
+    """Asks the agent service's quiz agent for the game master's next line, on the starter's own access."""
 
     def __init__(self, *, agent_service_url: str, tokens: StarterTokens, transport: AgentTransport) -> None:
         self._runs_url = agent_service_url + RUNS_PATH
@@ -92,11 +93,11 @@ class AgentServiceGameMaster:
         self._transport = transport
         self._agent = load_agent(QUIZ_AGENT_FILE, [])
 
-    async def ask(self, starter: HTTPConnection, questions: tuple[str, ...]) -> GameOutcome:
+    async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
         tokens = await self._tokens.of(starter)
         if isinstance(tokens, GameRefusal):
             return Refused(tokens)
-        return await self._run(self._agent.request(_turns_after(questions)).model_dump_json(), tokens)
+        return await self._run(self._agent.request(_turn_messages(transcript)).model_dump_json(), tokens)
 
     async def _run(self, body: str, tokens: RunTokens) -> GameOutcome:
         # Each run owns its client and transport: closing a client closes its transport's pool,
@@ -116,16 +117,8 @@ class AgentServiceGameMaster:
                 return UNAVAILABLE
 
 
-def _turns_after(questions: tuple[str, ...]) -> list[TurnMessage]:
-    asked = [
-        turn
-        for question in questions
-        for turn in (
-            TurnMessage(role=TurnRole.USER, text=NEXT_QUESTION_REQUEST),
-            TurnMessage(role=TurnRole.ASSISTANT, text=question),
-        )
-    ]
-    return [*asked, TurnMessage(role=TurnRole.USER, text=NEXT_QUESTION_REQUEST)]
+def _turn_messages(transcript: tuple[Turn, ...]) -> list[TurnMessage]:
+    return [TurnMessage(role=ROLE_OF_SPEAKER[turn.speaker], text=turn.text) for turn in transcript]
 
 
 def _run_headers(tokens: RunTokens) -> dict[str, str]:
@@ -200,7 +193,7 @@ async def _outcome_of_stream(response: httpx2.Response) -> GameOutcome:
 def _outcome_of_event(item: Decoded) -> GameOutcome | None:
     match item:
         case Succeeded(text=text):
-            return Question(_cut(text))
+            return Line(_cut(text))
         case Failed(code=code):
             _log_refusal(failure=code.value)
         case Cancelled():

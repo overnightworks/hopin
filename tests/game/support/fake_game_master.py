@@ -1,8 +1,12 @@
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from hopin.game.table import Question
+from hopin.game.table import Line
+
+if TYPE_CHECKING:
+    from hopin.game.quiz import Turn
 
 DEFAULT_QUESTION = "Wie heißt die Hauptstadt von Portugal?"
 
@@ -21,7 +25,7 @@ class HeldAsk:
 @dataclass(eq=False)
 class AskCall:
     starter: object
-    questions: tuple[str, ...]
+    transcript: tuple[Turn, ...]
     cancelled: bool = False
     finished: bool = False
 
@@ -50,15 +54,15 @@ class FakeGameMaster:
             held.release.set()
             held.cleanup_release.set()
 
-    async def ask(self, starter, questions):
-        call = AskCall(starter, questions)
+    async def ask(self, starter, transcript):
+        call = AskCall(starter, transcript)
         self.calls.append(call)
         held = self._holds.popleft() if self._holds else None
         try:
             if held is not None:
                 held.started.set()
                 await held.release.wait()
-            outcome = self._outcomes.popleft() if self._outcomes else Question(DEFAULT_QUESTION)
+            outcome = self._outcomes.popleft() if self._outcomes else Line(DEFAULT_QUESTION)
             if isinstance(outcome, BaseException):
                 raise outcome
             return outcome

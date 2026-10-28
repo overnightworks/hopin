@@ -7,7 +7,8 @@ import pytest
 import structlog.testing
 from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode
 
-from hopin.game.table import Question, Refused
+from hopin.game.quiz import Speaker, Turn
+from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GameRefusal
 from tests.game.support.fake_agent_service import (
     PERSONS_ACCESS_ECHO,
@@ -21,7 +22,7 @@ from tests.game.support.fake_agent_service import (
     SendsBytes,
     Succeeds,
 )
-from tests.game.support.world import build_world, cancelled, connection_with, wait_in_a_worker
+from tests.game.support.world import OPENING, build_world, cancelled, connection_with, wait_in_a_worker
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -39,16 +40,16 @@ class TestTokens:
     async def test_ask_sends_the_starters_access_token_and_the_workload_token(self, world):
         starter, member = world.starter()
 
-        outcome = await world.game_master.ask(starter, ())
+        outcome = await world.game_master.ask(starter, OPENING)
 
         [run] = world.service.runs
-        assert outcome == Question(Succeeds().text)
+        assert outcome == Line(Succeeds().text)
         assert (run.subject, run.workload_admitted) == (member.account.id, True)
         assert world.grant_types() == ["refresh_token", "client_credentials"]
 
     @pytest.mark.parametrize("cookie", [None, "__Host-session_id=forged"])
     async def test_ask_without_a_session_cookie_is_sign_in_again_before_any_grant(self, world, cookie):
-        outcome = await world.game_master.ask(connection_with(cookie), ())
+        outcome = await world.game_master.ask(connection_with(cookie), OPENING)
 
         assert outcome == Refused(GameRefusal.SIGN_IN_AGAIN)
         assert (world.issuer.exchanges, world.service.runs) == ([], [])
@@ -56,28 +57,28 @@ class TestTokens:
     async def test_ask_from_a_session_without_a_refresh_token_is_sign_in_again(self, world):
         starter, _ = world.starter(with_refresh_token=False)
 
-        assert await world.game_master.ask(starter, ()) == Refused(GameRefusal.SIGN_IN_AGAIN)
+        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.SIGN_IN_AGAIN)
         assert (world.issuer.exchanges, world.service.runs) == ([], [])
 
     async def test_ask_whose_refresh_token_the_issuer_refuses_is_sign_in_again(self, world):
         starter, _ = world.starter()
         world.issuer.refuses_refresh_grants = True
 
-        assert await world.game_master.ask(starter, ()) == Refused(GameRefusal.SIGN_IN_AGAIN)
+        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.SIGN_IN_AGAIN)
         assert (world.grant_types(), world.service.runs) == (["refresh_token"], [])
 
     async def test_ask_from_an_ended_session_is_sign_in_again(self, world):
         starter, member = world.starter()
         world.stores.sessions.delete(member.session.id)
 
-        assert await world.game_master.ask(starter, ()) == Refused(GameRefusal.SIGN_IN_AGAIN)
+        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.SIGN_IN_AGAIN)
         assert world.service.runs == []
 
     async def test_ask_while_the_issuer_is_down_is_unavailable(self, world):
         starter, _ = world.starter()
         world.issuer.token_endpoint_is_down = True
 
-        assert await world.game_master.ask(starter, ()) == Refused(GameRefusal.UNAVAILABLE)
+        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
         assert world.service.runs == []
 
     async def test_ask_whose_workload_grant_is_refused_is_unavailable_and_posts_nothing(self, world):
@@ -85,7 +86,7 @@ class TestTokens:
         world.issuer.refuses_workload_grants = True
 
         with structlog.testing.capture_logs() as logs:
-            outcome = await world.game_master.ask(starter, ())
+            outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         assert world.service.runs == []
@@ -106,7 +107,7 @@ class TestTokens:
         world.issuer.workload_refusal_error = credential_shaped
 
         with structlog.testing.capture_logs() as logs:
-            outcome = await world.game_master.ask(starter, ())
+            outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         assert credential_shaped not in repr(logs)
@@ -118,7 +119,7 @@ class TestHeldGrants:
     async def test_a_run_cancelled_during_its_refresh_grant_asks_for_no_workload_token_and_posts_nothing(self, world):
         starter, _ = world.starter()
         hold = world.issuer.hold("refresh_token")
-        run = asyncio.create_task(world.game_master.ask(starter, ()))
+        run = asyncio.create_task(world.game_master.ask(starter, OPENING))
         await wait_in_a_worker(hold.parked)
 
         await cancelled(run)
@@ -131,7 +132,7 @@ class TestHeldGrants:
     async def test_a_run_cancelled_during_its_workload_grant_posts_nothing(self, world):
         starter, _ = world.starter()
         hold = world.issuer.hold("client_credentials")
-        run = asyncio.create_task(world.game_master.ask(starter, ()))
+        run = asyncio.create_task(world.game_master.ask(starter, OPENING))
         await wait_in_a_worker(hold.parked)
 
         await cancelled(run)
@@ -144,7 +145,7 @@ class TestHeldGrants:
     async def test_a_session_ended_during_the_refresh_grant_is_sign_in_again_and_its_token_goes_unused(self, world):
         starter, member = world.starter()
         hold = world.issuer.hold("refresh_token")
-        run = asyncio.create_task(world.game_master.ask(starter, ()))
+        run = asyncio.create_task(world.game_master.ask(starter, OPENING))
         await wait_in_a_worker(hold.parked)
 
         world.stores.sessions.delete(member.session.id)
@@ -156,17 +157,17 @@ class TestHeldGrants:
     async def test_the_next_run_after_a_cancelled_refresh_grant_sends_the_rotated_token_and_succeeds(self, world):
         starter, member = world.starter()
         hold = world.issuer.hold("refresh_token")
-        first = asyncio.create_task(world.game_master.ask(starter, ()))
+        first = asyncio.create_task(world.game_master.ask(starter, OPENING))
         await wait_in_a_worker(hold.parked)
         await cancelled(first)
         hold.release.set()
         await wait_in_a_worker(world.sessions.stored_refresh_token)
         rotated = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
 
-        outcome = await world.game_master.ask(starter, ())
+        outcome = await world.game_master.ask(starter, OPENING)
 
         refresh_tokens_sent = [request.form.get("refresh_token") for request, _ in world.issuer.exchanges]
-        assert outcome == Question(Succeeds().text)
+        assert outcome == Line(Succeeds().text)
         assert refresh_tokens_sent[1] == rotated
         assert [run.subject for run in world.service.runs] == [member.account.id]
 
@@ -237,7 +238,7 @@ class TestRejections:
         starter, _ = world.starter()
         world.service.answer_next(rejection)
 
-        assert await world.game_master.ask(starter, ()) == expected
+        assert await world.game_master.ask(starter, OPENING) == expected
 
     @pytest.mark.parametrize(
         "answer",
@@ -250,7 +251,7 @@ class TestRejections:
         starter, _ = world.starter()
         world.service.answer_next(answer)
 
-        outcome = await world.game_master.ask(starter, ())
+        outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         assert (len(world.service.runs), world.service.transports_made) == (1, 1)
@@ -272,7 +273,7 @@ class TestStream:
         starter, _ = world.starter()
         world.service.answer_next(answer)
 
-        outcome = await world.game_master.ask(starter, ())
+        outcome = await world.game_master.ask(starter, OPENING)
 
         [run] = world.service.runs
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
@@ -286,7 +287,7 @@ class TestStream:
 
         game_master = world.game_master_over(lambda: httpx2.MockTransport(refuse_to_connect))
 
-        assert await game_master.ask(starter, ()) == Refused(GameRefusal.UNAVAILABLE)
+        assert await game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
 
     @pytest.mark.parametrize(("answer_length", "expected_length"), [(599, 599), (600, 600), (601, 600), (2000, 600)])
     async def test_an_answer_is_cut_to_600_characters_including_the_ellipsis(
@@ -296,7 +297,7 @@ class TestStream:
         text = "<b>" + "x" * (answer_length - 3)
         world.service.answer_next(Succeeds(text))
 
-        outcome = await world.game_master.ask(starter, ())
+        outcome = await world.game_master.ask(starter, OPENING)
 
         assert len(outcome.text) == expected_length
         expected = text if answer_length <= 600 else text[:599] + "…"
@@ -304,23 +305,24 @@ class TestStream:
 
 
 class TestWhatLeaves:
-    async def test_the_request_holds_the_quiz_prompt_each_earlier_question_and_the_next_request_and_no_model(
-        self, world
-    ):
+    async def test_the_request_holds_the_quiz_prompt_and_the_quiz_so_far_as_turns_and_no_model(self, world):
         starter, _ = world.starter()
+        transcript = (
+            Turn(Speaker.HOPIN, "Erste Bitte."),
+            Turn(Speaker.GAME_MASTER, "Frage eins?"),
+            Turn(Speaker.HOPIN, "Zweite Bitte."),
+        )
 
-        await world.game_master.ask(starter, ("Frage eins?", "Frage zwei?"))
+        await world.game_master.ask(starter, transcript)
 
         [run] = world.service.runs
         request = run.request
         assert (request.purpose, request.model, request.roles, request.tools) == ("quiz", None, ["admin", "user"], {})
         assert request.turn.system.startswith("Du bist der Spielleiter")
         assert [(message.role.value, message.text) for message in request.turn.messages] == [
-            ("user", "Stelle die nächste Quizfrage."),
+            ("user", "Erste Bitte."),
             ("assistant", "Frage eins?"),
-            ("user", "Stelle die nächste Quizfrage."),
-            ("assistant", "Frage zwei?"),
-            ("user", "Stelle die nächste Quizfrage."),
+            ("user", "Zweite Bitte."),
         ]
         assert {"authorization", "agent-workload-token"} <= run.header_names
 
@@ -357,7 +359,7 @@ class TestNothingLeaksIntoLogs:
         world.service.answer_next(_with_secrets(answer_with_the_secrets, embedded))
 
         with structlog.testing.capture_logs() as logs:
-            outcome = await world.game_master.ask(starter, (sentinel,))
+            outcome = await world.game_master.ask(starter, (*OPENING, Turn(Speaker.GAME_MASTER, sentinel)))
 
         [run] = world.service.runs
         refresh_token = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
@@ -373,9 +375,9 @@ class TestNothingLeaksIntoLogs:
         world.service.answer_next(Succeeds(question))
 
         with structlog.testing.capture_logs() as logs:
-            outcome = await world.game_master.ask(starter, ())
+            outcome = await world.game_master.ask(starter, OPENING)
 
-        assert outcome == Question(question)
+        assert outcome == Line(question)
         assert question not in repr(logs) + "".join(stdlib_records)
 
 
@@ -394,7 +396,7 @@ async def test_a_held_run_closes_its_stream_when_cancelled(world):
     starter, _ = world.starter()
     held = Holds()
     world.service.answer_next(held)
-    run = asyncio.create_task(world.game_master.ask(starter, ()))
+    run = asyncio.create_task(world.game_master.ask(starter, OPENING))
     await held.started.wait_async()
 
     await cancelled(run)

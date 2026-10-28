@@ -1,5 +1,5 @@
 import { initAccount } from "./account.js";
-import { initChat, pinLast, receiveLine, registerChatHandlers } from "./chat.js";
+import { initChat, pinLast, receiveLine, registerChatHandlers, showCard } from "./chat.js";
 import {
     addMoreItems,
     confirmLockChange,
@@ -59,6 +59,7 @@ const FEATURE_CORE = Object.freeze({
     addMoreItems,
     receiveChatLine: receiveLine,
     pinLastChatLine: pinLast,
+    showChatCard: showCard,
     onCallEnded: (hook) => {
         callEndedHooks.push(hook);
     },
