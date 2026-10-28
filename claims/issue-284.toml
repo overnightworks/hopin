@@ -1,0 +1,8 @@
+claim_id = "8c2f87bff2a14833ac60e1efc806fbc6"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "665e70e5aefd7a627f0aaaa47d436c440c692882"
+branch = "claude/issue-284-answers-and-names-to-the-reveal"
+scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/game/quiz.md", "src/hopin/game/quiz.py", "src/hopin/game/table.py", "src/hopin/game/vocabulary.py", "src/hopin/signaling/features.py", "src/hopin/web/static/assets/game/game.js", "tests/e2e/game/test_game_master.py", "tests/game/support/table_world.py", "tests/game/test_agent_service_flow.py", "tests/game/test_quiz.py", "tests/game/test_table.py", "tests/game/test_table_answers.py"]
+opened_commit = "d246c03eef26ee0e7e43047f85f4232a1240c8d3"
+whole_reason = "The outbound answers and names, the prompt that reads them, the More note and the docs that say what leaves the call must land in one commit (the 2c honesty rule)."
