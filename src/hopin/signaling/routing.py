@@ -158,6 +158,7 @@ class RoomRouting:
         )
 
     async def handle_disconnect(self, peer_id: PeerId) -> None:
+        """Forgets the seat before its first await, so a server's end leaves no seat to park or resume."""
         peer = self._seats.forget(peer_id)
         left_at = self._scheduler.now()
         if peer is not None and peer.park is not None:

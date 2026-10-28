@@ -1,9 +1,7 @@
-import asyncio
-import threading
+import json
 
 import pytest
 import pytest_asyncio
-import structlog.testing
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import (
@@ -16,7 +14,6 @@ from tests.signaling.support.browsers import Link, host_and_guest
 from tests.support.signaling_fakes import disconnect_frame
 
 ABNORMAL_CLOSE_CODE = 1006
-GATE_TIMEOUT_SECONDS = 5
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -36,25 +33,6 @@ def fail_every_send_like_a_half_closed_socket(socket):
         raise WebSocketDisconnect(ABNORMAL_CLOSE_CODE)
 
     socket.send_text = failing_send_text
-
-
-class HoldFirstLogAboutSeat:
-    """A log processor that holds the first line about one seat, so the coroutine writing it stays suspended.
-
-    Async log calls run their processors on an executor thread, so holding that thread keeps the
-    awaiting coroutine parked at its log call while the test drives other sockets.
-    """
-
-    def __init__(self, peer_id):
-        self.peer_id = peer_id
-        self.reached = threading.Event()
-        self.release = threading.Event()
-
-    def __call__(self, logger, method_name, event_dict):
-        if event_dict.get("peer_id") == self.peer_id and not self.reached.is_set():
-            self.reached.set()
-            self.release.wait(GATE_TIMEOUT_SECONDS)
-        return event_dict
 
 
 def offer_to(browser, sdp):
@@ -81,9 +59,7 @@ class TestDropWithWriteInFlight:
 
 class TestServerClosesWhoseEchoIsLost:
     """The browser's close code can be lost. In each of these closes the server removes the seat, or hands it
-    to the resuming socket, before the echo is read, so the closed socket no longer holds a seat and nothing
-    parks. The server's own record of the close decides only when the drop is read while that socket still
-    holds the seat: the session-end race below."""
+    to the resuming socket, before it closes the socket, so a drop read for that socket finds no seat to park."""
 
     async def test_superseded_by_a_resume_leaves_the_seat_with_the_new_socket(self, link):
         host, guest = await host_and_guest(link)
@@ -123,26 +99,24 @@ class TestServerClosesWhoseEchoIsLost:
         assert_resume_refused(guest)
 
 
-class TestSessionEndRacingTheDropOfAFailedWrite:
-    async def test_drop_read_while_the_session_end_is_suspended_neither_parks_nor_lets_the_seat_resume(
-        self, link, scheduler
-    ):
+class TestRoomEndRacingTheDrop:
+    """The room's end writes its last frame through each seat before it removes the seat, but the room
+    membership a park needs is gone before that first write."""
+
+    async def test_drop_read_while_the_room_closed_frame_is_written_neither_parks_nor_lets_the_seat_resume(self, link):
         host, guest = await host_and_guest(link)
-        fail_every_send_like_a_half_closed_socket(guest.socket)
-        await host.say(offer_to(guest, "fails and marks the socket gone"))
-        guest.socket.account = None
-        gate = HoldFirstLogAboutSeat(guest.peer_id)
+        write = guest.socket.send_text
+        during_the_room_end = {}
 
-        with structlog.testing.capture_logs(processors=[gate]):
-            session_check = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
-            try:
-                assert await asyncio.to_thread(gate.reached.wait, GATE_TIMEOUT_SECONDS)
+        async def drop_and_resume_after_the_room_closed_frame(text):
+            await write(text)
+            if json.loads(text)["type"] == SignalType.ROOM_CLOSED.value:
                 await guest.drop(ABNORMAL_CLOSE_CODE)
-                seats_after_the_drop = link.handler.seats_of(guest.name)
+                during_the_room_end["seats"] = link.handler.seats_of(guest.name)
                 await guest.resume()
-            finally:
-                gate.release.set()
-                await session_check
 
-        assert seats_after_the_drop == ()
+        guest.socket.send_text = drop_and_resume_after_the_room_closed_frame
+        await host.say({"type": SignalType.END_ROOM.value})
+
+        assert during_the_room_end["seats"] == ()
         assert_resume_refused(guest)

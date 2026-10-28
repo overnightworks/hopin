@@ -106,6 +106,25 @@ class Link:
         await asyncio.gather(*self.tasks.values(), return_exceptions=True)
 
 
+class HeldClose:
+    """Holds the server right after it closes one socket, until the test releases it."""
+
+    def __init__(self, socket):
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        close = socket.close
+
+        async def close_and_hold(code):
+            await close(code)
+            self.entered.set()
+            await asyncio.wait_for(self.release.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
+
+        socket.close = close_and_hold
+
+    async def reached(self):
+        await asyncio.wait_for(self.entered.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
+
+
 async def host_and_guest(link):
     host = await link.join("host")
     guest = await link.join("guest", host.socket.sent[0]["room_id"])

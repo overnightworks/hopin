@@ -129,11 +129,10 @@ class SignalingHandler:
             return
         peer_id = connection.peer_id
         connection.ended = True
+        # The seat leaves before anything awaits, so a drop or a resume read meanwhile finds no seat.
+        await self._routing.handle_disconnect(peer_id)
         await self._seats.close_socket(connection.websocket, close_code)
         await logger.ainfo("session_ended", peer_id=peer_id)
-        if not self._holds_seat(connection):
-            return
-        await self._routing.handle_disconnect(peer_id)
 
     async def _end_connection(self, connection: Connection) -> None:
         connection.ended = True

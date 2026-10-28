@@ -200,7 +200,7 @@ class Seats:
 
     async def close_socket(self, websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
         # The server's decision is the fact, whatever the transport state: a failed write may already
-        # have marked this socket gone, and its drop must still not park the seat.
+        # have marked this socket gone, and its lost echo must still not read as a drop.
         self._closed_by_server.add(websocket)
         if not is_connected(websocket):
             return
