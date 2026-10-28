@@ -1,0 +1,11 @@
+/* The game master's lines carry an accent outline, never a person's colour. */
+.chat-msg.game-master { border: 1.5px solid var(--accent-stage); border-top-left-radius: 2px; }
+.chat-msg .game-master-sender { display: flex; align-items: center; gap: 5px; color: var(--accent-stage); font-weight: 650; }
+.ai-badge { border: 1.5px solid var(--accent-stage); border-radius: 999px; padding: 0 5px; font-size: 0.6rem; line-height: 13px; font-weight: 750; letter-spacing: .04em; }
+.game-master.typing p { display: flex; gap: 5px; align-items: center; height: 18px; }
+.game-master.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); animation: speak var(--motion-think) ease-in-out infinite; }
+.game-master.typing i:nth-child(2) { animation-delay: -.3s; }
+.game-master.typing i:nth-child(3) { animation-delay: -.6s; }
+.game-item:not(.thinking) .thinking-only, .game-item.thinking .idle-only { display: none; }
+.game-item.thinking .icon { color: var(--busy); animation: rot var(--motion-think) linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }

@@ -215,14 +215,6 @@ body {
     color: #9ca3af;
     margin-bottom: 0.15rem;
 }
-/* The game master's lines carry an accent outline, never a person's colour. */
-.chat-msg.game-master { border: 1.5px solid var(--accent-stage); border-top-left-radius: 2px; }
-.chat-msg .game-master-sender { display: flex; align-items: center; gap: 5px; color: var(--accent-stage); font-weight: 650; }
-.ai-badge { border: 1.5px solid var(--accent-stage); border-radius: 999px; padding: 0 5px; font-size: 0.6rem; line-height: 13px; font-weight: 750; letter-spacing: .04em; }
-.game-master.typing p { display: flex; gap: 5px; align-items: center; height: 18px; }
-.game-master.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); animation: speak var(--motion-think) ease-in-out infinite; }
-.game-master.typing i:nth-child(2) { animation-delay: -.3s; }
-.game-master.typing i:nth-child(3) { animation-delay: -.6s; }
 .chat-input-row {
     display: flex;
     padding: 0.5rem;
@@ -804,9 +796,6 @@ body {
 .mi .end { display: flex; color: var(--ink-faint); }
 .mi:disabled { opacity: .6; cursor: default; }
 .mi:disabled:hover { background: transparent; }
-.game-item:not(.thinking) .thinking-only, .game-item.thinking .idle-only { display: none; }
-.game-item.thinking .icon { color: var(--busy); animation: rot var(--motion-think) linear infinite; }
-@keyframes rot { to { transform: rotate(360deg); } }
 .quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.4; }
 .quiet-note a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .overlay .legal { display: block; font-size: inherit; }

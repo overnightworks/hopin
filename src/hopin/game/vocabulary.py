@@ -1,5 +1,7 @@
 from enum import StrEnum
 
+from hopin.config.constants import STATIC_PATH
+
 # A game master run sends the questions this call already asked, so the model does not repeat them.
 GAME_HISTORY_LIMIT = 20
 GAME_LINE_MAX_CHARACTERS = 600
@@ -39,3 +41,4 @@ def _members(vocabulary: type[StrEnum]) -> dict[str, str]:
 # What the call core adds to the browser's wire module while the game is wired in.
 SIGNAL_TYPES = _members(GameSignal)
 WIRE_EXPORTS = {"GAME_PHASE": _members(GamePhase), "GAME_REFUSAL": _members(GameRefusal)}
+BROWSER_MODULE = f"{STATIC_PATH}/game/game.js"

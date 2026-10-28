@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hopin.config.constants import STATIC_PATH
 from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, PHONE
@@ -20,15 +21,23 @@ TWO_PLAYING_VIDEOS = """
 }
 """
 
+CORE_MODULES_PATH = f"{STATIC_PATH}/js/"
+
+
+def record_scripts(person: Page, scripts: list[str]) -> Page:
+    person.on("request", lambda request: request.resource_type == "script" and scripts.append(request.url))
+    return person
+
 
 @pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])
-def test_call_two_people_join_see_each_others_video(
+def test_call_two_people_join_see_each_others_video_with_only_the_call_cores_modules(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
-    host = open_person(**form_factor)
+    scripts: list[str] = []
+    host = record_scripts(open_person(**form_factor), scripts)
     invite_link = start_call(host, base_url)
 
-    guest = open_person(**form_factor)
+    guest = record_scripts(open_person(**form_factor), scripts)
     join_by_link(guest, invite_link)
 
     for person in (host, guest):
@@ -39,3 +48,5 @@ def test_call_two_people_join_see_each_others_video(
         "() => document.querySelectorAll('.tile').length === 1",
         timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     )
+    assert scripts
+    assert [url for url in scripts if not url.startswith(f"{base_url}{CORE_MODULES_PATH}")] == []
