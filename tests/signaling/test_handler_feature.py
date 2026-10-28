@@ -8,7 +8,7 @@ from hopin.signaling.features import FeatureClashError
 from hopin.signaling.frames import ForeignFrame
 from hopin.signaling.handler import SignalingHandler
 from tests.signaling.support.browsers import Link, host_and_guest
-from tests.support.signaling_fakes import ManualScheduler, RecordingFeature, SocketAccountResolver
+from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
 
 pytestmark = pytest.mark.integration
 
@@ -117,8 +117,8 @@ class TestClashAtStart:
             pytest.param({"QUIZ_START": SignalType.CHAT.value}, id="a core value"),
         ],
     )
-    def test_a_feature_signal_type_that_reuses_a_core_one_is_refused(self, room_manager, signal_types):
+    def test_a_feature_signal_type_that_reuses_a_core_one_is_refused(self, room_manager, scheduler, signal_types):
         clashing = partial(RecordingFeature, signal_types=signal_types)
 
         with pytest.raises(FeatureClashError):
-            handler_with(room_manager, ManualScheduler(), clashing)
+            handler_with(room_manager, scheduler, clashing)
