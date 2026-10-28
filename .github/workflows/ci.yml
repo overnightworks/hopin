@@ -214,10 +214,25 @@ jobs:
         working-directory: ${{ env.COPY }}
         run: pytest -q -m "not e2e" --no-cov
 
+      # Same bounded retry as the End-to-end job: a stalled apt must not turn
+      # the mandatory drill red at random.
       - name: Install Chromium
+        id: install-chromium
         working-directory: ${{ env.COPY }}
-        timeout-minutes: 10
+        continue-on-error: true
+        timeout-minutes: 6
         run: playwright install --with-deps chromium
+
+      - name: Install Chromium again
+        if: steps.install-chromium.outcome == 'failure'
+        working-directory: ${{ env.COPY }}
+        timeout-minutes: 6
+        run: |
+          # The timed-out attempt leaves its apt-get running and holding the dpkg lock.
+          sudo pkill -x apt-get || true
+          sudo pkill -x apt || true
+          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+          playwright install --with-deps chromium
 
       - name: Run a call end to end
         working-directory: ${{ env.COPY }}
