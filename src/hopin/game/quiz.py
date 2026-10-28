@@ -75,7 +75,7 @@ class Quiz:
         return self.is_asking and self.round == 1
 
     def may_end(self, peer_id: PeerId, *, hosts_call: bool) -> bool:
-        return not self.is_over and (peer_id == self.starter or hosts_call)
+        return peer_id == self.starter or hosts_call
 
     def ended(self) -> Quiz:
         return Quiz(self.starter, step=QuizStep.OVER, round=self.round, transcript=())

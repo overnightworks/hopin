@@ -311,9 +311,12 @@ class Game:
             await self._send_each(room_id, run, recipients, _line_frame(outcome, run.quiz))
             quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
+            # The refusal ends the quiz: it is over before the first write, so no End starts a second ending.
+            self._quizzes[room_id] = run.quiz.ended()
+            seated = self._rooms.members(room_id)
             await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(outcome))
             if not run.quiz.is_opening:
-                others = [seat for seat in self._rooms.members(room_id) if seat != run.quiz.starter]
+                others = [seat for seat in seated if seat != run.quiz.starter]
                 await self._send_each(room_id, run, others, ENDED_FRAME)
             quiz = None
         if not self._is_live(room_id, run):
@@ -397,7 +400,7 @@ class Game:
         return broken_writes
 
     def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
-        shown = "line" if isinstance(outcome, Line) else outcome.reason.value
+        shown = "ended" if run.ended else "line" if isinstance(outcome, Line) else outcome.reason.value
         duration_ms = round((self._scheduler.now() - run.started_at) * MILLISECONDS_PER_SECOND)
         logger.info("game_master_run", room_id=room_id, outcome=shown, duration_ms=duration_ms)
 

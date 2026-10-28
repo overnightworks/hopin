@@ -573,6 +573,9 @@ def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alo
         send_frame(guest, signal_type)
         expect(guest.locator(TOASTS)).to_contain_text(toast)
 
+    answer_on_card(host, "Tejo")
+    # The host's own count comes after any frame the guest's crafted frames could have sent the host.
+    expect(host.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
     expect(host.locator(TOASTS)).to_be_empty()
     expect(host.locator(CARD)).to_be_visible()
     expect(open_more(host).locator(START_QUIZ)).to_have_text(END_QUIZ, use_inner_text=True)

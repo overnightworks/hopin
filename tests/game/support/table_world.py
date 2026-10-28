@@ -88,6 +88,11 @@ def game_frames(browser):
     return [without_seq(frame) for frame in browser.frames(*GAME_TYPES)]
 
 
+def every_frame_sent_to(browser):
+    """Every frame the browser was sent over all its sockets, of any type, core errors included."""
+    return [frame for socket in browser.sockets for frame in socket.sent]
+
+
 def sequenced_game_frames(browser):
     return [(frame["seq"], without_seq(frame)) for frame in browser.frames(*GAME_TYPES)]
 

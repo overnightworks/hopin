@@ -222,12 +222,11 @@ def test_an_ended_quiz_is_over_and_holds_no_transcript_players_or_answers():
     assert (quiz.transcript, quiz.players, quiz.answers) == ((), frozenset(), ())
 
 
-def test_nobody_may_answer_reveal_or_end_an_ended_quiz():
+def test_nobody_may_answer_or_reveal_an_ended_quiz():
     quiz = open_question().ended()
 
     assert not quiz.may_answer(STARTER)
     assert not quiz.may_reveal(STARTER)
-    assert not quiz.may_end(STARTER, hosts_call=True)
 
 
 @pytest.mark.parametrize(
