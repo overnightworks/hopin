@@ -2,6 +2,8 @@ import logging
 
 import pytest
 
+from hopin.agents.game_master import silence_transport_logs
+
 LOGGERS_THAT_MUST_STAY_SILENT = ("httpx2", "httpcore2", "urllib3", "webauth")
 
 
@@ -14,6 +16,7 @@ def stdlib_records():
         def emit(self, record):
             records.append(logging.Formatter().format(record))
 
+    silence_transport_logs()
     handler = Keep(logging.DEBUG)
     loggers = [logging.getLogger(name) for name in LOGGERS_THAT_MUST_STAY_SILENT]
     levels = [logger.level for logger in loggers]

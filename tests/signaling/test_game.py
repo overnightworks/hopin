@@ -19,6 +19,7 @@ from hopin.signaling.game import Question, Refused
 from hopin.signaling.handler import SignalingHandler
 from tests.signaling.support.browsers import Browser, Link
 from tests.support.signaling_fakes import (
+    ARRIVAL_CAP_SECONDS,
     DEFAULT_QUESTION,
     ROOM_LIMIT,
     SocketAccountResolver,
@@ -67,12 +68,24 @@ async def sent_to_all(browsers, frame, times=1):
         await sent(browser, frame, times)
 
 
+async def wait_within_cap(event):
+    async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
+        await event.wait()
+
+
+async def shut_down_within_cap(handler):
+    """Shut down, failing instead of hanging when a run's ask is never cancelled."""
+    async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
+        await handler.shut_down()
+
+
 @pytest_asyncio.fixture
-async def link(handler):
+async def link(handler, game_master):
     link = Link(handler)
     yield link
     await link.close_all()
-    await handler.shut_down()
+    game_master.release_every_hold()
+    await shut_down_within_cap(handler)
 
 
 async def yield_until(condition):
@@ -93,7 +106,7 @@ async def call_of(link, *names):
 async def start_and_hold(game_master, browser, **hold_options):
     held = game_master.hold_next(**hold_options)
     await browser.say(START)
-    await held.started.wait()
+    await wait_within_cap(held.started)
     return held
 
 
@@ -253,7 +266,7 @@ class TestOneRunPerRoom:
         host, guest = await call_of(link, "host", "guest")
         held = await start_and_hold(game_master, guest, hold_cleanup=True)
         await scheduler.advance(GAME_RUN_DEADLINE_SECONDS)
-        await held.cleanup_started.wait()
+        await wait_within_cap(held.cleanup_started)
 
         await host.say(START)
         await sent(host, refused(GameRefusal.ALREADY_ANSWERING))
@@ -328,7 +341,7 @@ class TestRoomEnd:
             await host.say(END_ROOM)
             await yield_until(lambda: call.finished)
             assert call.cancelled
-            await link.handler.shut_down()
+            await shut_down_within_cap(link.handler)
 
         assert_no_driver_failed(logs)
         assert_no_game_frame_after_room_closed([host, guest])
@@ -348,7 +361,7 @@ class TestRoomEnd:
             push_unsettled(host, END_ROOM)
             await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
             gate.set()
-            await link.handler.shut_down()
+            await shut_down_within_cap(link.handler)
 
         assert_no_driver_failed(logs)
         assert_no_game_frame_after_room_closed([host, guest, third])
@@ -367,7 +380,7 @@ class TestRoomEnd:
             await scheduler.advance(HOST_GRACE_SECONDS)
             await yield_until(lambda: call.finished)
             assert call.cancelled
-            await link.handler.shut_down()
+            await shut_down_within_cap(link.handler)
 
         assert_no_driver_failed(logs)
         assert guest.frames(SignalType.ROOM_CLOSED)
@@ -379,7 +392,7 @@ class TestRoomEnd:
         push_unsettled(host, START)
         push_unsettled(host, END_ROOM)
         await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
-        await link.handler.shut_down()
+        await shut_down_within_cap(link.handler)
 
         assert game_frames(host) == game_frames(guest) == []
         assert game_master.calls == []
@@ -433,7 +446,7 @@ class TestShutdown:
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
 
-        await link.handler.shut_down()
+        await shut_down_within_cap(link.handler)
 
         [call] = game_master.calls
         assert (call.cancelled, call.finished) == (True, True)
@@ -443,10 +456,10 @@ class TestShutdown:
         host, guest = await call_of(link, "host", "guest")
         held = await start_and_hold(game_master, guest, hold_cleanup=True)
         await host.say(END_ROOM)
-        await held.cleanup_started.wait()
+        await wait_within_cap(held.cleanup_started)
 
         asyncio.get_running_loop().call_soon(held.cleanup_release.set)
-        await link.handler.shut_down()
+        await shut_down_within_cap(link.handler)
 
         assert game_master.calls[0].finished
 
@@ -503,7 +516,7 @@ class TestBrokenWrite:
         await start_and_hold(game_master, host)
         await sent(host, THINKING)
 
-        await link.handler.shut_down()
+        await shut_down_within_cap(link.handler)
 
         [call] = game_master.calls
         assert (call.cancelled, call.finished) == (True, True)
@@ -610,4 +623,4 @@ async def test_six_seats_get_the_line(scheduler, game_master):
 
     assert all(game_frames(browser) == [THINKING, line(), IDLE] for browser in call)
     await link.close_all()
-    await handler.shut_down()
+    await shut_down_within_cap(handler)

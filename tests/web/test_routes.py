@@ -146,6 +146,7 @@ class TestHeadRequests:
 
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
 LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
+GAME_MASTER_NOTICE_URL = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
@@ -316,8 +317,8 @@ class TestPageIsCspReady:
         assert every_page_inventory.fetched_urls
         assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
 
-    def test_links_only_to_the_two_central_legal_pages_in_a_new_tab(self, page_inventory):
-        assert {link["href"] for link in page_inventory.links} == set(LEGAL_URLS)
+    def test_links_only_to_the_central_legal_pages_and_the_game_master_notice_in_a_new_tab(self, page_inventory):
+        assert {link["href"] for link in page_inventory.links} == {*LEGAL_URLS, GAME_MASTER_NOTICE_URL}
         assert all(
             link[name] == value for link in page_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items()
         )

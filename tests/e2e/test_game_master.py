@@ -23,7 +23,7 @@ GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
 TYPING = "#chatMessages .game-master.typing"
 TOASTS = "#toasts"
 THINKING = re.compile(r"\bthinking\b")
-PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin"
+PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 
 
 def start_quiz(person: Page) -> None:

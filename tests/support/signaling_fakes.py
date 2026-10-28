@@ -164,6 +164,7 @@ class FakeGameMaster:
     def __init__(self) -> None:
         self._outcomes: deque = deque()
         self._holds: deque[HeldAsk] = deque()
+        self._issued_holds: list[HeldAsk] = []
         self.calls: list[AskCall] = []
 
     def answer_next(self, *outcomes) -> None:
@@ -172,7 +173,14 @@ class FakeGameMaster:
     def hold_next(self, *, hold_cleanup: bool = False) -> HeldAsk:
         held = HeldAsk(hold_cleanup=hold_cleanup)
         self._holds.append(held)
+        self._issued_holds.append(held)
         return held
+
+    def release_every_hold(self) -> None:
+        """Let every held call and every held cleanup finish, so a teardown cannot wait on one forever."""
+        for held in self._issued_holds:
+            held.release.set()
+            held.cleanup_release.set()
 
     async def ask(self, starter, questions):
         call = AskCall(starter, questions)

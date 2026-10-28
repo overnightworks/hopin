@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,7 @@ from starlette.requests import Request
 from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
 
+from hopin.agents.game_master import TRANSPORT_LOGGERS
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
@@ -46,6 +48,22 @@ def signed_in_client(settings: ServerSettings) -> TestClient:
 
 
 class TestCreateApp:
+    def test_silences_the_agent_transport_logs(self, sign_in_settings):
+        loggers = [logging.getLogger(name) for name in TRANSPORT_LOGGERS]
+        saved = [logger.filters.copy() for logger in loggers]
+        for logger in loggers:
+            logger.filters.clear()
+
+        create_app(sign_in_settings().settings)
+
+        try:
+            for logger in loggers:
+                record = logger.makeRecord(logger.name, logging.INFO, __file__, 0, "a token", (), None)
+                assert not logger.filter(record)
+        finally:
+            for logger, filters in zip(loggers, saved, strict=True):
+                logger.filters[:] = filters
+
     def test_returns_fastapi_application(self, sign_in_settings):
         app = create_app(sign_in_settings().settings)
         assert isinstance(app, FastAPI)

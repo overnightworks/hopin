@@ -78,8 +78,9 @@ def _unlogged(record: logging.LogRecord) -> bool:
     return False
 
 
-for _logger_name in TRANSPORT_LOGGERS:
-    logging.getLogger(_logger_name).addFilter(_unlogged)
+def silence_transport_logs() -> None:
+    for logger_name in TRANSPORT_LOGGERS:
+        logging.getLogger(logger_name).addFilter(_unlogged)
 
 
 class AgentServiceGameMaster:

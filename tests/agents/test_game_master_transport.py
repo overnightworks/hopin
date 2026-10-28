@@ -98,7 +98,7 @@ async def test_a_redirect_is_not_followed(world, origin):
     assert origin.paths_requested() == [RUNS_PATH]
 
 
-async def test_a_connection_dropped_before_the_answer_is_one_attempt_and_unavailable(world, origin):
+async def test_a_request_whose_connection_drops_before_the_answer_is_sent_once_and_unavailable(world, origin):
     origin.serve(RUNS_PATH, b"")
     starter, _ = world.starter()
 
