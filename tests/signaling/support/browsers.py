@@ -106,23 +106,47 @@ class Link:
         await asyncio.gather(*self.tasks.values(), return_exceptions=True)
 
 
-class HeldClose:
+class Hold:
+    """A point where the server waits until the test releases it; both waits fail on timeout."""
+
+    def __init__(self):
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def hold(self):
+        self.entered.set()
+        await asyncio.wait_for(self.release.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
+
+    async def reached(self):
+        await asyncio.wait_for(self.entered.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
+
+
+class HeldClose(Hold):
     """Holds the server right after it closes one socket, until the test releases it."""
 
     def __init__(self, socket):
-        self.entered = asyncio.Event()
-        self.release = asyncio.Event()
+        super().__init__()
         close = socket.close
 
         async def close_and_hold(code):
             await close(code)
-            self.entered.set()
-            await asyncio.wait_for(self.release.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
+            await self.hold()
 
         socket.close = close_and_hold
 
-    async def reached(self):
-        await asyncio.wait_for(self.entered.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
+
+class HeldWrite(Hold):
+    """Holds each write to one socket before it is sent, until the test releases it."""
+
+    def __init__(self, socket):
+        super().__init__()
+        send_text = socket.send_text
+
+        async def hold_and_send(text):
+            await self.hold()
+            await send_text(text)
+
+        socket.send_text = hold_and_send
 
 
 async def host_and_guest(link):

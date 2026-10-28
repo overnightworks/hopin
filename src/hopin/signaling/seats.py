@@ -195,12 +195,15 @@ class Seats:
         await self.close_socket(seat.websocket)
 
     def closed_by_server(self, websocket: WebSocket) -> bool:
-        """Whether the server closed this socket itself, as opposed to the network dropping it."""
+        """Whether the server closed this socket itself, so an abnormal close read from it is no drop to log.
+
+        No park hinges on it: every server close first removes the seat, hands it on or ends its room.
+        """
         return websocket in self._closed_by_server
 
     async def close_socket(self, websocket: WebSocket, code: int = SEAT_CLOSED_BY_SERVER_CODE) -> None:
-        # The server's decision is the fact, whatever the transport state: a failed write may already
-        # have marked this socket gone, and its lost echo must still not read as a drop.
+        # Recorded before the transport guard: a failed write may already have marked this socket gone,
+        # and the server's close must still keep a lost echo from being logged as a drop.
         self._closed_by_server.add(websocket)
         if not is_connected(websocket):
             return

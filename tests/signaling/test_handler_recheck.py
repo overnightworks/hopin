@@ -15,7 +15,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.signaling.handler import SignalingHandler
-from tests.signaling.support.browsers import HeldClose, Link, host_and_guest
+from tests.signaling.support.browsers import HeldClose, HeldWrite, Link, host_and_guest
 from tests.support.signaling_fakes import account_named, disconnect_frame, text_frame
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -226,6 +226,34 @@ class TestSuspendedCheck:
 
 
 class TestSuspendedEnding:
+    async def test_session_end_closes_the_socket_while_another_participant_is_still_being_told_it_left(
+        self, link, scheduler
+    ):
+        host, guest = await host_and_guest(link)
+        guest.socket.account = None
+        held_write = HeldWrite(host.socket)
+        ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await held_write.reached()
+
+        assert guest.socket.closed_with == SESSION_ENDED_CLOSE_CODE
+        held_write.release.set()
+        await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
+        [left] = host.frames(SignalType.PARTICIPANT_LEFT)
+        assert left["participant_id"] == guest.peer_id
+
+    async def test_host_back_while_its_ended_session_is_closing_is_last_heard_as_back(self, link, scheduler):
+        host, guest = await host_and_guest(link)
+        host.socket.account = None
+        held_close = HeldClose(host.socket)
+        ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await held_close.reached()
+        await link.join("host", host.socket.sent[0]["room_id"])
+
+        held_close.release.set()
+        await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
+
+        assert guest.frames(SignalType.HOST_AWAY, SignalType.HOST_BACK)[-1]["type"] == SignalType.HOST_BACK.value
+
     async def test_resume_while_the_session_ending_closes_the_socket_is_refused_and_the_host_hears_it_left(
         self, link, scheduler, room_manager
     ):
@@ -308,7 +336,8 @@ class TestSuspendedEnding:
             asyncio.gather(ticking, handler_task, return_exceptions=True), timeout=HELD_TIMEOUT_SECONDS
         )
 
-        assert [type(outcome) is RuntimeError for outcome in outcomes] == [check == "raises"] * 2
+        expected_outcome = RuntimeError if check == "raises" else None
+        assert [outcome if outcome is None else type(outcome) for outcome in outcomes] == [expected_outcome] * 2
         assert host.frames(SignalType.CHAT) == []
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
 
