@@ -5,6 +5,7 @@ from hopin.game.quiz import (
     NEXT_QUESTION_REQUEST,
     QUIZ_ROUNDS,
     REVEAL_REQUEST,
+    PlayerAnswer,
     Quiz,
     Speaker,
     Turn,
@@ -24,7 +25,7 @@ def test_a_new_quiz_asks_for_question_one():
 
 
 def test_the_reveal_request_follows_the_question_in_the_transcript():
-    quiz = Quiz(STARTER).heard("Wie heißt die Hauptstadt von Portugal?").revealing()
+    quiz = Quiz(STARTER).heard("Wie heißt die Hauptstadt von Portugal?", PLAYERS).revealing()
 
     assert quiz.transcript == (
         Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),
@@ -37,13 +38,13 @@ def last_round_revealed():
     """The quiz as it waits for the final score."""
     quiz = Quiz(STARTER)
     for _ in range(QUIZ_ROUNDS):
-        quiz = quiz.heard("Frage?").revealing().heard("Lissabon.")
+        quiz = quiz.heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)
     return quiz
 
 
 @pytest.mark.parametrize(("peer_id", "may_reveal"), [(STARTER, True), (OTHER, False)], ids=["starter", "other"])
 def test_only_the_starter_may_reveal_an_open_question(peer_id, may_reveal):
-    quiz = Quiz(STARTER).heard("Frage?")
+    quiz = Quiz(STARTER).heard("Frage?", PLAYERS)
 
     assert quiz.may_reveal(peer_id) is may_reveal
 
@@ -52,9 +53,9 @@ def test_only_the_starter_may_reveal_an_open_question(peer_id, may_reveal):
     "quiz",
     [
         pytest.param(Quiz(STARTER), id="the question is still being asked"),
-        pytest.param(Quiz(STARTER).heard("Frage?").revealing(), id="the answer is being revealed"),
+        pytest.param(Quiz(STARTER).heard("Frage?", PLAYERS).revealing(), id="the answer is being revealed"),
         pytest.param(last_round_revealed(), id="the final score is being asked"),
-        pytest.param(last_round_revealed().heard("Ihr wart toll."), id="the quiz is over"),
+        pytest.param(last_round_revealed().heard("Ihr wart toll.", PLAYERS), id="the quiz is over"),
     ],
 )
 def test_no_reveal_while_no_question_is_open(quiz):
@@ -62,7 +63,7 @@ def test_no_reveal_while_no_question_is_open(quiz):
 
 
 def test_a_revealed_answer_before_the_last_round_asks_for_the_next_question():
-    quiz = Quiz(STARTER).heard("Frage?").revealing().heard("Lissabon.")
+    quiz = Quiz(STARTER).heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)
 
     assert (quiz.round, quiz.is_asking, quiz.transcript[-1]) == (2, True, Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST))
 
@@ -75,7 +76,7 @@ def test_the_last_rounds_revealed_answer_asks_for_the_final_score():
 
 
 def test_the_final_score_ends_the_quiz():
-    assert last_round_revealed().heard("Ihr wart toll.").is_over
+    assert last_round_revealed().heard("Ihr wart toll.", PLAYERS).is_over
 
 
 def test_every_step_but_answering_and_over_waits_for_the_game_master():
@@ -83,10 +84,10 @@ def test_every_step_but_answering_and_over_waits_for_the_game_master():
 
     assert [
         asking.awaits_game_master,
-        asking.heard("Frage?").awaits_game_master,
-        asking.heard("Frage?").revealing().awaits_game_master,
+        asking.heard("Frage?", PLAYERS).awaits_game_master,
+        asking.heard("Frage?", PLAYERS).revealing().awaits_game_master,
         last_round_revealed().awaits_game_master,
-        last_round_revealed().heard("Ihr wart toll.").awaits_game_master,
+        last_round_revealed().heard("Ihr wart toll.", PLAYERS).awaits_game_master,
     ] == [True, False, True, True, False]
 
 
@@ -109,7 +110,7 @@ def test_only_a_player_may_answer_an_open_question(peer_id, may_answer):
         pytest.param(Quiz(STARTER), id="the question is still being asked"),
         pytest.param(open_question().revealing(), id="the answer is being revealed"),
         pytest.param(last_round_revealed(), id="the final score is being asked"),
-        pytest.param(last_round_revealed().heard("Ihr wart toll."), id="the quiz is over"),
+        pytest.param(last_round_revealed().heard("Ihr wart toll.", PLAYERS), id="the quiz is over"),
     ],
 )
 def test_nobody_may_answer_while_no_question_is_open(quiz):
@@ -120,6 +121,8 @@ def test_a_second_answer_replaces_the_first_so_the_count_stays():
     quiz = open_question().with_answer(OTHER, "Porto").with_answer(OTHER, "Lissabon")
 
     assert quiz.answered_count(PLAYERS) == 1
+    assert quiz.answers == (PlayerAnswer(OTHER, "Lissabon"),)
+    assert quiz.revealing().answers == (PlayerAnswer(OTHER, "Lissabon"),)
 
 
 def test_the_count_covers_only_players_who_are_present():
@@ -147,7 +150,7 @@ def test_everyone_answered_judges_the_present_players(answering, present, everyo
 
 
 def test_the_next_round_starts_with_no_players_and_no_answers():
-    quiz = open_question().with_answer(STARTER, "A").revealing().heard("Lissabon.")
+    quiz = open_question().with_answer(STARTER, "A").revealing().heard("Lissabon.", PLAYERS)
 
     assert (quiz.players, quiz.answers, quiz.may_answer(STARTER)) == (frozenset(), (), False)
 

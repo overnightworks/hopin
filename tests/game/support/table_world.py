@@ -132,6 +132,10 @@ async def open_a_question(call, starter):
     await sent_to_all(call, answering(starter))
 
 
+async def broken_write(_text):
+    raise RuntimeError("a write that broke")
+
+
 def hold_writes_from(browser, frame):
     """Hold the browser's writes from the frame on until the returned gate opens."""
     gate = asyncio.Event()

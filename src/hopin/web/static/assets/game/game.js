@@ -204,6 +204,7 @@ function receiveAnswerCount(frame) {
 
 function showRefusal(frame) {
     awaitingAnswer = false;
+    if (frame.reason === GAME_REFUSAL.ANSWER_CLOSED) answerSent = false;
     render();
     const toastOf = REFUSAL_TOAST[frame.reason] ?? REFUSAL_TOAST[GAME_REFUSAL.UNAVAILABLE];
     core.showToast(...toastOf(frame));

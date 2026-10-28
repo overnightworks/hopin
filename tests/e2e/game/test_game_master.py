@@ -286,6 +286,36 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     assert not any("Mondego" in str(run.request) or "Guadiana" in str(run.request) for run in agent_service.runs)
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_card(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    reveal_run = Holds(then=Succeeds("Der Tejo."))
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"), reveal_run, Succeeds("Zweite?"))
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+    answer_on_card(host, "Tejo")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    host.locator(CARD).get_by_role("button", name=REVEAL).click()
+    expect(guest.locator(CARD).get_by_label(YOUR_ANSWER)).to_be_disabled()
+    guest.locator(CARD).locator(".qcard-input, .qcard-send").evaluate_all(
+        "fields => fields.forEach(field => { field.disabled = false; })"
+    )
+
+    answer_on_card(guest, "Mondego")
+
+    expect(guest.locator(TOASTS)).to_contain_text("This question is already closed.")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    reveal_run.release.set()
+
+
 def test_a_page_that_joins_during_a_question_has_no_card_and_plays_from_the_next(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
 ) -> None:

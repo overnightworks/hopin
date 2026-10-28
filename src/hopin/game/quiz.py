@@ -100,7 +100,7 @@ class Quiz:
             answers=self.answers,
         )
 
-    def heard(self, line: str, players: frozenset[PeerId] = frozenset()) -> Quiz:
+    def heard(self, line: str, players: frozenset[PeerId]) -> Quiz:
         """The quiz once the game master's line answers the step's request, with the request that follows.
 
         The line of a question reaches the round's players.

@@ -28,6 +28,7 @@ from tests.game.support.table_world import (
     asked,
     assert_no_driver_failed,
     assert_no_game_frame_after_room_closed,
+    broken_write,
     call_of,
     game_frames,
     hold_writes_from,
@@ -520,10 +521,6 @@ class TestShutdown:
         await shut_down_within_cap(link.handler)
 
         assert game_master.calls[0].finished
-
-
-async def broken_write(_text):
-    raise RuntimeError("a write that broke")
 
 
 def driver_failed(logs):

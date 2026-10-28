@@ -7,15 +7,13 @@ from hopin.config.constants import ErrorReason, SignalType
 from hopin.game.table import Line
 from hopin.game.vocabulary import GameRefusal, GameSignal
 from tests.game.support.table_world import (
-    END_ROOM,
     REVEAL,
     START,
     answer,
     answer_count,
     answering,
     asked,
-    assert_no_driver_failed,
-    assert_no_game_frame_after_room_closed,
+    broken_write,
     call_of,
     game_frames,
     hold_writes_from,
@@ -27,7 +25,6 @@ from tests.game.support.table_world import (
     refused,
     sent,
     sent_to_all,
-    shut_down_within_cap,
     thinking,
     wait_within_cap,
     yield_until,
@@ -236,23 +233,64 @@ async def test_a_newer_answer_wins_the_counts_a_held_seat_still_waits_for(link, 
     assert [game_frames(browser)[-1] for browser in (host, guest, third)] == [answer_count(2, 3)] * 3
 
 
-async def test_ending_the_call_while_the_counts_are_sent_sends_no_game_frame_after_room_closed(link, game_master):
+async def test_the_last_answer_reveals_once_the_question_run_still_held_by_a_departed_seat_ends(link, game_master):
     host, guest, third = await call_of(link, "host", "guest", "third")
+    script_two_questions(game_master)
+    gate = hold_writes_from(third, answering(host))
+    await host.say(START)
+    await sent_to_all([host, guest], answering(host))
+    await third.drop(code=1000)
+
+    await host.say(answer("Porto"))
+    await guest.say(answer("Lissabon"))
+    await sent(guest, answer_count(2, 2))
+    gate.set()
+    await sent_to_all([host, guest], answering(host, 2))
+
+    assert game_frames(host) == [
+        *asked(host, "Frage?"),
+        answer_count(1, 2),
+        answer_count(2, 2),
+        *revealed_into_question_two(host),
+    ]
+    assert len(game_master.calls) == 3
+
+
+async def test_the_starters_reveal_while_the_last_counts_are_sent_runs_one_reveal(link, game_master):
+    host, guest, third = await call_of(link, "host", "guest", "third")
+    script_two_questions(game_master)
     await open_a_question([host, guest, third], host)
-    gate = hold_writes_from(guest, answer_count(1, 3))
+    gate = hold_writes_from(guest, answer_count(3, 3))
+    await host.say(answer("Porto"))
+    await guest.say(answer("Lissabon"))
 
-    with structlog.testing.capture_logs() as logs:
-        push_unsettled(third, answer("Porto"))
-        await sent(host, answer_count(1, 3))
-        push_unsettled(host, END_ROOM)
-        await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
-        gate.set()
-        for browser in (guest, third):
-            await browser.socket.wait_until(lambda browser=browser: browser.frames(SignalType.ROOM_CLOSED))
-        await shut_down_within_cap(link.handler)
+    push_unsettled(third, answer("Faro"))
+    await sent(host, answer_count(3, 3))
+    await host.say(REVEAL)
+    gate.set()
+    await sent_to_all([host, guest, third], answering(host, 2))
+    await let_every_task_run()
 
-    assert_no_driver_failed(logs)
-    assert_no_game_frame_after_room_closed([host, guest, third])
+    assert len(game_master.calls) == 3
+
+
+async def test_a_seat_whose_write_breaks_does_not_stop_the_counts_the_reveal_or_the_sender(link, game_master):
+    host, guest = await call_of(link, "host", "guest")
+    script_two_questions(game_master)
+    await open_a_question([host, guest], host)
+    guest.socket.send_text = broken_write
+
+    await guest.say(answer("Porto"))
+    await host.say(answer("Lissabon"))
+    await sent(host, answering(host, 2))
+
+    assert game_frames(host) == [
+        *asked(host, "Frage?"),
+        answer_count(1, 2),
+        answer_count(2, 2),
+        *revealed_into_question_two(host),
+    ]
+    assert host.socket.closed_with is None
 
 
 async def test_no_log_event_carries_an_answer(link, game_master):

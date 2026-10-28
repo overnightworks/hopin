@@ -19,7 +19,7 @@ from hopin.game.vocabulary import (
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from starlette.requests import HTTPConnection
 
@@ -190,15 +190,16 @@ class Game:
 
     async def _send_answer_count(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> None:
         frame = _answer_count_frame(quiz, present)
-        for peer_id in self._rooms.members(room_id):
-            if self._quizzes.get(room_id) is not quiz:
-                return
-            await self._rooms.send(peer_id, frame)
+        broken_writes = await self._send_isolated(
+            self._rooms.members(room_id), frame, lambda: self._quizzes.get(room_id) is quiz
+        )
+        for error in broken_writes:
+            # The sender's connection and the reveal check go on; only the type is logged, never the text.
+            logger.error("game_answer_count_failed", error=type(error).__name__)
 
     def _reveal_is_due(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> bool:
         return (
             self._quizzes.get(room_id) is quiz
-            and room_id not in self._runs
             and quiz.everyone_answered(present)
             and self._rooms.room_of(quiz.starter) == room_id
         )
@@ -334,13 +335,22 @@ class Game:
         await self._send_each(room_id, run, self._rooms.members(room_id), frame)
 
     async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: JsonObject) -> None:
+        # Re-raised by the driver once every other seat has its frames.
+        run.broken_writes.extend(await self._send_isolated(recipients, frame, lambda: self._is_live(room_id, run)))
+
+    async def _send_isolated(
+        self, recipients: list[str], frame: JsonObject, still_wanted: Callable[[], bool]
+    ) -> list[Exception]:
+        """Send the frame to each recipient while it is wanted; a seat's broken write never keeps the others from it."""
+        broken_writes: list[Exception] = []
         for peer_id in recipients:
-            if not self._is_live(room_id, run):
-                return
+            if not still_wanted():
+                break
             try:
                 await self._rooms.send(peer_id, frame)
-            except Exception as error:  # re-raised by the driver once every other seat has its frames
-                run.broken_writes.append(error)
+            except Exception as error:
+                broken_writes.append(error)
+        return broken_writes
 
     def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         shown = "line" if isinstance(outcome, Line) else outcome.reason.value
