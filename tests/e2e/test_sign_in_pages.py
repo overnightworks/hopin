@@ -47,7 +47,7 @@ def test_a_failed_sign_in_shows_login_failed_with_one_way_out_and_both_legal_lin
 
     card = person.locator(".login-card")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name="Login failed")).to_be_visible()
+    expect(card.get_by_role("heading", name="Login failed", exact=True)).to_be_visible()
     expect(card.locator(".banner--fail")).to_have_text("Sign-in did not work. Please try again.")
     expect(person.locator(CARD_ACTIONS)).to_have_text(["Try again"])
     expect_both_legal_links(person.locator(".legal-links"))
@@ -123,7 +123,7 @@ def test_a_sign_in_state_page_shows_its_heading_its_one_action_and_both_legal_li
     expect(person).to_have_title(title)
     card = person.locator(".login-card")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name=heading)).to_be_visible()
+    expect(card.get_by_role("heading", name=heading, exact=True)).to_be_visible()
     expect(card.locator(".btn")).to_have_text([action])
     expect_both_legal_links(person.locator(".legal-links"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
