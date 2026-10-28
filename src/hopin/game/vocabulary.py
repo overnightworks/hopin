@@ -2,8 +2,6 @@ from enum import StrEnum
 
 from hopin.config.constants import STATIC_PATH
 
-# A game master run sends the questions this call already asked, so the model does not repeat them.
-GAME_HISTORY_LIMIT = 20
 GAME_LINE_MAX_CHARACTERS = 600
 GAME_RETRY_AFTER_MAX_SECONDS = 600
 GAME_RETRY_AFTER_FALLBACK_SECONDS = 30
@@ -16,6 +14,7 @@ GAME_RUN_DEADLINE_SECONDS = 90
 
 class GameSignal(StrEnum):
     GAME_START = "game_start"
+    GAME_REVEAL = "game_reveal"
     GAME_PHASE = "game_phase"
     GAME_LINE = "game_line"
     GAME_REFUSED = "game_refused"
@@ -24,6 +23,7 @@ class GameSignal(StrEnum):
 class GamePhase(StrEnum):
     IDLE = "idle"
     THINKING = "thinking"
+    ANSWERING = "answering"
 
 
 class GameRefusal(StrEnum):
@@ -31,6 +31,8 @@ class GameRefusal(StrEnum):
     SIGN_IN_AGAIN = "sign_in_again"
     BUSY = "busy"
     ALREADY_ANSWERING = "already_answering"
+    QUIZ_RUNNING = "quiz_running"
+    NOT_STARTER = "not_starter"
     UNAVAILABLE = "unavailable"
 
 

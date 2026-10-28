@@ -18,7 +18,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game import GameSettings, game_feature
-from hopin.game.agent_service import NEXT_QUESTION_REQUEST
+from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, REVEAL_REQUEST
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
 from tests.game.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
 from tests.support.fake_issuer import FakeIssuer
@@ -35,13 +35,16 @@ class Seat:
     def __init__(self, socket):
         self._socket = socket
         self._sent = 0
+        self.participant_id = None
 
     def join(self, room_id=None):
         join = {"type": SignalType.JOIN.value}
         if room_id is not None:
             join["room_id"] = room_id
         self._socket.send_json(join)
-        return self._socket.receive_json()
+        joined = self._socket.receive_json()
+        self.participant_id = joined["participant_id"]
+        return joined
 
     def send(self, frame):
         self._sent += 1
@@ -49,6 +52,9 @@ class Seat:
 
     def start(self):
         self.send({"type": GameSignal.GAME_START.value})
+
+    def reveal(self):
+        self.send({"type": GameSignal.GAME_REVEAL.value})
 
     def chat(self, text):
         self.send({"type": SignalType.CHAT.value, "message": text})
@@ -115,11 +121,24 @@ def call(sign_in_settings):
         yield Call(issuer, service, stores, client, sockets)
 
 
-def phase(game_phase):
-    return {"type": GameSignal.GAME_PHASE.value, "phase": game_phase.value}
+IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 
 
-def line(text=DEFAULT_QUESTION):
+def phase(game_phase, starter):
+    return {
+        "type": GameSignal.GAME_PHASE.value,
+        "phase": game_phase.value,
+        "round": 1,
+        "rounds": QUIZ_ROUNDS,
+        "starter": starter.participant_id,
+    }
+
+
+def question(text=DEFAULT_QUESTION):
+    return {"type": GameSignal.GAME_LINE.value, "text": text, "round": 1}
+
+
+def line(text):
     return {"type": GameSignal.GAME_LINE.value, "text": text}
 
 
@@ -132,10 +151,12 @@ def chat_text_of(frame):
     return frame["message"]
 
 
-QUESTION_ROUND = [phase(GamePhase.THINKING), line(), phase(GamePhase.IDLE)]
+def asked(starter, text=DEFAULT_QUESTION):
+    return [phase(GamePhase.THINKING, starter), question(text), phase(GamePhase.ANSWERING, starter)]
 
-# A starter's socket runs its run, so a second start from that socket after the last seat's idle finds the room free;
-# a start from another socket could still meet the first run's last steps.
+
+def revealed(starter, text):
+    return [phase(GamePhase.THINKING, starter), line(text), IDLE]
 
 
 def test_a_guests_start_puts_the_question_in_the_hosts_chat_too(call):
@@ -143,8 +164,8 @@ def test_a_guests_start_puts_the_question_in_the_hosts_chat_too(call):
 
     guest.start()
 
-    assert host.frames(3) == QUESTION_ROUND
-    assert guest.frames(3) == QUESTION_ROUND
+    assert host.frames(3) == asked(guest)
+    assert guest.frames(3) == asked(guest)
 
 
 def test_the_run_goes_out_on_the_starters_token_pair_not_the_hosts(call):
@@ -165,14 +186,14 @@ def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(cal
     call.service.answer_next(held)
 
     host.start()
-    assert guest.frames(1) == [phase(GamePhase.THINKING)]
+    assert guest.frames(1) == [phase(GamePhase.THINKING, host)]
     assert held.started.wait()
     guest.start()
     assert guest.frames(1) == [refused(GameRefusal.ALREADY_ANSWERING)]
     held.release.set()
 
-    assert host.frames(3) == QUESTION_ROUND
-    assert guest.frames(2) == [line(), phase(GamePhase.IDLE)]
+    assert host.frames(3) == asked(host)
+    assert guest.frames(2) == asked(host)[1:]
     assert len(call.service.runs) == 1
 
 
@@ -182,24 +203,16 @@ def test_an_account_without_ai_access_is_told_alone_and_the_others_thinking_turn
 
     host.start()
 
-    assert host.frames(3) == [
-        phase(GamePhase.THINKING),
-        refused(GameRefusal.NO_ACCESS),
-        phase(GamePhase.IDLE),
-    ]
-    assert guest.frames(2) == [phase(GamePhase.THINKING), phase(GamePhase.IDLE)]
+    assert host.frames(3) == [phase(GamePhase.THINKING, host), refused(GameRefusal.NO_ACCESS), IDLE]
+    assert guest.frames(2) == [phase(GamePhase.THINKING, host), IDLE]
 
 
 def test_a_session_without_a_refresh_token_is_asked_to_sign_in_again_and_the_call_goes_on(call):
     host, guest, _ = call.host_and_guest(call.member(with_refresh_token=False))
 
     host.start()
-    assert host.frames(3) == [
-        phase(GamePhase.THINKING),
-        refused(GameRefusal.SIGN_IN_AGAIN),
-        phase(GamePhase.IDLE),
-    ]
-    assert guest.frames(2) == [phase(GamePhase.THINKING), phase(GamePhase.IDLE)]
+    assert host.frames(3) == [phase(GamePhase.THINKING, host), refused(GameRefusal.SIGN_IN_AGAIN), IDLE]
+    assert guest.frames(2) == [phase(GamePhase.THINKING, host), IDLE]
     host.chat("Noch da?")
 
     assert chat_text_of(guest.frames(1)[0]) == "Noch da?"
@@ -209,37 +222,37 @@ def test_a_session_without_a_refresh_token_is_asked_to_sign_in_again_and_the_cal
 def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent_service(call):
     host, guest, _ = call.host_and_guest()
     held = Holds()
-    call.service.answer_next(held, Succeeds("Zweite Frage?"))
+    call.service.answer_next(held, Succeeds("Lissabon."))
     chat_text = f"Meine Antwort {secrets.token_hex(8)}"
 
     host.start()
-    assert host.frames(1) == [phase(GamePhase.THINKING)]
+    assert host.frames(1) == [phase(GamePhase.THINKING, host)]
     assert held.started.wait()
     guest.chat(chat_text)
     assert chat_text_of(host.frames(1)[0]) == chat_text
     held.release.set()
     guest.frames(3)
-    host.start()
+    host.reveal()
     host.frames(5)
 
     assert [run for run in call.service.runs if chat_text in run.request.model_dump_json()] == []
 
 
-def test_the_request_holds_the_quiz_turns_and_earlier_questions_and_no_name(call):
+def test_the_reveal_request_holds_the_quiz_so_far_and_no_name(call):
     host_member = call.member()
     host, guest, guest_member = call.host_and_guest(host_member)
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Zweite Frage?"))
+    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."))
 
     host.start()
     guest.frames(3)
-    host.start()
+    host.reveal()
     host.frames(6)
 
     first, second = (run.request for run in call.service.runs)
     assert [(message.role.value, message.text) for message in second.turn.messages] == [
         ("user", NEXT_QUESTION_REQUEST),
         ("assistant", "Erste Frage?"),
-        ("user", NEXT_QUESTION_REQUEST),
+        ("user", REVEAL_REQUEST),
     ]
     assert second.turn.system == first.turn.system
     assert second.turn.system.startswith("Du bist der Spielleiter")
@@ -247,9 +260,9 @@ def test_the_request_holds_the_quiz_turns_and_earlier_questions_and_no_name(call
     assert [name for name in names if name in second.model_dump_json()] == []
 
 
-def test_one_starters_second_run_uses_the_refresh_token_the_first_run_rotated_in(call):
+def test_the_starters_reveal_uses_the_refresh_token_the_question_run_rotated_in(call):
     _, guest, guest_member = call.host_and_guest()
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Zweite Frage?"))
+    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."))
 
     def stored_refresh_token():
         return call.stores.sessions.load(guest_member.session.id).refresh_token.get_secret_value()
@@ -258,9 +271,9 @@ def test_one_starters_second_run_uses_the_refresh_token_the_first_run_rotated_in
     guest.start()
     guest.frames(3)
     rotated = stored_refresh_token()
-    guest.start()
+    guest.reveal()
 
-    assert guest.frames(3) == [phase(GamePhase.THINKING), line("Zweite Frage?"), phase(GamePhase.IDLE)]
+    assert guest.frames(3) == revealed(guest, "Lissabon.")
     assert rotated != seeded
     assert call.refresh_tokens_granted() == [seeded, rotated]
 
@@ -270,7 +283,7 @@ def test_alone_in_the_call_the_host_gets_the_question(call):
 
     host.start()
 
-    assert host.frames(3) == QUESTION_ROUND
+    assert host.frames(3) == asked(host)
 
 
 def socket_scope(member):
