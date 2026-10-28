@@ -7,10 +7,10 @@ import structlog.testing
 from agent_runtime_client.sse import encode_event
 from agent_runtime_client.wire import PROTOCOL_VERSION, RejectionCode, RunRejection, RunStarted, Succeeded
 
-from hopin.agents import AGENT_SERVICE_OVER_HTTP
-from hopin.config.constants import GameRefusal
-from hopin.signaling.game import Question, Refused
-from tests.agents.support.world import build_world, cancelled, wait_in_a_worker
+from hopin.game import AGENT_SERVICE_OVER_HTTP
+from hopin.game.table import Line, Refused
+from hopin.game.vocabulary import GameRefusal
+from tests.game.support.world import OPENING, build_world, cancelled, wait_in_a_worker
 from tests.support.loopback_origin import (
     BEARER_ECHO,
     LOCALHOST,
@@ -51,7 +51,7 @@ def over_http(world, origin):
 
 
 async def start_held(game_master, starter, stream):
-    run = asyncio.create_task(game_master.ask(starter, ()))
+    run = asyncio.create_task(game_master.ask(starter, OPENING))
     await wait_in_a_worker(stream.started)
     return run
 
@@ -79,12 +79,12 @@ async def test_the_end_of_one_rooms_run_leaves_the_other_rooms_stream_open(world
 
     if end_of_the_first == "finished":
         first.release.set()
-        assert await first_run == Question("Erste Frage?")
+        assert await first_run == Line("Erste Frage?")
     else:
         await cancelled(first_run)
     second.release.set()
 
-    assert await second_run == Question("Zweite Frage?")
+    assert await second_run == Line("Zweite Frage?")
 
 
 async def test_a_redirect_is_not_followed(world, origin):
@@ -92,7 +92,7 @@ async def test_a_redirect_is_not_followed(world, origin):
     origin.serve("/elsewhere", http_response("200 OK", b""))
     starter, _ = world.starter()
 
-    outcome = await over_http(world, origin).ask(starter, ())
+    outcome = await over_http(world, origin).ask(starter, OPENING)
 
     assert outcome == Refused(GameRefusal.UNAVAILABLE)
     assert origin.paths_requested() == [RUNS_PATH]
@@ -102,7 +102,7 @@ async def test_a_request_whose_connection_drops_before_the_answer_is_sent_once_a
     origin.serve(RUNS_PATH, b"")
     starter, _ = world.starter()
 
-    outcome = await over_http(world, origin).ask(starter, ())
+    outcome = await over_http(world, origin).ask(starter, OPENING)
 
     assert outcome == Refused(GameRefusal.UNAVAILABLE)
     assert (origin.connections, origin.paths_requested()) == (1, [RUNS_PATH])
@@ -116,7 +116,7 @@ async def test_a_refused_connection_is_unavailable_and_logged_by_its_error_type(
     game_master = world.game_master_over(AGENT_SERVICE_OVER_HTTP, agent_service_url=f"http://{LOCALHOST}:{port}")
 
     with structlog.testing.capture_logs() as logs:
-        outcome = await game_master.ask(starter, ())
+        outcome = await game_master.ask(starter, OPENING)
 
     assert outcome == Refused(GameRefusal.UNAVAILABLE)
     assert [log for log in logs if log["event"] == "agent_service_refused"] == [
@@ -144,7 +144,7 @@ async def test_the_answers_status_line_and_headers_reach_no_log(world, origin, s
     starter, _ = world.starter()
 
     with structlog.testing.capture_logs() as logs:
-        outcome = await over_http(world, origin).ask(starter, ())
+        outcome = await over_http(world, origin).ask(starter, OPENING)
 
     shown = repr(logs) + "".join(stdlib_records)
     assert outcome == Refused(GameRefusal.UNAVAILABLE)
@@ -163,7 +163,7 @@ async def test_an_answer_the_transport_cannot_read_is_unavailable_and_logged_by_
     starter, _ = world.starter()
 
     with structlog.testing.capture_logs() as logs:
-        outcome = await over_http(world, origin).ask(starter, ())
+        outcome = await over_http(world, origin).ask(starter, OPENING)
 
     shown = repr(logs) + "".join(stdlib_records)
     assert outcome == Refused(GameRefusal.UNAVAILABLE)
@@ -183,7 +183,7 @@ async def test_an_oversized_rejection_is_closed_unread_and_unavailable(world):
     starter, _ = world.starter()
     try:
         with structlog.testing.capture_logs() as logs:
-            outcome = await over_http(world, origin).ask(starter, ())
+            outcome = await over_http(world, origin).ask(starter, OPENING)
     finally:
         await asyncio.to_thread(origin.close)
 

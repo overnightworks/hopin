@@ -399,6 +399,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "cryptography" },
+    { name = "httpx2" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pyjwt" },
@@ -427,6 +428,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "cryptography", specifier = ">=50.0.2" },
+    { name = "httpx2", specifier = ">=2.13.1" },
     { name = "mypy", specifier = ">=1.19.1" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pyjwt", specifier = ">=2.15.1" },

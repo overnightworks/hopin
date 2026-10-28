@@ -22,11 +22,11 @@ STATIC_DIR = Path(__file__).parent / "static"
 PAGE = STATIC_DIR / "index.html"
 ASSETS_DIR = STATIC_DIR / "assets"
 READ_METHODS = ["GET", "HEAD"]
-WIRE_MODULE_CONTENT = render_wire_module()
 
 
 def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager) -> APIRouter:
     router = APIRouter()
+    wire_module_content = render_wire_module(signaling_handler.feature)
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
@@ -44,7 +44,7 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
 
     @router.api_route(WIRE_MODULE_PATH, methods=READ_METHODS)
     def wire_module() -> Response:
-        return Response(WIRE_MODULE_CONTENT, media_type=WIRE_MODULE_MEDIA_TYPE)
+        return Response(wire_module_content, media_type=WIRE_MODULE_MEDIA_TYPE)
 
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)

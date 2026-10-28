@@ -9,11 +9,11 @@ const chatSend = document.getElementById("chatSend");
 const chatButton = document.getElementById("chatBtn");
 const chatClose = document.getElementById("chatClose");
 const chatBadge = document.getElementById("chatBadge");
-const gameMasterSenderTemplate = document.getElementById("gameMasterSenderTemplate");
 
 let chatOpen = false;
 let unreadMessages = 0;
-let gameMasterTyping = null;
+let pinnedLast = null;
+let card = null;
 
 function appendMessage(text, senderId) {
     const isSelf = senderId === null;
@@ -30,17 +30,9 @@ function appendMessage(text, senderId) {
 }
 
 function showMessage(messageElement) {
-    // The game master's typing bubble stays last while it thinks.
-    if (gameMasterTyping === null) chatMessages.append(messageElement);
-    else gameMasterTyping.before(messageElement);
+    if (pinnedLast === null) chatMessages.append(messageElement);
+    else pinnedLast.before(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function gameMasterBubble() {
-    const messageElement = document.createElement("div");
-    messageElement.className = "chat-msg other game-master";
-    messageElement.append(gameMasterSenderTemplate.content.firstElementChild.cloneNode(true));
-    return messageElement;
 }
 
 function countUnread() {
@@ -57,29 +49,26 @@ function receiveMessage(text, senderId) {
     countUnread();
 }
 
-export function receiveGameMasterLine(text) {
-    const messageElement = gameMasterBubble();
-    messageElement.append(text);
+/** Show a line no person wrote, counted as unread like a person's. */
+export function receiveLine(messageElement) {
     showMessage(messageElement);
     countUnread();
 }
 
-export function showGameMasterThinking(isThinking) {
-    if (isThinking === (gameMasterTyping !== null)) return;
-    if (isThinking) {
-        gameMasterTyping = gameMasterBubble();
-        gameMasterTyping.classList.add("typing");
-        gameMasterTyping.setAttribute("role", "status");
-        gameMasterTyping.setAttribute("aria-label", "Game master is thinking");
-        const dots = document.createElement("p");
-        dots.append(...Array.from({ length: 3 }, () => document.createElement("i")));
-        gameMasterTyping.append(dots);
-        chatMessages.appendChild(gameMasterTyping);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    } else {
-        gameMasterTyping.remove();
-        gameMasterTyping = null;
-    }
+/** Keep `element` below every later line until another element, or null, takes its place. */
+export function pinLast(element) {
+    pinnedLast?.remove();
+    pinnedLast = element;
+    if (element === null) return;
+    chatMessages.append(element);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+/** Show `element` between the chat's header and its lines until another element, or null, takes its place. */
+export function showCard(element) {
+    card?.remove();
+    card = element;
+    if (element !== null) chatMessages.before(element);
 }
 
 function sendMessage() {

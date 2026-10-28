@@ -9,7 +9,7 @@ from webauth.dependencies import session_id_from_request
 from webauth.oidc import OidcRefusal
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, fresh_access_token
 
-from hopin.config.constants import GameRefusal
+from hopin.game.vocabulary import GameRefusal
 
 if TYPE_CHECKING:
     from pydantic import SecretStr

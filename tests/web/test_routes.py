@@ -1,6 +1,6 @@
 import hashlib
-import json
 import re
+from functools import partial
 from html.parser import HTMLParser
 from xml.etree import ElementTree
 
@@ -21,24 +21,24 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
     ErrorReason,
-    GamePhase,
-    GameRefusal,
     RoomClosedReason,
     SignalType,
 )
 from hopin.rooms.models import Account
+from hopin.signaling.features import FeatureClashError
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
-from tests.support.signaling_fakes import SocketAccountResolver
+from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
+from tests.support.wire_module import served_exports
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def signaling_handler(room_manager, game_master):
-    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), game_master)
+def signaling_handler(room_manager):
+    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
 
 
 @pytest.fixture
@@ -68,16 +68,10 @@ class TestWireModule:
         response = client.get(WIRE_MODULE_PATH)
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/javascript")
-        exports = {
-            name: json.loads(value)
-            for name, value in re.findall(r"^export const (\w+) = (.*);$", response.text, re.MULTILINE)
-        }
-        assert exports == {
+        assert served_exports(response.text) == {
             "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
             "ERROR_REASON": {member.name: member.value for member in ErrorReason},
             "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
-            "GAME_PHASE": {member.name: member.value for member in GamePhase},
-            "GAME_REFUSAL": {member.name: member.value for member in GameRefusal},
             "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
             "WEBSOCKET_PATH": WEBSOCKET_PATH,
             "AUTH_START_PATH": AUTH_START_PATH,
@@ -85,7 +79,15 @@ class TestWireModule:
             "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
             "DESCRIPTION_TYPES": ["answer", "offer"],
             "SUPERSEDED_BY_A_DESCRIPTION": ["answer", "ice_candidate", "offer"],
+            "FEATURE_MODULES": [],
         }
+
+    def test_a_feature_export_named_like_a_core_export_is_refused_at_start(self, room_manager):
+        clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"SAMPLE_REASON": "sample_reason"}})
+        handler = SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), clashing)
+
+        with pytest.raises(FeatureClashError, match="ERROR_REASON"):
+            create_router(handler, room_manager)
 
 
 class TestHealthEndpoint:
@@ -146,11 +148,12 @@ class TestHeadRequests:
 
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
 LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
-GAME_MASTER_NOTICE_URL = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
 UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
+# HopIn's own stylesheets: the page's and each one a feature's browser module loads.
+OWN_STYLESHEETS = sorted(set((STATIC_DIR / "assets").rglob("*.css")) - {UI_CONSOLE_CSS})
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
 CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
@@ -307,8 +310,8 @@ class TestPageIsCspReady:
         assert every_page_inventory.fetched_urls
         assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
 
-    def test_links_only_to_the_central_legal_pages_and_the_game_master_notice_in_a_new_tab(self, page_inventory):
-        assert {link["href"] for link in page_inventory.links} == {*LEGAL_URLS, GAME_MASTER_NOTICE_URL}
+    def test_links_only_to_the_central_legal_pages_in_a_new_tab(self, page_inventory):
+        assert {link["href"] for link in page_inventory.links} == set(LEGAL_URLS)
         assert all(
             link[name] == value for link in page_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items()
         )
@@ -394,13 +397,14 @@ class TestPageShell:
 
     def test_reuses_no_class_name_that_ui_console_defines(self, page_inventory):
         vendored = defined_class_names(UI_CONSOLE_CSS.read_text())
-        own_stylesheet = defined_class_names((STYLESHEETS_DIR / "hopin.css").read_text())
+        own_stylesheet = {name for path in OWN_STYLESHEETS for name in defined_class_names(path.read_text())}
         used_in_markup = {name for value in page_inventory.class_values for name in value.split()}
         assert vendored
         assert vendored & (own_stylesheet | used_in_markup) == set()
 
-    def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self):
-        stylesheet = (STYLESHEETS_DIR / "hopin.css").read_text()
+    @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
+    def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self, stylesheet_path):
+        stylesheet = stylesheet_path.read_text()
         assert CSS_MOTION_DECLARATION.search(stylesheet)
         assert untokened_motion_durations(stylesheet) == []
 

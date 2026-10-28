@@ -8,21 +8,27 @@ from ipaddress import IPv4Address
 from typing import TYPE_CHECKING
 
 import pytest
+import uvicorn
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from webauth.config import installed_web_auth_config
+
+from hopin.app import create_app
+from hopin.auth.stores import SignInStores
+from hopin.main import uvicorn_options
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.sign_in_settings import build_sign_in_settings
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    import uvicorn
     from webauth.config import WebAuthConfig
 
-    from hopin.auth.stores import SignInStores
-    from tests.support.fake_agent_service import FakeAgentService
-    from tests.support.fake_issuer import FakeIssuer
+    from hopin.app import CallFeatureBuilder
+    from tests.support.sign_in_settings import SignInSettings
 
 LOOPBACK_HOST = "127.0.0.1"
 
@@ -86,4 +92,51 @@ class RunningServer:
     config: WebAuthConfig
     stores: SignInStores
     issuer: FakeIssuer
-    agent_service: FakeAgentService
+
+
+@dataclass(frozen=True)
+class LoopbackSignIn:
+    """The sign-in of a HopIn on a free loopback port, its issuer a fake."""
+
+    port: int
+    sign_in: SignInSettings
+    stores: SignInStores
+    issuer: FakeIssuer
+
+
+def loopback_sign_in(directory: Path) -> LoopbackSignIn:
+    port = _reserve_free_port()
+    sign_in = build_sign_in_settings(
+        directory,
+        host=LOOPBACK_HOST,
+        port=port,
+        public_origin=f"https://{LOOPBACK_HOST}:{port}",
+        trusted_proxies=LOOPBACK_HOST,
+    )
+    return LoopbackSignIn(port, sign_in, SignInStores.in_memory(), FakeIssuer(sign_in))
+
+
+@contextmanager
+def running_hopin(
+    loopback: LoopbackSignIn, tls_directory: Path, call_feature: CallFeatureBuilder | None = None
+) -> Iterator[RunningServer]:
+    """Serve HopIn over https on `loopback`, with the call's feature only when one is given."""
+    app = create_app(
+        loopback.sign_in.settings,
+        stores=loopback.stores,
+        issuer_transports=loopback.issuer.transports,
+        call_feature=call_feature,
+    )
+    key_file, certificate_file = _write_self_signed_certificate(tls_directory)
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app,
+            **uvicorn_options(loopback.sign_in.settings),
+            ssl_keyfile=str(key_file),
+            ssl_certfile=str(certificate_file),
+        )
+    )
+    with _serving(server):
+        yield RunningServer(
+            f"https://{LOOPBACK_HOST}:{loopback.port}", installed_web_auth_config(app), loopback.stores, loopback.issuer
+        )

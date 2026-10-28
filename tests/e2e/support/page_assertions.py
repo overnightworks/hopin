@@ -7,6 +7,14 @@ LEGAL_LINKS = {
     "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
 }
 
+# Each visible entry of More by its name, in order: an item by the first words of its label, a rule as "separator".
+VISIBLE_MORE_ENTRIES = """
+() => [...document.querySelectorAll("#moreMenu .mi, #moreMenu .sep")]
+    .filter((element) => element.getClientRects().length)
+    .map((element) =>
+        element.classList.contains("sep") ? "separator" : element.querySelector(".grow").firstChild.textContent,
+    )
+"""
 TOASTS = "#toasts"
 TOAST_ICON = f"{TOASTS} svg path"
 CHECK_ICON_PATH = "M5 12.5l4.5 4.5L19 7.5"
