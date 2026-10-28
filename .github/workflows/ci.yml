@@ -215,7 +215,7 @@ jobs:
         working-directory: ${{ env.COPY }}
         env:
           PYTHONPATH: src
-        run: uvx --from import-linter==2.15 lint-imports
+        run: uvx --no-build --from import-linter==2.15 lint-imports
 
       - name: Run the unit tests
         working-directory: ${{ env.COPY }}
