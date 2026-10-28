@@ -19,7 +19,6 @@ from webauth.policies import (
 )
 
 from hopin.agents import AGENT_SERVICE_OVER_HTTP, agent_service_game_master
-from hopin.agents.game_master import silence_transport_logs
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import (
@@ -163,7 +162,6 @@ def create_app(
     turn_relay = build_turn_relay(settings, turn_transport)
 
     _configure_logging()
-    silence_transport_logs()
 
     sign_in_stores = stores if stores is not None else SignInStores.in_memory()
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
