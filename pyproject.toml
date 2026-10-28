@@ -108,7 +108,6 @@ addopts = [
     "--strict-config",
     "--cov",
     "--cov-report=term-missing",
-    "--cov-fail-under=100",
 ]
 markers = [
     "integration: integration tests",
@@ -125,6 +124,9 @@ markers = [
 # turned red for.
 source = ["src"]
 branch = true
+# The unit and end-to-end runs happen on different runners; relative paths
+# let their data combine.
+relative_files = true
 
 [tool.coverage.report]
 exclude_lines = [
