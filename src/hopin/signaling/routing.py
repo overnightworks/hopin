@@ -15,7 +15,7 @@ from hopin.signaling.frames import (
     PeerId,
     RelayFrame,
 )
-from hopin.signaling.seats import Seats, close_socket
+from hopin.signaling.seats import Seats
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,6 +31,16 @@ class HostGrace:
     host_peer_id: str
     deadline: float
     timer: TimerHandle
+
+
+@dataclass(frozen=True)
+class Departure:
+    """What the rest of a room must hear after a seat left it."""
+
+    room_id: str
+    peer_id: PeerId
+    remaining: list[str]
+    host_left: bool
 
 
 class RoomRouting:
@@ -161,35 +171,46 @@ class RoomRouting:
         )
 
     async def handle_disconnect(self, peer_id: PeerId) -> None:
+        await self.announce(self.leave(peer_id))
+
+    def leave(self, peer_id: PeerId) -> Departure | None:
+        """Forgets the seat and its place in the room without awaiting, so a server's end leaves no seat to park
+        or resume; the departure it returns is announced separately."""
         peer = self._seats.forget(peer_id)
         left_at = self._scheduler.now()
         if peer is not None and peer.park is not None:
             left_at = peer.park.dropped_at
         room_id = self._peer_rooms.pop(peer_id, None)
         if not room_id:
-            return
+            return None
 
         try:
             room = self._room_manager.get_room(room_id)
         except RoomNotFoundError:
-            return
+            return None
 
         leaver = room.participants[peer_id]
         self._room_manager.remove_participant(room_id, peer_id)
-        remaining = room.participant_ids
+        host_left = room.is_hosted_by(leaver.account) and not room.host_present
+        if host_left:
+            self._start_grace(room_id, peer_id, left_at + HOST_GRACE_SECONDS)
+        return Departure(room_id=room_id, peer_id=peer_id, remaining=room.participant_ids, host_left=host_left)
 
-        if room.is_hosted_by(leaver.account) and not room.host_present:
-            grace = self._start_grace(room_id, peer_id, left_at + HOST_GRACE_SECONDS)
-            await self._seats.send_all(remaining, self._host_away_frame(grace))
+    async def announce(self, departure: Departure | None) -> None:
+        if departure is None:
+            return
+        # Read now, not at the leave: a host back before the announcement has cancelled the grace.
+        grace = self._graces.get(departure.room_id)
+        if departure.host_left and grace is not None:
+            await self._seats.send_all(departure.remaining, self._host_away_frame(grace))
+        await self._seats.send_all(
+            departure.remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": departure.peer_id}
+        )
+        await logger.ainfo("participant_left", room_id=departure.room_id, participant=departure.peer_id)
 
-        await self._seats.send_all(remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": peer_id})
-        await logger.ainfo("participant_left", room_id=room_id, participant=peer_id)
-
-    def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> HostGrace:
+    def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> None:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
-        grace = HostGrace(host_peer_id=host_peer_id, deadline=deadline, timer=timer)
-        self._graces[room_id] = grace
-        return grace
+        self._graces[room_id] = HostGrace(host_peer_id=host_peer_id, deadline=deadline, timer=timer)
 
     def _cancel_grace(self, room_id: str) -> bool:
         grace = self._graces.pop(room_id, None)
@@ -217,7 +238,7 @@ class RoomRouting:
         await self._seats.send_all(recipients, frame)
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
-            await close_socket(websocket)
+            await self._seats.close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> JsonObject:

@@ -11,11 +11,11 @@ from hopin.config.constants import (
     SERVER_ERROR_CLOSE_CODE,
     SESSION_ENDED_CLOSE_CODE,
     SESSION_RECHECK_SECONDS,
+    ErrorReason,
     SignalType,
 )
-from hopin.signaling import handler as handler_module
 from hopin.signaling.handler import SignalingHandler
-from tests.signaling.support.browsers import Link, host_and_guest
+from tests.signaling.support.browsers import HeldClose, HeldWrite, Link, host_and_guest
 from tests.support.signaling_fakes import account_named, disconnect_frame, text_frame
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -53,31 +53,6 @@ class ScriptedResolver:
     async def wait_for_release(self):
         self.entered.set()
         await asyncio.wait_for(self.release.wait(), timeout=HELD_TIMEOUT_SECONDS)
-
-
-class HeldSessionEndedLog:
-    """Wraps the handler's logger and holds the session_ended entry until the test releases it."""
-
-    def __init__(self, logger):
-        self.logger = logger
-        self.entered = asyncio.Event()
-        self.release = asyncio.Event()
-
-    def __getattr__(self, name):
-        return getattr(self.logger, name)
-
-    async def ainfo(self, event, **fields):
-        if event == "session_ended":
-            self.entered.set()
-            await asyncio.wait_for(self.release.wait(), timeout=HELD_TIMEOUT_SECONDS)
-        await self.logger.ainfo(event, **fields)
-
-
-@pytest.fixture
-def held_log(monkeypatch):
-    held = HeldSessionEndedLog(handler_module.logger)
-    monkeypatch.setattr(handler_module, "logger", held)
-    return held
 
 
 @pytest.fixture
@@ -251,31 +226,61 @@ class TestSuspendedCheck:
 
 
 class TestSuspendedEnding:
-    async def test_session_ending_suspended_in_its_log_across_a_takeover_leaves_the_new_socket_in_its_seat(
-        self, link, scheduler, room_manager, held_log
+    async def test_session_end_closes_the_socket_while_another_participant_is_still_being_told_it_left(
+        self, link, scheduler
     ):
         host, guest = await host_and_guest(link)
         guest.socket.account = None
+        held_write = HeldWrite(host.socket)
         ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
-        await asyncio.wait_for(held_log.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
-        await guest.resume(account_named("guest"))
-        await guest.accept_resumption()
+        await held_write.reached()
 
-        held_log.release.set()
+        assert guest.socket.closed_with == SESSION_ENDED_CLOSE_CODE
+        held_write.release.set()
+        await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
+        [left] = host.frames(SignalType.PARTICIPANT_LEFT)
+        assert left["participant_id"] == guest.peer_id
+
+    async def test_host_back_while_its_ended_session_is_closing_is_last_heard_as_back(self, link, scheduler):
+        host, guest = await host_and_guest(link)
+        host.socket.account = None
+        held_close = HeldClose(host.socket)
+        ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await held_close.reached()
+        await link.join("host", host.socket.sent[0]["room_id"])
+
+        held_close.release.set()
+        await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
+
+        assert guest.frames(SignalType.HOST_AWAY, SignalType.HOST_BACK)[-1]["type"] == SignalType.HOST_BACK.value
+
+    async def test_resume_while_the_session_ending_closes_the_socket_is_refused_and_the_host_hears_it_left(
+        self, link, scheduler, room_manager
+    ):
+        host, guest = await host_and_guest(link)
+        guest.socket.account = None
+        held_close = HeldClose(guest.socket)
+        ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await held_close.reached()
+        await guest.resume(account_named("guest"))
+
+        held_close.release.set()
         await ticking
 
-        assert guest.socket.closed_with is None
-        assert host.frames(SignalType.PARTICIPANT_LEFT) == []
-        assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
+        assert guest.frames(SignalType.RESUMED) == []
+        assert guest.frames(SignalType.ERROR)[-1]["reason"] == ErrorReason.RESUME_REFUSED.value
+        assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
+        assert guest.peer_id not in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
 
     @pytest.mark.parametrize(
         ("tick_check", "close_code"),
         [("refuses", SESSION_ENDED_CLOSE_CODE), ("raises", SERVER_ERROR_CLOSE_CODE)],
     )
     async def test_frame_admitted_after_a_tick_ended_the_connection_is_not_handled_and_the_socket_gets_the_tick_close(
-        self, link, scheduler, resolver, held_log, tick_check, close_code
+        self, link, scheduler, resolver, tick_check, close_code
     ):
         host, guest = await host_and_guest(link)
+        held_close = HeldClose(guest.socket)
         resolver.held_admitted.add(guest.socket)
         guest.socket.push(text_frame({"type": SignalType.CHAT.value, "message": "late"}, seq=1))
         await asyncio.wait_for(resolver.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
@@ -284,10 +289,10 @@ class TestSuspendedEnding:
         else:
             resolver.failing[guest.socket] = RuntimeError("store unavailable")
         ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
-        await asyncio.wait_for(held_log.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
+        await held_close.reached()
 
         resolver.release.set()
-        held_log.release.set()
+        held_close.release.set()
         if tick_check == "raises":
             with pytest.raises(RuntimeError, match="store unavailable"):
                 await asyncio.wait_for(ticking, timeout=HELD_TIMEOUT_SECONDS)
@@ -304,10 +309,11 @@ class TestSuspendedEnding:
         [("refuses", SESSION_ENDED_CLOSE_CODE), ("raises", SERVER_ERROR_CLOSE_CODE)],
     )
     @pytest.mark.parametrize("earlier_frame", ["none", "admitted_and_held"])
-    async def test_frame_whose_own_check_ends_the_handler_while_the_tick_is_in_its_log_still_gets_the_tick_close(
-        self, link, scheduler, resolver, held_log, check, close_code, earlier_frame
+    async def test_frame_whose_own_check_ends_the_handler_while_the_tick_is_closing_still_gets_the_tick_close(
+        self, link, scheduler, resolver, check, close_code, earlier_frame
     ):
         host, guest = await host_and_guest(link)
+        held_close = HeldClose(guest.socket)
         if earlier_frame == "admitted_and_held":
             resolver.held_admitted.add(guest.socket)
             guest.socket.push(text_frame({"type": SignalType.CHAT.value, "message": "first"}, seq=1))
@@ -317,7 +323,7 @@ class TestSuspendedEnding:
         else:
             resolver.failing[guest.socket] = RuntimeError("store unavailable")
         ticking = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
-        await asyncio.wait_for(held_log.entered.wait(), timeout=HELD_TIMEOUT_SECONDS)
+        await held_close.reached()
         guest.socket.push(text_frame({"type": SignalType.CHAT.value, "message": "second"}, seq=2))
         resolver.release.set()
         handler_task = link.tasks[guest.socket]
@@ -325,12 +331,13 @@ class TestSuspendedEnding:
 
         assert handler_task.done()
         assert guest.socket.closed_with == close_code
-        held_log.release.set()
+        held_close.release.set()
         outcomes = await asyncio.wait_for(
             asyncio.gather(ticking, handler_task, return_exceptions=True), timeout=HELD_TIMEOUT_SECONDS
         )
 
-        assert [type(outcome) is RuntimeError for outcome in outcomes] == [check == "raises"] * 2
+        expected_outcome = RuntimeError if check == "raises" else None
+        assert [outcome if outcome is None else type(outcome) for outcome in outcomes] == [expected_outcome] * 2
         assert host.frames(SignalType.CHAT) == []
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
 
