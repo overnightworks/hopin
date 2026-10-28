@@ -261,8 +261,14 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     host.answer("Tejo")
     guest.answer("Mondego")
     guest.chat(chat_text)
+    through_the_chat = host.frames(6)
+    assert [frame["type"] for frame in through_the_chat][-3:] == [
+        GameSignal.GAME_ANSWER_COUNT.value,
+        GameSignal.GAME_ANSWER_COUNT.value,
+        SignalType.CHAT.value,
+    ]
     host.reveal()
-    host.frames(8)
+    host.frames(5)
 
     second, third_run = (run.request for run in call.service.runs[1:])
     [_, _, reveal] = second.turn.messages

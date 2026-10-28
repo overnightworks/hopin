@@ -45,6 +45,7 @@ REVEAL = "Reveal"
 SEND = "Send"
 YOUR_ANSWER = "Your answer"
 STATUS = ".qcard-status"
+SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
 THINKING = re.compile(r"\bthinking\b")
 QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
@@ -278,6 +279,11 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     expect(host.get_by_text("Mondego")).to_have_count(0)
     answer_on_card(guest, "Guadiana")
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    # The guest's socket is handled in order: once the host sees this line, the overwrite is taken.
+    overwrite_taken = "Guadiana ist meine Antwort"
+    guest.fill("#chatInput", overwrite_taken)
+    guest.click("#chatSend")
+    expect(host.locator("#chatMessages")).to_contain_text(overwrite_taken)
     answer_on_card(host, "Tejo")
 
     for person in (host, guest):
@@ -312,9 +318,32 @@ def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_se
     answer_on_card(guest, "x" * (GAME_ANSWER_MAX_CHARACTERS + 1))
 
     expect(guest.locator(TOASTS)).to_contain_text("Your answer is too long. Shorten it and send again.")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("")
     expect(host.locator(TOASTS)).not_to_contain_text("too long")
-    expect(host.locator(CARD).locator(STATUS)).to_have_text("")
+    answer_on_card(host, "Tejo")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).not_to_have_class(SENT)
+
+
+def test_an_answer_over_the_cap_after_a_given_answer_keeps_the_answer_sent_mark(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+) -> None:
+    host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+    answer_on_card(guest, "Porto")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+
+    answer_on_card(guest, "x" * (GAME_ANSWER_MAX_CHARACTERS + 1))
+
+    expect(guest.locator(TOASTS)).to_contain_text("Your answer is too long. Shorten it and send again.")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_class(SENT)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
