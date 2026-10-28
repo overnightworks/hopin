@@ -218,13 +218,16 @@ def test_the_starter_or_a_host_may_end_the_quiz_in_every_step(quiz, peer_id, hos
 def test_an_ended_quiz_is_over_and_holds_no_transcript_players_or_answers():
     quiz = open_question().with_answer(STARTER, "Sam", "A").ended()
 
-    assert (quiz.is_over, quiz.transcript, quiz.players, quiz.answers) == (True, (), frozenset(), ())
+    assert quiz.is_over
+    assert (quiz.transcript, quiz.players, quiz.answers) == ((), frozenset(), ())
 
 
 def test_nobody_may_answer_reveal_or_end_an_ended_quiz():
     quiz = open_question().ended()
 
-    assert [quiz.may_answer(STARTER), quiz.may_reveal(STARTER), quiz.may_end(STARTER, hosts_call=True)] == [False] * 3
+    assert not quiz.may_answer(STARTER)
+    assert not quiz.may_reveal(STARTER)
+    assert not quiz.may_end(STARTER, hosts_call=True)
 
 
 @pytest.mark.parametrize(
