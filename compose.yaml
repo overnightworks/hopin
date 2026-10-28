@@ -26,6 +26,7 @@ services:
       backchannel:
         aliases:
           - hopin.hallucinai.de
+      agent: {}
     healthcheck:
       test:
         - CMD
@@ -58,4 +59,8 @@ networks:
   # Keycloak reaches the back-channel logout route on this network; edge creates it.
   backchannel:
     name: hal_backchannel_hopin
+    external: true
+  # HopIn reaches the agent service as agent-service:8080 on this network; edge creates it.
+  agent:
+    name: hal_agent_hopin
     external: true

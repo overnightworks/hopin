@@ -5,13 +5,14 @@ import pytest
 
 # Assertion rewriting must be registered before the first import of a support module.
 # The `tests` namespace itself is already imported when this conftest loads.
-pytest.register_assert_rewrite("tests.support", "tests.signaling.support", "tests.e2e.support")
+pytest.register_assert_rewrite("tests.support", "tests.signaling.support", "tests.e2e.support", "tests.agents.support")
 
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
 from tests.support.signaling_fakes import (  # noqa: E402
     ROOM_LIMIT,
+    FakeGameMaster,
     ManualScheduler,
     SocketAccountResolver,
 )
@@ -37,5 +38,10 @@ def scheduler():
 
 
 @pytest.fixture
-def handler(room_manager, scheduler):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler)
+def game_master():
+    return FakeGameMaster()
+
+
+@pytest.fixture
+def handler(room_manager, scheduler, game_master):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, game_master)

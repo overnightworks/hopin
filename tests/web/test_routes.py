@@ -16,10 +16,13 @@ from hopin.config.constants import (
     HOME_PATH,
     LOGOUT_PATH,
     REPLAY_LOG_LIMIT,
+    RETURN_TO_QUERY_PARAMETER,
     SESSION_ENDED_CLOSE_CODE,
     STATIC_PATH,
     WEBSOCKET_PATH,
     ErrorReason,
+    GamePhase,
+    GameRefusal,
     RoomClosedReason,
     SignalType,
 )
@@ -34,8 +37,8 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def signaling_handler(room_manager):
-    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
+def signaling_handler(room_manager, game_master):
+    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), game_master)
 
 
 @pytest.fixture
@@ -73,8 +76,12 @@ class TestWireModule:
             "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
             "ERROR_REASON": {member.name: member.value for member in ErrorReason},
             "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
+            "GAME_PHASE": {member.name: member.value for member in GamePhase},
+            "GAME_REFUSAL": {member.name: member.value for member in GameRefusal},
             "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
             "WEBSOCKET_PATH": WEBSOCKET_PATH,
+            "AUTH_START_PATH": AUTH_START_PATH,
+            "RETURN_TO_QUERY_PARAMETER": RETURN_TO_QUERY_PARAMETER,
             "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
             "DESCRIPTION_TYPES": ["answer", "offer"],
             "SUPERSEDED_BY_A_DESCRIPTION": ["answer", "ice_candidate", "offer"],
@@ -139,6 +146,7 @@ class TestHeadRequests:
 
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
 LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
+GAME_MASTER_NOTICE_URL = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
@@ -299,8 +307,8 @@ class TestPageIsCspReady:
         assert every_page_inventory.fetched_urls
         assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
 
-    def test_links_only_to_the_two_central_legal_pages_in_a_new_tab(self, page_inventory):
-        assert {link["href"] for link in page_inventory.links} == set(LEGAL_URLS)
+    def test_links_only_to_the_central_legal_pages_and_the_game_master_notice_in_a_new_tab(self, page_inventory):
+        assert {link["href"] for link in page_inventory.links} == {*LEGAL_URLS, GAME_MASTER_NOTICE_URL}
         assert all(
             link[name] == value for link in page_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items()
         )

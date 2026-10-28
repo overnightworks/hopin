@@ -18,6 +18,8 @@ from hopin.signaling.frames import (
 from hopin.signaling.seats import Seats, close_socket
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
@@ -32,9 +34,10 @@ class HostGrace:
 
 
 class RoomRouting:
-    def __init__(self, room_manager: RoomManager, scheduler: Scheduler) -> None:
+    def __init__(self, room_manager: RoomManager, scheduler: Scheduler, on_room_ended: Callable[[str], None]) -> None:
         self._room_manager = room_manager
         self._scheduler = scheduler
+        self._on_room_ended = on_room_ended
         self._graces: dict[str, HostGrace] = {}
         self._seats = Seats(scheduler, on_seat_lost=self.handle_disconnect)
         self._peer_rooms: dict[str, str] = {}
@@ -205,6 +208,8 @@ class RoomRouting:
             self._peer_rooms.pop(peer_id, None)
         self._cancel_grace(room_id)
         self._room_manager.remove_room(room_id)
+        # Before the first await, so nothing that belongs to the room outlives it by a frame.
+        self._on_room_ended(room_id)
 
         frame: JsonObject = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
         if reason is RoomClosedReason.HOST_GONE:
