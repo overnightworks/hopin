@@ -1,5 +1,5 @@
 [gate]
-mandatory_jobs = ["Lint and test", "End-to-end", "Coverage"]
+mandatory_jobs = ["Lint and test", "End-to-end", "Coverage", "Removal drill"]
 
 [[root.allow]]
 entry = "Makefile"
