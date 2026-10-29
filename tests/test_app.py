@@ -65,8 +65,9 @@ class TestCreateApp:
     def test_does_not_start_without_its_sign_in_files(self, sign_in_settings):
         settings = sign_in_settings().settings
         settings.session_secret_file.unlink()
+        page_build = fixture_page_build()
         with pytest.raises(StartRefusedError, match="session_secret_file"):
-            create_app(settings, page_build=fixture_page_build())
+            create_app(settings, page_build=page_build)
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()

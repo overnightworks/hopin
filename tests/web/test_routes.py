@@ -98,8 +98,10 @@ class TestWireModule:
         clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"SAMPLE_REASON": "sample_reason"}})
         handler = SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), clashing)
 
+        page_build = fixture_page_build()
+
         with pytest.raises(FeatureClashError, match="ERROR_REASON"):
-            create_router(handler, room_manager, fixture_page_build())
+            create_router(handler, room_manager, page_build)
 
 
 class TestHealthEndpoint:
