@@ -1,0 +1,8 @@
+claim_id = "c9ebc5e51f1946fd8b58d2e423b0ee98"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "ff4c5f0989472ab276959283074876e73ba7e30d"
+branch = "claude/issue-308-sveltekit-toolchain"
+scope = [".github/dependabot.yml", ".github/workflows/ci.yml", ".gitignore", "AGENTS.md", "Makefile", "README.md", "frontend", "quality/config.toml", "sonar-project.properties"]
+opened_commit = "c5dd0f59cd0cb9448aff94d50de532c79677c03c"
+whole_reason = "One toolchain is one unit: splitting it lands config that CI does not run."
