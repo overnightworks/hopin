@@ -22,6 +22,7 @@ from agent_runtime_client.wire import (
     FailureCode,
     Heartbeat,
     RejectionCode,
+    RouteKind,
     RunRejection,
     RunRequest,
     RunStarted,
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
 DEFAULT_QUESTION = "Welcher Fluss fließt durch Lissabon?"
 PERSONS_ACCESS_ECHO = "<<person-access>>"
 HEARTBEAT_INTERVAL_SECONDS = 15
+SERVED_MODEL = "anthropic/test-model"
 SIGNAL_CAP_SECONDS = 10
 EVENT_STREAM = "text/event-stream"
 
@@ -246,7 +248,14 @@ def _event_stream(events: list[object], seen: SeenRun, *, held: Holds | None = N
 
 def _events_of(answer: Answer, person_token: str) -> list[object]:
     run_id = uuid.uuid4()
-    started = RunStarted(v=PROTOCOL_VERSION, run_id=run_id, seq=0, heartbeat_interval_s=HEARTBEAT_INTERVAL_SECONDS)
+    started = RunStarted(
+        v=PROTOCOL_VERSION,
+        run_id=run_id,
+        seq=0,
+        model=SERVED_MODEL,
+        route=RouteKind.CLI,
+        heartbeat_interval_s=HEARTBEAT_INTERVAL_SECONDS,
+    )
     match answer:
         case Succeeds(text=text):
             return [
