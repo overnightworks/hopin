@@ -1,8 +1,0 @@
-claim_id = "f8cdaa1dffb045159e952d2a7bc0aeac"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "d69b1edca0f2c6f87485b4b0870ea26115b98bae"
-branch = "claude/issue-321-shell-switch"
-scope = [".github/workflows/ci.yml", "AGENTS.md", "Makefile", "README.md", "docs", "frontend", "quality/baseline.toml", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/main.py", "src/hopin/web/page_build.py", "src/hopin/web/routes.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/index.html", "tests"]
-opened_commit = "5bb16a3aa3320888546604484b9901787e0a4671"
-whole_reason = "Server, shell and CI's e2e build switch together, or main serves no page or the e2e suite fails."
