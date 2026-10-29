@@ -1,8 +1,0 @@
-claim_id = "f5e6916cdc504d43ae493d6ed91e97e6"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "ff4c5f0989472ab276959283074876e73ba7e30d"
-branch = "claude/issue-303-quiz-topics"
-scope = ["src/hopin/game/__init__.py", "src/hopin/game/quiz.md", "src/hopin/game/quiz.py", "src/hopin/game/table.py", "tests/game"]
-opened_commit = "043e44c02ae3d404798989fc4055829f9ace89f3"
-whole_reason = "One request wording, its topic list and the drawer wired from the composition root are one change; the pinned tests in tests/game move with it."
