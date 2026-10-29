@@ -49,16 +49,14 @@ const FEATURE_CORE = Object.freeze({
         callEndedHooks.push(hook);
     },
 });
+// The served vocabulary loads before the page starts, as a static import would; the bundle does not own /static/js/wire.js.
+const WIRE_URL = "/static/js/wire.js";
+const { FEATURE_MODULES } = await import(/* @vite-ignore */ WIRE_URL);
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
 // A feature that fails to load never stops the call; it resolves to whether every feature is in.
-const WIRE_URL = "/static/js/wire.js";
-async function installFeatures() {
-    const { FEATURE_MODULES } = await import(/* @vite-ignore */ WIRE_URL);
-    await Promise.all(
-        FEATURE_MODULES.map(async (moduleUrl) => (await import(/* @vite-ignore */ moduleUrl)).install(FEATURE_CORE)),
-    );
-}
-const featuresInstalled = installFeatures().then(
+const featuresInstalled = Promise.all(
+    FEATURE_MODULES.map(async (moduleUrl) => (await import(/* @vite-ignore */ moduleUrl)).install(FEATURE_CORE)),
+).then(
     () => true,
     () => false,
 );
