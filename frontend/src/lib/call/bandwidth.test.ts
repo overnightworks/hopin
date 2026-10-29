@@ -19,17 +19,17 @@ interface FakeSender {
     readonly rtpSender: RTCRtpSender;
     readonly getParameters: ReturnType<typeof vi.fn>;
     readonly setParameters: ReturnType<typeof vi.fn<SetParameters>>;
-    readonly encoding: { maxBitrate?: number };
+    readonly lastAppliedBitrate: () => number | undefined;
 }
 
 function senderRejecting(...failures: Error[]): FakeSender {
-    const encoding: { maxBitrate?: number } = {};
-    const getParameters = vi.fn(() => ({ encodings: [encoding] }));
+    const getParameters = vi.fn(() => ({ encodings: [{}] }));
     const setParameters = vi.fn<SetParameters>();
     for (const failure of failures) setParameters.mockRejectedValueOnce(failure);
     setParameters.mockResolvedValue(undefined);
     const rtpSender = { getParameters, setParameters } as unknown as RTCRtpSender;
-    return { rtpSender, getParameters, setParameters, encoding };
+    const lastAppliedBitrate = () => setParameters.mock.lastCall?.[0].encodings[0]?.maxBitrate;
+    return { rtpSender, getParameters, setParameters, lastAppliedBitrate };
 }
 
 function transceiver(kind: "audio" | "video", sender: RTCRtpSender): RTCRtpTransceiver {
@@ -65,8 +65,8 @@ describe("applying upload caps", () => {
             connectionOf([transceiver("video", second.rtpSender)]),
         ]);
 
-        expect(first.encoding.maxBitrate).toBe(1_000_000);
-        expect(second.encoding.maxBitrate).toBe(1_000_000);
+        expect(first.lastAppliedBitrate()).toBe(1_000_000);
+        expect(second.lastAppliedBitrate()).toBe(1_000_000);
         expect(audio.setParameters).not.toHaveBeenCalled();
     });
 
@@ -90,7 +90,7 @@ describe("applying upload caps", () => {
 
         expect(sender.setParameters).toHaveBeenCalledTimes(rejections + 1);
         expect(sender.getParameters).toHaveBeenCalledTimes(rejections + 1);
-        expect(sender.encoding.maxBitrate).toBe(2_000_000);
+        expect(sender.lastAppliedBitrate()).toBe(2_000_000);
     });
 
     it("throws the InvalidStateError of the third attempt", async () => {
@@ -118,7 +118,7 @@ describe("applying upload caps", () => {
         await expect(applyUploadCaps([connection])).rejects.toThrow("not allowed");
         await applyUploadCaps([connection, connection]);
 
-        expect(sender.encoding.maxBitrate).toBe(1_000_000);
+        expect(sender.lastAppliedBitrate()).toBe(1_000_000);
     });
 
     it("runs caps on one sender one after another, the latest last", async () => {
