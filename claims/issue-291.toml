@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "3cf163924e5bb1ad05d6381dd5a30d2267224de6"
 branch = "claude/issue-291-quality-v0-9-0"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", "pyproject.toml", "scripts/remove_game.py", "src/hopin/config/constants.py", "src/hopin/people.py", "tests/test_config.py", "tests/web/test_routes.py"]
+scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", "pyproject.toml", "scripts/remove_game.py", "src/hopin/config/constants.py", "src/hopin/people.py", "tests/test_config.py", "tests/web/test_routes.py", "tests/web/test_turn_relay.py"]
 opened_commit = "4943b7653f6d41929d5f97d31fef466cb130ee04"
 whole_reason = "One gate release moves its pin in both workflows and clears its new findings across the files it names at once; a split leaves the gate red."
