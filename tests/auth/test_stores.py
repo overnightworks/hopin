@@ -1,15 +1,17 @@
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import pytest
 import structlog.testing
 from pydantic import SecretStr
-from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore, WriteLock
+from webauth.ports import AccountEvent, AccountEventKind, AuditSink, SessionRecordStore, SubjectUserStore
 
 from hopin.auth.stores import (
     InMemoryAccounts,
     InMemorySessions,
+    InMemorySignInTransaction,
     LoggingAuditSink,
     PersonRecords,
     ProcessWriteLock,
@@ -20,6 +22,11 @@ from hopin.auth.stores import (
 from tests.support.signed_in import new_id_token
 
 pytestmark = pytest.mark.integration
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from webauth.ports import SignInStores as WebauthSignInStores
 
 NOW = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 LATER = NOW + timedelta(hours=12)
@@ -36,13 +43,8 @@ def sessions(accounts: InMemoryAccounts) -> InMemorySessions:
 
 
 def test_stores_satisfy_the_webauth_ports(accounts, sessions):
-    ports: tuple[SubjectUserStore, SessionRecordStore, WriteLock, AuditSink] = (
-        accounts,
-        sessions,
-        ProcessWriteLock(),
-        LoggingAuditSink(),
-    )
-    assert len(ports) == 4
+    ports: tuple[SubjectUserStore, SessionRecordStore, AuditSink] = (accounts, sessions, LoggingAuditSink())
+    assert len(ports) == 3
 
 
 def test_in_memory_sign_in_stores_load_a_session_for_an_account_created_through_them():
@@ -372,6 +374,123 @@ class TestPersonRecords:
         assert sessions.person_records("anna").sessions == ()
         assert sessions.person_records("ghost") == PersonRecords(account=None, sessions=())
         assert accounts.get("ghost") is None
+
+
+class RecordingAudit:
+    def __init__(self) -> None:
+        self.events: list[AccountEvent] = []
+
+    def account_event(self, event: AccountEvent) -> None:
+        self.events.append(event)
+
+
+class BlockFailed(Exception):  # noqa: N818
+    pass
+
+
+def fail_after(transaction: InMemorySignInTransaction, work: Callable[[WebauthSignInStores], None]) -> None:
+    with transaction() as stores:
+        work(stores)
+        raise BlockFailed
+
+
+class TestSignInTransaction:
+    @pytest.fixture
+    def audit(self) -> RecordingAudit:
+        return RecordingAudit()
+
+    @pytest.fixture
+    def transaction(self, accounts, sessions, audit) -> InMemorySignInTransaction:
+        return InMemorySignInTransaction(accounts, sessions, audit, ProcessWriteLock())
+
+    @pytest.fixture
+    def anna_with_a_session(self, accounts, sessions):
+        anna = accounts.create_for_subject("anna", "anna-name", "user")
+        session = sessions.create(anna.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token())
+        return anna, session
+
+    def test_a_block_that_raises_restores_the_accounts_and_sessions_of_its_entry(
+        self, transaction, accounts, sessions, anna_with_a_session
+    ):
+        anna, session = anna_with_a_session
+
+        def write(stores: WebauthSignInStores) -> None:
+            stores.sessions.delete_for_user(anna.id)
+            stores.accounts.create_for_subject("bob", "bob-name", "user")
+
+        with pytest.raises(BlockFailed):
+            fail_after(transaction, write)
+
+        assert accounts.get("bob") is None
+        assert accounts.get(anna.id) == anna
+        assert sessions.load(session.id) == session
+
+    def test_a_block_that_exits_cleanly_keeps_what_it_wrote(self, transaction, accounts, sessions, anna_with_a_session):
+        _anna, session = anna_with_a_session
+
+        with transaction() as stores:
+            stores.sessions.delete(session.id)
+            stores.accounts.create_for_subject("bob", "bob-name", "user")
+
+        assert sessions.load(session.id) is None
+        assert accounts.get("bob") is not None
+
+    def test_an_audit_event_reaches_the_sink_only_when_the_block_exits_cleanly(self, transaction, audit):
+        event = AccountEvent(kind=AccountEventKind.BACKCHANNEL_LOGOUT, actor_id=None, subject_id="anna", role="user")
+
+        with pytest.raises(BlockFailed):
+            fail_after(transaction, lambda stores: stores.audit.account_event(event))
+        assert audit.events == []
+
+        with transaction() as stores:
+            stores.audit.account_event(event)
+        assert audit.events == [event]
+
+    def test_a_sink_that_fails_when_the_events_are_handed_over_rolls_the_entry_back(
+        self, accounts, sessions, anna_with_a_session
+    ):
+        class DownSink:
+            def account_event(self, event: AccountEvent) -> None:
+                raise BlockFailed
+
+        transaction = InMemorySignInTransaction(accounts, sessions, DownSink(), ProcessWriteLock())
+        anna, session = anna_with_a_session
+        event = AccountEvent(kind=AccountEventKind.BACKCHANNEL_LOGOUT, actor_id=None, subject_id="anna", role="user")
+
+        def end_the_sessions(stores: WebauthSignInStores) -> None:
+            stores.sessions.delete_for_user(anna.id)
+            stores.audit.account_event(event)
+
+        with pytest.raises(BlockFailed), transaction() as stores:
+            end_the_sessions(stores)
+
+        assert sessions.load(session.id) == session
+
+    def test_the_next_entry_starts_after_the_previous_one_left(self, transaction):
+        entered: list[str] = []
+        first_inside = threading.Event()
+        release_first = threading.Event()
+
+        def first() -> None:
+            with transaction():
+                first_inside.set()
+                release_first.wait(timeout=5)
+                entered.append("first left")
+
+        def second() -> None:
+            first_inside.wait(timeout=5)
+            with transaction():
+                entered.append("second entered")
+
+        threads = [threading.Thread(target=first), threading.Thread(target=second)]
+        for thread in threads:
+            thread.start()
+        first_inside.wait(timeout=5)
+        release_first.set()
+        for thread in threads:
+            thread.join(timeout=5)
+
+        assert entered == ["first left", "second entered"]
 
 
 def test_write_lock_can_be_held_twice_one_after_the_other():

@@ -5,42 +5,27 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import structlog
-from fastapi import APIRouter, Request, Response
-from fastapi.concurrency import run_in_threadpool
+from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import FileResponse
-from webauth.config import SessionLifetime, WebAuthConfig, web_auth_config
-from webauth.cookies import issue_session_cookies
+from webauth.config import SessionLifetime, WebAuthConfig
 from webauth.https_client import fetch_key_set_over_https
 from webauth.oidc import OidcClientConfig, OidcRefusal, OidcRelyingParty, TokenRequestPost
-from webauth.oidc_login import (
-    AdmissionConfig,
-    AdmissionRefusal,
-    AdmittedLogin,
-    BackchannelLogoutResult,
-    finish_login,
-    log_out,
-    open_session,
-    receive_backchannel_logout,
-    start_login,
-)
+from webauth.oidc_login import AdmissionConfig, AdmissionRefusal
 from webauth.oidc_transport import post_token_request_over_https
 from webauth.proxies import TrustedProxies
 from webauth.rate_limit import SingleProcessRateLimitBackend
+from webauth.sign_in_routes import RefusalPage, SignInRefusal, install_sign_in_routes
 
 from hopin.config.constants import (
     ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
-    AUTH_START_PATH,
-    BACKCHANNEL_LOGOUT_PATH,
-    HOME_PATH,
     LOGIN_GROUP,
     LOGIN_PATH,
-    LOGOUT_PATH,
     NO_ACCESS_PATH,
     OIDC_LEEWAY_SECONDS,
     OIDC_SCOPES,
-    RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
+    SIGN_IN_PATHS,
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
 from hopin.web.routes import READ_METHODS, STATIC_DIR
@@ -48,7 +33,7 @@ from hopin.web.routes import READ_METHODS, STATIC_DIR
 if TYPE_CHECKING:
     from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
-    from webauth.ports import AuditSink, SessionRecord, SessionRecordStore, SubjectUserStore, WriteLock
+    from webauth.ports import SignInTransaction
 
     from hopin.config.settings import ServerSettings
 
@@ -149,73 +134,24 @@ def build_relying_party(sign_in_configs: SignInConfigs, issuer_transports: Issue
     )
 
 
-def create_sign_in_router(
-    relying_party: OidcRelyingParty,
-    *,
-    accounts: SubjectUserStore,
-    sessions: SessionRecordStore,
-    lock: WriteLock,
-    audit: AuditSink,
-) -> APIRouter:
-    admission = AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP)
+def install_sign_in(app: FastAPI, relying_party: OidcRelyingParty, transaction: SignInTransaction) -> None:
+    """The library serves the start, callback, logout and back-channel routes; the pages stay HopIn's."""
+    install_sign_in_routes(
+        app,
+        paths=SIGN_IN_PATHS,
+        relying_party=lambda _request: relying_party,
+        admission=AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
+        transaction=transaction,
+        refused=_refusal_response,
+        keeps_id_token=True,
+        max_sessions=None,
+        logout_button_label=lambda _request: LOGOUT_LABEL,
+    )
+    app.include_router(_create_pages_router())
+
+
+def _create_pages_router() -> APIRouter:
     router = APIRouter()
-
-    @router.get(AUTH_START_PATH)
-    def start(request: Request) -> Response:
-        answer = Response(status_code=HTTPStatus.SEE_OTHER)
-        answer.headers["location"] = start_login(
-            relying_party,
-            request,
-            answer,
-            web_auth_config(request),
-            return_to=request.query_params.get(RETURN_TO_QUERY_PARAMETER),
-        )
-        return answer
-
-    @router.get(AUTH_CALLBACK_PATH)
-    def callback(request: Request) -> Response:
-        config = web_auth_config(request)
-        answer = Response()
-        outcome = finish_login(
-            relying_party,
-            request,
-            answer,
-            config,
-            admission=admission,
-            accounts=accounts,
-            lock=lock,
-            audit=audit,
-        )
-        if not isinstance(outcome, AdmittedLogin):
-            return _refusal_response(outcome, carrying=answer)
-        session = _open_session(request, config, outcome, sessions, lock)
-        issue_session_cookies(answer, session.id, config)
-        answer.status_code = HTTPStatus.SEE_OTHER
-        answer.headers["location"] = outcome.return_to or HOME_PATH
-        return answer
-
-    @router.post(LOGOUT_PATH)
-    def logout(request: Request) -> Response:
-        return log_out(
-            relying_party, request, web_auth_config(request), sessions=sessions, lock=lock, button_label=LOGOUT_LABEL
-        )
-
-    @router.post(BACKCHANNEL_LOGOUT_PATH)
-    async def backchannel_logout(request: Request) -> Response:
-        # No catch-all: a failure before the lock ends nothing and answers 500, and one after it
-        # (the audit) answers 500 with the sessions already ended, which the in-memory stores cannot roll back.
-        result = await run_in_threadpool(
-            receive_backchannel_logout,
-            relying_party,
-            await request.body(),
-            request.headers.get("content-type"),
-            accounts=accounts,
-            sessions=sessions,
-            lock=lock,
-            audit=audit,
-        )
-        accepted = result is BackchannelLogoutResult.ACCEPTED
-        return Response(status_code=HTTPStatus.OK if accepted else HTTPStatus.BAD_REQUEST)
 
     @router.api_route(LOGIN_PATH, methods=READ_METHODS)
     def signed_out() -> FileResponse:
@@ -228,22 +164,11 @@ def create_sign_in_router(
     return router
 
 
-def _open_session(
-    request: Request, config: WebAuthConfig, outcome: AdmittedLogin, sessions: SessionRecordStore, lock: WriteLock
-) -> SessionRecord:
-    """HopIn logs out through `log_out`, so its session rows keep the ID token."""
-    return open_session(request, config, outcome, sessions=sessions, lock=lock, max_sessions=None, keeps_id_token=True)
-
-
-def _refusal_response(refusal: OidcRefusal | AdmissionRefusal, *, carrying: Response) -> Response:
-    _log_refusal(refusal)
-    if refusal is AdmissionRefusal.NOT_A_MEMBER:
-        response: Response = Response(status_code=HTTPStatus.SEE_OTHER, headers={"location": NO_ACCESS_PATH})
-    else:
-        response = FileResponse(LOGIN_FAILED_PAGE, status_code=HTTPStatus.FORBIDDEN)
-    for cookie in carrying.headers.getlist("set-cookie"):
-        response.headers.append("set-cookie", cookie)
-    return response
+def _refusal_response(_request: Request, refusal: SignInRefusal) -> Response:
+    _log_refusal(refusal.cause)
+    if refusal.page is RefusalPage.NO_ACCESS:
+        return Response(status_code=HTTPStatus.SEE_OTHER, headers={"location": NO_ACCESS_PATH})
+    return FileResponse(LOGIN_FAILED_PAGE, status_code=HTTPStatus.FORBIDDEN)
 
 
 def _log_refusal(refusal: OidcRefusal | AdmissionRefusal) -> None:

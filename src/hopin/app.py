@@ -9,7 +9,6 @@ from webauth.config import install_web_auth_config
 from webauth.middleware import install_web_auth_middleware
 from webauth.policies import (
     BodySizePolicy,
-    BodySizeRule,
     CacheControlRule,
     CsrfPolicy,
     RateLimitPolicy,
@@ -25,12 +24,10 @@ from hopin.auth.sign_in import (
     IssuerTransports,
     build_relying_party,
     build_sign_in_configs,
-    create_sign_in_router,
+    install_sign_in,
 )
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
-    BACKCHANNEL_LOGOUT_BODY_MAX_BYTES,
-    BACKCHANNEL_LOGOUT_PATH_RULES,
     DEFAULT_RATE_LIMIT_BUDGET,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
     NO_CACHE_PATH_RULES,
@@ -38,7 +35,7 @@ from hopin.config.constants import (
     PERMISSIONS_POLICY,
     RATE_LIMIT_EXEMPT_PATH_RULES,
     SESSION_SWEEP_SECONDS,
-    SIGN_IN_PATH_RULES,
+    SIGN_IN_PATHS,
     SIGN_IN_RATE_LIMIT_BUDGET,
 )
 from hopin.people import create_people_router
@@ -147,19 +144,19 @@ def _install_web_auth(app: FastAPI, sessions: InMemorySessions) -> None:
             content_security_policy=default_content_security_policy(),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
-                CacheControlRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, value="no-store"),
+                SIGN_IN_PATHS.cache_control_rule,
                 CacheControlRule(paths=PEOPLE_PATH_RULES, value="no-store"),
                 CacheControlRule(paths=NO_CACHE_PATH_RULES, value="no-cache"),
             ),
         ),
-        csrf_origin=CsrfPolicy(exempt=BACKCHANNEL_LOGOUT_PATH_RULES),
+        csrf_origin=CsrfPolicy(exempt=SIGN_IN_PATHS.backchannel),
         body_size=BodySizePolicy(
             default_max_bytes=DEFAULT_REQUEST_BODY_MAX_BYTES,
-            rules=(BodySizeRule(paths=BACKCHANNEL_LOGOUT_PATH_RULES, max_bytes=BACKCHANNEL_LOGOUT_BODY_MAX_BYTES),),
+            rules=(SIGN_IN_PATHS.backchannel_body_size_rule,),
         ),
         rate_limit=RateLimitPolicy(
             default=DEFAULT_RATE_LIMIT_BUDGET,
-            rules=(RateLimitRule(paths=SIGN_IN_PATH_RULES, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
+            rules=(RateLimitRule(paths=SIGN_IN_PATHS.browser_paths, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
             exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
         session_gate=session_gate(sessions),
@@ -210,15 +207,7 @@ def create_app(
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
-    app.include_router(
-        create_sign_in_router(
-            relying_party,
-            accounts=sign_in_stores.accounts,
-            sessions=sign_in_stores.sessions,
-            lock=sign_in_stores.lock,
-            audit=sign_in_stores.audit,
-        )
-    )
+    install_sign_in(app, relying_party, sign_in_stores.transaction)
     _install_web_auth(app, sign_in_stores.sessions)
 
     return app

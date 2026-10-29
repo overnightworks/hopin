@@ -381,10 +381,22 @@ class TestRevalidation:
         etag = application.get(path, member).headers["etag"]
         assert application.get(path, member, **{"if-none-match": etag}).status_code == 304
 
-    def test_the_login_failed_page_is_revalidated(self, application):
+    def test_the_admitted_callback_that_sets_the_session_cookie_is_never_stored(self, application):
+        start = application.get(AUTH_START_PATH, **BROWSER_ACCEPT)
+        query = application.issuer.authorize(
+            start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna"
+        )
+
+        callback = application.get(f"{AUTH_CALLBACK_PATH}?{query}", **BROWSER_ACCEPT)
+
+        assert (callback.status_code, callback.headers["location"]) == (303, "/")
+        assert callback.headers["cache-control"] == "no-store"
+        assert start.headers["cache-control"] == "no-store"
+
+    def test_the_callback_answer_is_never_stored_because_it_carries_the_session_cookie(self, application):
         response = application.get(AUTH_CALLBACK_PATH, **BROWSER_ACCEPT)
         assert (response.status_code, response.content) == (403, LOGIN_FAILED_PAGE.read_bytes())
-        assert response.headers["cache-control"] == "no-cache"
+        assert response.headers["cache-control"] == "no-store"
 
 
 class TestSessionLifetime:
