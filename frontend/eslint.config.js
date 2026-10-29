@@ -59,5 +59,5 @@ export default ts.config(
             ],
         },
     },
-    { ignores: ["build/", ".svelte-kit/", "../src/hopin/web/build/"] },
+    { ignores: ["build/", ".svelte-kit/", "coverage/", "../src/hopin/web/build/"] },
 );

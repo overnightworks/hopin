@@ -9,7 +9,18 @@ export default defineConfig({
             external: [/^\/static\//],
         },
     },
-    test: { environment: "node", include: ["src/**/*.test.ts"] },
+    test: {
+        environment: "node",
+        include: ["src/**/*.test.ts"],
+        coverage: {
+            provider: "v8",
+            include: ["src/lib/**/*.ts"],
+            // The legacy page code is judged by the end-to-end suite until it is ported; wire.ts is generated.
+            exclude: ["src/lib/legacy/**", "src/lib/wire.ts", "**/*.test.ts"],
+            reporter: [["text", { skipFull: false }], "lcov"],
+            thresholds: { branches: 100, lines: 100, functions: 100, statements: 100 },
+        },
+    },
     plugins: [
         sveltekit({
             adapter: adapter({

@@ -1,36 +1,38 @@
 export const ICE_DISCONNECTED_GRACE_MS = 2000;
 const ICE_RESTART_RETRY_DELAYS_MS = [2000, 4000, 8000, 15000];
-const CONNECTED_STATES = new Set(["connected", "completed"]);
-const LOST_STATES = new Set(["disconnected", "failed"]);
+const CONNECTED_STATES = new Set<RTCIceConnectionState>(["connected", "completed"]);
+const LOST_STATES = new Set<RTCIceConnectionState>(["disconnected", "failed"]);
 
-export function restartDelay(attempt) {
-    return ICE_RESTART_RETRY_DELAYS_MS[Math.min(attempt, ICE_RESTART_RETRY_DELAYS_MS.length - 1)];
+export type WatchedConnection = Pick<RTCPeerConnection, "addEventListener" | "iceConnectionState" | "signalingState">;
+
+export function restartDelay(attempt: number): number {
+    return ICE_RESTART_RETRY_DELAYS_MS[Math.min(attempt, ICE_RESTART_RETRY_DELAYS_MS.length - 1)] as number;
 }
 
-export function watchIceConnection(connection, restart) {
+export function watchIceConnection(connection: WatchedConnection, restart: () => unknown): void {
     let attempt = 0;
     let episodeBegun = false;
-    let pendingTimer = null;
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
     const isClosed = () => connection.signalingState === "closed";
     const isConnected = () => CONNECTED_STATES.has(connection.iceConnectionState);
 
-    function schedule(delayMs, callback) {
-        clearTimeout(pendingTimer);
+    function schedule(delayMs: number, callback: () => void): void {
+        clearTimeout(pendingTimer ?? undefined);
         pendingTimer = setTimeout(() => {
             pendingTimer = null;
             if (!isClosed()) callback();
         }, delayMs);
     }
 
-    function endEpisode() {
-        clearTimeout(pendingTimer);
+    function endEpisode(): void {
+        clearTimeout(pendingTimer ?? undefined);
         pendingTimer = null;
         attempt = 0;
         episodeBegun = false;
     }
 
-    function restartAndRetry() {
+    function restartAndRetry(): void {
         if (isConnected()) {
             endEpisode();
             return;
@@ -45,7 +47,7 @@ export function watchIceConnection(connection, restart) {
         attempt += 1;
     }
 
-    function restartAfterGrace() {
+    function restartAfterGrace(): void {
         if (LOST_STATES.has(connection.iceConnectionState)) restartAndRetry();
     }
 

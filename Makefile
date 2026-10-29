@@ -29,7 +29,7 @@ frontend:
 	cd frontend && pnpm install --frozen-lockfile && pnpm build
 
 frontend-check:
-	cd frontend && pnpm check && pnpm lint && pnpm test
+	cd frontend && pnpm check && pnpm lint && pnpm test:coverage
 
 check: lint test dead frontend-check
 

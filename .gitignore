@@ -24,3 +24,4 @@ test-results/
 
 node_modules/
 .svelte-kit/
+frontend/coverage/

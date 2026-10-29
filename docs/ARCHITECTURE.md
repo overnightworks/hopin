@@ -58,10 +58,12 @@ The page is a SvelteKit shell that `make frontend` builds into `src/hopin/web/bu
 
 - **Screens and navigation:** `router`, `home`, `account`, `menus`, `prejoin`, `end`, `dialogs`
 - **Connection to the server:** `signaling`, `replay` (frames resent after a resume)
-- **Peer connections:** `mesh`, `recovery` (ICE restart), `bandwidth` (upload cap by call size)
+- **Peer connections:** `mesh`
 - **Local and remote media:** `media`, `media-state`, `speaking`, `quality`
-- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `toast`, `sounds`
+- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `toast`
 - **State:** `state`, the one mutable call state, with no DOM
+
+The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. Vitest judges it at 100 % branch (`pnpm test:coverage`), and the legacy modules import it, never the reverse.
 
 ## 3. Runtime View
 
