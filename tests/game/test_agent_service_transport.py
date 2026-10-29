@@ -10,6 +10,7 @@ from agent_runtime_client.wire import PROTOCOL_VERSION, RejectionCode, RouteKind
 from hopin.game import AGENT_SERVICE_OVER_HTTP
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GameRefusal
+from tests.game.support.fake_agent_service import SERVED_MODEL
 from tests.game.support.world import OPENING, build_world, cancelled, wait_in_a_worker
 from tests.support.loopback_origin import (
     BEARER_ECHO,
@@ -45,7 +46,7 @@ def held_run(question):
         v=PROTOCOL_VERSION,
         run_id=RUN_ID,
         seq=0,
-        model="anthropic/test-model",
+        model=SERVED_MODEL,
         route=RouteKind.CLI,
         heartbeat_interval_s=15,
     )
