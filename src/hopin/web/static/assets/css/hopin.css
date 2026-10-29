@@ -831,7 +831,6 @@ body {
         left: 50%;
         width: 280px;
         padding: 6px;
-        border: 1px solid var(--border);
         border-radius: 18px;
         translate: -50% 0;
         animation: overlay-pop var(--motion-fade) ease-out;
