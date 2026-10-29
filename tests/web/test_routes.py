@@ -389,7 +389,7 @@ class TestPageShell:
 
     def test_the_icon_is_an_svg_document_in_utf8_with_the_brand_mark_viewbox(self):
         # The file is the repository's own, never untrusted input.
-        root = ElementTree.fromstring(FAVICON_FILE.read_bytes().decode("utf-8"))  # noqa: S314
+        root = ElementTree.fromstring(FAVICON_FILE.read_bytes().decode("utf-8"))  # noqa: S314 - parses the repository own favicon and no untrusted input
         assert (root.tag, root.get("viewBox")) == ("{http://www.w3.org/2000/svg}svg", "0 0 24 24")
 
     def test_vendored_ui_console_is_byte_identical_to_its_release(self):

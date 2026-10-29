@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integration
 
 ENDPOINT = "https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate-ice-servers"
-PADDED_RFC_TOKEN = "aZ09._~+/-=="  # noqa: S105
+PADDED_RFC_TOKEN = "aZ09._~+/-=="
 FETCH_ACCEPT = {"accept": "application/json"}
 STUN_ENTRY = {"urls": ["stun:stun.cloudflare.com:3478"]}
 RELAY_URLS = [

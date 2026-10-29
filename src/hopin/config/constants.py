@@ -2,7 +2,7 @@ from enum import StrEnum
 
 from webauth.policies import PathRules, RateLimitBudget
 
-DEFAULT_HOST = "0.0.0.0"  # noqa: S104
+DEFAULT_HOST = "0.0.0.0"  # noqa: S104 - the container must listen on every interface and HOPIN_HOST overrides it
 DEFAULT_PORT = 8080
 
 ROOM_ID_LENGTH = 8
