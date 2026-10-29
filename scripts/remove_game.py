@@ -47,7 +47,7 @@ def remove_packages(copy: Path) -> None:
     if uv is None:
         raise SystemExit("remove_game: uv is not on PATH")
     # The arguments are this file's constants; --no-sync leaves installing to the caller.
-    subprocess.run([uv, "remove", "--no-sync", *GAME_ONLY_PACKAGES], cwd=copy, check=True)  # noqa: S603
+    subprocess.run([uv, "remove", "--no-sync", *GAME_ONLY_PACKAGES], cwd=copy, check=True)  # noqa: S603 - argv is the uv binary plus constants of this file
 
 
 def main(arguments: list[str]) -> None:

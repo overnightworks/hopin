@@ -25,15 +25,15 @@ ARCHIVE_MEDIA_TYPE = "application/zip"
 
 # The names and values label withheld kinds in the export; none is a credential.
 class WithheldReason(StrEnum):
-    SECRET = "secret"  # noqa: S105
+    SECRET = "secret"  # noqa: S105 - label of a withheld kind and no credential
     OTHERS = "others"
 
 
 class WithheldKind(StrEnum):
     SESSION_ID = "session_id"
-    REFRESH_TOKEN = "refresh_token"  # noqa: S105
-    ID_TOKEN = "id_token"  # noqa: S105
-    RESUME_TOKEN = "resume_token"  # noqa: S105
+    REFRESH_TOKEN = "refresh_token"  # noqa: S105 - label of a withheld kind and no credential
+    ID_TOKEN = "id_token"  # noqa: S105 - label of a withheld kind and no credential
+    RESUME_TOKEN = "resume_token"  # noqa: S105 - label of a withheld kind and no credential
     CALL_REPLAY_FRAME = "call_replay_frame"
 
 
