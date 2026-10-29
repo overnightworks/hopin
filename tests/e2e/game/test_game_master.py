@@ -80,6 +80,11 @@ def end_quiz(person: Page) -> None:
     person.click(START_QUIZ)
 
 
+def leave_the_call(guest: Page) -> None:
+    """A guest leaves at once; only the host's Leave asks first."""
+    guest.click("#leaveBtn")
+
+
 def send_frame(person: Page, signal_type: GameSignal) -> None:
     person.evaluate(SEND_FRAME_THROUGH_THE_PAGES_SIGNALING, signal_type.value)
 
@@ -537,6 +542,60 @@ def test_the_starters_end_quiz_shows_everyone_quiz_ended_and_frees_start_quiz(
         expect(open_more(person).locator(START_QUIZ)).to_contain_text("Start quiz")
         expect_idle(person)
     assert len(agent_service.runs) == runs_before + 1
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_starters_leave_shows_everyone_quiz_ended_with_the_name_and_frees_start_quiz(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    member_of: Callable[[Page], SeededMember],
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    guest_name = member_of(guest).account.username
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    start_quiz(guest)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+
+    close_chat(guest)
+    leave_the_call(guest)
+
+    expect_toast(host, f"Quiz ended: {guest_name} left.", X_ICON_PATH)
+    expect(host.locator(CARD)).to_have_count(0)
+    close_chat(host)
+    expect(open_more(host).locator(START_QUIZ)).to_contain_text("Start quiz")
+    expect_idle(host)
+
+
+def test_a_players_leave_shrinks_the_count_and_the_reveal_follows_once_everyone_still_there_has_answered(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+) -> None:
+    host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    third = join(open_person, invite_link, DESKTOP, (), page_errors)
+    reveal_run = Holds(then=Succeeds("Der Tejo."))
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"), reveal_run, Succeeds("Zweite?"))
+    start_quiz(host)
+    for person in (host, guest, third):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+    answer_on_card(host, "Tejo")
+    answer_on_card(guest, "Mondego")
+    for person in (host, guest):
+        expect(person.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 2 of 3 answered")
+
+    leave_the_call(third)
+
+    for person in (host, guest):
+        expect(person.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 2 of 2 answered")
+    assert reveal_run.started.wait()
+    reveal_run.release.set()
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).nth(1)).to_contain_text("Der Tejo.")
+        expect(person.locator(CARD).locator(".qcard-q")).to_have_text("Zweite?")
 
 
 def test_the_hosts_end_quiz_ends_a_guests_quiz_for_everyone(

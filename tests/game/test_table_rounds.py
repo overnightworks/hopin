@@ -8,12 +8,10 @@ from tests.game.support.table_world import (
     REVEAL,
     START,
     answering,
-    asked,
     call_of,
     game_frames,
     hold_writes_from,
     line,
-    open_a_question,
     question,
     sent,
     sent_to_all,
@@ -87,21 +85,6 @@ class TestFiveRounds:
 
         for browser in call:
             assert game_frames(browser) == frames_of_a_whole_quiz(call[1])
-
-    async def test_a_reveal_whose_starter_left_in_the_meantime_ends_the_quiz_after_its_line(self, link, game_master):
-        host, guest = await call_of(link, "host", "guest")
-        game_master.answer_next(Line("Frage?"), Line(answer_text(1)))
-        await open_a_question([host, guest], guest)
-        held = game_master.hold_next()
-        await guest.say(REVEAL)
-        await wait_within_cap(held.started)
-
-        await guest.drop(code=1000)
-        held.release.set()
-        await sent(host, IDLE)
-
-        assert game_frames(host) == [*asked(guest, "Frage?"), thinking(guest), line(answer_text(1)), IDLE]
-        assert len(game_master.calls) == 2
 
     async def test_a_run_that_waited_for_the_run_before_it_counts_its_duration_from_the_end_of_that_wait(
         self, link, game_master, scheduler

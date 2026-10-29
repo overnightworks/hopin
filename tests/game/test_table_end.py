@@ -21,6 +21,7 @@ from tests.game.support.table_world import (
     assert_no_game_frame_after_room_closed,
     broken_write,
     call_of,
+    ended_by,
     every_frame_sent_to,
     game_frames,
     hold_writes_from,
@@ -36,8 +37,25 @@ from tests.game.support.table_world import (
     wait_within_cap,
     yield_until,
 )
+from tests.support.signaling_fakes import disconnect_frame
 
 pytestmark = pytest.mark.asyncio
+
+
+def starter_ends_unsettled(starter):
+    push_unsettled(starter, END)
+
+
+def starter_leaves_unsettled(starter):
+    starter.socket.push(disconnect_frame(1000))
+
+
+async def starter_ends(starter):
+    await starter.say(END)
+
+
+async def starter_leaves(starter):
+    await starter.drop(code=1000)
 
 
 class TestWhoMayEnd:
@@ -138,11 +156,12 @@ class TestEndAgainstAnEndInDelivery:
         host, guest = await call_of(link, "host", "guest")
         game_master.answer_next(Line(DEFAULT_QUESTION), Refused(GameRefusal.NO_ACCESS))
         await open_a_question([host, guest], guest)
-        gate = hold_writes_from(guest, refused(GameRefusal.NO_ACCESS))
+        entered = asyncio.Event()
+        gate = hold_writes_from(guest, refused(GameRefusal.NO_ACCESS), entered)
         with structlog.testing.capture_logs() as logs:
             push_unsettled(guest, REVEAL)
             await sent(host, thinking(guest))
-            await let_every_task_run()
+            await wait_within_cap(entered)
             push_unsettled(host, END_ROOM)
             await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
             gate.set()
@@ -225,14 +244,17 @@ class TestAfterEnd:
 
         assert game_frames(late) == []
 
-    async def test_a_run_the_end_cancelled_is_logged_as_ended_not_unavailable(self, link, game_master, scheduler):
+    @pytest.mark.parametrize("ending", [starter_ends, starter_leaves], ids=["the starters End", "the starters leave"])
+    async def test_a_run_the_end_cancelled_is_logged_as_ended_not_unavailable(
+        self, link, game_master, scheduler, ending
+    ):
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
         [call] = game_master.calls
 
         with structlog.testing.capture_logs() as logs:
-            await guest.say(END)
-            await sent_to_all([host, guest], IDLE)
+            await ending(guest)
+            await sent(host, IDLE)
             await yield_until(lambda: call.finished)
             await let_every_task_run()
 
@@ -240,26 +262,35 @@ class TestAfterEnd:
 
 
 class TestEndAgainstTheRoomsEnd:
+    @pytest.mark.parametrize(
+        ("start_ending", "ending", "starter_stays"),
+        [
+            pytest.param(starter_ends_unsettled, ENDED, True, id="the starters End"),
+            pytest.param(starter_leaves_unsettled, ended_by("starter"), False, id="the starters leave"),
+        ],
+    )
     async def test_the_rooms_end_while_ended_is_held_at_a_seat_sends_no_game_frame_after_room_closed(
-        self, link, game_master
+        self, link, game_master, start_ending, ending, starter_stays
     ):
         host, guest, starter = await call_of(link, "host", "guest", "starter")
         await open_a_question([host, guest, starter], starter)
-        gate = asyncio.Event()
-        guest.socket.send_gate = gate
+        entered = asyncio.Event()
+        gate = hold_writes_from(guest, ending, entered)
         with structlog.testing.capture_logs() as logs:
-            push_unsettled(starter, END)
-            await sent(host, ENDED)
+            start_ending(starter)
+            await sent(host, ending)
+            await wait_within_cap(entered)
             push_unsettled(host, END_ROOM)
             await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
             gate.set()
-            for browser in (guest, starter):
+            closed_seats = [host, guest, starter] if starter_stays else [host, guest]
+            for browser in closed_seats[1:]:
                 await browser.socket.wait_until(lambda browser=browser: browser.frames(SignalType.ROOM_CLOSED))
             await shut_down_within_cap(link.handler)
 
         assert_no_driver_failed(logs)
-        assert_no_game_frame_after_room_closed([host, guest, starter])
-        assert ENDED not in game_frames(starter)
+        assert_no_game_frame_after_room_closed(closed_seats)
+        assert ending not in game_frames(starter)
 
 
 class TestEndWithABrokenWrite:

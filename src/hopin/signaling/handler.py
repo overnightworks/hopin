@@ -29,7 +29,7 @@ from hopin.signaling.frames import (
     decode_frame,
     error_frame,
 )
-from hopin.signaling.routing import RoomRouting
+from hopin.signaling.routing import Departure, RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ class SignalingHandler:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
-        self._routing = RoomRouting(room_manager, scheduler, self._room_ended)
+        self._routing = RoomRouting(room_manager, scheduler, self._room_ended, self._seat_left)
         self._seats = self._routing.seats
         self._feature = None if feature is None else build_feature(feature, CallRooms(self._routing, room_manager))
 
@@ -63,6 +63,10 @@ class SignalingHandler:
     def _room_ended(self, room_id: str) -> None:
         if self._feature is not None:
             self._feature.room_ended(room_id)
+
+    async def _seat_left(self, departure: Departure) -> None:
+        if self._feature is not None:
+            await self._feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
 
     async def shut_down(self) -> None:
         """Shut the call's feature down and wait until it has cleaned up."""

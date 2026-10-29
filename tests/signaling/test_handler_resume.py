@@ -1,6 +1,4 @@
-import asyncio
 import json
-from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
@@ -20,7 +18,13 @@ from hopin.config.constants import (
 )
 from hopin.rooms.models import Account
 from hopin.signaling.seats import Peer
-from tests.signaling.support.browsers import MISSING, Link, host_and_guest
+from tests.signaling.support.browsers import (
+    MISSING,
+    Link,
+    fill_server_log,
+    host_and_guest,
+    resume_holding_the_first_replayed_frame,
+)
 from tests.support.signaling_fakes import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
@@ -362,34 +366,6 @@ class TestResumeRefusals:
         assert len(host.socket.sent) == heard_before
         await guest.resume()
         assert guest.frames(SignalType.RESUMED)
-
-
-@dataclass
-class HeldReplay:
-    reached: asyncio.Event
-    release: asyncio.Event
-
-
-async def resume_holding_the_first_replayed_frame(link, browser):
-    held = HeldReplay(reached=asyncio.Event(), release=asyncio.Event())
-    socket = await link.open(account_named(browser.name))
-    write = socket.send_text
-
-    async def hold_replayed_frames(text):
-        if socket.sent:
-            held.reached.set()
-            await held.release.wait()
-        await write(text)
-
-    socket.send_text = hold_replayed_frames
-    browser.sockets.append(socket)
-    socket.push(text_frame(browser.resume_frame()))
-    return held
-
-
-async def fill_server_log(host, frames):
-    for index in range(frames):
-        await host.say({"type": SignalType.CHAT.value, "message": f"message {index}"})
 
 
 class TestResumeLogs:

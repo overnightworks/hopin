@@ -18,7 +18,7 @@ from hopin.signaling.frames import (
 from hopin.signaling.seats import Seats
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.scheduler import Scheduler, TimerHandle
@@ -39,15 +39,23 @@ class Departure:
 
     room_id: str
     peer_id: PeerId
+    name: str
     remaining: list[str]
     host_left: bool
 
 
 class RoomRouting:
-    def __init__(self, room_manager: RoomManager, scheduler: Scheduler, on_room_ended: Callable[[str], None]) -> None:
+    def __init__(
+        self,
+        room_manager: RoomManager,
+        scheduler: Scheduler,
+        on_room_ended: Callable[[str], None],
+        on_seat_left: Callable[[Departure], Awaitable[None]],
+    ) -> None:
         self._room_manager = room_manager
         self._scheduler = scheduler
         self._on_room_ended = on_room_ended
+        self._on_seat_left = on_seat_left
         self._graces: dict[str, HostGrace] = {}
         self._seats = Seats(scheduler, on_seat_lost=self.handle_disconnect)
         self._peer_rooms: dict[str, str] = {}
@@ -194,7 +202,13 @@ class RoomRouting:
         host_left = room.is_hosted_by(leaver.account) and not room.host_present
         if host_left:
             self._start_grace(room_id, peer_id, left_at + HOST_GRACE_SECONDS)
-        return Departure(room_id=room_id, peer_id=peer_id, remaining=room.participant_ids, host_left=host_left)
+        return Departure(
+            room_id=room_id,
+            peer_id=peer_id,
+            name=leaver.account.name,
+            remaining=room.participant_ids,
+            host_left=host_left,
+        )
 
     async def announce(self, departure: Departure | None) -> None:
         if departure is None:
@@ -207,6 +221,7 @@ class RoomRouting:
             departure.remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": departure.peer_id}
         )
         await logger.ainfo("participant_left", room_id=departure.room_id, participant=departure.peer_id)
+        await self._on_seat_left(departure)
 
     def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> None:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))

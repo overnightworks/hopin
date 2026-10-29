@@ -4,7 +4,6 @@ import pytest
 import structlog.testing
 
 from hopin.config.constants import ErrorReason, SignalType
-from hopin.game.table import Line
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GameRefusal, GameSignal
 from tests.game.support.table_world import (
     REVEAL,
@@ -12,21 +11,21 @@ from tests.game.support.table_world import (
     answer,
     answer_count,
     answering,
-    answers_in_reveal,
     asked,
     broken_write,
     call_of,
     game_frames,
     hold_writes_from,
     let_every_task_run,
-    line,
     open_a_question,
     push_unsettled,
     question,
     refused,
+    revealed_answers,
+    revealed_into_question_two,
+    script_two_questions,
     sent,
     sent_to_all,
-    thinking,
     wait_within_cap,
     yield_until,
 )
@@ -36,27 +35,6 @@ from tests.support.signaling_fakes import account_named, text_frame
 pytestmark = pytest.mark.asyncio
 
 PRIVATE_ANSWER = "Mondego-Geheimnis"
-QUESTION_TWO = "Zweite?"
-
-
-def script_two_questions(game_master):
-    game_master.answer_next(Line("Frage?"), Line("Lissabon."), Line(QUESTION_TWO))
-
-
-def revealed_answers(game_master):
-    """The answers the first question's reveal run was asked to name; the second run of the game master."""
-    return answers_in_reveal(game_master.calls[1].transcript[-1].text)
-
-
-def revealed_into_question_two(starter):
-    """What every seat sees after the reveal, whoever tapped it: the line, then question 2 with answering."""
-    return [
-        thinking(starter),
-        line("Lissabon."),
-        thinking(starter, 2),
-        question(QUESTION_TWO, 2),
-        answering(starter, 2),
-    ]
 
 
 async def test_an_answer_gives_every_seat_the_count_and_no_seat_its_text(link, game_master):
@@ -184,19 +162,6 @@ async def test_a_seat_that_joins_while_the_question_line_is_held_is_told_answeri
 
     assert [frame["reason"] for frame in late.frames(GameSignal.GAME_REFUSED)] == [GameRefusal.ANSWER_CLOSED.value]
     assert question() not in game_frames(late)
-
-
-async def test_the_others_answers_start_no_run_when_the_starter_has_left(link, game_master):
-    host, guest, third = await call_of(link, "host", "guest", "third")
-    await open_a_question([host, guest, third], host)
-    await host.drop(code=1000)
-
-    await guest.say(answer("Porto"))
-    await third.say(answer("Lissabon"))
-    await let_every_task_run()
-
-    assert game_frames(third)[-2:] == [answer_count(1, 2), answer_count(2, 2)]
-    assert len(game_master.calls) == 1
 
 
 async def test_an_answer_without_a_quiz_is_refused_to_its_sender_alone(link, game_master):

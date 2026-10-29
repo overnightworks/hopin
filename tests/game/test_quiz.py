@@ -150,6 +150,32 @@ def test_everyone_answered_judges_the_present_players(answering, present, everyo
     assert quiz.everyone_answered(present) is everyone_answered
 
 
+def answered_by_starter():
+    return open_question().with_answer(STARTER, "Sam", "A")
+
+
+@pytest.mark.parametrize(
+    ("quiz", "peer_id", "counts"),
+    [
+        pytest.param(answered_by_starter(), OTHER, True, id="a player of an answered question"),
+        pytest.param(answered_by_starter(), LATE, False, id="a seat that is no player"),
+        pytest.param(open_question(), OTHER, False, id="a question nobody has answered"),
+        pytest.param(Quiz(STARTER), STARTER, False, id="a question still being asked"),
+        pytest.param(answered_by_starter().revealing(), OTHER, False, id="an answer being revealed"),
+    ],
+)
+def test_a_leave_counts_only_for_a_player_of_an_answered_open_question(quiz, peer_id, counts):
+    assert quiz.counts_leave_of(peer_id) is counts
+
+
+def test_a_player_who_left_is_dropped_from_the_players_but_keeps_the_given_answer_for_the_reveal():
+    quiz = answered_by_starter().with_answer(OTHER, "Otto", "B").without_player(OTHER)
+
+    assert quiz.players == frozenset({STARTER})
+    assert quiz.answered_count(PLAYERS) == 1
+    assert [answer["name"] for answer in revealed_answers(quiz)] == ["Sam", "Otto"]
+
+
 def test_the_next_round_starts_with_no_players_and_no_answers():
     quiz = open_question().with_answer(STARTER, "Sam", "A").revealing().heard("Lissabon.", PLAYERS)
 

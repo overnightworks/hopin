@@ -218,8 +218,9 @@ function receiveLineFrame(frame) {
     render();
 }
 
-function receiveEnded() {
-    core.showToast("Quiz ended.", core.toastKind.FAILED, null);
+function receiveEnded(frame) {
+    const text = typeof frame.leaver === "string" ? `Quiz ended: ${frame.leaver} left.` : "Quiz ended.";
+    core.showToast(text, core.toastKind.FAILED, null);
 }
 
 function receiveAnswerCount(frame) {
