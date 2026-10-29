@@ -443,6 +443,19 @@ class BlockFailed(Exception):  # noqa: N818
     pass
 
 
+def note_guard_held_at(store: InMemorySessions, method: str, guard) -> list[bool]:
+    """Wraps `store.<method>` to record, at each call, whether the current thread holds the guard."""
+    noted: list[bool] = []
+    original = getattr(store, method)
+
+    def noting(*arguments):
+        noted.append(guard.held_by_current_thread())
+        return original(*arguments)
+
+    setattr(store, method, noting)
+    return noted
+
+
 def fail_after(transaction: InMemorySignInTransaction, work: Callable[[WebauthSignInStores], None]) -> None:
     with transaction() as stores:
         work(stores)
@@ -466,8 +479,8 @@ class TestSignInTransaction:
         return stores.transaction
 
     @pytest.fixture
-    def transaction_with_audit(self, accounts, sessions, audit) -> InMemorySignInTransaction:
-        return InMemorySignInTransaction(accounts, sessions, audit, ProcessWriteLock())
+    def transaction_with_audit(self, sessions, audit) -> InMemorySignInTransaction:
+        return InMemorySignInTransaction(sessions, audit, ProcessWriteLock())
 
     @pytest.fixture
     def anna_with_a_session(self, accounts, sessions):
@@ -511,15 +524,9 @@ class TestSignInTransaction:
                 except BaseException as error:
                     errors.append(error)
 
-            thread = threading.Thread(target=other_thread)
-            guard_held_at_restore: list[bool] = []
-            restore = sessions.restore
-
-            def restore_noting_the_guard(snapshot) -> None:
-                guard_held_at_restore.append(accounts.guard.held_by_current_thread())
-                restore(snapshot)
-
-            sessions.restore = restore_noting_the_guard
+            thread = threading.Thread(target=other_thread, daemon=True)
+            guard_held_at_snapshot = note_guard_held_at(sessions, "snapshot", accounts.guard)
+            guard_held_at_restore = note_guard_held_at(sessions, "restore", accounts.guard)
 
             def write_then_wait_for_the_thread(stores: WebauthSignInStores) -> None:
                 if entry_work is None:
@@ -531,10 +538,14 @@ class TestSignInTransaction:
                 thread.start()
                 assert accounts.guard.was_contended.wait(timeout=5), "the thread never waited on the guard"
 
-            with pytest.raises(BlockFailed):
-                fail_after(transaction, write_then_wait_for_the_thread)
-            thread.join(timeout=5)
-            assert not thread.is_alive()
+            try:
+                with pytest.raises(BlockFailed):
+                    fail_after(transaction, write_then_wait_for_the_thread)
+            finally:
+                if thread.ident is not None:
+                    thread.join(timeout=5)
+                    assert not thread.is_alive()
+            assert guard_held_at_snapshot == [True]
             assert guard_held_at_restore == [True]
             if errors:
                 raise errors[0]
@@ -612,7 +623,7 @@ class TestSignInTransaction:
             def account_event(self, event: AccountEvent) -> None:
                 raise BlockFailed
 
-        transaction = InMemorySignInTransaction(accounts, sessions, DownSink(), ProcessWriteLock())
+        transaction = InMemorySignInTransaction(sessions, DownSink(), ProcessWriteLock())
         anna, session = anna_with_a_session
         event = AccountEvent(kind=AccountEventKind.BACKCHANNEL_LOGOUT, actor_id=None, subject_id="anna", role="user")
 

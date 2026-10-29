@@ -117,6 +117,10 @@ class InMemorySessions:
         self._rows: dict[str, _SessionRow] = {}
         self._guard = accounts.guard
 
+    @property
+    def accounts(self) -> InMemoryAccounts:
+        return self._accounts
+
     def exclusive(self) -> AbstractContextManager[bool]:
         """Holds both stores against every other thread for the length of a `with` block."""
         return self._guard
@@ -284,12 +288,10 @@ class InMemorySignInTransaction:
 
     def __init__(
         self,
-        accounts: InMemoryAccounts,
         sessions: InMemorySessions,
         audit: AuditSink,
         lock: ProcessWriteLock,
     ) -> None:
-        self._accounts = accounts
         self._sessions = sessions
         self._audit = audit
         self._lock = lock
@@ -300,7 +302,7 @@ class InMemorySignInTransaction:
         with self._lock.hold(), self._sessions.exclusive():
             snapshot = self._sessions.snapshot()
             try:
-                yield WebauthSignInStores(accounts=self._accounts, sessions=self._sessions, audit=deferred)
+                yield WebauthSignInStores(accounts=self._sessions.accounts, sessions=self._sessions, audit=deferred)
                 for event in deferred.events:
                     self._audit.account_event(event)
             except BaseException:
@@ -321,5 +323,5 @@ class SignInStores:
         return cls(
             accounts=accounts,
             sessions=sessions,
-            transaction=InMemorySignInTransaction(accounts, sessions, LoggingAuditSink(), ProcessWriteLock()),
+            transaction=InMemorySignInTransaction(sessions, LoggingAuditSink(), ProcessWriteLock()),
         )

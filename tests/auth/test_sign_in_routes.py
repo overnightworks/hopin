@@ -141,7 +141,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         app = FastAPI()
         install_web_auth_config(app, configs.web_auth)
         transaction = InMemorySignInTransaction(
-            accounts, sessions, LoggingAuditSink() if audit is None else audit, ProcessWriteLock()
+            sessions, LoggingAuditSink() if audit is None else audit, ProcessWriteLock()
         )
         install_sign_in(app, build_relying_party(configs, transports), transaction)
 
