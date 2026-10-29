@@ -13,7 +13,6 @@ The `Makefile` owns the targets. Traps:
   once; the `End-to-end` job in `.github/workflows/ci.yml` owns that install step.
 - `make wire-check` (part of `make lint`) fails when `frontend/src/lib/wire.ts` drifts from the Python wire owners;
   regenerate it with `uv run python scripts/generate_wire.py`.
-- `make frontend-check` runs Vitest with coverage over `frontend/src/lib/**/*.ts` (the legacy modules excluded) and fails under 100 %.
 - CI's `Coverage` job judges 100 % over unit, integration and end-to-end data
   together; no local run judges it.
 

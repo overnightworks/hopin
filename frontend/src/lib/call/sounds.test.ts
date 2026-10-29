@@ -106,4 +106,21 @@ describe("sounds", () => {
 
         expect(tones).toHaveLength(1);
     });
+
+    it("creates its audio context when the module loads, before any sound plays", async () => {
+        const created = vi.fn();
+        vi.stubGlobal(
+            "AudioContext",
+            class {
+                constructor() {
+                    created();
+                }
+            },
+        );
+        vi.resetModules();
+
+        await import("./sounds.ts");
+
+        expect(created).toHaveBeenCalledTimes(1);
+    });
 });
