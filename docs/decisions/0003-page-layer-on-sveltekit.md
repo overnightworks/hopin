@@ -14,9 +14,11 @@ shell's own inline start script and SvelteKit's route announcer would break.
   The build is never committed; the image and CI build it, and the server
   refuses to start without it (`PageBuild.load`, naming `make frontend`).
 - The layout (`frontend/src/routes/+layout.svelte`) holds the markup that
-  `index.html` held and imports `/static/js/app.js` from `onMount`, so the
-  legacy code runs only after the markup exists. Specifiers under `/static/`
-  stay external to the bundle: FastAPI serves them until they move in.
+  `index.html` held and imports `#lib/legacy/app.js` dynamically from `onMount`, so the
+  legacy code, bundled from `frontend/src/lib/legacy/`, runs only after the
+  markup exists; a lint rule refuses any static import of it. Specifiers under
+  `/static/` stay external to the bundle: FastAPI serves the wire module the
+  game reads and the game's module.
 - `/` and `/c/{room}` answer the built shell as read at start. Its inline
   scripts are admitted by hash, computed from those same bytes, never with
   `'unsafe-inline'`; the shell carries a strong `ETag` and `no-cache`.

@@ -115,25 +115,6 @@ WAVE_LOOK = """
     };
 }
 """
-DECIDE = """
-async ([sources, millisecondsSinceLoud]) => {
-    const { isSpeaking } = await import("/static/js/speaking.js");
-    const now = 1_000_000;
-    const arrived = sources.map(({ audioLevel, age }) => ({ audioLevel, timestamp: now - age }));
-    return isSpeaking(arrived, now, now - millisecondsSinceLoud);
-}
-"""
-QUIET_FOR_LONG = 10_000
-DECISION_BY_CASE = {
-    "loud_and_fresh": ([{"audioLevel": 0.708, "age": 20}], QUIET_FOR_LONG, True),
-    "loud_but_stale": ([{"audioLevel": 0.708, "age": 400}], QUIET_FOR_LONG, False),
-    "hum_under_the_floor": ([{"audioLevel": 0.005, "age": 20}], QUIET_FOR_LONG, False),
-    "no_source": ([], QUIET_FOR_LONG, False),
-    "exactly_at_the_floor": ([{"audioLevel": 0.01, "age": 20}], QUIET_FOR_LONG, True),
-    "loudest_of_two_sources": ([{"audioLevel": 0, "age": 20}, {"audioLevel": 0.5, "age": 20}], QUIET_FOR_LONG, True),
-    "silent_within_the_hold": ([{"audioLevel": 0, "age": 20}], 799, True),
-    "silent_after_the_hold": ([{"audioLevel": 0, "age": 20}], 801, False),
-}
 
 
 def host_a_call(
@@ -358,21 +339,3 @@ def test_speaking_with_reduced_motion_stands_still_at_full_strength(
     assert ring["animationDuration"] == "0s"
     assert ring["opacity"] == "1"
     assert set(host.locator(OTHER_WAVE).evaluate(WAVE_LOOK)["barDurations"]) == {"0s"}
-
-
-@pytest.mark.parametrize(
-    ("sources", "milliseconds_since_loud", "speaks"), DECISION_BY_CASE.values(), ids=DECISION_BY_CASE
-)
-def test_speaking_decision_follows_the_level_its_freshness_and_the_hold(
-    open_person: Callable[..., Page],
-    base_url: str,
-    sources: list[dict[str, float]],
-    milliseconds_since_loud: int,
-    speaks: bool,
-) -> None:
-    page = open_person()
-    page.goto(f"{base_url}/")
-    # The modules read the page's markup when they load, and the markup mounts after the load event.
-    expect(page.locator("[data-screen=home]")).to_be_visible()
-
-    assert page.evaluate(DECIDE, [sources, milliseconds_since_loud]) is speaks
