@@ -31,7 +31,7 @@ Press "Start a call" and share the generated link.
 
 `compose.yaml` owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
 
-Production runs from edge's catalog: `hal apply` on a `vYYYY.MM.DD.N` tag of `master` publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands, and [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs.
+Production runs from edge's catalog: `hal apply` on a `vYYYY.MM.DD.N` tag of `main` publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands, and [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs.
 
 ## A Person's Data
 
