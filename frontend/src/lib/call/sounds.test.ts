@@ -108,19 +108,17 @@ describe("sounds", () => {
     });
 
     it("creates its audio context when the module loads, before any sound plays", async () => {
-        const created = vi.fn();
+        let created = 0;
         vi.stubGlobal(
             "AudioContext",
             class {
-                constructor() {
-                    created();
-                }
+                instance = ++created;
             },
         );
         vi.resetModules();
 
         await import("./sounds.ts");
 
-        expect(created).toHaveBeenCalledTimes(1);
+        expect(created).toBe(1);
     });
 });

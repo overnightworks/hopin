@@ -127,16 +127,21 @@ describe("applying upload caps", () => {
         const sender = senderRejecting();
         sender.setParameters.mockReset();
         sender.setParameters.mockImplementationOnce(async (parameters) => {
-            await new Promise<void>((resolve) => (releaseFirst = resolve));
+            await new Promise<void>((resolve) => {
+                releaseFirst = resolve;
+            });
             applied.push(parameters.encodings[0]?.maxBitrate as number);
         });
-        sender.setParameters.mockImplementation(async (parameters) => {
+        sender.setParameters.mockImplementation((parameters) => {
             applied.push(parameters.encodings[0]?.maxBitrate as number);
+            return Promise.resolve();
         });
         const connection = connectionOf([transceiver("video", sender.rtpSender)]);
 
         const caps = Promise.all([applyUploadCaps([connection]), applyUploadCaps([connection, connection])]);
-        await vi.waitFor(() => expect(sender.setParameters).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => {
+            expect(sender.setParameters).toHaveBeenCalledTimes(1);
+        });
         releaseFirst();
         await caps;
 
