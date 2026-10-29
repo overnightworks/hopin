@@ -178,6 +178,10 @@ CSS_ROOT_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:")
 CSS_ZEROED_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:\s*0s\b")
 CSS_REDUCED_MOTION_BLOCK = re.compile(r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?\})\s*\}", re.DOTALL)
 CSS_ROOT_BLOCK = re.compile(r":root\s*\{([^{}]*)\}")
+CSS_CUSTOM_PROPERTY_DEFINITION = re.compile(r"(--[\w-]+)\s*:")
+CSS_CUSTOM_PROPERTY_READ = re.compile(r"var\((--[\w-]+)")
+CSS_COLOR_SCHEME_DECLARATION = re.compile(r"(?<![\w-])color-scheme\s*:")
+UI_CONSOLE_TOKEN_STILL_READ = "--sans"
 VOID_TAGS = {
     "area",
     "base",
@@ -416,6 +420,26 @@ class TestPageShell:
 
     def test_vendored_ui_console_is_byte_identical_to_its_release(self):
         assert hashlib.sha256(UI_CONSOLE_CSS.read_bytes()).hexdigest() == UI_CONSOLE_SHA256
+
+    @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
+    def test_reads_no_ui_console_token_that_the_kit_does_not_also_define(self, client, stylesheet_path):
+        stylesheet = CSS_COMMENT.sub("", stylesheet_path.read_text())
+        ui_console_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", UI_CONSOLE_CSS.read_text())))
+        kit_tokens = set(
+            CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", client.get(f"{KIT_PATH}/appkit.css").text))
+        )
+        own_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet))
+        read_tokens = set(CSS_CUSTOM_PROPERTY_READ.findall(stylesheet))
+        assert ui_console_tokens
+        assert (read_tokens & ui_console_tokens) - own_tokens - kit_tokens - {UI_CONSOLE_TOKEN_STILL_READ} == set()
+
+    def test_defines_no_token_and_no_color_scheme_the_kit_owns(self, client):
+        stylesheet = CSS_COMMENT.sub("", (STYLESHEETS_DIR / "hopin.css").read_text())
+        kit = CSS_COMMENT.sub("", client.get(f"{KIT_PATH}/appkit.css").text)
+        kit_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(kit))
+        assert kit_tokens
+        assert set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet)) & kit_tokens == set()
+        assert CSS_COLOR_SCHEME_DECLARATION.search(stylesheet) is None
 
     def test_reuses_no_class_name_that_ui_console_defines(self, page_inventory):
         vendored = defined_class_names(UI_CONSOLE_CSS.read_text())

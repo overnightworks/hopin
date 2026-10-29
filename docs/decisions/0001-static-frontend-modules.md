@@ -63,4 +63,5 @@ webauth:
   kit.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
+- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the fonts still come from ui-console's `--sans`; `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `hopin.css` and `game.css` read no `ui-console.css` token beyond `--sans` and the shared states; the test `test_reads_no_ui_console_token_that_the_kit_does_not_also_define` pins it.
 - `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
