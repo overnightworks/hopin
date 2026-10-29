@@ -154,9 +154,6 @@ class TestStaticAssets:
         [
             ("css/ui-console.css", "text/css"),
             ("css/hopin.css", "text/css"),
-            ("js/app.js", "javascript"),
-            ("js/router.js", "javascript"),
-            ("js/home.js", "javascript"),
         ],
     )
     def test_serves_asset_with_its_content_type(self, client, asset, content_type):
@@ -176,6 +173,9 @@ class TestStaticAssets:
     def test_does_not_serve_the_page_from_the_static_mount(self, client):
         assert client.get(f"{STATIC_PATH}/index.html").status_code == 404
 
+    def test_does_not_serve_the_page_code_the_bundle_owns(self, client):
+        assert client.get(f"{STATIC_PATH}/js/app.js").status_code == 404
+
 
 class TestAppAssets:
     @pytest.mark.parametrize(("asset", "content_type"), [("immutable/x.js", "javascript"), ("version.json", "json")])
@@ -186,7 +186,7 @@ class TestAppAssets:
 
 
 class TestHeadRequests:
-    @pytest.mark.parametrize("path", [HOME_PATH, HEALTH_PATH, f"{STATIC_PATH}/js/app.js"])
+    @pytest.mark.parametrize("path", [HOME_PATH, HEALTH_PATH, f"{STATIC_PATH}/css/hopin.css"])
     def test_head_answers_ok(self, client, path):
         assert client.head(path).status_code == 200
 

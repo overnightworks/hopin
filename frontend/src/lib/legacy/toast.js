@@ -35,10 +35,15 @@ export function showToast(text, kind, action = null) {
     if (action !== null) toast.append(actionButton(action));
     layer.replaceChildren(toast);
     clearTimeout(leavingTimer);
-    leavingTimer = setTimeout(() => {
-        toast.classList.add("leaving");
-        void Promise.allSettled(toast.getAnimations().map((animation) => animation.finished)).then(() => toast.remove());
-    }, action === null ? TOAST_MS : TOAST_WITH_ACTION_MS);
+    leavingTimer = setTimeout(
+        () => {
+            toast.classList.add("leaving");
+            void Promise.allSettled(toast.getAnimations().map((animation) => animation.finished)).then(() =>
+                toast.remove(),
+            );
+        },
+        action === null ? TOAST_MS : TOAST_WITH_ACTION_MS,
+    );
 }
 
 export function clearToast() {

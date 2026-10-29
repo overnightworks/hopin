@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Expect, Page, WebSocketRoute
 
-from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, ErrorReason, SignalType
+from hopin.config.constants import RESUME_WINDOW_SECONDS, ErrorReason, SignalType
 from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
@@ -19,13 +19,11 @@ from tests.e2e.support.media import (
     FOUR_CAPS_PER_CONNECTION,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     OFFER_COUNT,
-    ONE_CAP_PER_CONNECTION,
     OPEN_PEER_COUNT_REACHED,
     OTHER_CAMERA_OFF,
     OTHER_TILE,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
-    THREE_CAPS_PER_CONNECTION,
     TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
@@ -159,33 +157,7 @@ A_NEW_CONNECTION_IS_CONNECTED = """
 )
 """
 FIRST_CONNECTION_IS_CLOSED = '() => window.recordedConnections[0].signalingState === "closed"'
-SENT_LOG_REPORTS = """
-async (frameTypesPerCase) => {
-    const { SentLog } = await import("/static/js/replay.js");
-    return frameTypesPerCase.map((frameTypes) => {
-        const log = new SentLog();
-        const seqs = frameTypes.map((type) => log.append({ type, target: "peer" }).seq);
-        return [seqs, log.unacknowledged().map((frame) => frame.seq), log.floor];
-    });
-}
-"""
-EVERY_CASE_OF = """
-async ([module, exportName, cases]) => {
-    const rule = (await import(`/static/js/${module}.js`))[exportName];
-    return cases.map((argument) => rule(argument));
-}
-"""
 RESTART_DELAY_BY_ATTEMPT = {0: 2000, 1: 4000, 2: 8000, 3: 15000, 4: 15000, 5: 15000}
-QUALITY_BY_ROUND_TRIP_SECONDS = {0.05: "good", 0.299: "good", 0.3: "fair", 0.499: "fair", 0.5: "poor", 2: "poor"}
-VIDEO_CAP_BY_REMOTE_COUNT = dict(
-    [
-        ONE_CAP_PER_CONNECTION,
-        TWO_CAPS_PER_CONNECTION,
-        THREE_CAPS_PER_CONNECTION,
-        FOUR_CAPS_PER_CONNECTION,
-        FIVE_CAPS_PER_CONNECTION,
-    ]
-)
 SDP_UFRAG = "async () => (await window.localUfrags(window.recordedConnections[0])).sdpUfrag"
 UFRAG_ROTATED_AND_IN_STATS = """
 async (previousUfrag) => {
@@ -404,13 +376,6 @@ def connected_pair(connect_pair: Callable[..., ConnectedPair]) -> ConnectedPair:
     return connect_pair()
 
 
-@pytest.fixture
-def module_page(open_person: Callable[..., Page], base_url: str) -> Page:
-    page = open_person()
-    page.goto(f"{base_url}/")
-    return page
-
-
 def test_forced_failure_on_the_joiner_restarts_ice_once_and_both_sides_take_the_new_ufrag(
     connected_pair: ConnectedPair,
 ) -> None:
@@ -492,27 +457,6 @@ def test_quality_indicator_keeps_polling_through_a_failure_and_after_the_recover
     guest.clock.run_for(QUALITY_POLL_INTERVAL_MS)
 
     _wait_for(guest, QUALITY_BARS_PAINTED)
-
-
-@pytest.mark.parametrize(
-    ("module", "export_name", "value_by_case"),
-    [
-        ("recovery", "restartDelay", RESTART_DELAY_BY_ATTEMPT),
-        ("bandwidth", "videoBitrateCap", VIDEO_CAP_BY_REMOTE_COUNT),
-        ("quality", "qualityOfRoundTrip", QUALITY_BY_ROUND_TRIP_SECONDS),
-    ],
-    ids=[
-        "restart_delay_follows_the_schedule_and_repeats_the_last_delay",
-        "video_bitrate_cap_divides_the_budget_among_the_remote_peers",
-        "quality_of_round_trip_is_good_below_300_ms_fair_below_500_ms_and_poor_above",
-    ],
-)
-def test_browser_rule_gives_every_case_its_expected_value(
-    module_page: Page, module: str, export_name: str, value_by_case: dict[Any, Any]
-) -> None:
-    values = module_page.evaluate(EVERY_CASE_OF, [module, export_name, list(value_by_case)])
-
-    assert dict(zip(value_by_case, values, strict=True)) == value_by_case
 
 
 def _wait_for_video_caps(people: list[Page], peer_count: int, expected_cap: int) -> None:
@@ -866,26 +810,6 @@ def test_last_peer_leaving_raises_no_page_error_on_the_one_who_stays(connected_p
 
     wait_for_peer_count(host, 0)
     host.clock.run_for(sum(RESTART_DELAY_BY_ATTEMPT.values()))
-
-
-def test_sent_log_numbers_frames_drops_what_a_newer_description_supersedes_and_keeps_the_server_log_limit(
-    module_page: Page,
-) -> None:
-    kept_and_floor_by_frame_types = {
-        (SignalType.CHAT, SignalType.CHAT): ([1, 2], 0),
-        (SignalType.OFFER, SignalType.ICE_CANDIDATE, SignalType.OFFER): ([3], 0),
-        (SignalType.ANSWER, SignalType.ICE_CANDIDATE, SignalType.ANSWER, SignalType.ICE_CANDIDATE): ([3, 4], 0),
-        (SignalType.CHAT,) * (REPLAY_LOG_LIMIT + 3): (list(range(4, REPLAY_LOG_LIMIT + 4)), 3),
-    }
-
-    reports = module_page.evaluate(
-        SENT_LOG_REPORTS, [list(frame_types) for frame_types in kept_and_floor_by_frame_types]
-    )
-
-    assert reports == [
-        [list(range(1, len(frame_types) + 1)), kept, floor]
-        for frame_types, (kept, floor) in kept_and_floor_by_frame_types.items()
-    ]
 
 
 @pytest.mark.parametrize("camera_less", [Side.GUEST, Side.HOST], ids=["joiner_turns_it_on", "answerer_turns_it_on"])

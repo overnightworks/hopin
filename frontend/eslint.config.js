@@ -42,5 +42,22 @@ export default ts.config(
     {
         rules: { "@typescript-eslint/no-explicit-any": "error" },
     },
+    {
+        // The page code under lib/legacy is reached only by the layout's dynamic import after mount, never statically.
+        ignores: ["src/lib/legacy/**"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    patterns: [
+                        {
+                            group: ["#lib/legacy/**", "**/legacy/**"],
+                            message: "Legacy page code loads only through the layout's dynamic import after mount.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     { ignores: ["build/", ".svelte-kit/", "../src/hopin/web/build/"] },
 );

@@ -1,4 +1,4 @@
-import { DESCRIPTION_TYPES, REPLAY_LOG_LIMIT, SUPERSEDED_BY_A_DESCRIPTION } from "./wire.js";
+import { DESCRIPTION_TYPES, REPLAY_LOG_LIMIT, SUPERSEDED_BY_A_DESCRIPTION } from "#lib/wire.ts";
 
 export { REPLAY_LOG_LIMIT };
 
@@ -40,8 +40,7 @@ export class SentLog {
 
     #dropSupersededBy(description) {
         this.#frames = this.#frames.filter(
-            (frame) =>
-                !(supersededByADescription.has(frame.type) && frame.target === description.target),
+            (frame) => !(supersededByADescription.has(frame.type) && frame.target === description.target),
         );
     }
 }

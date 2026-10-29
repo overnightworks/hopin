@@ -21,7 +21,7 @@ TWO_PLAYING_VIDEOS = """
 }
 """
 
-# The call core's own modules, and the page build's chunks that start them; the former go into the build later.
+# What a call may load as a script: the served wire vocabulary and the page build's chunks, which hold the call code.
 SCRIPT_PATHS = (f"{STATIC_PATH}/js/", f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/")
 
 

@@ -34,6 +34,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.web.kit import KIT_DIR, KIT_PATH
+from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, IMMUTABLE_FILE, VERSION_FILE, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
@@ -57,7 +58,7 @@ GATED_KIT_PATHS = [
     "/static/appkit-0.0.0/appkit.css",
 ]
 FAVICON = "/static/img/hopin.svg"
-STATIC_FILES = ["/static/js/app.js", *STYLESHEETS, FAVICON]
+STATIC_FILES = [*STYLESHEETS, FAVICON]
 LOOKALIKE_PATHS = [
     "/health/",
     "/HEALTH",
@@ -156,7 +157,7 @@ class TestSignedOut:
         ("path", "headers"),
         [
             (ICE_SERVERS_PATH, FETCH_ACCEPT),
-            ("/static/js/app.js", FETCH_ACCEPT),
+            (WIRE_MODULE_PATH, FETCH_ACCEPT),
             ("/", FETCH_ACCEPT),
             (ACCOUNT_PATH, FETCH_ACCEPT),
             (ICE_SERVERS_PATH, {"accept": "*/*"}),
@@ -209,7 +210,7 @@ class TestSignedIn:
     def test_a_member_reaches_every_page_and_the_ice_servers(self, application):
         member = application.seed()
         with hosted_room(application, member) as room_id:
-            for path in ["/", f"/c/{room_id}", ICE_SERVERS_PATH, "/static/js/app.js"]:
+            for path in ["/", f"/c/{room_id}", ICE_SERVERS_PATH, WIRE_MODULE_PATH]:
                 assert application.get(path, member, **BROWSER_ACCEPT).status_code == 200, path
 
     def test_a_session_of_another_application_instance_is_refused(self, sign_in_settings):
@@ -514,7 +515,7 @@ class TestSecurityHeaders:
             ("GET", "/", False, BROWSER_ACCEPT, 302),
             ("GET", "/c/abc?x=1", False, BROWSER_ACCEPT, 302),
             ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
-            ("GET", "/static/js/app.js", False, FETCH_ACCEPT, 401),
+            ("GET", WIRE_MODULE_PATH, False, FETCH_ACCEPT, 401),
             ("GET", IMMUTABLE_FILE, False, FETCH_ACCEPT, 401),
             ("GET", "/", False, FETCH_ACCEPT, 401),
             ("GET", ACCOUNT_PATH, False, FETCH_ACCEPT, 401),
@@ -527,7 +528,7 @@ class TestSecurityHeaders:
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),
             ("GET", ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
-            ("GET", "/static/js/app.js", True, FETCH_ACCEPT, 200),
+            ("GET", WIRE_MODULE_PATH, True, FETCH_ACCEPT, 200),
             ("GET", IMMUTABLE_FILE, True, FETCH_ACCEPT, 200),
             ("GET", "/c/{room}", True, BROWSER_ACCEPT, 200),
             ("GET", "/c/unknown", True, BROWSER_ACCEPT, 404),

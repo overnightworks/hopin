@@ -4,7 +4,7 @@
     const { children }: { children: Snippet } = $props();
 
     onMount(() => {
-        void import("/static/js/app.js");
+        void import("#lib/legacy/app.js");
     });
 </script>
 

@@ -35,7 +35,8 @@ async function readAccountName() {
 function showAccountName(name) {
     const initials = initialsOf(name);
     if (initials !== "") {
-        for (const avatar of document.querySelectorAll(".account-button, #accountMenu .av")) avatar.textContent = initials;
+        for (const avatar of document.querySelectorAll(".account-button, #accountMenu .av"))
+            avatar.textContent = initials;
     }
     const nameLine = document.querySelector("#accountMenu .menu-head b");
     nameLine.textContent = name;

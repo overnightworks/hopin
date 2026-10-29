@@ -81,6 +81,7 @@ export async function acquireMedia(preferCamera) {
         // absent device (NotFoundError), which call for different advice.
         throw new Error(
             `No camera or microphone available (${error.name}). Please connect a device or grant permission and try again.`,
+            { cause: error },
         );
     }
 }
