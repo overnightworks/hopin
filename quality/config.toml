@@ -26,11 +26,3 @@ what = "import contract \"Only agents reaches the agent service\" removed"
 item = "#265"
 date = 2026-10-28
 reason = "#265 replaces it with the stricter call-core-knows-no-game and agent-service-only-through-the-game contracts, which forbid the same imports without the indirect allowance for the call core"
-
-[[advisories.allow]]
-id = "GHSA-gcqx-w48m-w2h4"
-lock = "frontend/pnpm-lock.yaml"
-until = 2027-01-31
-date = 2026-10-29
-item = "#308"
-reason = "Transitive dev-only dependency of @sveltejs/vite-plugin-svelte (its latest release still pins deepmerge ^4.3.1), absent from the built bundle; it merges only our own Svelte config; no fixed version exists."

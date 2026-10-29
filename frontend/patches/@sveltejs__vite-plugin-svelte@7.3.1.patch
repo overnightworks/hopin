@@ -1,0 +1,166 @@
+diff --git a/package.json b/package.json
+index f47e18d5d9f9fe8454872f4894b1ced1015a66d0..60cf6ccaeaa53983818d88544b85b2a65b03d0f7 100644
+--- a/package.json
++++ b/package.json
+@@ -1,56 +1,55 @@
+ {
+-  "name": "@sveltejs/vite-plugin-svelte",
+-  "version": "7.3.1",
+-  "license": "MIT",
+-  "files": [
+-    "src",
+-    "types"
+-  ],
+-  "type": "module",
+-  "types": "types/index.d.ts",
+-  "exports": {
+-    ".": {
+-      "types": "./types/index.d.ts",
+-      "default": "./src/index.js"
+-    }
+-  },
+-  "engines": {
+-    "node": "^20.19 || ^22.12 || >=24"
+-  },
+-  "repository": {
+-    "type": "git",
+-    "url": "git+https://github.com/sveltejs/vite-plugin-svelte.git",
+-    "directory": "packages/vite-plugin-svelte"
+-  },
+-  "keywords": [
+-    "vite-plugin",
+-    "vite plugin",
+-    "vite",
+-    "svelte"
+-  ],
+-  "bugs": {
+-    "url": "https://github.com/sveltejs/vite-plugin-svelte/issues"
+-  },
+-  "homepage": "https://github.com/sveltejs/vite-plugin-svelte#readme",
+-  "dependencies": {
+-    "deepmerge": "^4.3.1",
+-    "magic-string": "^1.0.0",
+-    "obug": "^2.1.0",
+-    "vitefu": "^1.1.2"
+-  },
+-  "peerDependencies": {
+-    "svelte": "^5.46.4",
+-    "vite": "^8.0.0-beta.7 || ^8.0.0"
+-  },
+-  "devDependencies": {
+-    "@types/debug": "^4.1.12",
+-    "sass": "^1.94.2",
+-    "svelte": "^5.45.4",
+-    "vite": "^8.0.9"
+-  },
+-  "scripts": {
+-    "check:publint": "publint --strict",
+-    "check:types": "tsc --noEmit",
+-    "generate:types": "dts-buddy -m \"@sveltejs/vite-plugin-svelte:src/public.d.ts\""
+-  }
++	"name": "@sveltejs/vite-plugin-svelte",
++	"version": "7.3.1",
++	"license": "MIT",
++	"files": [
++		"src",
++		"types"
++	],
++	"type": "module",
++	"types": "types/index.d.ts",
++	"exports": {
++		".": {
++			"types": "./types/index.d.ts",
++			"default": "./src/index.js"
++		}
++	},
++	"engines": {
++		"node": "^20.19 || ^22.12 || >=24"
++	},
++	"repository": {
++		"type": "git",
++		"url": "git+https://github.com/sveltejs/vite-plugin-svelte.git",
++		"directory": "packages/vite-plugin-svelte"
++	},
++	"keywords": [
++		"vite-plugin",
++		"vite plugin",
++		"vite",
++		"svelte"
++	],
++	"bugs": {
++		"url": "https://github.com/sveltejs/vite-plugin-svelte/issues"
++	},
++	"homepage": "https://github.com/sveltejs/vite-plugin-svelte#readme",
++	"dependencies": {
++		"magic-string": "^1.0.0",
++		"obug": "^2.1.0",
++		"vitefu": "^1.1.2"
++	},
++	"peerDependencies": {
++		"svelte": "^5.46.4",
++		"vite": "^8.0.0-beta.7 || ^8.0.0"
++	},
++	"devDependencies": {
++		"@types/debug": "^4.1.12",
++		"sass": "^1.94.2",
++		"svelte": "^5.45.4",
++		"vite": "^8.0.9"
++	},
++	"scripts": {
++		"check:publint": "publint --strict",
++		"check:types": "tsc --noEmit",
++		"generate:types": "dts-buddy -m \"@sveltejs/vite-plugin-svelte:src/public.d.ts\""
++	}
+ }
+diff --git a/src/utils/options.js b/src/utils/options.js
+index 7ab9e64b60e33b98e7287c3afc118e2f6ff13355..3e31e8d163f91f721e577d9d581ce3a889fec43a 100644
+--- a/src/utils/options.js
++++ b/src/utils/options.js
+@@ -27,7 +27,6 @@ import {
+ } from './constants.js';
+ 
+ import path from 'node:path';
+-import deepmerge from 'deepmerge';
+ import {
+ 	crawlFrameworkPkgs,
+ 	isDepExcluded,
+@@ -183,15 +182,33 @@ export async function preResolveOptions(inlineOptions, viteUserConfig, viteEnv)
+  * @returns T
+  */
+ function mergeConfigs(...configs) {
+-	/** @type {Partial<T>} */
++	/** @type {Record<string, any>} */
+ 	let result = {};
+ 	for (const config of configs.filter((x) => x != null)) {
+-		result = deepmerge(result, /** @type {Partial<T>} */ (config), {
+-			// replace arrays
+-			arrayMerge: (target, source) => source ?? target
+-		});
++		result = mergePlainObjects(result, config);
+ 	}
+-	return /** @type {T} */ result;
++	return /** @type {T} */ (result);
++}
++
++/**
++ * merges plain objects recursively, replaces arrays and other values, and never writes a prototype key
++ *
++ * @param {Record<string, any>} target
++ * @param {Record<string, any>} source
++ * @returns {Record<string, any>}
++ */
++function mergePlainObjects(target, source) {
++	/** @type {Record<string, any>} */
++	const merged = { ...target };
++	for (const key of Object.keys(source)) {
++		if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
++			continue;
++		}
++		const value = source[key];
++		const isPlain = value != null && Object.getPrototypeOf(value) === Object.prototype;
++		merged[key] = isPlain ? mergePlainObjects(merged[key] ?? {}, value) : value;
++	}
++	return merged;
+ }
+ 
+ /**

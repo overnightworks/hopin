@@ -4,6 +4,14 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  deepmerge: '-'
+
+patchedDependencies:
+  '@sveltejs/vite-plugin-svelte@7.3.1':
+    hash: 7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa
+    path: patches/@sveltejs__vite-plugin-svelte@7.3.1.patch
+
 importers:
 
   .:
@@ -13,13 +21,13 @@ importers:
         version: 10.0.1(eslint@10.13.0)
       '@sveltejs/adapter-static':
         specifier: ^4.0.0
-        version: 4.0.0(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5))
+        version: 4.0.0(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5))
       '@sveltejs/kit':
         specifier: ^3.1.0
-        version: 3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5)
+        version: 3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5)
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.3.1
-        version: 7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)
+        version: 7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)
       eslint:
         specifier: ^10.13.0
         version: 10.13.0
@@ -423,10 +431,6 @@ packages:
 
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
-
-  deepmerge@4.3.1:
-    resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
-    engines: {node: '>=0.10.0'}
 
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
@@ -1131,15 +1135,15 @@ snapshots:
     dependencies:
       acorn: 8.19.0
 
-  '@sveltejs/adapter-static@4.0.0(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5))':
+  '@sveltejs/adapter-static@4.0.0(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5))':
     dependencies:
-      '@sveltejs/kit': 3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5)
+      '@sveltejs/kit': 3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5)
 
-  '@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5)':
+  '@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5)':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
       '@standard-schema/spec': 1.1.0
-      '@sveltejs/vite-plugin-svelte': 7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)
+      '@sveltejs/vite-plugin-svelte': 7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)
       cookie: 2.0.1
       devalue: 5.9.4
       esm-env: 1.2.2
@@ -1153,9 +1157,8 @@ snapshots:
 
   '@sveltejs/load-config@0.2.3': {}
 
-  '@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)':
+  '@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5)':
     dependencies:
-      deepmerge: 4.3.1
       magic-string: 1.4.5
       obug: 2.2.1
       svelte: 5.57.3(@typescript-eslint/types@8.72.1)
@@ -1311,8 +1314,6 @@ snapshots:
       ms: 2.1.3
 
   deep-is@0.1.4: {}
-
-  deepmerge@4.3.1: {}
 
   detect-libc@2.1.2: {}
 
