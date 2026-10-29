@@ -1,7 +1,0 @@
-claim_id = "e9b1af8952114ff0af306f36c874281a"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "ff4c5f0989472ab276959283074876e73ba7e30d"
-branch = "claude/issue-304-chat-scrolls"
-scope = ["src/hopin/web/static/assets/css/hopin.css", "tests/e2e/test_chat.py", "tests/e2e/test_control_bar.py"]
-opened_commit = "ce5ac9721a5e56b34c51aaaa04a06b450775abdf"
