@@ -1,4 +1,4 @@
-import { playMessageSound } from "./sounds.js";
+import { playMessageSound } from "#lib/call/sounds.ts";
 import { SIGNAL_TYPE, isConnected, on, send } from "./signaling.js";
 import { state } from "./state.js";
 

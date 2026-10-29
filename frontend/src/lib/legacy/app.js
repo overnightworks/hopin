@@ -22,7 +22,7 @@ import {
     removeAllPeers,
     SignedOutError,
 } from "./mesh.js";
-import { playJoinSound, playLeaveSound } from "./sounds.js";
+import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import { SIGNAL_TYPE, connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "./signaling.js";
 import { initPip } from "./pip.js";
 import { showLocalStream, showRemoteName } from "./stage.js";

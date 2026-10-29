@@ -1,6 +1,6 @@
-import { applyUploadCaps, videoTransceivers } from "./bandwidth.js";
+import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
 import { monitorConnectionQuality } from "./quality.js";
-import { watchIceConnection } from "./recovery.js";
+import { watchIceConnection } from "#lib/call/recovery.ts";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
 import { monitorSpeaking } from "./speaking.js";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
