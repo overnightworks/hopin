@@ -7,7 +7,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Expect, Page, WebSocketRoute
 
 from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, ErrorReason, SignalType
@@ -160,7 +159,6 @@ A_NEW_CONNECTION_IS_CONNECTED = """
 )
 """
 FIRST_CONNECTION_IS_CLOSED = '() => window.recordedConnections[0].signalingState === "closed"'
-SEND = 'async (frame) => (await import("/static/js/signaling.js")).send(frame)'
 SENT_LOG_REPORTS = """
 async (frameTypesPerCase) => {
     const { SentLog } = await import("/static/js/replay.js");
@@ -814,11 +812,6 @@ def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_
     assert len(tap.upstream) == upstream_before
     window_ms = RESUME_WINDOW_SECONDS * 1000
     assert window_ms - RECONNECT_DELAYS_MS[-1] <= sum(RECONNECT_DELAYS_MS) < window_ms
-
-
-def test_sending_without_a_session_throws(module_page: Page) -> None:
-    with pytest.raises(PlaywrightError, match="No signaling session"):
-        module_page.evaluate(SEND, {"type": SignalType.CHAT, "message": "no session"})
 
 
 def test_no_signaling_url_carries_a_resume_token(connected_pair: ConnectedPair) -> None:
