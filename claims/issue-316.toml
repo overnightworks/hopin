@@ -1,8 +1,0 @@
-claim_id = "e002b411491a4cb0b4e410513f3f35f0"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "a47f75f9a51a35759f2dc53876a2ef67c8715fca"
-branch = "claude/issue-316-image-page-build"
-scope = [".dockerignore", ".github/workflows/ci.yml", "Dockerfile", "pyproject.toml", "quality/config.toml"]
-opened_commit = "2b56d5d87c9487f6e94edc86d1b999cb8e130639"
-whole_reason = "The image's page build is one unit."
