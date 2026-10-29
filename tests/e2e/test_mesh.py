@@ -7,7 +7,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Expect, Page, WebSocketRoute
 
 from hopin.config.constants import REPLAY_LOG_LIMIT, RESUME_WINDOW_SECONDS, ErrorReason, SignalType
@@ -35,6 +34,14 @@ from tests.e2e.support.media import (
     wait_for_frames_to_advance,
     wait_for_peer_count,
     wait_for_the_picture,
+)
+from tests.e2e.support.signaling import (
+    COUNT_STATUS_WRITES,
+    LATE_EVENTS_OF_THE_FIRST_SOCKET,
+    RECONNECT_DELAYS_MS,
+    RECORD_SOCKETS,
+    STATUS_WRITES,
+    STATUS_WRITTEN_AGAIN,
 )
 
 if TYPE_CHECKING:
@@ -140,7 +147,6 @@ INJECTED_REJECTION = "answer application rejected on purpose"
 ANSWER_CREATIONS_COUNTED = "() => [window.answerCreationsStarted, window.answerCreationsSettled]"
 ANSWER_CREATION_STARTED = "(before) => window.answerCreationsStarted > before"
 ANSWER_CREATION_SETTLED = "(before) => window.answerCreationsSettled > before"
-RECONNECT_TO_SAME_SEAT = 'async () => (await import("/static/js/signaling.js")).connect()'
 LOCAL_DESCRIPTIONS_SET = "(count) => window.localDescriptionCount >= count"
 STATUS_IS = '(text) => document.getElementById("status").textContent === text'
 IN_CALL = "In call"
@@ -153,10 +159,6 @@ A_NEW_CONNECTION_IS_CONNECTED = """
 )
 """
 FIRST_CONNECTION_IS_CLOSED = '() => window.recordedConnections[0].signalingState === "closed"'
-RECONNECT_DELAYS = 'async () => (await import("/static/js/signaling.js")).RECONNECT_DELAYS_MS'
-SEND = 'async (frame) => (await import("/static/js/signaling.js")).send(frame)'
-RECONNECT_ATTEMPT = 'async () => (await import("/static/js/state.js")).state.reconnectAttempt'
-IS_CONNECTED = 'async () => (await import("/static/js/signaling.js")).isConnected()'
 SENT_LOG_REPORTS = """
 async (frameTypesPerCase) => {
     const { SentLog } = await import("/static/js/replay.js");
@@ -192,8 +194,7 @@ async (previousUfrag) => {
 }
 """
 REMOTE_UFRAG = "() => /a=ice-ufrag:(\\S+)/.exec(window.recordedConnections[0].remoteDescription.sdp)[1]"
-RESTART_DELAY = 'async (attempt) => (await import("/static/js/recovery.js")).restartDelay(attempt)'
-DISCONNECTED_GRACE = 'async () => (await import("/static/js/recovery.js")).ICE_DISCONNECTED_GRACE_MS'
+ICE_DISCONNECTED_GRACE_MS = 2000
 BLANK_QUALITY_BARS = """
 () => document.querySelectorAll(".connection-quality").forEach((indicator) => {
     delete indicator.dataset.quality;
@@ -309,10 +310,10 @@ class ConnectedPair:
 
     def cut(self, person: Page) -> None:
         self.tap_of(person).cut()
-        wait_for_status(person, _reconnecting_status(_reconnect_delays(person)[0]))
+        wait_for_status(person, _reconnecting_status(RECONNECT_DELAYS_MS[0]))
 
     def reconnect(self, person: Page) -> None:
-        person.clock.run_for(_reconnect_delays(person)[0])
+        person.clock.run_for(RECONNECT_DELAYS_MS[0])
 
     def resume(self, person: Page) -> None:
         self.reconnect(person)
@@ -323,10 +324,6 @@ class ConnectedPair:
         self.cut(person)
         yield
         self.resume(person)
-
-
-def _reconnect_delays(person: Page) -> list[int]:
-    return [int(delay) for delay in person.evaluate(RECONNECT_DELAYS)]
 
 
 def _reconnecting_status(delay_ms: int) -> str:
@@ -348,10 +345,6 @@ def pump_until(
     failure: str = "the awaited signaling traffic never happened",
 ) -> None:
     poll_until(person, condition, bool, failure, deadline_seconds)
-
-
-def _restart_delay(person: Page, attempt: int) -> int:
-    return int(person.evaluate(RESTART_DELAY, attempt))
 
 
 def _restart_offers(person: Page) -> int:
@@ -389,6 +382,8 @@ def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Ca
             person.add_init_script(RECORD_PEER_CONNECTIONS)
             person.add_init_script(FORCE_ICE_FAULTS)
             person.add_init_script(COUNT_OFFERS)
+            person.add_init_script(RECORD_SOCKETS)
+            person.add_init_script(COUNT_STATUS_WRITES)
 
         guest.goto("about:blank")
         if without_camera is Side.GUEST:
@@ -425,16 +420,14 @@ def test_forced_failure_on_the_joiner_restarts_ice_once_and_both_sides_take_the_
         connected_pair.force_failed_on(guest)
         assert _restart_offers(guest) == 1
 
-    guest.clock.run_for(_restart_delay(guest, 0))
+    guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
     assert _restart_offers(guest) == 1
 
 
 def test_disconnected_joiner_restarts_after_the_grace_and_not_before(connected_pair: ConnectedPair) -> None:
     guest = connected_pair.guest
-    grace = int(guest.evaluate(DISCONNECTED_GRACE))
-
     guest.evaluate(FORCE_STATE, "disconnected")
-    guest.clock.run_for(grace - 1)
+    guest.clock.run_for(ICE_DISCONNECTED_GRACE_MS - 1)
     assert _restart_offers(guest) == 0
     guest.clock.run_for(1)
 
@@ -443,12 +436,10 @@ def test_disconnected_joiner_restarts_after_the_grace_and_not_before(connected_p
 
 def test_disconnected_joiner_that_recovers_within_the_grace_does_not_restart(connected_pair: ConnectedPair) -> None:
     guest = connected_pair.guest
-    grace = int(guest.evaluate(DISCONNECTED_GRACE))
-
     guest.evaluate(FORCE_STATE, "disconnected")
-    guest.clock.run_for(grace // 2)
+    guest.clock.run_for(ICE_DISCONNECTED_GRACE_MS // 2)
     guest.evaluate(CLEAR_FORCED_STATE)
-    guest.clock.run_for(grace)
+    guest.clock.run_for(ICE_DISCONNECTED_GRACE_MS)
 
     assert _restart_offers(guest) == 0
 
@@ -457,7 +448,7 @@ def test_lost_restart_offer_is_retried_from_have_local_offer_and_the_retry_sched
     connected_pair: ConnectedPair,
 ) -> None:
     guest = connected_pair.guest
-    first_delay = _restart_delay(guest, 0)
+    first_delay = RESTART_DELAY_BY_ATTEMPT[0]
     connected_pair.guest_tap.offers_to_drop = 1
 
     with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
@@ -466,7 +457,7 @@ def test_lost_restart_offer_is_retried_from_have_local_offer_and_the_retry_sched
         guest.clock.run_for(first_delay)
         assert _restart_offers(guest) == 2
 
-    guest.clock.run_for(_restart_delay(guest, 1))
+    guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[1])
     assert _restart_offers(guest) == 2
     connected_pair.guest_tap.offers_to_drop = 1
     connected_pair.force_failed_on(guest)
@@ -479,7 +470,7 @@ def test_forced_failure_on_the_answerer_never_sends_a_restart_offer(connected_pa
     host = connected_pair.host
 
     connected_pair.force_failed_on(host)
-    host.clock.run_for(_restart_delay(host, 0) + _restart_delay(host, 1))
+    host.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0] + RESTART_DELAY_BY_ATTEMPT[1])
 
     assert _restart_offers(host) == 0
 
@@ -495,7 +486,7 @@ def test_quality_indicator_keeps_polling_through_a_failure_and_after_the_recover
     connected_pair.force_failed_on(guest)
     guest.clock.run_for(QUALITY_POLL_INTERVAL_MS)
     connected_pair.guest_tap.offers_to_drop = 0
-    guest.clock.run_for(_restart_delay(guest, 1))
+    guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[1])
     _wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
     guest.evaluate(BLANK_QUALITY_BARS)
     guest.clock.run_for(QUALITY_POLL_INTERVAL_MS)
@@ -557,10 +548,6 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
 
     people[-1].close()
     _wait_for_video_caps(people[:-1], *FOUR_CAPS_PER_CONNECTION)
-
-
-def _wait_for_reconnect_attempt(person: Page, expected: int) -> None:
-    pump_until(person, lambda: person.evaluate(RECONNECT_ATTEMPT) == expected)
 
 
 def _inbound_video_bytes(person: Page) -> int:
@@ -663,8 +650,8 @@ def test_chat_typed_while_the_socket_is_down_is_written_in_order_after_the_resum
 
 
 def _retry_the_restart_while_the_first_reconnect_is_refused(person: Page, retry_made: Callable[[], bool]) -> None:
-    first_delay, second_delay = _reconnect_delays(person)[:2]
-    until_the_retry = _restart_delay(person, 0) - first_delay
+    first_delay, second_delay = RECONNECT_DELAYS_MS[:2]
+    until_the_retry = RESTART_DELAY_BY_ATTEMPT[0] - first_delay
     person.clock.run_for(first_delay)
     wait_for_status(person, _reconnecting_status(second_delay))
     person.clock.run_for(until_the_retry)
@@ -728,7 +715,7 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
     with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
         connected_pair.force_failed_on(guest)
         pump_until(guest, lambda: bool(connected_pair.page_errors))
-        guest.clock.run_for(_restart_delay(guest, 0))
+        guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
         _wait_for(guest, ANSWER_APPLIED)
         assert [INJECTED_REJECTION in error for error in connected_pair.page_errors] == [True]
         connected_pair.page_errors.pop()
@@ -737,13 +724,13 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
 def test_every_cut_in_a_row_resumes_with_the_first_delay_because_each_resume_resets_the_attempts(
     connected_pair: ConnectedPair,
 ) -> None:
-    guest = connected_pair.guest
-
-    for _ in range(CUTS_IN_A_ROW):
+    guest, tap = connected_pair.guest, connected_pair.guest_tap
+    for _ in range(CUTS_IN_A_ROW + 1):
+        sockets_before_the_cut = len(tap.urls)
         connected_pair.cut(guest)
+        assert len(tap.urls) == sockets_before_the_cut
         connected_pair.resume(guest)
-
-        assert guest.evaluate(RECONNECT_ATTEMPT) == 0
+        assert len(tap.urls) == sockets_before_the_cut + 1
 
 
 def test_server_frame_delivered_twice_is_dispatched_once(connected_pair: ConnectedPair) -> None:
@@ -758,16 +745,16 @@ def test_server_frame_delivered_twice_is_dispatched_once(connected_pair: Connect
 
 def test_events_of_a_replaced_socket_are_ignored(connected_pair: ConnectedPair) -> None:
     guest = connected_pair.guest
+    connected_pair.cut(guest)
+    connected_pair.resume(guest)
 
-    guest.evaluate(RECONNECT_TO_SAME_SEAT)
-    pump_until(guest, lambda: bool(_frames_of(connected_pair.guest_tap, "downstream", SignalType.RESUMED)))
-    wait_for_status(guest, IN_CALL)
-    guest.clock.run_for(_reconnect_delays(guest)[0])
+    guest.evaluate(LATE_EVENTS_OF_THE_FIRST_SOCKET)
+    guest.clock.run_for(RECONNECT_DELAYS_MS[0])
     _say_in_chat(guest, "still connected")
 
     expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(1)
     assert len(connected_pair.guest_tap.urls) == 2
-    assert guest.evaluate(RECONNECT_ATTEMPT) == 0
+    wait_for_status(guest, IN_CALL)
 
 
 def test_chat_typed_while_the_socket_is_open_but_not_yet_resumed_waits_for_the_resumed_frame(
@@ -807,30 +794,24 @@ def test_refused_resume_falls_back_to_a_fresh_join_with_new_peer_connections(
 def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_window(
     connected_pair: ConnectedPair,
 ) -> None:
-    guest = connected_pair.guest
-    delays = _reconnect_delays(guest)
-    connected_pair.guest_tap.refused_connections = len(delays)
+    guest, tap = connected_pair.guest, connected_pair.guest_tap
+    tap.refused_connections = len(RECONNECT_DELAYS_MS)
     connected_pair.cut(guest)
 
-    for attempt, delay in enumerate(delays, start=1):
+    for attempt, delay in enumerate(RECONNECT_DELAYS_MS, start=1):
+        writes_before = guest.evaluate(STATUS_WRITES)
         guest.clock.run_for(delay)
-        if attempt < len(delays):
-            _wait_for_reconnect_attempt(guest, attempt + 1)
+        _wait_for(guest, STATUS_WRITTEN_AGAIN, writes_before)
+        if attempt < len(RECONNECT_DELAYS_MS):
+            wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
     wait_for_status(guest, "Connection lost")
+    upstream_before = len(tap.upstream)
+    _say_in_chat(guest, "nobody hears this")
 
-    assert not guest.evaluate(IS_CONNECTED)
-
-
-def test_reconnect_delays_cover_the_resume_window_and_stop_before_it_ends(module_page: Page) -> None:
-    delays = _reconnect_delays(module_page)
+    assert len(tap.urls) == len(RECONNECT_DELAYS_MS) + 1
+    assert len(tap.upstream) == upstream_before
     window_ms = RESUME_WINDOW_SECONDS * 1000
-
-    assert window_ms - delays[-1] <= sum(delays) < window_ms
-
-
-def test_sending_without_a_session_throws(module_page: Page) -> None:
-    with pytest.raises(PlaywrightError, match="No signaling session"):
-        module_page.evaluate(SEND, {"type": SignalType.CHAT, "message": "no session"})
+    assert window_ms - RECONNECT_DELAYS_MS[-1] <= sum(RECONNECT_DELAYS_MS) < window_ms
 
 
 def test_no_signaling_url_carries_a_resume_token(connected_pair: ConnectedPair) -> None:
@@ -873,7 +854,7 @@ def test_peer_removed_in_the_middle_of_a_restart_episode_stops_the_restart_sched
     host.click("#leaveBtn")
     host.click("#leaveYes")
     wait_for_peer_count(guest, 0)
-    guest.clock.run_for(sum(_restart_delay(guest, attempt) for attempt in RESTART_DELAY_BY_ATTEMPT))
+    guest.clock.run_for(sum(RESTART_DELAY_BY_ATTEMPT.values()))
 
     assert _restart_offers(guest) == 1
 
@@ -884,7 +865,7 @@ def test_last_peer_leaving_raises_no_page_error_on_the_one_who_stays(connected_p
     guest.click("#leaveBtn")
 
     wait_for_peer_count(host, 0)
-    host.clock.run_for(sum(_restart_delay(host, attempt) for attempt in RESTART_DELAY_BY_ATTEMPT))
+    host.clock.run_for(sum(RESTART_DELAY_BY_ATTEMPT.values()))
 
 
 def test_sent_log_numbers_frames_drops_what_a_newer_description_supersedes_and_keeps_the_server_log_limit(
@@ -970,7 +951,7 @@ def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_p
     host.evaluate(HOLD_ANSWER_CREATION)
 
     connected_pair.force_failed_on(guest)
-    guest.clock.run_for(_restart_delay(guest, 0))
+    guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
     _wait_for_offers_and_candidates_after_them(connected_pair, offers_before + 2)
     second_offer_ufrag = _sdp_ufrag(guest)
     host.evaluate(RELEASE_ANSWER_CREATION)
@@ -979,7 +960,7 @@ def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_p
     host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
     assert second_offer_ufrag != guest_before
     assert host.evaluate(REMOTE_UFRAG) == second_offer_ufrag
-    guest.clock.run_for(_restart_delay(guest, 1))
+    guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[1])
     _wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
     _wait_for_new_ufrag_in_stats(guest, guest_before)
     _wait_for_new_ufrag_in_stats(host, host_before)
@@ -994,7 +975,7 @@ def test_leaving_behind_a_queued_restart_offer_leaves_no_tile_and_no_connection_
     host.evaluate(HOLD_ANSWER_CREATION)
     connected_pair.force_failed_on(guest)
     _wait_for(host, ANSWER_CREATION_STARTED, started_before)
-    guest.clock.run_for(_restart_delay(guest, 0))
+    guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
     pump_until(host, lambda: len(_frames_of(host_tap, "downstream", SignalType.OFFER)) == offers_before + 2)
 
     guest.click("#leaveBtn")

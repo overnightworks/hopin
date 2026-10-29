@@ -44,6 +44,7 @@ from tests.e2e.support.media import (
 )
 from tests.e2e.support.page_assertions import expect_both_legal_links
 from tests.e2e.support.people import DESKTOP, PHONE
+from tests.e2e.support.signaling import RECONNECT_DELAYS_MS, FrameInjector
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -53,7 +54,6 @@ pytestmark = pytest.mark.e2e
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 GOING_AWAY_CLOSE_CODE = 1001
 IN_CALL = "In call"
-SEND_END_ROOM = 'async () => (await import("/static/js/signaling.js")).send({ type: "end_room" })'
 # startCall continues in the same microtask drain in which the ICE servers' body is read,
 # so a later poll that sees the flag also sees whatever that continuation did.
 RECORD_ICE_SERVERS_READ = f"""
@@ -107,7 +107,6 @@ OPEN_SOCKETS_AND_WAIT = f"""async (count) => {{
     await Promise.all(sockets.map((socket) => new Promise((resolve) => socket.addEventListener("open", resolve))));
     window.heldSockets = sockets;
 }}"""
-RECONNECT_DELAYS = 'async () => (await import("/static/js/signaling.js")).RECONNECT_DELAYS_MS'
 REFUSED_JOINS = [
     pytest.param({"reason": ErrorReason.NOT_FOUND.value}, EXPIRED, id="expired"),
     pytest.param({"reason": ErrorReason.FULL.value, "capacity": CAPACITY}, FULL, id="full"),
@@ -118,6 +117,7 @@ REFUSED_JOINS = [
 @dataclass
 class HostedCall:
     host: Page
+    host_frames: FrameInjector
     invite_link: str
     base_url: str
 
@@ -143,7 +143,8 @@ def open_recording_person(
 @pytest.fixture
 def hosted_call(open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]) -> HostedCall:
     host = open_recording_person(open_person, form_factor)
-    return HostedCall(host, start_call(host, base_url), base_url)
+    host_frames = FrameInjector(host)
+    return HostedCall(host, host_frames, start_call(host, base_url), base_url)
 
 
 @pytest.fixture
@@ -151,7 +152,7 @@ def call(hosted_call: HostedCall, open_person: Callable[..., Page], form_factor:
     guest = open_recording_person(open_person, form_factor)
     join_by_link(guest, hosted_call.invite_link)
     expect(guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    return Call(hosted_call.host, hosted_call.invite_link, hosted_call.base_url, guest)
+    return Call(hosted_call.host, hosted_call.host_frames, hosted_call.invite_link, hosted_call.base_url, guest)
 
 
 def end_screen(person: Page) -> Locator:
@@ -342,7 +343,7 @@ def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rej
 
 
 def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(call: Call) -> None:
-    call.host.evaluate(SEND_END_ROOM)
+    call.host_frames.send({"type": SignalType.END_ROOM})
 
     expect_end_screen(call.guest, ENDED_BY_HOST)
 
@@ -353,7 +354,7 @@ def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at
     guest = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
     open_prejoin_by_link(guest, hosted_call.invite_link)
     wait_until_the_prejoin_media_answered(guest)
-    hosted_call.host.evaluate(SEND_END_ROOM)
+    hosted_call.host_frames.send({"type": SignalType.END_ROOM})
     expect(hosted_call.host.locator("[data-screen=end]")).to_be_visible()
 
     press_through_the_prejoin(guest)
@@ -452,18 +453,17 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
     guest.clock.install()
     join_by_link(guest, hosted_call.invite_link)
     expect(guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-    delays = [int(delay) for delay in guest.evaluate(RECONNECT_DELAYS)]
     other_device = open_person(same_account_as=guest, **DESKTOP)
     other_device.goto(f"{hosted_call.base_url}/")
 
     cut(server_notices=server_notices)
-    expect(guest.locator("#status")).to_have_text(f"Reconnecting in {delays[0] // 1000}s...")
+    expect(guest.locator("#status")).to_have_text(f"Reconnecting in {RECONNECT_DELAYS_MS[0] // 1000}s...")
     live_elsewhere = MAX_LIVE_SEATS_PER_ACCOUNT if server_notices else MAX_LIVE_SEATS_PER_ACCOUNT - 1
     other_device.evaluate(OPEN_SOCKETS_AND_WAIT, live_elsewhere)
-    guest.clock.run_for(delays[0])
+    guest.clock.run_for(RECONNECT_DELAYS_MS[0])
 
     expect_end_screen(guest, TOO_MANY_CALLS)
-    guest.clock.run_for(sum(delays))
+    guest.clock.run_for(sum(RECONNECT_DELAYS_MS))
     assert guest.evaluate(LEFTOVERS) == {"liveTracks": 0, "socketsOpened": 2}
 
 
