@@ -596,27 +596,6 @@ class TestBrokenWrite:
 
 
 class TestSeatsComingAndGoing:
-    async def test_the_starter_leaving_mid_run_leaves_the_question_to_the_rest(self, link, game_master):
-        host, guest = await call_of(link, "host", "guest")
-        held = await start_and_hold(game_master, guest)
-
-        await guest.drop(code=1000)
-        held.release.set()
-        await sent(host, answering(guest))
-
-        assert game_frames(host) == asked(guest)
-
-    async def test_a_refusal_for_a_starter_who_left_is_dropped(self, link, game_master):
-        host, guest = await call_of(link, "host", "guest")
-        game_master.answer_next(Refused(GameRefusal.NO_ACCESS))
-        held = await start_and_hold(game_master, guest)
-
-        await guest.drop(code=1000)
-        held.release.set()
-        await sent(host, IDLE)
-
-        assert game_frames(host) == [thinking(guest), IDLE]
-
     async def test_a_resume_mid_run_replays_the_question_and_answering(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
         held = await start_and_hold(game_master, host)

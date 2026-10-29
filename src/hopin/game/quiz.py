@@ -98,6 +98,21 @@ class Quiz:
             answers=answers,
         )
 
+    def counts_leave_of(self, peer_id: PeerId) -> bool:
+        """Whether a player's leave changes what the seats are shown: only once the open question has an answer."""
+        return self.step is QuizStep.ANSWERING and peer_id in self.players and bool(self.answers)
+
+    def without_player(self, peer_id: PeerId) -> Quiz:
+        """The quiz once the player has left for good; the player's given answer stays for the reveal request."""
+        return Quiz(
+            self.starter,
+            step=self.step,
+            round=self.round,
+            transcript=self.transcript,
+            players=self.players - {peer_id},
+            answers=self.answers,
+        )
+
     def answered_count(self, present: frozenset[PeerId]) -> int:
         return len({answer.player for answer in self.answers} & present & self.players)
 

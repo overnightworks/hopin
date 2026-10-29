@@ -67,6 +67,11 @@ class CallFeature(Protocol):
     async def seat_joined(self, peer_id: PeerId) -> None:
         """A seat has just joined a room; a resumed seat has not."""
 
+    async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
+        """A seat has left its room for good: its leave, its ended session, its grace run out or its unresumable
+        seat released; called after the room has heard it left. A parked or resumed seat has not left, and a
+        room's end calls `room_ended` instead."""
+
     def room_ended(self, room_id: str) -> None:
         """The room is gone; called before the call core awaits anything or tells a seat."""
 

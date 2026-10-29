@@ -147,6 +147,7 @@ class RecordingFeature:
     browser_module: str = "/static/recording/recording.js"
     offered: list = field(default_factory=list)
     joined: list = field(default_factory=list)
+    left: list = field(default_factory=list)
 
     async def on_frame(self, peer_id, frame):
         self.offered.append((peer_id, frame))
@@ -154,6 +155,9 @@ class RecordingFeature:
 
     async def seat_joined(self, peer_id):
         self.joined.append(peer_id)
+
+    async def seat_left(self, peer_id, *, room_id, name):
+        self.left.append((peer_id, room_id, name))
 
     def room_ended(self, room_id):
         pass

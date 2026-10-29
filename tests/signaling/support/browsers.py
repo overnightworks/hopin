@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 
 from hopin.config.constants import SignalType
 from tests.support.signaling_fakes import FakeSocket, account_named, disconnect_frame, text_frame
@@ -153,3 +154,31 @@ async def host_and_guest(link):
     host = await link.join("host")
     guest = await link.join("guest", host.socket.sent[0]["room_id"])
     return host, guest
+
+
+@dataclass
+class HeldReplay:
+    reached: asyncio.Event
+    release: asyncio.Event
+
+
+async def resume_holding_the_first_replayed_frame(link, browser):
+    held = HeldReplay(reached=asyncio.Event(), release=asyncio.Event())
+    socket = await link.open(account_named(browser.name))
+    write = socket.send_text
+
+    async def hold_replayed_frames(text):
+        if socket.sent:
+            held.reached.set()
+            await held.release.wait()
+        await write(text)
+
+    socket.send_text = hold_replayed_frames
+    browser.sockets.append(socket)
+    socket.push(text_frame(browser.resume_frame()))
+    return held
+
+
+async def fill_server_log(host, frames):
+    for index in range(frames):
+        await host.say({"type": SignalType.CHAT.value, "message": f"message {index}"})
