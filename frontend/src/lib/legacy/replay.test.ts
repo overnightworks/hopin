@@ -19,7 +19,7 @@ const keptAndFloorByFrameTypes: [string, SIGNAL_TYPE[], number[], number][] = [
     ],
     [
         "the log keeps the server's limit and raises the floor past what it drops",
-        Array<SIGNAL_TYPE>(REPLAY_LOG_LIMIT + 3).fill(CHAT),
+        new Array<SIGNAL_TYPE>(REPLAY_LOG_LIMIT + 3).fill(CHAT),
         Array.from({ length: REPLAY_LOG_LIMIT }, (_, index) => index + 4),
         3,
     ],
