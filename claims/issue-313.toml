@@ -1,0 +1,8 @@
+claim_id = "38e156c206494ba098abb4aa1e98d2cd"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "a47f75f9a51a35759f2dc53876a2ef67c8715fca"
+branch = "claude/issue-313-generated-wire"
+scope = ["AGENTS.md", "Makefile", "frontend/.prettierignore", "frontend/src/lib", "scripts/generate_wire.py", "sonar-project.properties", "tests/scripts"]
+opened_commit = "b0c7c336e77cb83ac2094994a21cbd2eb644e68d"
+whole_reason = "A generator, its output and its check are one unit."
