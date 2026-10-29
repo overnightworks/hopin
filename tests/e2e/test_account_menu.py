@@ -336,7 +336,9 @@ def test_home_asks_for_the_account_once(
     account_requests: list[str] = []
     person.on("request", lambda request: account_requests.append(request.url) if ACCOUNT_PATH in request.url else None)
 
-    person.goto(f"{base_url}/")
+    # The page starts after it loaded, so the first account request is awaited rather than assumed.
+    with person.expect_response(lambda response: ACCOUNT_PATH in response.url):
+        person.goto(f"{base_url}/")
     expect(person.locator("#homeGreeting")).not_to_have_attribute("aria-busy", "true")
 
     assert len(account_requests) == 1

@@ -60,6 +60,7 @@ def test_home_on_a_small_landscape_phone_reaches_each_legal_link_without_sideway
     page = open_person(**SMALL_PHONE_LANDSCAPE)
     page.goto(f"{base_url}/")
 
+    expect(page.locator("[data-screen=home]")).to_be_visible()
     link = page.locator("[data-screen=home]").get_by_role("link", name=label)
     page.mouse.move(SMALL_PHONE_LANDSCAPE["viewport"]["width"] / 2, SMALL_PHONE_LANDSCAPE["viewport"]["height"] / 2)
     page.mouse.wheel(0, SCROLL_PAST_THE_END)

@@ -118,7 +118,7 @@ const watchStatusLine = () => {
 };
 if (!watchStatusLine()) {
     const waiting = new MutationObserver(() => watchStatusLine() && waiting.disconnect());
-    waiting.observe(document.documentElement, { childList: true, subtree: true });
+    waiting.observe(document, { childList: true, subtree: true });
 }
 """
 RECORD_POLICY_VIOLATIONS = """
