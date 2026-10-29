@@ -10,7 +10,7 @@ attributes would break.
 
 ## Decision
 
-The page is markup, two stylesheets and ES modules, served from
+The page is markup, stylesheets and ES modules, served from
 `src/hopin/web/static/`. Every route but the named public paths is behind
 webauth's session gate, and the CSP and the Permissions-Policy come from
 webauth:
@@ -22,7 +22,11 @@ webauth:
   fetches, not where a link goes. A guard test (`tests/web/test_routes.py`) keeps
   it so.
 - The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
-  then `hopin.css`. An upgrade of the first is a new vendoring, never an edit.
+  then appkit's `appkit.css`, then `hopin.css`. An upgrade of the first is a
+  new vendoring, never an edit. The kit is the installed `overnightworks-appkit`
+  package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
+  `/static`; the gate admits its stylesheet and fonts as exact paths, never its
+  licence files.
 - `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/`, `img/` (the
   brand mark every page links as its icon) and `js/` are reachable, so the page
   is served only at its routes, never from the mount.
@@ -36,7 +40,7 @@ webauth:
   `test_reuses_no_class_name_that_ui_console_defines` enforces the rule.
 - The sign-in pages (`login-failed.html`, `login.html` for Signed out and
   `no-access.html`) are ui-console's sign-in markup with its classes and
-  wording, and load both stylesheets. The no-reuse rule and the legal-only `<a>`
+  wording, and load the same three stylesheets. The no-reuse rule and the legal-only `<a>`
   rule above are about `index.html` and `hopin.css`; a sign-in page links the
   two legal URLs and `/auth/start`. No access and the account menu post one
   same-origin form to `/logout`, which answers webauth's own end-session page
@@ -54,8 +58,9 @@ webauth:
 
 ## Consequences
 
-- There is no build step and no runtime dependency; the browser loads the
-  modules as written.
+- There is no build step; the browser loads the modules as written. The one
+  installed package the pages' styles come from is the `overnightworks-appkit`
+  kit.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
 - `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.

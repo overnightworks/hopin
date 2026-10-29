@@ -5,6 +5,7 @@ from webauth.middleware import SessionGate
 from webauth.policies import PathRules, PublicRule
 
 from hopin.config.constants import HEALTH_PATH, LOGIN_PATH, NO_ACCESS_PATH, SIGN_IN_PATHS, STATIC_PATH
+from hopin.web.kit import PUBLIC_KIT_PATHS
 
 if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore
@@ -17,6 +18,7 @@ PUBLIC_PATHS = frozenset(
         f"{STATIC_PATH}/css/ui-console.css",
         f"{STATIC_PATH}/css/hopin.css",
         f"{STATIC_PATH}/img/hopin.svg",
+        *PUBLIC_KIT_PATHS,
     }
 )
 

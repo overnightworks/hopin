@@ -33,6 +33,7 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
+from hopin.web.kit import KIT_DIR, KIT_PATH
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
@@ -44,7 +45,16 @@ if TYPE_CHECKING:
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
-STYLESHEETS = ["/static/css/ui-console.css", "/static/css/hopin.css"]
+STYLESHEETS = ["/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css"]
+KIT_FONTS = [f"{KIT_PATH}/fonts/{font.name}" for font in sorted((KIT_DIR / "fonts").glob("*.woff2"))]
+GATED_KIT_PATHS = [
+    f"{KIT_PATH}/fonts/oswald-LICENSE",
+    f"{KIT_PATH}/fonts/open-sans-LICENSE",
+    f"{KIT_PATH}/..%2Fcss/hopin.css",
+    f"{KIT_PATH}/appkit.css/",
+    f"{KIT_PATH}/appkit.cssx",
+    "/static/appkit-0.0.0/appkit.css",
+]
 FAVICON = "/static/img/hopin.svg"
 STATIC_FILES = ["/static/js/app.js", *STYLESHEETS, FAVICON]
 LOOKALIKE_PATHS = [
@@ -59,6 +69,7 @@ LOOKALIKE_PATHS = [
     "/static/img/hopin.svg/",
     "/static/img/hopin.svgx",
     "/static/img/other.svg",
+    *GATED_KIT_PATHS,
     "/logout/",
     f"{BACKCHANNEL_LOGOUT_PATH}/",
     f"{BACKCHANNEL_LOGOUT_PATH}x",
@@ -152,6 +163,14 @@ class TestSignedOut:
     @pytest.mark.parametrize("path", [*STYLESHEETS, *SIGN_IN_PAGES])
     def test_the_sign_in_pages_and_their_stylesheets_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
+
+    @pytest.mark.parametrize("font", KIT_FONTS)
+    def test_each_kit_font_is_public_with_its_content_type(self, application, font):
+        response = application.get(font, **BROWSER_ACCEPT)
+        assert (response.status_code, response.headers["content-type"]) == (200, "font/woff2")
+
+    def test_the_kit_has_eight_fonts(self):
+        assert len(KIT_FONTS) == 8
 
     def test_the_favicon_loads_signed_out_as_an_svg(self, application):
         response = application.get(FAVICON, **BROWSER_ACCEPT)
