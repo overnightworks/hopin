@@ -14,8 +14,8 @@
 .qcard { margin: 4px 12px 6px; padding: 14px; border-radius: 14px; background: var(--stage-2); border: 1.5px solid var(--accent-stage); display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); flex: none; }
 .qcard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .qcard-tag { font-size: 12.5px; font-weight: 700; color: var(--accent-stage); display: inline-flex; align-items: center; gap: 6px; }
-.qcard-reveal { border: 0; height: 32px; padding: 0 14px; border-radius: 999px; background: color-mix(in srgb, var(--accent-stage) 20%, var(--stage-2)); color: var(--accent-stage); font-size: 13.5px; font-weight: 650; cursor: pointer; }
-.qcard-reveal:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-stage) 32%, var(--stage-2)); }
+.qcard-reveal { border: 0; height: 32px; padding: 0 14px; border-radius: 999px; background: color-mix(in srgb, var(--accent-stage) 12%, var(--stage-2)); color: var(--accent-stage); font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.qcard-reveal:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-stage) 24%, var(--stage-2)); }
 .qcard-reveal:disabled { opacity: .6; cursor: default; }
 .qcard-q { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; color: var(--on-stage); overflow-wrap: anywhere; }
 .qcard-form { margin: 0; display: flex; flex-direction: column; gap: 10px; }

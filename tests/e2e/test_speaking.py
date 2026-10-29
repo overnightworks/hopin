@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-SPEAKING_RING = "rgb(86, 195, 205)"
+SPEAKING_RING = "rgb(122, 167, 240)"
 OTHER_WAVE = f"{OTHER_TILE} .name .wave"
 OTHER_MUTE_MARK = f"{OTHER_TILE} .name .muted"
 GOES_QUIET_WITHIN_MILLISECONDS = 2_000
