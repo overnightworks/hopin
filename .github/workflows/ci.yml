@@ -277,9 +277,28 @@ jobs:
       - name: Build
         run: pnpm build
 
+  image:
+    name: Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image without pushing it
+        run: docker build --tag hopin-image .
+
+      # The wheel is gone from the image; its record of installed files remains.
+      - name: Check that the wheel carries the page build
+        run: >
+          docker run --rm --entrypoint python hopin-image -c
+          "from importlib.metadata import files; assert any(str(f) == 'hopin/web/build/index.html' for f in files('hopin'))"
+
   quality:
     name: quality
-    needs: [ci, e2e, coverage, removal-drill, frontend]
+    needs: [ci, e2e, coverage, removal-drill, frontend, image]
     if: always()
     permissions:
       contents: read
