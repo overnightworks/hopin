@@ -504,6 +504,34 @@ class TestSignInTransaction:
         assert accounts.get(anna.id) == anna
         assert sessions.load(session.id) == session
 
+    def test_an_entry_cannot_be_entered_twice(self, transaction):
+        entry = transaction()
+
+        with entry:
+            pass
+
+        with pytest.raises(RuntimeError), entry:
+            pass
+
+    def test_an_entry_that_fails_to_open_gives_the_locks_back(self, stores, transaction, monkeypatch):
+        def failing_snapshot() -> None:
+            raise BlockFailed
+
+        with monkeypatch.context() as patch:
+            patch.setattr(stores.sessions, "snapshot", failing_snapshot)
+            with pytest.raises(BlockFailed), transaction():
+                pass
+
+        def enter_and_leave() -> None:
+            with transaction():
+                pass
+
+        next_entry = threading.Thread(target=enter_and_leave, daemon=True)
+        next_entry.start()
+        next_entry.join(timeout=5)
+
+        assert not next_entry.is_alive()
+
     @pytest.fixture
     def while_a_failing_entry_is_open(self, transaction, accounts, sessions, anna_with_a_session):
         """Runs `other` on a second thread while an entry that has written is still open, then fails the entry.
