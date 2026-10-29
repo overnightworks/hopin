@@ -317,7 +317,7 @@ class TestWhatLeaves:
 
         [run] = world.service.runs
         request = run.request
-        assert (request.purpose, request.model, request.roles, request.tools) == ("quiz", None, ["admin", "user"], {})
+        assert (request.agent, request.roles, request.tools) == ("quiz", ["admin", "user"], {})
         assert request.turn.system.startswith("Du bist der Spielleiter")
         assert [(message.role.value, message.text) for message in request.turn.messages] == [
             ("user", "Erste Bitte."),
