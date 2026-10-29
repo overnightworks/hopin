@@ -1,0 +1,8 @@
+claim_id = "5daee24d7ca04e88bd36e52e569517b9"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "7e1379a4abea5f159aa41231356406320a7a2cd1"
+branch = "claude/issue-330-leave-dialog"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/dialogs.js", "frontend/src/lib/ui/leave-dialog.svelte.test.ts", "frontend/src/lib/ui/leave-dialog.svelte.ts", "frontend/src/lib/ui/menus.test.ts", "frontend/src/lib/ui/menus.ts", "frontend/src/routes/+layout.svelte"]
+opened_commit = "868d5219117631ae5218623e10949a9fbc6e0ba8"
+whole_reason = "One port with its deletion and its one importer, plus the menus wiring that moves to the same layout onMount."
