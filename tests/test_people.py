@@ -28,6 +28,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, export_path, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
@@ -48,7 +49,7 @@ def stores():
 
 @pytest.fixture
 def app(sign_in_settings, stores):
-    return create_app(sign_in_settings().settings, stores=stores)
+    return create_app(sign_in_settings().settings, page_build=fixture_page_build(), stores=stores)
 
 
 @pytest.fixture
@@ -363,7 +364,9 @@ class TestCaching:
 def issuer_browser(sign_in_settings, stores):
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
-    app = create_app(sign_in.settings, issuer_transports=issuer.transports, stores=stores)
+    app = create_app(
+        sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports, stores=stores
+    )
 
     def sign_in_with(groups):
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)

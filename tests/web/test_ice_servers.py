@@ -1,5 +1,6 @@
 import re
 import secrets
+from pathlib import Path
 
 import pytest
 import structlog.testing
@@ -18,6 +19,7 @@ from hopin.web.routes import STATIC_DIR
 pytestmark = pytest.mark.integration
 
 ICE_URL_PATTERN = re.compile(r"\b(stuns?|turns?):", re.IGNORECASE)
+PAGE_SOURCE_DIRECTORIES = (STATIC_DIR, Path(__file__).parents[2] / "frontend" / "src")
 
 
 STUN_SERVER = "stun:stun.example.test:3478"
@@ -86,10 +88,11 @@ def test_a_relay_that_is_unavailable_gives_stun_only_and_one_warning_with_its_re
     assert records == [expected if status is None else {**expected, "status": status}]
 
 
-def test_static_files_name_no_ice_server_url():
+def test_page_sources_name_no_ice_server_url():
     offenders = [
         path.name
-        for path in STATIC_DIR.rglob("*")
+        for directory in PAGE_SOURCE_DIRECTORIES
+        for path in directory.rglob("*")
         if path.is_file() and ICE_URL_PATTERN.search(path.read_text(encoding="utf-8"))
     ]
     assert offenders == []

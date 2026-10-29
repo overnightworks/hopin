@@ -5,6 +5,7 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import ACCOUNT_PATH
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 
@@ -18,7 +19,7 @@ def stores():
 
 @pytest.fixture
 def app(sign_in_settings, stores):
-    return create_app(sign_in_settings().settings, stores=stores)
+    return create_app(sign_in_settings().settings, page_build=fixture_page_build(), stores=stores)
 
 
 @pytest.fixture

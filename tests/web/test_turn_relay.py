@@ -15,6 +15,7 @@ from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.ice_servers import TurnRelayFailure, TurnRelayUnavailableError
 from hopin.web.turn_relay import TurnAnswer, build_turn_relay
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 
@@ -88,7 +89,7 @@ def turn_settings(sign_in_settings, tmp_path):
 
 def member_client(settings, transport, *, signed_in: bool = True) -> TestClient:
     stores = SignInStores.in_memory()
-    app = create_app(settings, stores=stores, turn_transport=transport)
+    app = create_app(settings, page_build=fixture_page_build(), stores=stores, turn_transport=transport)
     headers = dict(FETCH_ACCEPT)
     if signed_in:
         headers["cookie"] = cookie_header(seed_member(stores, installed_web_auth_config(app)).set_cookie_headers)
@@ -114,7 +115,7 @@ def write_file_state(path: Path, state) -> None:
 def refusal_of(settings) -> StartRefusedError:
     transport = FakeTransport()
     with pytest.raises(StartRefusedError) as refusal:
-        create_app(settings, turn_transport=transport)
+        create_app(settings, page_build=fixture_page_build(), turn_transport=transport)
     return refusal.value
 
 

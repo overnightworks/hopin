@@ -3,7 +3,10 @@ from unittest.mock import patch
 import pytest
 
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
+from hopin.config.secret_files import StartRefusedError
 from hopin.main import main
+
+pytestmark = pytest.mark.usefixtures("fixture_build_directory")
 
 
 class TestMain:
@@ -39,6 +42,19 @@ class TestMain:
             monkeypatch.setenv(name, value)
         main(["serve"])
         assert mock_run.call_args[1]["proxy_headers"] is False
+
+    @patch("hopin.main.uvicorn.run")
+    def test_refuses_to_start_without_the_page_build_and_names_the_build_command(
+        self, mock_run, sign_in_settings, monkeypatch, tmp_path
+    ):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setattr("hopin.main.BUILD_DIRECTORY", tmp_path / "build")
+
+        with pytest.raises(StartRefusedError, match="make frontend"):
+            main(["serve"])
+
+        mock_run.assert_not_called()
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     @patch("hopin.main.uvicorn.run")

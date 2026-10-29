@@ -10,6 +10,7 @@ pytest.register_assert_rewrite("tests.game.support")  # game
 
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
+from tests.support.page_build import FIXTURE_DIRECTORY  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
 from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
 
@@ -21,6 +22,13 @@ if TYPE_CHECKING:
 @pytest.fixture
 def sign_in_settings(tmp_path: Path) -> Callable[..., SignInSettings]:
     return partial(build_sign_in_settings, tmp_path)
+
+
+@pytest.fixture
+def fixture_build_directory(monkeypatch: pytest.MonkeyPatch) -> Path:
+    """`hopin.main` loads the committed fixture build, because the unit job has no Node and no build."""
+    monkeypatch.setattr("hopin.main.BUILD_DIRECTORY", FIXTURE_DIRECTORY)
+    return FIXTURE_DIRECTORY
 
 
 @pytest.fixture

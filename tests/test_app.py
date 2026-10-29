@@ -27,6 +27,7 @@ from hopin.config.constants import (
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.kit import KIT_PATH
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import FIXTURE_SCRIPT_HASH, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
 
@@ -40,7 +41,7 @@ SESSION_COOKIE = "__Host-session_id"
 
 def signed_in_client(settings: ServerSettings) -> TestClient:
     stores = SignInStores.in_memory()
-    app = create_app(settings, stores=stores)
+    app = create_app(settings, page_build=fixture_page_build(), stores=stores)
     member = seed_member(stores, installed_web_auth_config(app))
     headers = {"cookie": cookie_header(member.set_cookie_headers)}
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, follow_redirects=False)
@@ -48,16 +49,16 @@ def signed_in_client(settings: ServerSettings) -> TestClient:
 
 class TestCreateApp:
     def test_returns_fastapi_application(self, sign_in_settings):
-        app = create_app(sign_in_settings().settings)
+        app = create_app(sign_in_settings().settings, page_build=fixture_page_build())
         assert isinstance(app, FastAPI)
 
     def test_uses_provided_settings(self, sign_in_settings):
-        app = create_app(sign_in_settings(port=9999).settings)
+        app = create_app(sign_in_settings(port=9999).settings, page_build=fixture_page_build())
         assert app.state.settings.port == 9999
 
     def test_installs_the_web_auth_config_built_from_its_settings(self, sign_in_settings):
         sign_in = sign_in_settings()
-        config = installed_web_auth_config(create_app(sign_in.settings))
+        config = installed_web_auth_config(create_app(sign_in.settings, page_build=fixture_page_build()))
         assert isinstance(config, WebAuthConfig)
         assert config.session_secret.get_secret_value() == sign_in.session_secret
 
@@ -65,12 +66,12 @@ class TestCreateApp:
         settings = sign_in_settings().settings
         settings.session_secret_file.unlink()
         with pytest.raises(StartRefusedError, match="session_secret_file"):
-            create_app(settings)
+            create_app(settings, page_build=fixture_page_build())
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -82,7 +83,7 @@ class TestCreateApp:
     def test_account_route_reads_the_sessions_the_sign_in_wrote(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -96,7 +97,9 @@ class TestCreateApp:
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
         stores = SignInStores.in_memory()
-        app = create_app(sign_in.settings, issuer_transports=issuer.transports, stores=stores)
+        app = create_app(
+            sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports, stores=stores
+        )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -114,7 +117,7 @@ class TestCreateApp:
     def test_admits_the_member_the_sign_in_router_signed_in_to_its_pages(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -128,7 +131,7 @@ class TestCreateApp:
                 assert (response.status_code, "location" in response.headers) == (200, False)
 
     def test_registers_routes(self, sign_in_settings):
-        response = TestClient(create_app(sign_in_settings().settings)).get("/health")
+        response = TestClient(create_app(sign_in_settings().settings, page_build=fixture_page_build())).get("/health")
         assert response.status_code == 200
 
     def test_serves_the_configured_stun_server_as_ice_servers(self, sign_in_settings):
@@ -149,6 +152,11 @@ class TestCreateApp:
     )
     def test_serves_the_page_and_its_assets(self, sign_in_settings, path):
         assert signed_in_client(sign_in_settings().settings).get(path).status_code == 200
+
+    def test_the_policy_admits_the_scripts_of_the_shell_by_their_hash(self, sign_in_settings):
+        response = signed_in_client(sign_in_settings().settings).get("/health")
+
+        assert f"script-src 'self' '{FIXTURE_SCRIPT_HASH}';" in response.headers["content-security-policy"]
 
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
     def test_generated_documentation_is_not_served(self, sign_in_settings, path):
@@ -185,7 +193,9 @@ class TestExpiredSessionSweep:
     @pytest.fixture
     def swept(self, sign_in_settings, scheduler):
         stores = SignInStores.in_memory()
-        app = create_app(sign_in_settings().settings, stores=stores, scheduler=scheduler)
+        app = create_app(
+            sign_in_settings().settings, page_build=fixture_page_build(), stores=stores, scheduler=scheduler
+        )
         account = stores.accounts.create_for_subject("subject", "name", "user")
         now = datetime.now(UTC)
         created_at = now - timedelta(hours=2)
@@ -251,7 +261,9 @@ class TestExpiredSessionSweep:
     def test_a_sweep_queued_before_shutdown_removes_nothing_once_the_lifespan_has_stopped(self, sign_in_settings):
         stores = SignInStores.in_memory()
         scheduler = QueuingScheduler()
-        app = create_app(sign_in_settings().settings, stores=stores, scheduler=scheduler)
+        app = create_app(
+            sign_in_settings().settings, page_build=fixture_page_build(), stores=stores, scheduler=scheduler
+        )
         now = datetime.now(UTC)
         account = stores.accounts.create_for_subject("subject", "name", "user")
         expired = stores.sessions.create(
@@ -295,7 +307,7 @@ class TestExpiredSessionSweep:
 
 class TestLoggedExceptions:
     def test_rendered_traceback_leaves_out_the_values_of_local_variables(self, sign_in_settings, capsys):
-        create_app(sign_in_settings().settings)
+        create_app(sign_in_settings().settings, page_build=fixture_page_build())
         sentinel = secrets.token_urlsafe(16)
 
         def fail_holding_the_sentinel():

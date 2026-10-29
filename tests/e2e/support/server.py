@@ -13,6 +13,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
@@ -123,6 +124,7 @@ def running_hopin(
     """Serve HopIn over https on `loopback`, with the call's feature only when one is given."""
     app = create_app(
         loopback.sign_in.settings,
+        page_build=PageBuild.load(BUILD_DIRECTORY),
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_feature=call_feature,

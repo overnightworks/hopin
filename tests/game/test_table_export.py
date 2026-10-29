@@ -12,6 +12,7 @@ from hopin.game import GameSettings, game_feature
 from hopin.game.vocabulary import GameSignal
 from tests.game.support.fake_agent_service import FakeAgentService, Succeeds
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, seed_member
@@ -34,6 +35,7 @@ def quiz_call(sign_in_settings, stores):
     service.answer_next(Succeeds(question))
     app = create_app(
         sign_in.settings,
+        page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
         call_feature=game_feature(GameSettings(), transport=service.transport),

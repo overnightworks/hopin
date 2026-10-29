@@ -62,7 +62,9 @@ def uvicorn_loggers_restored() -> Iterator[None]:
 
 
 @pytest_asyncio.fixture
-async def started_server(sign_in_settings, monkeypatch, capfd, uvicorn_loggers_restored) -> AsyncIterator[Output]:
+async def started_server(
+    sign_in_settings, monkeypatch, capfd, uvicorn_loggers_restored, fixture_build_directory
+) -> AsyncIterator[Output]:
     for name, value in sign_in_settings(host=LOCALHOST).environment.items():
         monkeypatch.setenv(name, value)
     stores = SignInStores.in_memory()

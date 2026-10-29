@@ -35,6 +35,7 @@ from hopin.config.constants import (
 )
 from hopin.web.kit import KIT_DIR, KIT_PATH
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import FIXTURE_SCRIPT_HASH, IMMUTABLE_FILE, VERSION_FILE, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
@@ -81,7 +82,16 @@ SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 JSON_POST = {"content-type": "application/json"}
 CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
-EXPECTED_CONTENT_SECURITY_POLICY = default_content_security_policy()
+# The ruled text (Card A, 29.10.2026): kit 3.1.0's announcer style is the one inline style admitted, by its hash.
+ANNOUNCER_STYLE_SOURCES = "'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo='"
+EXPECTED_CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; base-uri 'self'; "
+    f"script-src 'self' '{FIXTURE_SCRIPT_HASH}'; "
+    f"style-src 'self' {ANNOUNCER_STYLE_SOURCES}; "
+    "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; "
+    "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; form-action 'self'"
+)
+IMMUTABLE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 SESSION_LIFETIME = timedelta(hours=12)
 
 
@@ -91,7 +101,13 @@ class Application:
     def __init__(self, sign_in: SignInSettings, **options) -> None:
         self.stores = SignInStores.in_memory()
         self.issuer = FakeIssuer(sign_in)
-        self.app = create_app(sign_in.settings, stores=self.stores, issuer_transports=self.issuer.transports, **options)
+        self.app = create_app(
+            sign_in.settings,
+            page_build=fixture_page_build(),
+            stores=self.stores,
+            issuer_transports=self.issuer.transports,
+            **options,
+        )
         self.config = installed_web_auth_config(self.app)
         self.client = TestClient(self.app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
 
@@ -393,7 +409,7 @@ class TestBackchannelLogout:
 
 
 class TestRevalidation:
-    @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access", *STATIC_FILES])
+    @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access", VERSION_FILE, *STATIC_FILES])
     def test_every_page_and_static_file_answers_no_cache_with_its_etag(self, application, path):
         member = application.seed()
         with hosted_room(application, member) as room_id:
@@ -448,6 +464,38 @@ class TestSessionLifetime:
         assert client.get("/", headers=headers).status_code == 302
 
 
+class TestPageBuildAssets:
+    def test_a_signed_out_fetch_of_an_immutable_file_is_refused_and_stored_for_no_long_time(self, application):
+        response = application.get(IMMUTABLE_FILE, **FETCH_ACCEPT)
+
+        assert response.status_code == 401
+        assert "max-age" not in response.headers.get("cache-control", "")
+
+    def test_a_signed_in_fetch_of_an_immutable_file_is_kept_a_year_by_the_browser_alone(self, application):
+        response = application.get(IMMUTABLE_FILE, application.seed(), **FETCH_ACCEPT)
+
+        assert (response.status_code, response.headers["cache-control"]) == (200, IMMUTABLE_CACHE_CONTROL)
+
+    def test_the_not_modified_answer_for_an_immutable_file_carries_the_same_cache_control(self, application):
+        member = application.seed()
+        etag = application.get(IMMUTABLE_FILE, member).headers["etag"]
+
+        response = application.get(IMMUTABLE_FILE, member, **{"if-none-match": etag})
+
+        assert (response.status_code, response.headers["cache-control"]) == (304, IMMUTABLE_CACHE_CONTROL)
+
+    def test_a_signed_in_miss_below_the_immutable_directory_is_stored_for_no_long_time(self, application):
+        response = application.get("/_app/immutable/absent.js", application.seed(), **FETCH_ACCEPT)
+
+        assert response.status_code == 404
+        assert "max-age" not in response.headers.get("cache-control", "")
+
+    def test_the_version_file_is_revalidated_on_every_use(self, application):
+        response = application.get(VERSION_FILE, application.seed(), **FETCH_ACCEPT)
+
+        assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
+
+
 def install_gate(app: FastAPI, stores: SignInStores) -> None:
     install_web_auth_middleware(
         app,
@@ -467,6 +515,7 @@ class TestSecurityHeaders:
             ("GET", "/c/abc?x=1", False, BROWSER_ACCEPT, 302),
             ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
             ("GET", "/static/js/app.js", False, FETCH_ACCEPT, 401),
+            ("GET", IMMUTABLE_FILE, False, FETCH_ACCEPT, 401),
             ("GET", "/", False, FETCH_ACCEPT, 401),
             ("GET", ACCOUNT_PATH, False, FETCH_ACCEPT, 401),
             ("GET", HEALTH_PATH, False, {}, 200),
@@ -479,6 +528,7 @@ class TestSecurityHeaders:
             ("GET", "/", True, BROWSER_ACCEPT, 200),
             ("GET", ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
             ("GET", "/static/js/app.js", True, FETCH_ACCEPT, 200),
+            ("GET", IMMUTABLE_FILE, True, FETCH_ACCEPT, 200),
             ("GET", "/c/{room}", True, BROWSER_ACCEPT, 200),
             ("GET", "/c/unknown", True, BROWSER_ACCEPT, 404),
         ],

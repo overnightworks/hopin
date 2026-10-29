@@ -20,6 +20,7 @@ from hopin.config.constants import (
 )
 from tests.signaling.support.flow import POLICY_VIOLATION_CODE, events_named, expires_at
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header
 
@@ -90,7 +91,7 @@ class TestProductionWiring:
     def test_member_signed_in_through_the_issuer_opens_the_socket_of_an_app_with_default_stores(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, issuer_transports=issuer.transports)
+        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")

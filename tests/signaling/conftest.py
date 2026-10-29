@@ -13,6 +13,7 @@ from hopin.config.constants import (
 )
 from tests.signaling.support.flow import number_frames_after_the_first
 from tests.signaling.support.served_sessions import ServedSessions
+from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ def stores():
 @pytest.fixture
 def app(sign_in_settings, stores):
     settings = sign_in_settings(max_participants_per_room=3).settings
-    return create_app(settings, stores=stores)
+    return create_app(settings, page_build=fixture_page_build(), stores=stores)
 
 
 @pytest.fixture

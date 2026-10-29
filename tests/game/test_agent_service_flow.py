@@ -23,6 +23,7 @@ from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
 from tests.game.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
@@ -116,6 +117,7 @@ def call(sign_in_settings):
     stores = SignInStores.in_memory()
     app = create_app(
         sign_in.settings,
+        page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
@@ -370,6 +372,7 @@ async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_se
     service.answer_next(held)
     app = create_app(
         sign_in.settings,
+        page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
