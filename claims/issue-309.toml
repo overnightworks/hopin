@@ -1,8 +1,0 @@
-claim_id = "5c009c19454c4cb28e56662ff671cb21"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "ff4c5f0989472ab276959283074876e73ba7e30d"
-branch = "claude/issue-309-e2e-no-module-hooks"
-scope = ["quality/baseline.toml", "tests/e2e/game/test_game_master.py", "tests/e2e/support", "tests/e2e/test_end.py", "tests/e2e/test_mesh.py", "tests/e2e/test_speaking.py"]
-opened_commit = "786020958f34149abf9e7f8bbcc7978ce0977be0"
-whole_reason = "The hooks into page modules are one harness change; they move together so P4b can bundle the modules."
