@@ -10,6 +10,8 @@ The `Makefile` owns the targets. Traps:
 - `make e2e` takes no lock itself: hold `/tmp/probe-stack.lock` around it
   (`flock /tmp/probe-stack.lock make e2e`). It needs Playwright's Chromium installed
   once; the `End-to-end` job in `.github/workflows/ci.yml` owns that install step.
+- `make wire-check` (part of `make lint`) fails when `frontend/src/lib/wire.ts` drifts from the Python wire owners;
+  regenerate it with `uv run python scripts/generate_wire.py`.
 - CI's `Coverage` job judges 100 % over unit, integration and end-to-end data
   together; no local run judges it.
 
