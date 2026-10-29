@@ -3,7 +3,7 @@ import asyncio
 import pytest
 import structlog.testing
 
-from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS
+from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, SignalType
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal, GameSignal
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
@@ -20,6 +20,7 @@ from tests.game.support.table_world import (
     asked,
     call_of,
     ended_by,
+    finished_within_cap,
     game_frames,
     hold_writes_from,
     line,
@@ -66,6 +67,8 @@ class TestTheStartersLeave:
 
         await ending(guest, scheduler)
         await sent_to_all([host, third], IDLE)
+        host_frames = [frame["type"] for frame in host.socket.sent]
+        assert host_frames.index(SignalType.PARTICIPANT_LEFT.value) < host_frames.index(GameSignal.GAME_ENDED.value)
         await host.say(answer("Porto"))
         await host.say(START)
         await sent_to_all([host, third], answering(host))
@@ -161,7 +164,7 @@ class TestTheStartersLeave:
             held.release.set()
             await sent(host, line(DEFAULT_QUESTION))
             closing.release.set()
-            await session_check
+            await finished_within_cap(session_check)
             await sent(host, IDLE)
 
         assert game_frames(host)[-3:] == [line(DEFAULT_QUESTION), ended_by("guest"), IDLE]
@@ -187,7 +190,7 @@ class TestTheStartersLeave:
             held.release.set()
             await sent(host, IDLE)
             closing.release.set()
-            await session_check
+            await finished_within_cap(session_check)
 
         [ended] = host.frames(GameSignal.GAME_ENDED)
         assert "leaver" not in ended
@@ -211,7 +214,7 @@ class TestTheStartersLeave:
             push_unsettled(host, END)
             await wait_within_cap(entered)
             closing.release.set()
-            await session_check
+            await finished_within_cap(session_check)
             gate.set()
             await sent_to_all([host, third, fourth], IDLE)
 
@@ -221,6 +224,27 @@ class TestTheStartersLeave:
             [ended] = browser.frames(GameSignal.GAME_ENDED)
             assert "leaver" not in ended
         assert errors_in(logs) == []
+
+    async def test_answers_after_the_starters_seat_is_gone_and_before_its_notice_start_no_reveal(
+        self, link, game_master, scheduler
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        await open_a_question([host, guest, third], host)
+        closing = HeldClose(host.socket)
+        host.socket.account = None
+        session_check = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+
+        with structlog.testing.capture_logs() as logs:
+            await guest.say(answer("Porto"))
+            await third.say(answer("Lissabon"))
+            assert len(game_master.calls) == 1
+            closing.release.set()
+            await finished_within_cap(session_check)
+            await sent(guest, IDLE)
+
+        assert errors_in(logs) == []
+        assert game_frames(guest)[-2:] == [ended_by("host"), IDLE]
 
 
 class TestAPlayersLeave:

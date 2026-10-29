@@ -250,13 +250,11 @@ class TestAfterEnd:
     ):
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
-        [call] = game_master.calls
 
         with structlog.testing.capture_logs() as logs:
             await ending(guest)
             await sent(host, IDLE)
-            await yield_until(lambda: call.finished)
-            await let_every_task_run()
+            await shut_down_within_cap(link.handler)
 
         assert [log["outcome"] for log in logs if log["event"] == "game_master_run"] == ["ended"]
 

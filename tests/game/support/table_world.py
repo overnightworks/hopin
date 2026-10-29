@@ -139,6 +139,11 @@ async def wait_within_cap(event):
         await event.wait()
 
 
+async def finished_within_cap(task):
+    async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
+        await task
+
+
 async def shut_down_within_cap(handler):
     """Shut down, failing instead of hanging when a run's ask is never cancelled."""
     async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
