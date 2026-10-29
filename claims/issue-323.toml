@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "f18efcbf1fdda1be7c5bea6ebc86872484708c49"
 branch = "claude/issue-323-legacy-into-bundle"
-scope = [".github/workflows/ci.yml", "Makefile", "README.md", "docs", "frontend", "quality/baseline.toml", "src/hopin/web/static/assets/js", "tests/auth/test_gate.py", "tests/e2e/test_call.py", "tests/e2e/test_mesh.py", "tests/e2e/test_speaking.py", "tests/test_app.py", "tests/web/test_routes.py"]
+scope = [".github/workflows/ci.yml", "Makefile", "README.md", "docs", "frontend", "quality/baseline.toml", "src/hopin/web/static/assets/js", "tests/auth/test_gate.py", "tests/e2e/support/media.py", "tests/e2e/test_call.py", "tests/e2e/test_mesh.py", "tests/e2e/test_speaking.py", "tests/test_app.py", "tests/web/test_routes.py"]
 opened_commit = "9cb3dd2380db7d167bbc4fbcdf5dcfb8c46fcc82"
 whole_reason = "The legacy modules move as one import graph; a partial move leaves modules importing each other across the served and bundled worlds."
