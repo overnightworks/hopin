@@ -67,18 +67,17 @@ TILES_THAT_RANG = "() => [...new Set(window.speakingLog.filter((entry) => entry.
 RING_CHANGES_SO_FAR = """
 () => window.speakingLog.map((entry) => entry.speaking).join()
 """
-# The floor and the freshness window are speaking.js's own; the page reads them from its source.
+# The scenario's own sound bands, with a margin around the fake sources' levels; the exact floor
+# is proven by the isSpeaking cases below.
+SOUND_BANDS = {
+    "loud": {"atLeast": 0.1, "below": 2},
+    "hum": {"atLeast": 0.0001, "below": 0.008},
+    "silent": {"atLeast": 0, "below": 0.0001},
+}
+SOUND_FRESH_WITHIN_MILLISECONDS = 500
 SCENARIO_SOUND_IS_ARRIVING = """
-async (band) => {
-    const source = await (await fetch("/static/js/speaking.js")).text();
-    const constant = (name) => Number(source.match(new RegExp(`const ${name} = ([0-9.]+);`))[1]);
-    const floor = constant("SPEAKING_LEVEL_FLOOR");
-    const freshness = constant("SOUND_FRESHNESS_MS");
-    const inBand = {
-        loud: (level) => level >= floor,
-        hum: (level) => level > 0 && level < floor,
-        silent: (level) => level === 0,
-    }[band];
+async ([band, freshness]) => {
+    const inBand = (level) => level >= band.atLeast && level < band.below;
     const arrives = () => {
         const now = performance.timeOrigin + performance.now();
         return window.recordedConnections.some((connection) => connection.getReceivers()
@@ -88,7 +87,7 @@ async (band) => {
     };
     const giveUpAt = performance.now() + 10_000;
     while (!arrives()) {
-        if (performance.now() > giveUpAt) throw new Error(`no ${band} sound arrived`);
+        if (performance.now() > giveUpAt) throw new Error("no sound of the band arrived");
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 }
@@ -175,7 +174,7 @@ def expect_a_ringing_tile(viewer: Page) -> None:
 
 def expect_no_ringing_tile(viewer: Page, sound: str, milliseconds: int = OBSERVATION_MILLISECONDS) -> None:
     # Detection can only ring once the scenario's own sound arrives, so the window opens after it does.
-    viewer.evaluate(SCENARIO_SOUND_IS_ARRIVING, sound)
+    viewer.evaluate(SCENARIO_SOUND_IS_ARRIVING, [SOUND_BANDS[sound], SOUND_FRESH_WITHIN_MILLISECONDS])
     viewer.wait_for_timeout(milliseconds)
     assert viewer.evaluate(TILES_THAT_RANG) == []
 
