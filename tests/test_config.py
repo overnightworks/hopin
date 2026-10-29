@@ -22,7 +22,7 @@ REQUIRED_SIGN_IN_SETTINGS = ["oidc_issuer", "oidc_client_secret_file", "public_o
 
 class TestConstants:
     def test_default_host_binds_all_interfaces(self):
-        assert DEFAULT_HOST == "0.0.0.0"
+        assert DEFAULT_HOST == "0.0.0.0"  # noqa: S104 - the test pins the container listen-all default
 
     def test_default_port_is_8080(self):
         assert DEFAULT_PORT == 8080
