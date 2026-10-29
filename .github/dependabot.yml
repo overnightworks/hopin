@@ -18,3 +18,9 @@ updates:
       interval: daily
     cooldown:
       default-days: 7
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7

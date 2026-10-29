@@ -1,0 +1,33 @@
+{
+    "name": "hopin-frontend",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "packageManager": "pnpm@10.32.1",
+    "engines": {
+        "node": ">=24 <25"
+    },
+    "scripts": {
+        "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+        "lint": "eslint . && prettier --check .",
+        "format": "prettier --write .",
+        "build": "vite build"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@sveltejs/adapter-static": "^4.0.0",
+        "@sveltejs/kit": "^3.1.0",
+        "@sveltejs/vite-plugin-svelte": "^7.3.1",
+        "eslint": "^10.13.0",
+        "eslint-config-prettier": "^10.1.5",
+        "eslint-plugin-svelte": "^3.23.1",
+        "globals": "^17.13.0",
+        "prettier": "^3.9.10",
+        "prettier-plugin-svelte": "^4.1.1",
+        "svelte": "^5.57.2",
+        "svelte-check": "^4.7.7",
+        "typescript": "^6.0.0",
+        "typescript-eslint": "^8.72.0",
+        "vite": "^8.3.5"
+    }
+}

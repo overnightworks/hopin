@@ -1,0 +1,13 @@
+packages:
+    - .
+
+engineStrict: true
+
+# deepmerge 4.3.1 has an unfixed prototype-poisoning advisory (GHSA-gcqx-w48m-w2h4).
+# vite-plugin-svelte's one call site is patched to merge itself, and the override drops
+# the now unused dependency from the lockfile.
+patchedDependencies:
+    "@sveltejs/vite-plugin-svelte@7.3.1": patches/@sveltejs__vite-plugin-svelte@7.3.1.patch
+
+overrides:
+    deepmerge: "-"

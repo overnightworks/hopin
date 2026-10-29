@@ -239,9 +239,47 @@ jobs:
         timeout-minutes: 5
         run: pytest -q -m e2e tests/e2e/test_call.py --no-cov
 
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The version comes from packageManager in frontend/package.json.
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Install Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: frontend/package.json
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
   quality:
     name: quality
-    needs: [ci, e2e, coverage, removal-drill]
+    needs: [ci, e2e, coverage, removal-drill, frontend]
     if: always()
     permissions:
       contents: read
