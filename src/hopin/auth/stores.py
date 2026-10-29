@@ -1,6 +1,6 @@
 import secrets
 import threading
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -64,41 +64,41 @@ class _SessionRow:
 class InMemoryAccounts:
     """Accounts of one process, keyed by the issuer's subject and compared exactly.
 
-    Shares its guard with `InMemorySessions` and the sign-in transaction.
+    Creates the guard that `InMemorySessions` and the sign-in transaction reach through it.
     """
 
-    def __init__(self, guard: threading.RLock) -> None:
+    def __init__(self) -> None:
         self._by_subject: dict[str, StoredAccount] = {}
-        self._guard = guard
+        self.guard = threading.RLock()
 
     def get(self, user_id: str) -> StoredAccount | None:
-        with self._guard:
+        with self.guard:
             return self._by_subject.get(user_id)
 
     def existing(self, user_id: str) -> StoredAccount:
-        with self._guard:
+        with self.guard:
             return self._by_subject[user_id]
 
     def create_for_subject(self, subject: str, username: str, role: str) -> StoredAccount:
         account = StoredAccount(id=subject, username=username, role=role)
-        with self._guard:
+        with self.guard:
             self._by_subject[subject] = account
         return account
 
     def remove(self, user_id: str) -> None:
-        with self._guard:
+        with self.guard:
             self._by_subject.pop(user_id, None)
 
     def snapshot(self) -> Mapping[str, StoredAccount]:
-        with self._guard:
+        with self.guard:
             return MappingProxyType(dict(self._by_subject))
 
     def restore(self, snapshot: Mapping[str, StoredAccount]) -> None:
-        with self._guard:
+        with self.guard:
             self._by_subject = dict(snapshot)
 
     def set_role(self, user_id: str, role: str) -> StoredAccount:
-        with self._guard:
+        with self.guard:
             existing = self._by_subject[user_id]
             account = StoredAccount(id=existing.id, username=existing.username, role=role)
             self._by_subject[user_id] = account
@@ -112,10 +112,14 @@ class InMemorySessions:
     the caller holds it), so a row and its account are both there or both gone for every reader.
     """
 
-    def __init__(self, accounts: InMemoryAccounts, guard: threading.RLock) -> None:
+    def __init__(self, accounts: InMemoryAccounts) -> None:
         self._accounts = accounts
         self._rows: dict[str, _SessionRow] = {}
-        self._guard = guard
+        self._guard = accounts.guard
+
+    def exclusive(self) -> AbstractContextManager[bool]:
+        """Holds both stores against every other thread for the length of a `with` block."""
+        return self._guard
 
     def create(
         self,
@@ -284,18 +288,16 @@ class InMemorySignInTransaction:
         sessions: InMemorySessions,
         audit: AuditSink,
         lock: ProcessWriteLock,
-        guard: threading.RLock,
     ) -> None:
         self._accounts = accounts
         self._sessions = sessions
         self._audit = audit
         self._lock = lock
-        self._guard = guard
 
     @contextmanager
     def __call__(self) -> Iterator[WebauthSignInStores]:
         deferred = _DeferredAudit()
-        with self._lock.hold(), self._guard:
+        with self._lock.hold(), self._sessions.exclusive():
             snapshot = self._sessions.snapshot()
             try:
                 yield WebauthSignInStores(accounts=self._accounts, sessions=self._sessions, audit=deferred)
@@ -314,11 +316,10 @@ class SignInStores:
 
     @classmethod
     def in_memory(cls) -> SignInStores:
-        guard = threading.RLock()
-        accounts = InMemoryAccounts(guard)
-        sessions = InMemorySessions(accounts, guard)
+        accounts = InMemoryAccounts()
+        sessions = InMemorySessions(accounts)
         return cls(
             accounts=accounts,
             sessions=sessions,
-            transaction=InMemorySignInTransaction(accounts, sessions, LoggingAuditSink(), ProcessWriteLock(), guard),
+            transaction=InMemorySignInTransaction(accounts, sessions, LoggingAuditSink(), ProcessWriteLock()),
         )
