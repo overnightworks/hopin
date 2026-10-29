@@ -11,7 +11,7 @@ import {
 import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
-import { initMenus } from "./menus.js";
+import { initMenus } from "#lib/ui/menus.ts";
 import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {

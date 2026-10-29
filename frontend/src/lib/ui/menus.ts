@@ -1,7 +1,13 @@
-let openedMenu = null;
-const scrimsClosingTheMenu = new WeakSet();
+export interface Menu {
+    readonly button: HTMLButtonElement;
+    readonly dialog: HTMLDialogElement;
+    readonly scrim: HTMLElement;
+    readonly firstFocus: string;
+}
 
-function closeMenu({ button, dialog, scrim }) {
+let openedMenu: Menu | null = null;
+
+function closeMenu({ button, dialog, scrim }: Menu) {
     openedMenu = null;
     scrim.classList.add("hidden");
     dialog.close();
@@ -10,18 +16,22 @@ function closeMenu({ button, dialog, scrim }) {
     button.focus();
 }
 
-function openMenu(menu) {
+function openMenu(menu: Menu) {
     if (openedMenu) closeMenu(openedMenu);
     openedMenu = menu;
     menu.scrim.classList.remove("hidden");
     menu.dialog.show();
     menu.button.classList.add("active");
     menu.button.setAttribute("aria-expanded", "true");
-    const firstItems = menu.dialog.querySelectorAll(menu.firstFocus);
-    [...firstItems].find((item) => item.checkVisibility()).focus();
+    const firstItems = menu.dialog.querySelectorAll<HTMLElement>(menu.firstFocus);
+    const firstVisibleItem = [...firstItems].find((item) => item.checkVisibility());
+    if (!firstVisibleItem) {
+        throw new Error(`Menu has no visible item matching "${menu.firstFocus}" to focus`);
+    }
+    firstVisibleItem.focus();
 }
 
-function toggleMenu(menu) {
+function toggleMenu(menu: Menu) {
     if (openedMenu === menu) closeMenu(menu);
     else openMenu(menu);
 }
@@ -30,10 +40,10 @@ export function closeOpenMenu() {
     if (openedMenu) closeMenu(openedMenu);
 }
 
-export function registerMenu(menu) {
-    menu.button.addEventListener("click", () => toggleMenu(menu));
-    if (scrimsClosingTheMenu.has(menu.scrim)) return;
-    scrimsClosingTheMenu.add(menu.scrim);
+export function registerMenu(menu: Menu) {
+    menu.button.addEventListener("click", () => {
+        toggleMenu(menu);
+    });
     menu.scrim.addEventListener("click", closeOpenMenu);
 }
 
