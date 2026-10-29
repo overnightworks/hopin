@@ -1,8 +1,0 @@
-claim_id = "594e01c792154e8494987e6fea44b0f7"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "83316b097bd048cc6202f8da3ca93ea0f0a27b43"
-branch = "claude/issue-299-call-page-kit-neutrals"
-scope = ["docs/decisions/0001-static-frontend-modules.md", "docs/mockups/README.md", "docs/mockups/hopin-call.html", "src/hopin/web/static/assets/css/hopin.css", "tests/web/test_routes.py"]
-opened_commit = "2dae3e3822d7a47fa60fd9ebc94d94d6d943a139"
-whole_reason = "One stylesheet's neutral tokens move onto the kit, and the test, ADR and mockup that describe them move with it."
