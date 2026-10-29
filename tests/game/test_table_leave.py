@@ -214,8 +214,10 @@ class TestTheStartersLeave:
             push_unsettled(host, END)
             await wait_within_cap(entered)
             closing.release.set()
-            await finished_within_cap(session_check)
-            gate.set()
+            try:
+                await finished_within_cap(session_check)
+            finally:
+                gate.set()
             await sent_to_all([host, third, fourth], IDLE)
 
         for browser in (host, third, fourth):
