@@ -1,17 +1,20 @@
 import secrets
 import threading
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import structlog
+from webauth.ports import SignInStores as WebauthSignInStores
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
     from datetime import datetime
+    from types import TracebackType
 
     from pydantic import SecretStr
-    from webauth.ports import AccountEvent
+    from webauth.ports import AccountEvent, AuditSink
 
 SESSION_ID_BYTES = 32
 
@@ -62,33 +65,41 @@ class _SessionRow:
 class InMemoryAccounts:
     """Accounts of one process, keyed by the issuer's subject and compared exactly.
 
-    Never calls into `InMemorySessions`: the lock order is the sessions guard, then this one.
+    Creates the guard that `InMemorySessions` and the sign-in transaction reach through it.
     """
 
     def __init__(self) -> None:
         self._by_subject: dict[str, StoredAccount] = {}
-        self._guard = threading.Lock()
+        self.guard = threading.RLock()
 
     def get(self, user_id: str) -> StoredAccount | None:
-        with self._guard:
+        with self.guard:
             return self._by_subject.get(user_id)
 
     def existing(self, user_id: str) -> StoredAccount:
-        with self._guard:
+        with self.guard:
             return self._by_subject[user_id]
 
     def create_for_subject(self, subject: str, username: str, role: str) -> StoredAccount:
         account = StoredAccount(id=subject, username=username, role=role)
-        with self._guard:
+        with self.guard:
             self._by_subject[subject] = account
         return account
 
     def remove(self, user_id: str) -> None:
-        with self._guard:
+        with self.guard:
             self._by_subject.pop(user_id, None)
 
+    def snapshot(self) -> Mapping[str, StoredAccount]:
+        with self.guard:
+            return MappingProxyType(dict(self._by_subject))
+
+    def restore(self, snapshot: Mapping[str, StoredAccount]) -> None:
+        with self.guard:
+            self._by_subject = dict(snapshot)
+
     def set_role(self, user_id: str, role: str) -> StoredAccount:
-        with self._guard:
+        with self.guard:
             existing = self._by_subject[user_id]
             account = StoredAccount(id=existing.id, username=existing.username, role=role)
             self._by_subject[user_id] = account
@@ -98,15 +109,22 @@ class InMemoryAccounts:
 class InMemorySessions:
     """Sessions of one process; each record answers its account from the accounts store, as a join would.
 
-    Every path that joins a row to its account, or removes the account, does so inside this guard (taken after
-    the `ProcessWriteLock` when the caller holds it, before the accounts' own), so a row and its account are
-    both there or both gone for every reader.
+    Every access to either store takes the one re-entrant guard they share (after the `ProcessWriteLock` when
+    the caller holds it), so a row and its account are both there or both gone for every reader.
     """
 
-    def __init__(self, accounts: InMemoryAccounts, guard: threading.Lock) -> None:
+    def __init__(self, accounts: InMemoryAccounts) -> None:
         self._accounts = accounts
         self._rows: dict[str, _SessionRow] = {}
-        self._guard = guard
+        self._guard = accounts.guard
+
+    @property
+    def accounts(self) -> InMemoryAccounts:
+        return self._accounts
+
+    def exclusive(self) -> AbstractContextManager[bool]:
+        """Holds both stores against every other thread for the length of a `with` block."""
+        return self._guard
 
     def create(
         self,
@@ -184,6 +202,16 @@ class InMemorySessions:
         with self._guard:
             self._rows.pop(session_id, None)
 
+    def snapshot(self) -> StoresSnapshot:
+        """Both stores as they stand, taken under the sessions guard so a row and its account match."""
+        with self._guard:
+            return StoresSnapshot(accounts=self._accounts.snapshot(), rows=MappingProxyType(dict(self._rows)))
+
+    def restore(self, snapshot: StoresSnapshot) -> None:
+        with self._guard:
+            self._rows = dict(snapshot.rows)
+            self._accounts.restore(snapshot.accounts)
+
     def delete_for_user(self, user_id: str) -> int:
         """Ends every session of the subject and removes the account, also when no session was left."""
         with self._guard:
@@ -202,6 +230,12 @@ class InMemorySessions:
             )
             for row in newest_first[keep_newest:]:
                 del self._rows[row.id]
+
+
+@dataclass(frozen=True)
+class StoresSnapshot:
+    accounts: Mapping[str, StoredAccount]
+    rows: Mapping[str, _SessionRow]
 
 
 def _joined(row: _SessionRow, user: StoredAccount) -> StoredSession:
@@ -234,19 +268,98 @@ class LoggingAuditSink:
         logger.info("account_event", kind=event.kind.value, subject_id=event.subject_id, role=event.role)
 
 
+class _DeferredAudit:
+    """Holds the events of one sign-in entry until it commits, so a rolled-back entry reports none."""
+
+    def __init__(self) -> None:
+        self.events: list[AccountEvent] = []
+
+    def account_event(self, event: AccountEvent) -> None:
+        self.events.append(event)
+
+
+class InMemorySignInTransaction:
+    """One sign-in entry at a time; a block that raises leaves both stores as they were at entry.
+
+    The entry holds the stores' shared guard from its snapshot to its exit, so no other thread reads or writes
+    either store in between and the rollback undoes only the entry's own writes. Commit does nothing more,
+    except that the audit events go to the sink as the block's last step, so a sink that fails rolls the entry
+    back too. Lock order: the sign-in lock, then the guard.
+    """
+
+    def __init__(
+        self,
+        sessions: InMemorySessions,
+        audit: AuditSink,
+        lock: ProcessWriteLock,
+    ) -> None:
+        self._sessions = sessions
+        self._audit = audit
+        self._lock = lock
+
+    def __call__(self) -> AbstractContextManager[WebauthSignInStores]:
+        return _SignInEntry(self._sessions, self._audit, self._lock)
+
+
+class _SignInEntry:
+    """One entry into the transaction; it takes the locks on enter and gives them back on exit, on every path."""
+
+    def __init__(self, sessions: InMemorySessions, audit: AuditSink, lock: ProcessWriteLock) -> None:
+        self._sessions = sessions
+        self._audit = audit
+        self._lock = lock
+        self._deferred = _DeferredAudit()
+        self._held = ExitStack()
+        self._snapshot: StoresSnapshot  # taken by __enter__, the only way to reach __exit__
+        self._entered = False
+
+    def __enter__(self) -> WebauthSignInStores:
+        if self._entered:
+            message = "A sign-in entry is entered once; ask the transaction for a new one"
+            raise RuntimeError(message)
+        self._entered = True
+        try:
+            self._held.enter_context(self._lock.hold())
+            self._held.enter_context(self._sessions.exclusive())
+            self._snapshot = self._sessions.snapshot()
+            return WebauthSignInStores(accounts=self._sessions.accounts, sessions=self._sessions, audit=self._deferred)
+        except BaseException:
+            self._held.close()
+            raise
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        _exception: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        with self._held:
+            if exception_type is not None:
+                self._restore()
+                return
+            try:
+                for event in self._deferred.events:
+                    self._audit.account_event(event)
+            except BaseException:
+                self._restore()
+                raise
+
+    def _restore(self) -> None:
+        self._sessions.restore(self._snapshot)
+
+
 @dataclass(frozen=True)
 class SignInStores:
     accounts: InMemoryAccounts
     sessions: InMemorySessions
-    lock: ProcessWriteLock
-    audit: LoggingAuditSink
+    transaction: InMemorySignInTransaction
 
     @classmethod
     def in_memory(cls) -> SignInStores:
         accounts = InMemoryAccounts()
+        sessions = InMemorySessions(accounts)
         return cls(
             accounts=accounts,
-            sessions=InMemorySessions(accounts, threading.Lock()),
-            lock=ProcessWriteLock(),
-            audit=LoggingAuditSink(),
+            sessions=sessions,
+            transaction=InMemorySignInTransaction(sessions, LoggingAuditSink(), ProcessWriteLock()),
         )

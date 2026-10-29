@@ -1,7 +1,6 @@
 import json
 import re
 import secrets
-import threading
 import time
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -24,9 +23,16 @@ from hopin.auth.sign_in import (
     IssuerTransports,
     build_relying_party,
     build_sign_in_configs,
-    create_sign_in_router,
+    install_sign_in,
 )
-from hopin.auth.stores import InMemoryAccounts, InMemorySessions, LoggingAuditSink, ProcessWriteLock
+from hopin.auth.stores import (
+    InMemoryAccounts,
+    InMemorySessions,
+    InMemorySignInTransaction,
+    LoggingAuditSink,
+    ProcessWriteLock,
+    SignInStores,
+)
 from hopin.config.constants import (
     ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
@@ -130,19 +136,14 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         transports = issuer.transports
         if key_set_of is not None:
             transports = IssuerTransports(transports.post_token_request, key_set_of.fetch_key_set)
-        accounts = InMemoryAccounts()
-        sessions = InMemorySessions(accounts, threading.Lock())
+        stores = SignInStores.in_memory()
+        accounts, sessions = stores.accounts, stores.sessions
         app = FastAPI()
         install_web_auth_config(app, configs.web_auth)
-        app.include_router(
-            create_sign_in_router(
-                build_relying_party(configs, transports),
-                accounts=accounts,
-                sessions=sessions,
-                lock=ProcessWriteLock(),
-                audit=LoggingAuditSink() if audit is None else audit,
-            )
+        transaction = InMemorySignInTransaction(
+            sessions, LoggingAuditSink() if audit is None else audit, ProcessWriteLock()
         )
+        install_sign_in(app, build_relying_party(configs, transports), transaction)
 
         @app.get(WHO_AM_I_PATH)
         def who_am_i(request: Request) -> dict[str, object]:
@@ -245,7 +246,7 @@ class TestStart:
         assert {"httponly", "secure"} <= pending[0]
 
 
-class TestAdmittedLogin:
+class TestMemberSignIn:
     @pytest.mark.parametrize("group", [LOGIN_GROUP, f"{LOGIN_GROUP}/team"])
     def test_a_member_gets_a_session_and_lands_on_the_requested_page(self, harness, group):
         browser = harness.browser()
@@ -517,14 +518,15 @@ class TestBackchannelLogout:
         assert harness.sessions.load(session.id) is not None
         assert harness.accounts.get("anna") == account
 
-    def test_an_audit_failure_after_the_deletion_answers_500_with_the_sessions_already_ended(self, make_harness):
+    def test_an_audit_failure_after_the_deletion_answers_400_and_every_session_stands(self, make_harness):
         harness = make_harness(audit=FailingAuditSink())
-        (session_id,) = self.sign_in_on_devices(harness, "anna", devices=1)
+        session_ids = self.sign_in_on_devices(harness, "anna", devices=2)
 
         response = harness.post_logout_token(harness.issuer.logout_token("anna"))
 
-        assert response.status_code == 500
-        assert harness.sessions.load(session_id) is None
+        assert response.status_code == 400
+        assert all(harness.sessions.load(session_id) is not None for session_id in session_ids)
+        assert harness.accounts.get("anna") is not None
 
 
 class TestRefusedLogin:

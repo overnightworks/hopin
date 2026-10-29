@@ -1,6 +1,7 @@
 from enum import StrEnum
 
 from webauth.policies import PathRules, RateLimitBudget
+from webauth.sign_in_routes import SignInPaths
 
 DEFAULT_HOST = "0.0.0.0"  # noqa: S104 - the container must listen on every interface and HOPIN_HOST overrides it
 DEFAULT_PORT = 8080
@@ -22,20 +23,21 @@ LOGIN_PATH = "/login"
 NO_ACCESS_PATH = "/no-access"
 LOGOUT_PATH = "/logout"
 BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout"
-BACKCHANNEL_LOGOUT_PATH_RULES = PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PATH}))
+SIGN_IN_PATHS = SignInPaths(
+    start=AUTH_START_PATH, callback=AUTH_CALLBACK_PATH, logout=LOGOUT_PATH, backchannel_logout=BACKCHANNEL_LOGOUT_PATH
+)
+RETURN_TO_QUERY_PARAMETER = SIGN_IN_PATHS.login_redirect.redirect_query_param
 DEFAULT_REQUEST_BODY_MAX_BYTES = 4 * 1024
-BACKCHANNEL_LOGOUT_BODY_MAX_BYTES = 32 * 1024
 # A complete sign-in is two requests, so 40 requests in ten minutes admit 20 sign-ins from one address.
 SIGN_IN_RATE_LIMIT_BUDGET = RateLimitBudget(name="sign-in", max_requests=40, window_seconds=10 * 60)
 DEFAULT_RATE_LIMIT_BUDGET = RateLimitBudget(name="requests", max_requests=600, window_seconds=60)
-SIGN_IN_PATH_RULES = PathRules(exact=frozenset({AUTH_START_PATH, AUTH_CALLBACK_PATH}))
-# Keycloak posts from shared server addresses and the health check is the edge's readiness probe.
-RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=frozenset({BACKCHANNEL_LOGOUT_PATH, HEALTH_PATH}))
+# The health check is the edge's readiness probe; the back-channel logout comes from Keycloak's shared addresses.
+RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=SIGN_IN_PATHS.backchannel.exact | {HEALTH_PATH})
 
 PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
 
 NO_CACHE_PATH_RULES = PathRules(
-    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, AUTH_CALLBACK_PATH}),
+    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH}),
     prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
 )
 
@@ -46,7 +48,6 @@ LOGIN_GROUP = "/apps/hopin"
 ADMIN_GROUP = f"{LOGIN_GROUP}/admin"
 PEOPLE_EXPORT_VERSION = 1
 EXPORT_APP_NAME = "hopin"
-RETURN_TO_QUERY_PARAMETER = "next"
 OIDC_SCOPES = ("openid", "profile", "groups")
 OIDC_LEEWAY_SECONDS = 30
 SESSION_LIFETIME_SECONDS = 12 * 60 * 60

@@ -16,6 +16,7 @@ from hopin.config.constants import (
     BACKCHANNEL_LOGOUT_PATH,
     HEALTH_PATH,
     LOGIN_PATH,
+    LOGOUT_PATH,
     NO_ACCESS_PATH,
 )
 from tests.support.fake_issuer import FakeIssuer
@@ -148,6 +149,16 @@ class TestSignInBudget:
         exhausted_sign_in.clock.advance(SIGN_IN_WINDOW_SECONDS)
         assert exhausted_sign_in.client().get(AUTH_START_PATH).status_code == HTTPStatus.SEE_OTHER
 
+    def test_a_logout_spends_the_sign_in_budget_too(self, deployment):
+        browser = deployment.client()
+        for _ in range(SIGN_IN_BUDGET_REQUESTS):
+            assert browser.get(AUTH_START_PATH).status_code == HTTPStatus.SEE_OTHER
+
+        refused = browser.post(LOGOUT_PATH, headers={**FORM_POST, "origin": TEST_PUBLIC_ORIGIN})
+
+        assert refused.status_code == HTTPStatus.TOO_MANY_REQUESTS
+        assert refused.headers["retry-after"] == str(SIGN_IN_WINDOW_SECONDS)
+
     def test_starts_and_callbacks_spend_one_shared_budget_in_either_order(self, deployment):
         starter = deployment.client("198.51.100.20")
         for _ in range(SIGN_IN_BUDGET_REQUESTS):
@@ -253,4 +264,4 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings().settings
 
         assert settings.trusted_proxies == ""
-        assert not build_sign_in_configs(settings).web_auth.trusted_proxies
+        assert not build_sign_in_configs(settings).web_auth.trusted_proxies.networks
