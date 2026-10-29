@@ -49,7 +49,7 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ### Erasing a person
 
-Remove the person from `/apps/hopin` in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`) then makes HopIn drop the person; a second logout for the same person, or one for a person HopIn does not know, changes nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
+Remove the person from `/apps/hopin` in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves) then makes HopIn drop the person; a second logout for the same person, or one for a person HopIn does not know, changes nothing, and a logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
 
 - **Removed at once:** every session of the person, refresh and ID tokens included, and their account.
 - **Removed within 60 seconds:** the person's own seats in calls, with the resume token and the frames held for it. A seat closes at the person's next frame or at the next minute check, or, for a seat whose connection dropped, when its 30-second wait ends. A call the person hosts ends for everyone after a further 60-second wait.
