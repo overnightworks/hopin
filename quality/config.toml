@@ -5,6 +5,10 @@ mandatory_jobs = ["Lint and test", "End-to-end", "Coverage", "Removal drill"]
 entry = "Makefile"
 reason = "make finds its Makefile only in the directory it runs from"
 
+[[root.allow]]
+entry = "legal/"
+reason = "hal apply reads HopIn's legal section here (edge#110)"
+
 [[gate.loosened]]
 what = "import contract \"HopIn's packages depend downwards only\" changes layers"
 item = "#265"
