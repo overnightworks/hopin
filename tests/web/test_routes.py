@@ -2,6 +2,7 @@ import hashlib
 import re
 from functools import partial
 from html.parser import HTMLParser
+from importlib.metadata import version
 from xml.etree import ElementTree
 
 import pytest
@@ -28,6 +29,7 @@ from hopin.rooms.models import Account
 from hopin.signaling.features import FeatureClashError
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
+from hopin.web.kit import KIT_PATH, KIT_STYLESHEET_PATH
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
@@ -54,9 +56,9 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_five_routes_and_the_static_mount(self, signaling_handler, room_manager):
+    def test_returns_five_routes_and_the_kit_and_static_mounts(self, signaling_handler, room_manager):
         router = create_router(signaling_handler, room_manager)
-        assert len(router.routes) == 6
+        assert len(router.routes) == 7
 
     def test_static_dir_points_to_web_static(self):
         assert STATIC_DIR.name == "static"
@@ -133,6 +135,15 @@ class TestStaticAssets:
     )
     def test_serves_asset_with_its_content_type(self, client, asset, content_type):
         response = client.get(f"{STATIC_PATH}/{asset}")
+        assert response.status_code == 200
+        assert content_type in response.headers["content-type"]
+
+    @pytest.mark.parametrize(
+        ("asset", "content_type"),
+        [("appkit.css", "text/css"), ("fonts/oswald-latin-700-normal.woff2", "font/woff2")],
+    )
+    def test_serves_the_kit_under_its_versioned_path(self, client, asset, content_type):
+        response = client.get(f"{KIT_PATH}/{asset}")
         assert response.status_code == 200
         assert content_type in response.headers["content-type"]
 
@@ -382,7 +393,14 @@ class TestNoAccessPage:
 
 class TestPageShell:
     def test_every_page_loads_ui_console_before_hopin(self, every_page_inventory):
-        assert every_page_inventory.stylesheets == [f"{STATIC_PATH}/css/ui-console.css", f"{STATIC_PATH}/css/hopin.css"]
+        assert every_page_inventory.stylesheets == [
+            f"{STATIC_PATH}/css/ui-console.css",
+            KIT_STYLESHEET_PATH,
+            f"{STATIC_PATH}/css/hopin.css",
+        ]
+
+    def test_the_kit_path_carries_the_installed_kit_version(self):
+        assert f"{STATIC_PATH}/appkit-{version('overnightworks-appkit')}" == KIT_PATH
 
     def test_every_page_links_the_brand_mark_as_its_one_svg_icon(self, every_page_inventory):
         assert every_page_inventory.icons == [{"rel": "icon", "type": "image/svg+xml", "href": FAVICON_URL}]

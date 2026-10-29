@@ -10,7 +10,7 @@ attributes would break.
 
 ## Decision
 
-The page is markup, two stylesheets and ES modules, served from
+The page is markup, stylesheets and ES modules, served from
 `src/hopin/web/static/`. Every route but the named public paths is behind
 webauth's session gate, and the CSP and the Permissions-Policy come from
 webauth:
@@ -22,7 +22,11 @@ webauth:
   fetches, not where a link goes. A guard test (`tests/web/test_routes.py`) keeps
   it so.
 - The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
-  then `hopin.css`. An upgrade of the first is a new vendoring, never an edit.
+  then appkit's `appkit.css`, then `hopin.css`. An upgrade of the first is a
+  new vendoring, never an edit. The kit is the installed `overnightworks-appkit`
+  package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
+  `/static`; the gate admits its stylesheet and fonts as exact paths, never its
+  licence files.
 - `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/`, `img/` (the
   brand mark every page links as its icon) and `js/` are reachable, so the page
   is served only at its routes, never from the mount.

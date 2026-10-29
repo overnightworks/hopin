@@ -12,6 +12,7 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
+from hopin.web.kit import KIT_DIR, KIT_PATH
 from hopin.web.wire import WIRE_MODULE_MEDIA_TYPE, WIRE_MODULE_PATH, render_wire_module
 
 if TYPE_CHECKING:
@@ -46,6 +47,7 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
     def wire_module() -> Response:
         return Response(wire_module_content, media_type=WIRE_MODULE_MEDIA_TYPE)
 
+    router.mount(KIT_PATH, StaticFiles(directory=KIT_DIR), name="appkit")
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)
     return router
