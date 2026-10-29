@@ -32,7 +32,6 @@ import { initHome, showGreeting } from "./home.js";
 import { TOAST_KIND, clearToast, showToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
-import { FEATURE_MODULES } from "/static/js/wire.js";
 
 const callEndedHooks = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
@@ -52,9 +51,14 @@ const FEATURE_CORE = Object.freeze({
 });
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
 // A feature that fails to load never stops the call; it resolves to whether every feature is in.
-const featuresInstalled = Promise.all(
-    FEATURE_MODULES.map(async (moduleUrl) => (await import(/* @vite-ignore */ moduleUrl)).install(FEATURE_CORE)),
-).then(
+const WIRE_URL = "/static/js/wire.js";
+async function installFeatures() {
+    const { FEATURE_MODULES } = await import(/* @vite-ignore */ WIRE_URL);
+    await Promise.all(
+        FEATURE_MODULES.map(async (moduleUrl) => (await import(/* @vite-ignore */ moduleUrl)).install(FEATURE_CORE)),
+    );
+}
+const featuresInstalled = installFeatures().then(
     () => true,
     () => false,
 );
