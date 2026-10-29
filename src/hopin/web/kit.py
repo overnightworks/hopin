@@ -7,7 +7,6 @@ from hopin.config.constants import STATIC_PATH
 KIT_PACKAGE = "overnightworks-appkit"
 KIT_DIR = Path(str(files("appkit") / "static"))
 KIT_PATH = f"{STATIC_PATH}/appkit-{version(KIT_PACKAGE)}"
-KIT_STYLESHEET_PATH = f"{KIT_PATH}/appkit.css"
 PUBLIC_KIT_SUFFIXES = frozenset({".css", ".woff2"})
 # Exact files only: the kit's licence files stay behind the session gate because no signed-out page fetches them.
 PUBLIC_KIT_PATHS = frozenset(

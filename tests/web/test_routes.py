@@ -1,8 +1,9 @@
 import hashlib
 import re
+import tomllib
 from functools import partial
 from html.parser import HTMLParser
-from importlib.metadata import version
+from pathlib import Path
 from xml.etree import ElementTree
 
 import pytest
@@ -29,7 +30,7 @@ from hopin.rooms.models import Account
 from hopin.signaling.features import FeatureClashError
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
-from hopin.web.kit import KIT_PATH, KIT_STYLESHEET_PATH
+from hopin.web.kit import KIT_PATH
 from hopin.web.routes import PAGE, STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
@@ -163,6 +164,7 @@ NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
 UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
+LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
 # HopIn's own stylesheets: the page's and each one a feature's browser module loads.
 OWN_STYLESHEETS = sorted(set((STATIC_DIR / "assets").rglob("*.css")) - {UI_CONSOLE_CSS})
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
@@ -392,15 +394,17 @@ class TestNoAccessPage:
 
 
 class TestPageShell:
-    def test_every_page_loads_ui_console_before_hopin(self, every_page_inventory):
+    def test_every_page_loads_ui_console_then_the_kit_then_hopin(self, every_page_inventory):
         assert every_page_inventory.stylesheets == [
             f"{STATIC_PATH}/css/ui-console.css",
-            KIT_STYLESHEET_PATH,
+            f"{KIT_PATH}/appkit.css",
             f"{STATIC_PATH}/css/hopin.css",
         ]
 
-    def test_the_kit_path_carries_the_installed_kit_version(self):
-        assert f"{STATIC_PATH}/appkit-{version('overnightworks-appkit')}" == KIT_PATH
+    def test_the_kit_path_carries_the_version_the_lock_records(self):
+        packages = tomllib.loads(LOCK_FILE.read_text())["package"]
+        locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
+        assert KIT_PATH.endswith(f"/appkit-{locked}")
 
     def test_every_page_links_the_brand_mark_as_its_one_svg_icon(self, every_page_inventory):
         assert every_page_inventory.icons == [{"rel": "icon", "type": "image/svg+xml", "href": FAVICON_URL}]

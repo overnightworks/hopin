@@ -33,7 +33,7 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from hopin.web.kit import KIT_DIR, KIT_PATH, KIT_STYLESHEET_PATH
+from hopin.web.kit import KIT_DIR, KIT_PATH
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
-STYLESHEETS = ["/static/css/ui-console.css", KIT_STYLESHEET_PATH, "/static/css/hopin.css"]
+STYLESHEETS = ["/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css"]
 KIT_FONTS = [f"{KIT_PATH}/fonts/{font.name}" for font in sorted((KIT_DIR / "fonts").glob("*.woff2"))]
 GATED_KIT_PATHS = [
     f"{KIT_PATH}/fonts/oswald-LICENSE",
