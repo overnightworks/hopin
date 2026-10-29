@@ -246,7 +246,7 @@ class TestStart:
         assert {"httponly", "secure"} <= pending[0]
 
 
-class TestAdmittedLogin:
+class TestMemberSignIn:
     @pytest.mark.parametrize("group", [LOGIN_GROUP, f"{LOGIN_GROUP}/team"])
     def test_a_member_gets_a_session_and_lands_on_the_requested_page(self, harness, group):
         browser = harness.browser()
