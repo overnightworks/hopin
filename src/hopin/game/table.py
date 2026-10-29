@@ -33,6 +33,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 MILLISECONDS_PER_SECOND: Final = 1000
 IDLE_FRAME: Final[JsonObject] = {TYPE_KEY: GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
+ENDED_FRAME: Final[JsonObject] = {TYPE_KEY: GameSignal.GAME_ENDED.value}
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,7 @@ class _Run:
     previous: asyncio.Task[None] | None
     ask: asyncio.Task[GameOutcome]
     broken_writes: list[Exception] = field(default_factory=list)
+    ended: bool = False
     started_at: float = field(init=False)
     driver: asyncio.Task[None] = field(init=False)
     deadline: TimerHandle = field(init=False)
@@ -142,6 +144,8 @@ class Game:
                 await self._reveal(peer_id)
             case GameSignal.GAME_ANSWER:
                 await self._answer(peer_id, frame.data)
+            case GameSignal.GAME_END:
+                await self._end(peer_id)
             case _:
                 return False
         return True
@@ -167,6 +171,40 @@ class Game:
         elif quiz is None or quiz.starter != peer_id:
             await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.NOT_STARTER)))
 
+    async def _end(self, peer_id: PeerId) -> None:
+        """End the room's quiz for everyone; it runs in the ender's receive loop, which never waits on a driver."""
+        room_id = self._rooms.room_of(peer_id)
+        quiz = None if room_id is None else self._quizzes.get(room_id)
+        if room_id is None or quiz is None or quiz.is_over:
+            return
+        if not quiz.may_end(peer_id, hosts_call=self._rooms.is_host(peer_id)):
+            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.NOT_STARTER_OR_HOST)))
+            return
+        await self._end_for_everyone(room_id, quiz, ENDED_FRAME)
+
+    async def _end_for_everyone(self, room_id: str, quiz: Quiz, notice: JsonObject) -> None:
+        """Send the room's seats the notice, then idle, and remove the quiz; the quiz is not over yet."""
+        ended = quiz.ended()
+        self._quizzes[room_id] = ended
+        self._phases.pop(room_id, None)
+        for run in self._runs.get(room_id, []):
+            # The room keeps the run until its call has closed, so a new quiz never overlaps it.
+            run.ended = True
+            run.deadline.cancel()
+            run.ask.cancel()
+        recipients = self._rooms.members(room_id)
+        try:
+            for frame in (notice, IDLE_FRAME):
+                broken_writes = await self._send_isolated(
+                    recipients, frame, lambda: self._quizzes.get(room_id) is ended
+                )
+                for error in broken_writes:
+                    # Only the type is logged, never a name or an answer.
+                    logger.error("game_end_failed", error=type(error).__name__)
+        finally:
+            if self._quizzes.get(room_id) is ended:
+                del self._quizzes[room_id]
+
     async def _answer(self, peer_id: PeerId, data: JsonObject) -> None:
         room_id = self._rooms.room_of(peer_id)
         if room_id is None:
@@ -183,10 +221,13 @@ class Game:
             return
         answered = quiz.with_answer(peer_id, self._rooms.name_of(peer_id), text.strip())
         self._quizzes[room_id] = answered
-        present = self._present_players(room_id, answered)
-        await self._send_answer_count(room_id, answered, present)
-        if self._reveal_is_due(room_id, answered, present):
-            self._run(room_id, answered.revealing())
+        await self._count_and_reveal_when_due(room_id, answered)
+
+    async def _count_and_reveal_when_due(self, room_id: str, quiz: Quiz) -> None:
+        present = self._present_players(room_id, quiz)
+        await self._send_answer_count(room_id, quiz, present)
+        if self._reveal_is_due(room_id, quiz, present):
+            self._run(room_id, quiz.revealing())
 
     def _present_players(self, room_id: str, quiz: Quiz) -> frozenset[PeerId]:
         """The players still in the room; a parked seat stays in it until its grace ends."""
@@ -235,6 +276,22 @@ class Game:
             phase.told.add(peer_id)
             await self._rooms.send(peer_id, phase.frame)
 
+    async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
+        """The starter's leave ends the quiz for everyone; a player's leave shrinks the count of an answered question.
+
+        An ending that came first has left no quiz, or an over one, and the notice then sends nothing.
+        """
+        quiz = self._quizzes.get(room_id)
+        if quiz is None or quiz.is_over:
+            return
+        if peer_id == quiz.starter:
+            await self._end_for_everyone(room_id, quiz, {**ENDED_FRAME, "leaver": name})
+        elif quiz.counts_leave_of(peer_id):
+            # Replacing the quiz first makes a count or a reveal check still in flight find its quiz replaced.
+            shrunk = quiz.without_player(peer_id)
+            self._quizzes[room_id] = shrunk
+            await self._count_and_reveal_when_due(room_id, shrunk)
+
     def room_ended(self, room_id: str) -> None:
         """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
         self._quizzes.pop(room_id, None)
@@ -264,7 +321,7 @@ class Game:
             self._log_run(room_id, run, outcome)
             await self._deliver(room_id, run, outcome)
         finally:
-            if self._is_live(room_id, run):
+            if self._holds(room_id, run):
                 self._forget(room_id, run)
         if run.broken_writes:
             raise run.broken_writes[0]
@@ -277,7 +334,13 @@ class Game:
             await self._send_each(room_id, run, recipients, _line_frame(outcome, run.quiz))
             quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
+            # The refusal ends the quiz: it is over before the first write, so no End starts a second ending.
+            self._quizzes[room_id] = run.quiz.ended()
+            seated = self._rooms.members(room_id)
             await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(outcome))
+            if not run.quiz.is_opening:
+                others = [seat for seat in seated if seat != run.quiz.starter]
+                await self._send_each(room_id, run, others, ENDED_FRAME)
             quiz = None
         if not self._is_live(room_id, run):
             return
@@ -286,15 +349,16 @@ class Game:
         if quiz is None or quiz.is_over:
             await self._end_quiz(room_id, run)
         elif quiz.awaits_game_master:
-            await self._chain(room_id, run, quiz)
+            self._chain(room_id, quiz)
         else:
             await self._open_question(room_id, run, quiz)
 
-    async def _chain(self, room_id: str, run: _Run, quiz: Quiz) -> None:
-        """Run the quiz's next request at once, on the starter's token and with no idle in between."""
-        if self._rooms.room_of(quiz.starter) is None:
-            await self._end_quiz(room_id, run)
-        else:
+    def _chain(self, room_id: str, quiz: Quiz) -> None:
+        """Run the quiz's next request at once, on the starter's token and with no idle in between.
+
+        A starter whose seat is gone gets no run: that seat's `seat_left` notice ends the quiz.
+        """
+        if self._rooms.room_of(quiz.starter) is not None:
             self._run(room_id, quiz)
 
     async def _open_question(self, room_id: str, run: _Run, quiz: Quiz) -> None:
@@ -316,8 +380,11 @@ class Game:
             await asyncio.wait({previous})
         return await self._game_master.ask(starter, transcript)
 
-    def _is_live(self, room_id: str, run: _Run) -> bool:
+    def _holds(self, room_id: str, run: _Run) -> bool:
         return run in self._runs.get(room_id, [])
+
+    def _is_live(self, room_id: str, run: _Run) -> bool:
+        return not run.ended and self._holds(room_id, run)
 
     def _forget(self, room_id: str, run: _Run) -> None:
         runs = self._runs[room_id]
@@ -358,6 +425,8 @@ class Game:
 
     def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         shown = "line" if isinstance(outcome, Line) else outcome.reason.value
+        if run.ended:
+            shown = "ended"
         duration_ms = round((self._scheduler.now() - run.started_at) * MILLISECONDS_PER_SECOND)
         logger.info("game_master_run", room_id=room_id, outcome=shown, duration_ms=duration_ms)
 

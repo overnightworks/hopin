@@ -34,6 +34,13 @@ class CallRooms:
         """The name the call shows for the seat; the seat must exist."""
         return self._routing.seats.account_of(peer_id).name
 
+    def is_host(self, peer_id: PeerId) -> bool:
+        """Whether the seat's account hosts the call it sits in; the seat must be in a room."""
+        room_id = self.room_of(peer_id)
+        return room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(
+            self._routing.seats.account_of(peer_id)
+        )
+
     def connection_of(self, peer_id: PeerId) -> HTTPConnection:
         """The connection that serves the seat now, carrying its sign-in."""
         return self._routing.seats.seat(peer_id).websocket
@@ -59,6 +66,11 @@ class CallFeature(Protocol):
 
     async def seat_joined(self, peer_id: PeerId) -> None:
         """A seat has just joined a room; a resumed seat has not."""
+
+    async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
+        """A seat has left its room for good: its leave, its ended session, its grace run out or its unresumable
+        seat released; called after the room has heard it left. A parked or resumed seat has not left, and a
+        room's end calls `room_ended` instead."""
 
     def room_ended(self, room_id: str) -> None:
         """The room is gone; called before the call core awaits anything or tells a seat."""

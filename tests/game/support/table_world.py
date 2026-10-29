@@ -5,20 +5,35 @@ import json
 
 from hopin.config.constants import SignalType
 from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, REVEAL_REQUEST, Speaker, Turn
+from hopin.game.table import Line
 from hopin.game.vocabulary import GamePhase, GameSignal
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.support.signaling_fakes import ARRIVAL_CAP_SECONDS, text_frame
 
 START = {"type": GameSignal.GAME_START.value}
 REVEAL = {"type": GameSignal.GAME_REVEAL.value}
+END = {"type": GameSignal.GAME_END.value}
+ENDED = {"type": GameSignal.GAME_ENDED.value}
 END_ROOM = {"type": SignalType.END_ROOM.value}
 GAME_TYPES = frozenset(
-    {GameSignal.GAME_PHASE, GameSignal.GAME_LINE, GameSignal.GAME_REFUSED, GameSignal.GAME_ANSWER_COUNT}
+    {
+        GameSignal.GAME_PHASE,
+        GameSignal.GAME_LINE,
+        GameSignal.GAME_REFUSED,
+        GameSignal.GAME_ANSWER_COUNT,
+        GameSignal.GAME_ENDED,
+    }
 )
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
 REVEAL_LINE = "Lissabon."
+QUESTION_TWO = "Zweite?"
 YIELD_CAP = 100
+
+
+def ended_by(name):
+    """The frame every other seat is sent when the starter, called `name`, leaves."""
+    return {**ENDED, "leaver": name}
 
 
 def answers_in_reveal(text):
@@ -26,6 +41,15 @@ def answers_in_reveal(text):
     request, answers = text.split("\n")
     assert request == REVEAL_REQUEST
     return json.loads(answers)
+
+
+def script_two_questions(game_master):
+    game_master.answer_next(Line("Frage?"), Line("Lissabon."), Line(QUESTION_TWO))
+
+
+def revealed_answers(game_master):
+    """The answers the first question's reveal run was asked to name; the second run of the game master."""
+    return answers_in_reveal(game_master.calls[1].transcript[-1].text)
 
 
 def quiz_phase(phase, starter, round_number=1):
@@ -54,6 +78,17 @@ def line(text):
     return {"type": GameSignal.GAME_LINE.value, "text": text}
 
 
+def revealed_into_question_two(starter):
+    """What every seat sees after the reveal, whoever tapped it: the line, then question 2 with answering."""
+    return [
+        thinking(starter),
+        line("Lissabon."),
+        thinking(starter, 2),
+        question(QUESTION_TWO, 2),
+        answering(starter, 2),
+    ]
+
+
 def asked(starter, text=DEFAULT_QUESTION):
     """What every seat sees of a question the starter's tap asked."""
     return [thinking(starter), question(text), answering(starter)]
@@ -80,6 +115,11 @@ def game_frames(browser):
     return [without_seq(frame) for frame in browser.frames(*GAME_TYPES)]
 
 
+def every_frame_sent_to(browser):
+    """Every frame the browser was sent over all its sockets, of any type, core errors included."""
+    return [frame for socket in browser.sockets for frame in socket.sent]
+
+
 def sequenced_game_frames(browser):
     return [(frame["seq"], without_seq(frame)) for frame in browser.frames(*GAME_TYPES)]
 
@@ -97,6 +137,11 @@ async def sent_to_all(browsers, frame, times=1):
 async def wait_within_cap(event):
     async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
         await event.wait()
+
+
+async def finished_within_cap(task):
+    async with asyncio.timeout(ARRIVAL_CAP_SECONDS):
+        await task
 
 
 async def shut_down_within_cap(handler):
@@ -143,14 +188,19 @@ async def broken_write(_text):
     raise RuntimeError("a write that broke")
 
 
-def hold_writes_from(browser, frame):
-    """Hold the browser's writes from the frame on until the returned gate opens."""
+def hold_writes_from(browser, frame, entered=None):
+    """Hold the browser's writes from the frame on until the returned gate opens.
+
+    `entered`, when given, is set as the held frame's write begins.
+    """
     gate = asyncio.Event()
     send_text = browser.socket.send_text
 
     async def send_text_once_open(text):
         if without_seq(json.loads(text)) == frame:
             browser.socket.send_gate = gate
+            if entered is not None:
+                entered.set()
         await send_text(text)
 
     browser.socket.send_text = send_text_once_open

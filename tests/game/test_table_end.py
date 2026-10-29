@@ -1,0 +1,309 @@
+import asyncio
+
+import pytest
+import structlog.testing
+
+from hopin.config.constants import SignalType
+from hopin.game.table import Line, Refused
+from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal
+from tests.game.support.fake_game_master import DEFAULT_QUESTION
+from tests.game.support.table_world import (
+    END,
+    END_ROOM,
+    ENDED,
+    IDLE,
+    OPENING,
+    REVEAL,
+    START,
+    answering,
+    asked,
+    assert_no_driver_failed,
+    assert_no_game_frame_after_room_closed,
+    broken_write,
+    call_of,
+    ended_by,
+    every_frame_sent_to,
+    game_frames,
+    hold_writes_from,
+    let_every_task_run,
+    open_a_question,
+    push_unsettled,
+    refused,
+    sent,
+    sent_to_all,
+    shut_down_within_cap,
+    start_and_hold,
+    thinking,
+    wait_within_cap,
+    yield_until,
+)
+from tests.support.signaling_fakes import disconnect_frame
+
+pytestmark = pytest.mark.asyncio
+
+
+def starter_ends_unsettled(starter):
+    push_unsettled(starter, END)
+
+
+def starter_leaves_unsettled(starter):
+    starter.socket.push(disconnect_frame(1000))
+
+
+async def starter_ends(starter):
+    await starter.say(END)
+
+
+async def starter_leaves(starter):
+    await starter.drop(code=1000)
+
+
+class TestWhoMayEnd:
+    async def test_the_starters_end_gives_every_seat_ended_then_idle_and_the_next_quiz_starts_afresh(
+        self, link, game_master
+    ):
+        host, guest = await call_of(link, "host", "guest")
+        await open_a_question([host, guest], guest)
+
+        await guest.say(END)
+        await sent_to_all([host, guest], IDLE)
+        await let_every_task_run()
+        await open_a_question([host, guest], host)
+
+        for browser in (host, guest):
+            assert game_frames(browser)[:5] == [*asked(guest), ENDED, IDLE]
+        assert game_master.calls[-1].transcript == OPENING
+
+    async def test_the_hosts_end_of_a_guests_quiz_gives_every_seat_ended_then_idle(self, link, game_master):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        await open_a_question([host, guest, third], guest)
+
+        await host.say(END)
+        await sent_to_all([host, guest, third], IDLE)
+        await let_every_task_run()
+
+        for browser in (host, guest, third):
+            assert game_frames(browser) == [*asked(guest), ENDED, IDLE]
+        assert len(game_master.calls) == 1
+
+    async def test_a_third_seats_end_is_refused_to_that_seat_alone_and_the_quiz_goes_on(self, link, game_master):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        await open_a_question([host, guest, third], guest)
+
+        await third.say(END)
+        await sent(third, refused(GameRefusal.NOT_STARTER_OR_HOST))
+        await guest.say(REVEAL)
+        await sent_to_all([host, guest, third], answering(guest, 2))
+
+        assert game_frames(third)[:4] == [*asked(guest), refused(GameRefusal.NOT_STARTER_OR_HOST)]
+        for browser in (host, guest):
+            assert refused(GameRefusal.NOT_STARTER_OR_HOST) not in game_frames(browser)
+            assert ENDED not in game_frames(browser)
+
+    async def test_an_end_with_no_quiz_sends_nothing_and_asks_nothing(self, link, game_master):
+        host, guest = await call_of(link, "host", "guest")
+        frames_before = every_frame_sent_to(guest)
+
+        await guest.say(END)
+        await let_every_task_run()
+
+        assert (game_frames(host), game_frames(guest), game_master.calls) == ([], [], [])
+        assert every_frame_sent_to(guest) == frames_before
+
+
+class TestEndAgainstAnEndInDelivery:
+    async def test_a_second_end_while_the_first_is_delivered_is_ignored_and_each_seat_hears_ended_once(
+        self, link, game_master
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        await open_a_question([host, guest, third], guest)
+        gate = hold_writes_from(third, ENDED)
+
+        push_unsettled(guest, END)
+        await sent(host, ENDED)
+        push_unsettled(host, END)
+        await let_every_task_run()
+        gate.set()
+        await sent_to_all([host, guest, third], IDLE)
+        await let_every_task_run()
+
+        for browser in (host, guest, third):
+            assert game_frames(browser) == [*asked(guest), ENDED, IDLE]
+
+    async def test_an_end_while_a_refusals_ending_is_delivered_is_ignored_and_each_seat_hears_it_once(
+        self, link, game_master
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        game_master.answer_next(Line(DEFAULT_QUESTION), Refused(GameRefusal.NO_ACCESS))
+        await open_a_question([host, guest, third], guest)
+        gate = hold_writes_from(third, ENDED)
+
+        push_unsettled(guest, REVEAL)
+        await sent(host, ENDED)
+        push_unsettled(host, END)
+        await let_every_task_run()
+        gate.set()
+        await sent_to_all([host, guest, third], IDLE)
+        await let_every_task_run()
+
+        assert game_frames(guest) == [*asked(guest), thinking(guest), refused(GameRefusal.NO_ACCESS), IDLE]
+        for browser in (host, third):
+            assert game_frames(browser) == [*asked(guest), thinking(guest), ENDED, IDLE]
+
+    async def test_the_rooms_end_while_a_refusal_is_written_to_the_starter_logs_no_driver_failure(
+        self, link, game_master
+    ):
+        host, guest = await call_of(link, "host", "guest")
+        game_master.answer_next(Line(DEFAULT_QUESTION), Refused(GameRefusal.NO_ACCESS))
+        await open_a_question([host, guest], guest)
+        entered = asyncio.Event()
+        gate = hold_writes_from(guest, refused(GameRefusal.NO_ACCESS), entered)
+        with structlog.testing.capture_logs() as logs:
+            push_unsettled(guest, REVEAL)
+            await sent(host, thinking(guest))
+            await wait_within_cap(entered)
+            push_unsettled(host, END_ROOM)
+            await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
+            gate.set()
+            await shut_down_within_cap(link.handler)
+
+        assert_no_driver_failed(logs)
+        assert_no_game_frame_after_room_closed([host, guest])
+
+
+class TestEndWhileARunIsInFlight:
+    async def test_the_game_masters_call_is_cancelled_and_the_starter_gets_no_unavailable(
+        self, link, game_master, scheduler
+    ):
+        host, guest = await call_of(link, "host", "guest")
+        await start_and_hold(game_master, guest)
+        await sent_to_all([host, guest], thinking(guest))
+        [call] = game_master.calls
+
+        await guest.say(END)
+        await sent_to_all([host, guest], IDLE)
+        await yield_until(lambda: call.finished)
+        await scheduler.advance(GAME_RUN_DEADLINE_SECONDS)
+        await let_every_task_run()
+
+        assert call.cancelled
+        for browser in (host, guest):
+            assert game_frames(browser) == [thinking(guest), ENDED, IDLE]
+
+    async def test_a_reveal_waiting_behind_the_questions_delivery_never_asks_and_each_seat_is_told_once(
+        self, link, game_master
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        gate = hold_writes_from(guest, answering(host))
+        await host.say(START)
+        await sent(host, answering(host))
+        await host.say(REVEAL)
+
+        push_unsettled(host, END)
+        await sent(host, ENDED)
+        gate.set()
+        await sent_to_all([guest, third], IDLE)
+        await let_every_task_run()
+
+        assert len(game_master.calls) == 1
+        for browser in (host, guest, third):
+            frames = game_frames(browser)
+            assert (frames.count(ENDED), frames[-2:]) == (1, [ENDED, IDLE])
+
+    async def test_a_start_while_the_cancelled_calls_cleanup_is_held_is_refused_and_the_next_quiz_asks_after_it(
+        self, link, game_master
+    ):
+        host, guest = await call_of(link, "host", "guest")
+        held = await start_and_hold(game_master, guest, hold_cleanup=True)
+        await sent_to_all([host, guest], thinking(guest))
+        await guest.say(END)
+        await sent_to_all([host, guest], IDLE)
+        await wait_within_cap(held.cleanup_started)
+
+        await host.say(START)
+        await sent(host, refused(GameRefusal.ALREADY_ANSWERING))
+        held.cleanup_release.set()
+        await let_every_task_run()
+        await open_a_question([host, guest], host)
+
+        first, second = game_master.calls
+        assert first.finished
+        assert second.transcript == OPENING
+        assert game_frames(host) == [thinking(guest), ENDED, IDLE, refused(GameRefusal.ALREADY_ANSWERING), *asked(host)]
+
+
+class TestAfterEnd:
+    async def test_a_seat_joining_after_the_end_is_sent_no_game_frame(self, link, game_master):
+        host, guest = await call_of(link, "host", "guest")
+        await open_a_question([host, guest], guest)
+        await guest.say(END)
+        await sent_to_all([host, guest], IDLE)
+
+        late = await link.join("late", host.socket.sent[0]["room_id"])
+        await let_every_task_run()
+
+        assert game_frames(late) == []
+
+    @pytest.mark.parametrize("ending", [starter_ends, starter_leaves], ids=["the starters End", "the starters leave"])
+    async def test_a_run_the_end_cancelled_is_logged_as_ended_not_unavailable(
+        self, link, game_master, scheduler, ending
+    ):
+        host, guest = await call_of(link, "host", "guest")
+        await start_and_hold(game_master, guest)
+
+        with structlog.testing.capture_logs() as logs:
+            await ending(guest)
+            await sent(host, IDLE)
+            await shut_down_within_cap(link.handler)
+
+        assert [log["outcome"] for log in logs if log["event"] == "game_master_run"] == ["ended"]
+
+
+class TestEndAgainstTheRoomsEnd:
+    @pytest.mark.parametrize(
+        ("start_ending", "ending", "starter_stays"),
+        [
+            pytest.param(starter_ends_unsettled, ENDED, True, id="the starters End"),
+            pytest.param(starter_leaves_unsettled, ended_by("starter"), False, id="the starters leave"),
+        ],
+    )
+    async def test_the_rooms_end_while_ended_is_held_at_a_seat_sends_no_game_frame_after_room_closed(
+        self, link, game_master, start_ending, ending, starter_stays
+    ):
+        host, guest, starter = await call_of(link, "host", "guest", "starter")
+        await open_a_question([host, guest, starter], starter)
+        entered = asyncio.Event()
+        gate = hold_writes_from(guest, ending, entered)
+        with structlog.testing.capture_logs() as logs:
+            start_ending(starter)
+            await sent(host, ending)
+            await wait_within_cap(entered)
+            push_unsettled(host, END_ROOM)
+            await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
+            gate.set()
+            closed_seats = [host, guest, starter] if starter_stays else [host, guest]
+            for browser in closed_seats[1:]:
+                await browser.socket.wait_until(lambda browser=browser: browser.frames(SignalType.ROOM_CLOSED))
+            await shut_down_within_cap(link.handler)
+
+        assert_no_driver_failed(logs)
+        assert_no_game_frame_after_room_closed(closed_seats)
+        assert ending not in game_frames(starter)
+
+
+class TestEndWithABrokenWrite:
+    async def test_a_write_that_fails_at_one_seat_leaves_ended_and_idle_to_the_others_and_is_logged_by_its_type(
+        self, link
+    ):
+        host, guest, third = await call_of(link, "host", "guest", "third")
+        await open_a_question([host, guest, third], host)
+        guest.socket.send_text = broken_write
+
+        with structlog.testing.capture_logs() as logs:
+            await host.say(END)
+            await sent_to_all([host, third], IDLE)
+
+        for browser in (host, third):
+            assert game_frames(browser) == [*asked(host), ENDED, IDLE]
+        assert [log["error"] for log in logs if log["event"] == "game_end_failed"] == ["RuntimeError"] * 2
+        assert "a write that broke" not in repr(logs)

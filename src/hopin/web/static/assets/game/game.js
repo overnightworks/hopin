@@ -1,7 +1,8 @@
 import { AUTH_START_PATH, GAME_PHASE, GAME_REFUSAL, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "../js/wire.js";
 
 const SPARK_PATHS = '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
-const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">Start quiz<small>The game master asks the call</small></span><span class="grow running-only">Quiz running<small id="gameProgress"></small></span><span class="grow thinking-only">Game master is thinking…</span></button>
+const X_PATHS = '<path d="M6 6l12 12M18 6L6 18"/>';
+const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking not-ending" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon ending-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">Start quiz<small>The game master asks the call</small></span><span class="grow running-only"><span class="not-ending">Quiz running</span><span class="ending-only">End quiz</span><small id="gameProgress"></small></span><span class="grow thinking-only">Game master is thinking…</span></button>
 <p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>`;
 const CARD_MARKUP = `<section class="qcard" aria-label="Quiz question"><div class="qcard-head"><span class="qcard-tag"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg></span><button type="button" class="qcard-reveal">Reveal</button></div><p class="qcard-q"></p><form class="qcard-form"><div class="qcard-row"><input class="qcard-input" type="text" autocomplete="off" placeholder="Your answer" aria-label="Your answer"><button type="submit" class="btn btn--primary qcard-send">Send</button></div><p class="qcard-status" aria-live="polite"></p></form></section>`;
 const SENDER_MARKUP = `<div class="chat-sender game-master-sender"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg>Game master<span class="ai-badge">AI</span></div>`;
@@ -12,6 +13,7 @@ let progress = null;
 let sender = null;
 let thinkingBubble = null;
 let ownParticipantId = null;
+let isHost = false;
 let phase = GAME_PHASE.IDLE;
 let quiz = null;
 let question = null;
@@ -63,6 +65,11 @@ const REFUSAL_TOAST = {
     [GAME_REFUSAL.ALREADY_ANSWERING]: () => ["The game master is already answering.", core.toastKind.WAIT, null],
     [GAME_REFUSAL.QUIZ_RUNNING]: () => ["A quiz is already running.", core.toastKind.WAIT, null],
     [GAME_REFUSAL.NOT_STARTER]: () => ["Only the person who started the quiz can reveal.", core.toastKind.LOCKED, null],
+    [GAME_REFUSAL.NOT_STARTER_OR_HOST]: () => [
+        "Only the person who started the quiz or the host can end it.",
+        core.toastKind.LOCKED,
+        null,
+    ],
     [GAME_REFUSAL.ANSWER_CLOSED]: () => ["This question is already closed.", core.toastKind.LOCKED, null],
     [GAME_REFUSAL.ANSWER_TOO_LONG]: () => [
         "Your answer is too long. Shorten it and send again.",
@@ -159,12 +166,18 @@ function renderCard() {
     if (revealButton !== null) revealButton.disabled = phase !== GAME_PHASE.ANSWERING || awaitingAnswer;
 }
 
+function mayEndQuiz() {
+    return quiz !== null && (quiz.starter === ownParticipantId || isHost);
+}
+
 function render() {
     const isThinking = phase === GAME_PHASE.THINKING;
     const isRunning = phase === GAME_PHASE.ANSWERING;
+    const isEnding = isRunning && mayEndQuiz();
     startButton.classList.toggle("thinking", isThinking);
     startButton.classList.toggle("running", isRunning);
-    startButton.disabled = isThinking || isRunning || awaitingAnswer;
+    startButton.classList.toggle("ending", isEnding);
+    startButton.disabled = isThinking || (isRunning && !isEnding) || awaitingAnswer;
     startButton.setAttribute("aria-busy", String(isThinking));
     progress.textContent = quiz === null ? "" : `Question ${quiz.round} of ${quiz.rounds}`;
     showThinking(isThinking);
@@ -178,8 +191,8 @@ function askGameMaster(signalType) {
     core.send({ type: signalType });
 }
 
-function startQuiz() {
-    askGameMaster(SIGNAL_TYPE.GAME_START);
+function startOrEndQuiz() {
+    askGameMaster(phase === GAME_PHASE.IDLE ? SIGNAL_TYPE.GAME_START : SIGNAL_TYPE.GAME_END);
 }
 
 function revealAnswer() {
@@ -203,6 +216,11 @@ function receiveLineFrame(frame) {
     // A line without a round is the reveal or the final score: the card shows only an open question.
     question = Number.isInteger(frame.round) ? { round: frame.round, text: frame.text } : null;
     render();
+}
+
+function receiveEnded(frame) {
+    const text = typeof frame.leaver === "string" ? `Quiz ended: ${frame.leaver} left.` : "Quiz ended.";
+    core.showToast(text, core.toastKind.FAILED, null);
 }
 
 function receiveAnswerCount(frame) {
@@ -229,6 +247,7 @@ function reset() {
 
 function joined(frame) {
     ownParticipantId = frame.participant_id;
+    isHost = frame.is_host;
     reset();
 }
 
@@ -239,11 +258,12 @@ export async function install(callCore) {
     const moreItems = fromMarkup(MORE_ITEMS_MARKUP);
     startButton = moreItems.getElementById("gameStartBtn");
     progress = moreItems.getElementById("gameProgress");
-    startButton.addEventListener("click", startQuiz);
+    startButton.addEventListener("click", startOrEndQuiz);
     core.on(SIGNAL_TYPE.GAME_PHASE, receivePhase);
     core.on(SIGNAL_TYPE.GAME_LINE, receiveLineFrame);
     core.on(SIGNAL_TYPE.GAME_ANSWER_COUNT, receiveAnswerCount);
     core.on(SIGNAL_TYPE.GAME_REFUSED, showRefusal);
+    core.on(SIGNAL_TYPE.GAME_ENDED, receiveEnded);
     core.on(SIGNAL_TYPE.ROOM_CREATED, joined);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, joined);
     core.onCallEnded(reset);
