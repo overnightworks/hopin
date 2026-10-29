@@ -6,7 +6,6 @@ export interface Menu {
 }
 
 let openedMenu: Menu | null = null;
-const scrimsClosingTheMenu = new WeakSet<HTMLElement>();
 
 function closeMenu({ button, dialog, scrim }: Menu) {
     openedMenu = null;
@@ -45,8 +44,6 @@ export function registerMenu(menu: Menu) {
     menu.button.addEventListener("click", () => {
         toggleMenu(menu);
     });
-    if (scrimsClosingTheMenu.has(menu.scrim)) return;
-    scrimsClosingTheMenu.add(menu.scrim);
     menu.scrim.addEventListener("click", closeOpenMenu);
 }
 

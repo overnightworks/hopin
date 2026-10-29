@@ -96,7 +96,7 @@ describe("menus", () => {
         expect(document.activeElement).toBe(menu.button);
     });
 
-    it("does nothing when no menu is open", () => {
+    it("closeOpenMenu leaves every menu closed and does not throw when none is open", () => {
         const menu = registeredMenu();
 
         closeOpenMenu();
@@ -122,10 +122,11 @@ describe("menus", () => {
         expect(menu.dialog.open).toBe(false);
     });
 
-    it("registers a scrim shared by two menus once, so one click closes without error", () => {
+    it("closes whichever menu is open when a scrim shared by two menus is clicked", () => {
         const scrim = buildScrim();
         const first = registeredMenu(scrim);
         const second = registeredMenu(scrim);
+        first.button.click();
         second.button.click();
 
         scrim.click();
