@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from hopin.config.constants import SignalType
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS, REVEAL_REQUEST, Speaker, Turn
+from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS, REVEAL_REQUEST, Speaker, Turn, question_request
 from hopin.game.table import Line
 from hopin.game.vocabulary import GamePhase, GameSignal
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
@@ -25,7 +25,15 @@ GAME_TYPES = frozenset(
     }
 )
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
-OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
+TOPICS = QUIZ_TOPICS[:QUIZ_ROUNDS]
+OPENING = (Turn(Speaker.HOPIN, question_request(TOPICS[0])),)
+
+
+def fixed_topics():
+    """The topic drawer the tests inject: every quiz gets the same topics."""
+    return TOPICS
+
+
 REVEAL_LINE = "Lissabon."
 QUESTION_TWO = "Zweite?"
 YIELD_CAP = 100

@@ -18,7 +18,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game import GameSettings, game_feature
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, QUIZ_ROUNDS
+from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
 from tests.game.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
@@ -294,12 +294,16 @@ def test_the_reveal_request_holds_the_quiz_so_far_and_an_empty_list_when_nobody_
     host.frames(8)
 
     first, second, third = (run.request for run in call.service.runs)
+    first_topic = next(topic for topic in QUIZ_TOPICS if second.turn.messages[0].text == question_request(topic))
     assert [(message.role.value, message.text) for message in second.turn.messages[:2]] == [
-        ("user", NEXT_QUESTION_REQUEST),
+        ("user", question_request(first_topic)),
         ("assistant", "Erste Frage?"),
     ]
     assert answers_in_reveal(second.turn.messages[2].text) == []
-    assert [message.text for message in third.turn.messages][-2:] == ["Lissabon.", NEXT_QUESTION_REQUEST]
+    second_request = third.turn.messages[-1].text
+    assert [message.text for message in third.turn.messages][-2] == "Lissabon."
+    assert second_request != question_request(first_topic)
+    assert any(second_request == question_request(topic) for topic in QUIZ_TOPICS)
     assert second.turn.system == first.turn.system
     assert second.turn.system.startswith("Du bist der Spielleiter")
     names = [host_member.account.username, guest_member.account.username]

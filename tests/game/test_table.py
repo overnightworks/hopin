@@ -9,7 +9,7 @@ from hopin.config.constants import (
     ROOM_ID_LENGTH,
     SignalType,
 )
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, Speaker, Turn
+from hopin.game.quiz import Speaker, Turn, question_request
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal
 from hopin.rooms.manager import RoomManager
@@ -25,6 +25,7 @@ from tests.game.support.table_world import (
     REVEAL,
     REVEAL_LINE,
     START,
+    TOPICS,
     answer,
     answering,
     answers_in_reveal,
@@ -168,7 +169,7 @@ class TestReveal:
         [_, reveal, _] = game_master.calls
         assert reveal.starter is call[1].socket
         assert reveal.transcript[:2] == (
-            Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),
+            Turn(Speaker.HOPIN, question_request(TOPICS[0])),
             Turn(Speaker.GAME_MASTER, "Frage?"),
         )
         assert answers_in_reveal(reveal.transcript[2].text) == []

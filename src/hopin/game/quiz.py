@@ -9,7 +9,22 @@ if TYPE_CHECKING:
     from hopin.signaling.frames import PeerId
 
 QUIZ_ROUNDS: Final = 5
-NEXT_QUESTION_REQUEST: Final = "Stelle die nächste Quizfrage."
+QUIZ_TOPICS: Final = (
+    "Geschichte",
+    "Geografie",
+    "Naturwissenschaft",
+    "Tiere",
+    "Sport",
+    "Musik",
+    "Film und Fernsehen",
+    "Literatur",
+    "Essen und Trinken",
+    "Technik",
+    "Kunst",
+    "Sprache",
+    "Weltraum",
+    "Erfindungen",
+)
 REVEAL_REQUEST: Final = (
     "Löse die Frage auf. Die nächste Zeile listet die Antworten der Mitspielenden als JSON, "
     'je Antwort mit "name" und "antwort"; eine leere Liste heißt, dass niemand geantwortet hat.'
@@ -43,19 +58,29 @@ class PlayerAnswer:
     text: str = field(repr=False)
 
 
+def question_request(topic: str) -> str:
+    return f"Stelle die nächste Quizfrage zum Thema {topic}."
+
+
 @dataclass(frozen=True)
 class Quiz:
     """One quiz of a room: the transcript ends with the request of the run the step waits for.
 
     A round's players are the seats its question line was delivered to; each has at most one answer.
+    Round n asks about the n-th of the quiz's topics, which differ from each other.
     """
 
     starter: PeerId
+    topics: tuple[str, ...]
     step: QuizStep = QuizStep.ASKING
     round: int = 1
-    transcript: tuple[Turn, ...] = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
+    transcript: tuple[Turn, ...] = ()
     players: frozenset[PeerId] = frozenset()
     answers: tuple[PlayerAnswer, ...] = ()
+
+    @classmethod
+    def opening(cls, starter: PeerId, topics: tuple[str, ...]) -> Quiz:
+        return cls(starter, topics, transcript=(Turn(Speaker.HOPIN, question_request(topics[0])),))
 
     @property
     def is_asking(self) -> bool:
@@ -78,7 +103,7 @@ class Quiz:
         return peer_id == self.starter or hosts_call
 
     def ended(self) -> Quiz:
-        return Quiz(self.starter, step=QuizStep.OVER, round=self.round, transcript=())
+        return Quiz(self.starter, self.topics, step=QuizStep.OVER, round=self.round, transcript=())
 
     def may_reveal(self, peer_id: PeerId) -> bool:
         return peer_id == self.starter and self.step is QuizStep.ANSWERING
@@ -91,6 +116,7 @@ class Quiz:
         answers = (*(answer for answer in self.answers if answer.player != player), PlayerAnswer(player, name, text))
         return Quiz(
             self.starter,
+            self.topics,
             step=self.step,
             round=self.round,
             transcript=self.transcript,
@@ -106,6 +132,7 @@ class Quiz:
         """The quiz once the player has left for good; the player's given answer stays for the reveal request."""
         return Quiz(
             self.starter,
+            self.topics,
             step=self.step,
             round=self.round,
             transcript=self.transcript,
@@ -124,6 +151,7 @@ class Quiz:
         transcript = (*self.transcript, Turn(Speaker.HOPIN, self._reveal_request()))
         return Quiz(
             self.starter,
+            self.topics,
             step=QuizStep.REVEALING,
             round=self.round,
             transcript=transcript,
@@ -145,16 +173,21 @@ class Quiz:
         match self.step:
             case QuizStep.ASKING:
                 return Quiz(
-                    self.starter, step=QuizStep.ANSWERING, round=self.round, transcript=transcript, players=players
+                    self.starter,
+                    self.topics,
+                    step=QuizStep.ANSWERING,
+                    round=self.round,
+                    transcript=transcript,
+                    players=players,
                 )
             case QuizStep.REVEALING if self.round < QUIZ_ROUNDS:
                 return self._asking_next_round(transcript)
             case QuizStep.REVEALING:
                 transcript = (*transcript, Turn(Speaker.HOPIN, FINAL_SCORE_REQUEST))
-                return Quiz(self.starter, step=QuizStep.SCORING, round=self.round, transcript=transcript)
+                return Quiz(self.starter, self.topics, step=QuizStep.SCORING, round=self.round, transcript=transcript)
             case _:
-                return Quiz(self.starter, step=QuizStep.OVER, round=self.round, transcript=transcript)
+                return Quiz(self.starter, self.topics, step=QuizStep.OVER, round=self.round, transcript=transcript)
 
     def _asking_next_round(self, transcript: tuple[Turn, ...]) -> Quiz:
-        transcript = (*transcript, Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST))
-        return Quiz(self.starter, step=QuizStep.ASKING, round=self.round + 1, transcript=transcript)
+        transcript = (*transcript, Turn(Speaker.HOPIN, question_request(self.topics[self.round])))
+        return Quiz(self.starter, self.topics, step=QuizStep.ASKING, round=self.round + 1, transcript=transcript)
