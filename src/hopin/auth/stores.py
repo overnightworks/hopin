@@ -322,10 +322,10 @@ class _SignInEntry:
             self._held.enter_context(self._lock.hold())
             self._held.enter_context(self._sessions.exclusive())
             self._snapshot = self._sessions.snapshot()
+            return WebauthSignInStores(accounts=self._sessions.accounts, sessions=self._sessions, audit=self._deferred)
         except BaseException:
             self._held.close()
             raise
-        return WebauthSignInStores(accounts=self._sessions.accounts, sessions=self._sessions, audit=self._deferred)
 
     def __exit__(
         self,

@@ -522,15 +522,24 @@ class TestSignInTransaction:
             with pytest.raises(BlockFailed), transaction():
                 pass
 
+        errors: list[BaseException] = []
+        completed: list[bool] = []
+
         def enter_and_leave() -> None:
-            with transaction():
-                pass
+            try:
+                with transaction():
+                    pass
+                completed.append(True)
+            except BaseException as error:
+                errors.append(error)
 
         next_entry = threading.Thread(target=enter_and_leave, daemon=True)
         next_entry.start()
         next_entry.join(timeout=5)
 
         assert not next_entry.is_alive()
+        assert errors == []
+        assert completed == [True]
 
     @pytest.fixture
     def while_a_failing_entry_is_open(self, transaction, accounts, sessions, anna_with_a_session):
