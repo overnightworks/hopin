@@ -1,8 +1,0 @@
-claim_id = "473e1ea5a400435694af684cb071d36e"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "afc50b9e5261ccfe5245da62a43909b128e643eb"
-branch = "claude/issue-264-webauth-0-24-sign-in-routes"
-scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "quality/baseline.toml", "src/hopin/app.py", "src/hopin/auth", "src/hopin/config/constants.py", "tests", "uv.lock"]
-opened_commit = "8130ac4def9256c764ef60b29b7e203be6c3a2b0"
-whole_reason = "A breaking library release moves the sign-in routes and their derived policies across the auth package, the app's middleware and the constants at once; a half-moved route would be defined twice or not at all."
