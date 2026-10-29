@@ -1,6 +1,6 @@
 import secrets
 import threading
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -11,6 +11,7 @@ from webauth.ports import SignInStores as WebauthSignInStores
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
     from datetime import datetime
+    from types import TracebackType
 
     from pydantic import SecretStr
     from webauth.ports import AccountEvent, AuditSink
@@ -296,18 +297,55 @@ class InMemorySignInTransaction:
         self._audit = audit
         self._lock = lock
 
-    @contextmanager
-    def __call__(self) -> Iterator[WebauthSignInStores]:
-        deferred = _DeferredAudit()
-        with self._lock.hold(), self._sessions.exclusive():
-            snapshot = self._sessions.snapshot()
+    def __call__(self) -> AbstractContextManager[WebauthSignInStores]:
+        return _SignInEntry(self._sessions, self._audit, self._lock)
+
+
+class _SignInEntry:
+    """One entry into the transaction; it takes the locks on enter and gives them back on exit, on every path."""
+
+    def __init__(self, sessions: InMemorySessions, audit: AuditSink, lock: ProcessWriteLock) -> None:
+        self._sessions = sessions
+        self._audit = audit
+        self._lock = lock
+        self._deferred = _DeferredAudit()
+        self._held = ExitStack()
+        self._snapshot: StoresSnapshot  # taken by __enter__, the only way to reach __exit__
+        self._entered = False
+
+    def __enter__(self) -> WebauthSignInStores:
+        if self._entered:
+            message = "A sign-in entry is entered once; ask the transaction for a new one"
+            raise RuntimeError(message)
+        self._entered = True
+        try:
+            self._held.enter_context(self._lock.hold())
+            self._held.enter_context(self._sessions.exclusive())
+            self._snapshot = self._sessions.snapshot()
+        except BaseException:
+            self._held.close()
+            raise
+        return WebauthSignInStores(accounts=self._sessions.accounts, sessions=self._sessions, audit=self._deferred)
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        _exception: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        with self._held:
+            if exception_type is not None:
+                self._restore()
+                return
             try:
-                yield WebauthSignInStores(accounts=self._sessions.accounts, sessions=self._sessions, audit=deferred)
-                for event in deferred.events:
+                for event in self._deferred.events:
                     self._audit.account_event(event)
             except BaseException:
-                self._sessions.restore(snapshot)
+                self._restore()
                 raise
+
+    def _restore(self) -> None:
+        self._sessions.restore(self._snapshot)
 
 
 @dataclass(frozen=True)
