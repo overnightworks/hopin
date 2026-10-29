@@ -64,12 +64,12 @@ class _SessionRow:
 class InMemoryAccounts:
     """Accounts of one process, keyed by the issuer's subject and compared exactly.
 
-    Never calls into `InMemorySessions`: the lock order is the sessions guard, then this one.
+    Shares its guard with `InMemorySessions` and the sign-in transaction.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, guard: threading.RLock) -> None:
         self._by_subject: dict[str, StoredAccount] = {}
-        self._guard = threading.Lock()
+        self._guard = guard
 
     def get(self, user_id: str) -> StoredAccount | None:
         with self._guard:
@@ -108,12 +108,11 @@ class InMemoryAccounts:
 class InMemorySessions:
     """Sessions of one process; each record answers its account from the accounts store, as a join would.
 
-    Every path that joins a row to its account, or removes the account, does so inside this guard (taken after
-    the `ProcessWriteLock` when the caller holds it, before the accounts' own), so a row and its account are
-    both there or both gone for every reader.
+    Every access to either store takes the one re-entrant guard they share (after the `ProcessWriteLock` when
+    the caller holds it), so a row and its account are both there or both gone for every reader.
     """
 
-    def __init__(self, accounts: InMemoryAccounts, guard: threading.Lock) -> None:
+    def __init__(self, accounts: InMemoryAccounts, guard: threading.RLock) -> None:
         self._accounts = accounts
         self._rows: dict[str, _SessionRow] = {}
         self._guard = guard
@@ -273,23 +272,30 @@ class _DeferredAudit:
 class InMemorySignInTransaction:
     """One sign-in entry at a time; a block that raises leaves both stores as they were at entry.
 
-    The stores apply every call at once, so the rollback restores a copy taken under the lock at entry.
-    Commit does nothing more, except that the audit events go to the sink as the block's last step, so a sink
-    that fails rolls the entry back too.
+    The entry holds the stores' shared guard from its snapshot to its exit, so no other thread reads or writes
+    either store in between and the rollback undoes only the entry's own writes. Commit does nothing more,
+    except that the audit events go to the sink as the block's last step, so a sink that fails rolls the entry
+    back too. Lock order: the sign-in lock, then the guard.
     """
 
     def __init__(
-        self, accounts: InMemoryAccounts, sessions: InMemorySessions, audit: AuditSink, lock: ProcessWriteLock
+        self,
+        accounts: InMemoryAccounts,
+        sessions: InMemorySessions,
+        audit: AuditSink,
+        lock: ProcessWriteLock,
+        guard: threading.RLock,
     ) -> None:
         self._accounts = accounts
         self._sessions = sessions
         self._audit = audit
         self._lock = lock
+        self._guard = guard
 
     @contextmanager
     def __call__(self) -> Iterator[WebauthSignInStores]:
         deferred = _DeferredAudit()
-        with self._lock.hold():
+        with self._lock.hold(), self._guard:
             snapshot = self._sessions.snapshot()
             try:
                 yield WebauthSignInStores(accounts=self._accounts, sessions=self._sessions, audit=deferred)
@@ -308,10 +314,11 @@ class SignInStores:
 
     @classmethod
     def in_memory(cls) -> SignInStores:
-        accounts = InMemoryAccounts()
-        sessions = InMemorySessions(accounts, threading.Lock())
+        guard = threading.RLock()
+        accounts = InMemoryAccounts(guard)
+        sessions = InMemorySessions(accounts, guard)
         return cls(
             accounts=accounts,
             sessions=sessions,
-            transaction=InMemorySignInTransaction(accounts, sessions, LoggingAuditSink(), ProcessWriteLock()),
+            transaction=InMemorySignInTransaction(accounts, sessions, LoggingAuditSink(), ProcessWriteLock(), guard),
         )

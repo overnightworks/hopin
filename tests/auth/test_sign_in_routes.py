@@ -136,12 +136,13 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         transports = issuer.transports
         if key_set_of is not None:
             transports = IssuerTransports(transports.post_token_request, key_set_of.fetch_key_set)
-        accounts = InMemoryAccounts()
-        sessions = InMemorySessions(accounts, threading.Lock())
+        guard = threading.RLock()
+        accounts = InMemoryAccounts(guard)
+        sessions = InMemorySessions(accounts, guard)
         app = FastAPI()
         install_web_auth_config(app, configs.web_auth)
         transaction = InMemorySignInTransaction(
-            accounts, sessions, LoggingAuditSink() if audit is None else audit, ProcessWriteLock()
+            accounts, sessions, LoggingAuditSink() if audit is None else audit, ProcessWriteLock(), guard
         )
         install_sign_in(app, build_relying_party(configs, transports), transaction)
 

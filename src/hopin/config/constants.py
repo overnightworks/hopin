@@ -26,6 +26,7 @@ BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout"
 SIGN_IN_PATHS = SignInPaths(
     start=AUTH_START_PATH, callback=AUTH_CALLBACK_PATH, logout=LOGOUT_PATH, backchannel_logout=BACKCHANNEL_LOGOUT_PATH
 )
+RETURN_TO_QUERY_PARAMETER = SIGN_IN_PATHS.login_redirect.redirect_query_param
 DEFAULT_REQUEST_BODY_MAX_BYTES = 4 * 1024
 # A complete sign-in is two requests, so 40 requests in ten minutes admit 20 sign-ins from one address.
 SIGN_IN_RATE_LIMIT_BUDGET = RateLimitBudget(name="sign-in", max_requests=40, window_seconds=10 * 60)
@@ -47,7 +48,6 @@ LOGIN_GROUP = "/apps/hopin"
 ADMIN_GROUP = f"{LOGIN_GROUP}/admin"
 PEOPLE_EXPORT_VERSION = 1
 EXPORT_APP_NAME = "hopin"
-RETURN_TO_QUERY_PARAMETER = "next"
 OIDC_SCOPES = ("openid", "profile", "groups")
 OIDC_LEEWAY_SECONDS = 30
 SESSION_LIFETIME_SECONDS = 12 * 60 * 60

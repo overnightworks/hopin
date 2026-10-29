@@ -291,6 +291,12 @@ class TestLogout:
         assert response.status_code == 405
         assert application.stores.sessions.load(member.session.id) is not None
 
+    def test_a_get_signed_out_is_sent_through_the_sign_in(self, application):
+        response = application.get(LOGOUT_PATH, **BROWSER_ACCEPT)
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "/auth/start?next=%2Flogout"
+
 
 class TestBackchannelLogout:
     def test_the_issuer_as_it_posts_ends_the_sessions_without_origin_cookie_or_fetch_metadata(self, application):
@@ -393,7 +399,7 @@ class TestRevalidation:
         assert callback.headers["cache-control"] == "no-store"
         assert start.headers["cache-control"] == "no-store"
 
-    def test_the_callback_answer_is_never_stored_because_it_carries_the_session_cookie(self, application):
+    def test_a_refused_callback_answer_is_not_stored(self, application):
         response = application.get(AUTH_CALLBACK_PATH, **BROWSER_ACCEPT)
         assert (response.status_code, response.content) == (403, LOGIN_FAILED_PAGE.read_bytes())
         assert response.headers["cache-control"] == "no-store"

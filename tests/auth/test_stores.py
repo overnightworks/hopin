@@ -33,13 +33,18 @@ LATER = NOW + timedelta(hours=12)
 
 
 @pytest.fixture
-def accounts() -> InMemoryAccounts:
-    return InMemoryAccounts()
+def guard() -> threading.RLock:
+    return threading.RLock()
 
 
 @pytest.fixture
-def sessions(accounts: InMemoryAccounts) -> InMemorySessions:
-    return InMemorySessions(accounts, threading.Lock())
+def accounts(guard: threading.RLock) -> InMemoryAccounts:
+    return InMemoryAccounts(guard)
+
+
+@pytest.fixture
+def sessions(accounts: InMemoryAccounts, guard: threading.RLock) -> InMemorySessions:
+    return InMemorySessions(accounts, guard)
 
 
 def test_stores_satisfy_the_webauth_ports(accounts, sessions):
@@ -147,14 +152,30 @@ class TestSessionRenewalAndEnd:
         assert accounts.get(other.id) == other
 
 
+def guard_is_free_for_another_thread(guard: threading.RLock) -> bool:
+    """A re-entrant guard always admits its holder, so the probe asks from a thread that is not the holder."""
+    free: list[bool] = []
+
+    def probe() -> None:
+        acquired = guard.acquire(blocking=False)
+        if acquired:
+            guard.release()
+        free.append(acquired)
+
+    thread = threading.Thread(target=probe)
+    thread.start()
+    thread.join()
+    return free[0]
+
+
 class GuardProbingAccounts(InMemoryAccounts):
     """Before an account read answers, tries to run an erasure on a thread that has the sessions guard to itself.
 
     The erasure only gets through when the read runs outside the guard; the probe then reports it.
     """
 
-    def __init__(self, guard: threading.Lock) -> None:
-        super().__init__()
+    def __init__(self, guard: threading.RLock) -> None:
+        super().__init__(guard)
         self._sessions_guard = guard
         self.sessions: InMemorySessions | None = None
         self.victim: str | None = None
@@ -162,14 +183,12 @@ class GuardProbingAccounts(InMemoryAccounts):
         self.removal_ran_outside_the_guard = False
 
     def remove(self, user_id: str) -> None:
-        if self._sessions_guard.acquire(blocking=False):
-            self._sessions_guard.release()
+        if guard_is_free_for_another_thread(self._sessions_guard):
             self.removal_ran_outside_the_guard = True
         super().remove(user_id)
 
     def existing(self, user_id: str) -> StoredAccount:
-        if self._sessions_guard.acquire(blocking=False):
-            self._sessions_guard.release()
+        if guard_is_free_for_another_thread(self._sessions_guard):
             self.read_ran_outside_the_guard = True
             assert self.sessions is not None
             assert self.victim is not None
@@ -180,7 +199,7 @@ class GuardProbingAccounts(InMemoryAccounts):
 class TestRemovalAgainstJoins:
     @pytest.fixture
     def probed(self):
-        guard = threading.Lock()
+        guard = threading.RLock()
         accounts = GuardProbingAccounts(guard)
         sessions = InMemorySessions(accounts, guard)
         accounts.sessions = sessions
@@ -400,8 +419,8 @@ class TestSignInTransaction:
         return RecordingAudit()
 
     @pytest.fixture
-    def transaction(self, accounts, sessions, audit) -> InMemorySignInTransaction:
-        return InMemorySignInTransaction(accounts, sessions, audit, ProcessWriteLock())
+    def transaction(self, accounts, sessions, audit, guard) -> InMemorySignInTransaction:
+        return InMemorySignInTransaction(accounts, sessions, audit, ProcessWriteLock(), guard)
 
     @pytest.fixture
     def anna_with_a_session(self, accounts, sessions):
@@ -425,6 +444,83 @@ class TestSignInTransaction:
         assert accounts.get(anna.id) == anna
         assert sessions.load(session.id) == session
 
+    @pytest.fixture
+    def while_a_failing_entry_is_open(self, transaction, anna_with_a_session):
+        """Runs `other` on a second thread while an entry that has written is still open, then fails the entry.
+
+        Returns what `other` answered. The entry waits for the thread to start and, bounded, for it to finish:
+        a store that lets it through finishes inside the entry; one that holds it back finishes after.
+        """
+        anna, _session = anna_with_a_session
+
+        def run(other: Callable[[], object], entry_work: Callable[[WebauthSignInStores], None] | None = None) -> object:
+            answers: list[object] = []
+            finished = threading.Event()
+
+            def other_thread() -> None:
+                answers.append(other())
+                finished.set()
+
+            thread = threading.Thread(target=other_thread)
+
+            def write_then_let_the_thread_run(stores: WebauthSignInStores) -> None:
+                if entry_work is None:
+                    stores.sessions.create(
+                        anna.id, now=NOW, expires_at=LATER, refresh_token=None, id_token=new_id_token()
+                    )
+                else:
+                    entry_work(stores)
+                thread.start()
+                finished.wait(timeout=0.5)
+
+            with pytest.raises(BlockFailed):
+                fail_after(transaction, write_then_let_the_thread_run)
+            thread.join(timeout=5)
+            return answers[0]
+
+        return run
+
+    def test_a_rotation_started_during_a_failed_entry_is_kept(
+        self, while_a_failing_entry_is_open, sessions, anna_with_a_session
+    ):
+        _anna, session = anna_with_a_session
+
+        while_a_failing_entry_is_open(
+            lambda: sessions.replace_refresh_token(session.id, refresh_token=SecretStr("rotated"))
+        )
+
+        assert sessions.load(session.id).refresh_token.get_secret_value() == "rotated"
+
+    def test_a_renewal_started_during_a_failed_entry_is_kept(
+        self, while_a_failing_entry_is_open, sessions, anna_with_a_session
+    ):
+        _anna, session = anna_with_a_session
+        renewed = LATER + timedelta(hours=1)
+
+        while_a_failing_entry_is_open(lambda: sessions.touch(session.id, expires_at=renewed))
+
+        assert sessions.load(session.id).expires_at == renewed
+
+    def test_a_sweep_started_during_a_failed_entry_is_kept(
+        self, while_a_failing_entry_is_open, sessions, anna_with_a_session
+    ):
+        _anna, session = anna_with_a_session
+
+        while_a_failing_entry_is_open(lambda: sessions.delete_expired(LATER + timedelta(hours=1)))
+
+        assert sessions.load(session.id) is None
+
+    def test_a_reader_during_a_failed_entry_never_sees_its_provisional_deletion(
+        self, while_a_failing_entry_is_open, sessions, anna_with_a_session
+    ):
+        anna, session = anna_with_a_session
+
+        seen = while_a_failing_entry_is_open(
+            lambda: sessions.load(session.id), entry_work=lambda stores: stores.sessions.delete_for_user(anna.id)
+        )
+
+        assert seen == session
+
     def test_a_block_that_exits_cleanly_keeps_what_it_wrote(self, transaction, accounts, sessions, anna_with_a_session):
         _anna, session = anna_with_a_session
 
@@ -447,13 +543,13 @@ class TestSignInTransaction:
         assert audit.events == [event]
 
     def test_a_sink_that_fails_when_the_events_are_handed_over_rolls_the_entry_back(
-        self, accounts, sessions, anna_with_a_session
+        self, accounts, sessions, guard, anna_with_a_session
     ):
         class DownSink:
             def account_event(self, event: AccountEvent) -> None:
                 raise BlockFailed
 
-        transaction = InMemorySignInTransaction(accounts, sessions, DownSink(), ProcessWriteLock())
+        transaction = InMemorySignInTransaction(accounts, sessions, DownSink(), ProcessWriteLock(), guard)
         anna, session = anna_with_a_session
         event = AccountEvent(kind=AccountEventKind.BACKCHANNEL_LOGOUT, actor_id=None, subject_id="anna", role="user")
 
