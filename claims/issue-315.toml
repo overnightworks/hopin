@@ -1,7 +1,0 @@
-claim_id = "531ad3c92501454d95895dc49b34294e"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "a47f75f9a51a35759f2dc53876a2ef67c8715fca"
-branch = "claude/issue-315-prejoin-sub-line"
-scope = ["src/hopin/web/static/assets/js/prejoin.js"]
-opened_commit = "44f10395b587acaac0d75a3706583d48c3d4fca9"
