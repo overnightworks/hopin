@@ -1,0 +1,8 @@
+claim_id = "272b625a6c2b4fcc993744c643a75f2e"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "7e1379a4abea5f159aa41231356406320a7a2cd1"
+branch = "claude/issue-329-stage-port"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/stage-port.test.ts", "frontend/src/lib/call/stage-port.ts", "frontend/src/lib/legacy"]
+opened_commit = "31fd03afb29d6abb8b4f82cebb111c34284020d6"
+whole_reason = "A port is a seam only once every caller goes through it in the same commit; six of the nine files are one-line import edits."
