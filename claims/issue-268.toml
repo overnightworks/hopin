@@ -1,0 +1,8 @@
+claim_id = "b7bbb0e7dbbf4df08ea0ea347b351b68"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "c9241c22c501c244fa8f5324892c3afb00d5bd08"
+branch = "claude/issue-268-agent-runtime-0-10-0"
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/game", "tests/e2e/game", "tests/game", "uv.lock"]
+opened_commit = "9fd86ea83e434d7d601e8c2cd2cb6378f7a9393a"
+whole_reason = "One client-library upgrade: the pin, its one importer and agent file, and their proof move together."
