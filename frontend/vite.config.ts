@@ -1,6 +1,6 @@
 import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
     build: {
@@ -9,6 +9,7 @@ export default defineConfig({
             external: [/^\/static\//],
         },
     },
+    test: { environment: "node", include: ["src/**/*.test.ts"] },
     plugins: [
         sveltekit({
             adapter: adapter({

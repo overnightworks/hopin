@@ -26,6 +26,7 @@ from hopin.config.constants import (
 )
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.kit import KIT_PATH
+from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -149,7 +150,7 @@ class TestCreateApp:
 
     @pytest.mark.parametrize(
         "path",
-        ["/", "/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css", "/static/js/app.js"],
+        ["/", "/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css", WIRE_MODULE_PATH],
     )
     def test_serves_the_page_and_its_assets(self, sign_in_settings, path):
         assert signed_in_client(sign_in_settings().settings).get(path).status_code == 200
