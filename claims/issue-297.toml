@@ -1,0 +1,8 @@
+claim_id = "2ccb09828a5f401c8bd2633581b93f6b"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "6a341bed13ccb5e96ff63e1b6c071b51f33506a7"
+branch = "claude/issue-297-appkit-served-and-linked"
+scope = ["docs/decisions/0001-static-frontend-modules.md", "pyproject.toml", "src/hopin/auth/gate.py", "src/hopin/web/kit.py", "src/hopin/web/routes.py", "src/hopin/web/static/index.html", "src/hopin/web/static/login-failed.html", "src/hopin/web/static/login.html", "src/hopin/web/static/no-access.html", "tests/auth/test_gate.py", "tests/test_app.py", "tests/web/test_routes.py", "uv.lock"]
+opened_commit = "0726b210025ff45bdeb2f0762a1ff30514b691ae"
+whole_reason = "One dependency served behind an exact gate rule and linked by every page: a page linking a file that is not served, or a mount the gate does not know, shows a broken look."
