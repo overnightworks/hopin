@@ -724,13 +724,13 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
 def test_every_cut_in_a_row_resumes_with_the_first_delay_because_each_resume_resets_the_attempts(
     connected_pair: ConnectedPair,
 ) -> None:
-    guest = connected_pair.guest
-
-    for _ in range(CUTS_IN_A_ROW):
+    guest, tap = connected_pair.guest, connected_pair.guest_tap
+    for _ in range(CUTS_IN_A_ROW + 1):
+        sockets_before_the_cut = len(tap.urls)
         connected_pair.cut(guest)
+        assert len(tap.urls) == sockets_before_the_cut
         connected_pair.resume(guest)
-
-    connected_pair.cut(guest)
+        assert len(tap.urls) == sockets_before_the_cut + 1
 
 
 def test_server_frame_delivered_twice_is_dispatched_once(connected_pair: ConnectedPair) -> None:
