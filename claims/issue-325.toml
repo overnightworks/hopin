@@ -1,8 +1,0 @@
-claim_id = "7c99a36a074b4866ae87e50cd557952b"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "089578470e77e62bd7565c5cd8215b2fab808e71"
-branch = "claude/issue-325-call-logic-ts"
-scope = [".github/workflows/ci.yml", ".gitignore", "AGENTS.md", "Makefile", "README.md", "docs/ARCHITECTURE.md", "frontend", "sonar-project.properties"]
-opened_commit = "783e4ec738223d5a7fdeb2495e598876f6eedde3"
-whole_reason = "The coverage pipeline and its first measured files land together."
