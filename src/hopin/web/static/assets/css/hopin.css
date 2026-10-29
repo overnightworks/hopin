@@ -245,6 +245,7 @@ body {
     position: relative;
     display: grid;
     grid-template-columns: 1fr auto;
+    grid-template-rows: minmax(0, 1fr);
     background: var(--stage);
     color: var(--on-stage);
     font-family: var(--sans);
