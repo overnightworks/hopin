@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
 
 import pytest
-from hopin.web.page_build import PageBuild
 
 from hopin.config.secret_files import StartRefusedError
+from hopin.web.page_build import PageBuild
 from tests.support.page_build import FIXTURE_DIRECTORY, FIXTURE_SCRIPT_HASH
 
 if TYPE_CHECKING:
