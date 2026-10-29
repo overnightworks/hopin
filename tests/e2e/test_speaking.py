@@ -372,5 +372,7 @@ def test_speaking_decision_follows_the_level_its_freshness_and_the_hold(
 ) -> None:
     page = open_person()
     page.goto(f"{base_url}/")
+    # The modules read the page's markup when they load, and the markup mounts after the load event.
+    expect(page.locator("[data-screen=home]")).to_be_visible()
 
     assert page.evaluate(DECIDE, [sources, milliseconds_since_loud]) is speaks

@@ -27,6 +27,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
@@ -57,7 +58,11 @@ def issuer(sign_in_settings):
 @pytest.fixture
 def app(sign_in_settings, issuer, stores, scheduler):
     return create_app(
-        sign_in_settings().settings, issuer_transports=issuer.transports, stores=stores, scheduler=scheduler
+        sign_in_settings().settings,
+        page_build=fixture_page_build(),
+        issuer_transports=issuer.transports,
+        stores=stores,
+        scheduler=scheduler,
     )
 
 

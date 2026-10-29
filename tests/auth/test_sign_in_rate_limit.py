@@ -20,6 +20,7 @@ from hopin.config.constants import (
     NO_ACCESS_PATH,
 )
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 pytestmark = pytest.mark.integration
@@ -104,7 +105,11 @@ def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch
     def make(**overrides: str) -> Deployment:
         sign_in = sign_in_settings(**overrides)
         issuer = FakeIssuer(sign_in)
-        return Deployment(create_app(sign_in.settings, issuer_transports=issuer.transports), issuer, clock)
+        return Deployment(
+            create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports),
+            issuer,
+            clock,
+        )
 
     return make
 

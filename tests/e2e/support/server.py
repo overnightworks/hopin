@@ -18,6 +18,7 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.main import uvicorn_options
+from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
 
@@ -123,6 +124,7 @@ def running_hopin(
     """Serve HopIn over https on `loopback`, with the call's feature only when one is given."""
     app = create_app(
         loopback.sign_in.settings,
+        page_build=PageBuild.load(BUILD_DIRECTORY),
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_feature=call_feature,

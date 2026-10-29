@@ -10,6 +10,7 @@ from webauth.middleware import install_web_auth_middleware
 from webauth.policies import (
     BodySizePolicy,
     CacheControlRule,
+    CspDirective,
     CsrfPolicy,
     RateLimitPolicy,
     RateLimitRule,
@@ -28,6 +29,7 @@ from hopin.auth.sign_in import (
 )
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
+    ANNOUNCER_STYLE_SOURCES,
     DEFAULT_RATE_LIMIT_BUDGET,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
     NO_CACHE_PATH_RULES,
@@ -57,6 +59,7 @@ if TYPE_CHECKING:
     from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
     from hopin.signaling.features import FeatureFactory
+    from hopin.web.page_build import PageBuild
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -137,11 +140,13 @@ def _configure_logging() -> None:
     )
 
 
-def _install_web_auth(app: FastAPI, sessions: InMemorySessions) -> None:
+def _install_web_auth(app: FastAPI, sessions: InMemorySessions, page_build: PageBuild) -> None:
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
-            content_security_policy=default_content_security_policy(),
+            content_security_policy=default_content_security_policy(
+                page_build.script_hashes, added_sources={CspDirective.STYLE_SRC: ANNOUNCER_STYLE_SOURCES}
+            ),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
                 SIGN_IN_PATHS.cache_control_rule,
@@ -166,6 +171,7 @@ def _install_web_auth(app: FastAPI, sessions: InMemorySessions) -> None:
 def create_app(
     settings: ServerSettings,
     *,
+    page_build: PageBuild,
     issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
     stores: SignInStores | None = None,
     scheduler: Scheduler | None = None,
@@ -201,13 +207,13 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
-    app.include_router(create_router(signaling_handler, room_manager))
+    app.include_router(create_router(signaling_handler, room_manager, page_build))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_account_router())
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     install_sign_in(app, relying_party, sign_in_stores.transaction)
-    _install_web_auth(app, sign_in_stores.sessions)
+    _install_web_auth(app, sign_in_stores.sessions, page_build)
 
     return app

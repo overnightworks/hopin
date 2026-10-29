@@ -1,0 +1,185 @@
+<script lang="ts">
+    import { onMount, type Snippet } from "svelte";
+
+    const { children }: { children: Snippet } = $props();
+
+    onMount(() => {
+        void import("/static/js/app.js");
+    });
+</script>
+
+<!-- prettier-ignore -->
+<div id="leaveConfirm" class="confirm-overlay hidden">
+    <div class="confirm-box">
+        <p>Leave this call?</p>
+        <div class="btn-row">
+            <button id="leaveCancel" class="btn-secondary">Cancel</button>
+            <button id="leaveYes" class="btn-danger">Leave</button>
+        </div>
+    </div>
+</div>
+
+<!-- prettier-ignore -->
+<main class="end page hidden" data-screen="end">
+    <div class="topbar">
+        <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
+        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
+    </div>
+    <span id="endIcon" class="end-icon">
+        <svg class="icon hidden" data-end-icon="ended" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg>
+        <svg class="icon hidden" data-end-icon="hourglass" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/></svg>
+        <svg class="icon hidden" data-end-icon="lock" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
+        <svg class="icon hidden" data-end-icon="users" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg>
+    </span>
+    <h2 id="endTitle">Call ended</h2>
+    <span id="endPill" class="count-pill hidden"></span>
+    <p id="endText"></p>
+    <div class="end-actions">
+        <button id="endRetryBtn" class="button button-block hidden">Retry</button>
+        <button id="endHomeBtn" class="button button-block hidden">Back to start</button>
+        <button id="endRejoinBtn" class="button button-block hidden">Rejoin</button>
+    </div>
+    <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+</main>
+
+<!-- prettier-ignore -->
+<main class="home page hidden" data-screen="home">
+    <div class="topbar">
+        <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
+        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
+    </div>
+    <div class="halo"></div>
+    <span class="brand-mark brand-mark-xl"><svg class="icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>
+    <h2 id="homeGreeting">Hi there</h2>
+    <p>Start a call, then send the link to the people you want.</p>
+    <button id="homeStartBtn" class="button button-primary button-lg"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>Start a call</button>
+    <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+</main>
+
+<!-- prettier-ignore -->
+<main class="prejoin page hidden" data-screen="prejoin">
+    <div class="topbar">
+        <button id="prejoinHomeBtn" class="brand brand-button" type="button"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
+        <button id="prejoinBackBtn" class="iconbtn ghost" type="button" aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <span id="prejoinTitle" class="topbar-title"></span>
+        <span class="topbar-balance"></span>
+        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
+    </div>
+    <div class="prejoin-main">
+        <div class="preview">
+            <video id="prejoinVideo" autoplay muted playsinline></video>
+            <div id="prejoinPlaceholder" class="vid off hidden"><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
+            <p id="prejoinMessage" class="preview-msg hidden"></p>
+            <div class="preview-ctl">
+                <button id="prejoinMicBtn" class="cb" type="button" aria-label="Mute" aria-pressed="false" disabled><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
+                <button id="prejoinCamBtn" class="cb" type="button" aria-label="Camera off" aria-pressed="false" disabled><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
+            </div>
+        </div>
+        <div class="self-row"><span class="av av-28"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span><b>You</b></div>
+        <div class="prejoin-side">
+            <h2 id="prejoinHeading">HopIn</h2>
+            <p id="prejoinSub" class="prejoin-sub"></p>
+            <!-- Legacy code sets this button's text; an aria-label would change its accessible name. -->
+            <!-- svelte-ignore a11y_consider_explicit_label -->
+        <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled></button>
+        </div>
+    </div>
+    <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+</main>
+
+<!-- prettier-ignore -->
+<main class="call hidden" data-screen="call">
+    <div class="stage" id="stage" data-count="1">
+        <div class="ctop">
+            <div class="left">
+                <div id="status" class="status status-disconnected">Not connected</div>
+                <span id="lockIndicator" class="tag-glass hidden"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>Locked</span>
+            </div>
+            <span id="participantCount" class="tag-glass hidden" aria-label="Participants"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg><span class="num">1</span></span>
+        </div>
+        <div id="videoGrid" class="grid">
+            <div class="tiles">
+                <div class="tile self mirror" id="localContainer">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div id="localPlaceholder" class="vid off hidden"><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
+                    <span class="name"><span class="muted hidden"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></span>You</span>
+                </div>
+            </div>
+        </div>
+        <div id="waitingCard" class="waiting hidden">
+            <h3>Waiting for others</h3>
+            <p>Invite people to join this call.</p>
+            <span id="waitingLink" class="waiting-link"></span>
+            <div class="waiting-actions">
+                <button id="waitingCopyBtn" class="button button-stage" type="button"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.6"/><path d="M15.5 8.5V6.1a2.6 2.6 0 0 0-2.6-2.6H6.1a2.6 2.6 0 0 0-2.6 2.6v6.8a2.6 2.6 0 0 0 2.6 2.6h2.4"/></svg>Copy link</button>
+                <button id="waitingShareBtn" class="button button-stage" type="button"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v11.5M8 7.5l4-4 4 4M8.5 10.5H7A2 2 0 0 0 5 12.5v6A2 2 0 0 0 7 20.5h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg>Share</button>
+            </div>
+        </div>
+        <fieldset class="cbar" aria-label="Call controls">
+            <button id="muteBtn" class="cb" type="button" aria-label="Mute" aria-pressed="false"><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
+            <button id="videoBtn" class="cb" type="button" aria-label="Camera off" aria-pressed="false"><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
+            <button id="screenBtn" class="cb" type="button" aria-label="Share screen" aria-pressed="false"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8 21h8M12 17v4M12 13.5V8M9.4 10.4L12 7.8l2.6 2.6"/></svg></button>
+            <span class="gap"></span>
+            <button id="inviteBtn" class="cb" type="button" aria-label="Invite" aria-expanded="false" aria-controls="inviteMenu" disabled><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M19 8v6M16 11h6"/></svg></button>
+            <button id="chatBtn" class="cb" type="button" aria-label="Chat" aria-expanded="false"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.6a8.1 8.1 0 0 1-11.9 7.1L3.5 20l1.4-4.6A8.1 8.1 0 1 1 20.5 11.6z"/></svg><span id="chatBadge" class="badge">0</span></button>
+            <button id="moreBtn" class="cb" type="button" aria-label="More" aria-expanded="false" aria-controls="moreMenu"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg></button>
+            <span class="gap"></span>
+            <button id="leaveBtn" class="cb leave" type="button" aria-label="Leave"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg></button>
+        </fieldset>
+        <div id="overlayScrim" class="scrim hidden"></div>
+        <dialog id="moreMenu" class="overlay" aria-label="More">
+            <div class="grab"></div>
+            <button id="lockBtn" class="mi hidden" type="button" role="switch" aria-checked="false" aria-label="Lock call"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg><span class="grow">Lock call<small></small></span><span class="switch"></span></button>
+            <div class="sep"></div>
+            <nav class="legal" aria-label="Legal"><a class="mi" href="https://hallucinai.de/impressum" target="_blank" rel="noopener"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M14 3.5V7.5h4M9 12h6M9 15.5h6"/></svg><span class="grow">Impressum</span><span class="end"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></span></a><a class="mi" href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="grow">Datenschutz</span><span class="end"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></span></a></nav>
+        </dialog>
+        <dialog id="inviteMenu" class="overlay invite" aria-label="Invite people">
+            <div class="grab"></div>
+            <div class="sheet-head"><h3>Invite people</h3><button id="inviteCloseBtn" class="iconbtn ghost" type="button" aria-label="Close"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+            <div class="linkbox"><code id="inviteLink"></code><button id="inviteCopyBtn" class="button button-primary invite-copy" type="button"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.6"/><path d="M15.5 8.5V6.1a2.6 2.6 0 0 0-2.6-2.6H6.1a2.6 2.6 0 0 0-2.6 2.6v6.8a2.6 2.6 0 0 0 2.6 2.6h2.4"/></svg>Copy</button></div>
+            <div class="members-note"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>Only HopIn members can join.</div>
+            <div class="invite-actions">
+                <button id="inviteCopyLinkBtn" class="button button-primary invite-copy" type="button"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.6"/><path d="M15.5 8.5V6.1a2.6 2.6 0 0 0-2.6-2.6H6.1a2.6 2.6 0 0 0-2.6 2.6v6.8a2.6 2.6 0 0 0 2.6 2.6h2.4"/></svg>Copy link</button>
+                <button id="inviteShareBtn" class="button button-primary" type="button"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v11.5M8 7.5l4-4 4 4M8.5 10.5H7A2 2 0 0 0 5 12.5v6A2 2 0 0 0 7 20.5h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg>Share</button>
+            </div>
+        </dialog>
+    </div>
+
+    <div id="chatPanel" class="chat-panel">
+        <div class="chat-header">
+            <span>Chat</span>
+            <button id="chatClose" class="chat-close">x</button>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input-row">
+            <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off" aria-label="Chat message">
+            <button id="chatSend" class="btn-primary">Send</button>
+        </div>
+    </div>
+</main>
+
+<!-- prettier-ignore -->
+<output id="toasts" class="toasts"></output>
+<!-- prettier-ignore -->
+<template id="toastDoneTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span></span></div></template>
+<!-- prettier-ignore -->
+<template id="toastFailedTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span></span></div></template>
+<!-- prettier-ignore -->
+<template id="toastLockedTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg><span></span></div></template>
+<!-- prettier-ignore -->
+<template id="toastWarningTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8l9 15.7H3z"/><path d="M12 10v4.4M12 17.2v.1"/></svg><span></span></div></template>
+<!-- prettier-ignore -->
+<template id="toastWaitTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/></svg><span></span></div></template>
+<!-- prettier-ignore -->
+<div id="accountScrim" class="scrim hidden"></div>
+<!-- prettier-ignore -->
+<dialog id="accountMenu" class="account-menu" aria-label="Account">
+    <div class="menu-head">
+        <span class="av av-44"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span>
+        <div><b class="hidden"></b><span>HopIn member</span></div>
+    </div>
+    <div class="sep"></div>
+    <form method="post" action="/logout"><button type="submit" class="mi"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4H18a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 18 20h-3.5M10 8l-4 4 4 4M6 12h10"/></svg><span class="grow">Log out</span></button></form>
+</dialog>
+
+{@render children()}

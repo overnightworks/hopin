@@ -14,6 +14,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
 from hopin.signaling.frames import SEQUENCE_KEY
+from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 
 if TYPE_CHECKING:
@@ -69,7 +70,7 @@ async def call(sign_in_settings) -> AsyncIterator[Call]:
     listening.listen()
     port = listening.getsockname()[1]
     stores = SignInStores.in_memory()
-    app = create_app(sign_in_settings().settings, stores=stores)
+    app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), stores=stores)
     web_auth = installed_web_auth_config(app)
     host_member = seed_member(stores, web_auth)
     guest_member = seed_member(stores, web_auth)

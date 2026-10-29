@@ -19,7 +19,7 @@ format:
 test:
 	uv run pytest -m "not e2e"
 
-e2e:
+e2e: frontend
 	uv run pytest -m e2e --no-cov --output test-results
 
 dead:
@@ -33,5 +33,5 @@ frontend-check:
 
 check: lint test dead frontend-check
 
-run:
+run: frontend
 	uv run hopin serve

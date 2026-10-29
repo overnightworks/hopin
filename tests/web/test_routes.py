@@ -2,7 +2,6 @@ import hashlib
 import re
 import tomllib
 from functools import partial
-from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -12,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from hopin.auth.sign_in import LOGIN_FAILED_PAGE, NO_ACCESS_PAGE, SIGNED_OUT_PAGE
 from hopin.config.constants import (
+    APP_ASSET_PATH,
     AUTH_START_PATH,
     CALL_PATH,
     HEALTH_PATH,
@@ -31,8 +31,17 @@ from hopin.signaling.features import FeatureClashError
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.kit import KIT_PATH
-from hopin.web.routes import PAGE, STATIC_DIR, create_router
+from hopin.web.routes import STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
+from tests.support.page_build import fixture_page_build
+from tests.support.page_inventory import (
+    CSS_COMMENT,
+    LEGAL_URLS,
+    NEW_TAB_LINK_ATTRIBUTES,
+    UI_CONSOLE_CSS,
+    defined_class_names,
+    inventory_of,
+)
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
 from tests.support.wire_module import served_exports
 
@@ -47,7 +56,7 @@ def signaling_handler(room_manager):
 @pytest.fixture
 def app(signaling_handler, room_manager):
     application = FastAPI()
-    application.include_router(create_router(signaling_handler, room_manager))
+    application.include_router(create_router(signaling_handler, room_manager, fixture_page_build()))
     return application
 
 
@@ -57,9 +66,9 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_five_routes_and_the_kit_and_static_mounts(self, signaling_handler, room_manager):
-        router = create_router(signaling_handler, room_manager)
-        assert len(router.routes) == 7
+    def test_returns_five_routes_and_the_kit_static_and_app_mounts(self, signaling_handler, room_manager):
+        router = create_router(signaling_handler, room_manager, fixture_page_build())
+        assert len(router.routes) == 8
 
     def test_static_dir_points_to_web_static(self):
         assert STATIC_DIR.name == "static"
@@ -89,8 +98,10 @@ class TestWireModule:
         clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"SAMPLE_REASON": "sample_reason"}})
         handler = SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), clashing)
 
+        page_build = fixture_page_build()
+
         with pytest.raises(FeatureClashError, match="ERROR_REASON"):
-            create_router(handler, room_manager)
+            create_router(handler, room_manager, page_build)
 
 
 class TestHealthEndpoint:
@@ -106,6 +117,13 @@ class TestHomePage:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
 
+    def test_answers_the_page_builds_shell_with_its_etag(self, client):
+        page_build = fixture_page_build()
+
+        response = client.get(HOME_PATH)
+
+        assert (response.content, response.headers["etag"]) == (page_build.shell, page_build.shell_etag)
+
 
 class TestCallPage:
     def test_returns_html_for_a_known_room(self, client, room_manager):
@@ -113,6 +131,13 @@ class TestCallPage:
         response = client.get(f"{CALL_PATH}/{room.room_id}")
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
+
+    def test_answers_the_same_shell_for_a_known_room(self, client, room_manager):
+        room = room_manager.create_room("h1", Account(id="h1", name="h1"))
+
+        response = client.get(f"{CALL_PATH}/{room.room_id}")
+
+        assert response.content == fixture_page_build().shell
 
     def test_returns_404_for_an_unknown_room(self, client):
         response = client.get(f"{CALL_PATH}/nonexistent")
@@ -152,6 +177,14 @@ class TestStaticAssets:
         assert client.get(f"{STATIC_PATH}/index.html").status_code == 404
 
 
+class TestAppAssets:
+    @pytest.mark.parametrize(("asset", "content_type"), [("immutable/x.js", "javascript"), ("version.json", "json")])
+    def test_serves_the_build_files_under_the_app_path(self, client, asset, content_type):
+        response = client.get(f"{APP_ASSET_PATH}/{asset}")
+        assert response.status_code == 200
+        assert content_type in response.headers["content-type"]
+
+
 class TestHeadRequests:
     @pytest.mark.parametrize("path", [HOME_PATH, HEALTH_PATH, f"{STATIC_PATH}/js/app.js"])
     def test_head_answers_ok(self, client, path):
@@ -159,17 +192,11 @@ class TestHeadRequests:
 
 
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
-LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
-NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
-UI_CONSOLE_CSS = STYLESHEETS_DIR / "ui-console.css"
-LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
 # HopIn's own stylesheets: the page's and each one a feature's browser module loads.
 OWN_STYLESHEETS = sorted(set((STATIC_DIR / "assets").rglob("*.css")) - {UI_CONSOLE_CSS})
-CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
-CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
-CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
 CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
 CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
 CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
@@ -182,105 +209,8 @@ CSS_CUSTOM_PROPERTY_DEFINITION = re.compile(r"(--[\w-]+)\s*:")
 CSS_CUSTOM_PROPERTY_READ = re.compile(r"var\((--[\w-]+)")
 CSS_COLOR_SCHEME_DECLARATION = re.compile(r"(?<![\w-])color-scheme\s*:")
 UI_CONSOLE_TOKEN_STILL_READ = "--sans"
-VOID_TAGS = {
-    "area",
-    "base",
-    "br",
-    "col",
-    "embed",
-    "hr",
-    "img",
-    "input",
-    "link",
-    "meta",
-    "param",
-    "source",
-    "track",
-    "wbr",
-}
 FAVICON_FILE = STATIC_DIR / "assets" / "img" / "hopin.svg"
 FAVICON_URL = f"{STATIC_PATH}/img/hopin.svg"
-URL_ATTRIBUTES = {"src", "href", "xlink:href"}
-
-
-class PageInventory(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.inline_scripts = 0
-        self.style_elements = 0
-        self.forbidden_attributes: list[str] = []
-        self.fetched_urls: list[str] = []
-        self.links: list[dict[str, str | None]] = []
-        self.forms: list[dict[str, str | None]] = []
-        self.submit_buttons = 0
-        self.stylesheets: list[str] = []
-        self.icons: list[dict[str, str | None]] = []
-        self.class_values: list[str] = []
-        self.screens: set[str] = set()
-        self.legal_navs_by_screen: dict[str, list[list[str]]] = {}
-        self._screens: list[tuple[str, int]] = []
-        self._legal_nav_links: list[str] | None = None
-        self._depth = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag not in VOID_TAGS:
-            self._depth += 1
-        attributes = dict(attrs)
-        self._track_screen(attributes)
-        self._track_legal_nav(tag, attributes)
-        self._inspect(tag, attrs)
-
-    def handle_startendtag(self, tag, attrs):
-        self._inspect(tag, attrs)
-
-    def _inspect(self, tag, attrs):
-        attributes = dict(attrs)
-        if tag == "style":
-            self.style_elements += 1
-        if tag == "script" and "src" not in attributes:
-            self.inline_scripts += 1
-        if tag == "link" and attributes.get("rel") == "stylesheet":
-            self.stylesheets.append(attributes["href"])
-        if tag == "link" and attributes.get("rel") == "icon":
-            self.icons.append(attributes)
-        if "class" in attributes:
-            self.class_values.append(attributes["class"])
-        if tag == "form":
-            self.forms.append(attributes)
-        if tag == "button" and attributes.get("type") == "submit":
-            self.submit_buttons += 1
-        if tag == "a":
-            self.links.append(attributes)
-            if self._legal_nav_links is not None:
-                self._legal_nav_links.append(attributes["href"])
-        for name, value in attrs:
-            if name == "style" or name.startswith("on"):
-                self.forbidden_attributes.append(name)
-            if name in URL_ATTRIBUTES and tag != "a":
-                self.fetched_urls.append(value)
-            if value is not None and value.strip().lower().startswith("javascript:"):
-                self.forbidden_attributes.append(f"{name}=javascript:")
-
-    def handle_endtag(self, tag):
-        if tag == "nav" and self._legal_nav_links is not None:
-            self._record_legal_nav()
-        while self._screens and self._screens[-1][1] == self._depth:
-            self._screens.pop()
-        self._depth -= 1
-
-    def _track_screen(self, attributes):
-        if "data-screen" in attributes:
-            self.screens.add(attributes["data-screen"])
-            self._screens.append((attributes["data-screen"], self._depth))
-
-    def _track_legal_nav(self, tag, attributes):
-        if tag == "nav" and attributes.get("class") == "legal":
-            self._legal_nav_links = []
-
-    def _record_legal_nav(self):
-        screen = self._screens[-1][0] if self._screens else ""
-        self.legal_navs_by_screen.setdefault(screen, []).append(self._legal_nav_links)
-        self._legal_nav_links = None
 
 
 def untokened_motion_durations(stylesheet: str) -> list[str]:
@@ -300,18 +230,6 @@ def motion_tokens_left_running_under_reduced_motion(stylesheet: str) -> set[str]
     return defined - set(CSS_ZEROED_MOTION_TOKEN.findall(reduced_block))
 
 
-def defined_class_names(stylesheet: str) -> set[str]:
-    selectors = CSS_DECLARATION_BLOCK.sub("{}", CSS_COMMENT.sub("", stylesheet))
-    return set(CSS_CLASS_NAME.findall(selectors))
-
-
-@pytest.fixture
-def page_inventory():
-    inventory = PageInventory()
-    inventory.feed(PAGE.read_text())
-    return inventory
-
-
 @pytest.fixture(params=sorted(STATIC_DIR.glob("*.html")), ids=lambda page: page.name)
 def every_page_inventory(request):
     return inventory_of(request.param.read_text())
@@ -326,19 +244,6 @@ class TestPageIsCspReady:
     def test_fetches_only_same_origin_absolute_paths(self, every_page_inventory):
         assert every_page_inventory.fetched_urls
         assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
-
-    def test_links_only_to_the_central_legal_pages_in_a_new_tab(self, page_inventory):
-        assert {link["href"] for link in page_inventory.links} == set(LEGAL_URLS)
-        assert all(
-            link[name] == value for link in page_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items()
-        )
-
-    def test_posts_one_same_origin_form_to_log_out_from_the_account_menu(self, page_inventory):
-        assert [(form["method"], form["action"]) for form in page_inventory.forms] == [("post", LOGOUT_PATH)]
-        assert page_inventory.submit_buttons == 1
-
-    def test_loads_the_application_as_a_module(self):
-        assert f'<script type="module" src="{STATIC_PATH}/js/app.js">' in PAGE.read_text()
 
 
 class TestLoginFailedPage:
@@ -441,12 +346,11 @@ class TestPageShell:
         assert set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet)) & kit_tokens == set()
         assert CSS_COLOR_SCHEME_DECLARATION.search(stylesheet) is None
 
-    def test_reuses_no_class_name_that_ui_console_defines(self, page_inventory):
+    def test_defines_no_class_name_that_ui_console_defines(self):
         vendored = defined_class_names(UI_CONSOLE_CSS.read_text())
         own_stylesheet = {name for path in OWN_STYLESHEETS for name in defined_class_names(path.read_text())}
-        used_in_markup = {name for value in page_inventory.class_values for name in value.split()}
         assert vendored
-        assert vendored & (own_stylesheet | used_in_markup) == set()
+        assert vendored & own_stylesheet == set()
 
     @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
     def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self, stylesheet_path):
@@ -484,20 +388,8 @@ class TestPageShell:
         )
         assert motion_tokens_left_running_under_reduced_motion(stylesheet) == {"--motion-ring"}
 
-    def test_every_screen_holds_exactly_one_legal_nav_with_both_links(self, page_inventory):
-        assert {"home", "prejoin", "call"} <= page_inventory.screens
-        assert set(page_inventory.legal_navs_by_screen) == page_inventory.screens
-        for navs in page_inventory.legal_navs_by_screen.values():
-            assert navs == [list(LEGAL_URLS)]
-
 
 LEGAL_NAV = '<nav class="legal"><a href="/a"></a></nav>'
-
-
-def inventory_of(markup: str) -> PageInventory:
-    inventory = PageInventory()
-    inventory.feed(markup)
-    return inventory
 
 
 class TestPageInventory:

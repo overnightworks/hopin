@@ -1,5 +1,7 @@
 # 0001 Static frontend modules
 
+Partly superseded by [ADR 0003](0003-page-layer-on-sveltekit.md): the page's markup is no longer `index.html` but the SvelteKit layout, and the build step exists. The modules, the stylesheets and the rules about class names, tokens and screens still hold.
+
 ## Context
 
 The blessed UI (`docs/mockups/hopin-call.html`) is built in about fifteen
@@ -15,12 +17,12 @@ The page is markup, stylesheets and ES modules, served from
 webauth's session gate, and the CSP and the Permissions-Policy come from
 webauth:
 
-- `index.html` holds markup only: no inline script, `<style>`, `style=` or
+- `index.html` (superseded: the layout in `frontend/src/routes/+layout.svelte` and the shell's `app.html` hold the markup now) holds markup only: no inline script, `<style>`, `style=` or
   `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
   same-origin absolute path; an `<a href>` is only one of the two central legal
   URLs, with `target="_blank" rel="noopener"`. CSP limits what the page
-  fetches, not where a link goes. A guard test (`tests/web/test_routes.py`) keeps
-  it so.
+  fetches, not where a link goes. The sign-in pages keep a guard test
+  (`tests/web/test_routes.py`); the shell's guards read the rendered DOM in `tests/e2e/test_page_shell.py`.
 - The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
   then appkit's `appkit.css`, then `hopin.css`. An upgrade of the first is a
   new vendoring, never an edit. The kit is the installed `overnightworks-appkit`
@@ -32,12 +34,12 @@ webauth:
   is served only at its routes, never from the mount.
 - Every screen carries its own `<nav class="legal">` copy (a static page has no
   templating). The guard test pins that each distinct `data-screen` value holds
-  exactly one, with both URLs; the call screen is one element whose nav sits in
+  exactly one, with both URLs (superseded: the e2e module `tests/e2e/test_page_shell.py` reads it from the DOM); the call screen is one element whose nav sits in
   its More menu.
 - HopIn reuses no class name that `ui-console.css` defines, because its grammar
   classes would otherwise style HopIn's markup. A name that both the
-  picture and ui-console define is renamed in HopIn. The test
-  `test_reuses_no_class_name_that_ui_console_defines` enforces the rule.
+  picture and ui-console define is renamed in HopIn. The tests
+  `test_defines_no_class_name_that_ui_console_defines` and `test_the_home_page_uses_no_class_name_that_ui_console_defines` enforce the rule.
 - The sign-in pages (`login-failed.html`, `login.html` for Signed out and
   `no-access.html`) are ui-console's sign-in markup with its classes and
   wording, and load the same three stylesheets. The no-reuse rule and the legal-only `<a>`
@@ -58,8 +60,8 @@ webauth:
 
 ## Consequences
 
-- There is no build step; the browser loads the modules as written. The one
-  installed package the pages' styles come from is the `overnightworks-appkit`
+- There is no build step for the modules; the browser loads them as written (the shell is built since
+  ADR 0003). The one installed package the pages' styles come from is the `overnightworks-appkit`
   kit.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).

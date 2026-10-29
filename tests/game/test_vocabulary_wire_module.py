@@ -13,6 +13,7 @@ from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
 from hopin.main import main
 from hopin.web.routes import create_router
 from hopin.web.wire import WIRE_MODULE_PATH
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 from tests.support.wire_module import served_exports
@@ -28,7 +29,7 @@ def test_the_wire_module_carries_the_games_signal_types_phases_refusals_and_its_
     handler, room_manager
 ):
     app = FastAPI()
-    app.include_router(create_router(handler, room_manager))
+    app.include_router(create_router(handler, room_manager, fixture_page_build()))
     browser = TestClient(app)
 
     exports = served_exports(browser.get(WIRE_MODULE_PATH).text)
@@ -43,7 +44,9 @@ def test_the_wire_module_carries_the_games_signal_types_phases_refusals_and_its_
 
 
 @patch("hopin.main.uvicorn.run")
-def test_the_app_main_starts_carries_the_game_in_its_wire_module(mock_run, sign_in_settings, monkeypatch):
+def test_the_app_main_starts_carries_the_game_in_its_wire_module(
+    mock_run, sign_in_settings, monkeypatch, fixture_build_directory
+):
     for name, value in sign_in_settings().environment.items():
         monkeypatch.setenv(name, value)
     stores = SignInStores.in_memory()

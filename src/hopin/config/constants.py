@@ -1,3 +1,4 @@
+import re
 from enum import StrEnum
 
 from webauth.policies import PathRules, RateLimitBudget
@@ -13,6 +14,8 @@ HOME_PATH = "/"
 CALL_PATH = "/c"
 HEALTH_PATH = "/health"
 STATIC_PATH = "/static"
+APP_ASSET_PATH = "/_app"
+IMMUTABLE_ASSET_DIRECTORY = "immutable"
 ICE_SERVERS_PATH = "/api/ice-servers"
 ACCOUNT_PATH = "/api/account"
 PEOPLE_PATH = "/api/admin/people"
@@ -36,12 +39,20 @@ RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=SIGN_IN_PATHS.backchannel.exact |
 
 PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
 
+# The immutable files of the page build set their own header on success (routes.py): a rule here would also
+# stamp it onto the 401, 429 and 404 that the same path can answer. Every other build file is revalidated.
 NO_CACHE_PATH_RULES = PathRules(
     exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH}),
     prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
+    patterns=(re.compile(rf"^{APP_ASSET_PATH}/(?!{IMMUTABLE_ASSET_DIRECTORY}/)"),),
 )
+# Private, because the assets sit behind the sign-in and a shared cache would hand them out past it (RFC 9111 5.2.2.9).
+IMMUTABLE_ASSET_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
+# SvelteKit 3.1.0 writes this one inline style on its route announcer (src/runtime/components/root.svelte):
+# 'unsafe-hashes' with the hash of exactly that text admits it, and every other inline style stays refused.
+ANNOUNCER_STYLE_SOURCES = ("'unsafe-hashes'", "'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo='")
 
 OIDC_CLIENT_ID = "hopin"
 LOGIN_GROUP = "/apps/hopin"
