@@ -1,4 +1,4 @@
-import { closeOpenMenu } from "./menus.js";
+import { closeOpenMenu } from "#lib/ui/menus.ts";
 
 export const SCREEN = {
     HOME: "home",

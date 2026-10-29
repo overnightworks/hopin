@@ -56,14 +56,14 @@ The game plugs into signaling through one port: the handler offers it every fram
 
 The page is a SvelteKit shell that `make frontend` builds into `src/hopin/web/build/` (never committed; [ADR 0003](decisions/0003-page-layer-on-sveltekit.md)). `PageBuild` (`web/page_build.py`) loads it at start and the server refuses to start without it. `/` and `/c/{room}` answer the shell, `/_app` serves the build's files, and the layout carries the page's markup and imports `app.js` after it mounted. The rest of the browser is ES modules under `frontend/src/lib/legacy/`, bundled with the shell and reached only through that import ([ADR 0001](decisions/0001-static-frontend-modules.md)), and the game's module with its stylesheet under `assets/game/`. `app.js` is the only wiring; the other modules group by job:
 
-- **Screens and navigation:** `router`, `home`, `account`, `menus`, `prejoin`, `end`, `dialogs`
+- **Screens and navigation:** `router`, `home`, `account`, `prejoin`, `end`, `dialogs`
 - **Connection to the server:** `signaling`, `replay` (frames resent after a resume)
 - **Peer connections:** `mesh`
 - **Local and remote media:** `media`, `media-state`, `speaking`, `quality`
 - **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `toast`
 - **State:** `state`, the one mutable call state, with no DOM
 
-The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. Vitest judges it at 100 % branch (`pnpm test:coverage`), and the legacy modules import it, never the reverse.
+The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: the account and More menus' open, close and focus). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
 
 ## 3. Runtime View
 

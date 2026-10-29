@@ -1,4 +1,4 @@
-import { registerMenu } from "./menus.js";
+import { registerMenu } from "#lib/ui/menus.ts";
 import { goThroughSignIn } from "./router.js";
 
 const ACCOUNT_URL = "/api/account";

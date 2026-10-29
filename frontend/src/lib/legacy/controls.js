@@ -1,6 +1,6 @@
 import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "./media.js";
 import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
-import { closeOpenMenu, registerMenu } from "./menus.js";
+import { closeOpenMenu, registerMenu } from "#lib/ui/menus.ts";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
 import { TOAST_KIND, showToast } from "./toast.js";
