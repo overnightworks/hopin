@@ -6,7 +6,6 @@ import pytest
 from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
-from hopin.config.constants import STATIC_PATH
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import BROWSER_MODULE, GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GameSignal
 from tests.e2e.support.calls import (
@@ -25,6 +24,7 @@ from tests.e2e.support.calls import (
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
+from tests.e2e.support.signaling import FrameInjector
 from tests.game.support.fake_agent_service import Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
 
@@ -53,9 +53,6 @@ QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
 QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
 END_QUIZ = re.compile(rf"^End quiz\s+{QUESTION_ONE}$")
 QUIZ_ENDED = "Quiz ended."
-SEND_FRAME_THROUGH_THE_PAGES_SIGNALING = (
-    f"async (type) => (await import('{STATIC_PATH}/js/signaling.js')).send({{ type }})"
-)
 PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 BROWSER_STYLESHEET = BROWSER_MODULE.replace("game.js", "game.css")
 RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT = """
@@ -85,10 +82,6 @@ def leave_the_call(guest: Page) -> None:
     guest.click("#leaveBtn")
 
 
-def send_frame(person: Page, signal_type: GameSignal) -> None:
-    person.evaluate(SEND_FRAME_THROUGH_THE_PAGES_SIGNALING, signal_type.value)
-
-
 def open_chat(person: Page) -> None:
     if person.locator("#moreMenu").is_visible():
         person.keyboard.press("Escape")
@@ -106,6 +99,17 @@ def expect_idle(person: Page) -> None:
     expect(item).to_be_enabled()
     expect(item).not_to_have_class(THINKING)
     expect(person.locator(TYPING)).to_have_count(0)
+
+
+def relaying_frames(open_person: Callable[..., Page], relays: list[FrameInjector]) -> Callable[..., Page]:
+    """Open people whose signaling sockets run through a FrameInjector, collected in the order they open."""
+
+    def open_relayed(**options: Any) -> Page:
+        person = open_person(**options)
+        relays.append(FrameInjector(person))
+        return person
+
+    return open_relayed
 
 
 def call_of_two(
@@ -617,7 +621,9 @@ def test_the_hosts_end_quiz_ends_a_guests_quiz_for_everyone(
 def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alone(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
 ) -> None:
-    host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
+    relays: list[FrameInjector] = []
+    host, guest = call_of_two(relaying_frames(open_person, relays), e2e_server.base_url, page_errors)
+    _, guest_frames = relays
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
     start_quiz(host)
     open_chat(host)
@@ -629,7 +635,7 @@ def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alo
     }
 
     for signal_type, toast in refusals.items():
-        send_frame(guest, signal_type)
+        guest_frames.send({"type": signal_type})
         expect(guest.locator(TOASTS)).to_contain_text(toast)
 
     answer_on_card(host, "Tejo")
