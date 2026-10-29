@@ -1,8 +1,5 @@
 # Measured by `quality baseline write`. Entries only ever go down.
 
-[ccn."tests/web/test_routes.py"]
-"PageInventory._inspect" = 21
-
 [file_lines]
 "tests/e2e/test_media.py" = 809
 "tests/e2e/test_mesh.py" = 988

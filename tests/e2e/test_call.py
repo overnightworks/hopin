@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hopin.config.constants import STATIC_PATH
+from hopin.config.constants import APP_ASSET_PATH, IMMUTABLE_ASSET_DIRECTORY, STATIC_PATH
 from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, PHONE
@@ -21,7 +21,8 @@ TWO_PLAYING_VIDEOS = """
 }
 """
 
-CORE_MODULES_PATH = f"{STATIC_PATH}/js/"
+# The call core's own modules, and the page build's chunks that start them; the former go into the build later.
+SCRIPT_PATHS = (f"{STATIC_PATH}/js/", f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/")
 
 
 def record_scripts(person: Page, scripts: list[str]) -> Page:
@@ -49,4 +50,4 @@ def test_call_two_people_join_see_each_others_video_with_only_the_call_cores_mod
         timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     )
     assert scripts
-    assert [url for url in scripts if not url.startswith(f"{base_url}{CORE_MODULES_PATH}")] == []
+    assert [url for url in scripts if not url.startswith(tuple(f"{base_url}{path}" for path in SCRIPT_PATHS))] == []

@@ -103,14 +103,23 @@ def test_a_person_opened_signed_out_holds_no_cookie(
     assert page.context.cookies() == []
 
 
+# The page mounts its markup after load, so the line is awaited rather than looked up once.
 WATCH_THE_STATUS_LINE = """
-document.addEventListener("DOMContentLoaded", () => {
+window.statusLineWatched = false;
+const watchStatusLine = () => {
     const status = document.getElementById("status");
-    if (status) {
-        new MutationObserver(() => window.noteStatus(status.textContent))
-            .observe(status, { childList: true, characterData: true, subtree: true });
+    if (!status) {
+        return false;
     }
-});
+    new MutationObserver(() => window.noteStatus(status.textContent))
+        .observe(status, { childList: true, characterData: true, subtree: true });
+    window.statusLineWatched = true;
+    return true;
+};
+if (!watchStatusLine()) {
+    const waiting = new MutationObserver(() => watchStatusLine() && waiting.disconnect());
+    waiting.observe(document.documentElement, { childList: true, subtree: true });
+}
 """
 RECORD_POLICY_VIOLATIONS = """
 window.policyViolations = [];
@@ -200,6 +209,7 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     page.add_init_script(WATCH_THE_STATUS_LINE)
     open_prejoin(page, e2e_server.base_url)
     wait_until_the_prejoin_media_answered(page)
+    statuses_were_watched = page.evaluate("() => window.statusLineWatched")
     documents = record_document_requests(page)
     if end_the_session == "delete_it_in_the_store":
         e2e_server.stores.sessions.delete(member_of(page).session.id)
@@ -211,6 +221,7 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
 
     assert ice_servers.value.status == 401
     expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=f"{e2e_server.base_url}/", next_path="%2F")
+    assert statuses_were_watched is True
     assert not any("Could not load ICE servers" in status for status in statuses)
 
 
@@ -310,6 +321,7 @@ def test_a_call_runs_under_the_security_headers_with_camera_microphone_and_scree
     expect(host.locator("#chatMessages")).to_contain_text("hello")
     share_the_screen(host)
     guest.click("#leaveBtn")
+    expect(guest.locator("[data-screen=end]")).to_be_visible()
 
     assert host.evaluate(ALLOWED_FEATURES) == {
         "camera": True,

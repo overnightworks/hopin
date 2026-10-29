@@ -34,7 +34,14 @@ from hopin.web.kit import KIT_PATH
 from hopin.web.routes import STATIC_DIR, create_router
 from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.page_build import fixture_page_build
-from tests.support.page_inventory import CSS_COMMENT, UI_CONSOLE_CSS, defined_class_names, inventory_of
+from tests.support.page_inventory import (
+    CSS_COMMENT,
+    LEGAL_URLS,
+    NEW_TAB_LINK_ATTRIBUTES,
+    UI_CONSOLE_CSS,
+    defined_class_names,
+    inventory_of,
+)
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
 from tests.support.wire_module import served_exports
 
@@ -183,13 +190,11 @@ class TestHeadRequests:
 
 
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
-LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
-NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
-LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
 # HopIn's own stylesheets: the page's and each one a feature's browser module loads.
 OWN_STYLESHEETS = sorted(set((STATIC_DIR / "assets").rglob("*.css")) - {UI_CONSOLE_CSS})
+LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
 CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
 CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
 CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")

@@ -6,6 +6,8 @@ from html.parser import HTMLParser
 from hopin.web.routes import STATIC_DIR
 
 UI_CONSOLE_CSS = STATIC_DIR / "assets" / "css" / "ui-console.css"
+LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
+NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
 CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
@@ -61,6 +63,11 @@ class PageInventory(HTMLParser):
 
     def _inspect(self, tag, attrs):
         attributes = dict(attrs)
+        self._inspect_head(tag, attributes)
+        self._inspect_body(tag, attributes)
+        self._inspect_attributes(tag, attrs)
+
+    def _inspect_head(self, tag, attributes):
         if tag == "style":
             self.style_elements += 1
         if tag == "script" and "src" not in attributes:
@@ -69,6 +76,8 @@ class PageInventory(HTMLParser):
             self.stylesheets.append(attributes["href"])
         if tag == "link" and attributes.get("rel") == "icon":
             self.icons.append(attributes)
+
+    def _inspect_body(self, tag, attributes):
         if "class" in attributes:
             self.class_values.append(attributes["class"])
         if tag == "form":
@@ -79,6 +88,8 @@ class PageInventory(HTMLParser):
             self.links.append(attributes)
             if self._legal_nav_links is not None:
                 self._legal_nav_links.append(attributes["href"])
+
+    def _inspect_attributes(self, tag, attrs):
         for name, value in attrs:
             if name == "style" or name.startswith("on"):
                 self.forbidden_attributes.append(name)
