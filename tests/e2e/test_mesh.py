@@ -36,7 +36,14 @@ from tests.e2e.support.media import (
     wait_for_peer_count,
     wait_for_the_picture,
 )
-from tests.e2e.support.signaling import RECONNECT_DELAYS_MS
+from tests.e2e.support.signaling import (
+    COUNT_STATUS_WRITES,
+    LATE_EVENTS_OF_THE_FIRST_SOCKET,
+    RECONNECT_DELAYS_MS,
+    RECORD_SOCKETS,
+    STATUS_WRITES,
+    STATUS_WRITTEN_AGAIN,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -190,32 +197,6 @@ async (previousUfrag) => {
 """
 REMOTE_UFRAG = "() => /a=ice-ufrag:(\\S+)/.exec(window.recordedConnections[0].remoteDescription.sdp)[1]"
 ICE_DISCONNECTED_GRACE_MS = 2000
-RECORD_SOCKETS = """
-window.openedSockets = [];
-const PageWebSocket = window.WebSocket;
-window.WebSocket = class extends PageWebSocket {
-    constructor(...socketArguments) {
-        super(...socketArguments);
-        window.openedSockets.push(this);
-    }
-};
-"""
-LATE_EVENTS_OF_THE_FIRST_SOCKET = """
-() => {
-    const [first] = window.openedSockets;
-    first.dispatchEvent(new Event("error"));
-    first.dispatchEvent(new Event("close"));
-}
-"""
-# Counts every write to the status line, so a scenario can tell a rewrite of the same text from none.
-COUNT_STATUS_WRITES = """
-window.statusWrites = 0;
-new MutationObserver((records) => {
-    for (const { target } of records) if (target.id === "status") window.statusWrites++;
-}).observe(document, { childList: true, subtree: true });
-"""
-STATUS_WRITES = "() => window.statusWrites"
-STATUS_WRITTEN_AGAIN = "(before) => window.statusWrites > before"
 BLANK_QUALITY_BARS = """
 () => document.querySelectorAll(".connection-quality").forEach((indicator) => {
     delete indicator.dataset.quality;

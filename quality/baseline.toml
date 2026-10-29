@@ -5,7 +5,7 @@
 
 [file_lines]
 "tests/e2e/test_media.py" = 809
-"tests/e2e/test_mesh.py" = 1007
+"tests/e2e/test_mesh.py" = 995
 
 [clones."tests/auth/test_sign_in_backchannel_erasure.py"]
 host_a_call = [["tests/signaling/test_handler_flow.py", "open_room"]]
