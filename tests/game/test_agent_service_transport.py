@@ -5,7 +5,7 @@ import socket
 import pytest
 import structlog.testing
 from agent_runtime_client.sse import encode_event
-from agent_runtime_client.wire import PROTOCOL_VERSION, RejectionCode, RunRejection, RunStarted, Succeeded
+from agent_runtime_client.wire import PROTOCOL_VERSION, RejectionCode, RouteKind, RunRejection, RunStarted, Succeeded
 
 from hopin.game import AGENT_SERVICE_OVER_HTTP
 from hopin.game.table import Line, Refused
@@ -41,7 +41,14 @@ def world(sign_in_settings):
 
 
 def held_run(question):
-    started = RunStarted(v=PROTOCOL_VERSION, run_id=RUN_ID, seq=0, heartbeat_interval_s=15)
+    started = RunStarted(
+        v=PROTOCOL_VERSION,
+        run_id=RUN_ID,
+        seq=0,
+        model="anthropic/test-model",
+        route=RouteKind.CLI,
+        heartbeat_interval_s=15,
+    )
     succeeded = Succeeded(v=PROTOCOL_VERSION, run_id=RUN_ID, seq=1, text=question)
     return HeldStream(first=streamed_head("text/event-stream") + encode_event(started), rest=encode_event(succeeded))
 
