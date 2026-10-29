@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
     build: {
         rolldownOptions: {
-            // FastAPI serves the legacy page code under /static/ until it moves into the bundle.
+            // FastAPI serves the wire vocabulary the game reads and the game module under /static/; the bundle does not own them.
             external: [/^\/static\//],
         },
     },

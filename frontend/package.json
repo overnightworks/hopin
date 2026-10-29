@@ -7,6 +7,9 @@
     "engines": {
         "node": ">=24 <25"
     },
+    "imports": {
+        "#lib/*": "./src/lib/*"
+    },
     "scripts": {
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
         "lint": "eslint . && prettier --check .",

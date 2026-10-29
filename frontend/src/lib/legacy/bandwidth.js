@@ -44,7 +44,10 @@ function capSender(videoSender, maxBitrate) {
     const previous = lastCapBySender.get(videoSender.sender) ?? Promise.resolve();
     const cap = previous.then(() => setCap(videoSender, maxBitrate));
     // The caller still sees this cap's failure; the queue only waits for it to end.
-    lastCapBySender.set(videoSender.sender, cap.catch(() => {}));
+    lastCapBySender.set(
+        videoSender.sender,
+        cap.catch(() => {}),
+    );
     return cap;
 }
 
