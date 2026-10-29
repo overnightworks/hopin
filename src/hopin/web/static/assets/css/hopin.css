@@ -1,6 +1,7 @@
-/* Shell tokens that ui-console lacks; its own tokens come from ui-console.css. */
+/* HopIn's own tokens: the slot colour, stage, radius, shadow, motion and mono.
+   appkit owns the neutrals, the states, the fonts and color-scheme (ADR 0001). */
 :root {
-    --app: #F6F8F9;
+    --mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
     --motion-snap: .28s;
     --motion-fade: .2s;
     --motion-quick: .15s;
@@ -10,10 +11,8 @@
     --motion-think: 1.1s;
     --accent: #1d5bbf;
     --accent-hover: #174a9c;
-    --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--screen));
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
     --on-accent: #ffffff;
-    --surface-2: #EEF2F4;
-    --surface-3: #E3E8EC;
     --shadow-lg: 0 2px 6px rgba(20, 24, 29, .06), 0 28px 64px -28px rgba(20, 24, 29, .42);
     --shadow-sm: 0 1px 2px rgba(20, 24, 29, .06), 0 2px 8px -4px rgba(20, 24, 29, .14);
     --scrim: rgba(14, 18, 22, .36);
@@ -40,38 +39,30 @@
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-        --app: #111418;
         --accent: #7aa7f0;
         --accent-hover: #a3c2f5;
-        --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--screen));
+        --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
         --on-accent: #111111;
-        --surface-2: #232930;
-        --surface-3: #2D343C;
         --shadow-lg: 0 2px 6px rgba(0, 0, 0, .4), 0 28px 64px -28px rgba(0, 0, 0, .9);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4), 0 2px 8px -4px rgba(0, 0, 0, .6);
     --scrim: rgba(0, 0, 0, .55);
         --toast-bg: #E8ECF0;
         --toast-ink: #14181D;
         --toast-act: #1d5bbf;
-        color-scheme: dark;
     }
 }
 
 :root[data-theme="dark"] {
-    --app: #111418;
     --accent: #7aa7f0;
     --accent-hover: #a3c2f5;
-    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--screen));
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
     --on-accent: #111111;
-    --surface-2: #232930;
-    --surface-3: #2D343C;
     --shadow-lg: 0 2px 6px rgba(0, 0, 0, .4), 0 28px 64px -28px rgba(0, 0, 0, .9);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4), 0 2px 8px -4px rgba(0, 0, 0, .6);
     --scrim: rgba(0, 0, 0, .55);
     --toast-bg: #E8ECF0;
     --toast-ink: #14181D;
     --toast-act: #1d5bbf;
-    color-scheme: dark;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -79,8 +70,8 @@ html, body { height: 100%; overflow: hidden; }
 .sign-in { flex: 1; overflow: auto; }
 body {
     font-family: var(--sans);
-    background: var(--app);
-    color: var(--ink);
+    background: var(--bg);
+    color: var(--text);
     display: flex;
     flex-direction: column;
 }
@@ -332,7 +323,7 @@ body {
     display: grid;
     place-items: center;
     background: linear-gradient(150deg, var(--c1, var(--accent)), var(--c2, var(--accent-hover)));
-    color: #FFFFFF;
+    color: var(--on-accent);
     font-weight: 650;
     letter-spacing: .01em;
 }
@@ -527,15 +518,15 @@ body {
     box-shadow: 0 18px 40px -18px var(--accent);
 }
 .legal { display: flex; gap: 18px; justify-content: center; font-size: 13px; }
-.legal a { color: var(--ink-faint); text-decoration: none; }
-.legal a:hover { color: var(--ink-soft); text-decoration: underline; }
+.legal a { color: var(--text-muted); text-decoration: none; }
+.legal a:hover { color: var(--text-muted); text-decoration: underline; }
 .page {
     flex: 1;
     min-height: 0;
     position: relative;
     overflow: hidden auto;
-    background: var(--app);
-    color: var(--ink);
+    background: var(--bg);
+    color: var(--text);
     font-family: var(--sans);
 }
 .topbar {
@@ -548,7 +539,7 @@ body {
 }
 .button-block { width: 100%; }
 .button-text { background: transparent; color: var(--accent); height: 44px; }
-.button-text:hover { background: var(--surface-2); }
+.button-text:hover { background: var(--surface-hover); }
 .home {
     display: grid;
     grid-template-rows: auto 1fr auto auto auto 1fr auto auto;
@@ -588,7 +579,7 @@ body {
     line-height: 1.45;
     max-width: 384px;
     padding: 0 32px;
-    color: var(--ink-soft);
+    color: var(--text-muted);
     font-size: 16px;
     text-wrap: balance;
 }
@@ -615,8 +606,8 @@ body {
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: var(--surface-2);
-    color: var(--ink-soft);
+    background: var(--surface-hover);
+    color: var(--text-muted);
 }
 .end-icon.warn { background: var(--busy-soft); color: var(--busy); }
 .end h2 {
@@ -644,7 +635,7 @@ body {
     max-width: 384px;
     margin-top: 14px;
     padding: 0 32px;
-    color: var(--ink-soft);
+    color: var(--text-muted);
     font-size: 16px;
     text-wrap: balance;
 }
@@ -672,14 +663,14 @@ body {
     border-radius: 50%;
     display: grid;
     place-items: center;
-    background: var(--surface-2);
-    color: var(--ink);
+    background: var(--surface-hover);
+    color: var(--text);
     cursor: pointer;
     transition: background var(--motion-fade);
 }
-.iconbtn:hover { background: var(--surface-3); }
+.iconbtn:hover { background: var(--border); }
 .iconbtn.ghost { background: transparent; }
-.iconbtn.ghost:hover { background: var(--surface-2); }
+.iconbtn.ghost:hover { background: var(--surface-hover); }
 .topbar-title { font-size: 17px; font-weight: 650; }
 .cb {
     position: relative;
@@ -770,14 +761,14 @@ body {
     padding: 8px 10px 24px;
     border: 0;
     border-radius: 30px;
-    background: var(--screen);
-    color: var(--ink);
+    background: var(--surface);
+    color: var(--text);
     box-shadow: var(--shadow-lg);
     animation: overlay-sheet var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
 }
 .overlay:not([open]) { display: none; }
-.grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--line); }
-.sep { height: 1px; margin: 6px 10px; background: var(--line-soft); }
+.grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--border); }
+.sep { height: 1px; margin: 6px 10px; background: var(--border); }
 .mi {
     display: flex;
     align-items: center;
@@ -788,31 +779,31 @@ body {
     border: 0;
     border-radius: 14px;
     background: transparent;
-    color: var(--ink);
+    color: var(--text);
     font: inherit;
     font-size: 16px;
     text-align: left;
     text-decoration: none;
     cursor: pointer;
 }
-.mi:hover { background: var(--surface-2); }
-.mi .icon { color: var(--ink-soft); }
+.mi:hover { background: var(--surface-hover); }
+.mi .icon { color: var(--text-muted); }
 .mi .grow { flex: 1; min-width: 0; }
-.mi small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); }
-.mi .end { display: flex; color: var(--ink-faint); }
+.mi small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--text-muted); }
+.mi .end { display: flex; color: var(--text-muted); }
 .mi:disabled { opacity: .6; cursor: default; }
 .mi:disabled:hover { background: transparent; }
-.quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.4; }
+.quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
 .quiet-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .overlay .legal { display: block; font-size: inherit; }
-.overlay .legal a, .overlay .legal a:hover { color: var(--ink); text-decoration: none; }
+.overlay .legal a, .overlay .legal a:hover { color: var(--text); text-decoration: none; }
 .switch {
     position: relative;
     flex: none;
     width: 46px;
     height: 28px;
     border-radius: 999px;
-    background: var(--surface-3);
+    background: var(--border);
     transition: background var(--motion-fade);
 }
 .switch::after {
@@ -823,7 +814,7 @@ body {
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: var(--screen);
+    background: var(--surface);
     box-shadow: var(--shadow-sm);
     transition: transform var(--motion-fade);
 }
@@ -840,7 +831,7 @@ body {
         left: 50%;
         width: 280px;
         padding: 6px;
-        border: 1px solid var(--line-soft);
+        border: 1px solid var(--border);
         border-radius: 18px;
         translate: -50% 0;
         animation: overlay-pop var(--motion-fade) ease-out;
@@ -859,18 +850,18 @@ body {
     margin: 4px 6px 0;
     padding: 6px 6px 6px 14px;
     border-radius: 14px;
-    background: var(--surface-2);
+    background: var(--surface-hover);
 }
 .linkbox code { flex: 1; min-width: 0; overflow: hidden; font-family: var(--mono); font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
 .linkbox .button { height: 40px; padding: 0 16px; font-size: 14.5px; }
-.members-note { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px; color: var(--ink-faint); font-size: 13px; }
+.members-note { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px; color: var(--text-muted); font-size: 13px; }
 .invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 6px 0; }
 .invite-actions .button { height: 48px; font-size: 15px; }
 .invite .button:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
 .invite[data-share="unavailable"] #inviteShareBtn { display: none; }
 .invite[data-share="unavailable"] .invite-actions { grid-template-columns: 1fr; }
-.invite[data-share="available"] #inviteCopyLinkBtn { background: var(--surface-2); color: var(--ink); }
-.invite[data-share="available"] #inviteCopyLinkBtn:hover { background: var(--surface-3); }
+.invite[data-share="available"] #inviteCopyLinkBtn { background: var(--surface-hover); color: var(--text); }
+.invite[data-share="available"] #inviteCopyLinkBtn:hover { background: var(--border); }
 @media (max-width: 600px) {
     .linkbox .button { display: none; }
 }
@@ -887,7 +878,7 @@ body {
 .av-28 { width: 28px; height: 28px; flex: none; }
 .av-44 { width: 44px; height: 44px; flex: none; font-size: 15px; color: var(--on-accent); }
 .av-btn { width: 40px; height: 40px; flex: none; border: 0; padding: 0; font: inherit; font-size: 14px; font-weight: 650; color: var(--on-accent); cursor: pointer; }
-.av-btn:hover { box-shadow: 0 0 0 4px var(--surface-2); }
+.av-btn:hover { box-shadow: 0 0 0 4px var(--surface-hover); }
 #accountScrim { position: fixed; background: transparent; animation: none; }
 .account-menu {
     position: fixed;
@@ -896,17 +887,17 @@ body {
     width: 260px;
     margin: 0;
     padding: 6px;
-    border: 1px solid var(--line-soft);
+    border: 1px solid var(--border);
     border-radius: 18px;
-    background: var(--screen);
-    color: var(--ink);
+    background: var(--surface);
+    color: var(--text);
     box-shadow: var(--shadow-lg);
     animation: overlay-pop var(--motion-fade) ease-out;
 }
 .menu-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 14px; }
 .menu-head div { min-width: 0; }
 .menu-head b:not(.hidden) { display: block; overflow: hidden; font-size: 15.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.menu-head span:not(.av) { font-size: 13px; color: var(--ink-faint); }
+.menu-head span:not(.av) { font-size: 13px; color: var(--text-muted); }
 @media (min-width: 601px) {
     .account-menu { inset: 66px 24px auto auto; }
 }
@@ -974,10 +965,10 @@ body {
     gap: 10px;
     min-height: 44px;
     padding: 14px 20px 0;
-    color: var(--ink-soft);
+    color: var(--text-muted);
     font-size: 14.5px;
 }
-.self-row b { color: var(--ink); font-weight: 600; }
+.self-row b { color: var(--text); font-weight: 600; }
 .prejoin-side { padding: 16px 20px 0; }
 .prejoin .legal { padding: 14px 0 32px; }
 @media (max-width: 600px) {
@@ -997,7 +988,7 @@ body {
     .preview { flex: none; height: 412px; margin: 0; }
     .prejoin-side { display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 0; }
     .prejoin-side h2 { font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.025em; }
-    .prejoin-sub { margin: -6px 0 6px; color: var(--ink-soft); font-size: 15px; }
+    .prejoin-sub { margin: -6px 0 6px; color: var(--text-muted); font-size: 15px; }
     .prejoin-side .button { margin-top: 6px; }
     .prejoin .legal { padding: 6px 0 28px; }
 }
