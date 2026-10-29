@@ -86,8 +86,12 @@ HopIn refuses to start without the four required settings, when a secret file ca
 |---|---|
 | `make install` | install all dependencies |
 | `make run` | start the server |
-| `make check` | lint, tests and dead code |
+| `make check` | lint, tests, dead code and the frontend's check and lint |
+| `make frontend` | install the frontend's dependencies and build it |
+| `make frontend-check` | type-check and lint the frontend |
 | `make e2e` | browser end-to-end tests |
+
+The frontend in `frontend/` needs Node 24 and pnpm, whose version `packageManager` in its `package.json` pins (Corepack installs it).
 
 [AGENTS.md](AGENTS.md) is guidance for coding agents.
 

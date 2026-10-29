@@ -1,4 +1,4 @@
-.PHONY: install lint format test dead check run e2e
+.PHONY: install lint format test dead check run e2e frontend frontend-check
 
 install:
 	uv sync --all-extras
@@ -21,7 +21,13 @@ e2e:
 dead:
 	uv run vulture src/hopin
 
-check: lint test dead
+frontend:
+	cd frontend && pnpm install --frozen-lockfile && pnpm build
+
+frontend-check:
+	cd frontend && pnpm check && pnpm lint
+
+check: lint test dead frontend-check
 
 run:
 	uv run hopin serve

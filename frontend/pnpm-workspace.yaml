@@ -1,0 +1,10 @@
+packages:
+    - .
+
+engineStrict: true
+
+overrides:
+    # @sveltejs/kit 2.70.3 asks for cookie ^0.6.0, below the advisory's fixed
+    # version 0.7.0. 1.x keeps the parse/serialize exports kit imports; 2.x
+    # renames them. Drop this when kit's own range passes 0.7.
+    cookie: 1.1.1
