@@ -18,10 +18,9 @@
   --ink-faint: #8A94A0;
   --line: #D2D8DD;
   --line-soft: #E4E8EB;
-  --accent: #0C6C77;
-  --accent-hover: #0A5D67;
-  --accent-soft: #DCEDEE;
-  --accent-ink: #0A5560;
+  --accent: #1d5bbf;
+  --accent-hover: #174a9c;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
   --on-accent: #FFFFFF;
   --ok: #1D7444;
   --busy: #9A6200;
@@ -36,7 +35,7 @@
   --chrome-line: #D9DEE2;
   --toast-bg: #1C2128;
   --toast-ink: #F4F6F8;
-  --toast-act: #7FD6DE;
+  --toast-act: #7aa7f0;
 
   /* The video stage is dark in both themes; these never change. */
   --stage: #0D1013;
@@ -50,7 +49,7 @@
   --stage-fade: rgba(13, 16, 19, .92);
   --vignette: rgba(6, 8, 10, .42);
   --silhouette: rgba(255, 255, 255, .13);
-  --accent-stage: #56C3CD;
+  --accent-stage: #7aa7f0;
   --busy-stage: #EDB656;
   --leave: #E5484D;
   --leave-hover: #CF3A3F;
@@ -72,7 +71,7 @@
   --slide-bg: #FBFAF7;
   --slide-ink: #1F2328;
   --slide-soft: #6B7280;
-  --slide-a: #DCEDEE;
+  --slide-a: #e3ecfa;
   --slide-b: #F6EAD3;
   --slide-c: #E6E1F5;
 
@@ -97,11 +96,10 @@
     --ink-faint: #737E8B;
     --line: #2C333C;
     --line-soft: #242A32;
-    --accent: #56C3CD;
-    --accent-hover: #74D2DA;
-    --accent-soft: #16333A;
-    --accent-ink: #8ADBE2;
-    --on-accent: #06181B;
+    --accent: #7aa7f0;
+    --accent-hover: #a3c2f5;
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
+    --on-accent: #111111;
     --ok: #63C48D;
     --busy: #E0A63F;
     --busy-soft: #33260F;
@@ -115,7 +113,7 @@
     --chrome-line: #2A3037;
     --toast-bg: #E8ECF0;
     --toast-ink: #14181D;
-    --toast-act: #0A5560;
+    --toast-act: #1d5bbf;
     color-scheme: dark;
   }
 }
@@ -132,11 +130,10 @@
   --ink-faint: #737E8B;
   --line: #2C333C;
   --line-soft: #242A32;
-  --accent: #56C3CD;
-  --accent-hover: #74D2DA;
-  --accent-soft: #16333A;
-  --accent-ink: #8ADBE2;
-  --on-accent: #06181B;
+  --accent: #7aa7f0;
+  --accent-hover: #a3c2f5;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  --on-accent: #111111;
   --ok: #63C48D;
   --busy: #E0A63F;
   --busy-soft: #33260F;
@@ -150,7 +147,7 @@
   --chrome-line: #2A3037;
   --toast-bg: #E8ECF0;
   --toast-ink: #14181D;
-  --toast-act: #0A5560;
+  --toast-act: #1d5bbf;
   color-scheme: dark;
 }
 
@@ -236,10 +233,10 @@ button { cursor: pointer; }
 }
 .proof b { color: var(--ink); font-weight: 600; }
 .proof-tag {
-  flex: none; background: var(--accent-soft); color: var(--accent-ink);
+  flex: none; background: var(--accent-soft); color: var(--accent);
   border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 650; white-space: nowrap;
 }
-.proof-note { color: var(--accent-ink); }
+.proof-note { color: var(--accent); }
 
 .legend {
   background: var(--surface);
@@ -330,7 +327,7 @@ button { cursor: pointer; }
 .btn-soft:hover { background: var(--surface-3); }
 .btn-leave { background: var(--leave); color: var(--on-leave); }
 .btn-leave:hover { background: var(--leave-hover); }
-.btn-text { background: transparent; color: var(--accent-ink); height: 44px; }
+.btn-text { background: transparent; color: var(--accent); height: 44px; }
 .btn-text:hover { background: var(--surface-2); }
 .btn-block { width: 100%; }
 .btn-lg { height: 58px; font-size: 17px; }
@@ -388,29 +385,8 @@ button { cursor: pointer; }
 .legal a { color: var(--ink-faint); text-decoration: none; }
 .legal a:hover { color: var(--ink-soft); text-decoration: underline; }
 
-/* Sign-in states: transcribed from ui-console v0.3.1 (.login and its parts), in
-   this picture's tokens. HopIn's own .btn, .banner and .glyph are different
-   things here, so the shared classes carry the prefix si-. */
-.si { box-sizing: border-box; width: 100%; flex: 1; padding: 56px 28px 64px; display: flex; flex-direction: column; align-items: center; gap: 22px; container-type: inline-size; overflow: auto; }
-.phone-shell .si { padding-top: 24px; }
-.si-card { width: 320px; max-width: 100%; display: flex; flex-direction: column; gap: 16px; overflow-wrap: anywhere; }
-.si h1 { margin: 0; font-size: 19px; font-weight: 600; }
-.si-wordmark { font-weight: 600; letter-spacing: .04em; font-size: 14px; }
-.si-wordmark span { color: var(--accent); }
-.si-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.si-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 16px; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 500; text-decoration: none; }
-.si-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-.si-btn--wide { width: 100%; box-sizing: border-box; }
-.si-btn:focus-visible, .si-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.si-banner { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 12px; padding: 14px 16px; border: 1px solid var(--fail); border-left-width: 3px; border-radius: 2px; background: var(--fail-soft); }
-.si-banner p { margin: 0; font-size: 13.5px; color: var(--ink); }
-.si-glyph { width: 12px; height: 12px; margin-top: 3px; background: var(--fail); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
-.si-legal { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; }
-.si-link { font-size: 13.5px; color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
-@container (max-width: 520px) {
-  .si-actions { flex-direction: column; align-items: stretch; }
-  .si-actions .si-btn { box-sizing: border-box; }
-}
+/* The sign-in pages (logged out, no access, login failed) are the family
+   picture's section 3: appkit docs/family.html at a161c7c. They are not drawn here. */
 .desktop .hero .btn-lg { min-width: 280px; margin-top: 18px; }
 
 /* Popover menus and sheets */
@@ -737,7 +713,7 @@ button { cursor: pointer; }
 .person { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 10px; border-radius: 14px; }
 .person .grow { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 550; }
 .person .icons { display: flex; gap: 8px; color: var(--ink-faint); }
-.host-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 650; vertical-align: 1px; }
+.host-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 650; vertical-align: 1px; }
 
 /* End screens */
 .end-icon { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-soft); }
@@ -751,19 +727,19 @@ button { cursor: pointer; }
 .mi:disabled:hover { background: transparent; }
 .mi.thinking .ic { color: var(--busy); animation: rot 1.1s linear infinite; }
 .quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.4; }
-.quiet-note a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.quiet-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .msg.gm { max-width: 90%; }
-.msg.gm small { display: flex; align-items: center; gap: 6px; color: var(--accent-ink); font-weight: 650; }
+.msg.gm small { display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 650; }
 .msg.gm p { background: var(--accent-soft); border: 1.5px solid var(--accent); color: var(--ink); border-top-left-radius: 6px; }
-.ai-badge { border: 1.5px solid var(--accent); border-radius: 999px; padding: 0 6px; font-size: 10.5px; line-height: 15px; font-weight: 750; letter-spacing: .04em; color: var(--accent-ink); }
+.ai-badge { border: 1.5px solid var(--accent); border-radius: 999px; padding: 0 6px; font-size: 10.5px; line-height: 15px; font-weight: 750; letter-spacing: .04em; color: var(--accent); }
 .typing p { display: flex; gap: 5px; align-items: center; height: 38px; padding: 0 16px; }
 .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: speak 1.1s ease-in-out infinite; }
 .typing i:nth-child(2) { animation-delay: -.3s; }
 .typing i:nth-child(3) { animation-delay: -.6s; }
 .qcard { margin: 4px 12px 6px; padding: 14px; border-radius: var(--r-md); background: var(--surface); border: 1.5px solid var(--accent); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; flex: none; }
 .qcard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.qcard-tag { font-size: 12.5px; font-weight: 700; color: var(--accent-ink); display: inline-flex; align-items: center; gap: 6px; }
-.qcard-reveal { border: 0; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13.5px; font-weight: 650; }
+.qcard-tag { font-size: 12.5px; font-weight: 700; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; }
+.qcard-reveal { border: 0; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13.5px; font-weight: 650; }
 .qcard-reveal:hover { background: var(--surface-3); }
 .qcard-q { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; }
 .qcard-row { display: flex; gap: 8px; }
@@ -946,8 +922,6 @@ const PRESETS = {
   locked: () => fresh({ screen: "end", endKind: "locked", role: "guest" }),
   full: () => fresh({ screen: "end", endKind: "full", role: "guest" }),
   toomany: () => fresh({ screen: "end", endKind: "toomany", role: "guest" }),
-  noaccess: () => fresh({ screen: "signin", signinKind: "noaccess" }),
-  loginfailed: () => fresh({ screen: "signin", signinKind: "loginfailed" }),
   "quiz-start": () => quizCall({ overlay: "more", role: "guest", quizHint: true }),
   "quiz-thinking": () => quizCall({ overlay: "more", role: "guest", quizPhase: "thinking" }),
   "quiz-first": () => quizCall({ overlay: "chat", quizPhase: "first", quizStarter: true, chat: sampleChat().concat(quizSoFar(1)) }),
@@ -970,7 +944,7 @@ const CHIP_GROUPS = [
     ["quiz-start", "Quiz starten"], ["quiz-thinking", "Spielleiter denkt"], ["quiz-run", "Quiz läuft"], ["quiz-noai", "Kein KI-Zugang"], ["quiz-error", "Spielleiter nicht erreichbar"]]],
   ["Spielleiter", [["quiz-first", "Erste Frage"], ["quiz-answered", "Antwort gesendet"], ["quiz-guest", "Quiz als Gast"], ["quiz-menu", "End quiz"], ["quiz-menu-guest", "Quiz running"], ["quiz-done", "Endstand"], ["quiz-signin", "Neu anmelden"], ["quiz-busy", "Spielleiter beschäftigt"]]],
   ["Probleme", [["reconnect", "Neu verbinden"], ["hostwait", "Host weg"], ["peer", "Verbindungsproblem"]]],
-  ["Ende", [["leave", "Host verlässt"], ["ended", "Beendet"], ["expired", "Link abgelaufen"], ["locked", "Gesperrt"], ["full", "Voll"], ["toomany", "Zu viele Anrufe"], ["noaccess", "Kein Zugang"], ["loginfailed", "Login failed"]]],
+  ["Ende", [["leave", "Host verlässt"], ["ended", "Beendet"], ["expired", "Link abgelaufen"], ["locked", "Gesperrt"], ["full", "Voll"], ["toomany", "Zu viele Anrufe"]]],
 ];
 const QUIZ_LENGTH = 5;
 const QUIZ_ASKED = 4;
@@ -985,13 +959,12 @@ const QUIZ = [
 const QUIZ_FINAL = `Endstand nach ${QUIZ_LENGTH} Fragen: Anna 3, Felix 2, Ben 1, Chris 1. Danke fürs Mitspielen!`;
 const quizSoFar = (n) => QUIZ.slice(0, n - 1).flatMap((item) => [{ who: "gm", text: item.q }, { who: "gm", text: item.reveal }]).concat([{ who: "gm", text: QUIZ[n - 1].q }]);
 const quizCall = (over) => fresh({ screen: "call", count: QUIZ_ASKED, elapsed: 812, ...over });
-const CHIP_ALIAS = { left: "ended", hostgone: "ended", signout: "home" };
+const CHIP_ALIAS = { left: "ended", hostgone: "ended" };
 
 const GAME_MASTER_ITEM = "#240";
 const CAPTIONS = {
   home: ["Zeile 1 · 4", "Nur angemeldete Mitglieder sehen diese Seite: eine Aktion, „Start a call“. Impressum und Datenschutz stehen leise unten."],
   menu: ["Zeile 1", "Das Keycloak-Konto ist die Identität. Das Menü zeigt den Namen und „Log out“, sonst nichts."],
-  signout: ["Zeile 1 · 4", "„Log out“ im Konto-Menü landet auf /login: „You are logged out.“ und ein „Log in“, das nie von selbst weiterleitet. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.1); sie ändern sich nur durch neue Abschrift."],
   "pre-host": ["Zeile 7", "Starten ohne Passwortfeld. Große Vorschau, Mikrofon und Kamera direkt darauf, Geräteauswahl am Desktop, Kamera drehen am Telefon."],
   "pre-guest": ["Zeile 1", "Ein Mitglied öffnet den Link, zum Beispiel aus WhatsApp, meldet sich einmal an und sieht vor dem Beitritt, wer schon da ist."],
   "pre-blocked": ["Kein #25-Satz", "Die Kamera ist im Browser blockiert. Ein Satz, wie man sie erlaubt, dazu „Try again“ oder „Continue without camera“."],
@@ -1016,7 +989,6 @@ const CAPTIONS = {
   locked: ["Zeile 7", "Die Host-Person hat gesperrt; wer neu kommt, sieht das und kann es nochmal versuchen."],
   full: ["Kein #25-Satz", "Sechs von sechs Plätzen sind belegt."],
   toomany: ["Zeile 1", "Das Konto ist schon in 8 Anrufen (Tabs und Geräte zusammen); der 9. wird abgelehnt und versucht es nicht erneut. Gleiches Bild wie „Voll“, nur andere Worte."],
-  noaccess: ["Zeile 1 · 4", "Angemeldet, aber nicht in der Gruppe /apps/hopin: kein Name, weil eine Absage keine Identität trägt. Ein Weg: „Log out“. „Back“ entfällt (#25 Lesart 7, Vorgabe vom 21.10.2026); der Operator kann stattdessen einen festen Link zu https://hallucinai.de bestimmen."],
   "quiz-start": ["E1 · E11", "Auch ein Gast sieht „Start quiz“ im Menü „More“, direkt unter „Participants“; ein Tipp lässt den Spielleiter eine Frage für alle in den Chat stellen. Darunter steht leise, was die Leitung verlässt. Probier „Start quiz“: Der Punkt dreht sich, dann steht die erste Frage im Chat.", GAME_MASTER_ITEM],
   "quiz-thinking": ["E10", "Während ein Lauf unterwegs ist, sehen alle „Game master is thinking…“, der Punkt ist gesperrt und dreht sich. Ein zweiter Start wird nur der tippenden Person abgelehnt.", GAME_MASTER_ITEM],
   "quiz-first": ["E1 · E6 · I3", "Schritt 1: Die Frage steht für alle im Chat, links wie bei anderen Personen, aber mit „Game master“, Abzeichen „AI“, Akzent-Umriss und ohne Initialen. Text bleibt Text, nie Markup.", GAME_MASTER_ITEM],
@@ -1030,13 +1002,10 @@ const CAPTIONS = {
   "quiz-signin": ["E12", "Sitzung von vor der Umstellung (ohne Erneuerungs-Token): nur der tippenden Person „Sign in again to use the game master.“ mit „Sign in“. Der Anruf läuft weiter.", GAME_MASTER_ITEM],
   "quiz-busy": ["E13", "Ist der Spielleiter belegt, steht nur bei der tippenden Person „The game master is busy. Try again in 30 s.“; der Punkt ist wieder frei.", GAME_MASTER_ITEM],
   "quiz-error": ["E13", "Bei einem Fehler steht nur bei der tippenden Person „The game master is unavailable right now.“; der Punkt ist wieder frei. Der Anruf läuft weiter.", GAME_MASTER_ITEM],
-  loginfailed: ["Zeile 1 · 4", "Anmeldung fehlgeschlagen auf /auth/callback: ein Weg, „Try again“. Abschrift der Anmelde-Zustände (ui-console#6, v0.3.1)."],
 };
 
 function viewKey() {
   if (S.screen === "home") return S.overlay === "menu" ? "menu" : "home";
-  if (S.screen === "signout") return "signout";
-  if (S.screen === "signin") return S.signinKind;
   if (S.screen === "pre") return "pre-" + S.preKind;
   if (S.screen === "end") return S.endKind;
   if (S.overlay === "leave") return "leave";
@@ -1113,26 +1082,6 @@ function homeView() {
     <div class="dock">${isPhone() ? button : ""}${legalLinks()}</div>
   </div>${accountMenu()}`;
 }
-
-const SIGNIN_WORDMARK = '<div class="si-wordmark">Hop<span>In</span></div>';
-const siLegal = () => `<div class="si-legal">
-  <a class="si-link" href="${LEGAL.impressum}" target="_blank" rel="noopener">Impressum</a>
-  <a class="si-link" href="${LEGAL.datenschutz}" target="_blank" rel="noopener">Datenschutz</a></div>`;
-const siBanner = (text) => `<div class="si-banner"><span class="si-glyph"></span><div><p>${text}</p></div></div>`;
-const siPage = (body) => `<div class="pg">${statusBar()}<div class="si"><div class="si-card">${SIGNIN_WORDMARK}${body}</div>${siLegal()}</div></div>`;
-
-function signoutView() {
-  return siPage(`<h1>You are logged out.</h1>
-    <button class="si-btn si-btn--primary si-btn--wide" data-act="home">Log in</button>`);
-}
-
-const SIGNIN_PAGES = {
-  noaccess: { path: "/no-access", body: () => `<h1>No access</h1>${siBanner("You are signed in, but this account has no access to HopIn.")}
-    <div class="si-actions"><button class="si-btn si-btn--primary" data-act="signout">Log out</button></div>` },
-  loginfailed: { path: "/auth/callback", body: () => `<h1>Login failed</h1>${siBanner("Sign-in did not work. Please try again.")}
-    <div class="si-actions"><button class="si-btn si-btn--primary" data-act="home">Try again</button></div>` },
-};
-const signinView = () => siPage(SIGNIN_PAGES[S.signinKind].body());
 
 const PRE_TITLES = { host: "New call", guest: "Anna's call" };
 const isGuestPre = () => S.role === "guest";
@@ -1496,8 +1445,6 @@ function buildShell() {
 function screenMarkup() {
   switch (S.screen) {
     case "home": return homeView();
-    case "signout": return signoutView();
-    case "signin": return signinView();
     case "pre": return preView();
     case "end": return endView();
     default: return callView();
@@ -1506,8 +1453,6 @@ function screenMarkup() {
 
 function pagePath() {
   if (S.screen === "home") return "";
-  if (S.screen === "signout") return "/login";
-  if (S.screen === "signin") return SIGNIN_PAGES[S.signinKind].path;
   return "/c/k3x9q7pm";
 }
 
@@ -1531,7 +1476,7 @@ function render() {
 
 function syncControls() {
   const key = viewKey();
-  const chip = CHIP_ALIAS[key] && key !== "signout" ? CHIP_ALIAS[key] : key;
+  const chip = CHIP_ALIAS[key] ?? key;
   document.querySelectorAll(".chip").forEach((el) => el.setAttribute("aria-pressed", String(el.dataset.chip === chip)));
   revealActiveChip();
   const [tag, text, source = "#25"] = CAPTIONS[key];
@@ -1678,7 +1623,7 @@ function leaveCall() {
 const ACTIONS = {
   start: () => PRESETS["pre-host"](),
   avatar: () => { S.overlay = S.overlay === "menu" ? null : "menu"; },
-  signout: () => { fresh({ screen: "signout" }); },
+  signout: () => toast("The sign-out page is in the family picture, section 3", "external"),
   home: () => PRESETS.home(),
   close: () => { S.overlay = null; },
   mic: () => { S.mic = !S.mic; },
