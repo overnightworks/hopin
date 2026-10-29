@@ -40,7 +40,7 @@ webauth:
   `test_reuses_no_class_name_that_ui_console_defines` enforces the rule.
 - The sign-in pages (`login-failed.html`, `login.html` for Signed out and
   `no-access.html`) are ui-console's sign-in markup with its classes and
-  wording, and load both stylesheets. The no-reuse rule and the legal-only `<a>`
+  wording, and load the same three stylesheets. The no-reuse rule and the legal-only `<a>`
   rule above are about `index.html` and `hopin.css`; a sign-in page links the
   two legal URLs and `/auth/start`. No access and the account menu post one
   same-origin form to `/logout`, which answers webauth's own end-session page
@@ -58,8 +58,9 @@ webauth:
 
 ## Consequences
 
-- There is no build step and no runtime dependency; the browser loads the
-  modules as written.
+- There is no build step; the browser loads the modules as written. The one
+  installed package the pages' styles come from is the `overnightworks-appkit`
+  kit.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
 - `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
