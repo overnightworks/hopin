@@ -60,10 +60,10 @@ The page is a SvelteKit shell that `make frontend` builds into `src/hopin/web/bu
 - **Connection to the server:** `signaling`, `replay` (frames resent after a resume)
 - **Peer connections:** `mesh`
 - **Local and remote media:** `media`, `media-state`, `speaking`, `quality`
-- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`, `toast`
+- **The call's surface:** `stage` (installed behind the stage port, below), `pip`, `controls`, `invite`, `status`, `chat`, `toast`
 - **State:** `state`, the one mutable call state, with no DOM
 
-The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: open, close and focus of the page's popover menus). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
+The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size), `sounds` and `stage-port`, the one place where ported code reaches legacy code: `app.js` installs `stage` into it at start-up, and `mesh`, `media`, `media-state`, `prejoin`, `speaking` and `quality` call the stage through its forwarders instead of importing it, and the port owns the connection-quality words they exchange. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: open, close and focus of the page's popover menus). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
 
 ## 3. Runtime View
 

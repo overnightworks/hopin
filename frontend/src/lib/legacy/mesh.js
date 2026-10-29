@@ -3,7 +3,7 @@ import { monitorConnectionQuality } from "./quality.js";
 import { watchIceConnection } from "#lib/call/recovery.ts";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
 import { monitorSpeaking } from "./speaking.js";
-import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
+import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
 import { state } from "./state.js";
 
 const ICE_SERVERS_PATH = "/api/ice-servers";

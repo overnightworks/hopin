@@ -1,4 +1,4 @@
-import { setRemoteSpeaking } from "./stage.js";
+import { hasTile, setRemoteSpeaking } from "#lib/call/stage-port.ts";
 
 const SPEAKING_POLL_INTERVAL_MS = 100;
 // The browser keeps the last level of a source whose sound stopped arriving, so only a
@@ -34,7 +34,7 @@ export function monitorSpeaking(participantId, connection) {
     let lastLoudTime = -Infinity;
     let speaking = false;
     const interval = setInterval(() => {
-        if (connection.connectionState === "closed" || !document.getElementById(`container-${participantId}`)) {
+        if (connection.connectionState === "closed" || !hasTile(participantId)) {
             clearInterval(interval);
             return;
         }

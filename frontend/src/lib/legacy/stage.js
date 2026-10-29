@@ -1,4 +1,3 @@
-import { createQualityIndicator } from "./quality.js";
 import { state } from "./state.js";
 
 const localVideo = document.getElementById("localVideo");
@@ -16,6 +15,7 @@ const tiles = document.querySelector("#videoGrid .tiles");
 const localMuteMark = localContainer.querySelector(".muted");
 const remoteMediaStates = new Map();
 const WAVE_BAR_COUNT = 3;
+const QUALITY_BAR_COUNT = 3;
 const speakingParticipantIds = new Set();
 
 function renderRemoteVideo(participantId) {
@@ -64,6 +64,17 @@ function createWave() {
     wave.setAttribute("aria-hidden", "true");
     wave.append(...Array.from({ length: WAVE_BAR_COUNT }, () => document.createElement("i")));
     return wave;
+}
+
+function createQualityIndicator() {
+    const indicator = document.createElement("div");
+    indicator.className = "connection-quality";
+    for (let index = 0; index < QUALITY_BAR_COUNT; index++) {
+        const bar = document.createElement("div");
+        bar.className = "quality-bar";
+        indicator.appendChild(bar);
+    }
+    return indicator;
 }
 
 export function showLocalStream(stream) {
@@ -123,6 +134,15 @@ export function addRemoteTile(participantId) {
 export function showRemoteName(participantId) {
     const label = document.querySelector(`#container-${participantId} .name`);
     if (label) label.lastChild.textContent = state.namesByParticipant.get(participantId) ?? "";
+}
+
+export function hasTile(participantId) {
+    return document.getElementById(`container-${participantId}`) !== null;
+}
+
+export function setConnectionQuality(participantId, quality) {
+    const indicator = document.querySelector(`#container-${participantId} .connection-quality`);
+    if (indicator) indicator.dataset.quality = quality;
 }
 
 export function removeRemoteTile(participantId) {
