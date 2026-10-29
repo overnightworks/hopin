@@ -1,8 +1,0 @@
-claim_id = "a054946c58f64c1e9c4b96a334f07593"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "d01c71456157875a549df6607cb7571dc233f45b"
-branch = "claude/issue-288-starters-leave-ends-the-quiz"
-scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/game/quiz.py", "src/hopin/game/table.py", "src/hopin/signaling/features.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py", "src/hopin/web/static/assets/game/game.js", "tests/e2e/game/test_game_master.py", "tests/game/support/table_world.py", "tests/game/test_quiz.py", "tests/game/test_table.py", "tests/game/test_table_answers.py", "tests/game/test_table_end.py", "tests/game/test_table_leave.py", "tests/game/test_table_rounds.py", "tests/signaling/support/browsers.py", "tests/signaling/test_handler_feature.py", "tests/signaling/test_handler_resume.py", "tests/support/signaling_fakes.py"]
-opened_commit = "4625cd65449dceee5dcc90edb97f31731a2541b3"
-whole_reason = "The port may grow only with its first caller in the same item (I15), and the starter's end and the shrink are the two branches of that one seat_left hook."
