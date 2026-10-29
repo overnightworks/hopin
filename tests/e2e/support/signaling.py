@@ -1,9 +1,10 @@
 import json
-from typing import Any
-
-from playwright.sync_api import Page, WebSocketRoute
+from typing import TYPE_CHECKING, Any
 
 from hopin.signaling.frames import SEQUENCE_KEY
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page, WebSocketRoute
 
 # The scenarios' own reconnect schedule: the status line pins its first entry on the page,
 # the rest only sets how far a scenario moves the page's clock.
