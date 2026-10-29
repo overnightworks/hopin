@@ -21,7 +21,7 @@ const KIND_TEXTS = {
     [PREJOIN_KIND.GUEST]: {
         title: "Join call",
         heading: "Ready to join?",
-        subLine: null,
+        subLine: "",
         buttonLabels: {
             CAMERA_AND_MIC: "Join with camera and mic",
             CAMERA_ONLY: "Join with camera only",
@@ -109,8 +109,8 @@ async function toggleCamera() {
 function showTexts() {
     titleElement.textContent = texts.title;
     headingElement.textContent = texts.heading;
-    subLineElement.textContent = texts.subLine ?? "";
-    subLineElement.classList.toggle("hidden", texts.subLine === null);
+    subLineElement.textContent = texts.subLine;
+    subLineElement.classList.toggle("hidden", texts.subLine === "");
 }
 
 export function openPrejoin(kind) {
