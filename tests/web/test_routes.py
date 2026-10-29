@@ -421,15 +421,13 @@ class TestPageShell:
     def test_vendored_ui_console_is_byte_identical_to_its_release(self):
         assert hashlib.sha256(UI_CONSOLE_CSS.read_bytes()).hexdigest() == UI_CONSOLE_SHA256
 
-    @pytest.mark.parametrize(
-        "stylesheet_path",
-        [STYLESHEETS_DIR / "hopin.css", STATIC_DIR / "assets" / "game" / "game.css"],
-        ids=lambda path: path.name,
-    )
+    @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
     def test_reads_no_ui_console_token_that_the_kit_does_not_also_define(self, client, stylesheet_path):
         stylesheet = CSS_COMMENT.sub("", stylesheet_path.read_text())
         ui_console_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", UI_CONSOLE_CSS.read_text())))
-        kit_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(client.get(f"{KIT_PATH}/appkit.css").text))
+        kit_tokens = set(
+            CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", client.get(f"{KIT_PATH}/appkit.css").text))
+        )
         own_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet))
         read_tokens = set(CSS_CUSTOM_PROPERTY_READ.findall(stylesheet))
         assert ui_console_tokens

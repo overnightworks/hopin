@@ -28,6 +28,6 @@ the question card at the top of the chat, game master lines marked "Game
 master" and "AI", and names allowed in them. E17, E19 and E20 await their
 ruling.
 
-The chat panel is drawn dark in both themes, and so is the quiz card in it, as built; the themed chat waits for #215.
+The built chat panel is dark in both themes; the picture's quiz card follows the built one, and the picture's themed panel is #215's target.
 
 To view it, open the file in a browser.

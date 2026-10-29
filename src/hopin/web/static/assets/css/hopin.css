@@ -1,5 +1,5 @@
-/* HopIn's own tokens: the slot colour, stage, radius, shadow, motion and mono.
-   appkit owns the neutrals, the states, the fonts and color-scheme (ADR 0001). */
+/* HopIn's own tokens: the slot colour, stage, shadow, motion and mono.
+   appkit owns the neutrals, the states and color-scheme; the fonts still come from ui-console's --sans (ADR 0001). */
 :root {
     --mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
     --motion-snap: .28s;
@@ -519,7 +519,7 @@ body {
 }
 .legal { display: flex; gap: 18px; justify-content: center; font-size: 13px; }
 .legal a { color: var(--text-muted); text-decoration: none; }
-.legal a:hover { color: var(--text-muted); text-decoration: underline; }
+.legal a:hover { color: var(--text); text-decoration: underline; }
 .page {
     flex: 1;
     min-height: 0;
@@ -759,7 +759,7 @@ body {
     max-height: none;
     margin: 0;
     padding: 8px 10px 24px;
-    border: 0;
+    border: 1px solid var(--border);
     border-radius: 30px;
     background: var(--surface);
     color: var(--text);
