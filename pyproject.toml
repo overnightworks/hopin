@@ -48,13 +48,11 @@ select = [
     "A",      # flake8-builtins
     "C4",     # flake8-comprehensions
     "DTZ",    # flake8-datetimez
-    "T20",    # flake8-print
     "SIM",    # flake8-simplify
     "TCH",    # flake8-type-checking
     "ARG",    # flake8-unused-arguments
     "PTH",    # flake8-use-pathlib
     "RUF",    # ruff-specific rules
-    "S",      # flake8-bandit (security)
     "ANN",    # flake8-annotations
     "ASYNC",  # flake8-async
     "RET",    # flake8-return
@@ -62,14 +60,14 @@ select = [
     "PT",     # flake8-pytest-style
 ]
 ignore = []
+# quality owns S and T20; its noqa lines would read as unused here
+external = ["S", "T20"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-decorators = ["fastapi.APIRouter.api_route", "fastapi.APIRouter.get"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "S101",    # allow assert in tests
-    "S104",    # allow binding to all interfaces in test assertions
     "ANN",     # relax annotations in tests
     "ARG",     # allow unused arguments in fixtures
 ]
