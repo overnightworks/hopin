@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from functools import partial
+from random import SystemRandom
 from typing import TYPE_CHECKING, Final
 
 import httpx2
@@ -9,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.settings import OriginUrl  # noqa: TC001 - pydantic resolves the annotation at runtime
 from hopin.game.agent_service import AgentServiceGameMaster, AgentTransport, silence_transport_logs
+from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS
 from hopin.game.table import Game
 from hopin.game.tokens import StarterTokens
 
@@ -23,6 +25,11 @@ if TYPE_CHECKING:
 AGENT_SERVICE_URL = "http://agent-service:8080"
 # No retries: a run is started once, never sent again behind the person's back.
 AGENT_SERVICE_OVER_HTTP: Final[AgentTransport] = httpx2.AsyncHTTPTransport
+
+
+def draw_quiz_topics() -> tuple[str, ...]:
+    """The topics of one quiz, one per round, drawn at random without repetition."""
+    return tuple(SystemRandom().sample(QUIZ_TOPICS, QUIZ_ROUNDS))
 
 
 def agent_service_game_master(
@@ -72,7 +79,7 @@ class GameFeature:
             web_auth=auth_config,
             transport=self.transport,
         )
-        return partial(Game, scheduler=scheduler, game_master=game_master)
+        return partial(Game, scheduler=scheduler, game_master=game_master, topic_drawer=draw_quiz_topics)
 
 
 def game_feature(settings: GameSettings, transport: AgentTransport | None = None) -> GameFeature:

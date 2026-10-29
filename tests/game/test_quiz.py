@@ -2,15 +2,15 @@ import pytest
 
 from hopin.game.quiz import (
     FINAL_SCORE_REQUEST,
-    NEXT_QUESTION_REQUEST,
     QUIZ_ROUNDS,
     PlayerAnswer,
     Quiz,
     Speaker,
     Turn,
+    question_request,
 )
 from hopin.signaling.frames import PeerId
-from tests.game.support.table_world import answers_in_reveal
+from tests.game.support.table_world import TOPICS, answers_in_reveal
 
 STARTER = PeerId("starter")
 OTHER = PeerId("other")
@@ -18,17 +18,21 @@ LATE = PeerId("late")
 PLAYERS = frozenset({STARTER, OTHER})
 
 
-def test_a_new_quiz_asks_for_question_one():
-    quiz = Quiz(STARTER)
+def opening_quiz():
+    return Quiz.opening(STARTER, TOPICS)
 
-    assert (quiz.round, quiz.transcript) == (1, (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),))
+
+def test_a_new_quiz_asks_for_question_one():
+    quiz = opening_quiz()
+
+    assert (quiz.round, quiz.transcript) == (1, (Turn(Speaker.HOPIN, question_request(TOPICS[0])),))
 
 
 def test_the_reveal_request_follows_the_question_in_the_transcript():
-    quiz = Quiz(STARTER).heard("Wie heißt die Hauptstadt von Portugal?", PLAYERS).revealing()
+    quiz = opening_quiz().heard("Wie heißt die Hauptstadt von Portugal?", PLAYERS).revealing()
 
     assert quiz.transcript[:2] == (
-        Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),
+        Turn(Speaker.HOPIN, question_request(TOPICS[0])),
         Turn(Speaker.GAME_MASTER, "Wie heißt die Hauptstadt von Portugal?"),
     )
     assert quiz.transcript[2].speaker is Speaker.HOPIN
@@ -37,7 +41,7 @@ def test_the_reveal_request_follows_the_question_in_the_transcript():
 
 def last_round_revealed():
     """The quiz as it waits for the final score."""
-    quiz = Quiz(STARTER)
+    quiz = opening_quiz()
     for _ in range(QUIZ_ROUNDS):
         quiz = quiz.heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)
     return quiz
@@ -45,7 +49,7 @@ def last_round_revealed():
 
 @pytest.mark.parametrize(("peer_id", "may_reveal"), [(STARTER, True), (OTHER, False)], ids=["starter", "other"])
 def test_only_the_starter_may_reveal_an_open_question(peer_id, may_reveal):
-    quiz = Quiz(STARTER).heard("Frage?", PLAYERS)
+    quiz = opening_quiz().heard("Frage?", PLAYERS)
 
     assert quiz.may_reveal(peer_id) is may_reveal
 
@@ -53,8 +57,8 @@ def test_only_the_starter_may_reveal_an_open_question(peer_id, may_reveal):
 @pytest.mark.parametrize(
     "quiz",
     [
-        pytest.param(Quiz(STARTER), id="the question is still being asked"),
-        pytest.param(Quiz(STARTER).heard("Frage?", PLAYERS).revealing(), id="the answer is being revealed"),
+        pytest.param(opening_quiz(), id="the question is still being asked"),
+        pytest.param(opening_quiz().heard("Frage?", PLAYERS).revealing(), id="the answer is being revealed"),
         pytest.param(last_round_revealed(), id="the final score is being asked"),
         pytest.param(last_round_revealed().heard("Ihr wart toll.", PLAYERS), id="the quiz is over"),
     ],
@@ -64,9 +68,13 @@ def test_no_reveal_while_no_question_is_open(quiz):
 
 
 def test_a_revealed_answer_before_the_last_round_asks_for_the_next_question():
-    quiz = Quiz(STARTER).heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)
+    quiz = opening_quiz().heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)
 
-    assert (quiz.round, quiz.is_asking, quiz.transcript[-1]) == (2, True, Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST))
+    assert (quiz.round, quiz.is_asking, quiz.transcript[-1]) == (
+        2,
+        True,
+        Turn(Speaker.HOPIN, question_request(TOPICS[1])),
+    )
 
 
 def test_the_last_rounds_revealed_answer_asks_for_the_final_score():
@@ -81,7 +89,7 @@ def test_the_final_score_ends_the_quiz():
 
 
 def test_every_step_but_answering_and_over_waits_for_the_game_master():
-    asking = Quiz(STARTER)
+    asking = opening_quiz()
 
     assert [
         asking.awaits_game_master,
@@ -93,7 +101,7 @@ def test_every_step_but_answering_and_over_waits_for_the_game_master():
 
 
 def open_question():
-    return Quiz(STARTER).heard("Frage?", PLAYERS)
+    return opening_quiz().heard("Frage?", PLAYERS)
 
 
 @pytest.mark.parametrize(
@@ -108,7 +116,7 @@ def test_only_a_player_may_answer_an_open_question(peer_id, may_answer):
 @pytest.mark.parametrize(
     "quiz",
     [
-        pytest.param(Quiz(STARTER), id="the question is still being asked"),
+        pytest.param(opening_quiz(), id="the question is still being asked"),
         pytest.param(open_question().revealing(), id="the answer is being revealed"),
         pytest.param(last_round_revealed(), id="the final score is being asked"),
         pytest.param(last_round_revealed().heard("Ihr wart toll.", PLAYERS), id="the quiz is over"),
@@ -160,7 +168,7 @@ def answered_by_starter():
         pytest.param(answered_by_starter(), OTHER, True, id="a player of an answered question"),
         pytest.param(answered_by_starter(), LATE, False, id="a seat that is no player"),
         pytest.param(open_question(), OTHER, False, id="a question nobody has answered"),
-        pytest.param(Quiz(STARTER), STARTER, False, id="a question still being asked"),
+        pytest.param(opening_quiz(), STARTER, False, id="a question still being asked"),
         pytest.param(answered_by_starter().revealing(), OTHER, False, id="an answer being revealed"),
     ],
 )
@@ -224,7 +232,7 @@ def test_the_next_rounds_transcript_still_holds_the_reveal_request_with_its_answ
 
 def every_step_of_a_quiz():
     return [
-        pytest.param(Quiz(STARTER), id="asking"),
+        pytest.param(opening_quiz(), id="asking"),
         pytest.param(open_question(), id="answering"),
         pytest.param(open_question().revealing(), id="revealing"),
         pytest.param(last_round_revealed(), id="scoring"),
@@ -258,7 +266,7 @@ def test_nobody_may_answer_or_reveal_an_ended_quiz():
 @pytest.mark.parametrize(
     ("quiz", "is_opening"),
     [
-        pytest.param(Quiz(STARTER), True, id="round one asking"),
+        pytest.param(opening_quiz(), True, id="round one asking"),
         pytest.param(open_question(), False, id="round one answering"),
         pytest.param(open_question().revealing(), False, id="round one revealing"),
         pytest.param(open_question().revealing().heard("Lissabon.", PLAYERS), False, id="round two asking"),
@@ -266,3 +274,12 @@ def test_nobody_may_answer_or_reveal_an_ended_quiz():
 )
 def test_only_the_first_rounds_asking_is_the_opening_run(quiz, is_opening):
     assert quiz.is_opening is is_opening
+
+
+def test_every_question_request_of_a_quiz_names_a_different_topic():
+    quiz = opening_quiz()
+    for _ in range(QUIZ_ROUNDS - 1):
+        quiz = quiz.heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)
+
+    questions = [turn.text for turn in quiz.transcript if turn.speaker is Speaker.HOPIN and "Quizfrage" in turn.text]
+    assert questions == [f"Stelle die nächste Quizfrage zum Thema {topic}." for topic in TOPICS]

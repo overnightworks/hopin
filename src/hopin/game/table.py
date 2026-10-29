@@ -115,9 +115,16 @@ class _Run:
 class Game:
     """Runs one quiz per room: its runs one after another, each run's frames to the room's seats in order."""
 
-    def __init__(self, rooms: CallRooms, scheduler: Scheduler, game_master: GameMaster) -> None:
+    def __init__(
+        self,
+        rooms: CallRooms,
+        scheduler: Scheduler,
+        game_master: GameMaster,
+        topic_drawer: Callable[[], tuple[str, ...]],
+    ) -> None:
         self._rooms = rooms
         self._scheduler = scheduler
+        self._topic_drawer = topic_drawer
         self._game_master = game_master
         self._quizzes: dict[str, Quiz] = {}
         self._runs: dict[str, list[_Run]] = {}
@@ -159,7 +166,7 @@ class Game:
         elif room_id in self._quizzes:
             await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.QUIZ_RUNNING)))
         else:
-            self._run(room_id, Quiz(peer_id))
+            self._run(room_id, Quiz.opening(peer_id, self._topic_drawer()))
 
     async def _reveal(self, peer_id: PeerId) -> None:
         room_id = self._rooms.room_of(peer_id)

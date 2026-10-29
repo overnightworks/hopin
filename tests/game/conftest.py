@@ -7,7 +7,7 @@ import pytest_asyncio
 from hopin.game.table import Game
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import FakeGameMaster
-from tests.game.support.table_world import shut_down_within_cap
+from tests.game.support.table_world import fixed_topics, shut_down_within_cap
 from tests.signaling.support.browsers import Link
 from tests.support.signaling_fakes import SocketAccountResolver
 
@@ -43,7 +43,7 @@ def game_master():
 @pytest.fixture
 def game(scheduler, game_master):
     """The game as `create_app` builds it, its game master a fake."""
-    return partial(Game, scheduler=scheduler, game_master=game_master)
+    return partial(Game, scheduler=scheduler, game_master=game_master, topic_drawer=fixed_topics)
 
 
 @pytest.fixture

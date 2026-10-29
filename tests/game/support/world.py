@@ -11,7 +11,7 @@ from starlette.requests import HTTPConnection
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.auth.stores import InMemorySessions, SignInStores
 from hopin.game import AGENT_SERVICE_URL, agent_service_game_master
-from hopin.game.quiz import NEXT_QUESTION_REQUEST, Speaker, Turn
+from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
 from tests.game.support.fake_agent_service import FakeAgentService
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.signed_in import cookie_header, seed_member
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 WAIT_CAP_SECONDS = 10
 # A quiz's first run: it asks for the first question.
-OPENING = (Turn(Speaker.HOPIN, NEXT_QUESTION_REQUEST),)
+OPENING = (Turn(Speaker.HOPIN, question_request(QUIZ_TOPICS[0])),)
 
 
 class StoreSpy:
