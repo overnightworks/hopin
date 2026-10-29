@@ -1,8 +1,0 @@
-claim_id = "293b1521b90349718e00397a1996a29c"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "8dca3c6f913098c79282e19f5878034a5ab7c015"
-branch = "claude/issue-327-menus-ts"
-scope = ["docs/ARCHITECTURE.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/legacy", "frontend/src/lib/ui/menus.test.ts", "frontend/src/lib/ui/menus.ts"]
-opened_commit = "e1420193783309d260906969d051068888b25cfa"
-whole_reason = "One port, its test and its four importers' path lines move together."
