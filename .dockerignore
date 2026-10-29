@@ -5,8 +5,13 @@
 !pyproject.toml
 !uv.lock
 !src
+!frontend
 
-# What the build makes for itself, so this machine's copy never travels.
+# What the build makes for itself, so a stale local copy never enters the context.
+frontend/node_modules
+frontend/.svelte-kit
+src/hopin/web/build
+
 **/__pycache__
 
 # The tree above is admitted whole, so what must never be in an image is named
