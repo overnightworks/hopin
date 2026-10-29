@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "3cf163924e5bb1ad05d6381dd5a30d2267224de6"
 branch = "claude/issue-293-blue-slot-and-logo"
-scope = ["docs/mockups/hopin-call.html", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/img/hopin.svg", "tests/e2e/test_speaking.py"]
+scope = ["docs/mockups/README.md", "docs/mockups/hopin-call.html", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/game/game.css", "src/hopin/web/static/assets/img/hopin.svg", "tests/e2e/test_speaking.py"]
 opened_commit = "1a7d85bb3b4bbb8d73a493ca5e778a0e5c7c6567"
 whole_reason = "The slot's tokens, the logo, the one e2e pin and the mockup describe one colour and change together."
