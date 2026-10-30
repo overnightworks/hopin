@@ -62,7 +62,9 @@ def test_main_check_missing_file_exits_with_message_and_creates_nothing(tmp_path
 
 
 def test_render_core_line_of_exactly_the_print_width_stays_on_one_line(monkeypatch: pytest.MonkeyPatch) -> None:
-    one_line = "export const DESCRIPTION_TYPES: readonly SIGNAL_TYPE[] = [SIGNAL_TYPE.ANSWER, SIGNAL_TYPE.OFFER];"
+    one_line = next(
+        line for line in generate_wire.render_core().splitlines() if line.startswith("export const DESCRIPTION_TYPES")
+    )
     monkeypatch.setattr(generate_wire, "PRINT_WIDTH", len(one_line))
 
     assert f"\n{one_line}\n" in generate_wire.render_core()
