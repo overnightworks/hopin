@@ -10,8 +10,14 @@ const signaling = vi.hoisted(() => ({
     send: vi.fn(),
 }));
 const sounds = vi.hoisted(() => ({ playMessageSound: vi.fn() }));
+// Under Vitest "svelte" resolves to its server build, whose flushSync does nothing: it renders what a case sets.
+const rendering = vi.hoisted(() => ({ render: vi.fn() }));
 vi.mock("#lib/call/signaling.ts", () => signaling);
 vi.mock("#lib/call/sounds.ts", () => sounds);
+vi.mock("svelte", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("svelte")>()),
+    flushSync: () => void rendering.render(),
+}));
 
 // The module holds the one chat, so each case loads a fresh copy.
 async function freshChat() {
@@ -45,6 +51,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.clearAllMocks();
+    rendering.render.mockReset();
     document.body.innerHTML = "";
 });
 
@@ -250,31 +257,29 @@ describe("pinned element and card", () => {
 });
 
 describe("scrolling to the newest line", () => {
-    it("scrolls after the adopted element is in the list", async () => {
+    it("scrolls after the new line is rendered into the list", async () => {
         const chat = await freshChat();
         const list = document.createElement("div");
-        const stopList = $effect.root(() => registerList(chat, list));
-        const wrapper = document.createElement("div");
-        list.append(wrapper);
-        const stopAdopt = $effect.root(() => chat.adopt(document.createElement("p"))(wrapper));
-        list.scrollTop = 0;
+        const stop = $effect.root(() => registerList(chat, list));
+        rendering.render.mockImplementation(() => {
+            while (list.childElementCount < chat.chat.lines.length) list.append(document.createElement("div"));
+        });
 
         chat.receiveLine(document.createElement("p"));
 
+        expect(list.childElementCount).toBe(1);
         expect(list.scrollTop).toBe(list.scrollHeight);
-        stopAdopt();
-        stopList();
+        stop();
     });
 
     it("scrolls after pinning an element and not after clearing it", async () => {
         const chat = await freshChat();
         const list = document.createElement("div");
         const stop = $effect.root(() => registerList(chat, list));
-        list.scrollTop = 0;
+        list.append(document.createElement("div"));
 
         chat.pinLast(null);
         expect(list.scrollTop).toBe(0);
-        list.append(document.createElement("div"));
         chat.pinLast(document.createElement("div"));
 
         expect(list.scrollTop).toBe(list.scrollHeight);
@@ -298,6 +303,7 @@ describe("scrolling to the newest line", () => {
         const chat = await freshChat();
         const list = document.createElement("div");
         $effect.root(() => registerList(chat, list))();
+        list.append(document.createElement("div"));
 
         chat.receiveLine(document.createElement("div"));
 
