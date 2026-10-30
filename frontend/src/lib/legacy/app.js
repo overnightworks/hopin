@@ -8,7 +8,7 @@ import {
     renderControls,
     showLockButton,
 } from "./controls.js";
-import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
+import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "./media.js";
@@ -204,7 +204,6 @@ installLeaveConfirmed(leaveCall);
 initControls({ onLeaveRequested: requestLeave });
 initChat();
 initPip();
-initEnd();
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
 initAccount({ onNameRead: showGreeting });
 initPrejoin({
