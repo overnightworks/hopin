@@ -136,10 +136,6 @@ export function showRemoteName(participantId) {
     if (label) label.lastChild.textContent = state.namesByParticipant.get(participantId) ?? "";
 }
 
-export function hasTile(participantId) {
-    return document.getElementById(`container-${participantId}`) !== null;
-}
-
 export function setConnectionQuality(participantId, quality) {
     const indicator = document.querySelector(`#container-${participantId} .connection-quality`);
     if (indicator) indicator.dataset.quality = quality;
