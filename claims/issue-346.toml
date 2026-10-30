@@ -1,0 +1,8 @@
+claim_id = "5411ffa074d54df2a38e70cba98e481f"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "116a0793293ce9acafdd667c9c17cd05dd24ef90"
+branch = "claude/issue-346-browser-coverage"
+scope = [".dockerignore", ".github/workflows/ci.yml", "Dockerfile", "README.md", "docs/ARCHITECTURE.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/vite.config.ts", "pyproject.toml", "tests/e2e/conftest.py", "tests/e2e/support/browser_coverage.py"]
+opened_commit = "df680d7e6f93b0f642f94c83344efdc7e6aad1dd"
+whole_reason = "The collector is unprovable without the CI step that converts its output and the build flag that gives it maps."
