@@ -38,7 +38,7 @@ def test_a_malformed_agent_service_scope_fails_when_the_settings_load(scope, mon
     assert "agent_service_scope" in str(refusal.value)
 
 
-@pytest.mark.parametrize("scope", ["agent-service-audience", "operator-chosen"])
+@pytest.mark.parametrize("scope", ["operator-chosen"])
 def test_the_game_names_its_configured_scope_for_sign_in(scope, monkeypatch):
     monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", scope)
 

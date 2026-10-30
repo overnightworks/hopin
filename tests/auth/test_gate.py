@@ -446,7 +446,7 @@ class TestSessionLifetime:
         sign_in = sign_in_settings()
         stores = SignInStores.in_memory()
         now = [1_800_000_000.0]
-        config: WebAuthConfig = replace(build_sign_in_configs(sign_in.settings).web_auth, wall_clock=lambda: now[0])
+        config: WebAuthConfig = replace(build_sign_in_configs(sign_in.settings, ()).web_auth, wall_clock=lambda: now[0])
         member = seed_member(stores, config)
         app = FastAPI()
         install_web_auth_config(app, config)

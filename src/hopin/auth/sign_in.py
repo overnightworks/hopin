@@ -69,7 +69,7 @@ ISSUER_OVER_HTTPS = IssuerTransports(
 )
 
 
-def build_sign_in_configs(settings: ServerSettings, feature_scopes: tuple[str, ...] = ()) -> SignInConfigs:
+def build_sign_in_configs(settings: ServerSettings, feature_scopes: tuple[str, ...]) -> SignInConfigs:
     client_secret = read_secret_file(settings.oidc_client_secret_file, "oidc_client_secret_file")
     session_secret = read_secret_file(settings.session_secret_file, "session_secret_file")
     try:
