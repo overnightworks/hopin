@@ -77,6 +77,7 @@ Afterwards the export shows no account and no sessions, and no seats once the ca
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 | `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits; empty trusts none, so every request counts against its direct peer |
 | `HOPIN_AGENT_SERVICE_URL` | `http://agent-service:8080` | The agent service's origin, without a path or trailing slash; the game master starts its runs at `/runs` there (read by the game's own settings) |
+| `HOPIN_AGENT_SERVICE_SCOPE` | `agent-service-audience` | The scope that names the agent service in HopIn's workload token, one RFC 6749 scope token; the issuer's realm must offer it to HopIn's client, and a malformed value stops the start (read by the game's own settings) |
 
 HopIn refuses to start without the four required settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 

@@ -1,7 +1,9 @@
 import logging
 
 import pytest
+from pydantic import ValidationError
 
+from hopin.game import GameSettings
 from hopin.game.agent_service import TRANSPORT_LOGGERS
 from tests.game.support.world import build_world
 
@@ -24,3 +26,13 @@ def test_building_the_game_master_silences_the_transport_loggers(sign_in_setting
     finally:
         for logger, filters in zip(loggers, saved, strict=True):
             logger.filters[:] = filters
+
+
+@pytest.mark.parametrize("scope", ["", "two scopes", 'quo"te', "back\\slash", "ümlaut"])
+def test_a_malformed_agent_service_scope_fails_when_the_settings_load(scope, monkeypatch):
+    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", scope)
+
+    with pytest.raises(ValidationError) as refusal:
+        GameSettings()
+
+    assert "agent_service_scope" in str(refusal.value)
