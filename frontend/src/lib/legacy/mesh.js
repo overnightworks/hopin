@@ -4,7 +4,7 @@ import { watchIceConnection } from "#lib/call/recovery.ts";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
 import { monitorSpeaking } from "#lib/call/speaking.ts";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
-import { state } from "./state.js";
+import { state } from "#lib/call/state.ts";
 
 const ICE_SERVERS_PATH = "/api/ice-servers";
 
