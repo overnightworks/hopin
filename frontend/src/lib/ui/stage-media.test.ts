@@ -235,7 +235,7 @@ describe("remote tiles in a component", () => {
         picture.dispatchEvent(new Event("unmute"));
 
         expect(assigned.mock.calls.length).toBe(before + 1);
-        expect(assigned.mock.lastCall?.[1].getTracks()).toContain(picture);
+        expect((assigned.mock.lastCall?.[1] as FakeStream).getTracks()).toContain(picture);
     });
 
     it("ignores an unmute for a tile that is gone", () => {
