@@ -140,8 +140,13 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
 
 @pytest.mark.parametrize("unreachable_file", [BROWSER_MODULE, BROWSER_STYLESHEET])
 def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not_load(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], unreachable_file: str
+    open_person: Callable[..., Page],
+    expected_request_failures: list[str],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    unreachable_file: str,
 ) -> None:
+    expected_request_failures.append(f"{e2e_server.base_url}{unreachable_file}")
     host = record_page_errors(open_person(**DESKTOP), page_errors)
     host.route(f"**{unreachable_file}", lambda route: route.abort())
 
@@ -731,3 +736,15 @@ def test_sign_in_again_returns_to_this_call_through_the_sign_in(
 
     expect(host).to_have_url(f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}")
     assert sign_in_requests == [f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}"]
+
+
+def test_agent_service_leaving_answers_queued_leaves_the_test_passing(agent_service: FakeAgentService) -> None:
+    agent_service.answer_next(Succeeds("left for the next test"))
+
+    assert agent_service.queued_answers == (Succeeds("left for the next test"),)
+
+
+def test_agent_service_answers_queued_by_the_previous_test_do_not_reach_this_one(
+    agent_service: FakeAgentService,
+) -> None:
+    assert agent_service.queued_answers == ()

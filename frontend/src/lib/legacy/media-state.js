@@ -1,5 +1,5 @@
 import { SIGNAL_TYPE, isConnected, on, send } from "./signaling.js";
-import { setRemoteMediaState } from "./stage.js";
+import { setRemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "./state.js";
 
 function showsOwnVideo() {

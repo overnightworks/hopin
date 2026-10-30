@@ -1,9 +1,9 @@
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
-import { monitorConnectionQuality } from "./quality.js";
+import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
 import { SIGNAL_TYPE, on, send } from "./signaling.js";
-import { monitorSpeaking } from "./speaking.js";
-import { addRemoteTile, removeRemoteTile, showRemoteStream } from "./stage.js";
+import { monitorSpeaking } from "#lib/call/speaking.ts";
+import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
 import { state } from "./state.js";
 
 const ICE_SERVERS_PATH = "/api/ice-servers";

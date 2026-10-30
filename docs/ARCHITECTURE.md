@@ -59,11 +59,11 @@ The page is a SvelteKit shell that `make frontend` builds into `src/hopin/web/bu
 - **Screens and navigation:** `router`, `home`, `account`, `prejoin`, `end`
 - **Connection to the server:** `signaling`, `replay` (frames resent after a resume)
 - **Peer connections:** `mesh`
-- **Local and remote media:** `media`, `media-state`, `speaking`, `quality`
-- **The call's surface:** `stage`, `pip`, `controls`, `invite`, `chat`
+- **Local and remote media:** `media`, `media-state`
+- **The call's surface:** `stage` (installed behind the stage port, below), `pip`, `controls`, `invite`, `chat`
 - **State:** `state`, the one mutable call state, with no DOM
 
-The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: open, close and focus of the page's popover menus, wired by the layout; `toast`: the one current toast, rendered by `Toasts.svelte`; `leave-dialog`: the leave confirmation's open state in a Svelte runes module, whose confirm action `legacy/app.js` installs at start-up because ported code never imports legacy; `status`: the call's status line, lock tag and participant count, rendered by the layout from `.svelte.ts` state). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
+The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size), `sounds`, `speaking` and `quality` (the speaking ring and the connection-quality bars, each polled until the peer's connection closes and reported through the port) and `stage-port`, the one place where ported code reaches legacy code: `app.js` installs `stage` into it at start-up, and `mesh`, `media`, `media-state` and `prejoin` call the stage through its forwarders instead of importing it, and the port owns the connection-quality words they exchange. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: open, close and focus of the page's popover menus, wired by the layout; `toast`: the one current toast, rendered by `Toasts.svelte`; `leave-dialog`: the leave confirmation's open state in a Svelte runes module, whose confirm action `legacy/app.js` installs at start-up for the same reason: ported code never imports legacy; `status`: the call's status line, lock tag and participant count, rendered by the layout from `.svelte.ts` state). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
 
 ## 3. Runtime View
 

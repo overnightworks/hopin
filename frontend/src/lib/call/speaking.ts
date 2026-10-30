@@ -1,4 +1,4 @@
-import { setRemoteSpeaking } from "./stage.js";
+import { setRemoteSpeaking } from "./stage-port.ts";
 
 const SPEAKING_POLL_INTERVAL_MS = 100;
 // The browser keeps the last level of a source whose sound stopped arriving, so only a
@@ -9,32 +9,47 @@ const SPEAKING_LEVEL_FLOOR = 0.01;
 // Bridges the pauses between words, so the ring does not flicker.
 const SPEAKING_HOLD_MS = 800;
 
-function loudestFreshLevel(sources, now) {
+export interface SoundSource {
+    audioLevel: number;
+    timestamp: number;
+}
+
+interface SoundReceiver {
+    track: Pick<MediaStreamTrack, "kind">;
+    getSynchronizationSources(): SoundSource[];
+}
+
+export type MonitoredConnection = Pick<RTCPeerConnection, "connectionState"> & {
+    getReceivers(): SoundReceiver[];
+};
+
+function loudestFreshLevel(sources: SoundSource[], now: number): number {
     return sources
         .filter((source) => now - source.timestamp <= SOUND_FRESHNESS_MS)
         .reduce((loudest, source) => Math.max(loudest, source.audioLevel), 0);
 }
 
-function isLoud(sources, now) {
+function isLoud(sources: SoundSource[], now: number): boolean {
     return loudestFreshLevel(sources, now) >= SPEAKING_LEVEL_FLOOR;
 }
 
-export function isSpeaking(sources, now, lastLoudTime) {
+export function isSpeaking(sources: SoundSource[], now: number, lastLoudTime: number): boolean {
     return isLoud(sources, now) || now - lastLoudTime < SPEAKING_HOLD_MS;
 }
 
-function arrivingAudioSources(connection) {
+function arrivingAudioSources(connection: MonitoredConnection): SoundSource[] {
     return connection
         .getReceivers()
         .filter((receiver) => receiver.track.kind === "audio")
         .flatMap((receiver) => receiver.getSynchronizationSources());
 }
 
-export function monitorSpeaking(participantId, connection) {
+// Stops with the peer's lifecycle: the mesh closes the connection before it removes the tile.
+export function monitorSpeaking(participantId: string, connection: MonitoredConnection): void {
     let lastLoudTime = -Infinity;
     let speaking = false;
     const interval = setInterval(() => {
-        if (connection.connectionState === "closed" || !document.getElementById(`container-${participantId}`)) {
+        if (connection.connectionState === "closed") {
             clearInterval(interval);
             return;
         }
