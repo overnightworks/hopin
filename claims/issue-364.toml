@@ -1,8 +1,0 @@
-claim_id = "93044a4bbb3f4d32b55c759eb42defa4"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "d725f93c716ef821dc767a2af1c78b228b27547a"
-branch = "claude/issue-364-appkit-0-8-0"
-scope = ["frontend/src/app.html", "pyproject.toml", "src/hopin/web/static/login-failed.html", "src/hopin/web/static/login.html", "src/hopin/web/static/no-access.html", "uv.lock"]
-opened_commit = "2c949878bc9e7239d80b9c4302d88de2413dc424"
-whole_reason = "One pin bump: the wheel pin and every page that names the served version move together, or the pages lose their stylesheet."
