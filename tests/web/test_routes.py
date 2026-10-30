@@ -154,16 +154,17 @@ class TestHeadRequests:
 SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
 UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
+REPOSITORY = Path(__file__).parents[2]
 # HopIn's own stylesheets: the page's and each one a feature's frontend module loads.
 OWN_STYLESHEETS = sorted(
     {
         *(STATIC_DIR / "assets").rglob("*.css"),
-        *(Path(__file__).parents[2] / "frontend" / "src" / "lib").rglob("*.css"),
+        *(REPOSITORY / "frontend" / "src" / "lib").rglob("*.css"),
     }
     - {UI_CONSOLE_CSS}
 )
-LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
-FRONTEND_PACKAGE_FILE = Path(__file__).parents[2] / "frontend" / "package.json"
+LOCK_FILE = REPOSITORY / "uv.lock"
+FRONTEND_PACKAGE_FILE = REPOSITORY / "frontend" / "package.json"
 CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
 CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
 CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
