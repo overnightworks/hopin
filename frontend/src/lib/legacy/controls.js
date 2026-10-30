@@ -1,5 +1,6 @@
 import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "./media.js";
-import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
+import { isConnected, send } from "#lib/call/signaling.ts";
+import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { closeOpenMenu, registerMenu } from "#lib/ui/menus.ts";
 import { state } from "#lib/call/state.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";

@@ -1,7 +1,8 @@
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
-import { SIGNAL_TYPE, on, send } from "./signaling.js";
+import { on, send } from "#lib/call/signaling.ts";
+import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { monitorSpeaking } from "#lib/call/speaking.ts";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
