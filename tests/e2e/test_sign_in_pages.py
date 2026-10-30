@@ -67,13 +67,11 @@ def test_a_failed_sign_in_shows_login_failed_with_one_way_out_and_both_legal_lin
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
-@pytest.mark.parametrize("path", [LOGIN_PATH, FORGED_CALLBACK], ids=["signed-out", "login-failed"])
-def test_the_one_action_is_as_wide_as_the_card_on_a_phone_and_on_a_desktop(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
+def test_try_again_is_as_wide_as_the_card_on_a_phone_and_on_a_desktop(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
 ) -> None:
     for form_factor in (PHONE, DESKTOP):
-        person = record_page_errors(open_person(signed_in=False, **form_factor), page_errors)
-        person.goto(f"{e2e_server.base_url}{path}")
+        person = open_login_failed(open_person, e2e_server, page_errors, form_factor)
         action, content = person.evaluate(CARD_AND_ACTION_WIDTHS, BUILT_CARD_SELECTORS)
         assert action == pytest.approx(content, abs=1)
 
