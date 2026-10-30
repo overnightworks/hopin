@@ -30,6 +30,8 @@ async function withBundleAndMap(entry) {
 for (const file of await readdir(rawDirectory)) {
     const { result } = JSON.parse(await readFile(path.join(rawDirectory, file), "utf8"));
     const bundles = result.filter(hasMap);
-    await report.add(await Promise.all(bundles.map(withBundleAndMap)));
+    if (bundles.length > 0) {
+        await report.add(await Promise.all(bundles.map(withBundleAndMap)));
+    }
 }
 await report.generate();

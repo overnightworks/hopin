@@ -173,7 +173,9 @@ jobs:
               '.jobs[] | select(.name == "End-to-end") | (.completed_at // (now | todate) | fromdate) - (.started_at | fromdate)'
           }
           main_run=$(gh run list --branch main --workflow ci.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
-          echo "End-to-end so far: $(duration "${GITHUB_RUN_ID}") s; main's last green run (${main_run}): $(duration "${main_run}") s"
+          this_duration=$(duration "${GITHUB_RUN_ID}")
+          main_duration=$(duration "${main_run}")
+          echo "End-to-end so far: ${this_duration} s; main's last green run (${main_run}): ${main_duration} s; longer by $((this_duration - main_duration)) s"
 
       - name: Upload the traces
         if: failure()
