@@ -1,8 +1,0 @@
-claim_id = "283e0aec30bb41b68881dbbed3d1a5ea"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "7e1379a4abea5f159aa41231356406320a7a2cd1"
-branch = "claude/issue-334-toast"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/controls.js", "frontend/src/lib/legacy/invite.js", "frontend/src/lib/legacy/toast.js", "frontend/src/lib/ui/Toasts.svelte", "frontend/src/lib/ui/toast.svelte.test.ts", "frontend/src/lib/ui/toast.svelte.ts", "frontend/src/routes/+layout.svelte"]
-opened_commit = "9a0f02c0c5a37ab421e1411cb7358e2df95b21d5"
-whole_reason = "One port with its deletion, its component replacing the templates, and its three importers' import lines."
