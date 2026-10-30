@@ -1,0 +1,7 @@
+claim_id = "851d40d49dc54bd38ab357963d75dcaf"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "c0dc45ac66ac89a7b7140fe144cd45d52b8f034f"
+branch = "fix/sonar-svelte-exclusion"
+scope = ["sonar-project.properties"]
+opened_commit = "f537e5c33c4f5a6d4b3628b0fe96e3b160cbc326"
