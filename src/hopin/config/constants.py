@@ -17,6 +17,7 @@ STATIC_PATH = "/static"
 APP_ASSET_PATH = "/_app"
 IMMUTABLE_ASSET_DIRECTORY = "immutable"
 ICE_SERVERS_PATH = "/api/ice-servers"
+CALL_FEATURES_PATH = "/api/call-features"
 ACCOUNT_PATH = "/api/account"
 PEOPLE_PATH = "/api/admin/people"
 PERSON_EXPORT_PATH = f"{PEOPLE_PATH}/{{subject}}/export"
@@ -42,7 +43,7 @@ PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
 # The immutable files of the page build set their own header on success (routes.py): a rule here would also
 # stamp it onto the 401, 429 and 404 that the same path can answer. Every other build file is revalidated.
 NO_CACHE_PATH_RULES = PathRules(
-    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH}),
+    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, CALL_FEATURES_PATH}),
     prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
     patterns=(re.compile(rf"^{APP_ASSET_PATH}/(?!{IMMUTABLE_ASSET_DIRECTORY}/)"),),
 )

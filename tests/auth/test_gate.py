@@ -24,6 +24,7 @@ from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     BACKCHANNEL_LOGOUT_PATH,
+    CALL_FEATURES_PATH,
     HEALTH_PATH,
     ICE_SERVERS_PATH,
     IMMUTABLE_ASSET_CACHE_CONTROL,
@@ -35,7 +36,6 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.web.kit import KIT_DIR, KIT_PATH
-from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import (
     FIXTURE_DIRECTORY,
@@ -169,7 +169,7 @@ class TestSignedOut:
         ("path", "headers"),
         [
             (ICE_SERVERS_PATH, FETCH_ACCEPT),
-            (WIRE_MODULE_PATH, FETCH_ACCEPT),
+            (CALL_FEATURES_PATH, FETCH_ACCEPT),
             ("/", FETCH_ACCEPT),
             (ACCOUNT_PATH, FETCH_ACCEPT),
             (ICE_SERVERS_PATH, {"accept": "*/*"}),
@@ -230,7 +230,7 @@ class TestSignedIn:
     def test_a_member_reaches_every_page_and_the_ice_servers(self, application):
         member = application.seed()
         with hosted_room(application, member) as room_id:
-            for path in ["/", f"/c/{room_id}", ICE_SERVERS_PATH, WIRE_MODULE_PATH]:
+            for path in ["/", f"/c/{room_id}", ICE_SERVERS_PATH, CALL_FEATURES_PATH]:
                 assert application.get(path, member, **BROWSER_ACCEPT).status_code == 200, path
 
     def test_a_session_of_another_application_instance_is_refused(self, sign_in_settings):
@@ -516,6 +516,11 @@ class TestPageBuildAssets:
 
         assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
 
+    def test_the_call_features_are_revalidated_on_every_use(self, application):
+        response = application.get(CALL_FEATURES_PATH, application.seed(), **FETCH_ACCEPT)
+
+        assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
+
 
 def install_gate(app: FastAPI, stores: SignInStores) -> None:
     install_web_auth_middleware(
@@ -535,7 +540,7 @@ class TestSecurityHeaders:
             ("GET", "/", False, BROWSER_ACCEPT, 302),
             ("GET", "/c/abc?x=1", False, BROWSER_ACCEPT, 302),
             ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
-            ("GET", WIRE_MODULE_PATH, False, FETCH_ACCEPT, 401),
+            ("GET", CALL_FEATURES_PATH, False, FETCH_ACCEPT, 401),
             ("GET", IMMUTABLE_FILE, False, FETCH_ACCEPT, 401),
             ("GET", "/", False, FETCH_ACCEPT, 401),
             ("GET", ACCOUNT_PATH, False, FETCH_ACCEPT, 401),
@@ -548,7 +553,7 @@ class TestSecurityHeaders:
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),
             ("GET", ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
-            ("GET", WIRE_MODULE_PATH, True, FETCH_ACCEPT, 200),
+            ("GET", CALL_FEATURES_PATH, True, FETCH_ACCEPT, 200),
             ("GET", IMMUTABLE_FILE, True, FETCH_ACCEPT, 200),
             ("GET", "/c/{room}", True, BROWSER_ACCEPT, 200),
             ("GET", "/c/unknown", True, BROWSER_ACCEPT, 404),

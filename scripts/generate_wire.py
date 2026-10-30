@@ -1,8 +1,8 @@
-"""Write frontend/src/lib/wire.ts, the browser's typed copy of the core wire vocabulary.
+"""Write the browser's typed copies of the wire vocabulary: the core's, and the game's beside the game.
 
 The Python enums and constants own the vocabulary; this generator renders them as
-TypeScript string enums and typed constants. `--check` fails when the committed file
-differs from the rendering, so CI catches drift.
+TypeScript string enums and typed constants. `--check` writes nothing and fails when a
+committed file differs from the rendering or is missing, so CI catches drift.
 """
 
 import sys
@@ -14,21 +14,24 @@ sys.path.insert(0, str(REPOSITORY / "src"))
 
 from hopin.config.constants import (  # noqa: E402
     AUTH_START_PATH,
+    CALL_FEATURES_PATH,
     ICE_SERVERS_PATH,
     REPLAY_LOG_LIMIT,
+    RETURN_TO_QUERY_PARAMETER,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
+from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from enum import StrEnum
 
-OUTPUT_PATH = REPOSITORY / "frontend" / "src" / "lib" / "wire.ts"
+CORE_OUTPUT = Path("frontend/src/lib/wire.ts")
 CHECK_FLAG = "--check"
 HEADER = "// Generated from the Python wire owners by scripts/generate_wire.py. Do not edit.\n"
 INDENT = "    "
@@ -40,39 +43,59 @@ def _enum(exported_name: str, vocabulary: type[StrEnum]) -> str:
     return f"export enum {exported_name} {{\n{members}}}\n"
 
 
+def _enums(vocabularies: Mapping[str, type[StrEnum]]) -> str:
+    return "\n".join(_enum(exported_name, vocabulary) for exported_name, vocabulary in vocabularies.items())
+
+
 def _signal_types(exported_name: str, members: frozenset[SignalType]) -> str:
     names = [f"SIGNAL_TYPE.{member.name}" for member in sorted(members)]
     declaration = f"export const {exported_name}: readonly SIGNAL_TYPE[] = ["
-    one_line = f"{declaration}{', '.join(names)}];\n"
+    one_line = f"{declaration}{', '.join(names)}];"
     if len(one_line) <= PRINT_WIDTH:
-        return one_line
+        return f"{one_line}\n"
     wrapped = "".join(f"{INDENT}{name},\n" for name in names)
     return f"{declaration}\n{wrapped}];\n"
 
 
-def render() -> str:
-    sections = [
-        _enum("SIGNAL_TYPE", SignalType),
-        _enum("ERROR_REASON", ErrorReason),
-        _enum("ROOM_CLOSED_REASON", RoomClosedReason),
+def _generated_file(body: str) -> str:
+    return f"{HEADER}\n{body}"
+
+
+def render_core() -> str:
+    enums = _enums({"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason})
+    constants = (
         f"export const SESSION_ENDED_CLOSE_CODE = {SESSION_ENDED_CLOSE_CODE};\n"
         f'export const WEBSOCKET_PATH = "{WEBSOCKET_PATH}";\n'
         f'export const ICE_SERVERS_PATH = "{ICE_SERVERS_PATH}";\n'
+        f'export const CALL_FEATURES_PATH = "{CALL_FEATURES_PATH}";\n'
         f'export const AUTH_START_PATH = "{AUTH_START_PATH}";\n'
+        f'export const RETURN_TO_QUERY_PARAMETER = "{RETURN_TO_QUERY_PARAMETER}";\n'
         f"export const REPLAY_LOG_LIMIT = {REPLAY_LOG_LIMIT};\n"
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
-        + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION),
-    ]
-    return HEADER + "\n" + "\n".join(sections)
+        + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION)
+    )
+    return _generated_file(f"{enums}\n{constants}")
 
 
-def main(arguments: Sequence[str], output: Path = OUTPUT_PATH) -> int:
-    rendered = render()
+def outputs(root: Path) -> dict[Path, str]:
+    """Every generated file under the root, by path."""
+    return {
+        root / CORE_OUTPUT: render_core(),
+        root / "frontend/src/lib/features/game/wire.ts": _generated_file(_enums(BROWSER_ENUMS)),  # game
+    }
+
+
+def main(arguments: Sequence[str], root: Path = REPOSITORY) -> int:
+    rendered = outputs(root)
     if CHECK_FLAG in arguments:
-        if not output.is_file() or output.read_text() != rendered:
-            raise SystemExit(f"generate_wire: {output} is out of date; run scripts/generate_wire.py without --check")
+        stale = [path for path, content in rendered.items() if not path.is_file() or path.read_text() != content]
+        if stale:
+            names = ", ".join(str(path) for path in stale)
+            raise SystemExit(f"generate_wire: {names} out of date; run scripts/generate_wire.py without --check")
         return 0
-    output.write_text(rendered)
+    for path, content in rendered.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
     return 0
 
 

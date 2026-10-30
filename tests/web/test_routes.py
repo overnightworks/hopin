@@ -2,7 +2,6 @@ import hashlib
 import json
 import re
 import tomllib
-from functools import partial
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -13,27 +12,17 @@ from fastapi.testclient import TestClient
 from hopin.auth.sign_in import NO_ACCESS_PAGE
 from hopin.config.constants import (
     APP_ASSET_PATH,
-    AUTH_START_PATH,
     CALL_PATH,
     HEALTH_PATH,
     HOME_PATH,
     LOGOUT_PATH,
-    REPLAY_LOG_LIMIT,
-    RETURN_TO_QUERY_PARAMETER,
-    SESSION_ENDED_CLOSE_CODE,
     STATIC_PATH,
-    WEBSOCKET_PATH,
-    ErrorReason,
-    RoomClosedReason,
-    SignalType,
 )
 from hopin.rooms.models import Account
-from hopin.signaling.features import FeatureClashError
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.kit import KIT_PATH
 from hopin.web.routes import STATIC_DIR, create_router
-from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.page_build import fixture_page_build
 from tests.support.page_inventory import (
     CSS_COMMENT,
@@ -43,8 +32,7 @@ from tests.support.page_inventory import (
     defined_class_names,
     inventory_of,
 )
-from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
-from tests.support.wire_module import served_exports
+from tests.support.signaling_fakes import SocketAccountResolver
 
 pytestmark = pytest.mark.integration
 
@@ -69,40 +57,11 @@ def client(app):
 class TestCreateRoutes:
     def test_returns_five_routes_and_the_kit_static_and_app_mounts(self, signaling_handler, room_manager):
         router = create_router(signaling_handler, room_manager, fixture_page_build())
-        assert len(router.routes) == 8
+        assert len(router.routes) == 7
 
     def test_static_dir_points_to_web_static(self):
         assert STATIC_DIR.name == "static"
         assert STATIC_DIR.parent.name == "web"
-
-
-class TestWireModule:
-    def test_serves_the_python_vocabulary_as_a_javascript_module(self, client):
-        response = client.get(WIRE_MODULE_PATH)
-        assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/javascript")
-        assert served_exports(response.text) == {
-            "SIGNAL_TYPE": {member.name: member.value for member in SignalType},
-            "ERROR_REASON": {member.name: member.value for member in ErrorReason},
-            "ROOM_CLOSED_REASON": {member.name: member.value for member in RoomClosedReason},
-            "SESSION_ENDED_CLOSE_CODE": SESSION_ENDED_CLOSE_CODE,
-            "WEBSOCKET_PATH": WEBSOCKET_PATH,
-            "AUTH_START_PATH": AUTH_START_PATH,
-            "RETURN_TO_QUERY_PARAMETER": RETURN_TO_QUERY_PARAMETER,
-            "REPLAY_LOG_LIMIT": REPLAY_LOG_LIMIT,
-            "DESCRIPTION_TYPES": ["answer", "offer"],
-            "SUPERSEDED_BY_A_DESCRIPTION": ["answer", "ice_candidate", "offer"],
-            "FEATURE_MODULES": [],
-        }
-
-    def test_a_feature_export_named_like_a_core_export_is_refused_at_start(self, room_manager):
-        clashing = partial(RecordingFeature, wire_exports={"ERROR_REASON": {"SAMPLE_REASON": "sample_reason"}})
-        handler = SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler(), clashing)
-
-        page_build = fixture_page_build()
-
-        with pytest.raises(FeatureClashError, match="ERROR_REASON"):
-            create_router(handler, room_manager, page_build)
 
 
 class TestHealthEndpoint:
