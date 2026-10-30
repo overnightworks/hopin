@@ -22,8 +22,7 @@ webauth:
   same-origin absolute path; an `<a href>` is only one of the two central legal
   URLs. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
   the kit's sign-in card opens them in the same tab. CSP limits what the page
-  fetches, not where a link goes. The sign-in pages keep a guard test
-  (`tests/web/test_routes.py`); the shell's guards read the rendered DOM in `tests/e2e/test_page_shell.py`.
+  fetches, not where a link goes. The built sign-in pages' guards read the rendered DOM in `tests/e2e/test_sign_in_pages.py`, the shell's in `tests/e2e/test_page_shell.py`; the static No access page keeps its guard test in `tests/web/test_routes.py`.
 - The shell loads appkit's `appkit.css`, then `hopin.css`. The prerendered sign-in
   pages load appkit's `appkit.css`, `hopin.css` and the card's built stylesheet; only the
   static No access page still loads `ui-console.css` first, vendored verbatim; an upgrade of it is a
