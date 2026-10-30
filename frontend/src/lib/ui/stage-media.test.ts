@@ -220,7 +220,7 @@ describe("remote tiles in a component", () => {
         Object.defineProperty(picture, "muted", { value: true });
         picture.dispatchEvent(new Event("mute"));
 
-        expect(assigned.mock.calls.length).toBe(before);
+        expect(assigned.mock.calls).toHaveLength(before);
     });
 
     it("re-attaches the picture on an unmute", () => {
@@ -234,7 +234,7 @@ describe("remote tiles in a component", () => {
         Object.defineProperty(picture, "muted", { value: false });
         picture.dispatchEvent(new Event("unmute"));
 
-        expect(assigned.mock.calls.length).toBe(before + 1);
+        expect(assigned.mock.calls).toHaveLength(before + 1);
         expect((assigned.mock.lastCall?.[1] as FakeStream).getTracks()).toContain(picture);
     });
 
