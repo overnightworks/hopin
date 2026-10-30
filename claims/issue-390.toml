@@ -1,0 +1,7 @@
+claim_id = "f4f0e313d16d4fc9908a4fc3a01ebdce"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "30e0763d15f669c9bb8bc70a7c516b6715397b01"
+branch = "claude/issue-390-racy-tests"
+scope = ["tests/e2e/test_sign_in_pages.py", "tests/game/test_agent_service_flow.py"]
+opened_commit = "2c3ce641e5fbf4300149d37fdcf7151abddb9efe"
