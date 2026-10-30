@@ -9,6 +9,15 @@ from playwright.sync_api import Page, Route, expect
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
 from tests.e2e.game.build_files import GameFile, url_of
+from tests.e2e.game.game_page import (
+    CARD,
+    GAME_MASTER_LINES,
+    START_QUIZ,
+    TYPING,
+    close_chat,
+    open_chat,
+    start_quiz,
+)
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -38,19 +47,13 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-START_QUIZ = "#gameStartBtn"
-GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
-TYPING = "#chatMessages .game-master.typing"
 TOASTS = "#toasts"
-CARD = "#chatPanel .qcard"
 REVEAL = "Reveal"
 SEND = "Send"
 YOUR_ANSWER = "Your answer"
 STATUS = ".qcard-status"
 SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
-MESSAGES_IN_A_LONG_HISTORY = 60
-LIST_IS_AT_THE_BOTTOM = "(list) => list.scrollHeight - list.scrollTop - list.clientHeight < 2"
 THINKING = re.compile(r"\bthinking\b")
 QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
 QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
@@ -82,11 +85,6 @@ window.WebSocket = class extends PageWebSocket {
 DELIVER_SERVER_FRAME = "(frame) => pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
 
 
-def start_quiz(person: Page) -> None:
-    open_more(person)
-    person.click(START_QUIZ)
-
-
 def end_quiz(person: Page) -> None:
     open_more(person)
     person.click(START_QUIZ)
@@ -95,18 +93,6 @@ def end_quiz(person: Page) -> None:
 def leave_the_call(guest: Page) -> None:
     """A guest leaves at once; only the host's Leave asks first."""
     guest.click("#leaveBtn")
-
-
-def open_chat(person: Page) -> None:
-    if person.locator("#moreMenu").is_visible():
-        person.keyboard.press("Escape")
-    person.click("#chatBtn")
-    expect(person.locator("#chatPanel")).to_be_visible()
-
-
-def close_chat(person: Page) -> None:
-    person.click("#chatClose")
-    expect(person.locator("#chatPanel")).to_be_hidden()
 
 
 def expect_idle(person: Page) -> None:
@@ -264,37 +250,6 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
     expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_visible()
     expect(host.locator(CARD).get_by_role("button", name=REVEAL)).to_have_count(0)
-
-
-@pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_the_chat_stays_scrolled_to_the_newest_line_when_the_typing_bubble_and_the_card_render(
-    open_person: Callable[..., Page],
-    e2e_server: RunningServer,
-    page_errors: list[str],
-    agent_service: FakeAgentService,
-    form_factor: dict[str, Any],
-) -> None:
-    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
-    held = Holds()
-    agent_service.answer_next(held)
-    open_chat(guest)
-    open_chat(host)
-    for number in range(MESSAGES_IN_A_LONG_HISTORY):
-        guest.fill("#chatInput", f"line {number}")
-        guest.click("#chatSend")
-    messages = host.locator("#chatMessages")
-    expect(messages.locator(".chat-msg")).to_have_count(MESSAGES_IN_A_LONG_HISTORY)
-    assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)
-
-    close_chat(guest)
-    start_quiz(guest)
-    expect(host.locator(TYPING)).to_be_visible()
-    assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)
-    held.release.set()
-
-    expect(host.locator(CARD)).to_be_visible()
-    expect(host.locator(GAME_MASTER_LINES)).to_have_count(1)
-    assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
