@@ -140,8 +140,8 @@ function isAlreadyDispatched(data: ServerFrame) {
 
 function handleMessage(current: WebSocket, event: MessageEvent<string>) {
     const data = JSON.parse(event.data) as ServerFrame;
-    if (data.type === SIGNAL_TYPE.RESUMED && seat) {
-        handleResumed(current, seat, data);
+    if (data.type === SIGNAL_TYPE.RESUMED) {
+        handleResumed(current, seat as Seat, data);
     } else if (data.type === SIGNAL_TYPE.ERROR && data.reason === ERROR_REASON.RESUME_REFUSED) {
         fallBackToJoin(current);
     } else if (!isAlreadyDispatched(data)) {

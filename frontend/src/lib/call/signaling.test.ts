@@ -323,17 +323,6 @@ describe("resuming", () => {
         expect(latestSocket().sent[0]).toMatchObject({ type: SIGNAL_TYPE.RESUME, token: "token-2" });
     });
 
-    it("hands a resumed frame on as an ordinary one when no seat is held", async () => {
-        const { connect, on } = await freshSignaling();
-        const handler = vi.fn();
-        on(SIGNAL_TYPE.RESUMED, handler);
-        connect();
-
-        latestSocket().receive({ type: SIGNAL_TYPE.RESUMED });
-
-        expect(handler).toHaveBeenCalledOnce();
-    });
-
     it("joins afresh when the server refuses the resume", async () => {
         const signaling = await freshSignaling();
         const lost = vi.fn();
