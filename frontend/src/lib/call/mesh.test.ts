@@ -166,7 +166,7 @@ function streamWith(...kinds: string[]) {
 }
 
 const reportError = vi.fn();
-const iceServers = [{ urls: "stun:ice.test" }];
+const iceServers = [{ urls: "ice-server-from-the-endpoint" }];
 
 function respondToFetch(status: number, body: unknown = { iceServers }) {
     vi.stubGlobal(
