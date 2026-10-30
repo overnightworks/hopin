@@ -1,8 +1,0 @@
-claim_id = "9b4622ed83f64de8a3b753467fdd7a5c"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "c0dc45ac66ac89a7b7140fe144cd45d52b8f034f"
-branch = "claude/issue-361-remote-tiles"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/stage.js", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/lib/ui/stage-media.test.ts", "frontend/src/lib/ui/stage-media.ts", "frontend/src/lib/ui/stage.svelte.test.ts", "frontend/src/lib/ui/stage.svelte.ts", "frontend/src/routes/+layout.svelte"]
-opened_commit = "07b15d86929248e4a00b2e450315a4a7f29a6abe"
-whole_reason = "One port implementation: the stage module, its actions, the tiles component, the layout's mount point, the port installation and the deletion of stage.js cannot ship apart."
