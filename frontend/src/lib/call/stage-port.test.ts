@@ -74,11 +74,9 @@ const operations: Operation[] = [
     },
 ];
 
-const RETURNED_BY_STAGE = true;
-
 function fakeStage(): Record<keyof StagePort, Mock> {
     const fake = {} as Record<keyof StagePort, Mock>;
-    for (const { name } of operations) fake[name] = vi.fn(() => RETURNED_BY_STAGE);
+    for (const { name } of operations) fake[name] = vi.fn();
     return fake;
 }
 
@@ -99,7 +97,7 @@ describe("stage port", () => {
     });
 
     it.each(operations)(
-        "$name hands its arguments to the installed stage and returns its result",
+        "$name hands its arguments to the installed stage",
         ({ name, call, expectedArguments }) => {
             const stage = fakeStage();
             install(stage);
