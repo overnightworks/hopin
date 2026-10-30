@@ -81,9 +81,11 @@ class TestTokens:
         assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
         assert world.service.runs == []
 
-    async def test_ask_whose_workload_grant_is_refused_is_unavailable_and_posts_nothing(self, world):
+    @pytest.mark.parametrize("idp_error", ["unauthorized_client", "invalid_scope"])
+    async def test_ask_whose_workload_grant_is_refused_is_unavailable_and_posts_nothing(self, world, idp_error):
         starter, _ = world.starter()
         world.issuer.refuses_workload_grants = True
+        world.issuer.workload_refusal_error = idp_error
 
         with structlog.testing.capture_logs() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
@@ -96,7 +98,7 @@ class TestTokens:
                 "log_level": "info",
                 "token": "workload",
                 "issuer_reason": "token-request-refused",
-                "idp_error": "unauthorized_client",
+                "idp_error": idp_error,
             }
         ]
 

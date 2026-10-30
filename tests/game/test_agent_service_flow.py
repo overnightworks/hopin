@@ -101,6 +101,13 @@ class Call:
         host.frames(1)
         return host, guest, guest_member
 
+    def client_credentials_scopes(self):
+        return [
+            request.form["scope"]
+            for request, _ in self.issuer.exchanges
+            if request.form["grant_type"] == "client_credentials"
+        ]
+
     def refresh_tokens_granted(self):
         return [
             request.form["refresh_token"]
@@ -110,7 +117,13 @@ class Call:
 
 
 @pytest.fixture
-def call(sign_in_settings):
+def operator_chosen_scope():
+    return "scenario-audience"
+
+
+@pytest.fixture
+def call(sign_in_settings, monkeypatch, operator_chosen_scope):
+    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", operator_chosen_scope)
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
     service = FakeAgentService(issuer)
@@ -188,6 +201,15 @@ def test_the_run_goes_out_on_the_starters_token_pair_not_the_hosts(call):
     [run] = call.service.runs
     assert (run.subject, run.workload_admitted) == (guest_member.account.id, True)
     assert call.refresh_tokens_granted() == [guest_refresh_token]
+
+
+def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(call, operator_chosen_scope):
+    host, _, _ = call.host_and_guest()
+
+    host.start()
+    host.frames(3)
+
+    assert call.client_credentials_scopes() == [operator_chosen_scope]
 
 
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):

@@ -10,7 +10,7 @@ from starlette.requests import HTTPConnection
 
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.auth.stores import InMemorySessions, SignInStores
-from hopin.game import AGENT_SERVICE_URL, agent_service_game_master
+from hopin.game import AGENT_SERVICE_SCOPE, AGENT_SERVICE_URL, agent_service_game_master
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
 from tests.game.support.fake_agent_service import FakeAgentService
 from tests.support.fake_issuer import FakeIssuer
@@ -56,6 +56,7 @@ class World:
             sessions=self.sessions,
             web_auth=self.web_auth,
             transport=transport,
+            agent_service_scope=AGENT_SERVICE_SCOPE,
         )
 
     @property
