@@ -172,8 +172,13 @@ def expect_the_sign_in_at_the_issuer(
 
 @FORM_FACTORS
 def test_a_person_without_a_session_who_opens_a_call_link_is_sent_to_the_issuer_and_never_sees_the_call(
-    open_person: Callable[..., Page], e2e_server: RunningServer, form_factor: dict[str, Any], page_errors: list[str]
+    open_person: Callable[..., Page],
+    expected_request_failures: list[str],
+    e2e_server: RunningServer,
+    form_factor: dict[str, Any],
+    page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(TEST_ISSUER)
     host = record_page_errors(open_person(**DESKTOP), page_errors)
     call_link = start_call(host, e2e_server.base_url)
     room_path = urlsplit(call_link).path
@@ -197,12 +202,14 @@ def test_a_person_without_a_session_who_opens_a_call_link_is_sent_to_the_issuer_
 @pytest.mark.parametrize("end_the_session", ["delete_it_in_the_store", "clear_the_cookies"])
 def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_cannot_start(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], SeededMember],
     e2e_server: RunningServer,
     form_factor: dict[str, Any],
     end_the_session: str,
     page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(TEST_ISSUER)
     page = record_page_errors(open_person(**form_factor), page_errors)
     statuses: list[str] = []
     page.expose_function("noteStatus", lambda text: statuses.append(text))
@@ -245,11 +252,13 @@ CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS = "() => { setTimeout(() => documen
 @FORM_FACTORS
 def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_sign_in(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], SeededMember],
     e2e_server: RunningServer,
     form_factor: dict[str, Any],
     page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(TEST_ISSUER)
     host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, form_factor)
     guest = open_person(**form_factor)
     leavings: list[dict[str, Any]] = []

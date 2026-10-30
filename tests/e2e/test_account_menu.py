@@ -223,11 +223,13 @@ def test_pressing_the_avatar_again_closes_the_open_menu_and_keeps_the_focus_on_i
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_log_out_from_the_home_menu_ends_the_session_and_leaves_through_the_issuers_end_session(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], Any],
     e2e_server: RunningServer,
     page_errors: list[str],
     form_factor: dict[str, Any],
 ) -> None:
+    expected_request_failures.append(END_SESSION_URL)
     person = open_home(open_person, e2e_server.base_url, page_errors, **form_factor)
     person.locator(AVATAR).click()
 
@@ -238,10 +240,12 @@ def test_log_out_from_the_home_menu_ends_the_session_and_leaves_through_the_issu
 
 def test_log_out_from_the_end_screen_menu_ends_the_session_the_same_way(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], Any],
     e2e_server: RunningServer,
     page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(END_SESSION_URL)
     host = watch(open_person(**DESKTOP), page_errors)
     start_call(host, e2e_server.base_url)
     leave_the_call(host)
@@ -272,10 +276,12 @@ def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_nameless_menu_a
 
 def test_session_that_ended_goes_through_the_sign_in_once_when_the_account_answers_401(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], Any],
     e2e_server: RunningServer,
     page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(TEST_ISSUER)
     load_errors: list[str] = []
     person = watch(open_person(**DESKTOP), page_errors, load_errors=load_errors)
     sign_in_starts: list[str] = []

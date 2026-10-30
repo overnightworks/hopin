@@ -140,8 +140,13 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
 
 @pytest.mark.parametrize("unreachable_file", [BROWSER_MODULE, BROWSER_STYLESHEET])
 def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not_load(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], unreachable_file: str
+    open_person: Callable[..., Page],
+    expected_request_failures: list[str],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    unreachable_file: str,
 ) -> None:
+    expected_request_failures.append(f"{e2e_server.base_url}{unreachable_file}")
     host = record_page_errors(open_person(**DESKTOP), page_errors)
     host.route(f"**{unreachable_file}", lambda route: route.abort())
 
