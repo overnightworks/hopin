@@ -11,7 +11,7 @@ import {
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
-import { stopLocalMedia } from "./media.js";
+import { stopLocalMedia } from "#lib/call/media.ts";
 import { registerMediaStateHandlers } from "#lib/call/media-state.ts";
 import {
     loadIceServers,

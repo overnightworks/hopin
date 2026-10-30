@@ -1,4 +1,4 @@
-import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "./media.js";
+import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "#lib/call/media.ts";
 import { isConnected, send } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { closeOpenMenu, registerMenu } from "#lib/ui/menus.ts";

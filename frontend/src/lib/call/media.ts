@@ -5,16 +5,16 @@ import { state } from "#lib/call/state.ts";
 
 let mediaSession = 0;
 let cameraRequest = 0;
-let screenShareChange = null;
+let screenShareChange: Promise<void> | null = null;
 
-function stopTracks(stream) {
+function stopTracks(stream: MediaStream) {
     for (const track of stream.getTracks()) {
         track.stop();
     }
 }
 
 export class CameraError extends Error {
-    constructor(cause) {
+    constructor(cause: Error) {
         super(cause.message, { cause });
         this.name = cause.name;
     }
@@ -25,7 +25,12 @@ export class CameraError extends Error {
 // that would start after it, belongs to no call: it is stopped and changes nothing.
 // A camera request also stops when a newer press, a share or the end of the call
 // overtook it (isCurrent).
-async function acquireStream(session, request, adopt, isCurrent = () => true) {
+async function acquireStream(
+    session: number,
+    request: () => Promise<MediaStream>,
+    adopt: (stream: MediaStream) => void,
+    isCurrent: () => boolean = () => true,
+): Promise<void> {
     if (session !== mediaSession) return;
     const stream = await request();
     if (session !== mediaSession || !isCurrent()) {
@@ -35,52 +40,69 @@ async function acquireStream(session, request, adopt, isCurrent = () => true) {
     adopt(stream);
 }
 
-function adoptLocalStream(stream, cameraOn) {
+function adoptLocalStream(stream: MediaStream, cameraOn: boolean) {
     state.localStream = stream;
     state.videoEnabled = cameraOn;
 }
 
+// Every caller guarantees the stream: the controls and the pre-join act only on a started one.
+function requireLocalStream(): MediaStream {
+    if (!state.localStream) throw new Error("No local stream");
+    return state.localStream;
+}
+
+// The browser resolves a camera or screen request only with a video track.
+function videoTrackOf(stream: MediaStream): MediaStreamTrack {
+    const track = stream.getVideoTracks()[0];
+    if (!track) throw new Error("The stream carries no video track");
+    return track;
+}
+
 function dropVideoTrack() {
-    const oldTrack = state.localStream.getVideoTracks()[0];
+    const localStream = requireLocalStream();
+    const oldTrack = localStream.getVideoTracks()[0];
     if (oldTrack) {
-        state.localStream.removeTrack(oldTrack);
+        localStream.removeTrack(oldTrack);
         oldTrack.stop();
     }
 }
 
-function replaceVideoTrack(newTrack) {
+function replaceVideoTrack(newTrack: MediaStreamTrack) {
     dropVideoTrack();
-    state.localStream.addTrack(newTrack);
-    showLocalStream(state.localStream);
+    const localStream = requireLocalStream();
+    localStream.addTrack(newTrack);
+    showLocalStream(localStream);
     void replaceVideoTrackOnPeers(newTrack);
 }
 
-export async function acquireMedia(preferCamera) {
+export async function acquireMedia(): Promise<void> {
     const session = mediaSession;
-    if (preferCamera) {
-        try {
-            await acquireStream(
-                session,
-                () => navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
-                (stream) => adoptLocalStream(stream, true),
-            );
-            return;
-        } catch {
-            // camera unavailable; fall back to the audio-only attempt below
-        }
+    try {
+        await acquireStream(
+            session,
+            () => navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+            (stream) => {
+                adoptLocalStream(stream, true);
+            },
+        );
+        return;
+    } catch {
+        // camera unavailable; fall back to the audio-only attempt below
     }
 
     try {
         await acquireStream(
             session,
             () => navigator.mediaDevices.getUserMedia({ audio: true }),
-            (stream) => adoptLocalStream(stream, false),
+            (stream) => {
+                adoptLocalStream(stream, false);
+            },
         );
     } catch (error) {
-        // error.name distinguishes a permission denial (NotAllowedError) from an
+        // The rejection's name distinguishes a permission denial (NotAllowedError) from an
         // absent device (NotFoundError), which call for different advice.
         throw new Error(
-            `No camera or microphone available (${error.name}). Please connect a device or grant permission and try again.`,
+            `No camera or microphone available (${(error as Error).name}). Please connect a device or grant permission and try again.`,
             { cause: error },
         );
     }
@@ -92,14 +114,15 @@ function localMediaChanged() {
 }
 
 export function toggleAudio() {
+    const localStream = requireLocalStream();
     state.audioEnabled = !state.audioEnabled;
-    for (const track of state.localStream.getAudioTracks()) {
+    for (const track of localStream.getAudioTracks()) {
         track.enabled = state.audioEnabled;
     }
     localMediaChanged();
 }
 
-async function openCamera(adopt) {
+async function openCamera(adopt: (cameraTrack: MediaStreamTrack) => void): Promise<void> {
     cameraRequest += 1;
     const ticket = cameraRequest;
     const isCurrent = () => ticket === cameraRequest;
@@ -107,11 +130,13 @@ async function openCamera(adopt) {
         await acquireStream(
             mediaSession,
             () => navigator.mediaDevices.getUserMedia({ video: true }),
-            (cameraStream) => adopt(cameraStream.getVideoTracks()[0]),
+            (cameraStream) => {
+                adopt(videoTrackOf(cameraStream));
+            },
             isCurrent,
         );
     } catch (error) {
-        if (isCurrent()) throw new CameraError(error);
+        if (isCurrent()) throw new CameraError(error as Error);
     }
 }
 
@@ -121,7 +146,7 @@ function sendNoVideo() {
 }
 
 // While a share runs the choice is only recorded; the share's end applies it.
-export async function addCamera() {
+export async function addCamera(): Promise<void> {
     if (state.screenStream) {
         state.videoEnabled = true;
         localMediaChanged();
@@ -142,12 +167,12 @@ export function releaseCamera() {
     localMediaChanged();
 }
 
-async function stopScreenShare() {
-    const screenAudioTrack = state.screenStream.getAudioTracks()[0];
+async function stopScreenShare(screenStream: MediaStream) {
+    const screenAudioTrack = screenStream.getAudioTracks()[0];
     if (screenAudioTrack) {
         removeTrackFromPeers(screenAudioTrack);
     }
-    stopTracks(state.screenStream);
+    stopTracks(screenStream);
     state.screenStream = null;
     if (!state.videoEnabled) {
         sendNoVideo();
@@ -163,14 +188,14 @@ async function stopScreenShare() {
     }
 }
 
-async function startScreenShare(onEnded) {
+async function startScreenShare(onEnded: () => void) {
     await acquireStream(
         mediaSession,
         () => navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }),
         (screenStream) => {
+            const screenTrack = videoTrackOf(screenStream);
             cameraRequest += 1;
             state.screenStream = screenStream;
-            const screenTrack = screenStream.getVideoTracks()[0];
             replaceVideoTrack(screenTrack);
             const screenAudioTrack = screenStream.getAudioTracks()[0];
             if (screenAudioTrack) {
@@ -181,9 +206,9 @@ async function startScreenShare(onEnded) {
     );
 }
 
-async function changeScreenShare(onEnded) {
+async function changeScreenShare(onEnded: () => void) {
     if (state.screenStream) {
-        await stopScreenShare();
+        await stopScreenShare(state.screenStream);
     } else {
         await startScreenShare(onEnded);
     }
@@ -192,14 +217,12 @@ async function changeScreenShare(onEnded) {
 // The screen picker stays open while a change is pending. A second press joins that
 // change instead of opening a second picker, whose stream would replace the first
 // one in state and leave the first one's audio capturing with nothing to stop it.
-export function toggleScreenShare(onEnded) {
-    if (!screenShareChange) {
-        screenShareChange = changeScreenShare(onEnded)
-            .then(localMediaChanged)
-            .finally(() => {
-                screenShareChange = null;
-            });
-    }
+export function toggleScreenShare(onEnded: () => void): Promise<void> {
+    screenShareChange ??= changeScreenShare(onEnded)
+        .then(localMediaChanged)
+        .finally(() => {
+            screenShareChange = null;
+        });
     return screenShareChange;
 }
 
