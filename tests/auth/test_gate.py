@@ -17,7 +17,7 @@ from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
-from hopin.auth.sign_in import LOGIN_FAILED_PAGE, NO_ACCESS_PAGE, SIGNED_OUT_PAGE, build_sign_in_configs
+from hopin.auth.sign_in import NO_ACCESS_PAGE, build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ACCOUNT_PATH,
@@ -26,6 +26,7 @@ from hopin.config.constants import (
     BACKCHANNEL_LOGOUT_PATH,
     HEALTH_PATH,
     ICE_SERVERS_PATH,
+    IMMUTABLE_ASSET_CACHE_CONTROL,
     LOGIN_PATH,
     LOGOUT_PATH,
     NO_ACCESS_PATH,
@@ -36,7 +37,14 @@ from hopin.config.constants import (
 from hopin.web.kit import KIT_DIR, KIT_PATH
 from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.fake_issuer import FakeIssuer
-from tests.support.page_build import FIXTURE_SCRIPT_HASH, IMMUTABLE_FILE, VERSION_FILE, fixture_page_build
+from tests.support.page_build import (
+    FIXTURE_DIRECTORY,
+    FIXTURE_SCRIPT_HASH,
+    IMMUTABLE_FILE,
+    SIGN_IN_STYLESHEET,
+    VERSION_FILE,
+    fixture_page_build,
+)
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
@@ -71,13 +79,17 @@ LOOKALIKE_PATHS = [
     "/static/img/hopin.svg/",
     "/static/img/hopin.svgx",
     "/static/img/other.svg",
+    f"{SIGN_IN_STYLESHEET}/",
+    f"{SIGN_IN_STYLESHEET}x",
+    "/_app/immutable/assets/..%2Fx.js",
     *GATED_KIT_PATHS,
     "/logout/",
     f"{BACKCHANNEL_LOGOUT_PATH}/",
     f"{BACKCHANNEL_LOGOUT_PATH}x",
     BACKCHANNEL_LOGOUT_PATH.upper(),
 ]
-SIGN_IN_PAGES = {LOGIN_PATH: SIGNED_OUT_PAGE, NO_ACCESS_PATH: NO_ACCESS_PAGE}
+SIGN_IN_PAGES = {LOGIN_PATH: FIXTURE_DIRECTORY / "login.html", NO_ACCESS_PATH: NO_ACCESS_PAGE}
+LOGIN_FAILED_PAGE = FIXTURE_DIRECTORY / "login-failed.html"
 FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 JSON_POST = {"content-type": "application/json"}
@@ -180,6 +192,14 @@ class TestSignedOut:
     @pytest.mark.parametrize("path", [*STYLESHEETS, *SIGN_IN_PAGES])
     def test_the_sign_in_pages_and_their_stylesheets_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
+
+    def test_the_built_sign_in_stylesheet_is_public_as_immutable_css(self, application):
+        response = application.get(SIGN_IN_STYLESHEET, **FETCH_ACCEPT)
+        assert (response.status_code, response.headers["content-type"], response.headers["cache-control"]) == (
+            200,
+            "text/css; charset=utf-8",
+            IMMUTABLE_ASSET_CACHE_CONTROL,
+        )
 
     @pytest.mark.parametrize("font", KIT_FONTS)
     def test_each_kit_font_is_public_with_its_content_type(self, application, font):
@@ -504,7 +524,7 @@ def install_gate(app: FastAPI, stores: SignInStores) -> None:
             content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
         ),
         csrf_origin=CsrfPolicy(),
-        session_gate=session_gate(stores.sessions),
+        session_gate=session_gate(stores.sessions, frozenset()),
     )
 
 
@@ -523,7 +543,7 @@ class TestSecurityHeaders:
             ("HEAD", HEALTH_PATH, False, {}, 200),
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
             ("GET", AUTH_CALLBACK_PATH, False, {}, 403),
-            *[("GET", path, False, BROWSER_ACCEPT, 200) for path in [*STYLESHEETS, *SIGN_IN_PAGES]],
+            *[("GET", path, False, BROWSER_ACCEPT, 200) for path in [*STYLESHEETS, *SIGN_IN_PAGES, SIGN_IN_STYLESHEET]],
             ("POST", LOGOUT_PATH, False, CROSS_SITE_FORM_POST, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),

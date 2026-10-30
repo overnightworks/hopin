@@ -31,6 +31,7 @@ from tests.e2e.support.media import (
     share_the_screen,
     wait_for_peer_count,
 )
+from tests.e2e.support.page_assertions import RECORD_POLICY_VIOLATIONS
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
 
@@ -120,10 +121,6 @@ if (!watchStatusLine()) {
     const waiting = new MutationObserver(() => watchStatusLine() && waiting.disconnect());
     waiting.observe(document, { childList: true, subtree: true });
 }
-"""
-RECORD_POLICY_VIOLATIONS = """
-window.policyViolations = [];
-document.addEventListener("securitypolicyviolation", (event) => window.policyViolations.push(event.violatedDirective));
 """
 ALLOWED_FEATURES = """
 () => Object.fromEntries(

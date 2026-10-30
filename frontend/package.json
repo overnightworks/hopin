@@ -30,6 +30,7 @@
         "globals": "^17.13.0",
         "jsdom": "^30.1.3",
         "monocart-coverage-reports": "^3.2.0",
+        "overnightworks-appkit": "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks-appkit-0.8.0.tgz",
         "prettier": "^3.9.10",
         "prettier-plugin-svelte": "^4.1.1",
         "svelte": "^5.57.2",

@@ -17,14 +17,15 @@ The page is markup, stylesheets and ES modules, served from
 webauth's session gate, and the CSP and the Permissions-Policy come from
 webauth:
 
-- `index.html` (superseded: the layout in `frontend/src/routes/+layout.svelte` and the shell's `app.html` hold the markup now) holds markup only: no inline script, `<style>`, `style=` or
+- `index.html` (superseded: the layout in `frontend/src/routes/(call)/+layout.svelte` and the shell's `app.html` hold the markup now) holds markup only: no inline script, `<style>`, `style=` or
   `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
   same-origin absolute path; an `<a href>` is only one of the two central legal
-  URLs, with `target="_blank" rel="noopener"`. CSP limits what the page
-  fetches, not where a link goes. The sign-in pages keep a guard test
-  (`tests/web/test_routes.py`); the shell's guards read the rendered DOM in `tests/e2e/test_page_shell.py`.
-- The shell loads appkit's `appkit.css`, then `hopin.css`. The static sign-in
-  pages still load `ui-console.css` first, vendored verbatim; an upgrade of it is a
+  URLs. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
+  the kit's sign-in card opens them in the same tab. CSP limits what the page
+  fetches, not where a link goes. The built sign-in pages' guards read the rendered DOM in `tests/e2e/test_sign_in_pages.py`, the shell's in `tests/e2e/test_page_shell.py`; the static No access page keeps its guard test in `tests/web/test_routes.py`.
+- The shell loads appkit's `appkit.css`, then `hopin.css`. The prerendered sign-in
+  pages load appkit's `appkit.css`, `hopin.css` and the card's built stylesheet; only the
+  static No access page still loads `ui-console.css` first, vendored verbatim; an upgrade of it is a
   new vendoring, never an edit. The kit is the installed `overnightworks-appkit`
   package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
   `/static`; the gate admits its stylesheet and fonts as exact paths, never its
@@ -40,9 +41,9 @@ webauth:
   classes would otherwise style HopIn's markup. A name that both the
   picture and ui-console define is renamed in HopIn. The tests
   `test_defines_no_class_name_that_ui_console_defines` and `test_the_home_page_uses_no_class_name_that_ui_console_defines` enforce the rule.
-- The sign-in pages (`login-failed.html`, `login.html` for Signed out and
-  `no-access.html`) are ui-console's sign-in markup with its classes and
-  wording, and load the same three stylesheets. The no-reuse rule and the legal-only `<a>`
+- Signed out and Login failed are appkit's `SignInPage`, prerendered from
+  `frontend/src/routes/(sign-in)/`. No access (`no-access.html`) stays ui-console's
+  sign-in markup with its classes and wording until the kit's card replaces it. The no-reuse rule and the legal-only `<a>`
   rule above are about `index.html` and `hopin.css`; a sign-in page links the
   two legal URLs and `/auth/start`. No access and the account menu post one
   same-origin form to `/logout`, which answers webauth's own end-session page
@@ -65,5 +66,5 @@ webauth:
   kit.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
-- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the shell's fonts come from the kit (`--font-body`); `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `hopin.css` and `game.css` read no `ui-console.css` token beyond `--sans` (only the static sign-in pages' `.sign-in`) and the shared states; the test `test_reads_no_ui_console_token_that_the_kit_does_not_also_define` pins it.
-- On the static sign-in pages `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
+- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the shell's fonts come from the kit (`--font-body`); `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `hopin.css` and `game.css` read no `ui-console.css` token beyond `--sans` (only the static No access page's `.sign-in`, which also wraps the built pages as their scroll container and there inherits the kit's body font, because `--sans` is defined only where ui-console loads) and the shared states; the test `test_reads_no_ui_console_token_that_the_kit_does_not_also_define` pins it.
+- On the static No access page `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.

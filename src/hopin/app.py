@@ -168,7 +168,7 @@ def _install_web_auth(app: FastAPI, sessions: InMemorySessions, page_build: Page
             rules=(RateLimitRule(paths=SIGN_IN_PATHS.browser_paths, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
             exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
-        session_gate=session_gate(sessions),
+        session_gate=session_gate(sessions, page_build.sign_in_stylesheets),
     )
 
 
@@ -217,7 +217,7 @@ def create_app(
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
-    install_sign_in(app, relying_party, sign_in_stores.transaction)
+    install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
     _install_web_auth(app, sign_in_stores.sessions, page_build)
 
     return app

@@ -34,6 +34,8 @@
     });
 </script>
 
+<svelte:head><title>HopIn - Video Call</title></svelte:head>
+
 <!-- prettier-ignore -->
 <div id="leaveConfirm" class={["confirm-overlay", !leaveDialog.isOpen && "hidden"]}>
     <div class="confirm-box">

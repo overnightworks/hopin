@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import structlog
-from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi import APIRouter, FastAPI, Response
 from fastapi.responses import FileResponse
 from webauth.config import SessionLifetime, WebAuthConfig
 from webauth.https_client import fetch_key_set_over_https
@@ -28,7 +28,7 @@ from hopin.config.constants import (
     SIGN_IN_PATHS,
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
-from hopin.web.routes import READ_METHODS, STATIC_DIR
+from hopin.web.routes import READ_METHODS, STATIC_DIR, built_page_response
 
 if TYPE_CHECKING:
     from pydantic import SecretStr
@@ -36,11 +36,10 @@ if TYPE_CHECKING:
     from webauth.ports import SignInTransaction
 
     from hopin.config.settings import ServerSettings
+    from hopin.web.page_build import PageBuild
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
 LOGOUT_LABEL = "Log out"
-LOGIN_FAILED_PAGE = STATIC_DIR / "login-failed.html"
-SIGNED_OUT_PAGE = STATIC_DIR / "login.html"
 NO_ACCESS_PAGE = STATIC_DIR / "no-access.html"
 
 logger = structlog.get_logger()
@@ -136,7 +135,9 @@ def build_relying_party(sign_in_configs: SignInConfigs, issuer_transports: Issue
     )
 
 
-def install_sign_in(app: FastAPI, relying_party: OidcRelyingParty, transaction: SignInTransaction) -> None:
+def install_sign_in(
+    app: FastAPI, relying_party: OidcRelyingParty, transaction: SignInTransaction, page_build: PageBuild
+) -> None:
     """The library serves the start, callback, logout and back-channel routes; the pages stay HopIn's."""
     install_sign_in_routes(
         app,
@@ -144,20 +145,20 @@ def install_sign_in(app: FastAPI, relying_party: OidcRelyingParty, transaction: 
         relying_party=lambda _request: relying_party,
         admission=AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
         transaction=transaction,
-        refused=_refusal_response,
+        refused=lambda _request, refusal: _refusal_response(refusal, page_build),
         keeps_id_token=True,
         max_sessions=None,
         logout_button_label=lambda _request: LOGOUT_LABEL,
     )
-    app.include_router(_create_pages_router())
+    app.include_router(_create_pages_router(page_build))
 
 
-def _create_pages_router() -> APIRouter:
+def _create_pages_router(page_build: PageBuild) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(LOGIN_PATH, methods=READ_METHODS)
-    def signed_out() -> FileResponse:
-        return FileResponse(SIGNED_OUT_PAGE)
+    def signed_out() -> Response:
+        return built_page_response(page_build.signed_out)
 
     @router.api_route(NO_ACCESS_PATH, methods=READ_METHODS)
     def no_access() -> FileResponse:
@@ -166,11 +167,11 @@ def _create_pages_router() -> APIRouter:
     return router
 
 
-def _refusal_response(_request: Request, refusal: SignInRefusal) -> Response:
+def _refusal_response(refusal: SignInRefusal, page_build: PageBuild) -> Response:
     _log_refusal(refusal.cause)
     if refusal.page is RefusalPage.NO_ACCESS:
         return Response(status_code=HTTPStatus.SEE_OTHER, headers={"location": NO_ACCESS_PATH})
-    return FileResponse(LOGIN_FAILED_PAGE, status_code=HTTPStatus.FORBIDDEN)
+    return built_page_response(page_build.login_failed, status_code=HTTPStatus.FORBIDDEN)
 
 
 def _log_refusal(refusal: OidcRefusal | AdmissionRefusal) -> None:
