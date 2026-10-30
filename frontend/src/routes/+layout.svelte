@@ -8,6 +8,8 @@
     import { goHome } from "#lib/ui/navigation.ts";
     import { initMenus } from "#lib/ui/menus.ts";
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
+    import { ownPictureMedia } from "#lib/ui/stage-media.ts";
+    import { ownPicture } from "#lib/ui/stage.svelte.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
 
@@ -79,8 +81,8 @@
     </div>
     <div class="prejoin-main">
         <div class="preview">
-            <video id="prejoinVideo" autoplay muted playsinline></video>
-            <div id="prejoinPlaceholder" class="vid off hidden"><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
+            <video id="prejoinVideo" autoplay muted playsinline class:hidden={!ownPicture.showsVideo} use:ownPictureMedia={ownPicture.delivery}></video>
+            <div id="prejoinPlaceholder" class="vid off" class:hidden={ownPicture.showsVideo}><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
             <p id="prejoinMessage" class="preview-msg hidden"></p>
             <div class="preview-ctl">
                 <button id="prejoinMicBtn" class="cb" type="button" aria-label="Mute" aria-pressed="false" disabled><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
@@ -111,10 +113,10 @@
         </div>
         <div id="videoGrid" class="grid">
             <div class="tiles">
-                <div class="tile self mirror" id="localContainer">
-                    <video id="localVideo" autoplay muted playsinline></video>
-                    <div id="localPlaceholder" class="vid off hidden"><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
-                    <span class="name"><span class="muted hidden"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></span>You</span>
+                <div class="tile self" class:mirror={ownPicture.mirrored} id="localContainer">
+                    <video id="localVideo" autoplay muted playsinline class:hidden={!ownPicture.showsVideo} use:ownPictureMedia={ownPicture.delivery}></video>
+                    <div id="localPlaceholder" class="vid off" class:hidden={ownPicture.showsVideo}><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
+                    <span class="name"><span class="muted" class:hidden={!ownPicture.muted}><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></span>You</span>
                 </div>
             </div>
         </div>

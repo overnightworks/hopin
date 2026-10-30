@@ -10,7 +10,8 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml 
 COPY frontend/patches ./patches
 RUN pnpm install --frozen-lockfile
 COPY frontend ./
-RUN pnpm build
+# The maps are for the coverage report in CI; the image serves none.
+RUN pnpm build && find /build/src/hopin/web/build -name '*.map' -delete
 
 FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 

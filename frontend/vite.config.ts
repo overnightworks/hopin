@@ -2,13 +2,17 @@ import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     build: {
+        // The maps feed the browser coverage report; the bundle carries no pointer to them and the image ships none.
+        sourcemap: "hidden",
         rolldownOptions: {
             // FastAPI serves the wire vocabulary the game reads and the game module under /static/; the bundle does not own them.
             external: [/^\/static\//],
         },
     },
+    // Svelte's mount needs its browser build under Vitest; the page build resolves as before.
+    resolve: mode === "test" ? { conditions: ["browser"] } : undefined,
     test: {
         environment: "node",
         include: ["src/**/*.test.ts"],
@@ -31,4 +35,4 @@ export default defineConfig({
             dynamicCompileOptions: ({ filename }) => (filename.includes("node_modules") ? undefined : { runes: true }),
         }),
     ],
-});
+}));

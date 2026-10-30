@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from tests.e2e.support.browser_coverage import BrowserCoverage
 from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
 from tests.e2e.support.people import PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
@@ -72,6 +73,7 @@ def open_person(
 ) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
     failed_requests: list[str] = []
+    browser_coverage = BrowserCoverage.from_environment()
 
     def note_failed_request(request: Request) -> None:
         if request.failure != PAGE_NAVIGATED_AWAY and not request.url.startswith(tuple(expected_request_failures)):
@@ -90,6 +92,8 @@ def open_person(
             **{**browser_context_args, "extra_http_headers": {"X-Forwarded-For": str(person_address)}, **device_options}
         )
         contexts.append(context)
+        if browser_coverage is not None:
+            browser_coverage.watch(context)
         context.on("requestfailed", note_failed_request)
         page = context.new_page()
         if signed_in:
@@ -107,6 +111,8 @@ def open_person(
         return page
 
     yield open_page
+    if browser_coverage is not None:
+        browser_coverage.write()
     for context in contexts:
         context.close()
     assert failed_requests == []
