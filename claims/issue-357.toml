@@ -1,8 +1,0 @@
-claim_id = "aaebf3effc8a4b558395dbb50637df78"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "bbcefeb17ad23a12b8c469ab729b00af58d87597"
-branch = "claude/issue-357-end-screen"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/end.js", "frontend/src/lib/ui/end.svelte.test.ts", "frontend/src/lib/ui/end.svelte.ts", "frontend/src/routes/+layout.svelte"]
-opened_commit = "6ea65168555e5677b9acf40cdd88b5d0c3a6429b"
-whole_reason = "One screen: its module, its test, its markup region, its importer's two lines and its legacy file's deletion."
