@@ -3,6 +3,7 @@
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { initMenus } from "#lib/ui/menus.ts";
+    import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
 
@@ -27,7 +28,7 @@
 </div>
 
 <!-- prettier-ignore -->
-<main class="end page hidden" data-screen="end">
+<main class="end page" class:hidden={screens.current !== SCREEN.END} data-screen="end">
     <div class="topbar">
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
         <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
@@ -50,7 +51,7 @@
 </main>
 
 <!-- prettier-ignore -->
-<main class="home page hidden" data-screen="home">
+<main class="home page" class:hidden={screens.current !== SCREEN.HOME} data-screen="home">
     <div class="topbar">
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
         <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
@@ -64,7 +65,7 @@
 </main>
 
 <!-- prettier-ignore -->
-<main class="prejoin page hidden" data-screen="prejoin">
+<main class="prejoin page" class:hidden={screens.current !== SCREEN.PREJOIN} data-screen="prejoin">
     <div class="topbar">
         <button id="prejoinHomeBtn" class="brand brand-button" type="button"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
         <button id="prejoinBackBtn" class="iconbtn ghost" type="button" aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -95,7 +96,7 @@
 </main>
 
 <!-- prettier-ignore -->
-<main class="call hidden" data-screen="call">
+<main class="call" class:hidden={screens.current !== SCREEN.CALL} data-screen="call">
     <div class="stage" id="stage" data-count="1">
         <div class="ctop">
             <div class="left">
