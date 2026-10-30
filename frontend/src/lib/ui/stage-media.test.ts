@@ -209,7 +209,7 @@ describe("remote tiles in a component", () => {
         ]).toEqual([true, true, before]);
     });
 
-    it("does not re-attach on a mute, and re-attaches on an unmute", () => {
+    it("does not re-attach on a mute", () => {
         const assigned = mountTiles();
         join("a");
         const picture = fakeTrack("video");
@@ -217,12 +217,25 @@ describe("remote tiles in a component", () => {
         flushSync();
         const before = assigned.mock.calls.length;
 
-        picture.dispatchEvent(new Event("mute"));
-        const afterMute = assigned.mock.calls.length;
         Object.defineProperty(picture, "muted", { value: true });
+        picture.dispatchEvent(new Event("mute"));
+
+        expect(assigned.mock.calls.length).toBe(before);
+    });
+
+    it("re-attaches the picture on an unmute", () => {
+        const assigned = mountTiles();
+        join("a");
+        const picture = fakeTrack("video", true);
+        showRemoteStream("a", new FakeStream([fakeTrack("audio"), picture]) as unknown as MediaStream);
+        flushSync();
+        const before = assigned.mock.calls.length;
+
+        Object.defineProperty(picture, "muted", { value: false });
         picture.dispatchEvent(new Event("unmute"));
 
-        expect([afterMute, assigned.mock.calls.length]).toEqual([before, before + 1]);
+        expect(assigned.mock.calls.length).toBe(before + 1);
+        expect(assigned.mock.lastCall?.[1].getTracks()).toContain(picture);
     });
 
     it("ignores an unmute for a tile that is gone", () => {
