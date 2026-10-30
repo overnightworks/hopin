@@ -1,0 +1,7 @@
+claim_id = "2681d64af2e44f26acf3afce88e3cf2f"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "116a0793293ce9acafdd667c9c17cd05dd24ef90"
+branch = "docs/probe-lock-setpriv"
+scope = ["AGENTS.md"]
+opened_commit = "aea7b237e607d16890d16d04ca2a5880c281d7f2"
