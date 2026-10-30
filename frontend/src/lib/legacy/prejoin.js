@@ -1,4 +1,3 @@
-import { renderDeviceToggle } from "./controls.js";
 import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "#lib/call/media.ts";
 import { goHome } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
@@ -51,6 +50,11 @@ function startLabel(cameraOn, microphoneOn) {
     if (cameraOn) return labels.CAMERA_ONLY;
     if (microphoneOn) return labels.MIC_ONLY;
     return labels.NEITHER;
+}
+
+function renderDeviceToggle(button, isOn) {
+    button.classList.toggle("off", !isOn);
+    button.setAttribute("aria-pressed", String(!isOn));
 }
 
 function render() {

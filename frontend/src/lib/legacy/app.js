@@ -4,10 +4,10 @@ import {
     addMoreItems,
     confirmLockChange,
     hideLockButton,
-    initControls,
+    installLeaveRequested,
     renderControls,
     showLockButton,
-} from "./controls.js";
+} from "#lib/ui/controls.svelte.ts";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
@@ -200,7 +200,7 @@ onSessionEnded(() => {
     goThroughSignIn();
 });
 installLeaveConfirmed(leaveCall);
-initControls({ onLeaveRequested: requestLeave });
+installLeaveRequested(requestLeave);
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
 initAccount({ onNameRead: showGreeting });
 initPrejoin({
