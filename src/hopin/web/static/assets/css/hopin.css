@@ -1,5 +1,5 @@
 /* HopIn's own tokens: the slot colour, stage, shadow, motion and mono.
-   appkit owns the neutrals, the states and color-scheme; the fonts still come from ui-console's --sans (ADR 0001). */
+   appkit owns the neutrals, the states and color-scheme; the shell's fonts come from the kit (--font-body); only the static sign-in pages read ui-console's --sans (ADR 0001). */
 :root {
     --mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
     --motion-snap: .28s;
@@ -67,14 +67,15 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
-.sign-in { flex: 1; overflow: auto; }
+.sign-in { flex: 1; overflow: auto; font-family: var(--sans); }
 body {
-    font-family: var(--sans);
+    font-family: var(--font-body);
     background: var(--bg);
     color: var(--text);
     display: flex;
     flex-direction: column;
 }
+button, input, textarea { font-family: inherit; }
 .kit-root { display: contents; }
 #svelte-announcer {
     position: absolute;
@@ -261,7 +262,7 @@ body {
     grid-template-rows: minmax(0, 1fr);
     background: var(--stage);
     color: var(--on-stage);
-    font-family: var(--sans);
+    font-family: var(--font-body);
 }
 .stage {
     --stage-bottom: 112px;
@@ -541,7 +542,7 @@ body {
     overflow: hidden auto;
     background: var(--bg);
     color: var(--text);
-    font-family: var(--sans);
+    font-family: var(--font-body);
 }
 .topbar {
     height: 60px;
