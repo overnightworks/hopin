@@ -2,7 +2,7 @@ import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare }
 import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
 import { closeOpenMenu, registerMenu } from "#lib/ui/menus.ts";
 import { state } from "./state.js";
-import { setStatus } from "./status.js";
+import { setStatus } from "#lib/ui/status.svelte.ts";
 import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
 
 const CAMERA_ERROR_STATUS_MS = 2000;

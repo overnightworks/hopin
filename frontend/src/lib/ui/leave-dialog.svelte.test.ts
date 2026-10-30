@@ -1,14 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from "vitest";
 
 // The module holds the installed callback, so each case loads a fresh copy.
 async function freshLeaveDialog() {
     vi.resetModules();
     return import("#lib/ui/leave-dialog.svelte.ts");
 }
-
-beforeEach(() => {
-    vi.resetModules();
-});
 
 describe("leave dialog", () => {
     it("starts closed and opens when shown", async () => {
