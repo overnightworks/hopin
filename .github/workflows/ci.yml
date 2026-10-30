@@ -164,6 +164,7 @@ jobs:
           retention-days: 1
 
       - name: Report how much longer this job ran than on main
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
