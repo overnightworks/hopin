@@ -67,8 +67,9 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class CallFeatureBuilder(Protocol):
     """Builds the call's one optional feature on the app's own sign-in and scheduler; `main` passes it in."""
 
-    sign_in_scopes: tuple[str, ...]
-    """The scopes the feature needs the person's sign-in to ask for."""
+    @property
+    def sign_in_scopes(self) -> tuple[str, ...]:
+        """The scopes the feature needs the person's sign-in to ask for."""
 
     def __call__(
         self,
