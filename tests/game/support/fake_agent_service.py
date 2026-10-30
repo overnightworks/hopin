@@ -177,6 +177,17 @@ class FakeAgentService:
             self._script.extend(answers)
 
     @property
+    def queued_answers(self) -> tuple[Answer, ...]:
+        with self._guard:
+            return tuple(self._script)
+
+    def reset(self) -> None:
+        """Drops the queued answers and the recorded runs; the transport the server holds stays."""
+        with self._guard:
+            self._script.clear()
+            self._runs.clear()
+
+    @property
     def runs(self) -> list[SeenRun]:
         with self._guard:
             return list(self._runs)
