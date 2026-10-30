@@ -1,8 +1,0 @@
-claim_id = "a70a848df09f458ea409b4c630b352f1"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "8417bcd36a002d69a10121a7990b01b0ac2457d9"
-branch = "claude/issue-365-sign-in-scope"
-scope = ["README.md", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/game/__init__.py", "tests/auth/test_gate.py", "tests/auth/test_sign_in_config.py", "tests/auth/test_sign_in_rate_limit.py", "tests/auth/test_sign_in_routes.py", "tests/game/support/world.py", "tests/game/test_agent_service_factory.py", "tests/game/test_agent_service_flow.py"]
-opened_commit = "190436059bd31581866b42d8b30f472c5e36cf12"
-whole_reason = "One seam: the feature's sign-in scopes, the core's sign-in config that asks for them, the game that names its setting there, and their tests move together."
