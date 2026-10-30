@@ -64,7 +64,6 @@ const operations: Operation[] = [
         },
         expectedArguments: ["p1", true],
     },
-    { name: "hasTile", call: (port) => port.hasTile("p1"), expectedArguments: ["p1"] },
     {
         name: "setConnectionQuality",
         call: (port) => {
@@ -105,14 +104,12 @@ describe("stage port", () => {
         expect(stage[name]).toHaveBeenCalledWith(...expectedArguments);
     });
 
-    it.each([true, false])("removeRemoteTile and hasTile return the stage's answer %s", (answer) => {
+    it.each([true, false])("removeRemoteTile returns the stage's answer %s", (answer) => {
         const stage = fakeStage();
         stage.removeRemoteTile.mockReturnValue(answer);
-        stage.hasTile.mockReturnValue(answer);
         install(stage);
 
         expect(port.removeRemoteTile("p1")).toBe(answer);
-        expect(port.hasTile("p1")).toBe(answer);
     });
 
     it("a second install throws and the first stage stays in place", () => {
