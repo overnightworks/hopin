@@ -4,6 +4,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
     build: {
+        // The maps feed the browser coverage report; the bundle carries no pointer to them and the image ships none.
+        sourcemap: "hidden",
         rolldownOptions: {
             // FastAPI serves the wire vocabulary the game reads and the game module under /static/; the bundle does not own them.
             external: [/^\/static\//],

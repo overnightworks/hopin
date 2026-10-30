@@ -30,7 +30,8 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/hopin"]
 # .gitignore excludes build/, which hatch would otherwise skip.
-artifacts = ["src/hopin/web/build"]
+# The page build's source maps are for the coverage report; the package serves none.
+artifacts = ["src/hopin/web/build", "!*.map"]
 
 # --- Ruff ---
 
