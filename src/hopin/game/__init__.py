@@ -6,6 +6,7 @@ from random import SystemRandom
 from typing import TYPE_CHECKING, Final
 
 import httpx2
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.settings import OriginUrl  # noqa: TC001 - pydantic resolves the annotation at runtime
@@ -23,6 +24,9 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler
 
 AGENT_SERVICE_URL = "http://agent-service:8080"
+AGENT_SERVICE_SCOPE = "agent-service-audience"
+# RFC 6749 section 3.3: one or more printable ASCII characters other than space, `"` and `\`.
+SCOPE_NAME_PATTERN = r"^[\x21\x23-\x5b\x5d-\x7e]+$"
 # No retries: a run is started once, never sent again behind the person's back.
 AGENT_SERVICE_OVER_HTTP: Final[AgentTransport] = httpx2.AsyncHTTPTransport
 
@@ -39,13 +43,14 @@ def agent_service_game_master(
     sessions: SessionRecordStore,
     web_auth: WebAuthConfig,
     transport: AgentTransport,
+    agent_service_scope: str,
 ) -> AgentServiceGameMaster:
     """Build the game master; as a side effect, silence the httpx2 and httpcore2 transport loggers
     that could write a token."""
     silence_transport_logs()
     return AgentServiceGameMaster(
         agent_service_url=agent_service_url,
-        tokens=StarterTokens(relying_party, sessions, web_auth),
+        tokens=StarterTokens(relying_party, sessions, web_auth, agent_service_scope),
         transport=transport,
     )
 
@@ -55,6 +60,7 @@ class GameSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HOPIN_", hide_input_in_errors=True)
 
     agent_service_url: OriginUrl = AGENT_SERVICE_URL
+    agent_service_scope: str = Field(default=AGENT_SERVICE_SCOPE, pattern=SCOPE_NAME_PATTERN)
 
 
 @dataclass(frozen=True)
@@ -78,6 +84,7 @@ class GameFeature:
             sessions=sessions,
             web_auth=auth_config,
             transport=self.transport,
+            agent_service_scope=self.settings.agent_service_scope,
         )
         return partial(Game, scheduler=scheduler, game_master=game_master, topic_drawer=draw_quiz_topics)
 

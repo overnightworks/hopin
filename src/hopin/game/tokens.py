@@ -57,10 +57,17 @@ class RunTokens:
 class StarterTokens:
     """Fetches the two tokens a run is sent with, from the issuer, for the session the starter's socket opened with."""
 
-    def __init__(self, relying_party: OidcRelyingParty, sessions: SessionRecordStore, web_auth: WebAuthConfig) -> None:
+    def __init__(
+        self,
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        web_auth: WebAuthConfig,
+        workload_scope: str,
+    ) -> None:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
+        self._workload_scope = workload_scope
 
     async def of(self, starter: HTTPConnection) -> RunTokens | GameRefusal:
         # Both grants block on the issuer, so each runs in a worker. A cancelled run cancels the await,
@@ -71,7 +78,7 @@ class StarterTokens:
         person = await asyncio.to_thread(self._person_token, session_id)
         if isinstance(person, AccessTokenRefusal):
             return _refusal_of_person_token(person)
-        workload = await asyncio.to_thread(self._relying_party.workload_access_token)
+        workload = await asyncio.to_thread(self._relying_party.workload_access_token, scopes=(self._workload_scope,))
         if isinstance(workload, OidcRefusal):
             _log_refusal(RunToken.WORKLOAD, workload)
             return GameRefusal.UNAVAILABLE

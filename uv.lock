@@ -417,8 +417,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "overnightworks-agent-runtime-client", url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl" },
-    { name = "overnightworks-appkit", url = "https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl" },
-    { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.25.0/overnightworks_webauth-0.25.0-py3-none-any.whl" },
+    { name = "overnightworks-appkit", url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl" },
+    { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "structlog", specifier = ">=24.4" },
@@ -672,16 +672,16 @@ provides-extras = ["mcp-server"]
 
 [[package]]
 name = "overnightworks-appkit"
-version = "0.6.0"
-source = { url = "https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl" }
+version = "0.8.0"
+source = { url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl", hash = "sha256:ea6debbc632ae8f1b77966986b1f9036987571465ef0949bb1b29b898a7267fb" },
+    { url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl", hash = "sha256:ad6863811689ba2e966de77f2db9ab87479cb9c22abd4436e43e788f6c4e2d4d" },
 ]
 
 [[package]]
 name = "overnightworks-webauth"
-version = "0.25.0"
-source = { url = "https://github.com/overnightworks/webauth/releases/download/v0.25.0/overnightworks_webauth-0.25.0-py3-none-any.whl" }
+version = "0.26.0"
+source = { url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl" }
 dependencies = [
     { name = "anyio" },
     { name = "cryptography" },
@@ -692,7 +692,7 @@ dependencies = [
     { name = "urllib3" },
 ]
 wheels = [
-    { url = "https://github.com/overnightworks/webauth/releases/download/v0.25.0/overnightworks_webauth-0.25.0-py3-none-any.whl", hash = "sha256:4728daeeb31eef7c563db4c8f2f8893fd4373f32a7b552a4b1cef8042e3b982d" },
+    { url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl", hash = "sha256:85191c4f41d1c287682f55625a4ad12f574dcc53c523376b48b419a2a469582f" },
 ]
 
 [package.metadata]
