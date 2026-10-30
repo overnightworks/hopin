@@ -67,6 +67,10 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class CallFeatureBuilder(Protocol):
     """Builds the call's one optional feature on the app's own sign-in and scheduler; `main` passes it in."""
 
+    @property
+    def sign_in_scopes(self) -> tuple[str, ...]:
+        """The scopes the feature needs the person's sign-in to ask for."""
+
     def __call__(
         self,
         *,
@@ -178,7 +182,7 @@ def create_app(
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_feature: CallFeatureBuilder | None = None,
 ) -> FastAPI:
-    sign_in_configs = build_sign_in_configs(settings)
+    sign_in_configs = build_sign_in_configs(settings, () if call_feature is None else call_feature.sign_in_scopes)
     turn_relay = build_turn_relay(settings, turn_transport)
 
     _configure_logging()

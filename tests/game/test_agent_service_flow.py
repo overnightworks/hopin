@@ -6,7 +6,7 @@ import secrets
 from contextlib import ExitStack
 from dataclasses import dataclass
 from http import HTTPStatus
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import structlog.testing
@@ -210,6 +210,13 @@ def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(cal
     host.frames(3)
 
     assert call.client_credentials_scopes() == [operator_chosen_scope]
+
+
+def test_sign_in_redirects_to_the_issuer_asking_for_the_configured_scope_too(call, operator_chosen_scope):
+    response = call.client.get("/auth/start")
+
+    scope = parse_qs(urlsplit(response.headers["location"]).query)["scope"]
+    assert scope == [f"openid profile groups {operator_chosen_scope}"]
 
 
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):

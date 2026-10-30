@@ -260,7 +260,7 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings(trusted_proxies=value).settings
 
         with pytest.raises(SignInConfigurationError, match="trusted_proxies") as refusal:
-            build_sign_in_configs(settings)
+            build_sign_in_configs(settings, ())
 
         assert value not in str(refusal.value)
         assert "session_secret_file" not in str(refusal.value)
@@ -269,4 +269,4 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings().settings
 
         assert settings.trusted_proxies == ""
-        assert not build_sign_in_configs(settings).web_auth.trusted_proxies.networks
+        assert not build_sign_in_configs(settings, ()).web_auth.trusted_proxies.networks
