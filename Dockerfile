@@ -2,7 +2,7 @@
 # Dependabot's docker entry moves the digest through review.
 # The page is built here and only its output travels on, so the final image
 # carries no Node. The adapter writes to ../src/hopin/web/build.
-FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS page-build
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS page-build
 WORKDIR /build/frontend
 # corepack provisions the pnpm version that package.json's packageManager pins.
 RUN corepack enable
