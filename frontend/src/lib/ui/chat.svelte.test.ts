@@ -10,14 +10,11 @@ const signaling = vi.hoisted(() => ({
     send: vi.fn(),
 }));
 const sounds = vi.hoisted(() => ({ playMessageSound: vi.fn() }));
-// Under Vitest "svelte" resolves to its server build, whose flushSync does nothing: it renders what a case sets.
+// jsdom renders no Svelte tree: a case sets what its flushSync puts in the list.
 const rendering = vi.hoisted(() => ({ render: vi.fn() }));
 vi.mock("#lib/call/signaling.ts", () => signaling);
 vi.mock("#lib/call/sounds.ts", () => sounds);
-vi.mock("svelte", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("svelte")>()),
-    flushSync: () => void rendering.render(),
-}));
+vi.mock("svelte", () => ({ flushSync: () => void rendering.render() }));
 
 // The module holds the one chat, so each case loads a fresh copy.
 async function freshChat() {
