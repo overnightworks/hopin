@@ -1,5 +1,6 @@
 import { playMessageSound } from "#lib/call/sounds.ts";
-import { SIGNAL_TYPE, isConnected, on, send } from "./signaling.js";
+import { isConnected, on, send } from "#lib/call/signaling.ts";
+import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { state } from "#lib/call/state.ts";
 
 const chatPanel = document.getElementById("chatPanel");

@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REPLAY_LOG_LIMIT, SIGNAL_TYPE } from "#lib/wire.ts";
-import { SentLog } from "./replay.js";
-
-interface SentFrame {
-    seq: number;
-}
+import { SentLog } from "#lib/call/replay.ts";
 
 const { ANSWER, CHAT, ICE_CANDIDATE, OFFER } = SIGNAL_TYPE;
 
@@ -29,10 +25,10 @@ describe("SentLog", () => {
     it.each(keptAndFloorByFrameTypes)("%s", (_name, frameTypes, kept, floor) => {
         const log = new SentLog();
 
-        const seqs = frameTypes.map((type) => (log.append({ type, target: "peer" }) as SentFrame).seq);
+        const seqs = frameTypes.map((type) => log.append({ type, target: "peer" }).seq);
 
         expect(seqs).toEqual(frameTypes.map((_type, index) => index + 1));
-        expect(log.unacknowledged().map((frame: SentFrame) => frame.seq)).toEqual(kept);
+        expect(log.unacknowledged().map((frame) => frame.seq)).toEqual(kept);
         expect(log.floor).toBe(floor);
     });
 });

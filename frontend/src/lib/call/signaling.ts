@@ -1,38 +1,52 @@
-import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
-import { SentLog } from "./replay.js";
-import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
+import { type OutgoingMessage, type SentFrame, SentLog } from "#lib/call/replay.ts";
 import { state } from "#lib/call/state.ts";
+import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
+import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
 
-export { SIGNAL_TYPE, ERROR_REASON };
-export { ROOM_CLOSED_REASON } from "#lib/wire.ts";
+export interface ServerFrame {
+    type: SIGNAL_TYPE;
+    seq?: number;
+    resume_token?: string;
+    participant_id?: string;
+    last_seq?: number;
+    reason?: ERROR_REASON;
+    [field: string]: unknown;
+}
+
+type Handler = (data: ServerFrame) => void;
+
+interface Seat {
+    participantId: string | undefined;
+    token: string | undefined;
+}
 
 const NORMAL_CLOSURE_CODE = 1000;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
 
-const handlersByType = new Map();
-let socket = null;
+const handlersByType = new Map<SIGNAL_TYPE, Handler[]>();
+let socket: WebSocket | null = null;
 let socketIsLive = false;
-let reconnectTimer = null;
-let seat = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let seat: Seat | null = null;
 let sentLog = new SentLog();
 let lastDispatchedSeq = 0;
 let sessionLost = () => {};
 let sessionEnded = () => {};
 
-export function on(type, handler) {
+export function on(type: SIGNAL_TYPE, handler: Handler) {
     handlersByType.set(type, [...(handlersByType.get(type) ?? []), handler]);
 }
 
-export function onSessionLost(callback) {
+export function onSessionLost(callback: () => void) {
     sessionLost = callback;
 }
 
-export function onSessionEnded(callback) {
+export function onSessionEnded(callback: () => void) {
     sessionEnded = callback;
 }
 
-export function send(message) {
+export function send(message: OutgoingMessage) {
     if (socket === null) {
         throw new Error("No signaling session: connect() before send()");
     }
@@ -44,14 +58,14 @@ export function isConnected() {
     return socket !== null;
 }
 
-function dispatch(data) {
+function dispatch(data: ServerFrame) {
     for (const handler of handlersByType.get(data.type) ?? []) {
         handler(data);
     }
 }
 
-function joinMessage() {
-    const message = { type: SIGNAL_TYPE.JOIN };
+function joinMessage(): OutgoingMessage {
+    const message: OutgoingMessage = { type: SIGNAL_TYPE.JOIN };
     const urlRoomId = getRoomIdFromUrl();
     if (urlRoomId) {
         message.room_id = urlRoomId;
@@ -61,24 +75,24 @@ function joinMessage() {
     return message;
 }
 
-function resumeMessage() {
+function resumeMessage(heldSeat: Seat): OutgoingMessage {
     return {
         type: SIGNAL_TYPE.RESUME,
-        participant_id: seat.participantId,
-        token: seat.token,
+        participant_id: heldSeat.participantId,
+        token: heldSeat.token,
         last_seq: lastDispatchedSeq,
         sent_floor: sentLog.floor,
     };
 }
 
-function writeFirstFrame(message) {
-    socket.send(JSON.stringify(message));
+function writeFirstFrame(current: WebSocket, message: OutgoingMessage | SentFrame) {
+    current.send(JSON.stringify(message));
 }
 
-function startWriting() {
+function startWriting(current: WebSocket) {
     socketIsLive = true;
     for (const frame of sentLog.unacknowledged()) {
-        socket.send(JSON.stringify(frame));
+        writeFirstFrame(current, frame);
     }
 }
 
@@ -88,48 +102,48 @@ function forgetSeat() {
     lastDispatchedSeq = 0;
 }
 
-function handleOpen() {
+function handleOpen(current: WebSocket) {
     setStatus("Connected - joining...", "connecting");
     if (seat) {
-        writeFirstFrame(resumeMessage());
+        writeFirstFrame(current, resumeMessage(seat));
     } else {
-        writeFirstFrame(joinMessage());
-        startWriting();
+        writeFirstFrame(current, joinMessage());
+        startWriting(current);
     }
 }
 
-function handleResumed(data) {
-    seat.token = data.resume_token;
-    sentLog.acknowledge(data.last_seq);
-    startWriting();
+function handleResumed(current: WebSocket, heldSeat: Seat, data: ServerFrame) {
+    heldSeat.token = data.resume_token;
+    sentLog.acknowledge(data.last_seq as number);
+    startWriting(current);
     state.reconnectAttempt = 0;
     setStatus("In call", "connected");
 }
 
-function fallBackToJoin() {
+function fallBackToJoin(current: WebSocket) {
     forgetSeat();
     sessionLost();
-    startWriting();
+    startWriting(current);
     send(joinMessage());
 }
 
-function keepSeat(data) {
+function keepSeat(data: ServerFrame) {
     seat = { participantId: data.participant_id, token: data.resume_token };
 }
 
-function isAlreadyDispatched(data) {
+function isAlreadyDispatched(data: ServerFrame) {
     if (data.seq === undefined) return false;
     if (data.seq <= lastDispatchedSeq) return true;
     lastDispatchedSeq = data.seq;
     return false;
 }
 
-function handleMessage(event) {
-    const data = JSON.parse(event.data);
-    if (data.type === SIGNAL_TYPE.RESUMED) {
-        handleResumed(data);
+function handleMessage(current: WebSocket, event: MessageEvent<string>) {
+    const data = JSON.parse(event.data) as ServerFrame;
+    if (data.type === SIGNAL_TYPE.RESUMED && seat) {
+        handleResumed(current, seat, data);
     } else if (data.type === SIGNAL_TYPE.ERROR && data.reason === ERROR_REASON.RESUME_REFUSED) {
-        fallBackToJoin();
+        fallBackToJoin(current);
     } else if (!isAlreadyDispatched(data)) {
         if (data.resume_token) keepSeat(data);
         dispatch(data);
@@ -142,14 +156,13 @@ function endSession() {
     forgetSeat();
 }
 
-function scheduleReconnect() {
-    const delay = RECONNECT_DELAYS_MS[state.reconnectAttempt];
+function scheduleReconnect(delay: number) {
     state.reconnectAttempt++;
-    setStatus(`Reconnecting in ${delay / 1000}s...`, "connecting");
+    setStatus(`Reconnecting in ${String(delay / 1000)}s...`, "connecting");
     reconnectTimer = setTimeout(connect, delay);
 }
 
-function handleClose(event) {
+function handleClose(event: CloseEvent) {
     socketIsLive = false;
     if (state.intentionalLeave) return;
     if (event.code === SESSION_ENDED_CLOSE_CODE) {
@@ -158,8 +171,9 @@ function handleClose(event) {
         return;
     }
     const heldSeat = seat !== null;
-    if (heldSeat && state.reconnectAttempt < RECONNECT_DELAYS_MS.length) {
-        scheduleReconnect();
+    const delay = RECONNECT_DELAYS_MS[state.reconnectAttempt];
+    if (heldSeat && delay !== undefined) {
+        scheduleReconnect(delay);
         return;
     }
     endSession();
@@ -176,11 +190,17 @@ export function connect() {
     const current = new WebSocket(`${scheme}//${location.host}${WEBSOCKET_PATH}`);
     socket = current;
 
-    const ifCurrent = (handler) => (event) => {
-        if (current === socket) handler(event);
-    };
-    current.onopen = ifCurrent(handleOpen);
-    current.onmessage = ifCurrent(handleMessage);
+    const ifCurrent =
+        <Incoming>(handler: (event: Incoming) => void) =>
+        (event: Incoming) => {
+            if (current === socket) handler(event);
+        };
+    current.onopen = ifCurrent(() => {
+        handleOpen(current);
+    });
+    current.onmessage = ifCurrent((event: MessageEvent<string>) => {
+        handleMessage(current, event);
+    });
     current.onclose = ifCurrent(handleClose);
     current.onerror = ifCurrent(() => {
         setStatus("Connection error", "error");
