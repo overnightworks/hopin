@@ -1,4 +1,5 @@
-import { SIGNAL_TYPE, isConnected, on, send } from "./signaling.js";
+import { isConnected, on, send } from "#lib/call/signaling.ts";
+import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { setRemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 

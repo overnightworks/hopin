@@ -22,7 +22,8 @@ import {
     SignedOutError,
 } from "./mesh.js";
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
-import { SIGNAL_TYPE, connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "./signaling.js";
+import { connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "#lib/call/signaling.ts";
+import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { initPip } from "./pip.js";
 import * as stage from "./stage.js";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";

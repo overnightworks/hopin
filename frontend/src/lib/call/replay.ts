@@ -1,13 +1,19 @@
-import { DESCRIPTION_TYPES, REPLAY_LOG_LIMIT, SUPERSEDED_BY_A_DESCRIPTION } from "#lib/wire.ts";
+import { DESCRIPTION_TYPES, REPLAY_LOG_LIMIT, SUPERSEDED_BY_A_DESCRIPTION, type SIGNAL_TYPE } from "#lib/wire.ts";
 
-export { REPLAY_LOG_LIMIT };
+export interface OutgoingMessage {
+    type: SIGNAL_TYPE;
+    target?: string;
+    [field: string]: unknown;
+}
+
+export type SentFrame = OutgoingMessage & { seq: number };
 
 const descriptionTypes = new Set(DESCRIPTION_TYPES);
 const supersededByADescription = new Set(SUPERSEDED_BY_A_DESCRIPTION);
 
 export class SentLog {
-    #limit;
-    #frames = [];
+    readonly #limit: number;
+    #frames: SentFrame[] = [];
     #lastSeq = 0;
     #floor = 0;
 
@@ -19,26 +25,26 @@ export class SentLog {
         return this.#floor;
     }
 
-    append(message) {
+    append(message: OutgoingMessage): SentFrame {
         if (descriptionTypes.has(message.type)) this.#dropSupersededBy(message);
         this.#lastSeq += 1;
         const frame = { ...message, seq: this.#lastSeq };
         this.#frames.push(frame);
         while (this.#frames.length > this.#limit) {
-            this.#floor = this.#frames.shift().seq;
+            this.#floor = (this.#frames.shift() as SentFrame).seq;
         }
         return frame;
     }
 
-    acknowledge(receivedSeq) {
+    acknowledge(receivedSeq: number) {
         this.#frames = this.#frames.filter((frame) => frame.seq > receivedSeq);
     }
 
-    unacknowledged() {
+    unacknowledged(): SentFrame[] {
         return [...this.#frames];
     }
 
-    #dropSupersededBy(description) {
+    #dropSupersededBy(description: OutgoingMessage) {
         this.#frames = this.#frames.filter(
             (frame) => !(supersededByADescription.has(frame.type) && frame.target === description.target),
         );
