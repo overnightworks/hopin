@@ -1,0 +1,8 @@
+claim_id = "6cf7841b20a44f66965e5eca7a1307de"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "d7bcd3605e8adbd6c2937c52c66cde04443b16c0"
+branch = "claude/issue-341-e2e-certificate-restarts"
+scope = ["AGENTS.md", "tests/e2e"]
+opened_commit = "7f7b36e545d6ac5bb9d0ea22083e63baacb9a941"
+whole_reason = "The teardown check lives in conftest and every test that aborts a request on purpose declares it in the same commit, or the suite goes red."
