@@ -50,8 +50,6 @@ STATUS = ".qcard-status"
 SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
 THINKING = re.compile(r"\bthinking\b")
-THINKING_BUBBLE_NAME = "Game master is thinking"
-QUESTION_REGION_NAME = "Quiz question"
 QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
 QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
 END_QUIZ = re.compile(rf"^End quiz\s+{QUESTION_ONE}$")
@@ -79,9 +77,7 @@ window.WebSocket = class extends PageWebSocket {
     }
 };
 """
-DELIVER_SERVER_FRAME = (
-    "(frame) => window.pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
-)
+DELIVER_SERVER_FRAME = "(frame) => pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
 
 
 def start_quiz(person: Page) -> None:
@@ -127,17 +123,6 @@ def relaying_frames(open_person: Callable[..., Page], relays: list[FrameInjector
         return person
 
     return open_relayed
-
-
-def recording_the_socket(open_person: Callable[..., Page]) -> Callable[..., Page]:
-    """Open people whose page keeps its signaling socket, so a test can hand the page a frame as the server's."""
-
-    def open_recorded(**options: Any) -> Page:
-        person = open_person(**options)
-        add_init_scripts(person, (RECORD_THE_PAGES_SOCKET,))
-        return person
-
-    return open_recorded
 
 
 def call_of_two(
@@ -248,7 +233,7 @@ def test_the_guest_sees_the_game_master_thinking_while_the_run_is_in_flight(
     expect(guest.locator(START_QUIZ)).to_be_disabled()
     expect(guest.locator(START_QUIZ)).to_contain_text("Game master is thinking…")
     expect(guest.locator(TYPING)).to_be_visible()
-    expect(guest.get_by_role("status", name=THINKING_BUBBLE_NAME)).to_have_count(1)
+    expect(guest.get_by_role("status", name="Game master is thinking")).to_have_count(1)
     held.release.set()
     expect(guest.locator(GAME_MASTER_LINES)).to_have_count(1)
     expect(guest.locator(TYPING)).to_have_count(0)
@@ -270,7 +255,7 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
     for person in (host, guest):
         open_chat(person)
         card = person.locator(CARD)
-        expect(person.get_by_role("region", name=QUESTION_REGION_NAME)).to_have_count(1)
+        expect(person.get_by_role("region", name="Quiz question")).to_have_count(1)
         expect(card.locator(STATUS)).to_have_attribute("aria-live", "polite")
         expect(card.locator(".qcard-tag")).to_have_text(QUESTION_ONE)
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
@@ -314,7 +299,13 @@ def answer_on_card(person: Page, text: str) -> None:
 def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_render_the_form_again(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
 ) -> None:
-    host, guest = call_of_two(recording_the_socket(open_person), e2e_server.base_url, page_errors)
+
+    def open_recorded(**options: Any) -> Page:
+        person = open_person(**options)
+        add_init_scripts(person, (RECORD_THE_PAGES_SOCKET,))
+        return person
+
+    host, guest = call_of_two(open_recorded, e2e_server.base_url, page_errors)
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
     start_quiz(host)
     for person in (host, guest):
@@ -325,13 +316,10 @@ def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_r
 
     answer_on_card(host, "Tejo")
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
-    for phase in ("thinking", "answering"):
-        guest.evaluate(
-            DELIVER_SERVER_FRAME,
-            {"type": GameSignal.GAME_PHASE, "phase": phase, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"},
-        )
-        if phase == "thinking":
-            expect(unsent).to_be_disabled()
+    phase_frame = {"type": GameSignal.GAME_PHASE, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"}
+    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": "thinking"})
+    expect(unsent).to_be_disabled()
+    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": "answering"})
 
     expect(unsent).to_be_enabled()
     expect(unsent).to_have_value("Mond")
