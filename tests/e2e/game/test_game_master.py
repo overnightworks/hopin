@@ -7,7 +7,7 @@ from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GameSignal
+from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
 from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.support.calls import (
     PREJOIN_START,
@@ -22,7 +22,7 @@ from tests.e2e.support.calls import (
     record_page_errors,
     wait_until_the_prejoin_media_answered,
 )
-from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
+from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, poll_until
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.signaling import FrameInjector
@@ -144,7 +144,7 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
 
     with host.expect_request(f"**{url_of(GameFile.MODULE)}"), host.expect_response(ICE_SERVERS_URL_PATTERN):
         host.click(PREJOIN_START)
-    host.evaluate("() => 0")
+    poll_until(host, lambda: held_modules, bool, "the game's module was held")
     [held_module] = held_modules
     held_module.continue_()
 
@@ -318,9 +318,9 @@ def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_r
     answer_on_card(host, "Tejo")
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
     phase_frame = {"type": GameSignal.GAME_PHASE, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"}
-    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": "thinking"})
+    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": GamePhase.THINKING})
     expect(unsent).to_be_disabled()
-    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": "answering"})
+    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": GamePhase.ANSWERING})
 
     expect(unsent).to_be_enabled()
     expect(unsent).to_have_value("Mond")

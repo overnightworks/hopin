@@ -42,14 +42,27 @@ describe("loadFeatures", () => {
 
     it("waits for an asynchronous install before it resolves", async () => {
         offerNames(["alpha"]);
+        let finishInstall: () => void = () => undefined;
         let finished = false;
-        const install = async () => {
-            await Promise.resolve();
-            finished = true;
-        };
+        const install = () =>
+            new Promise<void>((resolve) => {
+                finishInstall = () => {
+                    finished = true;
+                    resolve();
+                };
+            });
+        let resolved = false;
 
-        await loadFeatures(featureEntry("alpha", { install }), core);
+        const loading = loadFeatures(featureEntry("alpha", { install }), core).then((loaded) => {
+            resolved = true;
+            return loaded;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(resolved).toBe(false);
 
+        finishInstall();
+
+        expect(await loading).toBe(true);
         expect(finished).toBe(true);
     });
 
