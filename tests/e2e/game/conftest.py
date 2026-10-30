@@ -20,6 +20,13 @@ def agent_service(game_sign_in: LoopbackSignIn) -> FakeAgentService:
     return FakeAgentService(game_sign_in.issuer)
 
 
+@pytest.fixture(autouse=True)
+def _drop_queued_agent_answers(agent_service: FakeAgentService) -> Iterator[None]:
+    """The session's one fake outlives every test, so a failing test must not leave its answers for the next."""
+    yield
+    agent_service.reset()
+
+
 @pytest.fixture(scope="session")
 def game_server(
     game_sign_in: LoopbackSignIn, agent_service: FakeAgentService, tmp_path_factory: pytest.TempPathFactory
