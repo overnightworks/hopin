@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { state } from "#lib/call/state.ts";
+import { state } from "./state.ts";
 
 describe("call state", () => {
     it("starts a fresh call not hosting, unlocked, with audio and video on and nothing joined", () => {
