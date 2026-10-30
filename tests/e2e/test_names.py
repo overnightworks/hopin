@@ -161,10 +161,12 @@ def test_home_keeps_hi_there_when_the_account_answer_fails(
 
 def test_home_whose_session_ended_goes_through_the_sign_in_when_the_account_answers_401(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], SeededMember],
     e2e_server: RunningServer,
     page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(TEST_ISSUER)
     person = record_page_errors(open_person(**DESKTOP), page_errors)
     documents: list[str] = []
     person.on("request", lambda request: documents.append(request.url) if request.resource_type == "document" else None)

@@ -10,7 +10,9 @@ from tests.support.signed_in import SeededMember, new_account, seed_member
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    from playwright.sync_api import Browser, BrowserContext, Page
+    from playwright.sync_api import Browser, BrowserContext, Page, Request
+
+PAGE_NAVIGATED_AWAY = "net::ERR_ABORTED"
 
 
 @pytest.fixture(scope="session")
@@ -34,7 +36,9 @@ def base_url(core_server: RunningServer) -> str:
 
 @pytest.fixture(scope="session")
 def browser_type_launch_args(browser_type_launch_args: dict[str, Any]) -> dict[str, Any]:
-    return {**browser_type_launch_args, "args": FAKE_MEDIA_BROWSER_ARGS}
+    # The test certificate is self-signed: the per-request waiver of ignore_https_errors restarts a request
+    # once per failed handshake, up to Chromium's cap, and a stylesheet that hits it never loads.
+    return {**browser_type_launch_args, "args": [*FAKE_MEDIA_BROWSER_ARGS, "--ignore-certificate-errors"]}
 
 
 @pytest.fixture(scope="session")
@@ -53,13 +57,25 @@ def member_of(seeded_members: dict[Page, SeededMember]) -> Callable[[Page], Seed
 
 
 @pytest.fixture
+def expected_request_failures() -> list[str]:
+    """URL prefixes of requests a test breaks on purpose; it appends them before the request is made."""
+    return []
+
+
+@pytest.fixture
 def open_person(
     browser: Browser,
     browser_context_args: dict[str, Any],
     e2e_server: RunningServer,
     seeded_members: dict[Page, SeededMember],
+    expected_request_failures: list[str],
 ) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
+    failed_requests: list[str] = []
+
+    def note_failed_request(request: Request) -> None:
+        if request.failure != PAGE_NAVIGATED_AWAY and not request.url.startswith(tuple(expected_request_failures)):
+            failed_requests.append(f"{request.url}: {request.failure}")
 
     def open_page(
         *,
@@ -74,6 +90,7 @@ def open_person(
             **{**browser_context_args, "extra_http_headers": {"X-Forwarded-For": str(person_address)}, **device_options}
         )
         contexts.append(context)
+        context.on("requestfailed", note_failed_request)
         page = context.new_page()
         if signed_in:
             account = None if same_account_as is None else seeded_members[same_account_as].account
@@ -92,6 +109,7 @@ def open_person(
     yield open_page
     for context in contexts:
         context.close()
+    assert failed_requests == []
 
 
 @pytest.fixture

@@ -69,8 +69,12 @@ def test_try_again_is_as_wide_as_the_card_on_a_phone_and_narrower_on_a_desktop(
 
 
 def test_try_again_starts_a_new_sign_in_at_the_issuer(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+    open_person: Callable[..., Page],
+    expected_request_failures: list[str],
+    e2e_server: RunningServer,
+    page_errors: list[str],
 ) -> None:
+    expected_request_failures.append(TEST_ISSUER)
     person = open_login_failed(open_person, e2e_server, page_errors, DESKTOP)
     documents = []
     person.on("request", lambda request: request.is_navigation_request() and documents.append(request))
@@ -159,12 +163,14 @@ ISSUER_NOT_REACHABLE = "net::ERR_NAME_NOT_RESOLVED"
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_log_out_ends_the_session_and_the_loop_stops_at_the_issuers_end_session_whose_return_is_not_driven_here(
     open_person: Callable[..., Page],
+    expected_request_failures: list[str],
     member_of: Callable[[Page], Any],
     e2e_server: RunningServer,
     page_errors: list[str],
     form_factor: dict[str, Any],
 ) -> None:
     """The loop stops at the issuer: the test issuer does not resolve, so the return to Signed out is #25 row 4f's."""
+    expected_request_failures.append(END_SESSION_URL)
     person = record_page_errors(open_person(**form_factor), page_errors)
     console_messages: list[str] = []
     person.on("console", lambda message: console_messages.append(message.text))
