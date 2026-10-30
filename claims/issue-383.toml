@@ -1,0 +1,8 @@
+claim_id = "db267a7362454fa9848073b5927135df"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "05e7e735976aea7ac0bff894b2815705d6855170"
+branch = "claude/issue-383-p15-controls"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/controls.js", "frontend/src/lib/legacy/prejoin.js", "frontend/src/lib/ui/controls.svelte.test.ts", "frontend/src/lib/ui/controls.svelte.ts", "frontend/src/routes/(call)/+layout.svelte"]
+opened_commit = "6ef861d44cb3b3768f6a634196c5efd1f99a5be7"
+whole_reason = "Moving the module, binding its view in the layout and repointing its importers cannot ship apart: the bar would be wired twice or not at all; the docs line follows the move."
