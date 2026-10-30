@@ -50,7 +50,7 @@ def held_run(question):
         route=RouteKind.CLI,
         heartbeat_interval_s=15,
     )
-    succeeded = Succeeded(v=PROTOCOL_VERSION, run_id=RUN_ID, seq=1, text=question)
+    succeeded = Succeeded(v=PROTOCOL_VERSION, run_id=RUN_ID, seq=1, text=question, files=())
     return HeldStream(first=streamed_head("text/event-stream") + encode_event(started), rest=encode_event(succeeded))
 
 

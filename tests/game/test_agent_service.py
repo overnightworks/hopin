@@ -5,7 +5,7 @@ from http import HTTPStatus
 import httpx2
 import pytest
 import structlog.testing
-from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode
+from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode, RunFile
 
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import Line, Refused
@@ -268,6 +268,9 @@ class TestStream:
             pytest.param(CancelsTheRun(), id="cancelled"),
             pytest.param(CallsATool(), id="tool-call"),
             pytest.param(EndsEarly(), id="truncated"),
+            pytest.param(
+                Succeeds(text="", files=(RunFile(name="note.txt", content=b"unread"),)), id="succeeded-without-words"
+            ),
             pytest.param(SendsBytes(b"event: nonsense\n\n"), id="malformed"),
         ],
     )
