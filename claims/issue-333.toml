@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "7e1379a4abea5f159aa41231356406320a7a2cd1"
 branch = "claude/issue-333-status"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/controls.js", "frontend/src/lib/legacy/signaling.js", "frontend/src/lib/legacy/status.js", "frontend/src/lib/ui/leave-dialog.svelte.test.ts", "frontend/src/lib/ui/status.svelte.test.ts", "frontend/src/lib/ui/status.svelte.ts", "frontend/src/routes/+layout.svelte", "tests/e2e/support/signaling.py", "tests/e2e/test_mesh.py"]
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/controls.js", "frontend/src/lib/legacy/signaling.js", "frontend/src/lib/legacy/status.js", "frontend/src/lib/ui/leave-dialog.svelte.test.ts", "frontend/src/lib/ui/status.svelte.test.ts", "frontend/src/lib/ui/status.svelte.ts", "frontend/src/routes/+layout.svelte", "quality/baseline.toml", "tests/e2e/support/signaling.py", "tests/e2e/test_mesh.py"]
 opened_commit = "9bc169c7dfc0413cca6eea5c2f45df64fe5dad7f"
 whole_reason = "One port with its deletion, its markup region and its three importers' import lines."
