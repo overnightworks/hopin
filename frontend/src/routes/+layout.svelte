@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount, type Snippet } from "svelte";
+    import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { initMenus } from "#lib/ui/menus.ts";
 
@@ -165,17 +166,7 @@
 </main>
 
 <!-- prettier-ignore -->
-<output id="toasts" class="toasts"></output>
-<!-- prettier-ignore -->
-<template id="toastDoneTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span></span></div></template>
-<!-- prettier-ignore -->
-<template id="toastFailedTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg><span></span></div></template>
-<!-- prettier-ignore -->
-<template id="toastLockedTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg><span></span></div></template>
-<!-- prettier-ignore -->
-<template id="toastWarningTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.8l9 15.7H3z"/><path d="M12 10v4.4M12 17.2v.1"/></svg><span></span></div></template>
-<!-- prettier-ignore -->
-<template id="toastWaitTemplate"><div class="toast"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/></svg><span></span></div></template>
+<Toasts />
 <!-- prettier-ignore -->
 <div id="accountScrim" class="scrim hidden"></div>
 <!-- prettier-ignore -->
