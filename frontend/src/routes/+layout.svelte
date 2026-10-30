@@ -3,6 +3,8 @@
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { initMenus } from "#lib/ui/menus.ts";
 
+    import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
+
     const { children }: { children: Snippet } = $props();
 
     onMount(() => {
@@ -96,10 +98,10 @@
     <div class="stage" id="stage" data-count="1">
         <div class="ctop">
             <div class="left">
-                <div id="status" class="status status-disconnected">Not connected</div>
-                <span id="lockIndicator" class="tag-glass hidden"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>Locked</span>
+                <div id="status" class="status status-{statusLine.type}">{statusLine.text}</div>
+                <span id="lockIndicator" class="tag-glass" class:hidden={!lockTag.isShown}><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>Locked</span>
             </div>
-            <span id="participantCount" class="tag-glass hidden" aria-label="Participants"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg><span class="num">1</span></span>
+            <span id="participantCount" class="tag-glass" class:hidden={!participantCount.isShown} aria-label="Participants"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg><span class="num">{participantCount.count}</span></span>
         </div>
         <div id="videoGrid" class="grid">
             <div class="tiles">

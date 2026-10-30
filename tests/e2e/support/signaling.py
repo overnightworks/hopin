@@ -27,15 +27,14 @@ LATE_EVENTS_OF_THE_FIRST_SOCKET = """
     first.dispatchEvent(new Event("close"));
 }
 """
-# Counts every write to the status line, so a scenario can tell a rewrite of the same text from none.
-COUNT_STATUS_WRITES = """
-window.statusWrites = 0;
-new MutationObserver((records) => {
-    for (const { target } of records) if (target.id === "status") window.statusWrites++;
-}).observe(document, { childList: true, subtree: true });
+SOCKETS_OPENED = "() => window.openedSockets.length"
+# The page schedules its next attempt in the handler of the refused socket's close.
+NEW_SOCKET_IS_CLOSED = """
+(before) => {
+    const sockets = window.openedSockets;
+    return sockets.length > before && sockets[sockets.length - 1].readyState === WebSocket.CLOSED;
+}
 """
-STATUS_WRITES = "() => window.statusWrites"
-STATUS_WRITTEN_AGAIN = "(before) => window.statusWrites > before"
 
 
 class FrameInjector:
