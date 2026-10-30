@@ -2,7 +2,7 @@ import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     build: {
         // The maps feed the browser coverage report; the bundle carries no pointer to them and the image ships none.
         sourcemap: "hidden",
@@ -11,6 +11,8 @@ export default defineConfig({
             external: [/^\/static\//],
         },
     },
+    // Svelte's mount needs its browser build under Vitest; the page build resolves as before.
+    resolve: mode === "test" ? { conditions: ["browser"] } : undefined,
     test: {
         environment: "node",
         include: ["src/**/*.test.ts"],
@@ -33,4 +35,4 @@ export default defineConfig({
             dynamicCompileOptions: ({ filename }) => (filename.includes("node_modules") ? undefined : { runes: true }),
         }),
     ],
-});
+}));

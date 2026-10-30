@@ -1,14 +1,9 @@
 import { state } from "#lib/call/state.ts";
 
-const localVideo = document.getElementById("localVideo");
+export { showLocalStream, updateLocalPreview } from "#lib/ui/stage.svelte.ts";
+
 const localPlaceholder = document.getElementById("localPlaceholder");
 const localContainer = document.getElementById("localContainer");
-const prejoinVideo = document.getElementById("prejoinVideo");
-const prejoinPlaceholder = document.getElementById("prejoinPlaceholder");
-const ownPictures = [
-    { video: localVideo, placeholder: localPlaceholder },
-    { video: prejoinVideo, placeholder: prejoinPlaceholder },
-];
 const stage = document.getElementById("stage");
 const tiles = document.querySelector("#videoGrid .tiles");
 
@@ -75,22 +70,6 @@ function createQualityIndicator() {
         indicator.appendChild(bar);
     }
     return indicator;
-}
-
-export function showLocalStream(stream) {
-    for (const { video } of ownPictures) {
-        video.srcObject = stream;
-    }
-    localContainer.classList.toggle("mirror", !state.screenStream);
-}
-
-export function updateLocalPreview() {
-    const showsVideo = state.videoEnabled;
-    for (const { video, placeholder } of ownPictures) {
-        video.classList.toggle("hidden", !showsVideo);
-        placeholder.classList.toggle("hidden", showsVideo);
-    }
-    localMuteMark.classList.toggle("hidden", state.audioEnabled);
 }
 
 export function setRemoteMediaState(participantId, mediaState) {

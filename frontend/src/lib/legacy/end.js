@@ -1,4 +1,4 @@
-import { ERROR_REASON, ROOM_CLOSED_REASON } from "./signaling.js";
+import { ERROR_REASON, ROOM_CLOSED_REASON } from "#lib/wire.ts";
 import { getRoomIdFromUrl, goHome, openCall } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
