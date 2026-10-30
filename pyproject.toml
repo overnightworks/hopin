@@ -6,7 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
     "httpx2>=2.13.1",
-    "overnightworks-appkit @ https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl",
+    "overnightworks-appkit @ https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl",
     "overnightworks-agent-runtime-client @ https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl",
     "overnightworks-webauth @ https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl",
     "pydantic>=2.10",
