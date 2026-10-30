@@ -3,7 +3,9 @@
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
+    import { actionClasses, END_ACTION, END_ICON, rejoinCall, shownEndView } from "#lib/ui/end.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
+    import { goHome } from "#lib/ui/navigation.ts";
     import { initMenus } from "#lib/ui/menus.ts";
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
     import { ownPictureMedia } from "#lib/ui/stage-media.ts";
@@ -12,6 +14,7 @@
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
 
     const { children }: { children: Snippet } = $props();
+    const shownEnd = $derived(shownEndView());
 
     onMount(() => {
         const removeMenus = initMenus();
@@ -37,19 +40,19 @@
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
         <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
     </div>
-    <span id="endIcon" class="end-icon">
-        <svg class="icon hidden" data-end-icon="ended" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg>
-        <svg class="icon hidden" data-end-icon="hourglass" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/></svg>
-        <svg class="icon hidden" data-end-icon="lock" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
-        <svg class="icon hidden" data-end-icon="users" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg>
+    <span id="endIcon" class={["end-icon", shownEnd.isWarning && "warn"]}>
+        <svg class={["icon", shownEnd.icon !== END_ICON.ENDED && "hidden"]} data-end-icon="ended" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg>
+        <svg class={["icon", shownEnd.icon !== END_ICON.HOURGLASS && "hidden"]} data-end-icon="hourglass" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h11M6.5 20.5h11M8 3.5v3a4 4 0 0 0 8 0v-3M8 20.5v-3a4 4 0 0 1 8 0v3"/></svg>
+        <svg class={["icon", shownEnd.icon !== END_ICON.LOCK && "hidden"]} data-end-icon="lock" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
+        <svg class={["icon", shownEnd.icon !== END_ICON.USERS && "hidden"]} data-end-icon="users" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg>
     </span>
-    <h2 id="endTitle">Call ended</h2>
-    <span id="endPill" class="count-pill hidden"></span>
-    <p id="endText"></p>
+    <h2 id="endTitle">{shownEnd.title}</h2>
+    <span id="endPill" class={["count-pill", shownEnd.pill === null && "hidden"]}>{shownEnd.pill}</span>
+    <p id="endText">{shownEnd.text}</p>
     <div class="end-actions">
-        <button id="endRetryBtn" class="button button-block hidden">Retry</button>
-        <button id="endHomeBtn" class="button button-block hidden">Back to start</button>
-        <button id="endRejoinBtn" class="button button-block hidden">Rejoin</button>
+        <button id="endRetryBtn" class={actionClasses(END_ACTION.RETRY)} onclick={rejoinCall}>Retry</button>
+        <button id="endHomeBtn" class={actionClasses(END_ACTION.HOME)} onclick={goHome}>Back to start</button>
+        <button id="endRejoinBtn" class={actionClasses(END_ACTION.REJOIN)} onclick={rejoinCall}>Rejoin</button>
     </div>
     <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
 </main>
