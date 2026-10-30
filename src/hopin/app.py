@@ -181,9 +181,7 @@ def create_app(
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_feature: CallFeatureBuilder | None = None,
 ) -> FastAPI:
-    sign_in_configs = build_sign_in_configs(
-        settings, () if call_feature is None else call_feature.sign_in_scopes
-    )
+    sign_in_configs = build_sign_in_configs(settings, () if call_feature is None else call_feature.sign_in_scopes)
     turn_relay = build_turn_relay(settings, turn_transport)
 
     _configure_logging()
