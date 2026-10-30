@@ -246,6 +246,7 @@ describe("muting", () => {
         expect(() => {
             fresh.toggleAudio();
         }).toThrow("No local stream");
+        expect(fresh.state.audioEnabled).toBe(true);
     });
 });
 

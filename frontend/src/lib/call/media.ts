@@ -218,13 +218,11 @@ async function changeScreenShare(onEnded: () => void) {
 // change instead of opening a second picker, whose stream would replace the first
 // one in state and leave the first one's audio capturing with nothing to stop it.
 export function toggleScreenShare(onEnded: () => void): Promise<void> {
-    if (!screenShareChange) {
-        screenShareChange = changeScreenShare(onEnded)
-            .then(localMediaChanged)
-            .finally(() => {
-                screenShareChange = null;
-            });
-    }
+    screenShareChange ??= changeScreenShare(onEnded)
+        .then(localMediaChanged)
+        .finally(() => {
+            screenShareChange = null;
+        });
     return screenShareChange;
 }
 
