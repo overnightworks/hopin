@@ -1,0 +1,8 @@
+claim_id = "1fca15cd960f4f51a53272154bd035b0"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "30e0763d15f669c9bb8bc70a7c516b6715397b01"
+branch = "claude/issue-385-p10-prejoin"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/prejoin.js", "frontend/src/lib/ui/prejoin.svelte.test.ts", "frontend/src/lib/ui/prejoin.svelte.ts", "frontend/src/routes/(call)/+layout.svelte"]
+opened_commit = "a0f1e697b09c3f2df476d59f39c4d26286323b19"
+whole_reason = "Moving the module, binding its view in the layout and repointing its importer cannot ship apart: the screen would be drawn twice or not at all; the docs line follows the move."
