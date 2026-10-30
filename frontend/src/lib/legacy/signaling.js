@@ -1,7 +1,7 @@
 import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
 import { SentLog } from "./replay.js";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
-import { state } from "./state.js";
+import { state } from "#lib/call/state.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
 
 export { SIGNAL_TYPE, ERROR_REASON };

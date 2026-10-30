@@ -26,7 +26,7 @@ import { SIGNAL_TYPE, connect, disconnect, isConnected, on, onSessionEnded, onSe
 import { initPip } from "./pip.js";
 import * as stage from "./stage.js";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
-import { state } from "./state.js";
+import { state } from "#lib/call/state.ts";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
 import { initHome, showGreeting } from "./home.js";
 import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";

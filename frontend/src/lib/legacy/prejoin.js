@@ -3,7 +3,7 @@ import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "./media.js"
 import { goHome } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
-import { state } from "./state.js";
+import { state } from "#lib/call/state.ts";
 
 export const PREJOIN_KIND = Object.freeze({ HOST: "host", GUEST: "guest" });
 

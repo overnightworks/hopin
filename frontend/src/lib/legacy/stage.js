@@ -1,4 +1,4 @@
-import { state } from "./state.js";
+import { state } from "#lib/call/state.ts";
 
 const localVideo = document.getElementById("localVideo");
 const localPlaceholder = document.getElementById("localPlaceholder");
