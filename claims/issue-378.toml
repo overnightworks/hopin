@@ -1,0 +1,8 @@
+claim_id = "0a3b702d518141989025ae9a42b976fa"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "fc9a634077ba7617c192b8b270229d592ca2b0ce"
+branch = "claude/issue-378-p8b-media"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/media.test.ts", "frontend/src/lib/call/media.ts", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/controls.js", "frontend/src/lib/legacy/media.js", "frontend/src/lib/legacy/prejoin.js"]
+opened_commit = "fbfce00bbeb83ab8a9e74b90ddbdc7dd3b3a1fb5"
+whole_reason = "Moving a module to lib/call and repointing its three importers cannot ship apart, because the build fails on a dangling import; the docs line rides along as the same port's description."
