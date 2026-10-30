@@ -23,6 +23,7 @@ from agent_runtime_client.wire import (
     Heartbeat,
     RejectionCode,
     RouteKind,
+    RunFile,
     RunRejection,
     RunRequest,
     RunStarted,
@@ -89,6 +90,7 @@ class SeenRun:
 @dataclass(frozen=True)
 class Succeeds:
     text: str = DEFAULT_QUESTION
+    files: tuple[RunFile, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -268,12 +270,13 @@ def _events_of(answer: Answer, person_token: str) -> list[object]:
         heartbeat_interval_s=HEARTBEAT_INTERVAL_SECONDS,
     )
     match answer:
-        case Succeeds(text=text):
+        case Succeeds(text=text, files=files):
+            spoken = [AssistantText(v=PROTOCOL_VERSION, run_id=run_id, seq=2, text=text)] if text else []
             return [
                 started,
                 Heartbeat(v=PROTOCOL_VERSION, run_id=run_id, seq=1),
-                AssistantText(v=PROTOCOL_VERSION, run_id=run_id, seq=2, text=text),
-                Succeeded(v=PROTOCOL_VERSION, run_id=run_id, seq=3, text=text),
+                *spoken,
+                Succeeded(v=PROTOCOL_VERSION, run_id=run_id, seq=2 + len(spoken), text=text, files=files),
             ]
         case Fails(code=code, message=message):
             shown = message.replace(PERSONS_ACCESS_ECHO, person_token)

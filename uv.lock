@@ -416,7 +416,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "httpx2", specifier = ">=2.13.1" },
-    { name = "overnightworks-agent-runtime-client", url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl" },
+    { name = "overnightworks-agent-runtime-client", url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.12.0/overnightworks_agent_runtime_client-0.12.0-py3-none-any.whl" },
     { name = "overnightworks-appkit", url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl" },
     { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -651,14 +651,14 @@ wheels = [
 
 [[package]]
 name = "overnightworks-agent-runtime-client"
-version = "0.10.0"
-source = { url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl" }
+version = "0.12.0"
+source = { url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.12.0/overnightworks_agent_runtime_client-0.12.0-py3-none-any.whl" }
 dependencies = [
     { name = "pydantic" },
     { name = "ruamel-yaml" },
 ]
 wheels = [
-    { url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl", hash = "sha256:b5d15a343ed74aa1bad50c0327983c5008cda9e11b173e6fd0db8ffa1bee9ea9" },
+    { url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.12.0/overnightworks_agent_runtime_client-0.12.0-py3-none-any.whl", hash = "sha256:b4652a8b64ece25136663ce7719f8cb540905148efec896a9eecc841c2380e28" },
 ]
 
 [package.metadata]
