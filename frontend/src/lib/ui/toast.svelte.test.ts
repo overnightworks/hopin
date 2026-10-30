@@ -28,9 +28,9 @@ describe("toast", () => {
         expect(toast.toastState.current).toBeNull();
     });
 
-    it("keeps the five kind values the game reads", async () => {
+    it("keeps the five kind names the game reads", async () => {
         const toast = await freshToast();
-        expect(Object.values(toast.TOAST_KIND)).toEqual(["done", "failed", "locked", "warning", "wait"]);
+        expect(Object.keys(toast.TOAST_KIND)).toEqual(["DONE", "FAILED", "LOCKED", "WARNING", "WAIT"]);
     });
 
     it.each(["done", "failed", "locked", "warning", "wait"] as const)(
@@ -96,8 +96,9 @@ describe("toast", () => {
         await vi.advanceTimersByTimeAsync(2000);
 
         toast.showToast("Second", toast.TOAST_KIND.DONE);
-        await vi.advanceTimersByTimeAsync(1000);
 
+        expect(vi.getTimerCount()).toBe(1);
+        await vi.advanceTimersByTimeAsync(1000);
         expect(toast.toastState.current?.leaving).toBe(false);
     });
 
@@ -159,8 +160,8 @@ describe("toast", () => {
         toast.showToast("Hi", toast.TOAST_KIND.DONE);
 
         toast.clearToast();
-        await vi.advanceTimersByTimeAsync(10000);
 
         expect(toast.toastState.current).toBeNull();
+        expect(vi.getTimerCount()).toBe(0);
     });
 });

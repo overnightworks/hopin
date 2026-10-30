@@ -63,7 +63,7 @@ The page is a SvelteKit shell that `make frontend` builds into `src/hopin/web/bu
 - **The call's surface:** `stage`, `pip`, `controls`, `invite`, `status`, `chat`
 - **State:** `state`, the one mutable call state, with no DOM
 
-The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: open, close and focus of the page's popover menus, wired by the layout; `toast.svelte`: the one current toast, rendered by `Toasts.svelte`; `leave-dialog`: the leave confirmation's open state in a Svelte runes module, whose confirm action `legacy/app.js` installs at start-up because ported code never imports legacy). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
+The call's ported logic is TypeScript under `frontend/src/lib/call/`: `recovery` (ICE restart), `bandwidth` (upload cap by call size) and `sounds`. The page's ported interface helpers are TypeScript under `frontend/src/lib/ui/` (`menus`: open, close and focus of the page's popover menus, wired by the layout; `toast`: the one current toast, rendered by `Toasts.svelte`; `leave-dialog`: the leave confirmation's open state in a Svelte runes module, whose confirm action `legacy/app.js` installs at start-up because ported code never imports legacy). Vitest judges both at 100 % branch (`pnpm test:coverage`), and the legacy modules import them, never the reverse.
 
 ## 3. Runtime View
 
