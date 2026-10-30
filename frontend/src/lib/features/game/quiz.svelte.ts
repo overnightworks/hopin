@@ -119,7 +119,7 @@ export class Quiz {
 
     receiveLine(frame: LineFrame) {
         // A line without a round is the reveal or the final score: the card shows only an open question.
-        this.#question = typeof frame.round === "number" ? { round: frame.round, text: frame.text } : null;
+        this.#question = frame.round === undefined ? null : { round: frame.round, text: frame.text };
         this.#changed();
     }
 

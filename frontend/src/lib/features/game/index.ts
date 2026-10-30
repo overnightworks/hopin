@@ -93,6 +93,36 @@ function moreItems() {
     };
 }
 
+function listen(core: FeatureCore, quiz: Quiz) {
+    core.on(GAME_SIGNAL.GAME_PHASE, (frame: PhaseFrame) => {
+        quiz.receivePhase(frame);
+    });
+    core.on(GAME_SIGNAL.GAME_LINE, (frame: LineFrame) => {
+        core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
+        quiz.receiveLine(frame);
+    });
+    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
+        quiz.receiveAnswerCount(frame);
+    });
+    core.on(GAME_SIGNAL.GAME_REFUSED, (frame: RefusedFrame) => {
+        quiz.receiveRefusal(frame);
+        const toastOf = REFUSAL_TOASTS[frame.reason] ?? UNAVAILABLE_TOAST;
+        core.showToast(...toastOf(frame, core.toastKind));
+    });
+    core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
+        const text = frame.leaver === undefined ? "Quiz ended." : `Quiz ended: ${frame.leaver} left.`;
+        core.showToast(text, core.toastKind.FAILED, null);
+    });
+    const joined = (frame: SeatFrame) => {
+        quiz.joined(frame.participant_id, frame.is_host);
+    };
+    core.on(SIGNAL_TYPE.ROOM_CREATED, joined);
+    core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, joined);
+    core.onCallEnded(() => {
+        quiz.reset();
+    });
+}
+
 export function install(core: FeatureCore): Promise<void> {
     const more = moreItems();
     let thinkingView: FeatureView | null = null;
@@ -130,33 +160,7 @@ export function install(core: FeatureCore): Promise<void> {
     more.startButton.addEventListener("click", () => {
         quiz.startOrEnd();
     });
-    core.on(GAME_SIGNAL.GAME_PHASE, (frame: PhaseFrame) => {
-        quiz.receivePhase(frame);
-    });
-    core.on(GAME_SIGNAL.GAME_LINE, (frame: LineFrame) => {
-        core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
-        quiz.receiveLine(frame);
-    });
-    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
-        quiz.receiveAnswerCount(frame);
-    });
-    core.on(GAME_SIGNAL.GAME_REFUSED, (frame: RefusedFrame) => {
-        quiz.receiveRefusal(frame);
-        const toastOf = REFUSAL_TOASTS[frame.reason] ?? UNAVAILABLE_TOAST;
-        core.showToast(...toastOf(frame, core.toastKind));
-    });
-    core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
-        const text = frame.leaver === undefined ? "Quiz ended." : `Quiz ended: ${frame.leaver} left.`;
-        core.showToast(text, core.toastKind.FAILED, null);
-    });
-    const joined = (frame: SeatFrame) => {
-        quiz.joined(frame.participant_id, frame.is_host);
-    };
-    core.on(SIGNAL_TYPE.ROOM_CREATED, joined);
-    core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, joined);
-    core.onCallEnded(() => {
-        quiz.reset();
-    });
+    listen(core, quiz);
     core.addMoreItems(...more.items);
     return Promise.resolve();
 }

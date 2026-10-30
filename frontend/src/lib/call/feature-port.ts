@@ -1,6 +1,6 @@
 // The seam where a feature's browser module reaches the call core. The page hands `FeatureCore` to each
-// feature's `install` before signaling connects; a feature imports nothing else from the core's modules
-// except `featureView` to build what it hands over.
+// feature's `install` before signaling connects; besides `featureView`, which builds what it hands over, a
+// feature imports only the generated wires and the core's types.
 
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { TOAST_KIND, ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
