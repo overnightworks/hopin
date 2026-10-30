@@ -24,7 +24,6 @@ import {
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import { connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
-import { initPip } from "./pip.js";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
@@ -202,7 +201,6 @@ onSessionEnded(() => {
 });
 installLeaveConfirmed(leaveCall);
 initControls({ onLeaveRequested: requestLeave });
-initPip();
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
 initAccount({ onNameRead: showGreeting });
 initPrejoin({
