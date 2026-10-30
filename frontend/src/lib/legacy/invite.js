@@ -1,4 +1,4 @@
-import { TOAST_KIND, showToast } from "./toast.js";
+import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
 
 const TEXTS = {
     COPIED: "Link copied",

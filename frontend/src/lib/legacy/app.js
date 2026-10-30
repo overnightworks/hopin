@@ -29,7 +29,7 @@ import { showLocalStream, showRemoteName } from "./stage.js";
 import { state } from "./state.js";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "./status.js";
 import { initHome, showGreeting } from "./home.js";
-import { TOAST_KIND, clearToast, showToast } from "./toast.js";
+import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
 

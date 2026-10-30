@@ -3,7 +3,7 @@ import { SIGNAL_TYPE, isConnected, send } from "./signaling.js";
 import { closeOpenMenu, registerMenu } from "#lib/ui/menus.ts";
 import { state } from "./state.js";
 import { setStatus } from "./status.js";
-import { TOAST_KIND, showToast } from "./toast.js";
+import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
 
 const CAMERA_ERROR_STATUS_MS = 2000;
 const LOCK_LINE = Object.freeze({ LOCKED: "No one new can join", UNLOCKED: "New people can join" });
