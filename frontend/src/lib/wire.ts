@@ -41,6 +41,7 @@ export enum ROOM_CLOSED_REASON {
 
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";
+export const ICE_SERVERS_PATH = "/api/ice-servers";
 export const REPLAY_LOG_LIMIT = 256;
 export const DESCRIPTION_TYPES: readonly SIGNAL_TYPE[] = [SIGNAL_TYPE.ANSWER, SIGNAL_TYPE.OFFER];
 export const SUPERSEDED_BY_A_DESCRIPTION: readonly SIGNAL_TYPE[] = [

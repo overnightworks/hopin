@@ -12,7 +12,7 @@ import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/u
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "./media.js";
-import { registerMediaStateHandlers } from "./media-state.js";
+import { registerMediaStateHandlers } from "#lib/call/media-state.ts";
 import {
     loadIceServers,
     onPeersChanged,
@@ -20,7 +20,7 @@ import {
     registerMeshHandlers,
     removeAllPeers,
     SignedOutError,
-} from "./mesh.js";
+} from "#lib/call/mesh.ts";
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import { connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";

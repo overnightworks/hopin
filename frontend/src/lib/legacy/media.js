@@ -1,5 +1,5 @@
-import { addTrackToPeers, removeTrackFromPeers, replaceVideoTrackOnPeers } from "./mesh.js";
-import { announceMediaState } from "./media-state.js";
+import { addTrackToPeers, removeTrackFromPeers, replaceVideoTrackOnPeers } from "#lib/call/mesh.ts";
+import { announceMediaState } from "#lib/call/media-state.ts";
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
