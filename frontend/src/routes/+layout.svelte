@@ -1,21 +1,25 @@
 <script lang="ts">
     import { onMount, type Snippet } from "svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
+    import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
+    import { initMenus } from "#lib/ui/menus.ts";
 
     const { children }: { children: Snippet } = $props();
 
     onMount(() => {
+        const removeMenus = initMenus();
         void import("#lib/legacy/app.js");
+        return removeMenus;
     });
 </script>
 
 <!-- prettier-ignore -->
-<div id="leaveConfirm" class="confirm-overlay hidden">
+<div id="leaveConfirm" class={["confirm-overlay", !leaveDialog.isOpen && "hidden"]}>
     <div class="confirm-box">
         <p>Leave this call?</p>
         <div class="btn-row">
-            <button id="leaveCancel" class="btn-secondary">Cancel</button>
-            <button id="leaveYes" class="btn-danger">Leave</button>
+            <button id="leaveCancel" class="btn-secondary" onclick={cancelLeave}>Cancel</button>
+            <button id="leaveYes" class="btn-danger" onclick={confirmLeave}>Leave</button>
         </div>
     </div>
 </div>
