@@ -1,0 +1,8 @@
+claim_id = "cca5d98fb8e9403f9ac667bdcb7e9319"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "721eff6cd55ef7f81339ccbd950e6c98977bda7b"
+branch = "claude/issue-381-p13-pip"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/pip.js", "frontend/src/lib/ui/pip.test.ts", "frontend/src/lib/ui/pip.ts", "frontend/src/routes/(call)/+layout.svelte"]
+opened_commit = "1a8dce0581caba3f327611d841fc05cd0e1862c1"
+whole_reason = "Moving the module, attaching it in the layout and dropping its legacy call cannot ship apart: either the drag runs twice or not at all; the docs line follows the move."
