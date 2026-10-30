@@ -1,0 +1,8 @@
+claim_id = "942d0fc640ba4cdb887eb8bc232849dc"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "bbcefeb17ad23a12b8c469ab729b00af58d87597"
+branch = "claude/issue-358-chat"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/chat.js", "frontend/src/lib/ui/chat.svelte.test.ts", "frontend/src/lib/ui/chat.svelte.ts", "frontend/src/routes/+layout.svelte", "src/hopin/web/static/assets/css/hopin.css"]
+opened_commit = "91ff8fba03662d8dd337f255b80f03f656e3a107"
+whole_reason = "One owner: the chat's module, its test, its markup, its one CSS rule, its importer's lines and its legacy file's deletion."
