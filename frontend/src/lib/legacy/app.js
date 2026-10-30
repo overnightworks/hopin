@@ -55,7 +55,8 @@ const FEATURE_CORE = Object.freeze({
 });
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
 // A feature that fails to load never stops the call; it resolves to whether every feature is in.
-const featuresInstalled = loadFeatures(import.meta.glob("#lib/features/*/index.js"), FEATURE_CORE);
+// The gated feature list is asked when the first call starts, never at page load.
+let featuresInstalled;
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -75,6 +76,7 @@ function startCall() {
     showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
+    featuresInstalled ??= loadFeatures(import.meta.glob("#lib/features/*/index.js"), FEATURE_CORE);
     return Promise.all([loadIceServers(), featuresInstalled]).then(
         ([, everyFeatureInstalled]) => {
             if (state.intentionalLeave) return;

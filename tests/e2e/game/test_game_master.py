@@ -142,8 +142,9 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
     open_prejoin(host, e2e_server.base_url)
     wait_until_the_prejoin_media_answered(host)
 
-    with host.expect_response(ICE_SERVERS_URL_PATTERN):
+    with host.expect_request(f"**{url_of(GameFile.MODULE)}"), host.expect_response(ICE_SERVERS_URL_PATTERN):
         host.click(PREJOIN_START)
+    host.evaluate("() => 0")
     [held_module] = held_modules
     held_module.continue_()
 
