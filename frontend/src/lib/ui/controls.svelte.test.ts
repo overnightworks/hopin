@@ -117,9 +117,11 @@ describe("camera", () => {
     });
 
     it("adds the camera when it is off and redraws", async () => {
-        const { cameraClicked, deviceButtons, state } = await freshControls();
+        const { cameraClicked, deviceButtons, renderControls, state } = await freshControls();
         state.localStream = aStream();
         state.videoEnabled = false;
+        renderControls();
+        expect(deviceButtons.isCameraOn).toBe(false);
         media.addCamera.mockImplementation(() => {
             state.videoEnabled = true;
             return Promise.resolve();
