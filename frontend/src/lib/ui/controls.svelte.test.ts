@@ -36,7 +36,7 @@ const aStream = () => ({}) as MediaStream;
 
 beforeEach(() => {
     vi.useFakeTimers();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 });
 
 afterEach(() => {
