@@ -77,8 +77,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-    env:
-      HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,6 +133,7 @@ jobs:
         timeout-minutes: 10
         env:
           COVERAGE_FILE: .coverage.e2e
+          HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
         run: pytest -m e2e --tracing retain-on-failure --screenshot only-on-failure --output test-results
 
       - name: Upload the end-to-end coverage data
@@ -150,6 +149,8 @@ jobs:
       # Reported, not judged: no threshold. The page build's hidden source maps map Chromium's coverage to frontend/src.
       - name: Convert the browser coverage to lcov
         working-directory: frontend
+        env:
+          HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
         run: |
           pnpm install --frozen-lockfile
           node scripts/browser-coverage-report.js "${HOPIN_BROWSER_COVERAGE_DIR}" ../src/hopin/web/build ../browser-coverage

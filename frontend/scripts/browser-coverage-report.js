@@ -14,7 +14,7 @@ const report = new CoverageReport({
     name: "Browser coverage",
     outputDir: reportDirectory,
     reports: ["lcovonly", "console-summary"],
-    outputFilter: { "**/src/**": true, "**/*": false },
+    outputFilter: { "frontend/src/**": true, "**/*": false },
 });
 
 // Chromium reports a script's coverage without its text, and the bundles carry no pointer to their hidden maps.
