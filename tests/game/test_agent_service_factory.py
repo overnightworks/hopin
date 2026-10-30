@@ -3,7 +3,7 @@ import logging
 import pytest
 from pydantic import ValidationError
 
-from hopin.game import GameSettings
+from hopin.game import GameSettings, game_feature
 from hopin.game.agent_service import TRANSPORT_LOGGERS
 from tests.game.support.world import build_world
 
@@ -36,3 +36,10 @@ def test_a_malformed_agent_service_scope_fails_when_the_settings_load(scope, mon
         GameSettings()
 
     assert "agent_service_scope" in str(refusal.value)
+
+
+@pytest.mark.parametrize("scope", ["agent-service-audience", "operator-chosen"])
+def test_the_game_names_its_configured_scope_for_sign_in(scope, monkeypatch):
+    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", scope)
+
+    assert game_feature(GameSettings()).sign_in_scopes == (scope,)

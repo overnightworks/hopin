@@ -63,6 +63,14 @@ class TestSecretFiles:
         settings.session_secret_file.write_text(secrets.token_urlsafe(24)[:32])
         build_sign_in_configs(settings)
 
+    def test_the_client_asks_for_the_sign_in_scopes_alone_without_a_feature(self, sign_in_settings):
+        configs = build_sign_in_configs(sign_in_settings().settings, ())
+        assert configs.oidc_client.scopes == ("openid", "profile", "groups")
+
+    def test_the_client_also_asks_for_the_scopes_a_feature_names(self, sign_in_settings):
+        configs = build_sign_in_configs(sign_in_settings().settings, ("feature-audience",))
+        assert configs.oidc_client.scopes == ("openid", "profile", "groups", "feature-audience")
+
     def test_each_secret_loses_one_trailing_newline(self, sign_in_settings):
         sign_in = sign_in_settings()
         configs = build_sign_in_configs(sign_in.settings)

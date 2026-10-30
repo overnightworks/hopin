@@ -69,11 +69,11 @@ ISSUER_OVER_HTTPS = IssuerTransports(
 )
 
 
-def build_sign_in_configs(settings: ServerSettings) -> SignInConfigs:
+def build_sign_in_configs(settings: ServerSettings, feature_scopes: tuple[str, ...] = ()) -> SignInConfigs:
     client_secret = read_secret_file(settings.oidc_client_secret_file, "oidc_client_secret_file")
     session_secret = read_secret_file(settings.session_secret_file, "session_secret_file")
     try:
-        oidc_client = _build_oidc_client(settings, client_secret)
+        oidc_client = _build_oidc_client(settings, client_secret, feature_scopes)
     except ValueError as refusal:
         raise SignInConfigurationError(f"oidc_issuer and public_origin are refused: {refusal}") from None
     trusted_proxies = _parse_trusted_proxies(settings.trusted_proxies)
@@ -91,7 +91,9 @@ def _parse_trusted_proxies(raw: str) -> TrustedProxies:
         raise SignInConfigurationError("trusted_proxies is refused: name addresses or CIDR blocks") from None
 
 
-def _build_oidc_client(settings: ServerSettings, client_secret: SecretStr) -> OidcClientConfig:
+def _build_oidc_client(
+    settings: ServerSettings, client_secret: SecretStr, feature_scopes: tuple[str, ...]
+) -> OidcClientConfig:
     openid_connect = settings.oidc_issuer + OPENID_CONNECT_PATH
     return OidcClientConfig(
         issuer=settings.oidc_issuer,
@@ -103,7 +105,7 @@ def _build_oidc_client(settings: ServerSettings, client_secret: SecretStr) -> Oi
         client_secret=client_secret,
         redirect_uri=settings.public_origin + AUTH_CALLBACK_PATH,
         post_logout_redirect_uri=settings.public_origin + LOGIN_PATH,
-        scopes=OIDC_SCOPES,
+        scopes=(*OIDC_SCOPES, *feature_scopes),
         leeway_seconds=OIDC_LEEWAY_SECONDS,
     )
 
