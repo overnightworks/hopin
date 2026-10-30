@@ -81,9 +81,11 @@ class TestTokens:
         assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
         assert world.service.runs == []
 
-    async def test_ask_whose_workload_grant_is_refused_is_unavailable_and_posts_nothing(self, world):
+    @pytest.mark.parametrize("idp_error", ["unauthorized_client", "invalid_scope"])
+    async def test_ask_whose_workload_grant_is_refused_is_unavailable_and_posts_nothing(self, world, idp_error):
         starter, _ = world.starter()
         world.issuer.refuses_workload_grants = True
+        world.issuer.workload_refusal_error = idp_error
 
         with structlog.testing.capture_logs() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
@@ -96,24 +98,9 @@ class TestTokens:
                 "log_level": "info",
                 "token": "workload",
                 "issuer_reason": "token-request-refused",
-                "idp_error": "unauthorized_client",
+                "idp_error": idp_error,
             }
         ]
-
-    async def test_ask_whose_workload_scope_the_issuer_does_not_know_is_unavailable_and_logged_as_invalid_scope(
-        self, world
-    ):
-        starter, _ = world.starter()
-        world.issuer.refuses_workload_grants = True
-        world.issuer.workload_refusal_error = "invalid_scope"
-
-        with structlog.testing.capture_logs() as logs:
-            outcome = await world.game_master.ask(starter, OPENING)
-
-        assert outcome == Refused(GameRefusal.UNAVAILABLE)
-        assert world.service.runs == []
-        [refused] = [log for log in logs if log["event"] == "game_master_token_refused"]
-        assert refused["idp_error"] == "invalid_scope"
 
     async def test_an_issuer_error_outside_the_oauth_vocabulary_is_logged_as_other_and_never_by_its_text(self, world):
         starter, _ = world.starter()

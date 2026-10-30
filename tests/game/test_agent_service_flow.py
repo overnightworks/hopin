@@ -116,8 +116,12 @@ class Call:
         ]
 
 
+OPERATOR_CHOSEN_SCOPE = "scenario-audience"
+
+
 @pytest.fixture
-def call(sign_in_settings):
+def call(sign_in_settings, monkeypatch):
+    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", OPERATOR_CHOSEN_SCOPE)
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
     service = FakeAgentService(issuer)
@@ -203,7 +207,7 @@ def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(cal
     host.start()
     host.frames(3)
 
-    assert call.client_credentials_scopes() == [GameSettings().agent_service_scope]
+    assert call.client_credentials_scopes() == [OPERATOR_CHOSEN_SCOPE]
 
 
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):
