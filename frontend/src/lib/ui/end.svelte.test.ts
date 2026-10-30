@@ -8,7 +8,8 @@ import {
     endKindOfClosedRoom,
     endKindOfRefusal,
     rejoinCall,
-    shownEnd,
+    actionClasses,
+    shownEndView,
     showEnd,
 } from "#lib/ui/end.svelte.ts";
 import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
@@ -123,21 +124,37 @@ describe("showEnd", () => {
     ])("shows the $kind end", ({ kind, frame, expected }) => {
         showEnd(kind, frame);
 
-        expect($state.snapshot(shownEnd)).toEqual(expected);
+        expect(shownEndView()).toEqual(expected);
         expect(screens.current).toBe(SCREEN.END);
     });
 
     it("shows a kind given without a frame", () => {
         showEnd(END_KIND.LEFT);
 
-        expect(shownEnd.title).toBe("You left the call");
+        expect(shownEndView().title).toBe("You left the call");
     });
 
     it("replaces the pill of an earlier end", () => {
         showEnd(END_KIND.FULL, { capacity: 4 });
         showEnd(END_KIND.LEFT);
 
-        expect(shownEnd.pill).toBeNull();
+        expect(shownEndView().pill).toBeNull();
+    });
+});
+
+describe("shownEndView", () => {
+    it("shows an empty ended view before any end is shown", async () => {
+        vi.resetModules();
+        const fresh = await import("#lib/ui/end.svelte.ts");
+
+        expect(fresh.shownEndView()).toEqual({
+            icon: null,
+            isWarning: false,
+            title: "Call ended",
+            text: "",
+            pill: null,
+            actions: [],
+        });
     });
 });
 
@@ -168,5 +185,28 @@ describe("rejoinCall", () => {
         rejoinCall();
 
         expect(assign).toHaveBeenCalledWith("https://hopin.test/c/abc");
+    });
+
+    it("does nothing when the address names no call", () => {
+        const assign = vi.fn();
+        vi.stubGlobal("location", { pathname: "/", origin: "https://hopin.test", assign });
+
+        rejoinCall();
+
+        expect(assign).not.toHaveBeenCalled();
+    });
+});
+
+describe("actionClasses", () => {
+    it.each([
+        [END_KIND.LOCKED, END_ACTION.RETRY, ["button", "button-block", false, "button-primary", "button-lg"]],
+        [END_KIND.LOCKED, END_ACTION.HOME, ["button", "button-block", false, "button-text"]],
+        [END_KIND.LOCKED, END_ACTION.REJOIN, ["button", "button-block", "hidden", "button-text"]],
+        [END_KIND.LEFT, END_ACTION.REJOIN, ["button", "button-block", false, "button-text"]],
+        [END_KIND.HOST_GONE, END_ACTION.RETRY, ["button", "button-block", "hidden", "button-text"]],
+    ])("styles the %s end's %s button", (kind, action, expected) => {
+        showEnd(kind);
+
+        expect(actionClasses(action)).toEqual(expected);
     });
 });

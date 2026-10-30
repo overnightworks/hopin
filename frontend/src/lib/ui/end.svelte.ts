@@ -115,35 +115,50 @@ export function endKindOfClosedRoom(reason: ROOM_CLOSED_REASON) {
     return CLOSED_ROOM_KINDS[reason];
 }
 
-type ShownEnd = {
-    icon: END_ICON | null;
-    isWarning: boolean;
-    title: string;
-    text: string;
-    pill: string | null;
-    actions: readonly END_ACTION[];
-};
-
-export const shownEnd: ShownEnd = $state({
-    icon: null,
-    isWarning: false,
-    title: "Call ended",
-    text: "",
-    pill: null,
-    actions: [],
-});
+const shownEnd: { kind: END_KIND | null; frame: EndFrame } = $state({ kind: null, frame: {} });
 
 export function showEnd(kind: END_KIND, frame: EndFrame = {}) {
-    const view = END_VIEWS[kind];
-    shownEnd.icon = view.icon;
-    shownEnd.isWarning = Boolean(view.warn);
-    shownEnd.title = view.title;
-    shownEnd.text = view.text(frame);
-    shownEnd.pill = view.pill?.(frame) ?? null;
-    shownEnd.actions = view.actions;
+    shownEnd.kind = kind;
+    shownEnd.frame = frame;
     showScreen(SCREEN.END);
 }
 
+export function shownEndView() {
+    const { kind, frame } = shownEnd;
+    if (kind === null) {
+        return {
+            icon: null,
+            isWarning: false,
+            title: "Call ended",
+            text: "",
+            pill: null,
+            actions: [] as readonly END_ACTION[],
+        };
+    }
+    const view = END_VIEWS[kind];
+    return {
+        icon: view.icon,
+        isWarning: Boolean(view.warn),
+        title: view.title,
+        text: view.text(frame),
+        pill: view.pill?.(frame) ?? null,
+        actions: view.actions,
+    };
+}
+
+export function actionClasses(action: END_ACTION) {
+    const { actions } = shownEndView();
+    return [
+        "button",
+        "button-block",
+        !actions.includes(action) && "hidden",
+        ...(actions[0] === action ? ["button-primary", "button-lg"] : ["button-text"]),
+    ];
+}
+
 export function rejoinCall() {
-    openCall(getRoomIdFromUrl() as string);
+    const roomId = getRoomIdFromUrl();
+    if (roomId !== null) {
+        openCall(roomId);
+    }
 }

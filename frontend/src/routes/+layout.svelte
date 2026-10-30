@@ -3,7 +3,7 @@
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
-    import { END_ACTION, END_ICON, rejoinCall, shownEnd } from "#lib/ui/end.svelte.ts";
+    import { actionClasses, END_ACTION, END_ICON, rejoinCall, shownEndView } from "#lib/ui/end.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
     import { goHome } from "#lib/ui/navigation.ts";
     import { initMenus } from "#lib/ui/menus.ts";
@@ -14,6 +14,7 @@
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
 
     const { children }: { children: Snippet } = $props();
+    const shownEnd = $derived(shownEndView());
 
     onMount(() => {
         const removeMenus = initMenus();
@@ -49,9 +50,9 @@
     <span id="endPill" class={["count-pill", shownEnd.pill === null && "hidden"]}>{shownEnd.pill}</span>
     <p id="endText">{shownEnd.text}</p>
     <div class="end-actions">
-        <button id="endRetryBtn" class={["button", "button-block", !shownEnd.actions.includes(END_ACTION.RETRY) && "hidden", ...(shownEnd.actions[0] === END_ACTION.RETRY ? ["button-primary", "button-lg"] : ["button-text"])]} onclick={rejoinCall}>Retry</button>
-        <button id="endHomeBtn" class={["button", "button-block", !shownEnd.actions.includes(END_ACTION.HOME) && "hidden", ...(shownEnd.actions[0] === END_ACTION.HOME ? ["button-primary", "button-lg"] : ["button-text"])]} onclick={goHome}>Back to start</button>
-        <button id="endRejoinBtn" class={["button", "button-block", !shownEnd.actions.includes(END_ACTION.REJOIN) && "hidden", ...(shownEnd.actions[0] === END_ACTION.REJOIN ? ["button-primary", "button-lg"] : ["button-text"])]} onclick={rejoinCall}>Rejoin</button>
+        <button id="endRetryBtn" class={actionClasses(END_ACTION.RETRY)} onclick={rejoinCall}>Retry</button>
+        <button id="endHomeBtn" class={actionClasses(END_ACTION.HOME)} onclick={goHome}>Back to start</button>
+        <button id="endRejoinBtn" class={actionClasses(END_ACTION.REJOIN)} onclick={rejoinCall}>Rejoin</button>
     </div>
     <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
 </main>
