@@ -3,6 +3,6 @@ agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
 role = "builder"
 base = "d725f93c716ef821dc767a2af1c78b228b27547a"
 branch = "claude/issue-365-webauth-0-26-0"
-scope = ["README.md", "pyproject.toml", "src/hopin/game/__init__.py", "src/hopin/game/tokens.py", "tests/game/test_agent_service.py", "tests/game/test_agent_service_factory.py", "tests/game/test_agent_service_flow.py", "tests/support/fake_issuer.py", "uv.lock"]
+scope = ["README.md", "pyproject.toml", "src/hopin/game/__init__.py", "src/hopin/game/tokens.py", "tests/game/support/world.py", "tests/game/test_agent_service.py", "tests/game/test_agent_service_factory.py", "tests/game/test_agent_service_flow.py", "tests/support/fake_issuer.py", "uv.lock"]
 opened_commit = "09dd2c472e908b8b67e595f278b0a4ab15a5d81f"
 whole_reason = "One release adoption: the pin, the one breaking call, the setting it needs, its row in the README and the fake issuer that proves it move together."
