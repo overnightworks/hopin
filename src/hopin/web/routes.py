@@ -25,11 +25,15 @@ if TYPE_CHECKING:
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.handler import SignalingHandler
-    from hopin.web.page_build import PageBuild
+    from hopin.web.page_build import BuiltPage, PageBuild
 
 STATIC_DIR = Path(__file__).parent / "static"
 ASSETS_DIR = STATIC_DIR / "assets"
 READ_METHODS = ["GET", "HEAD"]
+
+
+def built_page_response(page: BuiltPage, status_code: int = 200) -> Response:
+    return Response(page.content, status_code=status_code, media_type="text/html", headers={"ETag": page.etag})
 
 
 class _PageBuildFiles(StaticFiles):
@@ -57,7 +61,7 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
         return JSONResponse({"status": "ok"})
 
     def shell() -> Response:
-        return Response(page_build.shell, media_type="text/html", headers={"ETag": page_build.shell_etag})
+        return built_page_response(page_build.shell)
 
     @router.api_route(HOME_PATH, methods=READ_METHODS)
     def home_page() -> Response:

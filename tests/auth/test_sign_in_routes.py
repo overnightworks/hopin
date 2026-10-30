@@ -18,7 +18,6 @@ from webauth.dependencies import ConnectionRefusal, admit_session, session_id_fr
 from webauth.ports import AccountEventKind
 
 from hopin.auth.sign_in import (
-    LOGIN_FAILED_PAGE,
     LOGOUT_LABEL,
     IssuerTransports,
     build_relying_party,
@@ -47,6 +46,7 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import new_id_token
 
@@ -143,7 +143,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         transaction = InMemorySignInTransaction(
             sessions, LoggingAuditSink() if audit is None else audit, ProcessWriteLock()
         )
-        install_sign_in(app, build_relying_party(configs, transports), transaction)
+        install_sign_in(app, build_relying_party(configs, transports), transaction, fixture_page_build())
 
         @app.get(WHO_AM_I_PATH)
         def who_am_i(request: Request) -> dict[str, object]:
@@ -197,7 +197,7 @@ def cookie_scope(raw_cookie: str) -> tuple[str, frozenset[str]]:
 def assert_refused(harness: SignInHarness, response: Response, *, cleared_under_start_name: bool = True) -> None:
     assert response.status_code == 403
     assert response.headers["content-type"].startswith("text/html")
-    assert response.content == LOGIN_FAILED_PAGE.read_bytes()
+    assert response.content == (FIXTURE_DIRECTORY / "login-failed.html").read_bytes()
     assert_pending_login_cleared(harness, response, cleared_under_start_name=cleared_under_start_name)
 
 

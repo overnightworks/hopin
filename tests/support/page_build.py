@@ -1,4 +1,8 @@
-"""The committed page build the tests serve: a shell with one inline script, one immutable file and the version file."""
+"""The committed page build the tests serve.
+
+It holds a shell with one inline script, the two sign-in pages with their stylesheet,
+one immutable file and the version file.
+"""
 
 from pathlib import Path
 
@@ -7,6 +11,7 @@ from hopin.web.page_build import PageBuild
 FIXTURE_DIRECTORY = Path(__file__).parent / "page_build_fixture"
 # The SHA-256 of the fixture shell's one inline script, written out so no test derives it through production code.
 FIXTURE_SCRIPT_HASH = "sha256-4LKaLFjkbG7q9xKX2UaD3tcSyvjsmzchYiSkLO5EkO8="
+SIGN_IN_STYLESHEET = "/_app/immutable/assets/sign-in.css"
 IMMUTABLE_FILE = "/_app/immutable/x.js"
 VERSION_FILE = "/_app/version.json"
 
