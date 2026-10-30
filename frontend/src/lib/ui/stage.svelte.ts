@@ -1,4 +1,4 @@
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { SvelteMap } from "svelte/reactivity";
 import { untrack } from "svelte";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
@@ -41,7 +41,7 @@ export const remoteTiles = $state<RemoteTile[]>([]);
 
 // A media state can arrive before its tile and a speaking report after the tile is gone, so these follow the person, not the tile.
 const mediaStates = new SvelteMap<string, RemoteMediaState>();
-const speakingParticipantIds = new SvelteSet<string>();
+const speakingByParticipant = new SvelteMap<string, boolean>();
 
 // Streams, qualities and elements stay out of the tiles' reactive state: the media actions read them without becoming dependent.
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
@@ -69,7 +69,7 @@ function createTile(participantId: string): RemoteTile {
             return mediaStates.get(this.id)?.audio === false;
         },
         get isSpeaking() {
-            return speakingParticipantIds.has(this.id) && !this.isMuted;
+            return speakingByParticipant.get(this.id) === true && !this.isMuted;
         },
     };
 }
@@ -117,7 +117,7 @@ export function addRemoteTile(participantId: string) {
 
 export function removeRemoteTile(participantId: string) {
     mediaStates.delete(participantId);
-    speakingParticipantIds.delete(participantId);
+    speakingByParticipant.delete(participantId);
     remoteStreams.delete(participantId);
     remoteQualities.delete(participantId);
     const index = remoteTiles.findIndex((tile) => tile.id === participantId);
@@ -144,8 +144,7 @@ export function setRemoteMediaState(participantId: string, mediaState: RemoteMed
 }
 
 export function setRemoteSpeaking(participantId: string, speaking: boolean) {
-    if (speaking) speakingParticipantIds.add(participantId);
-    else speakingParticipantIds.delete(participantId);
+    speakingByParticipant.set(participantId, speaking);
 }
 
 export function setConnectionQuality(participantId: string, quality: ConnectionQuality) {
