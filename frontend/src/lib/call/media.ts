@@ -114,8 +114,9 @@ function localMediaChanged() {
 }
 
 export function toggleAudio() {
+    const localStream = requireLocalStream();
     state.audioEnabled = !state.audioEnabled;
-    for (const track of requireLocalStream().getAudioTracks()) {
+    for (const track of localStream.getAudioTracks()) {
         track.enabled = state.audioEnabled;
     }
     localMediaChanged();
@@ -192,9 +193,9 @@ async function startScreenShare(onEnded: () => void) {
         mediaSession,
         () => navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }),
         (screenStream) => {
+            const screenTrack = videoTrackOf(screenStream);
             cameraRequest += 1;
             state.screenStream = screenStream;
-            const screenTrack = videoTrackOf(screenStream);
             replaceVideoTrack(screenTrack);
             const screenAudioTrack = screenStream.getAudioTracks()[0];
             if (screenAudioTrack) {

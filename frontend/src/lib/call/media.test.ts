@@ -361,12 +361,15 @@ describe("turning the camera on", () => {
 
     it("throws when the camera stream carries no video track", async () => {
         const fresh = await freshMedia();
-        const own = await cameraOffCall(fresh);
+        const own = await startedCall(fresh);
+        const oldTrack = own.getVideoTracks()[0];
+        fresh.state.videoEnabled = false;
         const adding = fresh.addCamera();
         requests[0]?.resolve(streamOf("audio"));
 
         await expect(adding).rejects.toMatchObject({ message: "The stream carries no video track" });
-        expect(own.getVideoTracks()).toEqual([]);
+        expect(oldTrack?.stopped).toBe(false);
+        expect(own.getVideoTracks()).toEqual([oldTrack]);
     });
 });
 
@@ -462,11 +465,15 @@ describe("sharing the screen", () => {
 
     it("throws when the screen carries no video track", async () => {
         const fresh = await freshMedia();
-        await startedCall(fresh);
+        const own = await startedCall(fresh);
+        const cameraTrack = own.getVideoTracks()[0];
         const starting = fresh.toggleScreenShare(vi.fn());
         requests[0]?.resolve(streamOf("audio"));
 
         await expect(starting).rejects.toMatchObject({ message: "The stream carries no video track" });
+        expect(fresh.state.screenStream).toBeNull();
+        expect(cameraTrack?.stopped).toBe(false);
+        expect(own.getVideoTracks()).toEqual([cameraTrack]);
     });
 
     it("lets a second press join the pending change and refreshes once", async () => {
