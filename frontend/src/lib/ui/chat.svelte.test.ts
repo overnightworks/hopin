@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { flushSync } from "svelte";
 import type { ServerFrame } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 
@@ -315,7 +314,6 @@ describe("adopt", () => {
         const element = document.createElement("p");
 
         const stop = $effect.root(() => adopt(element)(wrapper));
-        flushSync();
         expect(wrapper.firstChild).toBe(element);
         stop();
 
