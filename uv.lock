@@ -417,7 +417,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "overnightworks-agent-runtime-client", url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl" },
-    { name = "overnightworks-appkit", url = "https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl" },
+    { name = "overnightworks-appkit", url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl" },
     { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.25.0/overnightworks_webauth-0.25.0-py3-none-any.whl" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
@@ -672,10 +672,10 @@ provides-extras = ["mcp-server"]
 
 [[package]]
 name = "overnightworks-appkit"
-version = "0.6.0"
-source = { url = "https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl" }
+version = "0.8.0"
+source = { url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/overnightworks/appkit/releases/download/v0.6.0/overnightworks_appkit-0.6.0-py3-none-any.whl", hash = "sha256:ea6debbc632ae8f1b77966986b1f9036987571465ef0949bb1b29b898a7267fb" },
+    { url = "https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks_appkit-0.8.0-py3-none-any.whl", hash = "sha256:ad6863811689ba2e966de77f2db9ab87479cb9c22abd4436e43e788f6c4e2d4d" },
 ]
 
 [[package]]
