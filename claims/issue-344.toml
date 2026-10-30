@@ -1,0 +1,8 @@
+claim_id = "b412b596c4cb4c71bdd828b234c028dd"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "116a0793293ce9acafdd667c9c17cd05dd24ef90"
+branch = "claude/issue-344-call-state"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/state.test.ts", "frontend/src/lib/call/state.ts", "frontend/src/lib/legacy"]
+opened_commit = "6fa723ce00dabbe5d142f653cadaf132d2237080"
+whole_reason = "The nine importers must switch in the commit that deletes state.js; each is a one-line import edit."
