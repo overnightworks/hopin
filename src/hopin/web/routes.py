@@ -16,7 +16,6 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
 )
 from hopin.web.kit import KIT_DIR, KIT_PATH
-from hopin.web.wire import WIRE_MODULE_MEDIA_TYPE, WIRE_MODULE_PATH, render_wire_module
 
 if TYPE_CHECKING:
     import os
@@ -54,7 +53,6 @@ class _PageBuildFiles(StaticFiles):
 
 def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager, page_build: PageBuild) -> APIRouter:
     router = APIRouter()
-    wire_module_content = render_wire_module(signaling_handler.feature)
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
@@ -72,10 +70,6 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
         if not room_manager.has_room(room_id):
             return PlainTextResponse("Room not found", status_code=404)
         return shell()
-
-    @router.api_route(WIRE_MODULE_PATH, methods=READ_METHODS)
-    def wire_module() -> Response:
-        return Response(wire_module_content, media_type=WIRE_MODULE_MEDIA_TYPE)
 
     router.mount(KIT_PATH, StaticFiles(directory=KIT_DIR), name="appkit")
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")

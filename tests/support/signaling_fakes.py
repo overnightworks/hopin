@@ -142,9 +142,8 @@ class RecordingFeature:
 
     rooms: object
     handles: frozenset[str] = frozenset()
+    name: str = "recording"
     signal_types: dict[str, str] = field(default_factory=dict)
-    wire_exports: dict[str, dict[str, str]] = field(default_factory=dict)
-    browser_module: str = "/static/recording/recording.js"
     offered: list = field(default_factory=list)
     joined: list = field(default_factory=list)
     left: list = field(default_factory=list)

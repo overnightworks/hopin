@@ -7,7 +7,8 @@ from agent_runtime_client.wire import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import BROWSER_MODULE, GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GameSignal
+from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
+from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -21,7 +22,7 @@ from tests.e2e.support.calls import (
     record_page_errors,
     wait_until_the_prejoin_media_answered,
 )
-from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
+from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, poll_until
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.signaling import FrameInjector
@@ -54,7 +55,6 @@ QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
 END_QUIZ = re.compile(rf"^End quiz\s+{QUESTION_ONE}$")
 QUIZ_ENDED = "Quiz ended."
 PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
-BROWSER_STYLESHEET = BROWSER_MODULE.replace("game.js", "game.css")
 RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT = """
 window.gameInAtConnect = [];
 const PageWebSocket = window.WebSocket;
@@ -65,6 +65,19 @@ window.WebSocket = class extends PageWebSocket {
     }
 };
 """
+
+
+# A frame without a sequence number is no replay of an earlier one, so the page handles it as the server's.
+RECORD_THE_PAGES_SOCKET = """
+const PageWebSocket = window.WebSocket;
+window.WebSocket = class extends PageWebSocket {
+    constructor(...socketArguments) {
+        super(...socketArguments);
+        window.pageSocket = this;
+    }
+};
+"""
+DELIVER_SERVER_FRAME = "(frame) => pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
 
 
 def start_quiz(person: Page) -> None:
@@ -125,12 +138,13 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
     host = record_page_errors(open_person(**DESKTOP), page_errors)
     add_init_scripts(host, (RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT,))
     held_modules: list[Route] = []
-    host.route(f"**{BROWSER_MODULE}", lambda route: held_modules.append(route))
+    host.route(f"**{url_of(GameFile.MODULE)}", lambda route: held_modules.append(route))
     open_prejoin(host, e2e_server.base_url)
     wait_until_the_prejoin_media_answered(host)
 
-    with host.expect_response(ICE_SERVERS_URL_PATTERN):
+    with host.expect_request(f"**{url_of(GameFile.MODULE)}"), host.expect_response(ICE_SERVERS_URL_PATTERN):
         host.click(PREJOIN_START)
+    poll_until(host, lambda: held_modules, bool, "the game's module was held")
     [held_module] = held_modules
     held_module.continue_()
 
@@ -138,17 +152,18 @@ def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_
     assert host.evaluate("() => window.gameInAtConnect") == [True]
 
 
-@pytest.mark.parametrize("unreachable_file", [BROWSER_MODULE, BROWSER_STYLESHEET])
+@pytest.mark.parametrize("unreachable_file", list(GameFile))
 def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not_load(
     open_person: Callable[..., Page],
     expected_request_failures: list[str],
     e2e_server: RunningServer,
     page_errors: list[str],
-    unreachable_file: str,
+    unreachable_file: GameFile,
 ) -> None:
-    expected_request_failures.append(f"{e2e_server.base_url}{unreachable_file}")
+    unreachable_url = url_of(unreachable_file)
+    expected_request_failures.append(f"{e2e_server.base_url}{unreachable_url}")
     host = record_page_errors(open_person(**DESKTOP), page_errors)
-    host.route(f"**{unreachable_file}", lambda route: route.abort())
+    host.route(f"**{unreachable_url}", lambda route: route.abort())
 
     press_start_call(host, e2e_server.base_url)
 
@@ -219,6 +234,7 @@ def test_the_guest_sees_the_game_master_thinking_while_the_run_is_in_flight(
     expect(guest.locator(START_QUIZ)).to_be_disabled()
     expect(guest.locator(START_QUIZ)).to_contain_text("Game master is thinking…")
     expect(guest.locator(TYPING)).to_be_visible()
+    expect(guest.get_by_role("status", name="Game master is thinking")).to_have_count(1)
     held.release.set()
     expect(guest.locator(GAME_MASTER_LINES)).to_have_count(1)
     expect(guest.locator(TYPING)).to_have_count(0)
@@ -240,6 +256,8 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
     for person in (host, guest):
         open_chat(person)
         card = person.locator(CARD)
+        expect(person.get_by_role("region", name="Quiz question")).to_have_count(1)
+        expect(card.locator(STATUS)).to_have_attribute("aria-live", "polite")
         expect(card.locator(".qcard-tag")).to_have_text(QUESTION_ONE)
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
     expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_visible()
@@ -277,6 +295,35 @@ def answer_on_card(person: Page, text: str) -> None:
     card = person.locator(CARD)
     card.get_by_label(YOUR_ANSWER).fill(text)
     card.get_by_role("button", name=SEND).click()
+
+
+def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_render_the_form_again(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+) -> None:
+
+    def open_recorded(**options: Any) -> Page:
+        person = open_person(**options)
+        add_init_scripts(person, (RECORD_THE_PAGES_SOCKET,))
+        return person
+
+    host, guest = call_of_two(open_recorded, e2e_server.base_url, page_errors)
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_be_visible()
+    unsent = guest.locator(CARD).get_by_label(YOUR_ANSWER)
+    unsent.fill("Mond")
+
+    answer_on_card(host, "Tejo")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    phase_frame = {"type": GameSignal.GAME_PHASE, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"}
+    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": GamePhase.THINKING})
+    expect(unsent).to_be_disabled()
+    guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": GamePhase.ANSWERING})
+
+    expect(unsent).to_be_enabled()
+    expect(unsent).to_have_value("Mond")
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

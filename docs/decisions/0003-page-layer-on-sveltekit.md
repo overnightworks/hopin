@@ -16,9 +16,9 @@ shell's own inline start script and SvelteKit's route announcer would break.
 - The layout (`frontend/src/routes/(call)/+layout.svelte`) holds the markup that
   `index.html` held and imports `#lib/legacy/app.js` dynamically from `onMount`, so the
   legacy code, bundled from `frontend/src/lib/legacy/`, runs only after the
-  markup exists; a lint rule refuses any static import of it. Specifiers under
-  `/static/` stay external to the bundle: FastAPI serves the wire module the
-  game reads and the game's module.
+  markup exists; a lint rule refuses any static import of it. Each feature is
+  bundled under `frontend/src/lib/features/<name>/` and activated by
+  `GET /api/call-features`; the call's code never imports it.
 - `/` and `/c/{room}` answer the built shell as read at start. Its inline
   scripts are admitted by hash, computed from those same bytes, never with
   `'unsafe-inline'`; the shell carries a strong `ETag` and `no-cache`.

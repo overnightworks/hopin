@@ -50,16 +50,14 @@ class CallFeature(Protocol):
     """The one optional feature a call can carry, offered every frame the call core does not know."""
 
     @property
+    def name(self) -> str:
+        """Its name, which equals its directory under `frontend/src/lib/features/`, whose `install(core)` the page
+        awaits before signaling connects."""
+
+    @property
     def signal_types(self) -> Mapping[str, str]:
-        """The frame types it adds to the browser's `SIGNAL_TYPE`, by name; none may be a core type."""
-
-    @property
-    def wire_exports(self) -> Mapping[str, Mapping[str, str]]:
-        """The further named exports it adds to the browser's wire module; none may be a core export."""
-
-    @property
-    def browser_module(self) -> str:
-        """The URL of its browser module, whose `install(core)` the page awaits before signaling connects."""
+        """The frame types it adds, by name; none may be a core type. Its browser module reads them from its own
+        generated wire."""
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         """Handle the frame and say so, or say it is none of the feature's."""
