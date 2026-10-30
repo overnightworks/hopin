@@ -34,12 +34,11 @@ from tests.e2e.support.media import (
     wait_for_the_picture,
 )
 from tests.e2e.support.signaling import (
-    COUNT_STATUS_WRITES,
     LATE_EVENTS_OF_THE_FIRST_SOCKET,
+    NEW_SOCKET_IS_CLOSED,
     RECONNECT_DELAYS_MS,
     RECORD_SOCKETS,
-    STATUS_WRITES,
-    STATUS_WRITTEN_AGAIN,
+    SOCKETS_OPENED,
 )
 
 if TYPE_CHECKING:
@@ -355,7 +354,6 @@ def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Ca
             person.add_init_script(FORCE_ICE_FAULTS)
             person.add_init_script(COUNT_OFFERS)
             person.add_init_script(RECORD_SOCKETS)
-            person.add_init_script(COUNT_STATUS_WRITES)
 
         guest.goto("about:blank")
         if without_camera is Side.GUEST:
@@ -743,9 +741,9 @@ def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_
     connected_pair.cut(guest)
 
     for attempt, delay in enumerate(RECONNECT_DELAYS_MS, start=1):
-        writes_before = guest.evaluate(STATUS_WRITES)
+        sockets_before = guest.evaluate(SOCKETS_OPENED)
         guest.clock.run_for(delay)
-        _wait_for(guest, STATUS_WRITTEN_AGAIN, writes_before)
+        _wait_for(guest, NEW_SOCKET_IS_CLOSED, sockets_before)
         if attempt < len(RECONNECT_DELAYS_MS):
             wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
     wait_for_status(guest, "Connection lost")
