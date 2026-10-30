@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => ({
                 assets: "../src/hopin/web/build",
                 fallback: "index.html",
             }),
+            // Absolute asset paths: the sign-in pages are served at /login and /auth/callback, where kit's relative default would resolve wrongly.
+            paths: { relative: false },
+            // The crawler would follow the card's /auth/start link and fail the build on a route that is not a page.
+            prerender: { crawl: false },
             dynamicCompileOptions: ({ filename }) => (filename.includes("node_modules") ? undefined : { runes: true }),
         }),
     ],

@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 import tomllib
 from functools import partial
@@ -9,7 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from hopin.auth.sign_in import LOGIN_FAILED_PAGE, NO_ACCESS_PAGE, SIGNED_OUT_PAGE
+from hopin.auth.sign_in import NO_ACCESS_PAGE
 from hopin.config.constants import (
     APP_ASSET_PATH,
     AUTH_START_PATH,
@@ -122,7 +123,7 @@ class TestHomePage:
 
         response = client.get(HOME_PATH)
 
-        assert (response.content, response.headers["etag"]) == (page_build.shell, page_build.shell_etag)
+        assert (response.content, response.headers["etag"]) == (page_build.shell.content, page_build.shell.etag)
 
 
 class TestCallPage:
@@ -137,7 +138,7 @@ class TestCallPage:
 
         response = client.get(f"{CALL_PATH}/{room.room_id}")
 
-        assert response.content == fixture_page_build().shell
+        assert response.content == fixture_page_build().shell.content
 
     def test_returns_404_for_an_unknown_room(self, client):
         response = client.get(f"{CALL_PATH}/nonexistent")
@@ -197,6 +198,7 @@ STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
 # HopIn's own stylesheets: the page's and each one a feature's browser module loads.
 OWN_STYLESHEETS = sorted(set((STATIC_DIR / "assets").rglob("*.css")) - {UI_CONSOLE_CSS})
 LOCK_FILE = Path(__file__).parents[2] / "uv.lock"
+FRONTEND_PACKAGE_FILE = Path(__file__).parents[2] / "frontend" / "package.json"
 CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
 CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
 CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
@@ -246,44 +248,6 @@ class TestPageIsCspReady:
         assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
 
 
-class TestLoginFailedPage:
-    @pytest.fixture
-    def markup(self):
-        return LOGIN_FAILED_PAGE.read_text()
-
-    @pytest.fixture
-    def inventory(self, markup):
-        return inventory_of(markup)
-
-    def test_links_to_a_new_sign_in_in_the_same_tab_and_to_both_legal_pages_in_a_new_tab(self, inventory):
-        again, *legal = inventory.links
-        assert again["href"] == AUTH_START_PATH
-        assert "target" not in again
-        assert [link["href"] for link in legal] == list(LEGAL_URLS)
-        assert all(link[name] == value for link in legal for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
-
-    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
-        assert "<script" not in markup.lower()
-        assert "http-equiv" not in markup
-
-
-class TestSignedOutPage:
-    @pytest.fixture
-    def markup(self):
-        return SIGNED_OUT_PAGE.read_text()
-
-    def test_links_to_a_new_sign_in_in_the_same_tab_and_to_both_legal_pages_in_a_new_tab(self, markup):
-        again, *legal = inventory_of(markup).links
-        assert again["href"] == AUTH_START_PATH
-        assert "target" not in again
-        assert [link["href"] for link in legal] == list(LEGAL_URLS)
-        assert all(link[name] == value for link in legal for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
-
-    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
-        assert "<script" not in markup.lower()
-        assert "http-equiv" not in markup
-
-
 class TestNoAccessPage:
     @pytest.fixture
     def markup(self):
@@ -314,6 +278,12 @@ class TestPageShell:
         packages = tomllib.loads(LOCK_FILE.read_text())["package"]
         locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
         assert KIT_PATH.endswith(f"/appkit-{locked}")
+
+    def test_the_frontend_lock_pins_the_kit_version_the_python_lock_records(self):
+        specifier = json.loads(FRONTEND_PACKAGE_FILE.read_text())["devDependencies"]["overnightworks-appkit"]
+        packages = tomllib.loads(LOCK_FILE.read_text())["package"]
+        locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
+        assert specifier.endswith(f"/overnightworks-appkit-{locked}.tgz")
 
     def test_every_page_links_the_brand_mark_as_its_one_svg_icon(self, every_page_inventory):
         assert every_page_inventory.icons == [{"rel": "icon", "type": "image/svg+xml", "href": FAVICON_URL}]

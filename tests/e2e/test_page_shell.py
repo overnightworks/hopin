@@ -101,6 +101,7 @@ def test_the_form_controls_render_in_the_shells_body_font(open_person: Callable[
     page = open_person(**DESKTOP)
     page.goto(f"{base_url}/")
     expect(page.locator("[data-screen=home]")).to_be_visible()
+    expect(page).to_have_title("HopIn - Video Call")
 
     body, *controls = page.evaluate(FORM_CONTROL_FONTS_AS_COMPUTED)
 

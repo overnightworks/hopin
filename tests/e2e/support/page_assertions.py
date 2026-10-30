@@ -1,3 +1,5 @@
+import re
+
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.media import MEDIA_PERMISSIONS
@@ -6,6 +8,11 @@ LEGAL_LINKS = {
     "Impressum": "https://hallucinai.de/impressum",
     "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
 }
+
+RECORD_POLICY_VIOLATIONS = """
+window.policyViolations = [];
+document.addEventListener("securitypolicyviolation", (event) => window.policyViolations.push(event.violatedDirective));
+"""
 
 # Each visible entry of More by its name, in order: an item by the first words of its label, a rule as "separator".
 VISIBLE_MORE_ENTRIES = """
@@ -68,6 +75,14 @@ def expect_both_legal_links(screen: Locator) -> None:
         expect(link).to_have_attribute("href", url)
         expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_attribute("rel", "noopener")
+
+
+def expect_both_legal_links_in_the_same_tab(screen: Locator) -> None:
+    for label, url in LEGAL_LINKS.items():
+        link = screen.get_by_role("link", name=label)
+        expect(link).to_be_visible()
+        expect(link).to_have_attribute("href", url)
+        expect(link).not_to_have_attribute("target", re.compile(r"."))
 
 
 def expect_toast(host: Page, text: str, icon_path: str) -> None:
