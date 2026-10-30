@@ -1,7 +1,0 @@
-claim_id = "9002579d413049a7aded37d4be00a028"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "6fc2defabcc8dbb3c6d93670ea7a75c5785e811b"
-branch = "claude/issue-338-game-fixture-reset"
-scope = ["tests/e2e/game/conftest.py", "tests/e2e/game/test_game_master.py", "tests/game/support/fake_agent_service.py"]
-opened_commit = "ed6f8adde3f079d74ab2996f4704cabfa1d8b1f0"
