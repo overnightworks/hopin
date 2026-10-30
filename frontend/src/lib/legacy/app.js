@@ -27,7 +27,7 @@ import { SIGNAL_TYPE, connect, disconnect, isConnected, on, onSessionEnded, onSe
 import { initPip } from "./pip.js";
 import { showLocalStream, showRemoteName } from "./stage.js";
 import { state } from "./state.js";
-import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "./status.js";
+import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
 import { initHome, showGreeting } from "./home.js";
 import { TOAST_KIND, clearToast, showToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
