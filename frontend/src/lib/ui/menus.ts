@@ -48,7 +48,11 @@ export function registerMenu(menu: Menu) {
 }
 
 export function initMenus() {
-    document.addEventListener("keydown", (event) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
         if (event.key === "Escape") closeOpenMenu();
-    });
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+        document.removeEventListener("keydown", closeOnEscape);
+    };
 }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { closeOpenMenu, initMenus, registerMenu, type Menu } from "#lib/ui/menus.ts";
 
 const FIRST_FOCUS = "dialog button";
@@ -136,7 +136,8 @@ describe("menus", () => {
     });
 
     it("closes the menu on Escape and ignores other keys", () => {
-        initMenus();
+        const removeMenus = initMenus();
+        onTestFinished(removeMenus);
         const menu = registeredMenu();
         menu.button.click();
 
@@ -145,6 +146,17 @@ describe("menus", () => {
 
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
         expect(menu.dialog.open).toBe(false);
+    });
+
+    it("ignores Escape after the teardown", () => {
+        const removeMenus = initMenus();
+        const menu = registeredMenu();
+        menu.button.click();
+
+        removeMenus();
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+        expect(menu.dialog.open).toBe(true);
     });
 
     it("fails loud naming the focus target when no item is visible", () => {
