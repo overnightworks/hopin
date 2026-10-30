@@ -1,9 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-
-// stage.js queries the page's markup when it loads; the decision under test never touches the stage.
-vi.mock("./stage.js", () => ({ setRemoteSpeaking: vi.fn() }));
-
-const { isSpeaking } = await import("./speaking.js");
+import { describe, expect, it } from "vitest";
+import { isSpeaking } from "./speaking.js";
 
 const NOW = 1_000_000;
 const QUIET_FOR_LONG = 10_000;

@@ -1,7 +1,7 @@
 import { renderDeviceToggle } from "./controls.js";
 import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "./media.js";
 import { SCREEN, goHome, showScreen } from "./router.js";
-import { showLocalStream, updateLocalPreview } from "./stage.js";
+import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
 import { state } from "./state.js";
 
 export const PREJOIN_KIND = Object.freeze({ HOST: "host", GUEST: "guest" });
