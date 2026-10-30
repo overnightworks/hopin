@@ -12,6 +12,11 @@ updates:
       interval: daily
     cooldown:
       default-days: 7
+    # why: Dependabot's proxy gets 401 from the presigned asset URL a GitHub
+    # release download redirects to, which fails the whole uv job; these
+    # packages move by their owners' release items instead.
+    ignore:
+      - dependency-name: "overnightworks-*"
   - package-ecosystem: docker
     directory: /
     schedule:
