@@ -1,8 +1,0 @@
-claim_id = "b7e0dbef7282497188b999be7c8ec3dd"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "376f6ef7661740ff113710487fdaaebb9196078e"
-branch = "claude/issue-336-monitors-ts"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/quality.test.ts", "frontend/src/lib/call/quality.ts", "frontend/src/lib/call/speaking.test.ts", "frontend/src/lib/call/speaking.ts", "frontend/src/lib/call/stage-port.test.ts", "frontend/src/lib/call/stage-port.ts", "frontend/src/lib/legacy"]
-opened_commit = "690041bb8849c78420c5b5ccf7a1360f31290bcc"
-whole_reason = "Two monitors share mesh.js's two import lines, and the hasTile removal needs both ported in the same commit."
