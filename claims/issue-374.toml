@@ -1,8 +1,0 @@
-claim_id = "6f250130b3ff4e0a8f373356b0e3646d"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "d3b137d6ba50687b0670be5e38e0912783288876"
-branch = "claude/issue-374-p19a-shell-font"
-scope = ["docs/decisions/0001-static-frontend-modules.md", "docs/mockups/README.md", "docs/mockups/hopin-call.html", "frontend/src/app.html", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/game/game.css", "src/hopin/web/static/assets/game/game.js", "tests/e2e/test_page_shell.py"]
-opened_commit = "df0de92d6dc1516d2ac60bc118760756e3a139d0"
-whole_reason = "The shell's link to ui-console and its last read of a ui-console token go together, or the shell loses its font; the stylesheet pin and the documents that name the font's owner move with them."
