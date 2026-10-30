@@ -4,6 +4,16 @@
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
+    import {
+        adopt,
+        chat,
+        chatInput,
+        chatList,
+        closeChat,
+        sendChatMessage,
+        sendOnEnter,
+        toggleChat,
+    } from "#lib/ui/chat.svelte.ts";
     import { actionClasses, END_ACTION, END_ICON, rejoinCall, shownEndView } from "#lib/ui/end.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
     import { goHome } from "#lib/ui/navigation.ts";
@@ -138,7 +148,7 @@
             <button id="screenBtn" class="cb" type="button" aria-label="Share screen" aria-pressed="false"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8 21h8M12 17v4M12 13.5V8M9.4 10.4L12 7.8l2.6 2.6"/></svg></button>
             <span class="gap"></span>
             <button id="inviteBtn" class="cb" type="button" aria-label="Invite" aria-expanded="false" aria-controls="inviteMenu" disabled={invite.link === ""}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M19 8v6M16 11h6"/></svg></button>
-            <button id="chatBtn" class="cb" type="button" aria-label="Chat" aria-expanded="false"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.6a8.1 8.1 0 0 1-11.9 7.1L3.5 20l1.4-4.6A8.1 8.1 0 1 1 20.5 11.6z"/></svg><span id="chatBadge" class="badge">0</span></button>
+            <button id="chatBtn" class={["cb", chat.isOpen && "active"]} type="button" aria-label="Chat" aria-expanded={chat.isOpen} onclick={toggleChat}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.6a8.1 8.1 0 0 1-11.9 7.1L3.5 20l1.4-4.6A8.1 8.1 0 1 1 20.5 11.6z"/></svg><span id="chatBadge" class={["badge", chat.unread > 0 && "visible"]}>{chat.unread}</span></button>
             <button id="moreBtn" class="cb" type="button" aria-label="More" aria-expanded="false" aria-controls="moreMenu"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg></button>
             <span class="gap"></span>
             <button id="leaveBtn" class="cb leave" type="button" aria-label="Leave"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg></button>
@@ -162,15 +172,23 @@
         </dialog>
     </div>
 
-    <div id="chatPanel" class="chat-panel">
+    <div id="chatPanel" class={["chat-panel", chat.isOpen && "visible"]}>
         <div class="chat-header">
             <span>Chat</span>
-            <button id="chatClose" class="chat-close">x</button>
+            <button id="chatClose" class="chat-close" onclick={closeChat}>x</button>
         </div>
-        <div id="chatMessages" class="chat-messages"></div>
+        {#if chat.card !== null}<div class="chat-element" {@attach adopt(chat.card)}></div>{/if}
+        <div id="chatMessages" class="chat-messages" {@attach chatList}>
+            {#each chat.lines as line (line)}
+                {#if line.kind === "element"}<div class="chat-element" {@attach adopt(line.element)}></div>
+                {:else if line.kind === "self"}<div class="chat-msg self">{line.text}</div>
+                {:else}<div class="chat-msg other"><div class="chat-sender">{line.sender}</div>{line.text}</div>{/if}
+            {/each}
+            {#if chat.pinned !== null}<div class="chat-element" {@attach adopt(chat.pinned)}></div>{/if}
+        </div>
         <div class="chat-input-row">
-            <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off" aria-label="Chat message">
-            <button id="chatSend" class="btn-primary">Send</button>
+            <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off" aria-label="Chat message" bind:value={chat.draft} onkeydown={sendOnEnter} {@attach chatInput}>
+            <button id="chatSend" class="btn-primary" onclick={sendChatMessage}>Send</button>
         </div>
     </div>
 </main>
