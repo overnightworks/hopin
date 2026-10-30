@@ -1054,7 +1054,7 @@ packages:
     engines: {node: '>= 0.8.0'}
 
   overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks-appkit-0.8.0.tgz:
-    resolution: {tarball: https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks-appkit-0.8.0.tgz}
+    resolution: {integrity: sha512-0xQ9M5J2lMwsSUkKrrpTx5hZbIzC6/Y4kSzQowc2ALiCWwgbwbKN91dXAGBGWrhk72EYFff2HIHBgymxLMKxpQ==, tarball: https://github.com/overnightworks/appkit/releases/download/v0.8.0/overnightworks-appkit-0.8.0.tgz}
     version: 0.8.0
     peerDependencies:
       svelte: ^5.0.0
