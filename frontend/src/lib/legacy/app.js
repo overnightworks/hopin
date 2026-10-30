@@ -25,8 +25,8 @@ import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import { connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { initPip } from "./pip.js";
-import * as stage from "./stage.js";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
+import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
 import { installStartRequested, showGreeting } from "#lib/ui/home.svelte.ts";
@@ -35,7 +35,7 @@ import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
-installStage(stage);
+installStage(stageModule);
 
 const callEndedHooks = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
