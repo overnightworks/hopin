@@ -168,7 +168,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           duration() {
-            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1/jobs" --jq \
+            local run_id=$1
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" --jq \
               '.jobs[] | select(.name == "End-to-end") | (.completed_at // (now | todate) | fromdate) - (.started_at | fromdate)'
           }
           main_run=$(gh run list --branch main --workflow ci.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
