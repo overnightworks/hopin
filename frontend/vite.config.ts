@@ -6,10 +6,6 @@ export default defineConfig(({ mode }) => ({
     build: {
         // The maps feed the browser coverage report; the bundle carries no pointer to them and the image ships none.
         sourcemap: "hidden",
-        rolldownOptions: {
-            // FastAPI serves the wire vocabulary the game reads and the game module under /static/; the bundle does not own them.
-            external: [/^\/static\//],
-        },
     },
     // Svelte's mount needs its browser build under Vitest; the page build resolves as before.
     resolve: mode === "test" ? { conditions: ["browser"] } : undefined,
@@ -20,7 +16,7 @@ export default defineConfig(({ mode }) => ({
             provider: "v8",
             include: ["src/lib/**/*.ts"],
             // The legacy page code is judged by the end-to-end suite until it is ported; wire.ts is generated.
-            exclude: ["src/lib/legacy/**", "src/lib/wire.ts", "**/*.test.ts"],
+            exclude: ["src/lib/legacy/**", "src/lib/**/wire.ts", "**/*.test.ts"],
             reporter: [["text", { skipFull: false }], "lcov"],
             thresholds: { branches: 100, lines: 100, functions: 100, statements: 100 },
         },

@@ -1,6 +1,9 @@
-import { AUTH_START_PATH, GAME_PHASE, GAME_REFUSAL, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "../js/wire.js";
+import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
+import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
+import "./game.css";
 
-const SPARK_PATHS = '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
+const SPARK_PATHS =
+    '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
 const X_PATHS = '<path d="M6 6l12 12M18 6L6 18"/>';
 const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking not-ending" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon ending-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">Start quiz<small>The game master asks the call</small></span><span class="grow running-only"><span class="not-ending">Quiz running</span><span class="ending-only">End quiz</span><small id="gameProgress"></small></span><span class="grow thinking-only">Game master is thinking…</span></button>
 <p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>`;
@@ -29,18 +32,6 @@ function fromMarkup(markup) {
     const template = document.createElement("template");
     template.innerHTML = markup;
     return template.content;
-}
-
-function loadStylesheet() {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = new URL("./game.css", import.meta.url).pathname;
-    const loaded = new Promise((resolve, reject) => {
-        link.addEventListener("load", resolve);
-        link.addEventListener("error", () => reject(new Error(`The game's stylesheet ${link.href} did not load`)));
-    });
-    document.head.append(link);
-    return loaded;
 }
 
 function signInAgain() {
@@ -132,7 +123,7 @@ function sendAnswer(event) {
     event.preventDefault();
     const text = answerForm.querySelector(".qcard-input").value.trim();
     if (text === "" || !core.isConnected()) return;
-    core.send({ type: SIGNAL_TYPE.GAME_ANSWER, text });
+    core.send({ type: GAME_SIGNAL.GAME_ANSWER, text });
     answerSentBeforeLastSend = answerSent;
     answerSent = true;
     renderCard();
@@ -192,11 +183,11 @@ function askGameMaster(signalType) {
 }
 
 function startOrEndQuiz() {
-    askGameMaster(phase === GAME_PHASE.IDLE ? SIGNAL_TYPE.GAME_START : SIGNAL_TYPE.GAME_END);
+    askGameMaster(phase === GAME_PHASE.IDLE ? GAME_SIGNAL.GAME_START : GAME_SIGNAL.GAME_END);
 }
 
 function revealAnswer() {
-    askGameMaster(SIGNAL_TYPE.GAME_REVEAL);
+    askGameMaster(GAME_SIGNAL.GAME_REVEAL);
 }
 
 function receivePhase(frame) {
@@ -252,18 +243,17 @@ function joined(frame) {
 }
 
 export async function install(callCore) {
-    await loadStylesheet();
     core = callCore;
     sender = fromMarkup(SENDER_MARKUP).firstElementChild;
     const moreItems = fromMarkup(MORE_ITEMS_MARKUP);
     startButton = moreItems.getElementById("gameStartBtn");
     progress = moreItems.getElementById("gameProgress");
     startButton.addEventListener("click", startOrEndQuiz);
-    core.on(SIGNAL_TYPE.GAME_PHASE, receivePhase);
-    core.on(SIGNAL_TYPE.GAME_LINE, receiveLineFrame);
-    core.on(SIGNAL_TYPE.GAME_ANSWER_COUNT, receiveAnswerCount);
-    core.on(SIGNAL_TYPE.GAME_REFUSED, showRefusal);
-    core.on(SIGNAL_TYPE.GAME_ENDED, receiveEnded);
+    core.on(GAME_SIGNAL.GAME_PHASE, receivePhase);
+    core.on(GAME_SIGNAL.GAME_LINE, receiveLineFrame);
+    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, receiveAnswerCount);
+    core.on(GAME_SIGNAL.GAME_REFUSED, showRefusal);
+    core.on(GAME_SIGNAL.GAME_ENDED, receiveEnded);
     core.on(SIGNAL_TYPE.ROOM_CREATED, joined);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, joined);
     core.onCallEnded(reset);

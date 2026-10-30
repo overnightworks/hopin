@@ -21,6 +21,7 @@ import {
     removeAllPeers,
     SignedOutError,
 } from "#lib/call/mesh.ts";
+import { loadFeatures } from "#lib/call/features.ts";
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import { connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -52,17 +53,9 @@ const FEATURE_CORE = Object.freeze({
         callEndedHooks.push(hook);
     },
 });
-// The served vocabulary loads before the page starts, as a static import would; the bundle does not own /static/js/wire.js.
-const WIRE_URL = "/static/js/wire.js";
-const { FEATURE_MODULES } = await import(/* @vite-ignore */ WIRE_URL);
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
 // A feature that fails to load never stops the call; it resolves to whether every feature is in.
-const featuresInstalled = Promise.all(
-    FEATURE_MODULES.map(async (moduleUrl) => (await import(/* @vite-ignore */ moduleUrl)).install(FEATURE_CORE)),
-).then(
-    () => true,
-    () => false,
-);
+const featuresInstalled = loadFeatures(import.meta.glob("#lib/features/*/index.js"), FEATURE_CORE);
 
 function updateParticipantCount() {
     if (state.roomId) {
