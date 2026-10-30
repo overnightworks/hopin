@@ -1,0 +1,8 @@
+claim_id = "eb2121d623ea41098d33cbbba1df8947"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "976738538514e9d3229f2c035a7bed17e4dd6238"
+branch = "claude/issue-351-signaling-replay"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/replay.test.ts", "frontend/src/lib/call/replay.ts", "frontend/src/lib/call/signaling.test.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/legacy"]
+opened_commit = "41ee9a9e3a680b72d3a3d1e81306cbe43683c555"
+whole_reason = "Signaling cannot be typed without its replay log, and its six importers switch in the commit that deletes both."
