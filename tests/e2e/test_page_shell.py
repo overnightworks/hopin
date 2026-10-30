@@ -84,3 +84,24 @@ def test_the_route_announcer_stays_hidden_by_the_stylesheet_alone(
     announcer.evaluate("(element) => element.removeAttribute('style')")
 
     assert announcer.evaluate(ANNOUNCER_STYLE_AS_COMPUTED) == ["absolute", "1px", "1px", "inset(50%)", "hidden"]
+
+
+FORM_CONTROL_FONTS_AS_COMPUTED = """
+() => {
+    const family = (tag) => {
+        const control = document.body.appendChild(document.createElement(tag));
+        return getComputedStyle(control).fontFamily;
+    };
+    return [getComputedStyle(document.body).fontFamily, family("button"), family("input"), family("textarea")];
+}
+"""
+
+
+def test_the_form_controls_render_in_the_shells_body_font(open_person: Callable[..., Page], base_url: str) -> None:
+    page = open_person(**DESKTOP)
+    page.goto(f"{base_url}/")
+    expect(page.locator("[data-screen=home]")).to_be_visible()
+
+    body, *controls = page.evaluate(FORM_CONTROL_FONTS_AS_COMPUTED)
+
+    assert controls == [body] * 3
