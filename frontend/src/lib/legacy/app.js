@@ -1,5 +1,5 @@
 import { initAccount } from "./account.js";
-import { initChat, pinLast, receiveLine, registerChatHandlers, showCard } from "./chat.js";
+import { pinLast, receiveLine, registerChatHandlers, showCard } from "#lib/ui/chat.svelte.ts";
 import {
     addMoreItems,
     confirmLockChange,
@@ -202,7 +202,6 @@ onSessionEnded(() => {
 });
 installLeaveConfirmed(leaveCall);
 initControls({ onLeaveRequested: requestLeave });
-initChat();
 initPip();
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
 initAccount({ onNameRead: showGreeting });
