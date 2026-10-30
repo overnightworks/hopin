@@ -353,6 +353,9 @@ class TestNothingLeaksIntoLogs:
                 ),
                 id="unknown-type",
             ),
+            pytest.param(
+                Succeeds(text="", files=(RunFile(name="note.txt", content=b"{secrets}"),)), id="succeeded-without-words"
+            ),
         ],
     )
     async def test_neither_the_token_nor_the_game_text_reaches_a_log_or_the_outcome(
@@ -394,6 +397,11 @@ def _with_secrets(answer, embedded):
             return Fails(answer.code, message=embedded)
         case SendsBytes():
             return SendsBytes(answer.body.replace(b"{secrets}", embedded.encode()))
+        case Succeeds():
+            return Succeeds(
+                text=answer.text,
+                files=tuple(RunFile(name=file.name, content=embedded.encode()) for file in answer.files),
+            )
     raise AssertionError(answer)
 
 
