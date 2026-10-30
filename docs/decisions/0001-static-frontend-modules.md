@@ -23,8 +23,8 @@ webauth:
   URLs, with `target="_blank" rel="noopener"`. CSP limits what the page
   fetches, not where a link goes. The sign-in pages keep a guard test
   (`tests/web/test_routes.py`); the shell's guards read the rendered DOM in `tests/e2e/test_page_shell.py`.
-- The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
-  then appkit's `appkit.css`, then `hopin.css`. An upgrade of the first is a
+- The shell loads appkit's `appkit.css`, then `hopin.css`. The static sign-in
+  pages still load `ui-console.css` first, vendored verbatim; an upgrade of it is a
   new vendoring, never an edit. The kit is the installed `overnightworks-appkit`
   package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
   `/static`; the gate admits its stylesheet and fonts as exact paths, never its
@@ -65,5 +65,5 @@ webauth:
   kit.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
-- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the fonts still come from ui-console's `--sans`; `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `hopin.css` and `game.css` read no `ui-console.css` token beyond `--sans` and the shared states; the test `test_reads_no_ui_console_token_that_the_kit_does_not_also_define` pins it.
-- `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
+- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the shell's fonts come from the kit (`--font-body`); `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `hopin.css` and `game.css` read no `ui-console.css` token beyond `--sans` (only the static sign-in pages' `.sign-in`) and the shared states; the test `test_reads_no_ui_console_token_that_the_kit_does_not_also_define` pins it.
+- On the static sign-in pages `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
