@@ -3,7 +3,16 @@
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
-    import { adopt, chat, chatInput, chatList, closeChat, sendChatMessage, sendOnEnter, toggleChat } from "#lib/ui/chat.svelte.ts";
+    import {
+        adopt,
+        chat,
+        chatInput,
+        chatList,
+        closeChat,
+        sendChatMessage,
+        sendOnEnter,
+        toggleChat,
+    } from "#lib/ui/chat.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
     import { initMenus } from "#lib/ui/menus.ts";
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
