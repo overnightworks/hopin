@@ -47,6 +47,7 @@ interface FakeTransceiver {
 
 class FakeConnection {
     static instances: FakeConnection[] = [];
+    static offerGate: Promise<void> | null = null;
     signalingState = "stable";
     iceConnectionState = "new";
     connectionState = "connected";
@@ -59,6 +60,7 @@ class FakeConnection {
     onicecandidate: ((event: { candidate: unknown }) => void) | null = null;
     closeAfterRemoteDescription = false;
     closeAfterAnswer = false;
+    receivers: unknown[] = [];
     private readonly listeners = new Map<string, (() => void)[]>();
 
     constructor(readonly configuration: unknown) {
@@ -90,7 +92,7 @@ class FakeConnection {
     }
 
     getReceivers() {
-        return [];
+        return this.receivers;
     }
 
     getStats() {
@@ -103,12 +105,14 @@ class FakeConnection {
         sender.track = null;
     }
 
-    createOffer(options?: unknown) {
+    async createOffer(options?: unknown) {
+        await FakeConnection.offerGate;
         this.offerOptions.push(options);
-        return Promise.resolve({ type: "offer", sdp: `offer-${String(this.offerOptions.length)}` });
+        return { type: "offer", sdp: `offer-${String(this.offerOptions.length)}` };
     }
 
     createAnswer() {
+        if (this.signalingState === "closed") return Promise.reject(new Error("connection closed"));
         if (this.closeAfterAnswer) this.signalingState = "closed";
         return Promise.resolve({ type: "answer", sdp: "answer" });
     }
@@ -177,6 +181,7 @@ async function freshMesh({ watchPeers = true } = {}) {
     signal.handlers.clear();
     signal.sent.length = 0;
     FakeConnection.instances = [];
+    FakeConnection.offerGate = null;
     const mesh = await import("./mesh.ts");
     const { installStage } = await import("./stage-port.ts");
     const { state } = await import("./state.ts");
@@ -247,6 +252,7 @@ describe("loading the ice servers", () => {
         respondToFetch(401);
 
         await expect(mesh.loadIceServers()).rejects.toThrow(mesh.SignedOutError);
+        await expect(mesh.loadIceServers()).rejects.toThrow("Signed out");
     });
 
     it("names the status of any other failure", async () => {
@@ -352,13 +358,30 @@ describe("meeting the people already there", () => {
         ]);
     });
 
-    it("starts the quality and speaking monitors after the offer", async () => {
+    it("starts the quality and speaking monitors only once the offer is made", async () => {
         const mesh = await freshMesh();
+        let releaseOffer: () => void = () => undefined;
+        FakeConnection.offerGate = new Promise<void>((release) => {
+            releaseOffer = release;
+        });
         await meetPeer(mesh, "p1");
+        connectionOf().receivers = [
+            {
+                track: { kind: "audio" },
+                getSynchronizationSources: () => [
+                    { audioLevel: 0.5, timestamp: performance.timeOrigin + performance.now() },
+                ],
+            },
+        ];
 
         await vi.advanceTimersByTimeAsync(3000);
+        expect(mesh.stage.setConnectionQuality).not.toHaveBeenCalled();
+        expect(mesh.stage.setRemoteSpeaking).not.toHaveBeenCalled();
 
+        releaseOffer();
+        await vi.advanceTimersByTimeAsync(3000);
         expect(mesh.stage.setConnectionQuality).toHaveBeenCalledWith("p1", "good");
+        expect(mesh.stage.setRemoteSpeaking).toHaveBeenCalledWith("p1", true);
     });
 
     it("restarts ICE with an offer flagged iceRestart once the connection fails", async () => {
@@ -463,6 +486,7 @@ describe("answering an offer", () => {
         await settle();
 
         expect(sentOfType(SIGNAL_TYPE.ANSWER)).toEqual([]);
+        expect(reportError).not.toHaveBeenCalled();
     });
 
     it("sends no answer when the connection closed while the answer was made", async () => {
@@ -564,13 +588,15 @@ describe("one person's signaling", () => {
 
     it("drops a queued step when the person left before it ran", async () => {
         const mesh = await freshMesh();
-        const [connection] = await meetPeer(mesh, "p1");
+        await meetPeer(mesh, "p1");
 
         deliver(SIGNAL_TYPE.ICE_CANDIDATE, { from: "p1", candidate: { candidate: "c" } });
         deliver(SIGNAL_TYPE.PARTICIPANT_LEFT, { participant_id: "p1" });
+        deliver(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participants: ["p1"] });
         await settle();
 
-        expect(connection?.candidates).toEqual([]);
+        expect(FakeConnection.instances).toHaveLength(2);
+        expect(connectionOf(1).candidates).toEqual([]);
     });
 
     it("reports a failed step and goes on with the next", async () => {

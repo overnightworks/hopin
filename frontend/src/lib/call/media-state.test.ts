@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import type { StagePort } from "./stage-port.ts";
 
@@ -38,14 +38,6 @@ async function freshMediaState() {
 function deliver(type: SIGNAL_TYPE, frame: Frame = {}) {
     for (const handler of signal.handlers.get(type) ?? []) handler({ type, ...frame });
 }
-
-beforeEach(() => {
-    vi.resetModules();
-});
-
-afterEach(() => {
-    vi.unstubAllGlobals();
-});
 
 describe("announcing the own media state", () => {
     it("sends nothing while signaling is not connected", async () => {
