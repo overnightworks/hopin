@@ -14,7 +14,7 @@ It carries these rulings:
 - the More-menu legal links
 - the dark stage in both themes
 - the leave dialog for the host only
-- HopIn's blue slot (#1d5bbf / #7aa7f0) and ui-console type tokens
+- HopIn's blue slot (#1d5bbf / #7aa7f0) and the kit's body font (Open Sans)
 - the English UI
 
 The sign-in pages are appkit `docs/family.html` section 3 at a161c7c; they are not drawn here.

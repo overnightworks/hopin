@@ -50,9 +50,8 @@ def test_the_home_page_posts_one_same_origin_form_to_log_out_from_the_account_me
     assert home_inventory.submit_buttons == 1
 
 
-def test_the_home_page_loads_ui_console_then_the_kit_then_hopin(home_inventory: PageInventory) -> None:
+def test_the_home_page_loads_the_kit_then_hopin(home_inventory: PageInventory) -> None:
     assert home_inventory.stylesheets == [
-        f"{STATIC_PATH}/css/ui-console.css",
         f"{KIT_PATH}/appkit.css",
         f"{STATIC_PATH}/css/hopin.css",
     ]
