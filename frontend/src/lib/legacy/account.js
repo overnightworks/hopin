@@ -1,5 +1,5 @@
 import { registerMenu } from "#lib/ui/menus.ts";
-import { goThroughSignIn } from "./router.js";
+import { goThroughSignIn } from "#lib/ui/navigation.ts";
 
 const ACCOUNT_URL = "/api/account";
 const SIGNED_OUT_STATUS = 401;
