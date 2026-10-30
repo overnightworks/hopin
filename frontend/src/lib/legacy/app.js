@@ -9,7 +9,7 @@ import {
     showLockButton,
 } from "./controls.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
-import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
+import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
@@ -28,7 +28,7 @@ import * as stage from "./stage.js";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
-import { initHome, showGreeting } from "./home.js";
+import { installStartRequested, showGreeting } from "#lib/ui/home.svelte.ts";
 import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
@@ -201,11 +201,10 @@ onSessionEnded(() => {
 });
 installLeaveConfirmed(leaveCall);
 initControls({ onLeaveRequested: requestLeave });
-initInvite();
 initChat();
 initPip();
 initEnd();
-initHome({ onStartRequested: () => openPrejoin(PREJOIN_KIND.HOST) });
+installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
 initAccount({ onNameRead: showGreeting });
 initPrejoin({
     onStart: (kind) => {
