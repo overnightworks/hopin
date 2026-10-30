@@ -96,17 +96,14 @@ describe("stage port", () => {
         expect(() => call(port)).toThrow(/stage is not installed/);
     });
 
-    it.each(operations)(
-        "$name hands its arguments to the installed stage",
-        ({ name, call, expectedArguments }) => {
-            const stage = fakeStage();
-            install(stage);
+    it.each(operations)("$name hands its arguments to the installed stage", ({ name, call, expectedArguments }) => {
+        const stage = fakeStage();
+        install(stage);
 
-            call(port);
+        call(port);
 
-            expect(stage[name]).toHaveBeenCalledWith(...expectedArguments);
-        },
-    );
+        expect(stage[name]).toHaveBeenCalledWith(...expectedArguments);
+    });
 
     it.each([true, false])("removeRemoteTile and hasTile return the stage's answer %s", (answer) => {
         const stage = fakeStage();
