@@ -1,0 +1,8 @@
+claim_id = "2f66a17ee0ff4164bb4b0bed36fa3891"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "116a0793293ce9acafdd667c9c17cd05dd24ef90"
+branch = "claude/issue-345-screens-navigation"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy", "frontend/src/lib/ui/navigation.test.ts", "frontend/src/lib/ui/navigation.ts", "frontend/src/lib/ui/screens.svelte.test.ts", "frontend/src/lib/ui/screens.svelte.ts", "frontend/src/routes/+layout.svelte"]
+opened_commit = "4ccb20b4007a845c618b4092665583093e39efcf"
+whole_reason = "router.js cannot be half-deleted: its five importers switch in the commit that removes it."
