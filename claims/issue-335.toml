@@ -1,0 +1,8 @@
+claim_id = "52c3a8a533b34b649a9cf346d594c51d"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "8417bcd36a002d69a10121a7990b01b0ac2457d9"
+branch = "claude/issue-335-agent-runtime-0-12-0"
+scope = ["pyproject.toml", "src/hopin/game/agent_service.py", "tests/game/support/fake_agent_service.py", "tests/game/test_agent_service.py", "tests/game/test_agent_service_transport.py", "uv.lock"]
+opened_commit = "1527b3e0204f408fa5d082ac6620d8f456d40fe7"
+whole_reason = "One release adoption: the pin, the protocol-4 fakes and the one production match on Succeeded move together, or the game and its tests break against the new client."
