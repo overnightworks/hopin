@@ -731,3 +731,15 @@ def test_sign_in_again_returns_to_this_call_through_the_sign_in(
 
     expect(host).to_have_url(f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}")
     assert sign_in_requests == [f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}"]
+
+
+def test_agent_service_leaving_answers_queued_leaves_the_test_passing(agent_service: FakeAgentService) -> None:
+    agent_service.answer_next(Succeeds("left for the next test"))
+
+    assert agent_service.queued_answers == (Succeeds("left for the next test"),)
+
+
+def test_agent_service_answers_queued_by_the_previous_test_do_not_reach_this_one(
+    agent_service: FakeAgentService,
+) -> None:
+    assert agent_service.queued_answers == ()
