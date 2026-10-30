@@ -31,7 +31,7 @@ import { state } from "#lib/call/state.ts";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
 import { installStartRequested, showGreeting } from "#lib/ui/home.svelte.ts";
 import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
-import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
+import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.svelte.ts";
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
@@ -198,11 +198,9 @@ installLeaveConfirmed(leaveCall);
 installLeaveRequested(requestLeave);
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
 initAccount({ onNameRead: showGreeting });
-initPrejoin({
-    onStart: (kind) => {
-        state.isHost = kind === PREJOIN_KIND.HOST;
-        void startCall();
-    },
+installPrejoinStart((kind) => {
+    state.isHost = kind === PREJOIN_KIND.HOST;
+    void startCall();
 });
 
 if (getRoomIdFromUrl()) {
