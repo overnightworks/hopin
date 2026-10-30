@@ -116,12 +116,14 @@ class Call:
         ]
 
 
-OPERATOR_CHOSEN_SCOPE = "scenario-audience"
+@pytest.fixture
+def operator_chosen_scope():
+    return "scenario-audience"
 
 
 @pytest.fixture
-def call(sign_in_settings, monkeypatch):
-    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", OPERATOR_CHOSEN_SCOPE)
+def call(sign_in_settings, monkeypatch, operator_chosen_scope):
+    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", operator_chosen_scope)
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
     service = FakeAgentService(issuer)
@@ -201,13 +203,13 @@ def test_the_run_goes_out_on_the_starters_token_pair_not_the_hosts(call):
     assert call.refresh_tokens_granted() == [guest_refresh_token]
 
 
-def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(call):
+def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(call, operator_chosen_scope):
     host, _, _ = call.host_and_guest()
 
     host.start()
     host.frames(3)
 
-    assert call.client_credentials_scopes() == [OPERATOR_CHOSEN_SCOPE]
+    assert call.client_credentials_scopes() == [operator_chosen_scope]
 
 
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):
