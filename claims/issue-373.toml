@@ -1,0 +1,8 @@
+claim_id = "272b88cef3bc4cc09c74d746781ba895"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "d3b137d6ba50687b0670be5e38e0912783288876"
+branch = "claude/issue-373-p8a-mesh-media-state"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/media-state.test.ts", "frontend/src/lib/call/media-state.ts", "frontend/src/lib/call/mesh.test.ts", "frontend/src/lib/call/mesh.ts", "frontend/src/lib/call/speaking.test.ts", "frontend/src/lib/call/state.test.ts", "frontend/src/lib/legacy/app.js", "frontend/src/lib/legacy/media-state.js", "frontend/src/lib/legacy/media.js", "frontend/src/lib/legacy/mesh.js", "frontend/src/lib/wire.ts", "scripts/generate_wire.py"]
+opened_commit = "41334579620b23be5d2131ed60ac5c31db309dcd"
+whole_reason = "Moving a module to lib/call and repointing its importers cannot ship apart, because the build fails on a dangling import; the generated path, the docs line and the two test-only follow-ups ride along as the same port's small changes."
