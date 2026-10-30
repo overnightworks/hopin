@@ -150,13 +150,28 @@ describe("picture in picture", () => {
         expect(tile.dataset.corner).toBeUndefined();
     });
 
-    it("listens to nothing after the cleanup", () => {
+    it("listens to no pointerdown after the cleanup", () => {
         const { tile, capture, cleanup } = setUp();
 
         cleanup();
         firePointer(tile, "pointerdown");
 
         expect(capture).not.toHaveBeenCalled();
+    });
+
+    it.each(["pointermove", "pointerup", "pointercancel"])("ignores %s of a started drag after the cleanup", (type) => {
+        const { tile, cleanup } = setUp();
+        placeTileCentre(tile, 350, 700);
+        firePointer(tile, "pointerdown");
+        firePointer(tile, "pointermove", { x: 10, y: 20 });
+        const translate = tile.style.translate;
+        cleanup();
+
+        firePointer(tile, type, { x: 60, y: 80 });
+
+        expect(tile.style.translate).toBe(translate);
+        expect(tile.dataset.corner).toBeUndefined();
+        expect(tile.classList.contains("dragging")).toBe(true);
     });
 
     it("throws when the tile is outside the stage", () => {
