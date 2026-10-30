@@ -1,0 +1,8 @@
+claim_id = "d112fdc40db0474c9b63c0513c43159f"
+agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
+role = "builder"
+base = "976738538514e9d3229f2c035a7bed17e4dd6238"
+branch = "claude/issue-352-home-invite"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy", "frontend/src/lib/ui/home.svelte.test.ts", "frontend/src/lib/ui/home.svelte.ts", "frontend/src/lib/ui/invite.svelte.test.ts", "frontend/src/lib/ui/invite.svelte.ts", "frontend/src/routes/+layout.svelte"]
+opened_commit = "e85c8511d6c9f84a704b4f5a749d8c6ec1cc9fff"
+whole_reason = "Two small disjoint cards bundled into one lane, because they extend the same ARCHITECTURE sentence; each module is deleted in the commit that ports it."
