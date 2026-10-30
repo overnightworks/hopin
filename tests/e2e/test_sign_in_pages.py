@@ -266,10 +266,12 @@ def test_login_failed_on_a_small_landscape_phone_reaches_try_again_and_both_lega
 ) -> None:
     person = open_login_failed(open_person, e2e_server, page_errors, SMALL_PHONE_LANDSCAPE)
 
+    person.mouse.move(100, 100)
+    person.mouse.wheel(0, 2000)
+    person.wait_for_function("document.querySelector('.sign-in').scrollTop > 0")
     for control in (
         person.get_by_role("link", name="Try again", exact=True),
         *(person.get_by_role("link", name=label, exact=True) for label in LEGAL_LINKS),
     ):
-        control.scroll_into_view_if_needed()
         expect(control).to_be_in_viewport()
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
