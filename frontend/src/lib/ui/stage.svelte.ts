@@ -10,7 +10,7 @@ export const ownPicture = $state<{
 }>({ stream: null, delivery: 0, mirrored: true, showsVideo: true, muted: false });
 
 // The call state is read when these run, not reactively: the mirror follows a screen share only at the next stream.
-export function showLocalStream(stream: MediaStream) {
+export function showLocalStream(stream: MediaStream | null) {
     ownPicture.stream = stream;
     // The same stream arrives again after a track swap; the counter is what makes the video take it again.
     ownPicture.delivery += 1;

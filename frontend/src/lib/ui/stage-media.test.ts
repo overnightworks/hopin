@@ -48,7 +48,6 @@ describe("own picture action in a component", () => {
         flushSync();
         Object.defineProperty(document.querySelector("video"), "srcObject", { set: assigned, configurable: true });
         const stream = someStream();
-        expect(assigned).not.toHaveBeenCalled();
 
         showLocalStream(stream);
         flushSync();

@@ -56,6 +56,17 @@ describe("own picture", () => {
         expect(ownPicture.delivery).toBeGreaterThan(first);
     });
 
+    it("clears the stream and still counts a delivery when the call is torn down", async () => {
+        const { ownPicture, showLocalStream } = await freshStage();
+        showLocalStream(someStream());
+        const before = ownPicture.delivery;
+
+        showLocalStream(null);
+
+        expect(ownPicture.stream).toBeNull();
+        expect(ownPicture.delivery).toBeGreaterThan(before);
+    });
+
     it.each([true, false])("shows the video as the camera state %s says", async (videoEnabled) => {
         const { ownPicture, state, updateLocalPreview } = await freshStage();
         state.videoEnabled = videoEnabled;
