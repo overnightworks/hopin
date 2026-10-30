@@ -18,6 +18,15 @@
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
     import { goHome } from "#lib/ui/navigation.ts";
     import {
+        cameraClicked as prejoinCameraClicked,
+        isPrejoinInert,
+        microphoneClicked as prejoinMicrophoneClicked,
+        prejoin,
+        prejoinTexts,
+        startClicked,
+        startLabel,
+    } from "#lib/ui/prejoin.svelte.ts";
+    import {
         cameraClicked,
         deviceButtons,
         lockClicked,
@@ -116,9 +125,9 @@
 <!-- prettier-ignore -->
 <main class="prejoin page" class:hidden={screens.current !== SCREEN.PREJOIN} data-screen="prejoin">
     <div class="topbar">
-        <button id="prejoinHomeBtn" class="brand brand-button" type="button"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
-        <button id="prejoinBackBtn" class="iconbtn ghost" type="button" aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <span id="prejoinTitle" class="topbar-title"></span>
+        <button id="prejoinHomeBtn" class="brand brand-button" type="button" onclick={goHome}><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
+        <button id="prejoinBackBtn" class="iconbtn ghost" type="button" onclick={goHome} aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <span id="prejoinTitle" class="topbar-title">{prejoinTexts().title}</span>
         <span class="topbar-balance"></span>
         <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
     </div>
@@ -126,19 +135,17 @@
         <div class="preview">
             <video id="prejoinVideo" autoplay muted playsinline class:hidden={!ownPicture.showsVideo} use:ownPictureMedia={ownPicture.delivery}></video>
             <div id="prejoinPlaceholder" class="vid off" class:hidden={ownPicture.showsVideo}><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
-            <p id="prejoinMessage" class="preview-msg hidden"></p>
+            <p id="prejoinMessage" class="preview-msg" class:hidden={prejoin.failureMessage === ""}>{prejoin.failureMessage}</p>
             <div class="preview-ctl">
-                <button id="prejoinMicBtn" class="cb" type="button" aria-label="Mute" aria-pressed="false" disabled><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
-                <button id="prejoinCamBtn" class="cb" type="button" aria-label="Camera off" aria-pressed="false" disabled><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
+                <button id="prejoinMicBtn" class="cb" class:off={!prejoin.isMicrophoneOn} type="button" aria-label="Mute" aria-pressed={!prejoin.isMicrophoneOn} disabled={isPrejoinInert()} onclick={prejoinMicrophoneClicked}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
+                <button id="prejoinCamBtn" class="cb" class:off={!prejoin.isCameraOn} type="button" aria-label="Camera off" aria-pressed={!prejoin.isCameraOn} disabled={isPrejoinInert()} onclick={() => void prejoinCameraClicked()}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
             </div>
         </div>
         <div class="self-row"><span class="av av-28"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span><b>You</b></div>
         <div class="prejoin-side">
-            <h2 id="prejoinHeading">HopIn</h2>
-            <p id="prejoinSub" class="prejoin-sub"></p>
-            <!-- Legacy code sets this button's text; an aria-label would change its accessible name. -->
-            <!-- svelte-ignore a11y_consider_explicit_label -->
-        <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled></button>
+            <h2 id="prejoinHeading">{prejoinTexts().heading}</h2>
+            <p id="prejoinSub" class="prejoin-sub" class:hidden={prejoinTexts().subLine === ""}>{prejoinTexts().subLine}</p>
+            <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled={isPrejoinInert()} onclick={startClicked}>{startLabel()}</button>
         </div>
     </div>
     <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
