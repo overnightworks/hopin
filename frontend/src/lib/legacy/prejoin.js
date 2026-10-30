@@ -1,5 +1,5 @@
 import { renderDeviceToggle } from "./controls.js";
-import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "./media.js";
+import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "#lib/call/media.ts";
 import { goHome } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
@@ -79,7 +79,7 @@ async function whileMediaIsRequested(request) {
 }
 
 async function openMedia() {
-    await acquireMedia(true);
+    await acquireMedia();
     showLocalStream(state.localStream);
     updateLocalPreview();
 }
