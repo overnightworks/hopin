@@ -1,8 +1,0 @@
-claim_id = "351082d7c99a40c3a046bd4b43f7fd8d"
-agent = "Claude e432ab36-985d-46bd-9419-2098e20d5eef"
-role = "builder"
-base = "976738538514e9d3229f2c035a7bed17e4dd6238"
-branch = "claude/issue-353-own-picture"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/legacy/stage.js", "frontend/src/lib/ui/stage-media.fixture.svelte", "frontend/src/lib/ui/stage-media.test.ts", "frontend/src/lib/ui/stage-media.ts", "frontend/src/lib/ui/stage.svelte.test.ts", "frontend/src/lib/ui/stage.svelte.ts", "frontend/src/routes/+layout.svelte", "frontend/vite.config.ts"]
-opened_commit = "48cb7db1124eb1898a89ecfced072960a74b47a9"
-whole_reason = "The own-picture state, its action and the layout's own tile and preview switch in one commit with stage.js forwarding to them."
