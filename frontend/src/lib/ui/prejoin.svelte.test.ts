@@ -8,10 +8,8 @@ const media = vi.hoisted(() => ({
     toggleAudio: vi.fn(),
 }));
 const stagePort = vi.hoisted(() => ({ showLocalStream: vi.fn(), updateLocalPreview: vi.fn() }));
-const navigation = vi.hoisted(() => ({ goHome: vi.fn() }));
 vi.mock("#lib/call/media.ts", () => media);
 vi.mock("#lib/call/stage-port.ts", () => stagePort);
-vi.mock("#lib/ui/navigation.ts", () => navigation);
 
 // The modules hold their state, so each case loads fresh copies.
 async function freshPrejoin() {
@@ -53,14 +51,6 @@ describe("before it is opened", () => {
         expect(startClicked).toThrow("not open");
     });
 
-    it("refuses a start while no callback is installed", async () => {
-        const { openPrejoin, startClicked } = await freshPrejoin();
-        media.acquireMedia.mockResolvedValue(undefined);
-        openPrejoin("host");
-
-        expect(startClicked).toThrow("not open");
-    });
-
     it("installs the start callback only once", async () => {
         const { installPrejoinStart } = await freshPrejoin();
         installPrejoinStart(vi.fn());
@@ -68,6 +58,16 @@ describe("before it is opened", () => {
         expect(() => {
             installPrejoinStart(vi.fn());
         }).toThrow("already installed");
+    });
+});
+
+describe("an open pre-join", () => {
+    it("refuses a start while no callback is installed", async () => {
+        const { openPrejoin, startClicked } = await freshPrejoin();
+        media.acquireMedia.mockResolvedValue(undefined);
+        openPrejoin("host");
+
+        expect(startClicked).toThrow("not installed");
     });
 });
 

@@ -139,7 +139,8 @@ export async function cameraClicked() {
 }
 
 export function startClicked() {
-    if (!onStartRequested || !prejoin.kind) throw new Error("The pre-join is not open");
+    if (!onStartRequested) throw new Error("The pre-join start is not installed");
+    if (!prejoin.kind) throw new Error("The pre-join is not open");
     onStartRequested(prejoin.kind);
 }
 
