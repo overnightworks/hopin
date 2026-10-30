@@ -8,10 +8,9 @@ import {
     renderControls,
     showLockButton,
 } from "./controls.js";
-import { initDialogs, showLeaveDialog } from "./dialogs.js";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, initEnd, showEnd } from "./end.js";
 import { hideWaitingCard, initInvite, setCallLink, showWaitingCard } from "./invite.js";
-import { initMenus } from "#lib/ui/menus.ts";
+import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "./media.js";
 import { registerMediaStateHandlers } from "./media-state.js";
 import {
@@ -199,8 +198,7 @@ onSessionEnded(() => {
     tearDownCall();
     goThroughSignIn();
 });
-initDialogs({ onLeaveConfirmed: leaveCall });
-initMenus();
+installLeaveConfirmed(leaveCall);
 initControls({ onLeaveRequested: requestLeave });
 initInvite();
 initChat();
