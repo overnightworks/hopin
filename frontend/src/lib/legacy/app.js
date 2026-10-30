@@ -31,7 +31,8 @@ import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCoun
 import { initHome, showGreeting } from "./home.js";
 import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
-import { SCREEN, callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress, showScreen } from "./router.js";
+import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
+import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
 installStage(stage);
 

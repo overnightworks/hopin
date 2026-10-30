@@ -1,6 +1,7 @@
 import { renderDeviceToggle } from "./controls.js";
 import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "./media.js";
-import { SCREEN, goHome, showScreen } from "./router.js";
+import { goHome } from "#lib/ui/navigation.ts";
+import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
 import { state } from "./state.js";
 
