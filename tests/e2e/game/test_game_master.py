@@ -69,6 +69,21 @@ window.WebSocket = class extends PageWebSocket {
 """
 
 
+# A frame without a sequence number is no replay of an earlier one, so the page handles it as the server's.
+RECORD_THE_PAGES_SOCKET = """
+const PageWebSocket = window.WebSocket;
+window.WebSocket = class extends PageWebSocket {
+    constructor(...socketArguments) {
+        super(...socketArguments);
+        window.pageSocket = this;
+    }
+};
+"""
+DELIVER_SERVER_FRAME = (
+    "(frame) => window.pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
+)
+
+
 def start_quiz(person: Page) -> None:
     open_more(person)
     person.click(START_QUIZ)
@@ -112,6 +127,17 @@ def relaying_frames(open_person: Callable[..., Page], relays: list[FrameInjector
         return person
 
     return open_relayed
+
+
+def recording_the_socket(open_person: Callable[..., Page]) -> Callable[..., Page]:
+    """Open people whose page keeps its signaling socket, so a test can hand the page a frame as the server's."""
+
+    def open_recorded(**options: Any) -> Page:
+        person = open_person(**options)
+        add_init_scripts(person, (RECORD_THE_PAGES_SOCKET,))
+        return person
+
+    return open_recorded
 
 
 def call_of_two(
@@ -288,9 +314,7 @@ def answer_on_card(person: Page, text: str) -> None:
 def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_render_the_form_again(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
 ) -> None:
-    relays: list[FrameInjector] = []
-    host, guest = call_of_two(relaying_frames(open_person, relays), e2e_server.base_url, page_errors)
-    _, guest_frames = relays
+    host, guest = call_of_two(recording_the_socket(open_person), e2e_server.base_url, page_errors)
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
     start_quiz(host)
     for person in (host, guest):
@@ -302,8 +326,9 @@ def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_r
     answer_on_card(host, "Tejo")
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
     for phase in ("thinking", "answering"):
-        guest_frames.send(
-            {"type": GameSignal.GAME_PHASE, "phase": phase, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"}
+        guest.evaluate(
+            DELIVER_SERVER_FRAME,
+            {"type": GameSignal.GAME_PHASE, "phase": phase, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"},
         )
         if phase == "thinking":
             expect(unsent).to_be_disabled()
