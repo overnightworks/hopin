@@ -13,6 +13,7 @@ REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
 
 from hopin.config.constants import (  # noqa: E402
+    ICE_SERVERS_PATH,
     REPLAY_LOG_LIMIT,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
@@ -55,6 +56,7 @@ def render() -> str:
         _enum("ROOM_CLOSED_REASON", RoomClosedReason),
         f"export const SESSION_ENDED_CLOSE_CODE = {SESSION_ENDED_CLOSE_CODE};\n"
         f'export const WEBSOCKET_PATH = "{WEBSOCKET_PATH}";\n'
+        f'export const ICE_SERVERS_PATH = "{ICE_SERVERS_PATH}";\n'
         f"export const REPLAY_LOG_LIMIT = {REPLAY_LOG_LIMIT};\n"
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
         + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION),

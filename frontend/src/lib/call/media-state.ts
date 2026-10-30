@@ -1,6 +1,6 @@
-import { isConnected, on, send } from "#lib/call/signaling.ts";
+import { isConnected, on, send, type ServerFrame } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
-import { setRemoteMediaState } from "#lib/call/stage-port.ts";
+import { type RemoteMediaState, setRemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
 function showsOwnVideo() {
@@ -13,7 +13,10 @@ export function announceMediaState() {
 }
 
 export function registerMediaStateHandlers() {
-    on(SIGNAL_TYPE.MEDIA_STATE, (data) => setRemoteMediaState(data.from, { audio: data.audio, video: data.video }));
+    on(SIGNAL_TYPE.MEDIA_STATE, (data) => {
+        const { from, audio, video } = data as ServerFrame & { from: string } & RemoteMediaState;
+        setRemoteMediaState(from, { audio, video });
+    });
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, announceMediaState);
     on(SIGNAL_TYPE.PARTICIPANT_JOINED, announceMediaState);
 }

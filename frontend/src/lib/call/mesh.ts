@@ -1,35 +1,43 @@
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
-import { on, send } from "#lib/call/signaling.ts";
-import { SIGNAL_TYPE } from "#lib/wire.ts";
-import { monitorSpeaking } from "#lib/call/speaking.ts";
+import { on, send, type ServerFrame } from "#lib/call/signaling.ts";
+import { ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
+import { type MonitoredConnection, monitorSpeaking } from "#lib/call/speaking.ts";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
-const ICE_SERVERS_PATH = "/api/ice-servers";
+interface SignalFrame {
+    from: string;
+    sdp: RTCSessionDescriptionInit;
+    candidate?: RTCIceCandidateInit;
+}
 
-let rtcConfiguration = { iceServers: [] };
+let rtcConfiguration: RTCConfiguration = { iceServers: [] };
 
 export class SignedOutError extends Error {}
 
-export async function loadIceServers() {
+export async function loadIceServers(): Promise<void> {
     const response = await fetch(ICE_SERVERS_PATH);
     if (response.status === 401) {
         throw new SignedOutError("Signed out");
     }
     if (!response.ok) {
-        throw new Error(`Could not load ICE servers (${response.status})`);
+        throw new Error(`Could not load ICE servers (${String(response.status)})`);
     }
-    const { iceServers } = await response.json();
+    const { iceServers } = (await response.json()) as { iceServers: RTCIceServer[] };
     rtcConfiguration = { iceServers };
 }
 
-const connectionsByParticipant = new Map();
-const remoteSignalingByParticipant = new Map();
+interface SignalingQueue {
+    tail: Promise<unknown>;
+}
+
+const connectionsByParticipant = new Map<string, RTCPeerConnection>();
+const remoteSignalingByParticipant = new Map<string, SignalingQueue>();
 let peersChanged = () => {};
 
-export function onPeersChanged(callback) {
+export function onPeersChanged(callback: () => void) {
     peersChanged = callback;
 }
 
@@ -37,7 +45,7 @@ export function peerCount() {
     return connectionsByParticipant.size;
 }
 
-async function sendOffer(participantId, connection, options) {
+async function sendOffer(participantId: string, connection: RTCPeerConnection, options?: RTCOfferOptions) {
     const offer = await connection.createOffer(options);
     await connection.setLocalDescription(offer);
     send({
@@ -51,7 +59,7 @@ function capUploads() {
     return applyUploadCaps([...connectionsByParticipant.values()]);
 }
 
-async function createPeerConnection(participantId, initiator) {
+async function createPeerConnection(participantId: string, initiator: boolean) {
     const connection = new RTCPeerConnection(rtcConfiguration);
     connectionsByParticipant.set(participantId, connection);
 
@@ -69,7 +77,8 @@ async function createPeerConnection(participantId, initiator) {
     peersChanged();
 
     connection.ontrack = (event) => {
-        showRemoteStream(participantId, event.streams[0]);
+        const [stream] = event.streams;
+        if (stream) showRemoteStream(participantId, stream);
     };
 
     connection.onicecandidate = (event) => {
@@ -88,21 +97,22 @@ async function createPeerConnection(participantId, initiator) {
     }
 
     monitorConnectionQuality(participantId, connection);
-    monitorSpeaking(participantId, connection);
+    // The DOM types an audio level as optional; the monitor reads the audio receivers' sources only.
+    monitorSpeaking(participantId, connection as MonitoredConnection);
     return connection;
 }
 
-function applyInArrivalOrder(participantId, step) {
+function applyInArrivalOrder(participantId: string, step: () => Promise<void>) {
     const queue = remoteSignalingByParticipant.get(participantId) ?? { tail: Promise.resolve() };
     remoteSignalingByParticipant.set(participantId, queue);
     queue.tail = queue.tail
         .then(() => {
-            if (remoteSignalingByParticipant.get(participantId) === queue) return step();
+            return remoteSignalingByParticipant.get(participantId) === queue ? step() : undefined;
         })
         .catch(reportError);
 }
 
-async function sendLocalVideoInAnswer(connection) {
+async function sendLocalVideoInAnswer(connection: RTCPeerConnection) {
     if (!state.localStream) return;
     const [videoTrack = null] = state.localStream.getVideoTracks();
     const answeringReceivers = videoTransceivers(connection).filter(
@@ -115,13 +125,17 @@ async function sendLocalVideoInAnswer(connection) {
     await Promise.all(answeringReceivers.map((transceiver) => transceiver.sender.replaceTrack(videoTrack)));
 }
 
-async function answerOffer(data) {
+function isClosed(connection: RTCPeerConnection) {
+    return connection.signalingState === "closed";
+}
+
+async function answerOffer(data: SignalFrame) {
     const connection = connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     await sendLocalVideoInAnswer(connection);
-    if (connection.signalingState === "closed") return;
+    if (isClosed(connection)) return;
     const answer = await connection.createAnswer();
-    if (connection.signalingState === "closed") return;
+    if (isClosed(connection)) return;
     await connection.setLocalDescription(answer);
     send({
         type: SIGNAL_TYPE.ANSWER,
@@ -131,20 +145,20 @@ async function answerOffer(data) {
     await capUploads();
 }
 
-async function applyAnswer(data) {
+async function applyAnswer(data: SignalFrame) {
     const connection = connectionsByParticipant.get(data.from);
     if (connection?.signalingState !== "have-local-offer") return;
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 }
 
-async function applyIceCandidate(data) {
+async function applyIceCandidate(data: SignalFrame) {
     const connection = connectionsByParticipant.get(data.from);
     if (connection && data.candidate) {
         await connection.addIceCandidate(new RTCIceCandidate(data.candidate));
     }
 }
 
-function removePeer(participantId) {
+function removePeer(participantId: string) {
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
     remoteSignalingByParticipant.delete(participantId);
@@ -158,33 +172,42 @@ export function removeAllPeers() {
     }
 }
 
-export function addTrackToPeers(track, stream) {
+export function addTrackToPeers(track: MediaStreamTrack, stream: MediaStream) {
     for (const connection of connectionsByParticipant.values()) {
         connection.addTrack(track, stream);
     }
 }
 
-export function removeTrackFromPeers(track) {
+export function removeTrackFromPeers(track: MediaStreamTrack) {
     for (const connection of connectionsByParticipant.values()) {
         const sender = connection.getSenders().find((candidate) => candidate.track === track);
         if (sender) connection.removeTrack(sender);
     }
 }
 
-export async function replaceVideoTrackOnPeers(newTrack) {
+export async function replaceVideoTrackOnPeers(newTrack: MediaStreamTrack | null) {
     const transceivers = [...connectionsByParticipant.values()].flatMap(videoTransceivers);
     await Promise.all(transceivers.map((transceiver) => transceiver.sender.replaceTrack(newTrack)));
     await capUploads();
 }
 
+function onSignalingStep(type: SIGNAL_TYPE, step: (frame: SignalFrame) => Promise<void>) {
+    on(type, (data) => {
+        const frame = data as unknown as SignalFrame;
+        applyInArrivalOrder(frame.from, () => step(frame));
+    });
+}
+
 export function registerMeshHandlers() {
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
-        for (const participantId of data.participants) {
+        for (const participantId of (data as ServerFrame & { participants: string[] }).participants) {
             void createPeerConnection(participantId, true);
         }
     });
-    on(SIGNAL_TYPE.PARTICIPANT_LEFT, (data) => removePeer(data.participant_id));
-    on(SIGNAL_TYPE.OFFER, (data) => applyInArrivalOrder(data.from, () => answerOffer(data)));
-    on(SIGNAL_TYPE.ANSWER, (data) => applyInArrivalOrder(data.from, () => applyAnswer(data)));
-    on(SIGNAL_TYPE.ICE_CANDIDATE, (data) => applyInArrivalOrder(data.from, () => applyIceCandidate(data)));
+    on(SIGNAL_TYPE.PARTICIPANT_LEFT, (data) => {
+        removePeer(data.participant_id as string);
+    });
+    onSignalingStep(SIGNAL_TYPE.OFFER, answerOffer);
+    onSignalingStep(SIGNAL_TYPE.ANSWER, applyAnswer);
+    onSignalingStep(SIGNAL_TYPE.ICE_CANDIDATE, applyIceCandidate);
 }
