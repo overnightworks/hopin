@@ -49,6 +49,8 @@ YOUR_ANSWER = "Your answer"
 STATUS = ".qcard-status"
 SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
+MESSAGES_IN_A_LONG_HISTORY = 60
+LIST_IS_AT_THE_BOTTOM = "(list) => list.scrollHeight - list.scrollTop - list.clientHeight < 2"
 THINKING = re.compile(r"\bthinking\b")
 QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
 QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
@@ -262,6 +264,37 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
     expect(guest.locator(CARD).get_by_role("button", name=REVEAL)).to_be_visible()
     expect(host.locator(CARD).get_by_role("button", name=REVEAL)).to_have_count(0)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_chat_stays_scrolled_to_the_newest_line_when_the_typing_bubble_and_the_card_render(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    agent_service: FakeAgentService,
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    held = Holds()
+    agent_service.answer_next(held)
+    open_chat(guest)
+    open_chat(host)
+    for number in range(MESSAGES_IN_A_LONG_HISTORY):
+        guest.fill("#chatInput", f"line {number}")
+        guest.click("#chatSend")
+    messages = host.locator("#chatMessages")
+    expect(messages.locator(".chat-msg")).to_have_count(MESSAGES_IN_A_LONG_HISTORY)
+    assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)
+
+    close_chat(guest)
+    start_quiz(guest)
+    expect(host.locator(TYPING)).to_be_visible()
+    assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)
+    held.release.set()
+
+    expect(host.locator(CARD)).to_be_visible()
+    expect(host.locator(GAME_MASTER_LINES)).to_have_count(1)
+    assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
