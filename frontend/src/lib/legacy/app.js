@@ -27,7 +27,7 @@ import { initPip } from "./pip.js";
 import * as stage from "./stage.js";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import { state } from "./state.js";
-import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "./status.js";
+import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
 import { initHome, showGreeting } from "./home.js";
 import { TOAST_KIND, clearToast, showToast } from "./toast.js";
 import { PREJOIN_KIND, initPrejoin, openPrejoin } from "./prejoin.js";
