@@ -138,7 +138,7 @@ function registerSessionHandlers() {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
-        showCallAddress(state.roomId);
+        void showCallAddress(state.roomId);
         setCallLink(callUrl(state.roomId));
         showWaitingCard();
         setStatus("In call", "connected");

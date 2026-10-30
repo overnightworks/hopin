@@ -35,9 +35,6 @@ describe("navigation", () => {
     });
 
     it("rewrites the address with a shallow replace", async () => {
-        stubLocation("/");
-        vi.mocked(goto).mockResolvedValue(undefined);
-
         await showCallAddress("abc");
 
         expect(goto).toHaveBeenCalledWith("/c/abc", { shallow: true, replace: true });
