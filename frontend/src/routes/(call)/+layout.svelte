@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { AccountMenu } from "overnightworks-appkit";
+    import { AccountMenu, LegalLinks } from "overnightworks-appkit";
     import { onMount, type Snippet } from "svelte";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
@@ -45,6 +45,11 @@
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
     import { startUp } from "./start-up.ts";
+
+    const legalLinks = [
+        { label: "Impressum", href: "https://hallucinai.de/impressum" },
+        { label: "Datenschutz", href: "https://hallucinai.de/datenschutz#hopin" },
+    ];
 
     const { children }: { children: Snippet } = $props();
     const shownEnd = $derived(shownEndView());
@@ -112,7 +117,7 @@
         <button id="endHomeBtn" class={actionClasses(END_ACTION.HOME)} onclick={goHome}>Back to start</button>
         <button id="endRejoinBtn" class={actionClasses(END_ACTION.REJOIN)} onclick={rejoinCall}>Rejoin</button>
     </div>
-    <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+    <LegalLinks links={legalLinks} place="page" newTab />
 </main>
 
 <!-- prettier-ignore -->
@@ -126,7 +131,7 @@
     <h2 id="homeGreeting" aria-busy={greeting.isBusy || undefined}>{greeting.name === null ? "Hi there" : `Hi, ${greeting.name}`}</h2>
     <p>Start a call, then send the link to the people you want.</p>
     <button id="homeStartBtn" class="button button-primary button-lg" onclick={requestStart}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>Start a call</button>
-    <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+    <LegalLinks links={legalLinks} place="page" newTab />
 </main>
 
 <!-- prettier-ignore -->
@@ -155,7 +160,7 @@
             <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled={isPrejoinInert()} onclick={startClicked}>{startLabel()}</button>
         </div>
     </div>
-    <nav class="legal" aria-label="Legal"><a href="https://hallucinai.de/impressum" target="_blank" rel="noopener">Impressum</a><a href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener">Datenschutz</a></nav>
+    <LegalLinks links={legalLinks} place="page" newTab />
 </main>
 
 <!-- prettier-ignore -->
@@ -249,10 +254,7 @@
         accountHref={ACCOUNT_CONSOLE_PATH}
         onAccountOpen={closeOpenMenu}
         appRows={[]}
-        legalLinks={[
-            { label: "Impressum", href: "https://hallucinai.de/impressum" },
-            { label: "Datenschutz", href: "https://hallucinai.de/datenschutz#hopin" },
-        ]}
+        {legalLinks}
         logOutAction={LOGOUT_PATH}
     />
 </dialog>
