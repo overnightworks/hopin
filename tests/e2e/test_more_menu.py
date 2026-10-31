@@ -41,7 +41,24 @@ POPOVER_BOTTOM_GAP_PIXELS = 88
 CENTRE_TOLERANCE_PIXELS = 2
 VIDEO_TAP_HEIGHT_PIXELS = 200
 COLOUR_OF = "(selector) => getComputedStyle(document.querySelector(selector)).color"
+MINIMUM_NON_TEXT_CONTRAST = 3
+SHEET_AND_PART_BACKGROUNDS = """(selector) => {
+    const style = getComputedStyle(document.querySelector(selector));
+    const sheet = getComputedStyle(document.querySelector("#moreMenu"));
+    return [sheet.backgroundColor, style.backgroundColor];
+}"""
 THE_TAG_AT_THE_TOP = "#stage .ctop .left #lockIndicator"
+
+
+def relative_luminance(rgb_text: str) -> float:
+    channels = [int(value) for value in re.findall(r"\d+", rgb_text)[:3]]
+    linear = [(c / 255 / 12.92) if c / 255 <= 0.04045 else ((c / 255 + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast_ratio(first: str, second: str) -> float:
+    lighter, darker = sorted((relative_luminance(first), relative_luminance(second)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 def expect_more_closed(person: Page) -> None:
@@ -91,6 +108,19 @@ def test_host_opens_more_as_a_sheet_on_a_phone_and_a_popover_on_a_desktop(
     for label in LEGAL_LINKS:
         assert host.evaluate(COLOUR_OF, f"a.mi[href='{LEGAL_LINKS[label]}']") == lock_colour
     expect(host.get_by_role("dialog", name="More")).to_be_visible()
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+@pytest.mark.parametrize("selector", [".grab", f"{LOCK_SWITCH} .switch"])
+def test_phone_sheet_grab_handle_and_lock_switch_off_track_reach_non_text_contrast(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], color_scheme: str, selector: str
+) -> None:
+    host, _, _ = open_call(open_person, base_url, page_errors, {**PHONE, "color_scheme": color_scheme})
+    open_more(host)
+
+    sheet_background, part_background = host.evaluate(SHEET_AND_PART_BACKGROUNDS, selector)
+
+    assert contrast_ratio(part_background, sheet_background) >= MINIMUM_NON_TEXT_CONTRAST
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
