@@ -1,0 +1,8 @@
+claim_id = "4ba05a50b89c44e496eb7f2151e38ed7"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "f8a800a4fe00eeec251950b1c1fdaf610c935544"
+branch = "claude/issue-399-p9b-account-menu-from-appkit-k7"
+scope = ["docs/ARCHITECTURE.md", "docs/decisions/0001-static-frontend-modules.md", "docs/mockups/README.md", "frontend/src/lib/legacy/account.js", "frontend/src/lib/legacy/app.js", "frontend/src/lib/ui/account.svelte.test.ts", "frontend/src/lib/ui/account.svelte.ts", "frontend/src/lib/wire.ts", "frontend/src/routes/(call)/+layout.svelte", "scripts/generate_wire.py", "src/hopin/app.py", "src/hopin/auth/account.py", "src/hopin/config/constants.py", "src/hopin/web/static/assets/css/hopin.css", "tests/auth/test_account.py", "tests/auth/test_gate.py", "tests/e2e/test_account_menu.py", "tests/e2e/test_page_shell.py"]
+opened_commit = "59c65970e1e94a43c3c537e297e8adb0bbea3758"
+whole_reason = "The kit panel needs its href, which only the new route gives; the port, the panel and the deletion of account.js cannot ship apart without the menu drawn twice or bound twice; the dialog's own frame must go with the panel's arrival or two frames show; the e2e pins and documents that name the menu's markup move with it."
