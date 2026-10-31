@@ -150,7 +150,7 @@ class TestCreateApp:
 
     @pytest.mark.parametrize(
         "path",
-        ["/", "/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css", CALL_FEATURES_PATH],
+        ["/", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css", CALL_FEATURES_PATH],
     )
     def test_serves_the_page_and_its_assets(self, sign_in_settings, path):
         assert signed_in_client(sign_in_settings().settings).get(path).status_code == 200

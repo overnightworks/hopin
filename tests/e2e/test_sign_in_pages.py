@@ -10,7 +10,6 @@ from tests.e2e.support.calls import record_page_errors
 from tests.e2e.support.page_assertions import (
     LEGAL_LINKS,
     RECORD_POLICY_VIOLATIONS,
-    expect_both_legal_links,
     expect_both_legal_links_in_the_same_tab,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE, SMALL_PHONE_LANDSCAPE
@@ -33,10 +32,14 @@ CARD_AND_ACTION_WIDTHS = """(selectors) => {
     return [document.querySelector(actionSelector).getBoundingClientRect().width, content];
 }"""
 BUILT_CARD_SELECTORS = ["main", "main .action"]
-NO_ACCESS_CARD_SELECTORS = [".login-card", ".login-card .btn"]
 SIGN_IN_STATES = [
     pytest.param(LOGIN_PATH, "Log in", id="signed-out"),
     pytest.param(FORGED_CALLBACK, "Try again", id="login-failed"),
+]
+BUILT_SIGN_IN_PAGES = [
+    pytest.param(LOGIN_PATH, id="signed-out"),
+    pytest.param(FORGED_CALLBACK, id="login-failed"),
+    pytest.param(NO_ACCESS_PATH, id="no-access"),
 ]
 END_SESSION_PATH = "/realms/test/protocol/openid-connect/logout"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
@@ -117,7 +120,7 @@ def open_signed_out_page(
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_the_no_access_page_shows_its_heading_its_one_action_and_both_legal_links(
+def test_the_no_access_page_shows_its_heading_its_one_action_and_both_legal_links_in_the_same_tab(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
@@ -125,12 +128,13 @@ def test_the_no_access_page_shows_its_heading_its_one_action_and_both_legal_link
 ) -> None:
     person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, form_factor)
 
-    expect(person).to_have_title("HopIn - No access")
-    card = person.locator(".login-card")
+    expect(person).to_have_title("HopIn")
+    card = person.get_by_role("main")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
     expect(card.get_by_role("heading", name="No access", exact=True)).to_be_visible()
-    expect(card.locator(".btn")).to_have_text(["Log out"])
-    expect_both_legal_links(person.locator(".legal-links"))
+    expect(card.get_by_role("button")).to_have_text(["Log out"])
+    expect(card.get_by_role("link")).to_have_count(0)
+    expect_both_legal_links_in_the_same_tab(person.get_by_role("navigation"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
@@ -154,23 +158,28 @@ def test_the_no_access_page_says_the_account_is_signed_in_but_has_no_access(
 ) -> None:
     person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, DESKTOP)
 
-    expect(person.locator(".login-card p")).to_have_text("You are signed in, but this account has no access to HopIn.")
+    expect(person.get_by_role("main").locator("p")).to_have_text(
+        "You are signed in, but this account has no access to HopIn."
+    )
 
 
-def test_log_out_is_as_wide_as_the_card_on_a_phone_and_narrower_on_a_desktop(
+def test_log_out_is_as_wide_as_the_card_on_a_phone_and_on_a_desktop(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
 ) -> None:
-    widths = {
-        name: open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, form_factor).evaluate(
-            CARD_AND_ACTION_WIDTHS, NO_ACCESS_CARD_SELECTORS
-        )
-        for name, form_factor in {"phone": PHONE, "desktop": DESKTOP}.items()
-    }
+    for form_factor in (PHONE, DESKTOP):
+        person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, form_factor)
+        action, content = person.evaluate(CARD_AND_ACTION_WIDTHS, BUILT_CARD_SELECTORS)
+        assert action == pytest.approx(content, abs=1)
 
-    phone_button, phone_content = widths["phone"]
-    desktop_button, desktop_content = widths["desktop"]
-    assert phone_button == pytest.approx(phone_content, abs=1)
-    assert desktop_button < desktop_content
+
+@pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
+def test_the_card_names_the_app_once_for_a_screen_reader(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
+) -> None:
+    person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
+    person.goto(f"{e2e_server.base_url}{path}")
+
+    expect(person.get_by_role("main").locator(".wordmark")).to_match_aria_snapshot("- text: HopIn")
 
 
 ISSUER_NOT_REACHABLE = "net::ERR_NAME_NOT_RESOLVED"
@@ -217,7 +226,7 @@ def test_log_out_ends_the_session_and_the_loop_stops_at_the_issuers_end_session_
     assert [message for message in console_messages if "Content Security Policy" in message] == []
 
 
-@pytest.mark.parametrize("path", [LOGIN_PATH, FORGED_CALLBACK], ids=["signed-out", "login-failed"])
+@pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
 def test_a_built_sign_in_page_runs_no_script_and_carries_no_inline_style_handler_or_refresh(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
 ) -> None:
@@ -237,7 +246,7 @@ def test_a_built_sign_in_page_runs_no_script_and_carries_no_inline_style_handler
     assert markup.count("<title>") == 1
 
 
-@pytest.mark.parametrize("path", [LOGIN_PATH, FORGED_CALLBACK], ids=["signed-out", "login-failed"])
+@pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
 def test_a_built_sign_in_page_loads_every_sub_resource_signed_out_without_a_policy_violation(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
 ) -> None:

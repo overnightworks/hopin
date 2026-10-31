@@ -1,14 +1,20 @@
 <script lang="ts">
-    import { SignInPage } from "overnightworks-appkit";
-    import { AUTH_START_PATH } from "#lib/wire.ts";
+    import { SignInPage, type SignInState } from "overnightworks-appkit";
+    import { AUTH_START_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
-    const { page }: { page: "signed-out" | "login-failed" } = $props();
+    const { page }: { page: SignInState["page"] } = $props();
+    const signInState = $derived.by((): SignInState => {
+        if (page === "no-access") {
+            return { page, logOutAction: LOGOUT_PATH };
+        }
+        return { page, signInHref: AUTH_START_PATH };
+    });
 </script>
 
 <div class="sign-in">
     <SignInPage
         appName="HopIn"
-        state={{ page, signInHref: AUTH_START_PATH }}
+        state={signInState}
         legalLinks={[
             { label: "Impressum", href: "https://hallucinai.de/impressum" },
             { label: "Datenschutz", href: "https://hallucinai.de/datenschutz#hopin" },

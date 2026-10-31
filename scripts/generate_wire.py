@@ -16,6 +16,7 @@ from hopin.config.constants import (  # noqa: E402
     AUTH_START_PATH,
     CALL_FEATURES_PATH,
     ICE_SERVERS_PATH,
+    LOGOUT_PATH,
     REPLAY_LOG_LIMIT,
     RETURN_TO_QUERY_PARAMETER,
     SESSION_ENDED_CLOSE_CODE,
@@ -69,6 +70,7 @@ def render_core() -> str:
         f'export const ICE_SERVERS_PATH = "{ICE_SERVERS_PATH}";\n'
         f'export const CALL_FEATURES_PATH = "{CALL_FEATURES_PATH}";\n'
         f'export const AUTH_START_PATH = "{AUTH_START_PATH}";\n'
+        f'export const LOGOUT_PATH = "{LOGOUT_PATH}";\n'
         f'export const RETURN_TO_QUERY_PARAMETER = "{RETURN_TO_QUERY_PARAMETER}";\n'
         f"export const REPLAY_LOG_LIMIT = {REPLAY_LOG_LIMIT};\n"
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)

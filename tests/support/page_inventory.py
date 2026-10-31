@@ -1,16 +1,11 @@
-"""A page's markup read into what the page guards judge: links, forms, stylesheets, icons, classes and screens."""
+"""A page's markup read into what the page guards judge: links, forms, stylesheets and screens."""
 
 import re
 from html.parser import HTMLParser
 
-from hopin.web.routes import STATIC_DIR
-
-UI_CONSOLE_CSS = STATIC_DIR / "assets" / "css" / "ui-console.css"
 LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-CSS_CLASS_NAME = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
-CSS_DECLARATION_BLOCK = re.compile(r"\{[^{}]*\}")
 
 VOID_TAGS = {
     "area",
@@ -42,8 +37,6 @@ class PageInventory(HTMLParser):
         self.forms: list[dict[str, str | None]] = []
         self.submit_buttons = 0
         self.stylesheets: list[str] = []
-        self.icons: list[dict[str, str | None]] = []
-        self.class_values: list[str] = []
         self.screens: set[str] = set()
         self.legal_navs_by_screen: dict[str, list[list[str]]] = {}
         self._screens: list[tuple[str, int]] = []
@@ -74,12 +67,8 @@ class PageInventory(HTMLParser):
             self.inline_scripts += 1
         if tag == "link" and attributes.get("rel") == "stylesheet":
             self.stylesheets.append(attributes["href"])
-        if tag == "link" and attributes.get("rel") == "icon":
-            self.icons.append(attributes)
 
     def _inspect_body(self, tag, attributes):
-        if "class" in attributes:
-            self.class_values.append(attributes["class"])
         if tag == "form":
             self.forms.append(attributes)
         if tag == "button" and attributes.get("type") == "submit":
@@ -118,11 +107,6 @@ class PageInventory(HTMLParser):
         screen = self._screens[-1][0] if self._screens else ""
         self.legal_navs_by_screen.setdefault(screen, []).append(self._legal_nav_links)
         self._legal_nav_links = None
-
-
-def defined_class_names(stylesheet: str) -> set[str]:
-    selectors = CSS_DECLARATION_BLOCK.sub("{}", CSS_COMMENT.sub("", stylesheet))
-    return set(CSS_CLASS_NAME.findall(selectors))
 
 
 def inventory_of(markup: str) -> PageInventory:

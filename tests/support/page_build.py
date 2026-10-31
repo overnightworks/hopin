@@ -1,6 +1,6 @@
 """The committed page build the tests serve.
 
-It holds a shell with one inline script, the two sign-in pages with their stylesheet,
+It holds a shell with one inline script, the three sign-in pages with their stylesheet,
 one immutable file and the version file.
 """
 

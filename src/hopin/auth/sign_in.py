@@ -6,7 +6,6 @@ from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, FastAPI, Response
-from fastapi.responses import FileResponse
 from webauth.config import SessionLifetime, WebAuthConfig
 from webauth.https_client import fetch_key_set_over_https
 from webauth.oidc import OidcClientConfig, OidcRefusal, OidcRelyingParty, TokenRequestPost
@@ -28,7 +27,7 @@ from hopin.config.constants import (
     SIGN_IN_PATHS,
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
-from hopin.web.routes import READ_METHODS, STATIC_DIR, built_page_response
+from hopin.web.routes import READ_METHODS, built_page_response
 
 if TYPE_CHECKING:
     from pydantic import SecretStr
@@ -40,7 +39,6 @@ if TYPE_CHECKING:
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
 LOGOUT_LABEL = "Log out"
-NO_ACCESS_PAGE = STATIC_DIR / "no-access.html"
 
 logger = structlog.get_logger()
 
@@ -161,8 +159,8 @@ def _create_pages_router(page_build: PageBuild) -> APIRouter:
         return built_page_response(page_build.signed_out)
 
     @router.api_route(NO_ACCESS_PATH, methods=READ_METHODS)
-    def no_access() -> FileResponse:
-        return FileResponse(NO_ACCESS_PAGE)
+    def no_access() -> Response:
+        return built_page_response(page_build.no_access)
 
     return router
 

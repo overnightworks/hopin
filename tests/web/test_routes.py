@@ -1,4 +1,3 @@
-import hashlib
 import json
 import re
 import tomllib
@@ -9,13 +8,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from hopin.auth.sign_in import NO_ACCESS_PAGE
 from hopin.config.constants import (
     APP_ASSET_PATH,
     CALL_PATH,
     HEALTH_PATH,
     HOME_PATH,
-    LOGOUT_PATH,
     STATIC_PATH,
 )
 from hopin.rooms.models import Account
@@ -26,10 +23,6 @@ from hopin.web.routes import STATIC_DIR, create_router
 from tests.support.page_build import fixture_page_build
 from tests.support.page_inventory import (
     CSS_COMMENT,
-    LEGAL_URLS,
-    NEW_TAB_LINK_ATTRIBUTES,
-    UI_CONSOLE_CSS,
-    defined_class_names,
     inventory_of,
 )
 from tests.support.signaling_fakes import SocketAccountResolver
@@ -112,7 +105,6 @@ class TestStaticAssets:
     @pytest.mark.parametrize(
         ("asset", "content_type"),
         [
-            ("css/ui-console.css", "text/css"),
             ("css/hopin.css", "text/css"),
         ],
     )
@@ -151,8 +143,6 @@ class TestHeadRequests:
         assert client.head(path).status_code == 200
 
 
-SAME_ORIGIN_ABSOLUTE_PATH = re.compile(r"^/[^/]")
-UI_CONSOLE_SHA256 = "7033d912b69862165210c34512164aeff0422a53d566c5492ddad0bed8b97d39"
 STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
 REPOSITORY = Path(__file__).parents[2]
 # HopIn's own stylesheets: the page's and each one a feature's frontend module loads.
@@ -161,7 +151,6 @@ OWN_STYLESHEETS = sorted(
         *(STATIC_DIR / "assets").rglob("*.css"),
         *(REPOSITORY / "frontend" / "src" / "lib").rglob("*.css"),
     }
-    - {UI_CONSOLE_CSS}
 )
 LOCK_FILE = REPOSITORY / "uv.lock"
 FRONTEND_PACKAGE_FILE = REPOSITORY / "frontend" / "package.json"
@@ -174,11 +163,8 @@ CSS_ZEROED_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:\s*0s\b")
 CSS_REDUCED_MOTION_BLOCK = re.compile(r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?\})\s*\}", re.DOTALL)
 CSS_ROOT_BLOCK = re.compile(r":root\s*\{([^{}]*)\}")
 CSS_CUSTOM_PROPERTY_DEFINITION = re.compile(r"(--[\w-]+)\s*:")
-CSS_CUSTOM_PROPERTY_READ = re.compile(r"var\((--[\w-]+)")
 CSS_COLOR_SCHEME_DECLARATION = re.compile(r"(?<![\w-])color-scheme\s*:")
-UI_CONSOLE_TOKEN_STILL_READ = "--sans"
 FAVICON_FILE = STATIC_DIR / "assets" / "img" / "hopin.svg"
-FAVICON_URL = f"{STATIC_PATH}/img/hopin.svg"
 
 
 def untokened_motion_durations(stylesheet: str) -> list[str]:
@@ -198,48 +184,7 @@ def motion_tokens_left_running_under_reduced_motion(stylesheet: str) -> set[str]
     return defined - set(CSS_ZEROED_MOTION_TOKEN.findall(reduced_block))
 
 
-@pytest.fixture(params=sorted(STATIC_DIR.glob("*.html")), ids=lambda page: page.name)
-def every_page_inventory(request):
-    return inventory_of(request.param.read_text())
-
-
-class TestPageIsCspReady:
-    def test_has_no_inline_script_style_or_handler(self, every_page_inventory):
-        assert every_page_inventory.inline_scripts == 0
-        assert every_page_inventory.style_elements == 0
-        assert every_page_inventory.forbidden_attributes == []
-
-    def test_fetches_only_same_origin_absolute_paths(self, every_page_inventory):
-        assert every_page_inventory.fetched_urls
-        assert all(SAME_ORIGIN_ABSOLUTE_PATH.match(url) for url in every_page_inventory.fetched_urls)
-
-
-class TestNoAccessPage:
-    @pytest.fixture
-    def markup(self):
-        return NO_ACCESS_PAGE.read_text()
-
-    def test_offers_one_log_out_form_to_the_logout_route_and_no_other_way_out(self, markup):
-        inventory = inventory_of(markup)
-        assert [(form["method"], form["action"]) for form in inventory.forms] == [("post", LOGOUT_PATH)]
-        assert inventory.submit_buttons == 1
-        assert [link["href"] for link in inventory.links] == list(LEGAL_URLS)
-        assert all(link[name] == value for link in inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
-        assert "Back" not in markup
-
-    def test_runs_no_script_and_never_redirects_by_itself(self, markup):
-        assert "<script" not in markup.lower()
-        assert "http-equiv" not in markup
-
-
 class TestPageShell:
-    def test_every_page_loads_ui_console_then_the_kit_then_hopin(self, every_page_inventory):
-        assert every_page_inventory.stylesheets == [
-            f"{STATIC_PATH}/css/ui-console.css",
-            f"{KIT_PATH}/appkit.css",
-            f"{STATIC_PATH}/css/hopin.css",
-        ]
-
     def test_the_kit_path_carries_the_version_the_lock_records(self):
         packages = tomllib.loads(LOCK_FILE.read_text())["package"]
         locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
@@ -251,28 +196,10 @@ class TestPageShell:
         locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
         assert specifier.endswith(f"/overnightworks-appkit-{locked}.tgz")
 
-    def test_every_page_links_the_brand_mark_as_its_one_svg_icon(self, every_page_inventory):
-        assert every_page_inventory.icons == [{"rel": "icon", "type": "image/svg+xml", "href": FAVICON_URL}]
-
     def test_the_icon_is_an_svg_document_in_utf8_with_the_brand_mark_viewbox(self):
         # The file is the repository's own, never untrusted input.
         root = ElementTree.fromstring(FAVICON_FILE.read_bytes().decode("utf-8"))  # noqa: S314 - parses the repository own favicon and no untrusted input
         assert (root.tag, root.get("viewBox")) == ("{http://www.w3.org/2000/svg}svg", "0 0 24 24")
-
-    def test_vendored_ui_console_is_byte_identical_to_its_release(self):
-        assert hashlib.sha256(UI_CONSOLE_CSS.read_bytes()).hexdigest() == UI_CONSOLE_SHA256
-
-    @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
-    def test_reads_no_ui_console_token_that_the_kit_does_not_also_define(self, client, stylesheet_path):
-        stylesheet = CSS_COMMENT.sub("", stylesheet_path.read_text())
-        ui_console_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", UI_CONSOLE_CSS.read_text())))
-        kit_tokens = set(
-            CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", client.get(f"{KIT_PATH}/appkit.css").text))
-        )
-        own_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet))
-        read_tokens = set(CSS_CUSTOM_PROPERTY_READ.findall(stylesheet))
-        assert ui_console_tokens
-        assert (read_tokens & ui_console_tokens) - own_tokens - kit_tokens - {UI_CONSOLE_TOKEN_STILL_READ} == set()
 
     def test_defines_no_token_and_no_color_scheme_the_kit_owns(self, client):
         stylesheet = CSS_COMMENT.sub("", (STYLESHEETS_DIR / "hopin.css").read_text())
@@ -281,12 +208,6 @@ class TestPageShell:
         assert kit_tokens
         assert set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet)) & kit_tokens == set()
         assert CSS_COLOR_SCHEME_DECLARATION.search(stylesheet) is None
-
-    def test_defines_no_class_name_that_ui_console_defines(self):
-        vendored = defined_class_names(UI_CONSOLE_CSS.read_text())
-        own_stylesheet = {name for path in OWN_STYLESHEETS for name in defined_class_names(path.read_text())}
-        assert vendored
-        assert vendored & own_stylesheet == set()
 
     @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
     def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self, stylesheet_path):

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-SIGN_IN_PAGES = ("login.html", "login-failed.html")
+SIGN_IN_PAGES = ("login.html", "login-failed.html", "no-access.html")
 
 
 def build_with_shell(root: Path, shell: str, sign_in_page: str = "<html></html>") -> Path:
@@ -92,23 +92,28 @@ class TestLoad:
     def test_the_sign_in_pages_are_the_bytes_read_with_strong_etags(self):
         page_build = PageBuild.load(FIXTURE_DIRECTORY)
 
-        for page, name in ((page_build.signed_out, "login.html"), (page_build.login_failed, "login-failed.html")):
+        for page, name in (
+            (page_build.signed_out, "login.html"),
+            (page_build.login_failed, "login-failed.html"),
+            (page_build.no_access, "no-access.html"),
+        ):
             assert page.content == (FIXTURE_DIRECTORY / name).read_bytes()
             assert page.etag.startswith('"')
             assert page.etag.endswith('"')
 
-    def test_the_sign_in_stylesheets_are_the_app_stylesheets_the_two_pages_link(self, tmp_path):
+    def test_the_sign_in_stylesheets_are_the_app_stylesheets_the_sign_in_pages_link(self, tmp_path):
         root = build_with_shell(tmp_path, "<html></html>")
         links = {
             "login.html": ("/_app/a.css", "/static/css/x.css"),
             "login-failed.html": ("/_app/a.css", "/_app/b.css"),
+            "no-access.html": ("/_app/c.css",),
         }
         for name, hrefs in links.items():
             (root / name).write_text("".join(f'<link rel="stylesheet" href="{href}">' for href in hrefs))
-        for stylesheet in ("a.css", "b.css"):
+        for stylesheet in ("a.css", "b.css", "c.css"):
             (root / "_app" / stylesheet).write_text("")
 
-        assert PageBuild.load(root).sign_in_stylesheets == {"/_app/a.css", "/_app/b.css"}
+        assert PageBuild.load(root).sign_in_stylesheets == {"/_app/a.css", "/_app/b.css", "/_app/c.css"}
 
     @pytest.mark.parametrize("missing", SIGN_IN_PAGES)
     def test_a_directory_without_a_sign_in_page_refuses_the_start_and_names_the_build_command(self, tmp_path, missing):
