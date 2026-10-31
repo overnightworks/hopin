@@ -39,11 +39,11 @@ export enum ROOM_CLOSED_REASON {
     ENDED = "ended",
 }
 
-export interface RoomClosedFrame {
+export type RoomClosedFrame = {
     type: SIGNAL_TYPE.ROOM_CLOSED;
     reason: ROOM_CLOSED_REASON;
     grace_seconds?: number;
-}
+};
 
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";

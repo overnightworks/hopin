@@ -1,9 +1,11 @@
 """Tests for the generator that writes the browser's typed wire vocabulary."""
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
 
 import pytest
 
+from hopin.config.constants import RoomClosedReason, SignalType
 from scripts import generate_wire
 
 if TYPE_CHECKING:
@@ -20,13 +22,32 @@ def test_render_core_vocabulary_names_enums_and_constants() -> None:
     assert 'export enum SIGNAL_TYPE {\n    OFFER = "offer",' in rendered
     assert "export enum ERROR_REASON {" in rendered
     assert "export enum ROOM_CLOSED_REASON {" in rendered
-    assert "export interface RoomClosedFrame {" in rendered
+    assert "export type RoomClosedFrame = {" in rendered
     assert 'export const WEBSOCKET_PATH = "/ws";' in rendered
     assert "export const SESSION_ENDED_CLOSE_CODE = 4002;" in rendered
     assert "export const REPLAY_LOG_LIMIT = 256;" in rendered
     description_types = "export const DESCRIPTION_TYPES: readonly SIGNAL_TYPE[]"
     assert f"{description_types} = [SIGNAL_TYPE.ANSWER, SIGNAL_TYPE.OFFER];" in rendered
     assert "const" + " enum" not in rendered
+
+
+def test_render_core_room_closed_frame_follows_the_python_frame_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    @dataclass(frozen=True)
+    class RoomClosedFrame:
+        TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
+
+        reason: RoomClosedReason
+        wait_seconds: int | None = None
+
+    monkeypatch.setattr(generate_wire, "RoomClosedFrame", RoomClosedFrame)
+
+    assert (
+        "export type RoomClosedFrame = {\n"
+        "    type: SIGNAL_TYPE.ROOM_CLOSED;\n"
+        "    reason: ROOM_CLOSED_REASON;\n"
+        "    wait_seconds?: number;\n"
+        "};\n"
+    ) in generate_wire.render_core()
 
 
 def written_by_main(root: Path) -> dict[Path, str]:
