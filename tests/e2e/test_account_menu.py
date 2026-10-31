@@ -139,7 +139,7 @@ def test_avatar_keeps_the_person_icon_when_the_username_has_no_letter_or_digit(
     expect(person.locator(AVATAR)).to_have_text("")
 
 
-def test_desktop_prejoin_has_the_avatar_and_the_phone_prejoin_keeps_back_instead(
+def test_prejoin_has_the_avatar_on_desktop_and_phone_and_the_phone_keeps_back_too(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     desktop = watch(open_person(**DESKTOP), page_errors)
@@ -149,7 +149,7 @@ def test_desktop_prejoin_has_the_avatar_and_the_phone_prejoin_keeps_back_instead
         open_prejoin(person, base_url)
 
     expect(desktop.locator(AVATAR)).to_be_visible()
-    expect(phone.locator(AVATAR)).to_have_count(0)
+    expect(phone.locator(AVATAR)).to_be_visible()
     expect(phone.get_by_role("button", name="Back")).to_be_visible()
 
 
