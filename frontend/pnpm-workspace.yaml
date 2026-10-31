@@ -9,5 +9,9 @@ engineStrict: true
 patchedDependencies:
     "@sveltejs/vite-plugin-svelte@7.3.1": patches/@sveltejs__vite-plugin-svelte@7.3.1.patch
 
+# minimatch below 11.0.1 has a denial-of-service advisory (GHSA-g3hv-75wg-m249). eslint,
+# @eslint/config-array and @typescript-eslint/typescript-estree still ask for ^10; #394 drops
+# the override once they ask for a patched version.
 overrides:
     deepmerge: "-"
+    minimatch: "^11.0.1"
