@@ -50,6 +50,20 @@ def test_main_source_outside_frontend_src_exits_naming_the_path(tmp_path: Path, 
         merged_text(tmp_path, reports["vitest"], reports["browser"])
 
 
+@pytest.mark.parametrize(
+    ("report_text", "message"),
+    [
+        (record("frontend/src/lib/a.ts", 4) + "TN:\nSF:frontend/src/lib/b.ts\nLF:1\n", r"v\.info ends without"),
+        (record("frontend/src/lib/a.ts", 4) + record("frontend/src/lib/a.ts", 2), r"v\.info names .*a\.ts twice"),
+        ("TN:\nLF:1\nend_of_record\n", r"v\.info has a record without an SF:"),
+    ],
+    ids=["truncated", "duplicate-source", "missing-source"],
+)
+def test_main_malformed_report_exits_naming_it(tmp_path: Path, report_text: str, message: str) -> None:
+    with pytest.raises(SystemExit, match=message):
+        merged_text(tmp_path, report_text, "")
+
+
 def test_main_missing_report_exits_naming_it(tmp_path: Path) -> None:
     present = tmp_path / "present.info"
     present.write_text("")

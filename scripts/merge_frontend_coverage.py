@@ -24,11 +24,18 @@ def read_records(report: Path) -> Records:
     for line in report.read_text().splitlines():
         current.append(line)
         if line == END_OF_RECORD:
-            source = next(entry for entry in current if entry.startswith(SOURCE_FILE)).removeprefix(SOURCE_FILE)
+            source = next((entry for entry in current if entry.startswith(SOURCE_FILE)), None)
+            if source is None:
+                raise SystemExit(f"merge_frontend_coverage: {report} has a record without an {SOURCE_FILE} line")
+            source = source.removeprefix(SOURCE_FILE)
+            if source in records:
+                raise SystemExit(f"merge_frontend_coverage: {report} names {source} twice")
             if not source.startswith(SOURCE_PREFIX):
                 raise SystemExit(f"merge_frontend_coverage: {report} names {source}, outside {SOURCE_PREFIX}")
             records[source] = current
             current = []
+    if current:
+        raise SystemExit(f"merge_frontend_coverage: {report} ends without {END_OF_RECORD}")
     return records
 
 
