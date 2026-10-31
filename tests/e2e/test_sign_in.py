@@ -38,6 +38,9 @@ from tests.support.sign_in_settings import TEST_ISSUER
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from playwright.sync_api import Request as PlaywrightRequest
+
+    from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.server import RunningServer
     from tests.support.signed_in import SeededMember
 
@@ -140,10 +143,11 @@ async () => {
 """
 
 
-def record_document_requests(page: Page) -> list[str]:
-    documents: list[str] = []
-    page.on("request", lambda request: documents.append(request.url) if request.resource_type == "document" else None)
-    return documents
+def record_document_requests(page: Page, browser_coverage: BrowserCoverage) -> Callable[[], list[str]]:
+    """The reader answers the document URLs requested so far, without the passes the collector cancelled."""
+    requests: list[PlaywrightRequest] = []
+    page.on("request", lambda request: requests.append(request) if request.resource_type == "document" else None)
+    return lambda: [request.url for request in requests if not browser_coverage.was_cancelled(request)]
 
 
 def record_document_statuses(page: Page) -> list[int]:
@@ -174,6 +178,7 @@ def test_a_person_without_a_session_who_opens_a_call_link_is_sent_to_the_issuer_
     e2e_server: RunningServer,
     form_factor: dict[str, Any],
     page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     expected_request_failures.append(TEST_ISSUER)
     host = record_page_errors(open_person(**DESKTOP), page_errors)
@@ -182,13 +187,13 @@ def test_a_person_without_a_session_who_opens_a_call_link_is_sent_to_the_issuer_
     outsider = record_page_errors(open_person(signed_in=False, **form_factor), page_errors)
     sockets = []
     outsider.on("websocket", lambda socket: sockets.append(socket))
-    documents = record_document_requests(outsider)
+    documents = record_document_requests(outsider, browser_coverage)
     statuses = record_document_statuses(outsider)
 
     with pytest.raises(PlaywrightError, match="ERR_NAME_NOT_RESOLVED"):
         outsider.goto(call_link)
 
-    expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=call_link, next_path=room_path.replace("/", "%2F"))
+    expect_the_sign_in_at_the_issuer(documents(), e2e_server, opened=call_link, next_path=room_path.replace("/", "%2F"))
     assert statuses == [302, 303]
     expect(outsider.locator("[data-screen=prejoin]")).to_have_count(0)
     assert sockets == []
@@ -205,6 +210,7 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     form_factor: dict[str, Any],
     end_the_session: str,
     page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     expected_request_failures.append(TEST_ISSUER)
     page = record_page_errors(open_person(**form_factor), page_errors)
@@ -214,7 +220,7 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     open_prejoin(page, e2e_server.base_url)
     wait_until_the_prejoin_media_answered(page)
     statuses_were_watched = page.evaluate("() => window.statusLineWatched")
-    documents = record_document_requests(page)
+    documents = record_document_requests(page, browser_coverage)
     if end_the_session == "delete_it_in_the_store":
         e2e_server.stores.sessions.delete(member_of(page).session.id)
     else:
@@ -224,7 +230,7 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
         page.click(PREJOIN_START)
 
     assert ice_servers.value.status == 401
-    expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=f"{e2e_server.base_url}/", next_path="%2F")
+    expect_the_sign_in_at_the_issuer(documents(), e2e_server, opened=f"{e2e_server.base_url}/", next_path="%2F")
     assert statuses_were_watched is True
     assert not any("Could not load ICE servers" in status for status in statuses)
 
@@ -254,6 +260,7 @@ def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_s
     e2e_server: RunningServer,
     form_factor: dict[str, Any],
     page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     expected_request_failures.append(TEST_ISSUER)
     host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -273,17 +280,21 @@ def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_s
     join_by_link(guest, invite_link)
     wait_for_peer_count(host, 1)
     wait_for_peer_count(guest, 1)
-    documents = record_document_requests(guest)
+    documents = record_document_requests(guest, browser_coverage)
     sockets_opened_after_the_session_ended: list[Any] = []
     guest.on("websocket", lambda socket: sockets_opened_after_the_session_ended.append(socket))
     e2e_server.stores.sessions.delete(member_of(guest).session.id)
 
     guest.evaluate(CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS)
 
-    poll_until(guest, lambda: len(documents), lambda seen: seen == 3, "the page went through the sign-in")
+    poll_until(guest, lambda: len(documents()), lambda seen: seen == 3, "the page went through the sign-in")
     room_path = urlsplit(invite_link).path
-    expect_the_sign_in_at_the_issuer(documents, e2e_server, opened=invite_link, next_path=room_path.replace("/", "%2F"))
-    assert leavings == [{"liveTracks": 0, "peerStates": ["closed"], "socketsOpened": 1}]
+    expect_the_sign_in_at_the_issuer(
+        documents(), e2e_server, opened=invite_link, next_path=room_path.replace("/", "%2F")
+    )
+    state = {"liveTracks": 0, "peerStates": ["closed"], "socketsOpened": 1}
+    # The cancelled pass and the re-issue each leave after the teardown.
+    assert leavings == [state] * (1 + browser_coverage.reissued(guest))
     assert sockets_opened_after_the_session_ended == []
     expect(host.locator(OTHER_TILE)).to_have_count(0)
     expect(host.locator('[data-screen="call"]')).to_be_visible()
@@ -291,7 +302,10 @@ def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_s
 
 
 def test_a_member_who_follows_a_call_link_from_another_site_lands_on_the_pre_join_without_the_sign_in(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     host = record_page_errors(open_person(**DESKTOP), page_errors)
     call_link = start_call(host, e2e_server.base_url)
@@ -302,12 +316,12 @@ def test_a_member_who_follows_a_call_link_from_another_site_lands_on_the_pre_joi
         lambda route: route.fulfill(content_type="text/html", body=f'<a id="call" href="{call_link}">call</a>'),
     )
     member.goto(other_site)
-    documents = record_document_requests(member)
+    documents = record_document_requests(member, browser_coverage)
 
     member.click("#call")
 
     expect(member.locator("[data-screen=prejoin]")).to_be_visible()
-    assert documents == [call_link]
+    assert documents() == [call_link]
 
 
 def test_a_call_runs_under_the_security_headers_with_camera_microphone_and_screen_capture_allowed(

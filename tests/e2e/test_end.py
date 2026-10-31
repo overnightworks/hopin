@@ -36,6 +36,7 @@ from tests.e2e.support.media import (
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     MEDIA_REQUEST_IS_HELD,
     MORE_TRACKS_THAN,
+    OTHER_TILE,
     RECORD_MEDIA_TRACKS,
     RELEASE_MEDIA,
     REQUESTED_TRACK_COUNT,
@@ -48,6 +49,8 @@ from tests.e2e.support.signaling import RECONNECT_DELAYS_MS, FrameInjector
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+    from tests.e2e.support.browser_coverage import BrowserCoverage
 
 pytestmark = pytest.mark.e2e
 
@@ -310,16 +313,31 @@ def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:
     expect(end_screen(call.guest)).to_be_hidden()
 
 
-def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_call_link(call: Call) -> None:
+def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_call_link(
+    call: Call, browser_coverage: BrowserCoverage
+) -> None:
     guest_leaves(call)
 
     end_screen(call.guest).get_by_role("button", name="Back to start").click()
 
     expect(call.guest).to_have_url(re.compile(rf"^{re.escape(call.base_url)}/$"))
     expect(call.guest.locator("[data-screen=home]")).to_be_visible()
-    call.guest.go_back()
+    with browser_coverage.passing_through(call.guest):
+        call.guest.go_back()
     expect(call.guest).to_have_url(call.invite_link)
     expect(call.guest.locator("[data-screen=prejoin]")).to_be_visible()
+
+
+def test_host_who_cancels_the_leave_dialog_stays_in_the_call_with_the_guest(call: Call) -> None:
+    call.host.click("#leaveBtn")
+    expect(call.host.locator("#leaveConfirm")).to_be_visible()
+
+    call.host.click("#leaveCancel")
+
+    expect(call.host.locator("#leaveConfirm")).to_be_hidden()
+    expect(call.host.locator("#status")).to_have_text(IN_CALL)
+    expect(call.host.locator(OTHER_TILE)).to_have_count(1)
+    expect(end_screen(call.guest)).to_be_hidden()
 
 
 def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None:
@@ -329,12 +347,17 @@ def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None
 
 
 def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rejoin_or_dialog(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+    open_person: Callable[..., Page],
+    base_url: str,
+    form_factor: dict[str, Any],
+    page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     host = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
     start_call(host, base_url)
 
-    host.reload()
+    with browser_coverage.passing_through(host):
+        host.reload()
     press_through_the_prejoin(host)
     expect(host.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     host.click("#leaveBtn")
@@ -362,11 +385,14 @@ def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at
     expect_end_screen(guest, EXPIRED)
 
 
-def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(call: Call) -> None:
+def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(
+    call: Call, browser_coverage: BrowserCoverage
+) -> None:
     guest_leaves(call)
     toggle_the_lock(call.host)
     expect(call.host.locator("#lockIndicator")).to_be_visible()
-    join_by_link(call.guest, call.invite_link)
+    with browser_coverage.passing_through(call.guest):
+        join_by_link(call.guest, call.invite_link)
     expect_end_screen(call.guest, LOCKED)
 
     toggle_the_lock(call.host)
@@ -399,6 +425,22 @@ def test_refused_join_shows_the_screen_of_its_reason(
     join_by_link(person, hosted_call.invite_link)
 
     expect_end_screen(person, expected)
+
+
+def test_guest_whose_request_the_server_answers_with_an_error_that_is_no_refusal_sees_it_and_keeps_the_call(
+    hosted_call: HostedCall, open_person: Callable[..., Page], form_factor: dict[str, Any]
+) -> None:
+    guest = open_recording_person(open_person, form_factor)
+    guest_frames = FrameInjector(guest)
+    join_by_link(guest, hosted_call.invite_link)
+    expect(guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    guest_frames.send({"type": SignalType.END_ROOM})
+
+    expect(guest.locator("#status")).to_have_text(re.compile(r"^Error: .+"))
+    expect(guest.locator("#status")).to_have_class(re.compile(r"\bstatus-error\b"))
+    expect(end_screen(guest)).to_be_hidden()
+    expect(hosted_call.host.locator(OTHER_TILE)).to_have_count(1)
 
 
 def test_person_whose_account_is_in_the_maximum_of_calls_sees_the_refusal_and_does_not_retry(

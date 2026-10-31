@@ -49,31 +49,30 @@
     const { children }: { children: Snippet } = $props();
     const shownEnd = $derived(shownEndView());
 
-    function elementById<T extends HTMLElement>(id: string, type: new () => T): T {
-        const element = document.getElementById(id);
-        if (!(element instanceof type)) throw new Error(`#${id} is not a ${type.name}`);
-        return element;
-    }
+    let inviteButton: HTMLButtonElement;
+    let moreButton: HTMLButtonElement;
+    let overlayScrim: HTMLElement;
+    let moreMenu: HTMLDialogElement;
+    let inviteMenu: HTMLDialogElement;
+    let accountScrim: HTMLElement;
+    let accountMenu: HTMLDialogElement;
 
     onMount(() => {
         const removeMenus = initMenus();
-        const overlayScrim = elementById("overlayScrim", HTMLElement);
         registerMenu({
-            button: elementById("moreBtn", HTMLButtonElement),
-            dialog: elementById("moreMenu", HTMLDialogElement),
+            button: moreButton,
+            dialog: moreMenu,
             firstFocus: ".mi",
             scrim: overlayScrim,
         });
         registerMenu({
-            button: elementById("inviteBtn", HTMLButtonElement),
-            dialog: elementById("inviteMenu", HTMLDialogElement),
+            button: inviteButton,
+            dialog: inviteMenu,
             firstFocus: ".invite-copy",
             scrim: overlayScrim,
         });
-        const accountDialog = elementById("accountMenu", HTMLDialogElement);
-        const accountScrim = elementById("accountScrim", HTMLElement);
         for (const button of document.querySelectorAll<HTMLButtonElement>(".account-button")) {
-            registerMenu({ button, dialog: accountDialog, firstFocus: "a[href]", scrim: accountScrim });
+            registerMenu({ button, dialog: accountMenu, firstFocus: "a[href]", scrim: accountScrim });
         }
         startUp();
         return removeMenus;
@@ -164,7 +163,7 @@
     <div class="stage" id="stage" data-count={remoteTiles.length + 1}>
         <div class="ctop">
             <div class="left">
-                <div id="status" class="status status-{statusLine.type}">{statusLine.text}</div>
+                <div id="status" class={"status status-" + statusLine.type}>{statusLine.text}</div>
                 <span id="lockIndicator" class="tag-glass" class:hidden={!lockTag.isShown}><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>Locked</span>
             </div>
             <span id="participantCount" class="tag-glass" class:hidden={!participantCount.isShown} aria-label="Participants"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9"/></svg><span class="num">{participantCount.count}</span></span>
@@ -193,20 +192,20 @@
             <button id="videoBtn" class={["cb", !(deviceButtons.hasMedia && deviceButtons.isCameraOn) && "off"]} type="button" aria-label="Camera off" aria-pressed={!(deviceButtons.hasMedia && deviceButtons.isCameraOn)} disabled={!deviceButtons.hasMedia} onclick={() => void cameraClicked()}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
             <button id="screenBtn" class={["cb", deviceButtons.isSharing && "active"]} type="button" aria-label="Share screen" aria-pressed={deviceButtons.isSharing} disabled={!deviceButtons.hasMedia} onclick={() => void screenClicked()}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8 21h8M12 17v4M12 13.5V8M9.4 10.4L12 7.8l2.6 2.6"/></svg></button>
             <span class="gap"></span>
-            <button id="inviteBtn" class="cb" type="button" aria-label="Invite" aria-expanded="false" aria-controls="inviteMenu" disabled={invite.link === ""}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M19 8v6M16 11h6"/></svg></button>
+            <button bind:this={inviteButton} id="inviteBtn" class="cb" type="button" aria-label="Invite" aria-expanded="false" aria-controls="inviteMenu" disabled={invite.link === ""}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M19 8v6M16 11h6"/></svg></button>
             <button id="chatBtn" class={["cb", chat.isOpen && "active"]} type="button" aria-label="Chat" aria-expanded={chat.isOpen} onclick={toggleChat}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.6a8.1 8.1 0 0 1-11.9 7.1L3.5 20l1.4-4.6A8.1 8.1 0 1 1 20.5 11.6z"/></svg><span id="chatBadge" class={["badge", chat.unread > 0 && "visible"]}>{chat.unread}</span></button>
-            <button id="moreBtn" class="cb" type="button" aria-label="More" aria-expanded="false" aria-controls="moreMenu"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg></button>
+            <button bind:this={moreButton} id="moreBtn" class="cb" type="button" aria-label="More" aria-expanded="false" aria-controls="moreMenu"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/></svg></button>
             <span class="gap"></span>
             <button id="leaveBtn" class="cb leave" type="button" aria-label="Leave" onclick={requestLeave}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg></button>
         </fieldset>
-        <div id="overlayScrim" class="scrim hidden"></div>
-        <dialog id="moreMenu" class="overlay" aria-label="More">
+        <div bind:this={overlayScrim} id="overlayScrim" class="scrim hidden"></div>
+        <dialog bind:this={moreMenu} id="moreMenu" class="overlay" aria-label="More">
             <div class="grab"></div>
             <button id="lockBtn" class={["mi", !lockSwitch.isShown && "hidden"]} type="button" role="switch" aria-checked={lockSwitch.isLocked} aria-label="Lock call" onclick={lockClicked}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg><span class="grow">Lock call<small>{lockSwitch.line}</small></span><span class={["switch", lockSwitch.isLocked && "on"]}></span></button>
             <div class="sep"></div>
             <nav class="legal" aria-label="Legal"><a class="mi" href="https://hallucinai.de/impressum" target="_blank" rel="noopener"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M14 3.5V7.5h4M9 12h6M9 15.5h6"/></svg><span class="grow">Impressum</span><span class="end"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></span></a><a class="mi" href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="grow">Datenschutz</span><span class="end"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></span></a></nav>
         </dialog>
-        <dialog id="inviteMenu" class="overlay invite" aria-label="Invite people" data-share={invite.share}>
+        <dialog bind:this={inviteMenu} id="inviteMenu" class="overlay invite" aria-label="Invite people" data-share={invite.share}>
             <div class="grab"></div>
             <div class="sheet-head"><h3>Invite people</h3><button id="inviteCloseBtn" class="iconbtn ghost" type="button" aria-label="Close" onclick={closeOpenMenu}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
             <div class="linkbox"><code id="inviteLink">{invite.link}</code><button id="inviteCopyBtn" class="button button-primary invite-copy" type="button" onclick={copyCallLink}><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.6"/><path d="M15.5 8.5V6.1a2.6 2.6 0 0 0-2.6-2.6H6.1a2.6 2.6 0 0 0-2.6 2.6v6.8a2.6 2.6 0 0 0 2.6 2.6h2.4"/></svg>Copy</button></div>
@@ -242,9 +241,9 @@
 <!-- prettier-ignore -->
 <Toasts />
 <!-- prettier-ignore -->
-<div id="accountScrim" class="scrim hidden"></div>
+<div bind:this={accountScrim} id="accountScrim" class="scrim hidden"></div>
 <!-- prettier-ignore -->
-<dialog id="accountMenu" class="account-menu" aria-label="Account">
+<dialog bind:this={accountMenu} id="accountMenu" class="account-menu" aria-label="Account">
     <AccountMenu
         name={menuName()}
         accountHref={ACCOUNT_CONSOLE_PATH}

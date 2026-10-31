@@ -5,7 +5,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
-from tests.e2e.support.people import FORM_FACTORS
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -41,3 +41,16 @@ def test_chat_with_a_long_history_scrolls_inside_the_panel_and_keeps_the_compose
     assert messages.evaluate(LIST_IS_AT_THE_TOP)
     expect(messages.locator(".chat-msg").first).to_be_in_viewport()
     expect(composer).to_be_in_viewport()
+
+
+def test_chat_sends_the_typed_message_when_enter_is_pressed(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    _, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    guest.click("#chatBtn")
+
+    guest.fill("#chatInput", "sent with enter")
+    guest.press("#chatInput", "Enter")
+
+    expect(guest.locator("#chatMessages .chat-msg.self")).to_have_text("sent with enter")
+    expect(guest.locator("#chatInput")).to_have_value("")

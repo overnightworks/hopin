@@ -20,6 +20,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.13.0)
+      '@jridgewell/sourcemap-codec':
+        specifier: ^1.6.0
+        version: 1.6.0
       '@sveltejs/adapter-static':
         specifier: ^4.0.0
         version: 4.0.0(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5))

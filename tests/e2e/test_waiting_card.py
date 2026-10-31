@@ -27,6 +27,8 @@ from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from tests.e2e.support.browser_coverage import BrowserCoverage
+
 pytestmark = pytest.mark.e2e
 
 CARD = "#waitingCard"
@@ -217,13 +219,14 @@ def test_the_card_comes_back_with_the_same_link_when_the_guest_leaves(
 
 
 def test_starting_a_call_leaves_the_clipboard_as_it_was(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], browser_coverage: BrowserCoverage
 ) -> None:
     host = open_host(open_person, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
     host.goto(base_url)
     host.evaluate(SEED_CLIPBOARD, "seed")
 
-    press_start_call(host, base_url)
+    with browser_coverage.passing_through(host):
+        press_start_call(host, base_url)
     expect(host.locator(CARD)).to_be_visible()
 
     assert host.evaluate(READ_CLIPBOARD) == "seed"
