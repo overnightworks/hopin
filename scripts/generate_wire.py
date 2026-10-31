@@ -13,6 +13,8 @@ REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
 
 from hopin.config.constants import (  # noqa: E402
+    ACCOUNT_CONSOLE_PATH,
+    ACCOUNT_PATH,
     AUTH_START_PATH,
     CALL_FEATURES_PATH,
     ICE_SERVERS_PATH,
@@ -71,6 +73,8 @@ def render_core() -> str:
         f'export const CALL_FEATURES_PATH = "{CALL_FEATURES_PATH}";\n'
         f'export const AUTH_START_PATH = "{AUTH_START_PATH}";\n'
         f'export const LOGOUT_PATH = "{LOGOUT_PATH}";\n'
+        f'export const ACCOUNT_PATH = "{ACCOUNT_PATH}";\n'
+        f'export const ACCOUNT_CONSOLE_PATH = "{ACCOUNT_CONSOLE_PATH}";\n'
         f'export const RETURN_TO_QUERY_PARAMETER = "{RETURN_TO_QUERY_PARAMETER}";\n'
         f"export const REPLAY_LOG_LIMIT = {REPLAY_LOG_LIMIT};\n"
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
