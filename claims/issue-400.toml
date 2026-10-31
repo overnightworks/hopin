@@ -1,8 +1,0 @@
-claim_id = "78b37c2b79544a48a51cabdc1f273a33"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "cc98e0a673f7f3111b3192f60c597a8acf537b81"
-branch = "claude/issue-400-footers-on-legal-links"
-scope = ["docs/decisions/0001-static-frontend-modules.md", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e/test_page_shell.py", "tests/support/page_inventory.py"]
-opened_commit = "441f8774b6541e50070f0a445efed710346c1c48"
-whole_reason = "The footers' copies, the guard that holds them equal and the ADR sentence that explains them go together, or the guard tests copies that no longer exist."
