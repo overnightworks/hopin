@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Route, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH, NO_ACCESS_PATH
 from tests.e2e.support.calls import record_page_errors
@@ -247,6 +247,21 @@ def test_a_built_sign_in_page_runs_no_script_and_carries_no_inline_style_handler
 
 
 @pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
+def test_a_built_sign_in_page_links_the_built_kit_stylesheet_before_hopin_css(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
+) -> None:
+    person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
+    response = person.goto(f"{e2e_server.base_url}{path}")
+    assert response is not None
+
+    inventory = inventory_of(response.body().decode("utf-8"))
+    hopin_position = next(i for i, href in enumerate(inventory.stylesheets) if href.endswith("/hopin.css"))
+    kit_positions = [i for i, href in enumerate(inventory.stylesheets) if href.startswith("/_app/")]
+    assert kit_positions
+    assert max(kit_positions) < hopin_position
+
+
+@pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
 def test_a_built_sign_in_page_loads_every_sub_resource_signed_out_without_a_policy_violation(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
 ) -> None:
@@ -268,6 +283,36 @@ def test_a_built_sign_in_page_loads_every_sub_resource_signed_out_without_a_poli
     assert any(urlsplit(response.url).path.startswith("/_app/") for response in sub_resources)
     assert {response.status for response in sub_resources if response.request.resource_type != "document"} == {200}
     assert person.evaluate("() => window.policyViolations") == []
+
+
+LOADED_FONT_FACES = "() => [...document.fonts].filter((face) => face.status === 'loaded').length"
+
+
+def test_a_sign_in_page_whose_fonts_answer_404_still_shows_its_heading_in_the_fallback_face(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+) -> None:
+    person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
+    person.add_init_script(RECORD_POLICY_VIOLATIONS)
+    font_requests: list[str] = []
+
+    def answer_404(route: Route) -> None:
+        font_requests.append(route.request.url)
+        route.fulfill(status=404)
+
+    person.route(re.compile(r"/_app/.*\.woff2$"), answer_404)
+
+    response = person.goto(f"{e2e_server.base_url}{LOGIN_PATH}")
+    person.wait_for_load_state("networkidle")
+
+    assert response is not None
+    assert response.status == 200
+    assert font_requests
+    heading = person.get_by_role("heading", name="You are logged out.", exact=True)
+    expect(heading).to_be_visible()
+    assert heading.evaluate("(element) => getComputedStyle(element).fontFamily").endswith("sans-serif")
+    assert person.evaluate(LOADED_FONT_FACES) == 0
+    assert person.evaluate("() => window.policyViolations") == []
+    assert page_errors == []
 
 
 def test_login_failed_on_a_small_landscape_phone_reaches_try_again_and_both_legal_links(

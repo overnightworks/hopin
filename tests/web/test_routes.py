@@ -1,6 +1,4 @@
-import json
 import re
-import tomllib
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -18,7 +16,6 @@ from hopin.config.constants import (
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
-from hopin.web.kit import KIT_PATH
 from hopin.web.routes import STATIC_DIR, create_router
 from tests.support.page_build import fixture_page_build
 from tests.support.page_inventory import (
@@ -48,9 +45,9 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_five_routes_and_the_kit_static_and_app_mounts(self, signaling_handler, room_manager):
+    def test_returns_four_routes_and_the_static_and_app_mounts(self, signaling_handler, room_manager):
         router = create_router(signaling_handler, room_manager, fixture_page_build())
-        assert len(router.routes) == 7
+        assert len(router.routes) == 6
 
     def test_static_dir_points_to_web_static(self):
         assert STATIC_DIR.name == "static"
@@ -113,15 +110,6 @@ class TestStaticAssets:
         assert response.status_code == 200
         assert content_type in response.headers["content-type"]
 
-    @pytest.mark.parametrize(
-        ("asset", "content_type"),
-        [("appkit.css", "text/css"), ("fonts/oswald-latin-700-normal.woff2", "font/woff2")],
-    )
-    def test_serves_the_kit_under_its_versioned_path(self, client, asset, content_type):
-        response = client.get(f"{KIT_PATH}/{asset}")
-        assert response.status_code == 200
-        assert content_type in response.headers["content-type"]
-
     def test_does_not_serve_the_page_from_the_static_mount(self, client):
         assert client.get(f"{STATIC_PATH}/index.html").status_code == 404
 
@@ -152,8 +140,6 @@ OWN_STYLESHEETS = sorted(
         *(REPOSITORY / "frontend" / "src" / "lib").rglob("*.css"),
     }
 )
-LOCK_FILE = REPOSITORY / "uv.lock"
-FRONTEND_PACKAGE_FILE = REPOSITORY / "frontend" / "package.json"
 CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
 CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
 CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
@@ -162,8 +148,6 @@ CSS_ROOT_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:")
 CSS_ZEROED_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:\s*0s\b")
 CSS_REDUCED_MOTION_BLOCK = re.compile(r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?\})\s*\}", re.DOTALL)
 CSS_ROOT_BLOCK = re.compile(r":root\s*\{([^{}]*)\}")
-CSS_CUSTOM_PROPERTY_DEFINITION = re.compile(r"(--[\w-]+)\s*:")
-CSS_COLOR_SCHEME_DECLARATION = re.compile(r"(?<![\w-])color-scheme\s*:")
 FAVICON_FILE = STATIC_DIR / "assets" / "img" / "hopin.svg"
 
 
@@ -185,29 +169,10 @@ def motion_tokens_left_running_under_reduced_motion(stylesheet: str) -> set[str]
 
 
 class TestPageShell:
-    def test_the_kit_path_carries_the_version_the_lock_records(self):
-        packages = tomllib.loads(LOCK_FILE.read_text())["package"]
-        locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
-        assert KIT_PATH.endswith(f"/appkit-{locked}")
-
-    def test_the_frontend_lock_pins_the_kit_version_the_python_lock_records(self):
-        specifier = json.loads(FRONTEND_PACKAGE_FILE.read_text())["devDependencies"]["overnightworks-appkit"]
-        packages = tomllib.loads(LOCK_FILE.read_text())["package"]
-        locked = next(package["version"] for package in packages if package["name"] == "overnightworks-appkit")
-        assert specifier.endswith(f"/overnightworks-appkit-{locked}.tgz")
-
     def test_the_icon_is_an_svg_document_in_utf8_with_the_brand_mark_viewbox(self):
         # The file is the repository's own, never untrusted input.
         root = ElementTree.fromstring(FAVICON_FILE.read_bytes().decode("utf-8"))  # noqa: S314 - parses the repository own favicon and no untrusted input
         assert (root.tag, root.get("viewBox")) == ("{http://www.w3.org/2000/svg}svg", "0 0 24 24")
-
-    def test_defines_no_token_and_no_color_scheme_the_kit_owns(self, client):
-        stylesheet = CSS_COMMENT.sub("", (STYLESHEETS_DIR / "hopin.css").read_text())
-        kit = CSS_COMMENT.sub("", client.get(f"{KIT_PATH}/appkit.css").text)
-        kit_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(kit))
-        assert kit_tokens
-        assert set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(stylesheet)) & kit_tokens == set()
-        assert CSS_COLOR_SCHEME_DECLARATION.search(stylesheet) is None
 
     @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
     def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self, stylesheet_path):

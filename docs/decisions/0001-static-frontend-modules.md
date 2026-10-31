@@ -23,11 +23,10 @@ webauth:
   URLs or `/account`. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
   the kit's sign-in card opens them in the same tab. CSP limits what the page
   fetches, not where a link goes. The built sign-in pages' guards read the rendered DOM in `tests/e2e/test_sign_in_pages.py`, the shell's in `tests/e2e/test_page_shell.py`.
-- The shell loads appkit's `appkit.css`, then `hopin.css`, then the built stylesheets of the kit components it renders. The prerendered sign-in
-  pages load appkit's `appkit.css`, `hopin.css` and the card's built stylesheet. The kit is the installed `overnightworks-appkit`
-  package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
-  `/static`; the gate admits its stylesheet and fonts as exact paths, never its
-  licence files.
+- The shell loads the built kit stylesheet, then `hopin.css`, then the built stylesheets of the kit components it renders; the prerendered sign-in pages load the built kit stylesheet and the card's, then `hopin.css`. The kit is the
+  installed `overnightworks-appkit` npm package: the root layout imports its stylesheet once and Vite builds it and its fonts into
+  hashed `/_app/` files. The gate admits the exact stylesheet and font files it must open, derived from the built
+  sign-in pages' linked stylesheets, never a directory.
 - `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/` and `img/` (the
   brand mark every page links as its icon) are reachable, so the page
   is served only at its routes, never from the mount.
@@ -55,7 +54,7 @@ webauth:
 
 - There is no build step for the modules; the browser loads them as written (the shell is built since
   ADR 0003). The one installed package the pages' styles come from is the `overnightworks-appkit`
-  kit.
+  npm package.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
 - Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the shell's fonts come from the kit (`--font-body`); `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `.sign-in` in `hopin.css` wraps the built sign-in pages as their scroll container.

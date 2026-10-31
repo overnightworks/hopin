@@ -387,7 +387,6 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx2" },
     { name = "overnightworks-agent-runtime-client" },
-    { name = "overnightworks-appkit" },
     { name = "overnightworks-webauth" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -417,7 +416,6 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "overnightworks-agent-runtime-client", url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl" },
-    { name = "overnightworks-appkit", url = "https://github.com/overnightworks/appkit/releases/download/v0.9.0/overnightworks_appkit-0.9.0-py3-none-any.whl" },
     { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
@@ -669,14 +667,6 @@ requires-dist = [
     { name = "ruamel-yaml", specifier = ">=0.19,<0.20" },
 ]
 provides-extras = ["mcp-server"]
-
-[[package]]
-name = "overnightworks-appkit"
-version = "0.9.0"
-source = { url = "https://github.com/overnightworks/appkit/releases/download/v0.9.0/overnightworks_appkit-0.9.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/overnightworks/appkit/releases/download/v0.9.0/overnightworks_appkit-0.9.0-py3-none-any.whl", hash = "sha256:c712db4786f3ee9db57f805d24e1c2f0eaaddd4b01b62271cce96bb00c89f90c" },
-]
 
 [[package]]
 name = "overnightworks-webauth"

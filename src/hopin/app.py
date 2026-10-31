@@ -169,7 +169,7 @@ def _install_web_auth(app: FastAPI, sessions: InMemorySessions, page_build: Page
             rules=(RateLimitRule(paths=SIGN_IN_PATHS.browser_paths, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
             exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
-        session_gate=session_gate(sessions, page_build.sign_in_stylesheets),
+        session_gate=session_gate(sessions, page_build.sign_in_assets),
     )
 
 
