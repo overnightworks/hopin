@@ -20,6 +20,7 @@ def test_render_core_vocabulary_names_enums_and_constants() -> None:
     assert 'export enum SIGNAL_TYPE {\n    OFFER = "offer",' in rendered
     assert "export enum ERROR_REASON {" in rendered
     assert "export enum ROOM_CLOSED_REASON {" in rendered
+    assert "export interface RoomClosedFrame {" in rendered
     assert 'export const WEBSOCKET_PATH = "/ws";' in rendered
     assert "export const SESSION_ENDED_CLOSE_CODE = 4002;" in rendered
     assert "export const REPLAY_LOG_LIMIT = 256;" in rendered

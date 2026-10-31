@@ -64,6 +64,16 @@ def _generated_file(body: str) -> str:
     return f"{HEADER}\n{body}"
 
 
+def _room_closed_frame() -> str:
+    return (
+        "export interface RoomClosedFrame {\n"
+        f"{INDENT}type: SIGNAL_TYPE.ROOM_CLOSED;\n"
+        f"{INDENT}reason: ROOM_CLOSED_REASON;\n"
+        f"{INDENT}grace_seconds?: number;\n"
+        "}\n"
+    )
+
+
 def render_core() -> str:
     enums = _enums({"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason})
     constants = (
@@ -80,7 +90,7 @@ def render_core() -> str:
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
         + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION)
     )
-    return _generated_file(f"{enums}\n{constants}")
+    return _generated_file(f"{enums}\n{_room_closed_frame()}\n{constants}")
 
 
 def outputs(root: Path) -> dict[Path, str]:

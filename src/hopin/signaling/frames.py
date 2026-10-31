@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NewType, TypeGuard
 
-from hopin.config.constants import MAX_SIGNALING_FRAME_LENGTH, ResumeRefusalCause, SignalType
+from hopin.config.constants import MAX_SIGNALING_FRAME_LENGTH, ResumeRefusalCause, RoomClosedReason, SignalType
 from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError
 
 if TYPE_CHECKING:
@@ -29,6 +29,18 @@ def error_frame(error: HopInError) -> JsonObject:
 
 def _is_sequence_number(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+@dataclass(frozen=True)
+class RoomClosedFrame:
+    reason: RoomClosedReason
+    grace_seconds: int | None = None
+
+    def to_json(self) -> JsonObject:
+        frame: JsonObject = {TYPE_KEY: SignalType.ROOM_CLOSED.value, "reason": self.reason.value}
+        if self.grace_seconds is not None:
+            frame["grace_seconds"] = self.grace_seconds
+        return frame
 
 
 @dataclass(frozen=True)
