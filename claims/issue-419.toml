@@ -1,8 +1,0 @@
-claim_id = "6eb138fce30845fb8b5ef76b5fccc8b0"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "cb9e51278f4f1d1c1867d8f7c76432e15de15c41"
-branch = "claude/issue-419-toast-element-handover"
-scope = ["frontend/src/lib/ui/Toasts.svelte", "frontend/src/lib/ui/end.svelte.test.ts", "frontend/src/lib/ui/toast.svelte.test.ts", "frontend/src/lib/ui/toast.svelte.ts"]
-opened_commit = "134605e96c9d3cdf4e78ce5db90c21e66aee44e5"
-whole_reason = "Two review leftovers in lib/ui, each a few lines with no behaviour change; one lane and one review cost less than two."
