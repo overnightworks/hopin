@@ -31,4 +31,21 @@ describe("SentLog", () => {
         expect(log.unacknowledged().map((frame) => frame.seq)).toEqual(kept);
         expect(log.floor).toBe(floor);
     });
+
+    it("logs and replays a frame of a type the core does not know, and takes it for no description", () => {
+        const log = new SentLog();
+        const keptSeqs = () => log.unacknowledged().map((frame) => frame.seq);
+
+        log.append({ type: OFFER, target: "peer" });
+        log.append({ type: "game_move", target: "peer", cell: 4 });
+
+        expect(keptSeqs()).toEqual([1, 2]);
+
+        log.append({ type: OFFER, target: "peer" });
+
+        expect(log.unacknowledged()).toEqual([
+            { type: "game_move", target: "peer", cell: 4, seq: 2 },
+            { type: OFFER, target: "peer", seq: 3 },
+        ]);
+    });
 });

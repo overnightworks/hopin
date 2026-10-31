@@ -22,7 +22,16 @@ import {
 } from "#lib/call/mesh.ts";
 import { loadFeatures } from "#lib/call/features.ts";
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
-import { connect, disconnect, isConnected, on, onSessionEnded, onSessionLost, send } from "#lib/call/signaling.ts";
+import {
+    connect,
+    disconnect,
+    isConnected,
+    on,
+    onFeatureFrame,
+    onSessionEnded,
+    onSessionLost,
+    sendFeatureFrame,
+} from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import * as stageModule from "#lib/ui/stage.svelte.ts";
@@ -40,8 +49,8 @@ installStage(stageModule);
 const callEndedHooks = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
 const FEATURE_CORE = Object.freeze({
-    on,
-    send,
+    on: onFeatureFrame,
+    send: sendFeatureFrame,
     isConnected,
     showToast,
     toastKind: TOAST_KIND,
