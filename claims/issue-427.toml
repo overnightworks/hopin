@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "16025f980c67e5696b15e1a66194ca5b0907e444"
 branch = "claude/issue-427-more-legal-row-on-the-kit"
-scope = ["docs/decisions/0001-static-frontend-modules.md", "docs/mockups/README.md", "frontend/src/routes/(call)/+layout.svelte", "src/hopin/web/static/assets/css/hopin.css", "tests/e2e/game/test_game_master.py", "tests/e2e/support/page_assertions.py", "tests/e2e/test_more_menu.py", "tests/e2e/test_page_shell.py", "tests/support/page_inventory.py", "tests/web/test_routes.py"]
+scope = ["docs/decisions/0001-static-frontend-modules.md", "docs/mockups/README.md", "frontend/src/routes/(call)/+layout.svelte", "src/hopin/web/static/assets/css/hopin.css", "tests/e2e/game/test_game_master.py", "tests/e2e/support/page_assertions.py", "tests/e2e/test_more_menu.py", "tests/e2e/test_page_shell.py", "tests/e2e/test_shell.py", "tests/support/page_inventory.py", "tests/web/test_routes.py"]
 opened_commit = "0bcb9b15ca7086f0709162f8d5f6a398961b3503"
 whole_reason = "More's last legal copy, the styles and tests that read it, the guard that held the copies equal and the docs that describe it go together, or tests and docs describe a row that no longer exists."
