@@ -1,7 +1,0 @@
-claim_id = "bb85341e629747ef8f6e64fc89dfc41b"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "f8a800a4fe00eeec251950b1c1fdaf610c935544"
-branch = "claude/issue-404-mockup-kit-tokens"
-scope = ["docs/mockups/hopin-call.html"]
-opened_commit = "303caf3740505ac4215967bce930005af021fba7"
