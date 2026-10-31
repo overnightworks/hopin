@@ -1,8 +1,0 @@
-claim_id = "d6be009f296644ae8447b7bbfc6deb55"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "6a84436cb309713a8d91786ead7b01d1e790d52e"
-branch = "claude/issue-413-p21c-judge-browser-coverage"
-scope = [".github/workflows/ci.yml", "AGENTS.md", "docs/ARCHITECTURE.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/scripts/browser-coverage-report.js", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/routes/(call)/+layout.svelte", "scripts/merge_frontend_coverage.py", "tests/e2e/conftest.py", "tests/e2e/game/test_game_master.py", "tests/e2e/support/browser_coverage.py", "tests/e2e/test_chat.py", "tests/e2e/test_end.py", "tests/e2e/test_names.py", "tests/e2e/test_sign_in.py", "tests/e2e/test_waiting_card.py", "tests/scripts/test_merge_frontend_coverage.py"]
-opened_commit = "59d0094dc5d3f5c7277be0c1abbb1d956086e843"
-whole_reason = "The judge has three faces with no caller apart: a 100 % threshold over today's report is red, a report brought to 100 % without the threshold proves nothing, and a threshold without the presence check passes over code the browser report never saw; the capture and its per-test edits are what let the judge see code the suite already runs, and an edit without the capture, or the capture without its edits, turns tests red."
