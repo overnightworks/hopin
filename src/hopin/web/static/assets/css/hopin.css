@@ -783,7 +783,7 @@ button, input, textarea { font-family: inherit; }
     animation: overlay-sheet var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
 }
 .overlay:not([open]) { display: none; }
-.grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--border); }
+.grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--text-muted); }
 .sep { height: 1px; margin: 6px 10px; background: var(--border); }
 .mi {
     display: flex;
@@ -819,7 +819,7 @@ button, input, textarea { font-family: inherit; }
     width: 46px;
     height: 28px;
     border-radius: 999px;
-    background: var(--border);
+    background: var(--text-muted);
     transition: background var(--motion-fade);
 }
 .switch::after {
