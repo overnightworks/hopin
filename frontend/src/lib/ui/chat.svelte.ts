@@ -1,22 +1,33 @@
-import { flushSync } from "svelte";
+import { flushSync, type Component } from "svelte";
 import type { Attachment } from "svelte/attachments";
 import { isConnected, on, send, type ServerFrame } from "#lib/call/signaling.ts";
 import { playMessageSound } from "#lib/call/sounds.ts";
 import { state } from "#lib/call/state.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 
+/** A feature's component with its props bound; core renders it and never looks inside. */
+export type FeatureView = Component;
+
+/** Binds `component` to `props`, so the pair is type-checked here and the layout renders it with no props. */
+export function featureView<Props extends Record<string, unknown>>(
+    component: Component<Props>,
+    props: Props,
+): FeatureView {
+    return (internals) => component(internals, props);
+}
+
 export type ChatLine =
     | { kind: "self"; text: string }
     | { kind: "other"; text: string; sender: string }
-    | { kind: "element"; element: HTMLElement };
+    | { kind: "feature"; view: FeatureView };
 
 export const chat: {
     isOpen: boolean;
     unread: number;
     draft: string;
     lines: ChatLine[];
-    pinned: HTMLElement | null;
-    card: HTMLElement | null;
+    pinned: FeatureView | null;
+    card: FeatureView | null;
 } = $state({ isOpen: false, unread: 0, draft: "", lines: [], pinned: null, card: null });
 
 let listElement: HTMLElement | null = null;
@@ -40,20 +51,21 @@ function countUnread() {
 }
 
 /** Show a line no person wrote, counted as unread like a person's. */
-export function receiveLine(element: HTMLElement) {
-    addLine({ kind: "element", element });
+export function receiveLine(view: FeatureView) {
+    addLine({ kind: "feature", view });
     countUnread();
 }
 
-/** Keep `element` below every later line until another element, or null, takes its place. */
-export function pinLast(element: HTMLElement | null) {
-    chat.pinned = element;
-    if (element !== null) scrollToNewest();
+/** Keep `view` below every later line until another view, or null, takes its place. */
+export function pinLast(view: FeatureView | null) {
+    chat.pinned = view;
+    if (view !== null) scrollToNewest();
 }
 
-/** Show `element` between the chat's header and its lines until another element, or null, takes its place. */
-export function showCard(element: HTMLElement | null) {
-    chat.card = element;
+/** Show `view` between the chat's header and its lines until another view, or null, takes its place. */
+export function showCard(view: FeatureView | null) {
+    chat.card = view;
+    if (view !== null) scrollToNewest();
 }
 
 export function toggleChat() {
@@ -90,16 +102,6 @@ export function registerChatHandlers() {
         addLine({ kind: "other", text: data.message, sender: state.namesByParticipant.get(data.from) ?? "" });
         countUnread();
     });
-}
-
-/** Append `element` itself, never a clone: the game keeps changing the card after handing it over. */
-export function adopt(element: HTMLElement): Attachment<HTMLElement> {
-    return (wrapper) => {
-        wrapper.append(element);
-        return () => {
-            element.remove();
-        };
-    };
 }
 
 export const chatList: Attachment<HTMLElement> = (element) => {

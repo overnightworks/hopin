@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FeatureCore } from "#lib/call/feature-port.ts";
 import { CALL_FEATURES_PATH } from "#lib/wire.ts";
 import { loadFeatures } from "./features.ts";
 
-const core = { marker: "core" };
+// The loader hands the core over untouched, so a stub of its shape stands in for it.
+const core = { marker: "core" } as unknown as FeatureCore;
 
 function offer(response: Response | Error) {
     const fetchStub = vi.fn(() => (response instanceof Error ? Promise.reject(response) : Promise.resolve(response)));
@@ -15,7 +17,7 @@ function offerNames(names: unknown) {
 }
 
 function featureEntry(name: string, module: unknown) {
-    return { [`/src/lib/features/${name}/index.js`]: () => Promise.resolve(module) };
+    return { [`/src/lib/features/${name}/index.ts`]: () => Promise.resolve(module) };
 }
 
 afterEach(() => {
@@ -46,18 +48,22 @@ describe("loadFeatures", () => {
         let finished = false;
         const install = () =>
             new Promise<void>((resolve) => {
+                installStarted = true;
                 finishInstall = () => {
                     finished = true;
                     resolve();
                 };
             });
         let resolved = false;
+        let installStarted = false;
 
         const loading = loadFeatures(featureEntry("alpha", { install }), core).then((loaded) => {
             resolved = true;
             return loaded;
         });
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await vi.waitFor(() => {
+            expect(installStarted).toBe(true);
+        });
         expect(resolved).toBe(false);
 
         finishInstall();
@@ -97,7 +103,7 @@ describe("loadFeatures", () => {
         ["a name with no bundled entry", {}],
         [
             "an entry whose import fails",
-            { "/src/lib/features/game/index.js": () => Promise.reject(new Error("chunk")) },
+            { "/src/lib/features/game/index.ts": () => Promise.reject(new Error("chunk")) },
         ],
         ["a module that is no object", featureEntry("game", "text")],
         ["a null module", featureEntry("game", null)],

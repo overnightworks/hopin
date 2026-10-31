@@ -76,7 +76,7 @@ function startCall() {
     showScreen(SCREEN.CALL);
     state.intentionalLeave = false;
     state.reconnectAttempt = 0;
-    featuresInstalled ??= loadFeatures(import.meta.glob("#lib/features/*/index.js"), FEATURE_CORE);
+    featuresInstalled ??= loadFeatures(import.meta.glob("#lib/features/*/index.ts"), FEATURE_CORE);
     return Promise.all([loadIceServers(), featuresInstalled]).then(
         ([, everyFeatureInstalled]) => {
             if (state.intentionalLeave) return;

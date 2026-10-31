@@ -1,3 +1,4 @@
+import type { FeatureCore, FeatureModule } from "#lib/call/feature-port.ts";
 import { CALL_FEATURES_PATH } from "#lib/wire.ts";
 
 export type BundledFeatures = Readonly<Record<string, () => Promise<unknown>>>;
@@ -28,25 +29,24 @@ async function featureNames(): Promise<string[]> {
     return body.features;
 }
 
-async function installFeature(name: string, bundled: BundledFeatures, core: unknown): Promise<void> {
-    const entry = Object.entries(bundled).find(([path]) => path.endsWith(`/features/${name}/index.js`));
+function isFeatureModule(module: unknown): module is FeatureModule {
+    return typeof module === "object" && module !== null && "install" in module && typeof module.install === "function";
+}
+
+async function installFeature(name: string, bundled: BundledFeatures, core: FeatureCore): Promise<void> {
+    const entry = Object.entries(bundled).find(([path]) => path.includes(`/features/${name}/`));
     if (entry === undefined) {
         throw new Error(`The page bundles no feature ${name}`);
     }
     const module = await entry[1]();
-    if (
-        typeof module !== "object" ||
-        module === null ||
-        !("install" in module) ||
-        typeof module.install !== "function"
-    ) {
+    if (!isFeatureModule(module)) {
         throw new Error(`The feature ${name} has no install`);
     }
-    await (module.install as (core: unknown) => unknown)(core);
+    await module.install(core);
 }
 
 /** Installs every feature the server offers; resolves to whether all are in. A failure never reaches the caller. */
-export async function loadFeatures(bundled: BundledFeatures, core: unknown): Promise<boolean> {
+export async function loadFeatures(bundled: BundledFeatures, core: FeatureCore): Promise<boolean> {
     try {
         const names = await featureNames();
         await Promise.all(names.map((name) => installFeature(name, bundled, core)));

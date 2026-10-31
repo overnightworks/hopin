@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import type { ComponentInternals } from "svelte";
+import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerFrame } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -24,6 +26,11 @@ async function freshChat() {
 }
 
 type Chat = Awaited<ReturnType<typeof freshChat>>;
+
+// A view is opaque to core, so a case tells two apart by identity.
+function newView(): FeatureView {
+    return () => ({});
+}
 
 function registeredChatHandler(): (data: ServerFrame) => void {
     const [type, handler] = signaling.on.mock.calls[0] ?? [];
@@ -60,7 +67,7 @@ describe("opening and closing", () => {
 
     it("opens and closes without clearing the lines", async () => {
         const { chat, toggleChat, closeChat, receiveLine } = await freshChat();
-        receiveLine(document.createElement("div"));
+        receiveLine(newView());
 
         toggleChat();
         expect(chat.isOpen).toBe(true);
@@ -81,7 +88,7 @@ describe("opening and closing", () => {
 
     it("zeroes the unread count and focuses the input when it opens", async () => {
         const chat = await freshChat();
-        chat.receiveLine(document.createElement("div"));
+        chat.receiveLine(newView());
         const input = document.createElement("input");
         document.body.append(input);
         const stop = $effect.root(() => chat.chatInput(input));
@@ -118,8 +125,8 @@ describe("unread lines", () => {
     it("counts a line and plays the sound while the panel is closed", async () => {
         const { chat, receiveLine } = await freshChat();
 
-        receiveLine(document.createElement("div"));
-        receiveLine(document.createElement("div"));
+        receiveLine(newView());
+        receiveLine(newView());
 
         expect(chat.unread).toBe(2);
         expect(sounds.playMessageSound).toHaveBeenCalledTimes(2);
@@ -129,7 +136,7 @@ describe("unread lines", () => {
         const { chat, toggleChat, receiveLine } = await freshChat();
         toggleChat();
 
-        receiveLine(document.createElement("div"));
+        receiveLine(newView());
 
         expect(chat.unread).toBe(0);
         expect(sounds.playMessageSound).not.toHaveBeenCalled();
@@ -224,13 +231,39 @@ describe("receiving", () => {
     });
 });
 
-describe("pinned element and card", () => {
-    it("replaces and clears the pinned element", async () => {
+describe("feature views", () => {
+    it("renders a view with the props it was bound to", async () => {
+        const { featureView } = await freshChat();
+        const shown: unknown[] = [];
+        const internals = {} as ComponentInternals;
+
+        featureView(
+            (_internals: ComponentInternals, props: { text: string }) => {
+                shown.push(props.text);
+                return {};
+            },
+            { text: "bound" },
+        )(internals, {});
+
+        expect(shown).toEqual(["bound"]);
+    });
+
+    it("keeps a received view as a feature line", async () => {
+        const { chat, receiveLine } = await freshChat();
+        const view = newView();
+
+        receiveLine(view);
+
+        expect(chat.lines).toEqual([{ kind: "feature", view }]);
+    });
+
+    it("replaces and clears the pinned view", async () => {
         const { chat, pinLast } = await freshChat();
-        const first = document.createElement("div");
-        const second = document.createElement("div");
+        const first = newView();
+        const second = newView();
 
         pinLast(first);
+        expect(chat.pinned).toBe(first);
         pinLast(second);
         expect(chat.pinned).toBe(second);
         pinLast(null);
@@ -240,10 +273,11 @@ describe("pinned element and card", () => {
 
     it("replaces and clears the card", async () => {
         const { chat, showCard } = await freshChat();
-        const first = document.createElement("div");
-        const second = document.createElement("div");
+        const first = newView();
+        const second = newView();
 
         showCard(first);
+        expect(chat.card).toBe(first);
         showCard(second);
         expect(chat.card).toBe(second);
         showCard(null);
@@ -261,14 +295,14 @@ describe("scrolling to the newest line", () => {
             while (list.childElementCount < chat.chat.lines.length) list.append(document.createElement("div"));
         });
 
-        chat.receiveLine(document.createElement("p"));
+        chat.receiveLine(newView());
 
         expect(list.childElementCount).toBe(1);
         expect(list.scrollTop).toBe(list.scrollHeight);
         stop();
     });
 
-    it("scrolls after pinning an element and not after clearing it", async () => {
+    it("scrolls after pinning a view and not after clearing it", async () => {
         const chat = await freshChat();
         const list = document.createElement("div");
         const stop = $effect.root(() => registerList(chat, list));
@@ -276,7 +310,21 @@ describe("scrolling to the newest line", () => {
 
         chat.pinLast(null);
         expect(list.scrollTop).toBe(0);
-        chat.pinLast(document.createElement("div"));
+        chat.pinLast(newView());
+
+        expect(list.scrollTop).toBe(list.scrollHeight);
+        stop();
+    });
+
+    it("scrolls after showing a card and not after clearing it", async () => {
+        const chat = await freshChat();
+        const list = document.createElement("div");
+        const stop = $effect.root(() => registerList(chat, list));
+        list.append(document.createElement("div"));
+
+        chat.showCard(null);
+        expect(list.scrollTop).toBe(0);
+        chat.showCard(newView());
 
         expect(list.scrollTop).toBe(list.scrollHeight);
         stop();
@@ -301,22 +349,8 @@ describe("scrolling to the newest line", () => {
         $effect.root(() => registerList(chat, list))();
         list.append(document.createElement("div"));
 
-        chat.receiveLine(document.createElement("div"));
+        chat.receiveLine(newView());
 
         expect(list.scrollTop).toBe(0);
-    });
-});
-
-describe("adopt", () => {
-    it("appends the element itself into its wrapper and removes it on teardown", async () => {
-        const { adopt } = await freshChat();
-        const wrapper = document.createElement("div");
-        const element = document.createElement("p");
-
-        const stop = $effect.root(() => adopt(element)(wrapper));
-        expect(wrapper.firstChild).toBe(element);
-        stop();
-
-        expect(element.isConnected).toBe(false);
     });
 });

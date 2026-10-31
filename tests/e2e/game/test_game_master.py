@@ -9,6 +9,15 @@ from playwright.sync_api import Page, Route, expect
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
 from tests.e2e.game.build_files import GameFile, url_of
+from tests.e2e.game.game_page import (
+    CARD,
+    GAME_MASTER_LINES,
+    START_QUIZ,
+    TYPING,
+    close_chat,
+    open_chat,
+    start_quiz,
+)
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -38,11 +47,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-START_QUIZ = "#gameStartBtn"
-GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
-TYPING = "#chatMessages .game-master.typing"
 TOASTS = "#toasts"
-CARD = "#chatPanel .qcard"
 REVEAL = "Reveal"
 SEND = "Send"
 YOUR_ANSWER = "Your answer"
@@ -80,11 +85,6 @@ window.WebSocket = class extends PageWebSocket {
 DELIVER_SERVER_FRAME = "(frame) => pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
 
 
-def start_quiz(person: Page) -> None:
-    open_more(person)
-    person.click(START_QUIZ)
-
-
 def end_quiz(person: Page) -> None:
     open_more(person)
     person.click(START_QUIZ)
@@ -93,18 +93,6 @@ def end_quiz(person: Page) -> None:
 def leave_the_call(guest: Page) -> None:
     """A guest leaves at once; only the host's Leave asks first."""
     guest.click("#leaveBtn")
-
-
-def open_chat(person: Page) -> None:
-    if person.locator("#moreMenu").is_visible():
-        person.keyboard.press("Escape")
-    person.click("#chatBtn")
-    expect(person.locator("#chatPanel")).to_be_visible()
-
-
-def close_chat(person: Page) -> None:
-    person.click("#chatClose")
-    expect(person.locator("#chatPanel")).to_be_hidden()
 
 
 def expect_idle(person: Page) -> None:

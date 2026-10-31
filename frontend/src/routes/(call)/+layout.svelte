@@ -5,7 +5,6 @@
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
     import {
-        adopt,
         chat,
         chatInput,
         chatList,
@@ -215,14 +214,14 @@
             <span>Chat</span>
             <button id="chatClose" class="chat-close" onclick={closeChat}>x</button>
         </div>
-        {#if chat.card !== null}<div class="chat-element" {@attach adopt(chat.card)}></div>{/if}
+        {#if chat.card !== null}<div class="chat-element"><chat.card /></div>{/if}
         <div id="chatMessages" class="chat-messages" {@attach chatList}>
             {#each chat.lines as line (line)}
-                {#if line.kind === "element"}<div class="chat-element" {@attach adopt(line.element)}></div>
+                {#if line.kind === "feature"}<div class="chat-element"><line.view /></div>
                 {:else if line.kind === "self"}<div class="chat-msg self">{line.text}</div>
                 {:else}<div class="chat-msg other"><div class="chat-sender">{line.sender}</div>{line.text}</div>{/if}
             {/each}
-            {#if chat.pinned !== null}<div class="chat-element" {@attach adopt(chat.pinned)}></div>{/if}
+            {#if chat.pinned !== null}<div class="chat-element"><chat.pinned /></div>{/if}
         </div>
         <div class="chat-input-row">
             <input id="chatInput" type="text" placeholder="Type a message..." autocomplete="off" aria-label="Chat message" bind:value={chat.draft} onkeydown={sendOnEnter} {@attach chatInput}>

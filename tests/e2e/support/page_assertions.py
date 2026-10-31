@@ -22,6 +22,8 @@ VISIBLE_MORE_ENTRIES = """
         element.classList.contains("sep") ? "separator" : element.querySelector(".grow").firstChild.textContent,
     )
 """
+MESSAGES_IN_A_LONG_HISTORY = 60
+LIST_IS_AT_THE_BOTTOM = "(list) => list.scrollHeight - list.scrollTop - list.clientHeight < 2"
 TOASTS = "#toasts"
 TOAST_ICON = f"{TOASTS} svg path"
 CHECK_ICON_PATH = "M5 12.5l4.5 4.5L19 7.5"
