@@ -197,7 +197,6 @@ onSessionEnded(() => {
 installLeaveConfirmed(leaveCall);
 installLeaveRequested(requestLeave);
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
-void readAccount().then(showGreeting);
 installPrejoinStart((kind) => {
     state.isHost = kind === PREJOIN_KIND.HOST;
     void startCall();
@@ -208,3 +207,5 @@ if (getRoomIdFromUrl()) {
 } else {
     showScreen(SCREEN.HOME);
 }
+
+showGreeting(await readAccount());

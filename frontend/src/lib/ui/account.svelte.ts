@@ -7,7 +7,7 @@ const INITIAL_SEPARATOR = /[._-]/;
 const INITIAL_CHARACTER = /[\p{L}\p{N}]/u;
 const INITIAL_COUNT = 2;
 
-export const account: { name: string | null } = $state({ name: null });
+const account: { name: string | null } = $state({ name: null });
 
 export function menuName(): string {
     return account.name ?? UNNAMED_MENU_NAME;
@@ -19,7 +19,7 @@ export function avatarInitials(): string {
         .split(INITIAL_SEPARATOR)
         .filter(Boolean)
         .slice(0, INITIAL_COUNT)
-        .map((part) => part.match(INITIAL_CHARACTER)?.[0].toUpperCase() ?? "")
+        .map((part) => INITIAL_CHARACTER.exec(part)?.[0].toUpperCase() ?? "")
         .join("");
 }
 

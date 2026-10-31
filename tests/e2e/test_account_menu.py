@@ -318,7 +318,10 @@ def test_the_name_opens_the_account_console_in_a_new_tab_and_closes_the_menu(
     person = open_home(open_person, base_url, page_errors, **form_factor)
     console_requests: list[Request] = []
     person.context.on(
-        "request", lambda request: console_requests.append(request) if ACCOUNT_CONSOLE_PATH in request.url else None
+        "request",
+        lambda request: (
+            console_requests.append(request) if urlsplit(request.url).path == ACCOUNT_CONSOLE_PATH else None
+        ),
     )
     person.locator(AVATAR).click()
     name_row = person.locator(MENU).get_by_role("link").first
