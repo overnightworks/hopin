@@ -416,7 +416,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "overnightworks-agent-runtime-client", url = "https://github.com/overnightworks/agent-runtime/releases/download/v0.10.0/overnightworks_agent_runtime_client-0.10.0-py3-none-any.whl" },
-    { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl" },
+    { name = "overnightworks-webauth", url = "https://github.com/overnightworks/webauth/releases/download/v0.27.0/overnightworks_webauth-0.27.0-py3-none-any.whl" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "structlog", specifier = ">=24.4" },
@@ -670,8 +670,8 @@ provides-extras = ["mcp-server"]
 
 [[package]]
 name = "overnightworks-webauth"
-version = "0.26.0"
-source = { url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl" }
+version = "0.27.0"
+source = { url = "https://github.com/overnightworks/webauth/releases/download/v0.27.0/overnightworks_webauth-0.27.0-py3-none-any.whl" }
 dependencies = [
     { name = "anyio" },
     { name = "cryptography" },
@@ -682,7 +682,7 @@ dependencies = [
     { name = "urllib3" },
 ]
 wheels = [
-    { url = "https://github.com/overnightworks/webauth/releases/download/v0.26.0/overnightworks_webauth-0.26.0-py3-none-any.whl", hash = "sha256:85191c4f41d1c287682f55625a4ad12f574dcc53c523376b48b419a2a469582f" },
+    { url = "https://github.com/overnightworks/webauth/releases/download/v0.27.0/overnightworks_webauth-0.27.0-py3-none-any.whl", hash = "sha256:a22b557912ec97b4f4280ae3d99f815bb043e9fc90ebc86ee80febf1d968b1e7" },
 ]
 
 [package.metadata]
@@ -690,7 +690,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.0,<5" },
     { name = "cryptography", specifier = ">=50.0.2,<51" },
     { name = "fastapi", specifier = ">=0.123.7,<1" },
-    { name = "pydantic", specifier = ">=2.6,<3" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1,<3" },
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0,<9" },
     { name = "starlette", specifier = ">=0.46,<2" },
