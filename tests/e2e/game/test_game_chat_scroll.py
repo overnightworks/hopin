@@ -5,6 +5,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, TYPING, close_chat, open_chat, start_quiz
 from tests.e2e.support.calls import open_call
+from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
 from tests.e2e.support.people import FORM_FACTORS
 from tests.game.support.fake_agent_service import Holds
 
@@ -15,9 +16,6 @@ if TYPE_CHECKING:
     from tests.game.support.fake_agent_service import FakeAgentService
 
 pytestmark = pytest.mark.e2e
-
-MESSAGES_IN_A_LONG_HISTORY = 60
-LIST_IS_AT_THE_BOTTOM = "(list) => list.scrollHeight - list.scrollTop - list.clientHeight < 2"
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

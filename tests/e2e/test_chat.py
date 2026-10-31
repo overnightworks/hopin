@@ -4,6 +4,7 @@ import pytest
 from playwright.sync_api import expect
 
 from tests.e2e.support.calls import open_call
+from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
 from tests.e2e.support.people import FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -13,9 +14,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-MESSAGES_IN_A_LONG_HISTORY = 60
 LIST_FILLS_PAST_ITS_BOX = "(list) => list.scrollHeight > list.clientHeight"
-LIST_IS_AT_THE_BOTTOM = "(list) => list.scrollHeight - list.scrollTop - list.clientHeight < 2"
 LIST_IS_AT_THE_TOP = "(list) => list.scrollTop === 0"
 
 

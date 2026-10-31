@@ -34,7 +34,7 @@ function isFeatureModule(module: unknown): module is FeatureModule {
 }
 
 async function installFeature(name: string, bundled: BundledFeatures, core: FeatureCore): Promise<void> {
-    const entry = Object.entries(bundled).find(([path]) => path.endsWith(`/features/${name}/index.ts`));
+    const entry = Object.entries(bundled).find(([path]) => path.includes(`/features/${name}/`));
     if (entry === undefined) {
         throw new Error(`The page bundles no feature ${name}`);
     }
