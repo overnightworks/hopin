@@ -1,4 +1,3 @@
-import { initAccount } from "./account.js";
 import { pinLast, receiveLine, registerChatHandlers, showCard } from "#lib/ui/chat.svelte.ts";
 import {
     addMoreItems,
@@ -29,6 +28,7 @@ import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-p
 import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
+import { readAccount } from "#lib/ui/account.svelte.ts";
 import { installStartRequested, showGreeting } from "#lib/ui/home.svelte.ts";
 import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.svelte.ts";
@@ -197,7 +197,7 @@ onSessionEnded(() => {
 installLeaveConfirmed(leaveCall);
 installLeaveRequested(requestLeave);
 installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
-initAccount({ onNameRead: showGreeting });
+void readAccount().then(showGreeting);
 installPrejoinStart((kind) => {
     state.isHost = kind === PREJOIN_KIND.HOST;
     void startCall();

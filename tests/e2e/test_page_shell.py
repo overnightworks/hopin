@@ -1,11 +1,18 @@
 """The home page's static guards, judged on the DOM the browser built from the SvelteKit shell and its layout."""
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import pytest
 from playwright.sync_api import Page, expect
 
-from hopin.config.constants import LOGOUT_PATH, STATIC_PATH
+from hopin.config.constants import (
+    ACCOUNT_CONSOLE_PATH,
+    APP_ASSET_PATH,
+    IMMUTABLE_ASSET_DIRECTORY,
+    LOGOUT_PATH,
+    STATIC_PATH,
+)
 from hopin.web.kit import KIT_PATH
 from tests.e2e.support.people import DESKTOP
 from tests.support.page_inventory import (
@@ -36,9 +43,17 @@ def home_inventory(open_person: Callable[..., Page], base_url: str) -> PageInven
     return inventory_of(page.content())
 
 
-def test_the_home_page_links_only_to_the_central_legal_pages_in_a_new_tab(home_inventory: PageInventory) -> None:
-    assert {link["href"] for link in home_inventory.links} == set(LEGAL_URLS)
-    assert all(link[name] == value for link in home_inventory.links for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
+def test_the_home_page_links_only_to_the_central_legal_pages_and_the_account_console_in_a_new_tab(
+    home_inventory: PageInventory,
+) -> None:
+    assert {link["href"] for link in home_inventory.links} == {*LEGAL_URLS, ACCOUNT_CONSOLE_PATH}
+    legal_links = [link for link in home_inventory.links if link["href"] in LEGAL_URLS]
+    console_links = [link for link in home_inventory.links if link["href"] == ACCOUNT_CONSOLE_PATH]
+    assert all(link[name] == value for link in legal_links for name, value in NEW_TAB_LINK_ATTRIBUTES.items())
+    assert all(
+        link["target"] == "_blank" and {"noopener", "noreferrer"} <= set((link["rel"] or "").split())
+        for link in console_links
+    )
 
 
 def test_the_home_page_posts_one_same_origin_form_to_log_out_from_the_account_menu(
@@ -48,11 +63,14 @@ def test_the_home_page_posts_one_same_origin_form_to_log_out_from_the_account_me
     assert home_inventory.submit_buttons == 1
 
 
-def test_the_home_page_loads_the_kit_then_hopin(home_inventory: PageInventory) -> None:
-    assert home_inventory.stylesheets == [
-        f"{KIT_PATH}/appkit.css",
-        f"{STATIC_PATH}/css/hopin.css",
-    ]
+def test_the_home_page_loads_the_kit_then_hopin_then_the_built_component_styles(
+    home_inventory: PageInventory,
+) -> None:
+    kit, hopin, *built = home_inventory.stylesheets
+    assert (kit, hopin) == (f"{KIT_PATH}/appkit.css", f"{STATIC_PATH}/css/hopin.css")
+    assert all(
+        urlsplit(href).path.startswith(f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/assets/") for href in built
+    )
 
 
 def test_every_screen_holds_exactly_one_legal_nav_with_both_links(home_inventory: PageInventory) -> None:

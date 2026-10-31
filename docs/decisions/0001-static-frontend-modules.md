@@ -19,11 +19,11 @@ webauth:
 
 - `index.html` (superseded: the layout in `frontend/src/routes/(call)/+layout.svelte` and the shell's `app.html` hold the markup now) holds markup only: no inline script, `<style>`, `style=` or
   `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
-  same-origin absolute path; an `<a href>` is only one of the two central legal
-  URLs. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
+  same-origin absolute path; an `<a href>` is one of the two central legal
+  URLs or `/account`. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
   the kit's sign-in card opens them in the same tab. CSP limits what the page
   fetches, not where a link goes. The built sign-in pages' guards read the rendered DOM in `tests/e2e/test_sign_in_pages.py`, the shell's in `tests/e2e/test_page_shell.py`.
-- The shell loads appkit's `appkit.css`, then `hopin.css`. The prerendered sign-in
+- The shell loads appkit's `appkit.css`, then `hopin.css`, then the built stylesheets of the kit components it renders. The prerendered sign-in
   pages load appkit's `appkit.css`, `hopin.css` and the card's built stylesheet. The kit is the installed `overnightworks-appkit`
   package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
   `/static`; the gate admits its stylesheet and fonts as exact paths, never its
@@ -31,14 +31,13 @@ webauth:
 - `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/` and `img/` (the
   brand mark every page links as its icon) are reachable, so the page
   is served only at its routes, never from the mount.
-- Every screen carries its own `<nav class="legal">` copy (a static page has no
-  templating). The guard test pins that each distinct `data-screen` value holds
+- Every screen carries its own `<nav class="legal">` copy (the kit's page links open in the same tab, which would end a call). The guard test pins that each distinct `data-screen` value holds
   exactly one, with both URLs (superseded: the e2e module `tests/e2e/test_page_shell.py` reads it from the DOM); the call screen is one element whose nav sits in
   its More menu.
 - Signed out, Login failed and No access are appkit's `SignInPage`, prerendered from
   `frontend/src/routes/(sign-in)/`. The legal-only `<a>`
-  rule above are about `index.html` and `hopin.css`; a sign-in page links the
-  two legal URLs and `/auth/start`. No access and the account menu post one
+  rule above is about `index.html` and `hopin.css`; a sign-in page links the
+  two legal URLs and `/auth/start`, except No access, which links only the two legal URLs. No access and the account menu post one
   same-origin form to `/logout`, which answers webauth's own end-session page
   under its own policy, so HopIn's policy adds no issuer source.
 - Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
