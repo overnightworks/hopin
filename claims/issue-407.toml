@@ -1,7 +1,0 @@
-claim_id = "60743e3b573d4a31b93928cc5a094039"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "4394da14f657f9510916b6e6a8b25d2e1552adce"
-branch = "claude/issue-407-reveal-test-orders-answers"
-scope = ["tests/game/test_agent_service_flow.py"]
-opened_commit = "001318f874842ffc2cc9be2be67123d9f8c15373"
