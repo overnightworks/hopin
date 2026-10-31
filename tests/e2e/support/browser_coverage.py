@@ -84,13 +84,18 @@ class BrowserCoverage:
         if frame is None:
             return False
         page = frame.page
-        has_app_code = page in self._with_app_code
-        self._with_app_code.discard(page)
         reissue = (page, request.url)
         if reissue in self._reissue_pending:
             self._reissue_pending.discard(reissue)
+            self._with_app_code.discard(page)
             return False
-        if not has_app_code or page in self._passing_through or request.method != "GET" or page not in self._sessions:
+        if (
+            page not in self._with_app_code
+            or page in self._passing_through
+            or request.method != "GET"
+            or page not in self._sessions
+        ):
+            self._with_app_code.discard(page)
             return False
         route.fulfill(status=NO_CONTENT)
         self._cancelled.add(request)
