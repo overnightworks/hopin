@@ -244,6 +244,17 @@ def test_a_built_sign_in_page_runs_no_script_and_carries_no_inline_style_handler
     assert all(re.match(r"^/[^/]", url) for url in inventory.fetched_urls)
     assert "http-equiv" not in markup
     assert markup.count("<title>") == 1
+
+
+@pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
+def test_a_built_sign_in_page_links_the_built_kit_stylesheet_before_hopin_css(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
+) -> None:
+    person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
+    response = person.goto(f"{e2e_server.base_url}{path}")
+    assert response is not None
+
+    inventory = inventory_of(response.body().decode("utf-8"))
     hopin_position = next(i for i, href in enumerate(inventory.stylesheets) if href.endswith("/hopin.css"))
     kit_positions = [i for i, href in enumerate(inventory.stylesheets) if href.startswith("/_app/")]
     assert kit_positions
