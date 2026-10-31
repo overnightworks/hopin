@@ -21,6 +21,8 @@ The sign-in pages are appkit `docs/family.html` section 3 at a161c7c; they are n
 
 The account menu is appkit `docs/family.html` section 4 at v0.9.0, hopin's board, and is not drawn here; the call mockup's account-menu head (the avatar, the name and the "HopIn member" caption) is superseded.
 
+The More-menu legal links stay in More, one tap away; the mockup's icon items there and its quiet home footer are superseded: More shows appkit's `LegalLinks` row at its menu place, and home carries the links in the profile menu.
+
 The AI game master (#240) was added and blessed by the operator on 27.10.2026
 ("ok passt!") as version 2 of
 <https://claude.ai/artifact/Pmozkgd8FsNtopt8miV4A5>. It draws #240's

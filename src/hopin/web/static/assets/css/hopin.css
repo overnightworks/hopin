@@ -533,9 +533,6 @@ button, input, textarea { font-family: inherit; }
     border-radius: 24px;
     box-shadow: 0 18px 40px -18px var(--accent);
 }
-.legal { display: flex; gap: 18px; justify-content: center; font-size: 13px; }
-.legal a { color: var(--text-muted); text-decoration: none; }
-.legal a:hover { color: var(--text); text-decoration: underline; }
 .page {
     flex: 1;
     min-height: 0;
@@ -558,7 +555,7 @@ button, input, textarea { font-family: inherit; }
 .button-text:hover { background: var(--surface-hover); }
 .home {
     display: grid;
-    grid-template-rows: auto 1fr auto auto auto 1fr auto auto;
+    grid-template-rows: auto 1fr auto auto auto 1fr auto;
     justify-items: center;
     text-align: center;
 }
@@ -599,17 +596,15 @@ button, input, textarea { font-family: inherit; }
     font-size: 16px;
     text-wrap: balance;
 }
-.home .button { grid-row: 7; justify-self: stretch; margin: 0 20px 14px; }
-.home .legal { grid-row: 8; margin-bottom: 34px; }
+.home .button { grid-row: 7; justify-self: stretch; margin: 0 20px 34px; }
 @media (min-width: 601px) {
-    .home { grid-template-rows: auto 1fr auto auto auto auto 1fr auto; }
+    .home { grid-template-rows: auto 1fr auto auto auto auto 1fr; }
     .home .button { grid-row: 6; justify-self: center; margin: 14px 0 0; }
-    .home .legal { margin-top: 6px; }
 }
 
 .end {
     display: grid;
-    grid-template-rows: auto 1fr auto auto auto auto 1fr auto auto;
+    grid-template-rows: auto 1fr auto auto auto auto 1fr auto;
     justify-items: center;
     text-align: center;
 }
@@ -662,13 +657,11 @@ button, input, textarea { font-family: inherit; }
     flex-direction: column;
     gap: 6px;
     padding: 0 20px;
-    margin-bottom: 14px;
+    margin-bottom: 34px;
 }
-.end .legal { grid-row: 9; margin-bottom: 34px; }
 @media (min-width: 601px) {
-    .end { grid-template-rows: auto 1fr auto auto auto auto auto 1fr auto; }
+    .end { grid-template-rows: auto 1fr auto auto auto auto auto 1fr; }
     .end-actions { grid-row: 7; max-width: 320px; margin: 32px 0 0; padding: 0; }
-    .end .legal { margin-bottom: 28px; }
 }
 
 .iconbtn {
@@ -784,7 +777,6 @@ button, input, textarea { font-family: inherit; }
 }
 .overlay:not([open]) { display: none; }
 .grab { flex: none; width: 38px; height: 5px; margin: 2px auto 8px; border-radius: 3px; background: var(--text-muted); }
-.sep { height: 1px; margin: 6px 10px; background: var(--border); }
 .mi {
     display: flex;
     align-items: center;
@@ -811,8 +803,6 @@ button, input, textarea { font-family: inherit; }
 .mi:disabled:hover { background: transparent; }
 .quiet-note { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 0 14px 6px 50px; font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
 .quiet-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
-.overlay .legal { display: block; font-size: inherit; }
-.overlay .legal a, .overlay .legal a:hover { color: var(--text); text-decoration: none; }
 .switch {
     position: relative;
     flex: none;
@@ -908,9 +898,6 @@ button, input, textarea { font-family: inherit; }
 @media (min-width: 601px) {
     .account-menu { inset: 66px 24px auto auto; }
 }
-@media (max-width: 600px) {
-    .prejoin .account-button { display: none; }
-}
 
 .prejoin { display: flex; flex-direction: column; }
 .brand-button {
@@ -922,7 +909,6 @@ button, input, textarea { font-family: inherit; }
     font-family: inherit;
     cursor: pointer;
 }
-.topbar-balance { width: 44px; }
 .prejoin-main { flex: 1 0 auto; display: flex; flex-direction: column; }
 .preview {
     position: relative;
@@ -977,12 +963,11 @@ button, input, textarea { font-family: inherit; }
 }
 .self-row b { color: var(--text); font-weight: 600; }
 .prejoin-side { padding: 16px 20px 0; }
-.prejoin .legal { padding: 14px 0 32px; }
 @media (max-width: 600px) {
     .prejoin .brand-button, .prejoin-side h2, .prejoin-sub { display: none; }
 }
 @media (min-width: 601px) {
-    .prejoin .iconbtn, .prejoin .topbar-title, .prejoin .topbar-balance, .self-row { display: none; }
+    .prejoin .iconbtn, .prejoin .topbar-title, .self-row { display: none; }
     .prejoin .topbar { height: 72px; padding: 0 28px; }
     .prejoin-main {
         display: grid;
@@ -997,7 +982,6 @@ button, input, textarea { font-family: inherit; }
     .prejoin-side h2 { font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.025em; }
     .prejoin-sub { margin: -6px 0 6px; color: var(--text-muted); font-size: 15px; }
     .prejoin-side .button { margin-top: 6px; }
-    .prejoin .legal { padding: 6px 0 28px; }
 }
 
 .hidden { display: none; }

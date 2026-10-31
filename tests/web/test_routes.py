@@ -211,25 +211,8 @@ class TestPageShell:
         assert motion_tokens_left_running_under_reduced_motion(stylesheet) == {"--motion-ring"}
 
 
-LEGAL_NAV = '<nav class="legal"><a href="/a"></a></nav>'
-
-
 class TestPageInventory:
-    def test_lists_a_screen_that_holds_no_legal_nav(self):
-        inventory = inventory_of(f'<main data-screen="home">{LEGAL_NAV}</main><section data-screen="ended"></section>')
-
-        assert inventory.screens == {"home", "ended"}
-        assert set(inventory.legal_navs_by_screen) == {"home"}
-
     def test_collects_svg_urls_given_as_xlink_href(self):
         inventory = inventory_of('<svg><use xlink:href="https://x/y#z"/><image xlink:href="/ok.png"/></svg>')
 
         assert inventory.fetched_urls == ["https://x/y#z", "/ok.png"]
-
-    @pytest.mark.parametrize("void_tag", ["<input />", "<input>", "<source>", "<wbr>", "<br/>"])
-    def test_keeps_a_legal_nav_on_its_screen_past_a_void_tag(self, void_tag):
-        inventory = inventory_of(
-            f'<main data-screen="home">{void_tag}{LEGAL_NAV}</main><div data-screen="call">{LEGAL_NAV}</div>'
-        )
-
-        assert set(inventory.legal_navs_by_screen) == {"home", "call"}

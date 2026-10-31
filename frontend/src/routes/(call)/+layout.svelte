@@ -67,7 +67,7 @@
         registerMenu({
             button: moreButton,
             dialog: moreMenu,
-            firstFocus: ".mi",
+            firstFocus: ".mi, a[href]",
             scrim: overlayScrim,
         });
         registerMenu({
@@ -117,7 +117,6 @@
         <button id="endHomeBtn" class={actionClasses(END_ACTION.HOME)} onclick={goHome}>Back to start</button>
         <button id="endRejoinBtn" class={actionClasses(END_ACTION.REJOIN)} onclick={rejoinCall}>Rejoin</button>
     </div>
-    <LegalLinks links={legalLinks} place="page" newTab />
 </main>
 
 <!-- prettier-ignore -->
@@ -131,7 +130,6 @@
     <h2 id="homeGreeting" aria-busy={greeting.isBusy || undefined}>{greeting.name === null ? "Hi there" : `Hi, ${greeting.name}`}</h2>
     <p>Start a call, then send the link to the people you want.</p>
     <button id="homeStartBtn" class="button button-primary button-lg" onclick={requestStart}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>Start a call</button>
-    <LegalLinks links={legalLinks} place="page" newTab />
 </main>
 
 <!-- prettier-ignore -->
@@ -140,7 +138,6 @@
         <button id="prejoinHomeBtn" class="brand brand-button" type="button" onclick={goHome}><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
         <button id="prejoinBackBtn" class="iconbtn ghost" type="button" onclick={goHome} aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span id="prejoinTitle" class="topbar-title">{prejoinTexts().title}</span>
-        <span class="topbar-balance"></span>
         <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <div class="prejoin-main">
@@ -160,7 +157,6 @@
             <button id="prejoinStartBtn" class="button button-primary button-block button-lg" type="button" disabled={isPrejoinInert()} onclick={startClicked}>{startLabel()}</button>
         </div>
     </div>
-    <LegalLinks links={legalLinks} place="page" newTab />
 </main>
 
 <!-- prettier-ignore -->
@@ -207,8 +203,7 @@
         <dialog bind:this={moreMenu} id="moreMenu" class="overlay" aria-label="More">
             <div class="grab"></div>
             <button id="lockBtn" class={["mi", !lockSwitch.isShown && "hidden"]} type="button" role="switch" aria-checked={lockSwitch.isLocked} aria-label="Lock call" onclick={lockClicked}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg><span class="grow">Lock call<small>{lockSwitch.line}</small></span><span class={["switch", lockSwitch.isLocked && "on"]}></span></button>
-            <div class="sep"></div>
-            <nav class="legal" aria-label="Legal"><a class="mi" href="https://hallucinai.de/impressum" target="_blank" rel="noopener"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M14 3.5V7.5h4M9 12h6M9 15.5h6"/></svg><span class="grow">Impressum</span><span class="end"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></span></a><a class="mi" href="https://hallucinai.de/datenschutz#hopin" target="_blank" rel="noopener"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg><span class="grow">Datenschutz</span><span class="end"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></svg></span></a></nav>
+            <LegalLinks links={legalLinks} place="menu" />
         </dialog>
         <dialog bind:this={inviteMenu} id="inviteMenu" class="overlay invite" aria-label="Invite people" data-share={invite.share}>
             <div class="grab"></div>

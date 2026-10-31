@@ -92,13 +92,6 @@ def test_hopin_defines_no_token_and_no_color_scheme_the_built_kit_owns(
     assert CSS_COLOR_SCHEME_DECLARATION.search(hopin) is None
 
 
-def test_every_screen_holds_exactly_one_legal_nav_with_both_links(home_inventory: PageInventory) -> None:
-    assert {"home", "prejoin", "call"} <= home_inventory.screens
-    assert set(home_inventory.legal_navs_by_screen) == home_inventory.screens
-    for navs in home_inventory.legal_navs_by_screen.values():
-        assert navs == [list(LEGAL_URLS)]
-
-
 def test_the_route_announcer_stays_hidden_by_the_stylesheet_alone(
     open_person: Callable[..., Page], base_url: str
 ) -> None:

@@ -26,9 +26,9 @@ export function requestLeave() {
 
 /** Put `items` into More, below Lock call and above the legal links. */
 export function addMoreItems(...items: Element[]) {
-    const separator = document.querySelector("#moreMenu .sep");
-    if (!separator) throw new Error("More has no separator");
-    separator.before(...items);
+    const legalRow = document.querySelector("#moreMenu nav");
+    if (!legalRow) throw new Error("More has no legal row");
+    legalRow.before(...items);
 }
 
 export function showLockButton(isLocked: boolean) {

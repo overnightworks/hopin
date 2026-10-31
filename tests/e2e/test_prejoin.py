@@ -37,7 +37,13 @@ from tests.e2e.support.media import (
     RELEASE_MEDIA,
     wait_for_the_picture,
 )
-from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.page_assertions import (
+    ACCOUNT_AVATAR,
+    ACCOUNT_MENU,
+    LEGAL_LINKS,
+    expect_both_legal_links_in_the_profile_menu,
+    expect_no_legal_footer,
+)
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
@@ -413,7 +419,8 @@ def expect_the_desktop_texts(prejoin: Locator, texts: KindTexts) -> None:
         expect(prejoin.get_by_text(texts.sub_line)).to_be_visible()
     expect(prejoin.get_by_role("button", name="Back")).to_be_hidden()
     expect(prejoin.get_by_text(texts.phone_title)).to_be_hidden()
-    expect_both_legal_links(prejoin)
+    expect_no_legal_footer(prejoin)
+    expect_both_legal_links_in_the_profile_menu(prejoin.page)
 
 
 def expect_the_phone_texts(prejoin: Locator, texts: KindTexts) -> None:
@@ -422,7 +429,8 @@ def expect_the_phone_texts(prejoin: Locator, texts: KindTexts) -> None:
     expect(prejoin.locator(".self-row .av svg")).to_be_visible()
     expect(prejoin.locator(".self-row")).to_have_text("You")
     expect(prejoin.get_by_role("heading", name=texts.heading)).to_be_hidden()
-    expect_both_legal_links(prejoin)
+    expect_no_legal_footer(prejoin)
+    expect_both_legal_links_in_the_profile_menu(prejoin.page)
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -445,6 +453,24 @@ def test_prejoin_texts_fit_the_kind_and_the_form_factor(
     open_answered_prejoin_of(kind, person)
 
     expect_the_texts(person.page.locator(PREJOIN_SCREEN), TEXTS[kind])
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_prejoin_legal_link_opens_a_new_tab_while_the_camera_keeps_playing(
+    open_recorded: Callable[..., Person], open_answered_prejoin_of: Callable[..., Page | None], kind: Kind
+) -> None:
+    person = open_recorded(DESKTOP)
+    open_answered_prejoin_of(kind, person)
+    person.page.wait_for_function(PREVIEW_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    person.page.context.route("https://hallucinai.de/**", lambda route: route.fulfill(status=200, body="legal"))
+
+    person.page.locator(ACCOUNT_AVATAR).click()
+    with person.page.context.expect_page() as opened:
+        person.page.locator(ACCOUNT_MENU).get_by_role("link", name="Impressum").click()
+
+    assert opened.value.url == LEGAL_LINKS["Impressum"]
+    expect_the_prejoin_alone(person.page)
+    person.page.wait_for_function(PREVIEW_PLAYING, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 @pytest.mark.parametrize("kind", KINDS)
