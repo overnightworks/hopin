@@ -45,7 +45,7 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_five_routes_and_the_static_and_app_mounts(self, signaling_handler, room_manager):
+    def test_returns_four_routes_and_the_static_and_app_mounts(self, signaling_handler, room_manager):
         router = create_router(signaling_handler, room_manager, fixture_page_build())
         assert len(router.routes) == 6
 

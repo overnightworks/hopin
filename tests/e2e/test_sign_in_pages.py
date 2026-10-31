@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Route, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH, NO_ACCESS_PATH
 from tests.e2e.support.calls import record_page_errors
@@ -278,13 +278,20 @@ def test_a_sign_in_page_whose_fonts_answer_404_still_shows_its_heading_in_the_fa
 ) -> None:
     person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
     person.add_init_script(RECORD_POLICY_VIOLATIONS)
-    person.route(re.compile(r"/_app/.*\.woff2$"), lambda route: route.fulfill(status=404))
+    font_requests: list[str] = []
+
+    def answer_404(route: Route) -> None:
+        font_requests.append(route.request.url)
+        route.fulfill(status=404)
+
+    person.route(re.compile(r"/_app/.*\.woff2$"), answer_404)
 
     response = person.goto(f"{e2e_server.base_url}{LOGIN_PATH}")
     person.wait_for_load_state("networkidle")
 
     assert response is not None
     assert response.status == 200
+    assert font_requests
     heading = person.get_by_role("heading", name="You are logged out.", exact=True)
     expect(heading).to_be_visible()
     assert heading.evaluate("(element) => getComputedStyle(element).fontFamily").endswith("sans-serif")

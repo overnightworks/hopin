@@ -23,7 +23,7 @@ webauth:
   URLs or `/account`. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
   the kit's sign-in card opens them in the same tab. CSP limits what the page
   fetches, not where a link goes. The built sign-in pages' guards read the rendered DOM in `tests/e2e/test_sign_in_pages.py`, the shell's in `tests/e2e/test_page_shell.py`.
-- Every page loads the built stylesheets (appkit's `appkit.css`, then the kit components' and the card's own) and then `hopin.css`. The kit is the
+- The shell loads the built kit stylesheet, then `hopin.css`, then the built stylesheets of the kit components it renders; the prerendered sign-in pages load the built kit stylesheet and the card's, then `hopin.css`. The kit is the
   installed `overnightworks-appkit` npm package: the root layout imports its stylesheet once and Vite builds it and its fonts into
   hashed `/_app/` files. The gate admits the exact stylesheet and font files it must open, derived from the built
   sign-in pages' linked stylesheets, never a directory.

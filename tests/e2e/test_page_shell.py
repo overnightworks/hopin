@@ -1,7 +1,6 @@
 """The home page's static guards, judged on the DOM the browser built from the SvelteKit shell and its layout."""
 
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -15,6 +14,7 @@ from hopin.config.constants import (
     LOGOUT_PATH,
     STATIC_PATH,
 )
+from hopin.web.routes import STATIC_DIR
 from tests.e2e.support.people import DESKTOP
 from tests.support.page_inventory import (
     CSS_COMMENT,
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-HOPIN_STYLESHEET = Path(__file__).parents[2] / "src" / "hopin" / "web" / "static" / "assets" / "css" / "hopin.css"
+HOPIN_STYLESHEET = STATIC_DIR / "assets" / "css" / "hopin.css"
 CSS_CUSTOM_PROPERTY_DEFINITION = re.compile(r"(--[\w-]+)\s*:")
 CSS_COLOR_SCHEME_DECLARATION = re.compile(r"(?<![\w-])color-scheme\s*:")
 ANNOUNCER_STYLE_AS_COMPUTED = """
