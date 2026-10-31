@@ -67,14 +67,14 @@ def describe(merged: Records) -> tuple[list[str], bool]:
     below_full = []
     for source, record in merged.items():
         values = counters(record)
-        source_below_full = []
+        source_shortfalls = []
         for kind, (total_key, hit_key) in COUNTER_PAIRS.items():
             found[kind][0] += values.get(total_key, 0)
             found[kind][1] += values.get(hit_key, 0)
             if values.get(hit_key, 0) < values.get(total_key, 0):
-                source_below_full.append(f"{source}: {kind} {values.get(hit_key, 0)}/{values.get(total_key, 0)}")
-        if source_below_full:
-            below_full += [*source_below_full, f"{source}: missed {', '.join(misses(record))}"]
+                source_shortfalls.append(f"{source}: {kind} {values.get(hit_key, 0)}/{values.get(total_key, 0)}")
+        if missed := misses(record):
+            below_full += [*source_shortfalls, f"{source}: missed {', '.join(missed)}"]
     totals = [f"total {kind}: {hit}/{total}" for kind, (total, hit) in found.items()]
     return [*below_full, *totals], not below_full
 

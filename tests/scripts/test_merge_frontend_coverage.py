@@ -80,7 +80,8 @@ def test_main_missing_report_exits_naming_it(tmp_path: Path) -> None:
 
 
 def test_main_prints_files_below_full_coverage_and_totals(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    merge_reports(tmp_path, record("frontend/src/lib/a.ts", 3), record("frontend/src/lib/b.js", 4))
+    uncovered = "TN:\nSF:frontend/src/lib/a.ts\nDA:1,0\nDA:2,1\nDA:3,1\nLF:4\nLH:3\nend_of_record\n"
+    merge_reports(tmp_path, uncovered, record("frontend/src/lib/b.js", 4))
 
     printed = capsys.readouterr().out
     assert "frontend/src/lib/a.ts: lines 3/4" in printed
@@ -95,8 +96,10 @@ def test_main_prints_files_below_full_coverage_and_totals(tmp_path: Path, capsys
         ("DA:7,0\nLF:1\nLH:0", "line 7"),
         ("BRDA:9,0,1,0\nBRF:1\nBRH:0", "branch 9:0.1"),
         ("FNDA:0,onClick\nFNF:1\nFNH:0", "function onClick"),
+        ("DA:7,0", "line 7"),
+        ("DA:7,0\nLF:1\nLH:1", "line 7"),
     ],
-    ids=["full", "missed-line", "missed-branch", "missed-function"],
+    ids=["full", "missed-line", "missed-branch", "missed-function", "no-counters", "counters-claim-full"],
 )
 def test_main_report_below_full_coverage_exits_non_zero_naming_the_file_and_the_miss(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], counted_lines: str, missed: str | None
