@@ -14,9 +14,9 @@ shell's own inline start script and SvelteKit's route announcer would break.
   The build is never committed; the image and CI build it, and the server
   refuses to start without it (`PageBuild.load`, naming `make frontend`).
 - The layout (`frontend/src/routes/(call)/+layout.svelte`) holds the markup that
-  `index.html` held and imports `#lib/legacy/app.js` dynamically from `onMount`, so the
-  legacy code, bundled from `frontend/src/lib/legacy/`, runs only after the
-  markup exists; a lint rule refuses any static import of it. Each feature is
+  `index.html` held and calls the start-up module's `startUp()` from `onMount`
+  (`frontend/src/routes/(call)/start-up.ts`, the one wiring, which runs nothing at
+  import), so the wiring runs only after the markup exists. Each feature is
   bundled under `frontend/src/lib/features/<name>/` and activated by
   `GET /api/call-features`; the call's code never imports it.
 - `/` and `/c/{room}` answer the built shell as read at start. Its inline
@@ -46,3 +46,29 @@ shell's own inline start script and SvelteKit's route announcer would break.
 - A new SvelteKit release can change the announcer's style; the browser test of
   the policy catches it.
 - The page's static guards for the shell read the rendered DOM in an e2e test.
+
+## Rules carried over from ADR 0001
+
+- The shell's legal links open in a new tab (`target="_blank" rel="noopener"`); the
+  kit's sign-in card opens them in the same tab. CSP limits what the page fetches,
+  not where a link goes.
+- `/static` (`STATIC_PATH`) serves only `css/` and `img/`.
+- Showing and hiding is the `hidden` class; a native `<dialog>` uses its own
+  `show()` and `close()`, never `showModal()`.
+- Script sets styles only through the CSSOM, which the policy allows; handlers come
+  from `addEventListener`.
+- The sign-in pages link the two legal URLs and `/auth/start`, except No access,
+  which links only the two legal URLs; No access and the account menu post one
+  same-origin form to `/logout`.
+- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the
+  shell's fonts come from the kit (`--font-body`); `hopin.css` owns the slot, stage,
+  shadow, motion and mono tokens and defines none of the kit's. `.sign-in` in
+  `hopin.css` wraps the built sign-in pages as their scroll container.
+- Stylesheet order: the kit's built stylesheet, then `hopin.css`, then the built
+  stylesheets of the components the shell renders. The kit is the installed
+  `overnightworks-appkit` package, imported once by the root layout. Guarded by
+  `tests/e2e/test_page_shell.py`.
+- The markup holds no inline script, `<style>`, `style=` or `on*=` attribute. Every
+  `src` and every `href` outside an `<a>` is a same-origin absolute path; an
+  `<a href>` is one of the two central legal URLs or `/account`. Guarded by
+  `tests/e2e/test_page_shell.py`.

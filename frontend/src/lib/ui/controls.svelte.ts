@@ -1,5 +1,3 @@
-import { flushSync } from "svelte";
-
 import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "#lib/call/media.ts";
 import { isConnected, send } from "#lib/call/signaling.ts";
 import { state } from "#lib/call/state.ts";
@@ -33,17 +31,14 @@ export function addMoreItems(...items: Element[]) {
     separator.before(...items);
 }
 
-// Legacy code and the end-to-end suite read the DOM right after a write.
 export function showLockButton(isLocked: boolean) {
     lockSwitch.isShown = true;
     lockSwitch.isLocked = isLocked;
     lockSwitch.line = isLocked ? LOCK_LINE.LOCKED : LOCK_LINE.UNLOCKED;
-    flushSync();
 }
 
 export function hideLockButton() {
     lockSwitch.isShown = false;
-    flushSync();
 }
 
 export function confirmLockChange(isLocked: boolean) {
@@ -56,7 +51,6 @@ export function renderControls() {
     deviceButtons.isMicrophoneOn = state.audioEnabled;
     deviceButtons.isCameraOn = state.videoEnabled;
     deviceButtons.isSharing = Boolean(state.screenStream);
-    flushSync();
 }
 
 export function muteClicked() {

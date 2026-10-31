@@ -7,7 +7,7 @@ import {
     renderControls,
     showLockButton,
 } from "#lib/ui/controls.svelte.ts";
-import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
+import { END_KIND, type EndFrame, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "#lib/call/media.ts";
@@ -20,6 +20,7 @@ import {
     removeAllPeers,
     SignedOutError,
 } from "#lib/call/mesh.ts";
+import type { FeatureCore } from "#lib/call/feature-port.ts";
 import { loadFeatures } from "#lib/call/features.ts";
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import {
@@ -31,8 +32,9 @@ import {
     onSessionEnded,
     onSessionLost,
     sendFeatureFrame,
+    type ServerFrame,
 } from "#lib/call/signaling.ts";
-import { SIGNAL_TYPE } from "#lib/wire.ts";
+import { SIGNAL_TYPE, type ERROR_REASON, type ROOM_CLOSED_REASON } from "#lib/wire.ts";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
@@ -44,11 +46,16 @@ import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
-installStage(stageModule);
+type RoomCreatedFrame = ServerFrame & { room_id: string; is_host: boolean };
+type ExistingParticipantsFrame = ServerFrame & {
+    names: Record<string, string>;
+    is_host: boolean;
+    locked: boolean;
+};
 
-const callEndedHooks = [];
+const callEndedHooks: (() => void)[] = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
-const FEATURE_CORE = Object.freeze({
+const FEATURE_CORE: FeatureCore = Object.freeze({
     on: onFeatureFrame,
     send: sendFeatureFrame,
     isConnected,
@@ -58,14 +65,14 @@ const FEATURE_CORE = Object.freeze({
     receiveChatLine: receiveLine,
     pinLastChatLine: pinLast,
     showChatCard: showCard,
-    onCallEnded: (hook) => {
+    onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);
     },
 });
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
 // A feature that fails to load never stops the call; it resolves to whether every feature is in.
 // The gated feature list is asked when the first call starts, never at page load.
-let featuresInstalled;
+let featuresInstalled: Promise<boolean> | undefined;
 
 function updateParticipantCount() {
     if (state.roomId) {
@@ -92,7 +99,7 @@ function startCall() {
             if (!everyFeatureInstalled) showToast("An add-on could not load.", TOAST_KIND.WARNING);
             connect();
         },
-        (error_) => {
+        (error_: unknown) => {
             if (state.intentionalLeave) return;
             if (error_ instanceof SignedOutError) {
                 goThroughSignIn();
@@ -100,7 +107,7 @@ function startCall() {
             }
             stopLocalMedia();
             renderControls();
-            setStatus(error_.message, "error");
+            setStatus((error_ as Error).message, "error");
         },
     );
 }
@@ -138,7 +145,8 @@ function requestLeave() {
 }
 
 function registerSessionHandlers() {
-    on(SIGNAL_TYPE.ROOM_CREATED, (data) => {
+    on(SIGNAL_TYPE.ROOM_CREATED, (frame) => {
+        const data = frame as RoomCreatedFrame;
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
@@ -149,7 +157,8 @@ function registerSessionHandlers() {
         updateLockUI();
         updateParticipantCount();
     });
-    on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
+    on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (frame) => {
+        const data = frame as ExistingParticipantsFrame;
         for (const [participantId, name] of Object.entries(data.names)) {
             state.namesByParticipant.set(participantId, name);
             showRemoteName(participantId);
@@ -157,12 +166,14 @@ function registerSessionHandlers() {
         state.isHost = data.is_host;
         state.isLocked = data.locked;
         state.reconnectAttempt = 0;
-        setCallLink(callUrl(getRoomIdFromUrl()));
+        // A guest is admitted only from the call's own address.
+        setCallLink(callUrl(getRoomIdFromUrl() as string));
         setStatus("In call", "connected");
         updateLockUI();
         updateParticipantCount();
     });
-    on(SIGNAL_TYPE.PARTICIPANT_JOINED, (data) => {
+    on(SIGNAL_TYPE.PARTICIPANT_JOINED, (frame) => {
+        const data = frame as ServerFrame & { participant_id: string; name: string };
         state.namesByParticipant.set(data.participant_id, data.name);
         playJoinSound();
         updateParticipantCount();
@@ -178,11 +189,14 @@ function registerSessionHandlers() {
         updateLockUI();
         confirmLockChange(false);
     });
-    on(SIGNAL_TYPE.ROOM_CLOSED, (data) => {
+    on(SIGNAL_TYPE.ROOM_CLOSED, (frame) => {
+        // The frame type reads `reason` as a refusal's; a closed room's is the other enum.
+        const reason: unknown = frame.reason;
         tearDownCall();
-        showEnd(endKindOfClosedRoom(data.reason), data);
+        showEnd(endKindOfClosedRoom(reason as ROOM_CLOSED_REASON), frame as EndFrame);
     });
-    on(SIGNAL_TYPE.ERROR, (data) => {
+    on(SIGNAL_TYPE.ERROR, (frame) => {
+        const data = frame as ServerFrame & EndFrame & { reason: ERROR_REASON; message: string };
         const refusal = endKindOfRefusal(data.reason);
         if (refusal === null) {
             setStatus(`Error: ${data.message}`, "error");
@@ -193,28 +207,33 @@ function registerSessionHandlers() {
     });
 }
 
-registerMeshHandlers();
-registerChatHandlers();
-registerMediaStateHandlers();
-registerSessionHandlers();
-onPeersChanged(updateParticipantCount);
-onSessionLost(removeAllPeers);
-onSessionEnded(() => {
-    tearDownCall();
-    goThroughSignIn();
-});
-installLeaveConfirmed(leaveCall);
-installLeaveRequested(requestLeave);
-installStartRequested(() => openPrejoin(PREJOIN_KIND.HOST));
-installPrejoinStart((kind) => {
-    state.isHost = kind === PREJOIN_KIND.HOST;
-    void startCall();
-});
+export function startUp() {
+    installStage(stageModule);
+    registerMeshHandlers();
+    registerChatHandlers();
+    registerMediaStateHandlers();
+    registerSessionHandlers();
+    onPeersChanged(updateParticipantCount);
+    onSessionLost(removeAllPeers);
+    onSessionEnded(() => {
+        tearDownCall();
+        goThroughSignIn();
+    });
+    installLeaveConfirmed(leaveCall);
+    installLeaveRequested(requestLeave);
+    installStartRequested(() => {
+        openPrejoin(PREJOIN_KIND.HOST);
+    });
+    installPrejoinStart((kind) => {
+        state.isHost = kind === PREJOIN_KIND.HOST;
+        void startCall();
+    });
 
-if (getRoomIdFromUrl()) {
-    openPrejoin(PREJOIN_KIND.GUEST);
-} else {
-    showScreen(SCREEN.HOME);
+    if (getRoomIdFromUrl()) {
+        openPrejoin(PREJOIN_KIND.GUEST);
+    } else {
+        showScreen(SCREEN.HOME);
+    }
+
+    void readAccount().then(showGreeting);
 }
-
-showGreeting(await readAccount());

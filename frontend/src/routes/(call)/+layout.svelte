@@ -44,6 +44,7 @@
     import { ACCOUNT_CONSOLE_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
+    import { startUp } from "./start-up.ts";
 
     const { children }: { children: Snippet } = $props();
     const shownEnd = $derived(shownEndView());
@@ -74,7 +75,7 @@
         for (const button of document.querySelectorAll<HTMLButtonElement>(".account-button")) {
             registerMenu({ button, dialog: accountDialog, firstFocus: "a[href]", scrim: accountScrim });
         }
-        void import("#lib/legacy/app.js");
+        startUp();
         return removeMenus;
     });
 </script>
