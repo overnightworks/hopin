@@ -310,8 +310,8 @@ describe("lock change toast", () => {
 });
 
 describe("addMoreItems", () => {
-    it("places the items before the separator, after Lock call", async () => {
-        document.body.innerHTML = `<dialog id="moreMenu"><button id="lockBtn"></button><div class="sep"></div><a id="legal"></a></dialog>`;
+    it("places the items before the legal row, after Lock call", async () => {
+        document.body.innerHTML = `<dialog id="moreMenu"><button id="lockBtn"></button><nav id="legal" aria-label="Legal"></nav></dialog>`;
         const { addMoreItems } = await freshControls();
         const first = document.createElement("button");
         const second = document.createElement("button");
@@ -321,17 +321,17 @@ describe("addMoreItems", () => {
         const order = [...(document.querySelector("#moreMenu")?.children ?? [])].map(
             (child) => child.id || child.className,
         );
-        expect(order).toEqual(["lockBtn", "", "", "sep", "legal"]);
+        expect(order).toEqual(["lockBtn", "", "", "legal"]);
     });
 });
 
 describe("addMoreItems without More", () => {
-    it("fails loud when More has no separator", async () => {
+    it("fails loud when More has no legal row", async () => {
         const { addMoreItems } = await freshControls();
 
         expect(() => {
             addMoreItems(document.createElement("button"));
-        }).toThrow("no separator");
+        }).toThrow("no legal row");
     });
 });
 
