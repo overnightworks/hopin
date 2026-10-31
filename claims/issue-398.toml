@@ -1,8 +1,0 @@
-claim_id = "b682f6fa7adb4af29d97dc9dd4138627"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "7f87193dd84f07655f57839ddc98605550b9e823"
-branch = "claude/issue-398-p19c-no-access-from-appkit-s-signinpage"
-scope = ["docs/ARCHITECTURE.md", "docs/decisions/0001-static-frontend-modules.md", "docs/decisions/0003-page-layer-on-sveltekit.md", "frontend/src/lib/ui/SignIn.svelte", "frontend/src/lib/wire.ts", "frontend/src/routes/(sign-in)/no-access/+page.svelte", "scripts/generate_wire.py", "src/hopin/auth/gate.py", "src/hopin/auth/sign_in.py", "src/hopin/web/page_build.py", "src/hopin/web/static/assets/css/hopin.css", "src/hopin/web/static/assets/css/ui-console.css", "src/hopin/web/static/no-access.html", "tests/auth/test_gate.py", "tests/e2e/test_page_shell.py", "tests/e2e/test_sign_in_pages.py", "tests/support/page_build.py", "tests/support/page_build_fixture/no-access.html", "tests/support/page_inventory.py", "tests/test_app.py", "tests/web/test_page_build.py", "tests/web/test_routes.py"]
-opened_commit = "835dd3361dbf8dd347fd12b362072559cbee6b26"
-whole_reason = "The prerendered No access page, the server that answers it from the build and the gate set read from the built pages have no caller without each other; the static page can go only once its replacement is served, and its deletion leaves ui-console.css, its public path and its guards with no reader, so they go in the same change."
