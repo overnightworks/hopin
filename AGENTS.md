@@ -7,7 +7,7 @@ imports it.
 
 The `Makefile` owns the targets. Traps:
 
-- `make e2e` and `make run` build the page first (`make frontend`, which needs Node 24 and pnpm), and the server refuses to
+- `make e2e` and `make run` build the page first (`make frontend`, which needs Node 26, or 24, and pnpm), and the server refuses to
   start without that build. `make e2e` takes no lock itself: hold `/tmp/probe-stack.lock` around it
   (`flock -o -w 1200 /tmp/probe-stack.lock setpriv --pdeathsig TERM timeout -k 30 1800 make e2e`).
   It needs Playwright's Chromium installed once; the `End-to-end` job in `.github/workflows/ci.yml` owns that install step.
