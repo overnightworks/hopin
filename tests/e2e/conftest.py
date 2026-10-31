@@ -64,16 +64,22 @@ def expected_request_failures() -> list[str]:
 
 
 @pytest.fixture
+def browser_coverage() -> BrowserCoverage:
+    """The one collector of this test; with collection off it routes nothing and records nothing."""
+    return BrowserCoverage.from_environment()
+
+
+@pytest.fixture
 def open_person(
     browser: Browser,
     browser_context_args: dict[str, Any],
     e2e_server: RunningServer,
     seeded_members: dict[Page, SeededMember],
     expected_request_failures: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> Iterator[Callable[..., Page]]:
     contexts: list[BrowserContext] = []
     failed_requests: list[str] = []
-    browser_coverage = BrowserCoverage.from_environment()
 
     def note_failed_request(request: Request) -> None:
         if request.failure != PAGE_NAVIGATED_AWAY and not request.url.startswith(tuple(expected_request_failures)):
@@ -92,8 +98,7 @@ def open_person(
             **{**browser_context_args, "extra_http_headers": {"X-Forwarded-For": str(person_address)}, **device_options}
         )
         contexts.append(context)
-        if browser_coverage is not None:
-            browser_coverage.watch(context)
+        browser_coverage.watch(context)
         context.on("requestfailed", note_failed_request)
         page = context.new_page()
         if signed_in:
@@ -111,8 +116,7 @@ def open_person(
         return page
 
     yield open_page
-    if browser_coverage is not None:
-        browser_coverage.write()
+    browser_coverage.write()
     for context in contexts:
         context.close()
     assert failed_requests == []

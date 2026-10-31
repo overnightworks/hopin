@@ -49,6 +49,8 @@ from tests.e2e.support.signaling import RECONNECT_DELAYS_MS, FrameInjector
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from tests.e2e.support.browser_coverage import BrowserCoverage
+
 pytestmark = pytest.mark.e2e
 
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
@@ -310,14 +312,17 @@ def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:
     expect(end_screen(call.guest)).to_be_hidden()
 
 
-def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_call_link(call: Call) -> None:
+def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_call_link(
+    call: Call, browser_coverage: BrowserCoverage
+) -> None:
     guest_leaves(call)
 
     end_screen(call.guest).get_by_role("button", name="Back to start").click()
 
     expect(call.guest).to_have_url(re.compile(rf"^{re.escape(call.base_url)}/$"))
     expect(call.guest.locator("[data-screen=home]")).to_be_visible()
-    call.guest.go_back()
+    with browser_coverage.passing_through(call.guest):
+        call.guest.go_back()
     expect(call.guest).to_have_url(call.invite_link)
     expect(call.guest.locator("[data-screen=prejoin]")).to_be_visible()
 
@@ -329,12 +334,17 @@ def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None
 
 
 def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rejoin_or_dialog(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+    open_person: Callable[..., Page],
+    base_url: str,
+    form_factor: dict[str, Any],
+    page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     host = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
     start_call(host, base_url)
 
-    host.reload()
+    with browser_coverage.passing_through(host):
+        host.reload()
     press_through_the_prejoin(host)
     expect(host.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     host.click("#leaveBtn")

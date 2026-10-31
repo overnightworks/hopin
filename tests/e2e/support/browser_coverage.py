@@ -1,33 +1,100 @@
 """Chromium's precise V8 coverage of every page an end-to-end test opens, written for the CI report.
 
 Collecting is off unless the environment names a directory, so local runs pay nothing.
+A page-started document navigation would drop its page's counters, so the collector cancels it
+with a 204, takes the page's coverage and re-issues the URL; the re-issue goes to the server.
 """
 
 import json
 import os
+from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 if TYPE_CHECKING:
-    from playwright.sync_api import BrowserContext, CDPSession, Page
+    from collections.abc import Iterator
+
+    from playwright.sync_api import BrowserContext, CDPSession, Page, Request, Route
 
 BROWSER_COVERAGE_DIRECTORY_VARIABLE = "HOPIN_BROWSER_COVERAGE_DIR"
+APP_SCRIPT_PATH_PREFIX = "/_app/"
+NO_CONTENT = 204
 
 
 class BrowserCoverage:
-    def __init__(self, directory: Path) -> None:
+    def __init__(self, directory: Path | None) -> None:
         self._directory = directory
         self._sessions: dict[Page, CDPSession] = {}
+        self._with_app_code: set[Page] = set()
+        self._reissue_pending: set[tuple[Page, str]] = set()
+        self._cancelled: set[Request] = set()
+        self._reissue_counts: Counter[Page] = Counter()
+        self._passing_through: set[Page] = set()
 
     @classmethod
-    def from_environment(cls) -> BrowserCoverage | None:
+    def from_environment(cls) -> BrowserCoverage:
         directory = os.environ.get(BROWSER_COVERAGE_DIRECTORY_VARIABLE)
-        return None if not directory else cls(Path(directory))
+        return cls(Path(directory) if directory else None)
 
     def watch(self, context: BrowserContext) -> None:
         """Start the profiler on every page the context opens, popups included."""
+        if self._directory is None:
+            return
         context.on("page", self._start)
+        context.route("**/*", self._on_request)
+
+    def was_cancelled(self, request: Request) -> bool:
+        """Whether the collector answered this request with 204 and re-issued it."""
+        return request in self._cancelled
+
+    def reissued(self, page: Page) -> int:
+        """How many navigations of this page the collector re-issued."""
+        return self._reissue_counts[page]
+
+    @contextmanager
+    def passing_through(self, page: Page) -> Iterator[None]:
+        """Let the page's navigations go through untouched, for one a test drives itself."""
+        self._passing_through.add(page)
+        try:
+            yield
+        finally:
+            self._passing_through.discard(page)
+
+    def cancel_take_reissue(self, route: Route) -> bool:
+        """True when this pass was cancelled, taken and re-issued; False when it goes through.
+
+        A test whose own page route answers a navigation calls this first, because page routes run
+        before the context route.
+        """
+        request = route.request
+        page = request.frame.page
+        has_app_code = page in self._with_app_code
+        self._with_app_code.discard(page)
+        reissue = (page, request.url)
+        if reissue in self._reissue_pending:
+            self._reissue_pending.discard(reissue)
+            return False
+        if not has_app_code or page in self._passing_through or request.method != "GET" or page not in self._sessions:
+            return False
+        route.fulfill(status=NO_CONTENT)
+        self._cancelled.add(request)
+        self._take(page)
+        self._reissue_pending.add(reissue)
+        self._reissue_counts[page] += 1
+        page.evaluate("url => location.assign(url)", request.url)
+        return True
+
+    def _on_request(self, route: Route) -> None:
+        request = route.request
+        if request.frame.page.main_frame is request.frame:
+            if request.resource_type == "script" and urlsplit(request.url).path.startswith(APP_SCRIPT_PATH_PREFIX):
+                self._with_app_code.add(request.frame.page)
+            elif request.resource_type == "document" and self.cancel_take_reissue(route):
+                return
+        route.fallback()
 
     def _start(self, page: Page) -> None:
         session = page.context.new_cdp_session(page)
@@ -35,10 +102,14 @@ class BrowserCoverage:
         session.send("Profiler.startPreciseCoverage", {"callCount": True, "detailed": True})
         self._sessions[page] = session
 
+    def _take(self, page: Page) -> None:
+        assert self._directory is not None
+        self._directory.mkdir(parents=True, exist_ok=True)
+        taken = self._sessions[page].send("Profiler.takePreciseCoverage")
+        (self._directory / f"{uuid4().hex}.json").write_text(json.dumps(taken))
+
     def write(self) -> None:
         """Take the coverage of every page still open; call it before its context closes."""
-        self._directory.mkdir(parents=True, exist_ok=True)
-        for page, session in self._sessions.items():
+        for page in self._sessions:
             if not page.is_closed():
-                taken = session.send("Profiler.takePreciseCoverage")
-                (self._directory / f"{uuid4().hex}.json").write_text(json.dumps(taken))
+                self._take(page)

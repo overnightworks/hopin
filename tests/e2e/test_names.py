@@ -14,6 +14,7 @@ from tests.support.sign_in_settings import TEST_ISSUER
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.server import RunningServer
     from tests.support.signed_in import SeededMember
 
@@ -132,12 +133,13 @@ def test_tile_keeps_the_username_after_the_other_persons_socket_resumes(
 
 
 def test_a_username_that_looks_like_markup_is_shown_as_text(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], browser_coverage: BrowserCoverage
 ) -> None:
     host = record_page_errors(open_person(username=MARKUP_NAME, **DESKTOP), page_errors)
     host.goto(f"{base_url}/")
     expect(host.locator(HOME_HEADING)).to_have_text(f"Hi, {MARKUP_NAME}")
-    invite_link = start_call(host, base_url)
+    with browser_coverage.passing_through(host):
+        invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **DESKTOP), page_errors)
     join_by_link(guest, invite_link)
     say_in_chat(host, "hello")

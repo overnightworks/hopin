@@ -41,6 +41,7 @@ from tests.game.support.table_world import answers_in_reveal
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.server import RunningServer
     from tests.game.support.fake_agent_service import FakeAgentService
     from tests.support.signed_in import SeededMember
@@ -755,15 +756,21 @@ def test_a_long_answer_is_cut_and_markup_shows_as_text(
 
 
 def test_sign_in_again_returns_to_this_call_through_the_sign_in(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     host, _ = call_of_two(open_person, e2e_server.base_url, page_errors, with_refresh_token=False)
     call_path = host.evaluate("() => location.pathname")
     sign_in_requests: list[str] = []
-    host.route(
-        "**/auth/start?**",
-        lambda route: sign_in_requests.append(route.request.url) or route.fulfill(status=200, body="sign-in"),
-    )
+
+    def answer_the_sign_in(route: Route) -> None:
+        if not browser_coverage.cancel_take_reissue(route):
+            sign_in_requests.append(route.request.url)
+            route.fulfill(status=200, body="sign-in")
+
+    host.route("**/auth/start?**", answer_the_sign_in)
 
     start_quiz(host)
     expect(host.locator(TOASTS)).to_contain_text("Sign in again to use the game master.")
