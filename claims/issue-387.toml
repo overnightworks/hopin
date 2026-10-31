@@ -1,8 +1,0 @@
-claim_id = "dda7c8a872254a46879a2521a75aae57"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "c19a4d5ebb2174a79c567917049a0d7151019bee"
-branch = "claude/issue-387-p18b-game-port"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/call/features.test.ts", "frontend/src/lib/call/features.ts", "frontend/src/lib/features/game/GameMasterLine.svelte", "frontend/src/lib/features/game/GameMasterThinking.svelte", "frontend/src/lib/features/game/QuestionCard.svelte", "frontend/src/lib/features/game/index.js", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/game/index.ts", "frontend/src/lib/features/game/quiz.svelte.test.ts", "frontend/src/lib/features/game/quiz.svelte.ts", "frontend/src/lib/legacy/app.js", "frontend/src/lib/ui/chat.svelte.test.ts", "frontend/src/lib/ui/chat.svelte.ts", "frontend/src/routes/(call)/+layout.svelte", "sonar-project.properties", "tests/e2e/game/build_files.py", "tests/e2e/game/game_page.py", "tests/e2e/game/test_game_chat_scroll.py", "tests/e2e/game/test_game_master.py", "tests/e2e/support/page_assertions.py", "tests/e2e/test_chat.py"]
-opened_commit = "625eb58dd9e045bb6d79785d0cb10c647bfa6a5f"
-whole_reason = "The chat contract, its one caller in the layout and the one feature that hands views cannot ship apart, and the port and the hand-off are one rewrite of the same code; porting the element-building code only to delete it is what the cut avoids."
