@@ -1,8 +1,0 @@
-claim_id = "c7cfa1af9d9c4982b65d6609f95ab45a"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "1668a6d9723e1500a72b4c01a925731f08e350da"
-branch = "claude/issue-415-p21b0-feature-frame-entries"
-scope = ["frontend/src/lib/call/replay.test.ts", "frontend/src/lib/call/replay.ts", "frontend/src/lib/call/signaling.test.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/legacy/app.js"]
-opened_commit = "2ff401e640e8d5c9d580f2443fce7f685503f68c"
-whole_reason = "The two entries have no caller without the composition root's binding, and SentLog must take a string-typed frame before sendFeatureFrame can log one."
