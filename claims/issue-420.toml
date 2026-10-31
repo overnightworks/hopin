@@ -1,8 +1,0 @@
-claim_id = "bfef9eed1eee42d5a39672ba92454f72"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "961099dd9b787c147bf69232a7bd138b28aa00c7"
-branch = "claude/issue-420-typed-room-closed-frame"
-scope = ["frontend/src/lib/call/signaling.ts", "frontend/src/lib/wire.ts", "frontend/src/routes/(call)/start-up.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "tests/scripts/test_generate_wire.py"]
-opened_commit = "b5242a20da55e261dec258c23c828e3121a44992"
-whole_reason = "Five production files (frames.py, routing.py, generate_wire.py, signaling.ts, start-up.ts; wire.ts is generated), over the three-file guide, because this is one end-to-end proof across the Python/TypeScript boundary; a Python-only or generator-only half would remove no cast and prove the mechanism works for nobody."
