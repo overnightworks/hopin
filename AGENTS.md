@@ -15,7 +15,8 @@ The `Makefile` owns the targets. Traps:
   `frontend/src/lib/features/game/wire.ts` drifts from the Python wire owners;
   regenerate them with `uv run python scripts/generate_wire.py`.
 - CI's `Coverage` job judges 100 % over unit, integration and end-to-end data
-  together; no local run judges it.
+  together, and the merged frontend report (Vitest and the browser) at 100 %
+  lines, branches and functions; no local run judges it.
 
 ## Where things live
 

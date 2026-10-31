@@ -242,7 +242,7 @@ jobs:
           coverage report --fail-under=100
           coverage xml -o coverage.xml
 
-      # Vitest's records stand for the files it reports; the browser's cover the rest.
+      # Vitest's records stand for the files it reports; the browser's cover the rest. The script fails below 100 %.
       - name: Merge the frontend coverage
         run: python scripts/merge_frontend_coverage.py frontend/coverage/lcov.info browser-coverage/lcov.info frontend/coverage/merged-lcov.info
 

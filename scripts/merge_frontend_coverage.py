@@ -2,6 +2,7 @@
 
 Vitest's record stands for every file it reports; the browser report supplies the rest.
 Both name files from the repository root (`frontend/src/...`), so no path is rewritten.
+The merged report is judged at 100 %: any file with a missed line, branch or function fails the run.
 """
 
 import sys
@@ -47,18 +48,35 @@ def counters(record: list[str]) -> dict[str, int]:
     return {key: int(value) for key, _, value in (line.partition(":") for line in record) if value.isdigit()}
 
 
-def describe(merged: Records) -> list[str]:
+def misses(record: list[str]) -> list[str]:
+    missed = []
+    for line in record:
+        kind, _, value = line.partition(":")
+        fields = value.split(",")
+        if kind == "DA" and fields[1] == "0":
+            missed.append(f"line {fields[0]}")
+        elif kind == "BRDA" and fields[3] in ("0", "-"):
+            missed.append(f"branch {fields[0]}:{fields[1]}.{fields[2]}")
+        elif kind == "FNDA" and fields[0] == "0":
+            missed.append(f"function {fields[1]}")
+    return missed
+
+
+def describe(merged: Records) -> tuple[list[str], bool]:
     found = {"lines": [0, 0], "branches": [0, 0], "functions": [0, 0]}
     below_full = []
     for source, record in merged.items():
         values = counters(record)
+        source_below_full = []
         for kind, (total_key, hit_key) in COUNTER_PAIRS.items():
             found[kind][0] += values.get(total_key, 0)
             found[kind][1] += values.get(hit_key, 0)
             if values.get(hit_key, 0) < values.get(total_key, 0):
-                below_full.append(f"{source}: {kind} {values.get(hit_key, 0)}/{values.get(total_key, 0)}")
+                source_below_full.append(f"{source}: {kind} {values.get(hit_key, 0)}/{values.get(total_key, 0)}")
+        if source_below_full:
+            below_full += [*source_below_full, f"{source}: missed {', '.join(misses(record))}"]
     totals = [f"total {kind}: {hit}/{total}" for kind, (total, hit) in found.items()]
-    return [*below_full, *totals]
+    return [*below_full, *totals], not below_full
 
 
 def main(arguments: list[str]) -> int:
@@ -67,8 +85,9 @@ def main(arguments: list[str]) -> int:
     vitest_report, browser_report, merged_report = (Path(argument) for argument in arguments)
     merged = merge(read_records(vitest_report), read_records(browser_report))
     merged_report.write_text("".join(f"{line}\n" for record in merged.values() for line in record))
-    sys.stdout.write("\n".join(describe(merged)) + "\n")
-    return 0
+    report, is_complete = describe(merged)
+    sys.stdout.write("\n".join(report) + "\n")
+    return 0 if is_complete else 1
 
 
 if __name__ == "__main__":
