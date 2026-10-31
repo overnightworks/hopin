@@ -17,7 +17,10 @@ export default defineConfig(({ mode }) => ({
             include: ["src/lib/**/*.ts"],
             // The legacy page code is judged by the end-to-end suite until it is ported; wire.ts is generated.
             exclude: ["src/lib/legacy/**", "src/lib/**/wire.ts", "**/*.test.ts"],
-            reporter: [["text", { skipFull: false }], "lcov"],
+            reporter: [
+                ["text", { skipFull: false }],
+                ["lcov", { projectRoot: ".." }],
+            ],
             thresholds: { branches: 100, lines: 100, functions: 100, statements: 100 },
         },
     },

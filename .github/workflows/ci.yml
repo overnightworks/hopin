@@ -227,6 +227,12 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage
 
+      - name: Fetch the browser coverage report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: browser-coverage
+          path: browser-coverage
+
       # The branch contract: 100 % over unit, integration and end-to-end
       # together. The xml is the report the quality gate's scan reads.
       - name: Judge the combined coverage
@@ -235,13 +241,17 @@ jobs:
           coverage report --fail-under=100
           coverage xml -o coverage.xml
 
+      # Vitest's records stand for the files it reports; the browser's cover the rest.
+      - name: Merge the frontend coverage
+        run: python scripts/merge_frontend_coverage.py frontend/coverage/lcov.info browser-coverage/lcov.info frontend/coverage/merged-lcov.info
+
       - name: Upload the coverage reports
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: |
             coverage.xml
-            frontend/coverage/lcov.info
+            frontend/coverage/merged-lcov.info
           if-no-files-found: error
           retention-days: 1
 
