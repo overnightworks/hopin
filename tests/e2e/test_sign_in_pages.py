@@ -244,6 +244,10 @@ def test_a_built_sign_in_page_runs_no_script_and_carries_no_inline_style_handler
     assert all(re.match(r"^/[^/]", url) for url in inventory.fetched_urls)
     assert "http-equiv" not in markup
     assert markup.count("<title>") == 1
+    hopin_position = next(i for i, href in enumerate(inventory.stylesheets) if href.endswith("/hopin.css"))
+    kit_positions = [i for i, href in enumerate(inventory.stylesheets) if href.startswith("/_app/")]
+    assert kit_positions
+    assert max(kit_positions) < hopin_position
 
 
 @pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
