@@ -31,7 +31,7 @@ def test_render_core_vocabulary_names_enums_and_constants() -> None:
     assert "const" + " enum" not in rendered
 
 
-def test_render_core_room_closed_frame_follows_the_python_frame_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_render_frame_type_follows_the_frame_fields() -> None:
     @dataclass(frozen=True)
     class RoomClosedFrame:
         TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
@@ -39,15 +39,24 @@ def test_render_core_room_closed_frame_follows_the_python_frame_fields(monkeypat
         reason: RoomClosedReason
         wait_seconds: int | None = None
 
-    monkeypatch.setattr(generate_wire, "RoomClosedFrame", RoomClosedFrame)
-
-    assert (
+    assert generate_wire.render_frame_type(RoomClosedFrame) == (
         "export type RoomClosedFrame = {\n"
         "    type: SIGNAL_TYPE.ROOM_CLOSED;\n"
         "    reason: ROOM_CLOSED_REASON;\n"
         "    wait_seconds?: number;\n"
         "};\n"
-    ) in generate_wire.render_core()
+    )
+
+
+def test_render_frame_type_union_of_several_types_fails_generation() -> None:
+    @dataclass(frozen=True)
+    class RoomClosedFrame:
+        TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
+
+        wait_seconds: int | str | None = None
+
+    with pytest.raises(TypeError, match="wait_seconds"):
+        generate_wire.render_frame_type(RoomClosedFrame)
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

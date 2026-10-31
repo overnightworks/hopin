@@ -70,14 +70,17 @@ def _generated_file(body: str) -> str:
 ROOM_CLOSED_FIELD_TYPES = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
 
 
-def _room_closed_frame() -> str:
-    """Render RoomClosedFrame's fields; a field type missing from ROOM_CLOSED_FIELD_TYPES fails the generation."""
-    lines = [f"{INDENT}type: SIGNAL_TYPE.{RoomClosedFrame.TYPE.name};\n"]
-    for field in dataclasses.fields(RoomClosedFrame):
+def render_frame_type(frame: type) -> str:
+    """Render a frame dataclass's fields; a field type missing from ROOM_CLOSED_FIELD_TYPES fails the generation."""
+    lines = [f"{INDENT}type: SIGNAL_TYPE.{frame.TYPE.name};\n"]  # type: ignore[attr-defined]
+    for field in dataclasses.fields(frame):
         present_types = [part for part in get_args(field.type) if part is not types.NoneType] or [field.type]
+        if len(present_types) != 1:
+            message = f"{frame.__name__}.{field.name} must be one type, optionally None, not {field.type}"
+            raise TypeError(message)
         optional = "?" if field.default is not dataclasses.MISSING else ""
         lines.append(f"{INDENT}{field.name}{optional}: {ROOM_CLOSED_FIELD_TYPES[present_types[0]]};\n")
-    return "export type RoomClosedFrame = {\n" + "".join(lines) + "};\n"
+    return f"export type {frame.__name__} = {{\n" + "".join(lines) + "};\n"
 
 
 def render_core() -> str:
@@ -96,7 +99,7 @@ def render_core() -> str:
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
         + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION)
     )
-    return _generated_file(f"{enums}\n{_room_closed_frame()}\n{constants}")
+    return _generated_file(f"{enums}\n{render_frame_type(RoomClosedFrame)}\n{constants}")
 
 
 def outputs(root: Path) -> dict[Path, str]:
