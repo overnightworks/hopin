@@ -1,0 +1,7 @@
+claim_id = "0dadd7d25d3c45a3871b0e6eced8c76d"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "8298ba4cc61572e918e143c2c9ff1db20caa4a81"
+branch = "claude/issue-403-switch-grab-contrast"
+scope = ["src/hopin/web/static/assets/css/hopin.css", "tests/e2e/test_more_menu.py"]
+opened_commit = "f439559e4024810bbba8c2ad30a272fc5d8c7513"
