@@ -30,11 +30,11 @@ webauth:
 - `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/` and `img/` (the
   brand mark every page links as its icon) are reachable, so the page
   is served only at its routes, never from the mount.
-- Every screen carries its own `<nav class="legal">` copy (the kit's page links open in the same tab, which would end a call). The guard test pins that each distinct `data-screen` value holds
-  exactly one, with both URLs (superseded: the e2e module `tests/e2e/test_page_shell.py` reads it from the DOM); the call screen is one element whose nav sits in
-  its More menu.
+- The home, pre-join and end footers render the kit's `LegalLinks` at the page place with `newTab` (the kit's default would open the links in the same tab, which would end a call). The guard test pins that each distinct `data-screen` value holds
+  exactly one legal nav with both URLs (the e2e module `tests/e2e/test_page_shell.py` reads it from the DOM); the call screen is one element whose nav sits in
+  its More menu, which is still hopin's own markup until #427 decides.
 - Signed out, Login failed and No access are appkit's `SignInPage`, prerendered from
-  `frontend/src/routes/(sign-in)/`. The legal-only `<a>`
+  `frontend/src/routes/(sign-in)/`. The `<a>`
   rule above is about `index.html` and `hopin.css`; a sign-in page links the
   two legal URLs and `/auth/start`, except No access, which links only the two legal URLs. No access and the account menu post one
   same-origin form to `/logout`, which answers webauth's own end-session page
