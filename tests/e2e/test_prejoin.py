@@ -430,6 +430,7 @@ def expect_the_phone_texts(prejoin: Locator, texts: KindTexts) -> None:
     expect(prejoin.locator(".self-row")).to_have_text("You")
     expect(prejoin.get_by_role("heading", name=texts.heading)).to_be_hidden()
     expect_no_legal_footer(prejoin)
+    expect_both_legal_links_in_the_profile_menu(prejoin.page)
 
 
 @pytest.mark.parametrize("kind", KINDS)

@@ -138,7 +138,6 @@
         <button id="prejoinHomeBtn" class="brand brand-button" type="button" onclick={goHome}><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
         <button id="prejoinBackBtn" class="iconbtn ghost" type="button" onclick={goHome} aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span id="prejoinTitle" class="topbar-title">{prejoinTexts().title}</span>
-        <span class="topbar-balance"></span>
         <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <div class="prejoin-main">

@@ -898,9 +898,6 @@ button, input, textarea { font-family: inherit; }
 @media (min-width: 601px) {
     .account-menu { inset: 66px 24px auto auto; }
 }
-@media (max-width: 600px) {
-    .prejoin .account-button { display: none; }
-}
 
 .prejoin { display: flex; flex-direction: column; }
 .brand-button {
@@ -912,7 +909,6 @@ button, input, textarea { font-family: inherit; }
     font-family: inherit;
     cursor: pointer;
 }
-.topbar-balance { width: 44px; }
 .prejoin-main { flex: 1 0 auto; display: flex; flex-direction: column; }
 .preview {
     position: relative;
@@ -971,7 +967,7 @@ button, input, textarea { font-family: inherit; }
     .prejoin .brand-button, .prejoin-side h2, .prejoin-sub { display: none; }
 }
 @media (min-width: 601px) {
-    .prejoin .iconbtn, .prejoin .topbar-title, .prejoin .topbar-balance, .self-row { display: none; }
+    .prejoin .iconbtn, .prejoin .topbar-title, .self-row { display: none; }
     .prejoin .topbar { height: 72px; padding: 0 28px; }
     .prejoin-main {
         display: grid;
