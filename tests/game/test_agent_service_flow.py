@@ -290,8 +290,10 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     host.start()
     guest.frames(3)
     host.answer("Tejo")
+    until_the_first_answer = host.frames(4)
+    assert until_the_first_answer[-1]["type"] == GameSignal.GAME_ANSWER_COUNT.value
     guest.answer("Mondego")
-    through_the_answers = host.frames(5)
+    through_the_answers = until_the_first_answer + host.frames(1)
     guest.chat(chat_text)
     through_the_chat = through_the_answers + host.frames(1)
     assert [frame["type"] for frame in through_the_chat][-3:] == [
