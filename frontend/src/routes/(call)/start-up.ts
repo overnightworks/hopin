@@ -34,7 +34,7 @@ import {
     sendFeatureFrame,
     type ServerFrame,
 } from "#lib/call/signaling.ts";
-import { SIGNAL_TYPE, type ERROR_REASON, type ROOM_CLOSED_REASON } from "#lib/wire.ts";
+import { SIGNAL_TYPE, type ERROR_REASON } from "#lib/wire.ts";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
@@ -190,10 +190,8 @@ function registerSessionHandlers() {
         confirmLockChange(false);
     });
     on(SIGNAL_TYPE.ROOM_CLOSED, (frame) => {
-        // The frame type reads `reason` as a refusal's; a closed room's is the other enum.
-        const reason: unknown = frame.reason;
         tearDownCall();
-        showEnd(endKindOfClosedRoom(reason as ROOM_CLOSED_REASON), frame as EndFrame);
+        showEnd(endKindOfClosedRoom(frame.reason), frame);
     });
     on(SIGNAL_TYPE.ERROR, (frame) => {
         const data = frame as ServerFrame & EndFrame & { reason: ERROR_REASON; message: string };

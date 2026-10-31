@@ -5,9 +5,11 @@ TypeScript string enums and typed constants. `--check` writes nothing and fails 
 committed file differs from the rendering or is missing, so CI catches drift.
 """
 
+import dataclasses
 import sys
+import types
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, get_args
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
@@ -28,6 +30,7 @@ from hopin.config.constants import (  # noqa: E402
     SignalType,
 )
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
+from hopin.signaling.frames import RoomClosedFrame  # noqa: E402
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
 
 if TYPE_CHECKING:
@@ -64,6 +67,22 @@ def _generated_file(body: str) -> str:
     return f"{HEADER}\n{body}"
 
 
+ROOM_CLOSED_FIELD_TYPES = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
+
+
+def render_room_closed_frame(fields: tuple[dataclasses.Field[object], ...]) -> str:
+    """Render the room_closed frame from its fields; an unmapped field type fails the generation."""
+    lines = [f"{INDENT}type: SIGNAL_TYPE.{SignalType.ROOM_CLOSED.name};\n"]
+    for field in fields:
+        present_types = [part for part in get_args(field.type) if part is not types.NoneType] or [field.type]
+        if len(present_types) != 1:
+            message = f"RoomClosedFrame.{field.name} must be one type, optionally None, not {field.type}"
+            raise TypeError(message)
+        optional = "?" if field.default is not dataclasses.MISSING else ""
+        lines.append(f"{INDENT}{field.name}{optional}: {ROOM_CLOSED_FIELD_TYPES[present_types[0]]};\n")
+    return "export type RoomClosedFrame = {\n" + "".join(lines) + "};\n"
+
+
 def render_core() -> str:
     enums = _enums({"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason})
     constants = (
@@ -80,7 +99,7 @@ def render_core() -> str:
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
         + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION)
     )
-    return _generated_file(f"{enums}\n{constants}")
+    return _generated_file(f"{enums}\n{render_room_closed_frame(dataclasses.fields(RoomClosedFrame))}\n{constants}")
 
 
 def outputs(root: Path) -> dict[Path, str]:

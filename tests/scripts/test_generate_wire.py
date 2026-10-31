@@ -1,9 +1,12 @@
 """Tests for the generator that writes the browser's typed wire vocabulary."""
 
-from typing import TYPE_CHECKING
+import dataclasses
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
 
 import pytest
 
+from hopin.config.constants import RoomClosedReason, SignalType
 from scripts import generate_wire
 
 if TYPE_CHECKING:
@@ -20,12 +23,43 @@ def test_render_core_vocabulary_names_enums_and_constants() -> None:
     assert 'export enum SIGNAL_TYPE {\n    OFFER = "offer",' in rendered
     assert "export enum ERROR_REASON {" in rendered
     assert "export enum ROOM_CLOSED_REASON {" in rendered
+    assert "export type RoomClosedFrame = {" in rendered
     assert 'export const WEBSOCKET_PATH = "/ws";' in rendered
     assert "export const SESSION_ENDED_CLOSE_CODE = 4002;" in rendered
     assert "export const REPLAY_LOG_LIMIT = 256;" in rendered
     description_types = "export const DESCRIPTION_TYPES: readonly SIGNAL_TYPE[]"
     assert f"{description_types} = [SIGNAL_TYPE.ANSWER, SIGNAL_TYPE.OFFER];" in rendered
     assert "const" + " enum" not in rendered
+
+
+def test_render_room_closed_frame_follows_the_frame_fields() -> None:
+    @dataclass(frozen=True)
+    class RoomClosedFrame:
+        TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
+
+        reason: RoomClosedReason
+        wait_seconds: int | None = None
+
+    assert generate_wire.render_room_closed_frame(dataclasses.fields(RoomClosedFrame)) == (
+        "export type RoomClosedFrame = {\n"
+        "    type: SIGNAL_TYPE.ROOM_CLOSED;\n"
+        "    reason: ROOM_CLOSED_REASON;\n"
+        "    wait_seconds?: number;\n"
+        "};\n"
+    )
+
+
+def test_render_room_closed_frame_union_of_several_types_fails_generation() -> None:
+    @dataclass(frozen=True)
+    class RoomClosedFrame:
+        TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
+
+        wait_seconds: int | str | None = None
+
+    fields = dataclasses.fields(RoomClosedFrame)
+
+    with pytest.raises(TypeError, match="wait_seconds"):
+        generate_wire.render_room_closed_frame(fields)
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

@@ -2,7 +2,13 @@ import { type LoggedMessage, type OutgoingMessage, type SentFrame, SentLog } fro
 import { state } from "#lib/call/state.ts";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
-import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
+import {
+    ERROR_REASON,
+    type RoomClosedFrame,
+    SESSION_ENDED_CLOSE_CODE,
+    SIGNAL_TYPE,
+    WEBSOCKET_PATH,
+} from "#lib/wire.ts";
 
 export interface ServerFrame {
     type: SIGNAL_TYPE;
@@ -14,7 +20,8 @@ export interface ServerFrame {
     [field: string]: unknown;
 }
 
-type Handler = (data: ServerFrame) => void;
+// Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
+type Handler = { handle(data: ServerFrame | RoomClosedFrame): void }["handle"];
 
 interface Seat {
     participantId: string | undefined;
@@ -38,13 +45,15 @@ function addHandler(type: string, handler: Handler) {
     handlersByType.set(type, [...(handlersByType.get(type) ?? []), handler]);
 }
 
-export function on(type: SIGNAL_TYPE, handler: Handler) {
+export function on(type: SIGNAL_TYPE.ROOM_CLOSED, handler: (frame: RoomClosedFrame) => void): void;
+export function on(type: SIGNAL_TYPE, handler: (data: ServerFrame) => void): void;
+export function on(type: SIGNAL_TYPE, handler: Handler | ((frame: RoomClosedFrame) => void)) {
     addHandler(type, handler);
 }
 
 // The server the page trusts sends the frames a feature registers for, so the handler's frame type is taken on trust.
 export function onFeatureFrame(type: string, handler: (frame: never) => void) {
-    addHandler(type, handler as Handler);
+    addHandler(type, handler);
 }
 
 export function onSessionLost(callback: () => void) {

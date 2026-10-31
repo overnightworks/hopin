@@ -14,6 +14,7 @@ from hopin.signaling.frames import (
     MediaStateFrame,
     PeerId,
     RelayFrame,
+    RoomClosedFrame,
 )
 from hopin.signaling.seats import Seats
 
@@ -247,10 +248,9 @@ class RoomRouting:
         # Before the first await, so nothing that belongs to the room outlives it by a frame.
         self._on_room_ended(room_id)
 
-        frame: JsonObject = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
-        if reason is RoomClosedReason.HOST_GONE:
-            frame["grace_seconds"] = HOST_GRACE_SECONDS
-        await self._seats.send_all(recipients, frame)
+        grace_seconds = HOST_GRACE_SECONDS if reason is RoomClosedReason.HOST_GONE else None
+        frame = RoomClosedFrame(reason=reason, grace_seconds=grace_seconds)
+        await self._seats.send_all(recipients, frame.to_json())
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
             await self._seats.close_socket(websocket)
