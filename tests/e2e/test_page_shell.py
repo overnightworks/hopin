@@ -11,9 +11,7 @@ from tests.e2e.support.people import DESKTOP
 from tests.support.page_inventory import (
     LEGAL_URLS,
     NEW_TAB_LINK_ATTRIBUTES,
-    UI_CONSOLE_CSS,
     PageInventory,
-    defined_class_names,
     inventory_of,
 )
 
@@ -55,14 +53,6 @@ def test_the_home_page_loads_the_kit_then_hopin(home_inventory: PageInventory) -
         f"{KIT_PATH}/appkit.css",
         f"{STATIC_PATH}/css/hopin.css",
     ]
-
-
-def test_the_home_page_uses_no_class_name_that_ui_console_defines(home_inventory: PageInventory) -> None:
-    vendored = defined_class_names(UI_CONSOLE_CSS.read_text())
-    used_in_markup = {name for value in home_inventory.class_values for name in value.split()}
-
-    assert vendored
-    assert vendored & used_in_markup == set()
 
 
 def test_every_screen_holds_exactly_one_legal_nav_with_both_links(home_inventory: PageInventory) -> None:

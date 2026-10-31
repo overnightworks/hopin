@@ -26,13 +26,13 @@ shell's own inline start script and SvelteKit's route announcer would break.
   SvelteKit's announcer writes (the text of kit 3.1.0 `root.svelte`); a policy
   violation anywhere is a defect. `hopin.css` hides `#svelte-announcer` itself,
   because Firefox strips the admitted style. Bumping SvelteKit re-derives the hash.
-- The `(sign-in)` route group (Signed out and Login failed, rendered from appkit's
+- The `(sign-in)` route group (Signed out, Login failed and No access, rendered from appkit's
   `SignInPage`) is prerendered with `csr = false` and absolute asset paths
   (`paths.relative = false`), so a page carries no script and its links resolve at
-  any served address. `PageBuild` serves them at `/login` and as the refused
+  any served address. `PageBuild` serves them at `/login`, at `/no-access` and as the refused
   callback's 403.
 - `/_app` is one mount of the build, behind the session gate, except the exact
-  stylesheet files the two built sign-in pages link, read at start. Its `immutable/`
+  stylesheet files the built sign-in pages link, read at start. Its `immutable/`
   files answer `private, max-age=31536000, immutable` on success from the mount
   itself, never from a path rule: the outermost middleware applies a rule to the
   401, 429 and 404 of the same path too, and `public` would let a shared cache

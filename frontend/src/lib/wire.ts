@@ -44,6 +44,7 @@ export const WEBSOCKET_PATH = "/ws";
 export const ICE_SERVERS_PATH = "/api/ice-servers";
 export const CALL_FEATURES_PATH = "/api/call-features";
 export const AUTH_START_PATH = "/auth/start";
+export const LOGOUT_PATH = "/logout";
 export const RETURN_TO_QUERY_PARAMETER = "next";
 export const REPLAY_LOG_LIMIT = 256;
 export const DESCRIPTION_TYPES: readonly SIGNAL_TYPE[] = [SIGNAL_TYPE.ANSWER, SIGNAL_TYPE.OFFER];

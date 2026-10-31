@@ -1,5 +1,5 @@
 /* HopIn's own tokens: the slot colour, stage, shadow, motion and mono.
-   appkit owns the neutrals, the states and color-scheme; the shell's fonts come from the kit (--font-body); only the static No access page reads ui-console's --sans (ADR 0001); `.sign-in` is the scroll container of the sign-in pages. */
+   appkit owns the neutrals, the states and color-scheme; the shell's fonts come from the kit (--font-body); `.sign-in` is the scroll container of the sign-in pages. */
 :root {
     --mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
     --motion-snap: .28s;
@@ -68,7 +68,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
-.sign-in { flex: 1; overflow: auto; font-family: var(--sans); }
+.sign-in { flex: 1; overflow: auto; }
 body {
     font-family: var(--font-body);
     background: var(--bg);

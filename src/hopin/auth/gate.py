@@ -15,7 +15,6 @@ PUBLIC_PATHS = frozenset(
         HEALTH_PATH,
         LOGIN_PATH,
         NO_ACCESS_PATH,
-        f"{STATIC_PATH}/css/ui-console.css",
         f"{STATIC_PATH}/css/hopin.css",
         f"{STATIC_PATH}/img/hopin.svg",
         *PUBLIC_KIT_PATHS,

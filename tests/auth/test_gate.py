@@ -17,7 +17,7 @@ from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
-from hopin.auth.sign_in import NO_ACCESS_PAGE, build_sign_in_configs
+from hopin.auth.sign_in import build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ACCOUNT_PATH,
@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
-STYLESHEETS = ["/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css"]
+STYLESHEETS = [f"{KIT_PATH}/appkit.css", "/static/css/hopin.css"]
 KIT_FONTS = [f"{KIT_PATH}/fonts/{font.name}" for font in sorted((KIT_DIR / "fonts").glob("*.woff2"))]
 GATED_KIT_PATHS = [
     f"{KIT_PATH}/fonts/oswald-LICENSE",
@@ -88,7 +88,7 @@ LOOKALIKE_PATHS = [
     f"{BACKCHANNEL_LOGOUT_PATH}x",
     BACKCHANNEL_LOGOUT_PATH.upper(),
 ]
-SIGN_IN_PAGES = {LOGIN_PATH: FIXTURE_DIRECTORY / "login.html", NO_ACCESS_PATH: NO_ACCESS_PAGE}
+SIGN_IN_PAGES = {LOGIN_PATH: FIXTURE_DIRECTORY / "login.html", NO_ACCESS_PATH: FIXTURE_DIRECTORY / "no-access.html"}
 LOGIN_FAILED_PAGE = FIXTURE_DIRECTORY / "login-failed.html"
 FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
