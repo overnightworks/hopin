@@ -1,13 +1,11 @@
 # All three images are held by digest, because a tag is a name its owner may move;
-# The digests are Node 26 slim and Python 3.14 slim; a tag beside a digest is
-# flagged by the scanner, so a base moves by a deliberate digest change.
+# Dependabot's docker entry moves the digest through review.
 # The page is built here and only its output travels on, so the final image
 # carries no Node. The adapter writes to ../src/hopin/web/build.
-FROM node@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS page-build
+FROM node:24-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS page-build
 WORKDIR /build/frontend
-# Node 26 bundles no corepack, so it is installed at an exact version; it then
-# provisions the pnpm version that package.json's packageManager pins.
-RUN npm install --global --ignore-scripts corepack@0.36.0 && corepack enable
+# corepack provisions the pnpm version that package.json's packageManager pins.
+RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 COPY frontend/patches ./patches
 RUN pnpm install --frozen-lockfile
@@ -15,7 +13,7 @@ COPY frontend ./
 # The maps are for the coverage report in CI; the image serves none.
 RUN pnpm build && find /build/src/hopin/web/build -name '*.map' -delete
 
-FROM python@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.9@sha256:10902f58a1606787602f303954cea099626a4adb02acbac4c69920fe9d278f82 /uv /usr/local/bin/uv
 
