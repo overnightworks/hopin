@@ -16,12 +16,12 @@ export interface ServerFrame {
     resume_token?: string;
     participant_id?: string;
     last_seq?: number;
-    reason?: unknown;
+    reason?: ERROR_REASON;
     [field: string]: unknown;
 }
 
 // Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
-type Handler = { handle(data: ServerFrame): void }["handle"];
+type Handler = { handle(data: ServerFrame | RoomClosedFrame): void }["handle"];
 
 interface Seat {
     participantId: string | undefined;
@@ -46,7 +46,7 @@ function addHandler(type: string, handler: Handler) {
 }
 
 export function on(type: SIGNAL_TYPE.ROOM_CLOSED, handler: (frame: RoomClosedFrame) => void): void;
-export function on(type: SIGNAL_TYPE, handler: Handler): void;
+export function on(type: SIGNAL_TYPE, handler: (data: ServerFrame) => void): void;
 export function on(type: SIGNAL_TYPE, handler: Handler | ((frame: RoomClosedFrame) => void)) {
     addHandler(type, handler);
 }
