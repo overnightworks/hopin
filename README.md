@@ -92,7 +92,7 @@ HopIn refuses to start without the four required settings, without the page buil
 | `make frontend-check` | type-check, lint and test the frontend |
 | `make e2e` | build the page, then run the browser end-to-end tests |
 
-The frontend in `frontend/` needs Node 24 and pnpm, whose version `packageManager` in its `package.json` pins (Corepack installs it).
+The frontend in `frontend/` needs Node 26 (24 also works) and pnpm, whose version `packageManager` in its `package.json` pins (Corepack installs it).
 
 [AGENTS.md](AGENTS.md) is guidance for coding agents.
 
