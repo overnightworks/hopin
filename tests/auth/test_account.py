@@ -4,9 +4,9 @@ from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
-from hopin.config.constants import ACCOUNT_PATH
+from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 
 pytestmark = pytest.mark.integration
@@ -47,3 +47,19 @@ class TestAccountRoute:
 
         assert answer.status_code == 401
         assert member.account.username not in answer.text
+
+
+class TestAccountConsoleRoute:
+    @pytest.mark.parametrize("method", ["GET", "HEAD"])
+    def test_sends_a_signed_in_member_to_the_issuers_account_console(self, app, stores, browser, method):
+        member = seed_member(stores, installed_web_auth_config(app))
+
+        answer = browser.request(
+            method,
+            ACCOUNT_CONSOLE_PATH,
+            params={"next": "https://example.org"},
+            headers={"cookie": cookie_header(member.set_cookie_headers)},
+            follow_redirects=False,
+        )
+
+        assert (answer.status_code, answer.headers["location"]) == (303, f"{TEST_ISSUER}/account")

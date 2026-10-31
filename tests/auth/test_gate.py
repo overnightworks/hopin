@@ -20,6 +20,7 @@ from hopin.auth.gate import session_gate
 from hopin.auth.sign_in import build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
+    ACCOUNT_CONSOLE_PATH,
     ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
@@ -165,6 +166,11 @@ class TestSignedOut:
         assert response.status_code == 302
         assert response.headers["location"] == "/auth/start?next=%2Fc%2Fabc%3Fx%3D1"
 
+    def test_a_navigation_to_the_account_console_is_sent_through_the_sign_in(self, application):
+        response = application.get(ACCOUNT_CONSOLE_PATH, **BROWSER_ACCEPT)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/auth/start?next=%2Faccount"
+
     @pytest.mark.parametrize(
         ("path", "headers"),
         [
@@ -172,6 +178,7 @@ class TestSignedOut:
             (CALL_FEATURES_PATH, FETCH_ACCEPT),
             ("/", FETCH_ACCEPT),
             (ACCOUNT_PATH, FETCH_ACCEPT),
+            (ACCOUNT_CONSOLE_PATH, FETCH_ACCEPT),
             (ICE_SERVERS_PATH, {"accept": "*/*"}),
         ],
     )
@@ -544,6 +551,7 @@ class TestSecurityHeaders:
             ("GET", IMMUTABLE_FILE, False, FETCH_ACCEPT, 401),
             ("GET", "/", False, FETCH_ACCEPT, 401),
             ("GET", ACCOUNT_PATH, False, FETCH_ACCEPT, 401),
+            ("GET", ACCOUNT_CONSOLE_PATH, False, BROWSER_ACCEPT, 302),
             ("GET", HEALTH_PATH, False, {}, 200),
             ("HEAD", HEALTH_PATH, False, {}, 200),
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
@@ -552,6 +560,7 @@ class TestSecurityHeaders:
             ("POST", LOGOUT_PATH, False, CROSS_SITE_FORM_POST, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),
+            ("GET", ACCOUNT_CONSOLE_PATH, True, BROWSER_ACCEPT, 303),
             ("GET", ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
             ("GET", CALL_FEATURES_PATH, True, FETCH_ACCEPT, 200),
             ("GET", IMMUTABLE_FILE, True, FETCH_ACCEPT, 200),

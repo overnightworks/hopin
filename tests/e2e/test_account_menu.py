@@ -3,10 +3,11 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from playwright.sync_api import ConsoleMessage, Page, Route, expect
+from playwright.sync_api import ConsoleMessage, Page, Request, Route, expect
 
-from hopin.config.constants import ACCOUNT_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH
+from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH
 from tests.e2e.support.calls import open_prejoin, record_page_errors, start_call, wait_until_the_prejoin_media_answered
+from tests.e2e.support.page_assertions import expect_both_legal_links
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
 
@@ -22,10 +23,9 @@ pytestmark = pytest.mark.e2e
 ACCOUNT_ROUTE = f"**{ACCOUNT_PATH}"
 AVATAR = ".account-button:visible"
 MENU = "#accountMenu"
-LOG_OUT = f"{MENU} .mi"
-MENU_NAME = f"{MENU} .menu-head b"
+LOG_OUT = f"{MENU} >> role=button[name='Log out']"
+MENU_NAME = f"{MENU} a[href='{ACCOUNT_CONSOLE_PATH}'] .as-typed"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
-MENU_WIDTH = 260
 LONG_USERNAME = "felix-hummert-mit-einem-sehr-langen-namen-der-nicht-in-das-menu-passt"
 UNBROKEN_USERNAME = "x" * 64
 ACCOUNT_SCRIM = "#accountScrim"
@@ -41,6 +41,10 @@ NAME_IS_CUT_OFF_ON_ONE_LINE = """(selector) => {
     const name = document.querySelector(selector);
     const oneLine = 1.6 * parseFloat(getComputedStyle(name).fontSize);
     return name.scrollWidth > name.clientWidth && name.getBoundingClientRect().height < oneLine;
+}"""
+MENU_IS_NARROWER_THAN_THE_NAME = """(selector) => {
+    const name = document.querySelector(selector);
+    return name.closest('#accountMenu').offsetWidth < name.scrollWidth;
 }"""
 NAME_ENDS_WITH_AN_ELLIPSIS = (
     "(selector) => getComputedStyle(document.querySelector(selector)).textOverflow === 'ellipsis'"
@@ -164,7 +168,7 @@ def test_end_screen_has_the_avatar_beside_its_own_buttons(
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 @BOTH_COLOR_SCHEMES
-def test_avatar_opens_a_menu_with_the_username_hopin_member_and_one_log_out(
+def test_avatar_opens_a_menu_with_the_username_one_log_out_and_the_legal_row(
     open_person: Callable[..., Page],
     base_url: str,
     page_errors: list[str],
@@ -178,10 +182,12 @@ def test_avatar_opens_a_menu_with_the_username_hopin_member_and_one_log_out(
     menu = person.locator(MENU)
     expect(menu).to_be_visible()
     expect(person.locator(MENU_NAME)).to_have_text("felix")
-    expect(menu).to_contain_text("HopIn member")
+    expect_both_legal_links(menu)
     expect(menu.get_by_role("button")).to_have_text(["Log out"])
+    expect(menu.get_by_role("radio")).to_have_count(0)
+    expect(menu.get_by_role("radiogroup")).to_have_count(0)
     expect(person.locator(AVATAR)).to_have_attribute("aria-expanded", "true")
-    expect(person.locator(LOG_OUT)).to_be_focused()
+    expect(menu.get_by_role("link").first).to_be_focused()
     assert person.evaluate(BOX_FITS_THE_VIEWPORT, MENU)
 
 
@@ -256,7 +262,7 @@ def test_log_out_from_the_end_screen_menu_ends_the_session_the_same_way(
     assert e2e_server.stores.sessions.load(member_of(host).session.id) is None
 
 
-def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_nameless_menu_and_hi_there(
+def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_menu_named_account_and_hi_there(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     load_errors: list[str] = []
@@ -268,7 +274,7 @@ def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_nameless_menu_a
 
     expect(person.locator(AVATAR).locator("svg")).to_be_visible()
     expect(person.locator(AVATAR)).to_have_text("")
-    expect(person.locator(MENU_NAME)).to_be_hidden()
+    expect(person.locator(MENU_NAME)).to_have_text("Account")
     expect(person.locator(MENU).get_by_role("button")).to_have_text(["Log out"])
     expect(person.locator("#homeGreeting")).to_have_text("Hi there")
     assert len(load_errors) == 1
@@ -300,6 +306,60 @@ def test_session_that_ended_goes_through_the_sign_in_once_when_the_account_answe
     assert len(load_errors) == 1
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_name_opens_the_account_console_in_a_new_tab_and_closes_the_menu(
+    open_person: Callable[..., Page],
+    expected_request_failures: list[str],
+    base_url: str,
+    page_errors: list[str],
+    form_factor: dict[str, Any],
+) -> None:
+    expected_request_failures.append(TEST_ISSUER)
+    person = open_home(open_person, base_url, page_errors, **form_factor)
+    console_requests: list[Request] = []
+    person.context.on(
+        "request",
+        lambda request: (
+            console_requests.append(request) if urlsplit(request.url).path == ACCOUNT_CONSOLE_PATH else None
+        ),
+    )
+    person.locator(AVATAR).click()
+    name_row = person.locator(MENU).get_by_role("link").first
+    expect(name_row).to_have_attribute("target", "_blank")
+    assert {"noopener", "noreferrer"} <= set((name_row.get_attribute("rel") or "").split())
+
+    with person.context.expect_event("page"):
+        name_row.click()
+
+    first_request = console_requests[0]
+    assert urlsplit(first_request.url).path == ACCOUNT_CONSOLE_PATH
+    answer = first_request.response()
+    assert answer is not None
+    assert (answer.status, answer.header_value("location")) == (303, f"{TEST_ISSUER}/account")
+    expect(person.locator(MENU)).to_be_hidden()
+    expect(person.locator(AVATAR)).to_have_attribute("aria-expanded", "false")
+
+
+def test_log_out_works_from_a_menu_named_account_before_the_account_answers(
+    open_person: Callable[..., Page],
+    expected_request_failures: list[str],
+    e2e_server: RunningServer,
+    member_of: Callable[[Page], Any],
+    page_errors: list[str],
+) -> None:
+    expected_request_failures.append(TEST_ISSUER)
+    person = watch(open_person(**DESKTOP), page_errors)
+    held_routes: list[Route] = []
+    person.route(ACCOUNT_ROUTE, lambda route: held_routes.append(route))
+    person.goto(f"{e2e_server.base_url}/")
+
+    person.locator(AVATAR).click()
+
+    expect(person.locator(AVATAR).locator("svg")).to_be_visible()
+    expect(person.locator(MENU_NAME)).to_have_text("Account")
+    log_out_from_the_open_menu(person, e2e_server, member_of(person).session.id_token)
+
+
 def test_a_username_that_looks_like_markup_is_shown_as_text_in_the_menu_and_the_avatar(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
@@ -312,7 +372,7 @@ def test_a_username_that_looks_like_markup_is_shown_as_text_in_the_menu_and_the_
     expect(person.locator(AVATAR)).to_have_text("B")
 
 
-def test_a_very_long_username_is_cut_off_with_an_ellipsis_and_the_menu_keeps_its_width(
+def test_a_very_long_username_is_cut_off_with_an_ellipsis_and_does_not_widen_the_menu(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     person = open_home(open_person, base_url, page_errors, username=LONG_USERNAME, **PHONE)
@@ -321,7 +381,7 @@ def test_a_very_long_username_is_cut_off_with_an_ellipsis_and_the_menu_keeps_its
 
     assert person.evaluate(NAME_IS_CUT_OFF_ON_ONE_LINE, MENU_NAME)
     assert person.evaluate(NAME_ENDS_WITH_AN_ELLIPSIS, MENU_NAME)
-    assert person.locator(MENU).evaluate("menu => menu.offsetWidth") == MENU_WIDTH
+    assert person.evaluate(MENU_IS_NARROWER_THAN_THE_NAME, MENU_NAME)
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 

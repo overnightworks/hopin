@@ -1,8 +1,10 @@
 <script lang="ts">
+    import { AccountMenu } from "overnightworks-appkit";
     import { onMount, type Snippet } from "svelte";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
+    import { avatarInitials, menuName } from "#lib/ui/account.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
     import {
         chat,
@@ -39,6 +41,7 @@
     import { pictureInPicture } from "#lib/ui/pip.ts";
     import { ownPictureMedia } from "#lib/ui/stage-media.ts";
     import { ownPicture, remoteTiles } from "#lib/ui/stage.svelte.ts";
+    import { ACCOUNT_CONSOLE_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
 
@@ -66,6 +69,11 @@
             firstFocus: ".invite-copy",
             scrim: overlayScrim,
         });
+        const accountDialog = elementById("accountMenu", HTMLDialogElement);
+        const accountScrim = elementById("accountScrim", HTMLElement);
+        for (const button of document.querySelectorAll<HTMLButtonElement>(".account-button")) {
+            registerMenu({ button, dialog: accountDialog, firstFocus: "a[href]", scrim: accountScrim });
+        }
         void import("#lib/legacy/app.js");
         return removeMenus;
     });
@@ -88,7 +96,7 @@
 <main class="end page" class:hidden={screens.current !== SCREEN.END} data-screen="end">
     <div class="topbar">
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
-        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
+        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <span id="endIcon" class={["end-icon", shownEnd.isWarning && "warn"]}>
         <svg class={["icon", shownEnd.icon !== END_ICON.ENDED && "hidden"]} data-end-icon="ended" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg>
@@ -111,7 +119,7 @@
 <main class="home page" class:hidden={screens.current !== SCREEN.HOME} data-screen="home">
     <div class="topbar">
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
-        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
+        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <div class="halo"></div>
     <span class="brand-mark brand-mark-xl"><svg class="icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>
@@ -128,7 +136,7 @@
         <button id="prejoinBackBtn" class="iconbtn ghost" type="button" onclick={goHome} aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span id="prejoinTitle" class="topbar-title">{prejoinTexts().title}</span>
         <span class="topbar-balance"></span>
-        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></button>
+        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <div class="prejoin-main">
         <div class="preview">
@@ -236,12 +244,17 @@
 <div id="accountScrim" class="scrim hidden"></div>
 <!-- prettier-ignore -->
 <dialog id="accountMenu" class="account-menu" aria-label="Account">
-    <div class="menu-head">
-        <span class="av av-44"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span>
-        <div><b class="hidden"></b><span>HopIn member</span></div>
-    </div>
-    <div class="sep"></div>
-    <form method="post" action="/logout"><button type="submit" class="mi"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4H18a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 18 20h-3.5M10 8l-4 4 4 4M6 12h10"/></svg><span class="grow">Log out</span></button></form>
+    <AccountMenu
+        name={menuName()}
+        accountHref={ACCOUNT_CONSOLE_PATH}
+        onAccountOpen={closeOpenMenu}
+        appRows={[]}
+        legalLinks={[
+            { label: "Impressum", href: "https://hallucinai.de/impressum" },
+            { label: "Datenschutz", href: "https://hallucinai.de/datenschutz#hopin" },
+        ]}
+        logOutAction={LOGOUT_PATH}
+    />
 </dialog>
 
 {@render children()}

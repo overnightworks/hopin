@@ -891,7 +891,6 @@ button, input, textarea { font-family: inherit; }
     }
 }
 .av-28 { width: 28px; height: 28px; flex: none; }
-.av-44 { width: 44px; height: 44px; flex: none; font-size: 15px; color: var(--on-accent); }
 .av-btn { width: 40px; height: 40px; flex: none; border: 0; padding: 0; font: inherit; font-size: 14px; font-weight: 650; color: var(--on-accent); cursor: pointer; }
 .av-btn:hover { box-shadow: 0 0 0 4px var(--surface-hover); }
 #accountScrim { position: fixed; background: transparent; animation: none; }
@@ -899,20 +898,13 @@ button, input, textarea { font-family: inherit; }
     position: fixed;
     z-index: 80;
     inset: 58px 14px auto auto;
-    width: 260px;
     margin: 0;
-    padding: 6px;
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow-lg);
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
     animation: overlay-pop var(--motion-fade) ease-out;
 }
-.menu-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 14px; }
-.menu-head div { min-width: 0; }
-.menu-head b:not(.hidden) { display: block; overflow: hidden; font-size: 15.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.menu-head span:not(.av) { font-size: 13px; color: var(--text-muted); }
 @media (min-width: 601px) {
     .account-menu { inset: 66px 24px auto auto; }
 }

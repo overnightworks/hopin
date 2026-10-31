@@ -215,7 +215,7 @@ def create_app(
     app.include_router(create_router(signaling_handler, room_manager, page_build))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.feature))
-    app.include_router(create_account_router())
+    app.include_router(create_account_router(settings.oidc_issuer))
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
