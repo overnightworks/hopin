@@ -1,0 +1,7 @@
+claim_id = "217b96484d3647d09ca817fd87abcc58"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "4dd3c3c2fc6da299f2d1007c20813dcf402a8d6f"
+branch = "claude/issue-425-appkit-0-10-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml"]
+opened_commit = "3404968cef1c7acadee8ef3d87f2beed7382bee9"
