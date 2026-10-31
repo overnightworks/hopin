@@ -1,0 +1,8 @@
+claim_id = "8f290cc4451c4d5a98bfb737147230af"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "2452c105e08cc00bf08b6ebc78c012917e3d54fe"
+branch = "claude/issue-412-p21b-typed-start-up-module"
+scope = ["docs/ARCHITECTURE.md", "docs/decisions/0001-static-frontend-modules.md", "docs/decisions/0003-page-layer-on-sveltekit.md", "frontend/eslint.config.js", "frontend/src/lib/legacy/app.js", "frontend/src/lib/ui/controls.svelte.ts", "frontend/src/lib/ui/status.svelte.ts", "frontend/src/routes/(call)/+layout.svelte", "frontend/src/routes/(call)/start-up.ts", "frontend/tsconfig.json", "frontend/vite.config.ts"]
+opened_commit = "95aad4479868735dff26d77ca9a97f262e1809e0"
+whole_reason = "One file moves and is typed: the folder cannot go while app.js is in it, the lint rule guards a folder that would no longer exist, and the layout's import line, the Vitest exclude, the checkJs stopgap, the comments naming legacy readers and the ADR that describes the boundary each describe the boundary this slice removes."
