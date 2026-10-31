@@ -1,0 +1,8 @@
+claim_id = "0721809a981644418017ccace75983b1"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "92599972ea4dc2123b5f5e8047cc9cdb30f4b1d8"
+branch = "claude/issue-396-appkit-0-9-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/app.html", "pyproject.toml", "src/hopin/web/static/no-access.html", "uv.lock"]
+opened_commit = "24ebcde48b2e7cf6b9304aa714d65ba935c5878a"
+whole_reason = "One pin bump: both pins and every page that names the served version move together, or the pages lose their stylesheet."
