@@ -1,0 +1,8 @@
+claim_id = "d76fa6c2140f4ceeac84d8a8548e90bd"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "8298ba4cc61572e918e143c2c9ff1db20caa4a81"
+branch = "claude/issue-405-p19d-kit-from-build"
+scope = ["docs/ARCHITECTURE.md", "docs/decisions/0001-static-frontend-modules.md", "docs/decisions/0003-page-layer-on-sveltekit.md", "frontend/src/app.html", "frontend/src/routes/+layout.svelte", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/web/kit.py", "src/hopin/web/page_build.py", "src/hopin/web/routes.py", "tests/auth/test_gate.py", "tests/e2e/test_page_shell.py", "tests/e2e/test_sign_in_pages.py", "tests/support/page_build.py", "tests/support/page_build_fixture/_app/immutable/assets/sign-in.css", "tests/test_app.py", "tests/web/test_page_build.py", "tests/web/test_routes.py", "uv.lock"]
+opened_commit = "876ccdfe66eed78334cffc48f63eff1aefa5f409"
+whole_reason = "The build-sourced kit CSS, the derived font set and the wheel's removal have no caller without each other: opening the new /_app/ font paths before anything imports the kit's CSS through the build would gate nothing real, and leaving the mount, kit.py or PUBLIC_KIT_PATHS behind once app.html's link is gone would leave them as code no real flow reaches, the same shape P19c already retired ui-console by in one change."
