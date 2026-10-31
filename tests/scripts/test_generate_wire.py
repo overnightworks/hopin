@@ -1,5 +1,6 @@
 """Tests for the generator that writes the browser's typed wire vocabulary."""
 
+import dataclasses
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
@@ -31,7 +32,7 @@ def test_render_core_vocabulary_names_enums_and_constants() -> None:
     assert "const" + " enum" not in rendered
 
 
-def test_render_frame_type_follows_the_frame_fields() -> None:
+def test_render_room_closed_frame_follows_the_frame_fields() -> None:
     @dataclass(frozen=True)
     class RoomClosedFrame:
         TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
@@ -39,7 +40,7 @@ def test_render_frame_type_follows_the_frame_fields() -> None:
         reason: RoomClosedReason
         wait_seconds: int | None = None
 
-    assert generate_wire.render_frame_type(RoomClosedFrame) == (
+    assert generate_wire.render_room_closed_frame(dataclasses.fields(RoomClosedFrame)) == (
         "export type RoomClosedFrame = {\n"
         "    type: SIGNAL_TYPE.ROOM_CLOSED;\n"
         "    reason: ROOM_CLOSED_REASON;\n"
@@ -48,7 +49,7 @@ def test_render_frame_type_follows_the_frame_fields() -> None:
     )
 
 
-def test_render_frame_type_union_of_several_types_fails_generation() -> None:
+def test_render_room_closed_frame_union_of_several_types_fails_generation() -> None:
     @dataclass(frozen=True)
     class RoomClosedFrame:
         TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
@@ -56,7 +57,7 @@ def test_render_frame_type_union_of_several_types_fails_generation() -> None:
         wait_seconds: int | str | None = None
 
     with pytest.raises(TypeError, match="wait_seconds"):
-        generate_wire.render_frame_type(RoomClosedFrame)
+        generate_wire.render_room_closed_frame(dataclasses.fields(RoomClosedFrame))
 
 
 def written_by_main(root: Path) -> dict[Path, str]:
