@@ -4,14 +4,14 @@
 </script>
 
 {#each remoteTiles as tile (tile.id)}
-    <div class="tile" class:speaking={tile.isSpeaking} id="container-{tile.id}">
+    <div class="tile" class:speaking={tile.isSpeaking} id={"container-" + tile.id}>
         <video
-            id="video-{tile.id}"
+            id={"video-" + tile.id}
             autoplay
             class:hidden={!tile.showsVideo}
             use:remoteMedia={{ participantId: tile.id, delivery: tile.streamDelivery }}
         ></video>
-        <div class="vid off" class:hidden={tile.showsVideo} id="placeholder-{tile.id}">
+        <div class="vid off" class:hidden={tile.showsVideo} id={"placeholder-" + tile.id}>
             <span class="av"
                 ><svg
                     class="icon"
