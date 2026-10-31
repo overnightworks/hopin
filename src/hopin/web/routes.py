@@ -15,7 +15,6 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
-from hopin.web.kit import KIT_DIR, KIT_PATH
 
 if TYPE_CHECKING:
     import os
@@ -71,7 +70,6 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
             return PlainTextResponse("Room not found", status_code=404)
         return shell()
 
-    router.mount(KIT_PATH, StaticFiles(directory=KIT_DIR), name="appkit")
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
     router.mount(APP_ASSET_PATH, _PageBuildFiles(page_build.app_directory), name="page-build")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)

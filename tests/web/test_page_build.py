@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hopin.config.secret_files import StartRefusedError
-from hopin.web.page_build import PageBuild
+from hopin.web.page_build import PageBuild, _css_asset_urls
 from tests.support.page_build import FIXTURE_DIRECTORY, FIXTURE_SCRIPT_HASH
 
 if TYPE_CHECKING:
@@ -101,7 +101,9 @@ class TestLoad:
             assert page.etag.startswith('"')
             assert page.etag.endswith('"')
 
-    def test_the_sign_in_stylesheets_are_the_app_stylesheets_the_sign_in_pages_link(self, tmp_path):
+    def test_the_sign_in_assets_are_the_app_stylesheets_the_sign_in_pages_link_and_the_files_they_reference(
+        self, tmp_path
+    ):
         root = build_with_shell(tmp_path, "<html></html>")
         links = {
             "login.html": ("/_app/a.css", "/static/css/x.css"),
@@ -112,8 +114,9 @@ class TestLoad:
             (root / name).write_text("".join(f'<link rel="stylesheet" href="{href}">' for href in hrefs))
         for stylesheet in ("a.css", "b.css", "c.css"):
             (root / "_app" / stylesheet).write_text("")
+        (root / "_app" / "b.css").write_text("@font-face { src: url(/_app/f.woff2) }")
 
-        assert PageBuild.load(root).sign_in_stylesheets == {"/_app/a.css", "/_app/b.css", "/_app/c.css"}
+        assert PageBuild.load(root).sign_in_assets == {"/_app/a.css", "/_app/b.css", "/_app/c.css", "/_app/f.woff2"}
 
     @pytest.mark.parametrize("missing", SIGN_IN_PAGES)
     def test_a_directory_without_a_sign_in_page_refuses_the_start_and_names_the_build_command(self, tmp_path, missing):
@@ -130,3 +133,23 @@ class TestLoad:
 
         with pytest.raises(StartRefusedError, match="make frontend"):
             PageBuild.load(root)
+
+
+class TestCssAssetUrls:
+    @pytest.mark.parametrize(
+        "css",
+        [
+            b"a{src:url(/_app/f.woff2)}",
+            b"a{src:url('/_app/f.woff2')}",
+            b'a{src:url("/_app/f.woff2")}',
+            b"a{src:url( /_app/f.woff2 )}",
+        ],
+    )
+    def test_a_build_url_is_extracted_however_it_is_quoted(self, css):
+        assert _css_asset_urls(css) == {"/_app/f.woff2"}
+
+    @pytest.mark.parametrize(
+        "other", [b"url(/static/f.woff2)", b"url(data:font/woff2;base64,AAAA)", b"url(fonts/f.woff2)", b"url(//_app/f)"]
+    )
+    def test_a_url_outside_the_build_is_not_extracted_beside_a_build_url(self, other):
+        assert _css_asset_urls(b"a{src:url(/_app/f.woff2)}" + other) == {"/_app/f.woff2"}

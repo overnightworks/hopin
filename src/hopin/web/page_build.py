@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -13,6 +14,7 @@ LOGIN_FAILED_FILE = "login-failed.html"
 NO_ACCESS_FILE = "no-access.html"
 APP_PATH_PREFIX = "/_app/"
 APP_DIRECTORY = "_app"
+_CSS_URL = re.compile(r"""url\(\s*['"]?(/_app/[^'")\s]+)""")
 
 
 class PageBuildMissingError(StartRefusedError):
@@ -61,6 +63,10 @@ def _app_stylesheets(page: bytes) -> frozenset[str]:
     return frozenset(href for href in stylesheets.hrefs if href.startswith(APP_PATH_PREFIX))
 
 
+def _css_asset_urls(css: bytes) -> frozenset[str]:
+    return frozenset(_CSS_URL.findall(css.decode("utf-8")))
+
+
 def _script_hash(text: str) -> str:
     return "sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode("ascii")
 
@@ -82,8 +88,8 @@ class PageBuild:
     """What `make frontend` wrote: the pages the server answers with, and what their policy and gate admit.
 
     The pages are held as read, so the served shell is the hashed shell even when a build rewrites the file
-    while the server runs. `sign_in_stylesheets` are the `/_app/` stylesheets the three sign-in pages link,
-    the only build files a signed-out visitor may fetch.
+    while the server runs. `sign_in_assets` are the `/_app/` stylesheets the three sign-in pages link and the
+    `/_app/` files those stylesheets reference (the fonts), the only build files a signed-out visitor may fetch.
     """
 
     directory: Path
@@ -92,7 +98,7 @@ class PageBuild:
     login_failed: BuiltPage
     no_access: BuiltPage
     script_hashes: tuple[str, ...]
-    sign_in_stylesheets: frozenset[str]
+    sign_in_assets: frozenset[str]
 
     @property
     def app_directory(self) -> Path:
@@ -107,9 +113,11 @@ class PageBuild:
         stylesheets = frozenset().union(
             *(_app_stylesheets(page) for page in (signed_out_bytes, login_failed_bytes, no_access_bytes))
         )
+        stylesheet_bytes = []
         for stylesheet in stylesheets:
             if not (directory / stylesheet.removeprefix("/")).is_file():
                 raise PageBuildMissingError(f"The page build at {directory} lacks {stylesheet}; run make frontend")
+            stylesheet_bytes.append((directory / stylesheet.removeprefix("/")).read_bytes())
         scripts = _InlineScripts()
         scripts.feed(shell_bytes.decode("utf-8"))
         scripts.close()
@@ -120,5 +128,5 @@ class PageBuild:
             login_failed=BuiltPage.of(login_failed_bytes),
             no_access=BuiltPage.of(no_access_bytes),
             script_hashes=tuple(_script_hash(text) for text in scripts.texts),
-            sign_in_stylesheets=stylesheets,
+            sign_in_assets=stylesheets.union(*(_css_asset_urls(css) for css in stylesheet_bytes)),
         )

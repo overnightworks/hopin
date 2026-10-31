@@ -270,6 +270,29 @@ def test_a_built_sign_in_page_loads_every_sub_resource_signed_out_without_a_poli
     assert person.evaluate("() => window.policyViolations") == []
 
 
+LOADED_FONT_FACES = "() => [...document.fonts].filter((face) => face.status === 'loaded').length"
+
+
+def test_a_sign_in_page_whose_fonts_answer_404_still_shows_its_heading_in_the_fallback_face(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+) -> None:
+    person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
+    person.add_init_script(RECORD_POLICY_VIOLATIONS)
+    person.route(re.compile(r"/_app/.*\.woff2$"), lambda route: route.fulfill(status=404))
+
+    response = person.goto(f"{e2e_server.base_url}{LOGIN_PATH}")
+    person.wait_for_load_state("networkidle")
+
+    assert response is not None
+    assert response.status == 200
+    heading = person.get_by_role("heading", name="You are logged out.", exact=True)
+    expect(heading).to_be_visible()
+    assert heading.evaluate("(element) => getComputedStyle(element).fontFamily").endswith("sans-serif")
+    assert person.evaluate(LOADED_FONT_FACES) == 0
+    assert person.evaluate("() => window.policyViolations") == []
+    assert page_errors == []
+
+
 def test_login_failed_on_a_small_landscape_phone_reaches_try_again_and_both_legal_links(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
 ) -> None:

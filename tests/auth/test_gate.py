@@ -36,12 +36,12 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from hopin.web.kit import KIT_DIR, KIT_PATH
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import (
     FIXTURE_DIRECTORY,
     FIXTURE_SCRIPT_HASH,
     IMMUTABLE_FILE,
+    SIGN_IN_FONT,
     SIGN_IN_STYLESHEET,
     VERSION_FILE,
     fixture_page_build,
@@ -56,16 +56,7 @@ if TYPE_CHECKING:
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
-STYLESHEETS = [f"{KIT_PATH}/appkit.css", "/static/css/hopin.css"]
-KIT_FONTS = [f"{KIT_PATH}/fonts/{font.name}" for font in sorted((KIT_DIR / "fonts").glob("*.woff2"))]
-GATED_KIT_PATHS = [
-    f"{KIT_PATH}/fonts/oswald-LICENSE",
-    f"{KIT_PATH}/fonts/open-sans-LICENSE",
-    f"{KIT_PATH}/..%2Fcss/hopin.css",
-    f"{KIT_PATH}/appkit.css/",
-    f"{KIT_PATH}/appkit.cssx",
-    "/static/appkit-0.0.0/appkit.css",
-]
+STYLESHEETS = ["/static/css/hopin.css"]
 FAVICON = "/static/img/hopin.svg"
 STATIC_FILES = [*STYLESHEETS, FAVICON]
 LOOKALIKE_PATHS = [
@@ -82,8 +73,10 @@ LOOKALIKE_PATHS = [
     "/static/img/other.svg",
     f"{SIGN_IN_STYLESHEET}/",
     f"{SIGN_IN_STYLESHEET}x",
+    f"{SIGN_IN_FONT}/",
+    f"{SIGN_IN_FONT}x",
+    "/_app/immutable/assets/..%2Ffixture-font.woff2",
     "/_app/immutable/assets/..%2Fx.js",
-    *GATED_KIT_PATHS,
     "/logout/",
     f"{BACKCHANNEL_LOGOUT_PATH}/",
     f"{BACKCHANNEL_LOGOUT_PATH}x",
@@ -196,7 +189,7 @@ class TestSignedOut:
         assert response.status_code == 303
         assert response.headers["location"].startswith(TEST_ISSUER)
 
-    @pytest.mark.parametrize("path", [*STYLESHEETS, *SIGN_IN_PAGES])
+    @pytest.mark.parametrize("path", [*STYLESHEETS, SIGN_IN_STYLESHEET, *SIGN_IN_PAGES])
     def test_the_sign_in_pages_and_their_stylesheets_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
 
@@ -208,13 +201,9 @@ class TestSignedOut:
             IMMUTABLE_ASSET_CACHE_CONTROL,
         )
 
-    @pytest.mark.parametrize("font", KIT_FONTS)
-    def test_each_kit_font_is_public_with_its_content_type(self, application, font):
-        response = application.get(font, **BROWSER_ACCEPT)
+    def test_a_font_the_sign_in_stylesheet_references_is_public_with_its_content_type(self, application):
+        response = application.get(SIGN_IN_FONT, **BROWSER_ACCEPT)
         assert (response.status_code, response.headers["content-type"]) == (200, "font/woff2")
-
-    def test_the_kit_has_eight_fonts(self):
-        assert len(KIT_FONTS) == 8
 
     def test_the_favicon_loads_signed_out_as_an_svg(self, application):
         response = application.get(FAVICON, **BROWSER_ACCEPT)
@@ -556,7 +545,10 @@ class TestSecurityHeaders:
             ("HEAD", HEALTH_PATH, False, {}, 200),
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
             ("GET", AUTH_CALLBACK_PATH, False, {}, 403),
-            *[("GET", path, False, BROWSER_ACCEPT, 200) for path in [*STYLESHEETS, *SIGN_IN_PAGES, SIGN_IN_STYLESHEET]],
+            *[
+                ("GET", path, False, BROWSER_ACCEPT, 200)
+                for path in [*STYLESHEETS, *SIGN_IN_PAGES, SIGN_IN_STYLESHEET, SIGN_IN_FONT]
+            ],
             ("POST", LOGOUT_PATH, False, CROSS_SITE_FORM_POST, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),

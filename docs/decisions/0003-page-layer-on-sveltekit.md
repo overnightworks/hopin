@@ -32,7 +32,7 @@ shell's own inline start script and SvelteKit's route announcer would break.
   any served address. `PageBuild` serves them at `/login`, at `/no-access` and as the refused
   callback's 403.
 - `/_app` is one mount of the build, behind the session gate, except the exact
-  stylesheet files the built sign-in pages link, read at start. Its `immutable/`
+  stylesheet and font files the built sign-in pages' stylesheets reference, read at start. Its `immutable/`
   files answer `private, max-age=31536000, immutable` on success from the mount
   itself, never from a path rule: the outermost middleware applies a rule to the
   401, 429 and 404 of the same path too, and `public` would let a shared cache
