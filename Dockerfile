@@ -6,7 +6,7 @@ FROM node:26-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862
 WORKDIR /build/frontend
 # Node 26 bundles no corepack, so it is installed at an exact version; it then
 # provisions the pnpm version that package.json's packageManager pins.
-RUN npm install --global corepack@0.36.0 && corepack enable
+RUN npm install --global --ignore-scripts corepack@0.36.0 && corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 COPY frontend/patches ./patches
 RUN pnpm install --frozen-lockfile
