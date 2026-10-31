@@ -1,6 +1,6 @@
 # 0001 Static frontend modules
 
-Partly superseded by [ADR 0003](0003-page-layer-on-sveltekit.md): the page's markup is no longer `index.html` but the SvelteKit layout, and the build step exists. The modules, the stylesheets and the rules about tokens and screens still hold.
+Superseded by [ADR 0003](0003-page-layer-on-sveltekit.md).
 
 ## Context
 

@@ -15,8 +15,8 @@ export default defineConfig(({ mode }) => ({
         coverage: {
             provider: "v8",
             include: ["src/lib/**/*.ts"],
-            // The legacy page code is judged by the end-to-end suite until it is ported; wire.ts is generated.
-            exclude: ["src/lib/legacy/**", "src/lib/**/wire.ts", "**/*.test.ts"],
+            // wire.ts is generated.
+            exclude: ["src/lib/**/wire.ts", "**/*.test.ts"],
             reporter: [
                 ["text", { skipFull: false }],
                 ["lcov", { projectRoot: ".." }],
