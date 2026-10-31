@@ -117,6 +117,7 @@ def test_phone_sheet_grab_handle_and_lock_switch_off_track_reach_non_text_contra
 ) -> None:
     host, _, _ = open_call(open_person, base_url, page_errors, {**PHONE, "color_scheme": color_scheme})
     open_more(host)
+    expect(host.locator(LOCK_SWITCH)).to_have_attribute("aria-checked", "false")
 
     sheet_background, part_background = host.evaluate(SHEET_AND_PART_BACKGROUNDS, selector)
 
