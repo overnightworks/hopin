@@ -1,4 +1,4 @@
-import { type OutgoingMessage, type SentFrame, SentLog } from "#lib/call/replay.ts";
+import { type LoggedMessage, type OutgoingMessage, type SentFrame, SentLog } from "#lib/call/replay.ts";
 import { state } from "#lib/call/state.ts";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
@@ -24,7 +24,7 @@ interface Seat {
 const NORMAL_CLOSURE_CODE = 1000;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
 
-const handlersByType = new Map<SIGNAL_TYPE, Handler[]>();
+const handlersByType = new Map<string, Handler[]>();
 let socket: WebSocket | null = null;
 let socketIsLive = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -34,8 +34,17 @@ let lastDispatchedSeq = 0;
 let sessionLost = () => {};
 let sessionEnded = () => {};
 
-export function on(type: SIGNAL_TYPE, handler: Handler) {
+function addHandler(type: string, handler: Handler) {
     handlersByType.set(type, [...(handlersByType.get(type) ?? []), handler]);
+}
+
+export function on(type: SIGNAL_TYPE, handler: Handler) {
+    addHandler(type, handler);
+}
+
+// The server the page trusts sends the frames a feature registers for, so the handler's frame type is taken on trust.
+export function onFeatureFrame(type: string, handler: (frame: never) => void) {
+    addHandler(type, handler as Handler);
 }
 
 export function onSessionLost(callback: () => void) {
@@ -47,6 +56,14 @@ export function onSessionEnded(callback: () => void) {
 }
 
 export function send(message: OutgoingMessage) {
+    sendLogged(message);
+}
+
+export function sendFeatureFrame(message: LoggedMessage) {
+    sendLogged(message);
+}
+
+function sendLogged(message: LoggedMessage) {
     if (socket === null) {
         throw new Error("No signaling session: connect() before send()");
     }

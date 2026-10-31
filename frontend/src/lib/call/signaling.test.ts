@@ -179,6 +179,17 @@ describe("receiving", () => {
         expect(other).not.toHaveBeenCalled();
     });
 
+    it("hands a frame of a type the core does not know to the feature handler registered for it", async () => {
+        const { connect, onFeatureFrame } = await freshSignaling();
+        const handler = vi.fn();
+        onFeatureFrame("game_move", handler);
+        connect();
+
+        latestSocket().receive({ type: "game_move", cell: 4 });
+
+        expect(handler).toHaveBeenCalledWith({ type: "game_move", cell: 4 });
+    });
+
     it("drops a frame no handler takes", async () => {
         const { connect } = await freshSignaling();
         connect();
@@ -321,6 +332,20 @@ describe("resuming", () => {
         vi.advanceTimersByTime(1000);
         latestSocket().open();
         expect(latestSocket().sent[0]).toMatchObject({ type: SIGNAL_TYPE.RESUME, token: "token-2" });
+    });
+
+    it("resends a feature frame after a resume", async () => {
+        const signaling = await freshSignaling();
+        const socket = seatedSocket(signaling);
+        signaling.sendFeatureFrame({ type: "game_move", cell: 4 });
+        expect(socket.sent.at(-1)).toEqual({ type: "game_move", cell: 4, seq: 1 });
+        socket.closeWith(1006);
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+
+        latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 0 });
+
+        expect(latestSocket().sent.slice(1)).toEqual([{ type: "game_move", cell: 4, seq: 1 }]);
     });
 
     it("joins afresh when the server refuses the resume", async () => {
