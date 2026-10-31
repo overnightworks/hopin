@@ -14,14 +14,24 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+from playwright.sync_api import Error as PlaywrightError
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from playwright.sync_api import BrowserContext, CDPSession, Page, Request, Route
+    from playwright.sync_api import BrowserContext, CDPSession, Frame, Page, Request, Route
 
 BROWSER_COVERAGE_DIRECTORY_VARIABLE = "HOPIN_BROWSER_COVERAGE_DIR"
 APP_SCRIPT_PATH_PREFIX = "/_app/"
 NO_CONTENT = 204
+
+
+def frame_of(request: Request) -> Frame | None:
+    """None for the first request of a new tab, which Chromium issues before the tab's frame exists."""
+    try:
+        return request.frame
+    except PlaywrightError:
+        return None
 
 
 class BrowserCoverage:
@@ -70,7 +80,10 @@ class BrowserCoverage:
         before the context route.
         """
         request = route.request
-        page = request.frame.page
+        frame = frame_of(request)
+        if frame is None:
+            return False
+        page = frame.page
         has_app_code = page in self._with_app_code
         self._with_app_code.discard(page)
         reissue = (page, request.url)
@@ -89,9 +102,10 @@ class BrowserCoverage:
 
     def _on_request(self, route: Route) -> None:
         request = route.request
-        if request.frame.page.main_frame is request.frame:
+        frame = frame_of(request)
+        if frame is not None and frame.page.main_frame is frame:
             if request.resource_type == "script" and urlsplit(request.url).path.startswith(APP_SCRIPT_PATH_PREFIX):
-                self._with_app_code.add(request.frame.page)
+                self._with_app_code.add(frame.page)
             elif request.resource_type == "document" and self.cancel_take_reissue(route):
                 return
         route.fallback()

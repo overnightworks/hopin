@@ -385,11 +385,14 @@ def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at
     expect_end_screen(guest, EXPIRED)
 
 
-def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(call: Call) -> None:
+def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(
+    call: Call, browser_coverage: BrowserCoverage
+) -> None:
     guest_leaves(call)
     toggle_the_lock(call.host)
     expect(call.host.locator("#lockIndicator")).to_be_visible()
-    join_by_link(call.guest, call.invite_link)
+    with browser_coverage.passing_through(call.guest):
+        join_by_link(call.guest, call.invite_link)
     expect_end_screen(call.guest, LOCKED)
 
     toggle_the_lock(call.host)
