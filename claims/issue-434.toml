@@ -1,0 +1,8 @@
+claim_id = "57653ffa1e074ea49874a1e00586ee17"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "16025f980c67e5696b15e1a66194ca5b0907e444"
+branch = "claude/issue-434-node-26"
+scope = [".github/workflows/ci.yml", "AGENTS.md", "Dockerfile", "README.md", "frontend/package.json"]
+opened_commit = "2b0cbe4d34849935ca8ea44f4dfb39c991739e4e"
+whole_reason = "The allowed range, CI's resolution of it, the image's build stage and the two documents that name the version move together, or the image and the docs disagree with the range."
