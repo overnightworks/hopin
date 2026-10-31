@@ -56,8 +56,10 @@ def test_render_room_closed_frame_union_of_several_types_fails_generation() -> N
 
         wait_seconds: int | str | None = None
 
+    fields = dataclasses.fields(RoomClosedFrame)
+
     with pytest.raises(TypeError, match="wait_seconds"):
-        generate_wire.render_room_closed_frame(dataclasses.fields(RoomClosedFrame))
+        generate_wire.render_room_closed_frame(fields)
 
 
 def written_by_main(root: Path) -> dict[Path, str]:
