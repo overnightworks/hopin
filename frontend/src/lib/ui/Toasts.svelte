@@ -1,12 +1,12 @@
 <script lang="ts">
-    import { TOAST_KIND, toastState } from "#lib/ui/toast.svelte.ts";
+    import { TOAST_KIND, toastElement, toastState } from "#lib/ui/toast.svelte.ts";
 </script>
 
 <output id="toasts" class="toasts">
     {#if toastState.current}
         {@const toast = toastState.current}
         {#key toast.id}
-            <div class="toast" class:leaving={toast.leaving}>
+            <div class="toast" bind:this={toastElement.current} class:leaving={toast.leaving}>
                 <svg
                     class="icon"
                     width="18"

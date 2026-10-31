@@ -199,14 +199,14 @@ describe("rejoinCall", () => {
 
 describe("actionClasses", () => {
     it.each([
-        [END_KIND.LOCKED, END_ACTION.RETRY, ["button", "button-block", false, "button-primary", "button-lg"]],
-        [END_KIND.LOCKED, END_ACTION.HOME, ["button", "button-block", false, "button-text"]],
+        [END_KIND.LOCKED, END_ACTION.RETRY, ["button", "button-block", "button-primary", "button-lg"]],
+        [END_KIND.LOCKED, END_ACTION.HOME, ["button", "button-block", "button-text"]],
         [END_KIND.LOCKED, END_ACTION.REJOIN, ["button", "button-block", "hidden", "button-text"]],
-        [END_KIND.LEFT, END_ACTION.REJOIN, ["button", "button-block", false, "button-text"]],
+        [END_KIND.LEFT, END_ACTION.REJOIN, ["button", "button-block", "button-text"]],
         [END_KIND.HOST_GONE, END_ACTION.RETRY, ["button", "button-block", "hidden", "button-text"]],
     ])("styles the %s end's %s button", (kind, action, expected) => {
         showEnd(kind);
 
-        expect(actionClasses(action)).toEqual(expected);
+        expect(actionClasses(action).filter(Boolean)).toEqual(expected);
     });
 });

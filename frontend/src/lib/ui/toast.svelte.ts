@@ -24,14 +24,16 @@ const TOAST_WITH_ACTION_MS = 8000;
 
 export const toastState: { current: Toast | null } = $state({ current: null });
 
+// Toasts.svelte binds its rendered toast element here; the element is plain DOM, so it stays out of $state.
+export const toastElement: { current: HTMLElement | null } = { current: null };
+
 let nextId = 0;
 let leavingTimer: ReturnType<typeof setTimeout> | undefined;
 
 async function removeAfterLeaving(toast: Toast) {
     toast.leaving = true;
     await tick();
-    const element = document.querySelector("#toasts .toast");
-    const animations = element?.getAnimations() ?? [];
+    const animations = toastElement.current?.getAnimations() ?? [];
     await Promise.allSettled(animations.map((animation) => animation.finished));
     if (toastState.current?.id === toast.id) toastState.current = null;
 }
