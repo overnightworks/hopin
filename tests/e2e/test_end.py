@@ -43,7 +43,7 @@ from tests.e2e.support.media import (
     TRACKS_WERE_REQUESTED,
     share_the_screen,
 )
-from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.page_assertions import expect_both_legal_links_in_the_profile_menu, expect_no_legal_footer
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.e2e.support.signaling import RECONNECT_DELAYS_MS, FrameInjector
 
@@ -175,7 +175,8 @@ def expect_end_screen(person: Page, expected: EndScreenText) -> None:
     else:
         expect(screen.locator("#endPill")).to_be_hidden()
     expect(screen.locator(".end-actions").get_by_role("button")).to_have_text(list(expected.buttons))
-    expect_both_legal_links(screen)
+    expect_no_legal_footer(screen)
+    expect_both_legal_links_in_the_profile_menu(person)
     expect(person.locator("[data-screen]:visible")).to_have_attribute("data-screen", "end")
     expect(screen.locator(".button-primary")).to_have_count(1)
     expect(screen.locator(".button-primary")).to_have_text(expected.buttons[0])

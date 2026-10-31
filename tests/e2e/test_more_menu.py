@@ -40,7 +40,6 @@ POPOVER_WIDTH_PIXELS = 280
 POPOVER_BOTTOM_GAP_PIXELS = 88
 CENTRE_TOLERANCE_PIXELS = 2
 VIDEO_TAP_HEIGHT_PIXELS = 200
-COLOUR_OF = "(selector) => getComputedStyle(document.querySelector(selector)).color"
 MINIMUM_NON_TEXT_CONTRAST = 3
 SHEET_AND_PART_BACKGROUNDS = """(selector) => {
     const style = getComputedStyle(document.querySelector(selector));
@@ -103,10 +102,7 @@ def test_host_opens_more_as_a_sheet_on_a_phone_and_a_popover_on_a_desktop(
         assert abs((menu["left"] + menu["right"]) / 2 - (more["left"] + more["right"]) / 2) <= CENTRE_TOLERANCE_PIXELS
     expect(host.locator(MORE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(MORE_BUTTON)).to_have_class("cb active")
-    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", "separator", *LEGAL_LINKS]
-    lock_colour = host.evaluate(COLOUR_OF, LOCK_SWITCH)
-    for label in LEGAL_LINKS:
-        assert host.evaluate(COLOUR_OF, f"a.mi[href='{LEGAL_LINKS[label]}']") == lock_colour
+    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", *LEGAL_LINKS]
     expect(host.get_by_role("dialog", name="More")).to_be_visible()
 
 

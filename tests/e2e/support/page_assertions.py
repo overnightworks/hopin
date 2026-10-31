@@ -9,17 +9,21 @@ LEGAL_LINKS = {
     "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
 }
 
+ACCOUNT_AVATAR = ".account-button:visible"
+ACCOUNT_MENU = "#accountMenu"
+
 RECORD_POLICY_VIOLATIONS = """
 window.policyViolations = [];
 document.addEventListener("securitypolicyviolation", (event) => window.policyViolations.push(event.violatedDirective));
 """
 
-# Each visible entry of More by its name, in order: an item by the first words of its label, a rule as "separator".
+# Each visible entry of More by its name, in order: an item by the first words of its label, a link of the legal row
+# by its text.
 VISIBLE_MORE_ENTRIES = """
-() => [...document.querySelectorAll("#moreMenu .mi, #moreMenu .sep")]
+() => [...document.querySelectorAll("#moreMenu .mi, #moreMenu nav a")]
     .filter((element) => element.getClientRects().length)
     .map((element) =>
-        element.classList.contains("sep") ? "separator" : element.querySelector(".grow").firstChild.textContent,
+        element.matches("a") ? element.textContent : element.querySelector(".grow").firstChild.textContent,
     )
 """
 MESSAGES_IN_A_LONG_HISTORY = 60
@@ -77,6 +81,16 @@ def expect_both_legal_links(screen: Locator) -> None:
         expect(link).to_have_attribute("href", url)
         expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_attribute("rel", "noopener")
+
+
+def expect_no_legal_footer(screen: Locator) -> None:
+    expect(screen.get_by_role("navigation", name="Legal")).to_have_count(0)
+
+
+def expect_both_legal_links_in_the_profile_menu(person: Page) -> None:
+    person.locator(ACCOUNT_AVATAR).click()
+    expect_both_legal_links(person.locator(ACCOUNT_MENU))
+    person.keyboard.press("Escape")
 
 
 def expect_both_legal_links_in_the_same_tab(screen: Locator) -> None:

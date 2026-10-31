@@ -171,8 +171,8 @@ def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for
     open_more(host)
     menu = open_more(guest)
 
-    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", "Start quiz", "separator", *LEGAL_LINKS]
-    assert guest.evaluate(VISIBLE_MORE_ENTRIES) == ["Start quiz", "separator", *LEGAL_LINKS]
+    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", "Start quiz", *LEGAL_LINKS]
+    assert guest.evaluate(VISIBLE_MORE_ENTRIES) == ["Start quiz", *LEGAL_LINKS]
     expect(menu.locator(START_QUIZ)).to_be_focused()
 
 

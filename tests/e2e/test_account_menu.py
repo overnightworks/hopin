@@ -7,7 +7,7 @@ from playwright.sync_api import ConsoleMessage, Page, Request, Route, expect
 
 from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH
 from tests.e2e.support.calls import open_prejoin, record_page_errors, start_call, wait_until_the_prejoin_media_answered
-from tests.e2e.support.page_assertions import expect_both_legal_links
+from tests.e2e.support.page_assertions import ACCOUNT_AVATAR, ACCOUNT_MENU, expect_both_legal_links
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
 
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 ACCOUNT_ROUTE = f"**{ACCOUNT_PATH}"
-AVATAR = ".account-button:visible"
-MENU = "#accountMenu"
+AVATAR = ACCOUNT_AVATAR
+MENU = ACCOUNT_MENU
 LOG_OUT = f"{MENU} >> role=button[name='Log out']"
 MENU_NAME = f"{MENU} a[href='{ACCOUNT_CONSOLE_PATH}'] .as-typed"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
