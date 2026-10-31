@@ -100,7 +100,8 @@ class PageInventory(HTMLParser):
             self._screens.append((attributes["data-screen"], self._depth))
 
     def _track_legal_nav(self, tag, attributes):
-        if tag == "nav" and "legal" in (attributes.get("class") or "").split():
+        classes = (attributes.get("class") or "").split()
+        if tag == "nav" and "legal" in classes and "menu" not in classes:
             self._legal_nav_links = []
 
     def _record_legal_nav(self):
