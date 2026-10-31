@@ -1,0 +1,8 @@
+claim_id = "61d1f7f1e5b14fa3b1cd2fa07edd79ab"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "1668a6d9723e1500a72b4c01a925731f08e350da"
+branch = "claude/issue-411-p21a-merged-browser-coverage"
+scope = [".github/workflows/ci.yml", "docs/ARCHITECTURE.md", "frontend/vite.config.ts", "scripts/merge_frontend_coverage.py", "sonar-project.properties", "tests/scripts/test_merge_frontend_coverage.py"]
+opened_commit = "380948143def4897e3cda67d5ad365f00aab95a7"
+whole_reason = "The merge has no reader without the CI step that runs it and the Sonar path that names its output, and the one path form it relies on comes from Vitest's reporter line; the exclusions can leave only once the report that replaces them is read."
