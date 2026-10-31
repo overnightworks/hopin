@@ -7,6 +7,7 @@ with a 204, takes the page's coverage and re-issues the URL; the re-issue goes t
 
 import json
 import os
+import re
 from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
@@ -24,6 +25,9 @@ if TYPE_CHECKING:
 BROWSER_COVERAGE_DIRECTORY_VARIABLE = "HOPIN_BROWSER_COVERAGE_DIR"
 APP_SCRIPT_PATH_PREFIX = "/_app/"
 NO_CONTENT = 204
+# The driver evaluates this as a JavaScript regex against the whole URL, so requests under
+# /_app/ never reach Python. The literal "/" after the host keeps backtracking from dodging the lookahead.
+ROUTED_URL_PATTERN = re.compile(rf"^[^:]+://[^/]+/(?!{re.escape(APP_SCRIPT_PATH_PREFIX.lstrip('/'))})")
 
 
 def frame_of(request: Request) -> Frame | None:
@@ -54,7 +58,8 @@ class BrowserCoverage:
         if self._directory is None:
             return
         context.on("page", self._start)
-        context.route("**/*", self._on_request)
+        context.on("request", self._mark_app_code)
+        context.route(ROUTED_URL_PATTERN, self._on_request)
 
     def was_cancelled(self, request: Request) -> bool:
         """Whether the collector answered this request with 204 and re-issued it."""
@@ -105,14 +110,26 @@ class BrowserCoverage:
         page.evaluate("url => location.assign(url)", request.url)
         return True
 
+    def _mark_app_code(self, request: Request) -> None:
+        frame = frame_of(request)
+        if (
+            frame is not None
+            and frame.page.main_frame is frame
+            and request.resource_type == "script"
+            and urlsplit(request.url).path.startswith(APP_SCRIPT_PATH_PREFIX)
+        ):
+            self._with_app_code.add(frame.page)
+
     def _on_request(self, route: Route) -> None:
         request = route.request
         frame = frame_of(request)
-        if frame is not None and frame.page.main_frame is frame:
-            if request.resource_type == "script" and urlsplit(request.url).path.startswith(APP_SCRIPT_PATH_PREFIX):
-                self._with_app_code.add(frame.page)
-            elif request.resource_type == "document" and self.cancel_take_reissue(route):
-                return
+        if (
+            frame is not None
+            and frame.page.main_frame is frame
+            and request.resource_type == "document"
+            and self.cancel_take_reissue(route)
+        ):
+            return
         route.fallback()
 
     def _start(self, page: Page) -> None:
