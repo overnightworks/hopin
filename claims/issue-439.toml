@@ -1,0 +1,8 @@
+claim_id = "ea21bc1a40ad45acb073cba264c59869"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "132cef3fe8faa00291ec4431354bfff82abcb396"
+branch = "claude/issue-439-typed-room-created-frames"
+scope = ["frontend/src/lib/call/mesh.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/wire.ts", "frontend/src/routes/(call)/start-up.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/seats.py", "tests/scripts/test_generate_wire.py"]
+opened_commit = "01c46d7ef70b95bd3f729ac5c26bc2d2130be943"
+whole_reason = "Seven production files and roughly 120 production lines, over the guide: the slice completes the small credentials family in one pass, deletes its now-unused Seats.credentials helper at once, and touches the generator and the on() registration plumbing once instead of twice; room_created alone would be an honest vertical slice too, but would revisit the same files a day later."
