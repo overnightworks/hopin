@@ -153,9 +153,6 @@ class Seats:
             return False
         return True
 
-    def credentials(self, peer_id: PeerId) -> dict[str, str]:
-        return {"participant_id": peer_id, "resume_token": self._peers[peer_id].resume_token}
-
     async def resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
         try:
             if not is_first_frame:

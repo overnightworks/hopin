@@ -46,13 +46,6 @@ import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
-type RoomCreatedFrame = ServerFrame & { room_id: string; is_host: boolean };
-type ExistingParticipantsFrame = ServerFrame & {
-    names: Record<string, string>;
-    is_host: boolean;
-    locked: boolean;
-};
-
 const callEndedHooks: (() => void)[] = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
 const FEATURE_CORE: FeatureCore = Object.freeze({
@@ -145,8 +138,7 @@ function requestLeave() {
 }
 
 function registerSessionHandlers() {
-    on(SIGNAL_TYPE.ROOM_CREATED, (frame) => {
-        const data = frame as RoomCreatedFrame;
+    on(SIGNAL_TYPE.ROOM_CREATED, (data) => {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
@@ -157,8 +149,7 @@ function registerSessionHandlers() {
         updateLockUI();
         updateParticipantCount();
     });
-    on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (frame) => {
-        const data = frame as ExistingParticipantsFrame;
+    on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
         for (const [participantId, name] of Object.entries(data.names)) {
             state.namesByParticipant.set(participantId, name);
             showRemoteName(participantId);

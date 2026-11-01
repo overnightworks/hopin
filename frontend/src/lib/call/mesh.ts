@@ -1,7 +1,7 @@
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
-import { on, send, type ServerFrame } from "#lib/call/signaling.ts";
+import { on, send } from "#lib/call/signaling.ts";
 import { ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
 import { type MonitoredConnection, monitorSpeaking } from "#lib/call/speaking.ts";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
@@ -200,7 +200,7 @@ function onSignalingStep(type: SIGNAL_TYPE, step: (frame: SignalFrame) => Promis
 
 export function registerMeshHandlers() {
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
-        for (const participantId of (data as ServerFrame & { participants: string[] }).participants) {
+        for (const participantId of data.participants) {
             void createPeerConnection(participantId, true);
         }
     });

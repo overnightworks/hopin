@@ -4,7 +4,9 @@ import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
 import {
     ERROR_REASON,
+    type ExistingParticipantsFrame,
     type RoomClosedFrame,
+    type RoomCreatedFrame,
     SESSION_ENDED_CLOSE_CODE,
     SIGNAL_TYPE,
     WEBSOCKET_PATH,
@@ -21,7 +23,9 @@ export interface ServerFrame {
 }
 
 // Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
-type Handler = { handle(data: ServerFrame | RoomClosedFrame): void }["handle"];
+type Handler = {
+    handle(data: ServerFrame | RoomClosedFrame | RoomCreatedFrame | ExistingParticipantsFrame): void;
+}["handle"];
 
 interface Seat {
     participantId: string | undefined;
@@ -46,8 +50,17 @@ function addHandler(type: string, handler: Handler) {
 }
 
 export function on(type: SIGNAL_TYPE.ROOM_CLOSED, handler: (frame: RoomClosedFrame) => void): void;
+export function on(type: SIGNAL_TYPE.ROOM_CREATED, handler: (frame: RoomCreatedFrame) => void): void;
+export function on(type: SIGNAL_TYPE.EXISTING_PARTICIPANTS, handler: (frame: ExistingParticipantsFrame) => void): void;
 export function on(type: SIGNAL_TYPE, handler: (data: ServerFrame) => void): void;
-export function on(type: SIGNAL_TYPE, handler: Handler | ((frame: RoomClosedFrame) => void)) {
+export function on(
+    type: SIGNAL_TYPE,
+    handler:
+        | Handler
+        | ((frame: RoomClosedFrame) => void)
+        | ((frame: RoomCreatedFrame) => void)
+        | ((frame: ExistingParticipantsFrame) => void),
+) {
     addHandler(type, handler);
 }
 
