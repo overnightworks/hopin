@@ -9,7 +9,7 @@ import dataclasses
 import sys
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING, get_args
+from typing import TYPE_CHECKING, ClassVar, Protocol, Union, get_args, get_origin
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
@@ -30,12 +30,23 @@ from hopin.config.constants import (  # noqa: E402
     SignalType,
 )
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
-from hopin.signaling.frames import RoomClosedFrame  # noqa: E402
+from hopin.signaling.frames import (  # noqa: E402
+    ExistingParticipantsFrame,
+    PeerId,
+    RoomClosedFrame,
+    RoomCreatedFrame,
+)
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from enum import StrEnum
+
+    from _typeshed import DataclassInstance
+
+    class ServerFrame(DataclassInstance, Protocol):
+        TYPE: ClassVar[SignalType]
+
 
 CORE_OUTPUT = Path("frontend/src/lib/wire.ts")
 CHECK_FLAG = "--check"
@@ -67,20 +78,47 @@ def _generated_file(body: str) -> str:
     return f"{HEADER}\n{body}"
 
 
-ROOM_CLOSED_FIELD_TYPES = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
+FRAME_FIELD_TYPES: dict[object, str] = {
+    str: "string",
+    PeerId: "string",
+    bool: "boolean",
+    list[str]: "string[]",
+    dict[str, str]: "Record<string, string>",
+}
+ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
 
 
-def render_room_closed_frame(fields: tuple[dataclasses.Field[object], ...]) -> str:
-    """Render the room_closed frame from its fields; an unmapped field type fails the generation."""
-    lines = [f"{INDENT}type: SIGNAL_TYPE.{SignalType.ROOM_CLOSED.name};\n"]
-    for field in fields:
-        present_types = [part for part in get_args(field.type) if part is not types.NoneType] or [field.type]
-        if len(present_types) != 1:
-            message = f"RoomClosedFrame.{field.name} must be one type, optionally None, not {field.type}"
+def render_frame_type(
+    frame_cls: type[ServerFrame],
+    extra_field_types: Mapping[object, str] | None = None,
+) -> str:
+    """Render a server frame from its dataclass fields; an unmapped field type fails the generation."""
+    field_types = {**FRAME_FIELD_TYPES, **(extra_field_types or {})}
+    lines = [f"{INDENT}type: SIGNAL_TYPE.{frame_cls.TYPE.name};\n"]
+    for field in dataclasses.fields(frame_cls):
+        annotation = field.type
+        if get_origin(annotation) in (types.UnionType, Union):
+            present_types = [part for part in get_args(annotation) if part is not types.NoneType]
+            if len(present_types) != 1:
+                message = f"{frame_cls.__name__}.{field.name} must be one type, optionally None, not {annotation}"
+                raise TypeError(message)
+            annotation = present_types[0]
+        if annotation not in field_types:
+            message = f"{frame_cls.__name__}.{field.name} has no TypeScript type for {annotation}"
             raise TypeError(message)
         optional = "?" if field.default is not dataclasses.MISSING else ""
-        lines.append(f"{INDENT}{field.name}{optional}: {ROOM_CLOSED_FIELD_TYPES[present_types[0]]};\n")
-    return "export type RoomClosedFrame = {\n" + "".join(lines) + "};\n"
+        lines.append(f"{INDENT}{field.name}{optional}: {field_types[annotation]};\n")
+    return f"export type {frame_cls.__name__} = {{\n" + "".join(lines) + "};\n"
+
+
+def _server_frames() -> str:
+    return "\n".join(
+        (
+            render_frame_type(RoomClosedFrame, ROOM_CLOSED_FIELD_TYPES),
+            render_frame_type(RoomCreatedFrame),
+            render_frame_type(ExistingParticipantsFrame),
+        )
+    )
 
 
 def render_core() -> str:
@@ -99,7 +137,7 @@ def render_core() -> str:
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
         + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION)
     )
-    return _generated_file(f"{enums}\n{render_room_closed_frame(dataclasses.fields(RoomClosedFrame))}\n{constants}")
+    return _generated_file(f"{enums}\n{_server_frames()}\n{constants}")
 
 
 def outputs(root: Path) -> dict[Path, str]:

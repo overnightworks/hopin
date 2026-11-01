@@ -1,12 +1,12 @@
 """Tests for the generator that writes the browser's typed wire vocabulary."""
 
-import dataclasses
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import pytest
 
 from hopin.config.constants import RoomClosedReason, SignalType
+from hopin.signaling.frames import RoomCreatedFrame
 from scripts import generate_wire
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ def test_render_room_closed_frame_follows_the_frame_fields() -> None:
         reason: RoomClosedReason
         wait_seconds: int | None = None
 
-    assert generate_wire.render_room_closed_frame(dataclasses.fields(RoomClosedFrame)) == (
+    assert generate_wire.render_frame_type(RoomClosedFrame, generate_wire.ROOM_CLOSED_FIELD_TYPES) == (
         "export type RoomClosedFrame = {\n"
         "    type: SIGNAL_TYPE.ROOM_CLOSED;\n"
         "    reason: ROOM_CLOSED_REASON;\n"
@@ -56,10 +56,40 @@ def test_render_room_closed_frame_union_of_several_types_fails_generation() -> N
 
         wait_seconds: int | str | None = None
 
-    fields = dataclasses.fields(RoomClosedFrame)
+    with pytest.raises(TypeError, match="wait_seconds"):
+        generate_wire.render_frame_type(RoomClosedFrame, generate_wire.ROOM_CLOSED_FIELD_TYPES)
+
+
+def test_render_frame_type_unmapped_field_type_fails_generation() -> None:
+    @dataclass(frozen=True)
+    class RoomClosedFrame:
+        TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
+
+        wait_seconds: float
 
     with pytest.raises(TypeError, match="wait_seconds"):
-        generate_wire.render_room_closed_frame(fields)
+        generate_wire.render_frame_type(RoomClosedFrame)
+
+
+def test_render_core_room_created_frame_types_its_fields() -> None:
+    assert generate_wire.render_frame_type(RoomCreatedFrame) == (
+        "export type RoomCreatedFrame = {\n"
+        "    type: SIGNAL_TYPE.ROOM_CREATED;\n"
+        "    room_id: string;\n"
+        "    is_host: boolean;\n"
+        "    participant_id: string;\n"
+        "    resume_token: string;\n"
+        "};\n"
+    )
+
+
+def test_render_core_existing_participants_frame_types_its_containers() -> None:
+    rendered = generate_wire.render_core()
+
+    assert "    participants: string[];\n" in rendered
+    assert "    names: Record<string, string>;\n" in rendered
+    assert "    locked: boolean;\n" in rendered
+    assert "export type ExistingParticipantsFrame = {\n    type: SIGNAL_TYPE.EXISTING_PARTICIPANTS;\n" in rendered
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

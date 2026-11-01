@@ -9,12 +9,14 @@ from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason, SignalT
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.signaling.frames import (
     ChatFrame,
+    ExistingParticipantsFrame,
     JoinFrame,
     JsonObject,
     MediaStateFrame,
     PeerId,
     RelayFrame,
     RoomClosedFrame,
+    RoomCreatedFrame,
 )
 from hopin.signaling.seats import Seats
 
@@ -83,12 +85,12 @@ class RoomRouting:
         self._peer_rooms[peer_id] = room.room_id
         await self._seats.send(
             peer_id,
-            {
-                "type": SignalType.ROOM_CREATED.value,
-                "room_id": room.room_id,
-                "is_host": True,
-                **self._seats.credentials(peer_id),
-            },
+            RoomCreatedFrame(
+                room_id=room.room_id,
+                is_host=True,
+                participant_id=peer_id,
+                resume_token=self._seats.seat(peer_id).resume_token,
+            ).to_json(),
         )
         await logger.ainfo("room_created", room_id=room.room_id, host=peer_id)
 
@@ -102,15 +104,14 @@ class RoomRouting:
 
         await self._seats.send(
             peer_id,
-            {
-                "type": SignalType.EXISTING_PARTICIPANTS.value,
-                # A copy: the frame goes into the seat's replay log, and a list[str] is not a JSON value list.
-                "participants": [*others],
-                "names": {pid: self._seats.account_of(pid).name for pid in others},
-                "is_host": room.is_hosted_by(account),
-                "locked": room.locked,
-                **self._seats.credentials(peer_id),
-            },
+            ExistingParticipantsFrame(
+                participants=others,
+                names={pid: self._seats.account_of(pid).name for pid in others},
+                is_host=room.is_hosted_by(account),
+                locked=room.locked,
+                participant_id=peer_id,
+                resume_token=self._seats.seat(peer_id).resume_token,
+            ).to_json(),
         )
         if grace is not None:
             await self._seats.send(peer_id, self._host_away_frame(grace))

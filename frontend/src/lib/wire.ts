@@ -45,6 +45,24 @@ export type RoomClosedFrame = {
     grace_seconds?: number;
 };
 
+export type RoomCreatedFrame = {
+    type: SIGNAL_TYPE.ROOM_CREATED;
+    room_id: string;
+    is_host: boolean;
+    participant_id: string;
+    resume_token: string;
+};
+
+export type ExistingParticipantsFrame = {
+    type: SIGNAL_TYPE.EXISTING_PARTICIPANTS;
+    participants: string[];
+    names: Record<string, string>;
+    is_host: boolean;
+    locked: boolean;
+    participant_id: string;
+    resume_token: string;
+};
+
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";
 export const ICE_SERVERS_PATH = "/api/ice-servers";

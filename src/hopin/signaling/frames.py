@@ -46,6 +46,49 @@ class RoomClosedFrame:
 
 
 @dataclass(frozen=True)
+class RoomCreatedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_CREATED
+
+    room_id: str
+    is_host: bool
+    participant_id: PeerId
+    resume_token: str
+
+    def to_json(self) -> JsonObject:
+        return {
+            TYPE_KEY: self.TYPE.value,
+            "room_id": self.room_id,
+            "is_host": self.is_host,
+            "participant_id": self.participant_id,
+            "resume_token": self.resume_token,
+        }
+
+
+@dataclass(frozen=True)
+class ExistingParticipantsFrame:
+    TYPE: ClassVar[SignalType] = SignalType.EXISTING_PARTICIPANTS
+
+    participants: list[str]
+    names: dict[str, str]
+    is_host: bool
+    locked: bool
+    participant_id: PeerId
+    resume_token: str
+
+    def to_json(self) -> JsonObject:
+        return {
+            TYPE_KEY: self.TYPE.value,
+            # Copies: the frame goes into the seat's replay log, and list[str] and dict[str, str] are not JSON values.
+            "participants": [*self.participants],
+            "names": {**self.names},
+            "is_host": self.is_host,
+            "locked": self.locked,
+            "participant_id": self.participant_id,
+            "resume_token": self.resume_token,
+        }
+
+
+@dataclass(frozen=True)
 class JoinFrame:
     room_id: str | None
 
