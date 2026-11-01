@@ -71,7 +71,7 @@ def test_render_frame_type_unmapped_field_type_fails_generation() -> None:
         generate_wire.render_frame_type(RoomClosedFrame)
 
 
-def test_render_core_room_created_frame_types_its_fields() -> None:
+def test_render_frame_type_types_room_created_fields() -> None:
     assert generate_wire.render_frame_type(RoomCreatedFrame) == (
         "export type RoomCreatedFrame = {\n"
         "    type: SIGNAL_TYPE.ROOM_CREATED;\n"
