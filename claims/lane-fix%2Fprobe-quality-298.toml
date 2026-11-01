@@ -1,0 +1,7 @@
+claim_id = "a98c0a70fc6b488f94914ee223a6593d"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "6c1c9396db0c5c6f1d2883924a91987488086bbe"
+branch = "fix/probe-quality-298"
+scope = [".github/workflows/ci.yml", "Dockerfile"]
+opened_commit = "d9f828b1eaed6e5a9f30292e1881326484aa59d0"
