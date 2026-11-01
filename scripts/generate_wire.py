@@ -32,9 +32,13 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.signaling.frames import (  # noqa: E402
     ExistingParticipantsFrame,
+    ParticipantJoinedFrame,
+    ParticipantLeftFrame,
     PeerId,
     RoomClosedFrame,
     RoomCreatedFrame,
+    RoomLockedFrame,
+    RoomUnlockedFrame,
 )
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
 
@@ -117,6 +121,10 @@ def _server_frames() -> str:
             render_frame_type(RoomClosedFrame, ROOM_CLOSED_FIELD_TYPES),
             render_frame_type(RoomCreatedFrame),
             render_frame_type(ExistingParticipantsFrame),
+            render_frame_type(ParticipantJoinedFrame),
+            render_frame_type(ParticipantLeftFrame),
+            render_frame_type(RoomLockedFrame),
+            render_frame_type(RoomUnlockedFrame),
         )
     )
 

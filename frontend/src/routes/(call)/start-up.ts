@@ -164,8 +164,7 @@ function registerSessionHandlers() {
         updateParticipantCount();
     });
     on(SIGNAL_TYPE.PARTICIPANT_JOINED, (frame) => {
-        const data = frame as ServerFrame & { participant_id: string; name: string };
-        state.namesByParticipant.set(data.participant_id, data.name);
+        state.namesByParticipant.set(frame.participant_id, frame.name);
         playJoinSound();
         updateParticipantCount();
     });

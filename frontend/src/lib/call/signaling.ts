@@ -5,8 +5,12 @@ import { setStatus } from "#lib/ui/status.svelte.ts";
 import {
     ERROR_REASON,
     type ExistingParticipantsFrame,
+    type ParticipantJoinedFrame,
+    type ParticipantLeftFrame,
+    type RoomLockedFrame,
     type RoomClosedFrame,
     type RoomCreatedFrame,
+    type RoomUnlockedFrame,
     SESSION_ENDED_CLOSE_CODE,
     SIGNAL_TYPE,
     WEBSOCKET_PATH,
@@ -24,7 +28,17 @@ export interface ServerFrame {
 
 // Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
 type Handler = {
-    handle(data: ServerFrame | RoomClosedFrame | RoomCreatedFrame | ExistingParticipantsFrame): void;
+    handle(
+        data:
+            | ServerFrame
+            | RoomClosedFrame
+            | RoomCreatedFrame
+            | ExistingParticipantsFrame
+            | ParticipantJoinedFrame
+            | ParticipantLeftFrame
+            | RoomLockedFrame
+            | RoomUnlockedFrame,
+    ): void;
 }["handle"];
 
 interface Seat {
@@ -52,6 +66,10 @@ function addHandler(type: string, handler: Handler) {
 export function on(type: SIGNAL_TYPE.ROOM_CLOSED, handler: (frame: RoomClosedFrame) => void): void;
 export function on(type: SIGNAL_TYPE.ROOM_CREATED, handler: (frame: RoomCreatedFrame) => void): void;
 export function on(type: SIGNAL_TYPE.EXISTING_PARTICIPANTS, handler: (frame: ExistingParticipantsFrame) => void): void;
+export function on(type: SIGNAL_TYPE.PARTICIPANT_JOINED, handler: (frame: ParticipantJoinedFrame) => void): void;
+export function on(type: SIGNAL_TYPE.PARTICIPANT_LEFT, handler: (frame: ParticipantLeftFrame) => void): void;
+export function on(type: SIGNAL_TYPE.ROOM_LOCKED, handler: (frame: RoomLockedFrame) => void): void;
+export function on(type: SIGNAL_TYPE.ROOM_UNLOCKED, handler: (frame: RoomUnlockedFrame) => void): void;
 export function on(type: SIGNAL_TYPE, handler: (data: ServerFrame) => void): void;
 export function on(
     type: SIGNAL_TYPE,
@@ -59,7 +77,11 @@ export function on(
         | Handler
         | ((frame: RoomClosedFrame) => void)
         | ((frame: RoomCreatedFrame) => void)
-        | ((frame: ExistingParticipantsFrame) => void),
+        | ((frame: ExistingParticipantsFrame) => void)
+        | ((frame: ParticipantJoinedFrame) => void)
+        | ((frame: ParticipantLeftFrame) => void)
+        | ((frame: RoomLockedFrame) => void)
+        | ((frame: RoomUnlockedFrame) => void),
 ) {
     addHandler(type, handler);
 }
