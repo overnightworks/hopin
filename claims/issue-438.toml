@@ -1,0 +1,7 @@
+claim_id = "04c5f47b048f422b9a2503d5b98939f6"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "1ecef86d3647ff4517c320038728b959caaa665e"
+branch = "claude/issue-438-page-image-node-26"
+scope = ["Dockerfile"]
+opened_commit = "8117a0aa326583be3d984a1a32b7143dbec3f8ad"
