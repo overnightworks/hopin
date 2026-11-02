@@ -5,10 +5,11 @@ from typing import TYPE_CHECKING, ClassVar
 
 import pytest
 
-from hopin.config.constants import RoomClosedReason, SignalType
+from hopin.config.constants import ErrorReason, RoomClosedReason, SignalType
 from hopin.signaling.frames import (
     AnswerRelayFrame,
     ChatBroadcastFrame,
+    ErrorFrame,
     IceCandidateRelayFrame,
     MediaStateBroadcastFrame,
     OfferRelayFrame,
@@ -154,6 +155,17 @@ def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type
             "};\n",
         ),
         (
+            ErrorFrame,
+            generate_wire.ERROR_FIELD_TYPES,
+            "export type ErrorFrame = {\n"
+            "    type: SIGNAL_TYPE.ERROR;\n"
+            "    reason: ERROR_REASON;\n"
+            "    message: string;\n"
+            "    capacity?: number;\n"
+            "    limit?: number;\n"
+            "};\n",
+        ),
+        (
             OfferRelayFrame,
             generate_wire.RELAY_FIELD_TYPES,
             "export type OfferRelayFrame = {\n"
@@ -198,6 +210,11 @@ def test_render_frame_type_types_the_chat_media_state_and_relay_broadcasts(
         pytest.param(ChatBroadcastFrame(message="hi", from_=PeerId("p1")), None, id="chat"),
         pytest.param(MediaStateBroadcastFrame(from_=PeerId("p1"), audio=True, video=False), None, id="media_state"),
         pytest.param(
+            ErrorFrame(reason=ErrorReason.FULL, message="m", capacity=2, limit=3),
+            generate_wire.ERROR_FIELD_TYPES,
+            id="error",
+        ),
+        pytest.param(
             OfferRelayFrame(sdp="s", candidate=None, from_=PeerId("p1")), generate_wire.RELAY_FIELD_TYPES, id="offer"
         ),
         pytest.param(
@@ -211,11 +228,16 @@ def test_render_frame_type_types_the_chat_media_state_and_relay_broadcasts(
     ],
 )
 def test_render_frame_type_names_the_properties_the_frame_sends_in_order(
-    frame: ChatBroadcastFrame | MediaStateBroadcastFrame | OfferRelayFrame | AnswerRelayFrame | IceCandidateRelayFrame,
+    frame: ChatBroadcastFrame
+    | MediaStateBroadcastFrame
+    | ErrorFrame
+    | OfferRelayFrame
+    | AnswerRelayFrame
+    | IceCandidateRelayFrame,
     extra_field_types: dict[object, str] | None,
 ) -> None:
     rendered = generate_wire.render_frame_type(type(frame), extra_field_types)
-    properties = [line.split(":")[0].strip() for line in rendered.splitlines()[1:-1]]
+    properties = [line.split(":")[0].strip().removesuffix("?") for line in rendered.splitlines()[1:-1]]
 
     assert properties == list(frame.to_json())
 

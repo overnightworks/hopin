@@ -45,6 +45,14 @@ export type RoomClosedFrame = {
     grace_seconds?: number;
 };
 
+export type ErrorFrame = {
+    type: SIGNAL_TYPE.ERROR;
+    reason: ERROR_REASON;
+    message: string;
+    capacity?: number;
+    limit?: number;
+};
+
 export type RoomCreatedFrame = {
     type: SIGNAL_TYPE.ROOM_CREATED;
     room_id: string;

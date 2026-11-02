@@ -2,7 +2,13 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, NewType, TypeGuard
 
-from hopin.config.constants import MAX_SIGNALING_FRAME_LENGTH, ResumeRefusalCause, RoomClosedReason, SignalType
+from hopin.config.constants import (
+    MAX_SIGNALING_FRAME_LENGTH,
+    ErrorReason,
+    ResumeRefusalCause,
+    RoomClosedReason,
+    SignalType,
+)
 from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError
 
 if TYPE_CHECKING:
@@ -18,17 +24,30 @@ TYPE_KEY = "type"
 PeerId = NewType("PeerId", str)
 
 
-def error_frame(error: HopInError) -> JsonObject:
-    return {
-        TYPE_KEY: SignalType.ERROR.value,
-        "reason": error.reason.value,
-        "message": str(error),
-        **error.frame_fields(),
-    }
-
-
 def _is_sequence_number(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+@dataclass(frozen=True)
+class ErrorFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ERROR
+
+    reason: ErrorReason
+    message: str
+    capacity: int | None = None
+    limit: int | None = None
+
+    def to_json(self) -> JsonObject:
+        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value, "message": self.message}
+        if self.capacity is not None:
+            frame["capacity"] = self.capacity
+        if self.limit is not None:
+            frame["limit"] = self.limit
+        return frame
+
+
+def error_frame(error: HopInError) -> JsonObject:
+    return ErrorFrame(reason=error.reason, message=str(error), **error.frame_fields()).to_json()
 
 
 @dataclass(frozen=True)

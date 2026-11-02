@@ -13,6 +13,7 @@ import {
     type ParticipantJoinedFrame,
     type ParticipantLeftFrame,
     type RoomLockedFrame,
+    type ErrorFrame,
     type RoomClosedFrame,
     type RoomCreatedFrame,
     type RoomUnlockedFrame,
@@ -74,6 +75,7 @@ function addHandler(type: string, handler: Handler) {
 }
 
 export function on(type: SIGNAL_TYPE.ROOM_CLOSED, handler: (frame: RoomClosedFrame) => void): void;
+export function on(type: SIGNAL_TYPE.ERROR, handler: (frame: ErrorFrame) => void): void;
 export function on(type: SIGNAL_TYPE.ROOM_CREATED, handler: (frame: RoomCreatedFrame) => void): void;
 export function on(type: SIGNAL_TYPE.EXISTING_PARTICIPANTS, handler: (frame: ExistingParticipantsFrame) => void): void;
 export function on(type: SIGNAL_TYPE.PARTICIPANT_JOINED, handler: (frame: ParticipantJoinedFrame) => void): void;

@@ -1,12 +1,17 @@
-from typing import ClassVar
+from typing import ClassVar, TypedDict
 
 from hopin.config.constants import MAX_LIVE_SEATS_PER_ACCOUNT, ErrorReason, ResumeRefusalCause
+
+
+class ErrorFrameFields(TypedDict, total=False):
+    capacity: int
+    limit: int
 
 
 class HopInError(Exception):
     reason: ClassVar[ErrorReason]
 
-    def frame_fields(self) -> dict[str, int]:
+    def frame_fields(self) -> ErrorFrameFields:
         return {}
 
 
@@ -26,7 +31,7 @@ class RoomFullError(HopInError):
         self.room_id = room_id
         self.capacity = capacity
 
-    def frame_fields(self) -> dict[str, int]:
+    def frame_fields(self) -> ErrorFrameFields:
         return {"capacity": self.capacity}
 
 
@@ -64,5 +69,5 @@ class TooManyCallsError(HopInError):
     def __init__(self) -> None:
         super().__init__("Account is in too many calls")
 
-    def frame_fields(self) -> dict[str, int]:
+    def frame_fields(self) -> ErrorFrameFields:
         return {"limit": MAX_LIVE_SEATS_PER_ACCOUNT}
