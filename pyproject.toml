@@ -210,7 +210,7 @@ name = "Only the game reaches the agent service"
 type = "forbidden"
 # The agent service's wire and its HTTP client are the game's alone.
 source_modules = ["hopin.main", "hopin.app"]
-forbidden_modules = ["agent_runtime_client", "httpx2"]
+forbidden_modules = ["hopin.agent", "agent_runtime_client", "httpx2"]
 # main imports hopin.game to switch it in; only a direct import is the violation.
 allow_indirect_imports = true
 
