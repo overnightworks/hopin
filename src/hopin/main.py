@@ -6,7 +6,7 @@ import uvicorn
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
-from hopin.game import GameSettings, game_feature  # game
+from hopin.game.feature import configured_game_feature  # game
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ def main(arguments: Sequence[str] | None = None) -> None:
     app = create_app(
         settings,
         page_build=PageBuild.load(BUILD_DIRECTORY),
-        call_feature=game_feature(GameSettings()),  # game
+        call_feature=configured_game_feature(),  # game
     )
     uvicorn.run(app, **uvicorn_options(settings))
 

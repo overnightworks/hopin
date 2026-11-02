@@ -1,5 +1,4 @@
 import re
-from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -35,7 +34,7 @@ from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, poll_until
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.signaling import FrameInjector
-from tests.game.support.fake_agent_service import Holds, Rejects, Succeeds
+from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
 
 if TYPE_CHECKING:
@@ -43,7 +42,7 @@ if TYPE_CHECKING:
 
     from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.server import RunningServer
-    from tests.game.support.fake_agent_service import FakeAgentService
+    from tests.game.support.fake_agent_backend import FakeAgentBackend
     from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
@@ -193,7 +192,7 @@ def test_more_says_under_start_quiz_what_goes_to_the_ai_service(
 
 
 def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -210,7 +209,7 @@ def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(
 
 
 def test_the_guest_sees_the_game_master_thinking_while_the_run_is_in_flight(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     held = Holds()
@@ -234,7 +233,7 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -258,7 +257,7 @@ def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_opens_the_ne
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -287,7 +286,7 @@ def answer_on_card(person: Page, text: str) -> None:
 
 
 def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_render_the_form_again(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
 
     def open_recorded(**options: Any) -> Page:
@@ -320,7 +319,7 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     member_of: Callable[[Page], SeededMember],
     form_factor: dict[str, Any],
 ) -> None:
@@ -372,7 +371,7 @@ def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_se
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -396,7 +395,7 @@ def test_an_answer_over_the_cap_after_a_given_answer_keeps_the_answer_sent_mark(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -419,7 +418,7 @@ def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_ca
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -445,7 +444,7 @@ def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_ca
 
 
 def test_a_page_that_joins_during_a_question_has_no_card_and_plays_from_the_next(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     agent_service.answer_next(Succeeds("Erste?"), Succeeds("Der Tejo."), Succeeds("Zweite?"))
@@ -470,7 +469,7 @@ def test_both_pages_show_the_game_master_thinking_while_the_reveal_runs_and_unti
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -508,7 +507,7 @@ def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_s
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -545,7 +544,7 @@ def test_while_a_question_is_open_more_says_end_quiz_to_the_starter_and_quiz_run
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -566,7 +565,7 @@ def test_the_starters_end_quiz_shows_everyone_quiz_ended_and_frees_start_quiz(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
@@ -594,7 +593,7 @@ def test_the_starters_leave_shows_everyone_quiz_ended_with_the_name_and_frees_st
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
     member_of: Callable[[Page], SeededMember],
     form_factor: dict[str, Any],
 ) -> None:
@@ -617,7 +616,7 @@ def test_the_starters_leave_shows_everyone_quiz_ended_with_the_name_and_frees_st
 
 
 def test_a_players_leave_shrinks_the_count_and_the_reveal_follows_once_everyone_still_there_has_answered(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     third = join(open_person, invite_link, DESKTOP, (), page_errors)
@@ -644,7 +643,7 @@ def test_a_players_leave_shrinks_the_count_and_the_reveal_follows_once_everyone_
 
 
 def test_the_hosts_end_quiz_ends_a_guests_quiz_for_everyone(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -660,7 +659,7 @@ def test_the_hosts_end_quiz_ends_a_guests_quiz_for_everyone(
 
 
 def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alone(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     relays: list[FrameInjector] = []
     host, guest = call_of_two(relaying_frames(open_person, relays), e2e_server.base_url, page_errors)
@@ -688,12 +687,10 @@ def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alo
 
 
 def test_a_refused_reveal_shows_the_starter_the_reason_and_everyone_else_quiz_ended(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
-    agent_service.answer_next(
-        Succeeds("Welcher Fluss fließt durch Lissabon?"), Rejects(HTTPStatus.FORBIDDEN, RejectionCode.NOT_ENABLED)
-    )
+    agent_service.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"), Rejects(RejectionCode.NOT_ENABLED))
     start_quiz(host)
     for person in (host, guest):
         open_chat(person)
@@ -711,10 +708,10 @@ def test_a_refused_reveal_shows_the_starter_the_reason_and_everyone_else_quiz_en
 
 
 def test_an_account_without_ai_access_gets_the_toast_alone_and_the_other_returns_to_idle(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
-    agent_service.answer_next(Rejects(HTTPStatus.FORBIDDEN, RejectionCode.NOT_ENABLED))
+    agent_service.answer_next(Rejects(RejectionCode.NOT_ENABLED))
 
     start_quiz(host)
 
@@ -726,10 +723,10 @@ def test_an_account_without_ai_access_gets_the_toast_alone_and_the_other_returns
 
 
 def test_a_busy_game_master_names_the_seconds_the_service_asked_for(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, _ = call_of_two(open_person, e2e_server.base_url, page_errors)
-    agent_service.answer_next(Rejects(HTTPStatus.TOO_MANY_REQUESTS, RejectionCode.BUSY, retry_after="17"))
+    agent_service.answer_next(Rejects(RejectionCode.BUSY, retry_after_s=17))
 
     start_quiz(host)
 
@@ -738,7 +735,7 @@ def test_a_busy_game_master_names_the_seconds_the_service_asked_for(
 
 
 def test_a_long_answer_is_cut_and_markup_shows_as_text(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentService
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_service: FakeAgentBackend
 ) -> None:
     host, _ = call_of_two(open_person, e2e_server.base_url, page_errors)
     markup = "<b>fett</b><img src=x onerror=alert(1)>"
@@ -780,13 +777,13 @@ def test_sign_in_again_returns_to_this_call_through_the_sign_in(
     assert sign_in_requests == [f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}"]
 
 
-def test_agent_service_leaving_answers_queued_leaves_the_test_passing(agent_service: FakeAgentService) -> None:
+def test_agent_service_leaving_answers_queued_leaves_the_test_passing(agent_service: FakeAgentBackend) -> None:
     agent_service.answer_next(Succeeds("left for the next test"))
 
     assert agent_service.queued_answers == (Succeeds("left for the next test"),)
 
 
 def test_agent_service_answers_queued_by_the_previous_test_do_not_reach_this_one(
-    agent_service: FakeAgentService,
+    agent_service: FakeAgentBackend,
 ) -> None:
     assert agent_service.queued_answers == ()

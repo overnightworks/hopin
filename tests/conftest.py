@@ -28,6 +28,9 @@ def sign_in_settings(tmp_path: Path) -> Callable[..., SignInSettings]:
 def fixture_build_directory(monkeypatch: pytest.MonkeyPatch) -> Path:
     """`hopin.main` loads the committed fixture build, because the unit job has no Node and no build."""
     monkeypatch.setattr("hopin.main.BUILD_DIRECTORY", FIXTURE_DIRECTORY)
+    monkeypatch.setenv("HOPIN_AGENT__BACKEND", "service")  # game
+    monkeypatch.setenv("HOPIN_AGENT__SERVICE_URL", "http://agent-service.test:8080")  # game
+    monkeypatch.setenv("HOPIN_AGENT__WORKLOAD_SCOPE", "test-audience")  # game
     return FIXTURE_DIRECTORY
 
 

@@ -1,11 +1,10 @@
-"""The game master through HopIn's real composition: sockets on `/ws`, a fake issuer and a fake agent service."""
+"""The game master through HopIn's real composition: sockets on `/ws`, a fake issuer and a fake agent backend."""
 
 import asyncio
 import json
 import secrets
 from contextlib import ExitStack
 from dataclasses import dataclass
-from http import HTTPStatus
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -17,11 +16,12 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
-from hopin.game import GameSettings, game_feature
+from hopin.game.feature import game_feature
 from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
-from tests.game.support.fake_agent_service import DEFAULT_QUESTION, FakeAgentService, Holds, Rejects, Succeeds
+from tests.game.support.fake_agent_backend import DEFAULT_QUESTION, FakeAgentBackend, Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
+from tests.game.support.world import agent_settings
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -72,10 +72,10 @@ class Seat:
 
 @dataclass
 class Call:
-    """A HopIn instance whose agent service and issuer are fakes, and a way to seat its members."""
+    """A HopIn instance whose agent backend and issuer are fakes, and a way to seat its members."""
 
     issuer: FakeIssuer
-    service: FakeAgentService
+    backend: FakeAgentBackend
     stores: SignInStores
     client: TestClient
     sockets: ExitStack
@@ -122,11 +122,10 @@ def operator_chosen_scope():
 
 
 @pytest.fixture
-def call(sign_in_settings, monkeypatch, operator_chosen_scope):
-    monkeypatch.setenv("HOPIN_AGENT_SERVICE_SCOPE", operator_chosen_scope)
+def call(sign_in_settings, operator_chosen_scope):
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
-    service = FakeAgentService(issuer)
+    backend = FakeAgentBackend(issuer)
     stores = SignInStores.in_memory()
     app = create_app(
         sign_in.settings,
@@ -134,10 +133,10 @@ def call(sign_in_settings, monkeypatch, operator_chosen_scope):
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        call_feature=game_feature(GameSettings(), transport=service.transport),
+        call_feature=game_feature(agent_settings(operator_chosen_scope), backend),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
-        yield Call(issuer, service, stores, client, sockets)
+        yield Call(issuer, backend, stores, client, sockets)
 
 
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
@@ -198,7 +197,7 @@ def test_the_run_goes_out_on_the_starters_token_pair_not_the_hosts(call):
     guest.start()
     host.frames(3)
 
-    [run] = call.service.runs
+    [run] = call.backend.runs
     assert (run.subject, run.workload_admitted) == (guest_member.account.id, True)
     assert call.refresh_tokens_granted() == [guest_refresh_token]
 
@@ -222,7 +221,7 @@ def test_sign_in_redirects_to_the_issuer_asking_for_the_configured_scope_too(cal
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):
     host, guest, _ = call.host_and_guest()
     held = Holds()
-    call.service.answer_next(held)
+    call.backend.answer_next(held)
 
     host.start()
     assert guest.frames(1) == [phase(GamePhase.THINKING, host)]
@@ -233,12 +232,12 @@ def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(cal
 
     assert host.frames(3) == asked(host)
     assert guest.frames(2) == asked(host)[1:]
-    assert len(call.service.runs) == 1
+    assert len(call.backend.runs) == 1
 
 
 def test_an_account_without_ai_access_is_told_alone_and_the_others_thinking_turns_idle(call):
     host, guest, _ = call.host_and_guest()
-    call.service.answer_next(Rejects(HTTPStatus.FORBIDDEN, RejectionCode.NOT_ENABLED))
+    call.backend.answer_next(Rejects(RejectionCode.NOT_ENABLED))
 
     host.start()
 
@@ -255,13 +254,13 @@ def test_a_session_without_a_refresh_token_is_asked_to_sign_in_again_and_the_cal
     host.chat("Noch da?")
 
     assert chat_text_of(guest.frames(1)[0]) == "Noch da?"
-    assert call.service.runs == []
+    assert call.backend.runs == []
 
 
 def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent_service(call):
     host, guest, _ = call.host_and_guest()
     held = Holds()
-    call.service.answer_next(held, Succeeds("Lissabon."))
+    call.backend.answer_next(held, Succeeds("Lissabon."))
     chat_text = f"Meine Antwort {secrets.token_hex(8)}"
 
     host.start()
@@ -274,7 +273,7 @@ def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent_service(c
     host.reveal()
     host.frames(5)
 
-    assert [run for run in call.service.runs if chat_text in run.request.model_dump_json()] == []
+    assert [run for run in call.backend.runs if chat_text in run.request.model_dump_json()] == []
 
 
 def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_no_chat_line(call):
@@ -284,7 +283,7 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     call.seat(third_member, created["room_id"])
     host.frames(2)
     guest.frames(1)
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
+    call.backend.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
     chat_text = f"Plausch {secrets.token_hex(8)}"
 
     host.start()
@@ -304,7 +303,7 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     host.reveal()
     host.frames(5)
 
-    second, third_run = (run.request for run in call.service.runs[1:])
+    second, third_run = (run.request for run in call.backend.runs[1:])
     [_, _, reveal] = second.turn.messages
     assert reveal.role.value == "user"
     assert answers_in_reveal(reveal.text) == [
@@ -312,7 +311,7 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
         {"name": guest_member.account.username, "antwort": "Mondego"},
     ]
     assert [message.text for message in third_run.turn.messages][-3] == reveal.text
-    for run in call.service.runs:
+    for run in call.backend.runs:
         assert third_member.account.username not in run.request.model_dump_json()
         assert chat_text not in run.request.model_dump_json()
 
@@ -320,14 +319,14 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
 def test_the_reveal_request_holds_the_quiz_so_far_and_an_empty_list_when_nobody_answered(call):
     host_member = call.member()
     host, guest, guest_member = call.host_and_guest(host_member)
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
+    call.backend.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
 
     host.start()
     guest.frames(3)
     host.reveal()
     host.frames(8)
 
-    first, second, third = (run.request for run in call.service.runs)
+    first, second, third = (run.request for run in call.backend.runs)
     first_topic = next(topic for topic in QUIZ_TOPICS if second.turn.messages[0].text == question_request(topic))
     assert [(message.role.value, message.text) for message in second.turn.messages[:2]] == [
         ("user", question_request(first_topic)),
@@ -346,7 +345,7 @@ def test_the_reveal_request_holds_the_quiz_so_far_and_an_empty_list_when_nobody_
 
 def test_each_chained_run_uses_the_refresh_token_the_run_before_it_rotated_in(call):
     _, guest, guest_member = call.host_and_guest()
-    call.service.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
+    call.backend.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
 
     def stored_refresh_token():
         return call.stores.sessions.load(guest_member.session.id).refresh_token.get_secret_value()
@@ -398,17 +397,17 @@ async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_se
     # would run each socket on a loop of its own, whose end cancels the run before the shutdown could.
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
-    service = FakeAgentService(issuer)
+    backend = FakeAgentBackend(issuer)
     stores = SignInStores.in_memory()
     held = Holds()
-    service.answer_next(held)
+    backend.answer_next(held)
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        call_feature=game_feature(GameSettings(), transport=service.transport),
+        call_feature=game_feature(agent_settings(), backend),
     )
     config = installed_web_auth_config(app)
     account = stores.accounts.create_for_subject("subject-anna", "anna", role=config.user_role)
@@ -426,7 +425,7 @@ async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_se
             await to_app.put({"type": "websocket.receive", "text": json.dumps(game_start)})
             await held.started.wait_async()
         runs_logged = [log["outcome"] for log in logs if log["event"] == "game_master_run"]
-    [run] = service.runs
+    [run] = backend.runs
     run_closed_at_shutdown = run.closed.is_set()
     await to_app.put({"type": "websocket.disconnect", "code": 1000})
     await connection

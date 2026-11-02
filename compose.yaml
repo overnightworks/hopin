@@ -16,6 +16,9 @@ services:
       HOPIN_TURN_PROVIDER: cloudflare
       HOPIN_TURN_KEY_ID_FILE: /run/secrets/turn_key_id
       HOPIN_TURN_API_TOKEN_FILE: /run/secrets/turn_api_token
+      HOPIN_AGENT__BACKEND: service
+      HOPIN_AGENT__SERVICE_URL: http://agent-service:8080
+      HOPIN_AGENT__WORKLOAD_SCOPE: agent-service-audience
     secrets:
       - oidc_client_secret
       - session_secret

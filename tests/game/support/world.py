@@ -1,4 +1,4 @@
-"""The adapter's surroundings in one place: a fake issuer, a fake agent service, the stores and a starter."""
+"""The game master's surroundings in one place: a fake issuer, a fake agent backend, the stores and a starter."""
 
 import asyncio
 import threading
@@ -6,13 +6,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
+from agent_runtime_client.config import AgentConfig, BackendKind
 from starlette.requests import HTTPConnection
 
+from hopin.agent.backend import QuizGameMaster, StarterTokens
+from hopin.agent.settings import AgentSettings
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.auth.stores import InMemorySessions, SignInStores
-from hopin.game import AGENT_SERVICE_SCOPE, AGENT_SERVICE_URL, agent_service_game_master
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
-from tests.game.support.fake_agent_service import FakeAgentService
+from tests.game.support.fake_agent_backend import FakeAgentBackend
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.signed_in import cookie_header, seed_member
 
@@ -20,6 +22,7 @@ if TYPE_CHECKING:
     from tests.support.sign_in_settings import SignInSettings
 
 WAIT_CAP_SECONDS = 10
+WORKLOAD_SCOPE = "test-audience"
 # A quiz's first run: it asks for the first question.
 OPENING = (Turn(Speaker.HOPIN, question_request(QUIZ_TOPICS[0])),)
 
@@ -43,25 +46,16 @@ class StoreSpy:
 @dataclass
 class World:
     issuer: FakeIssuer
-    service: FakeAgentService
+    backend: FakeAgentBackend
     stores: SignInStores
     sessions: StoreSpy
     relying_party: object
     web_auth: object
 
-    def game_master_over(self, transport, agent_service_url=AGENT_SERVICE_URL):
-        return agent_service_game_master(
-            agent_service_url,
-            relying_party=self.relying_party,
-            sessions=self.sessions,
-            web_auth=self.web_auth,
-            transport=transport,
-            agent_service_scope=AGENT_SERVICE_SCOPE,
-        )
-
     @property
     def game_master(self):
-        return self.game_master_over(self.service.transport)
+        tokens = StarterTokens(self.relying_party, self.sessions, self.web_auth, WORKLOAD_SCOPE)
+        return QuizGameMaster(self.backend, tokens)
 
     def starter(self, name="anna", *, with_refresh_token=True):
         """A socket's connection carrying the session cookie of a member, and the member."""
@@ -85,7 +79,7 @@ def build_world(sign_in: SignInSettings) -> World:
     stores = SignInStores.in_memory()
     sessions = StoreSpy(stores.sessions)
     relying_party = build_relying_party(configs, issuer.transports)
-    return World(issuer, FakeAgentService(issuer), stores, sessions, relying_party, configs.web_auth)
+    return World(issuer, FakeAgentBackend(issuer), stores, sessions, relying_party, configs.web_auth)
 
 
 async def wait_in_a_worker(event):
@@ -96,3 +90,11 @@ async def cancelled(task):
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+def agent_settings(workload_scope: str = WORKLOAD_SCOPE) -> AgentSettings:
+    return AgentSettings(
+        agent=AgentConfig(
+            backend=BackendKind.SERVICE, service_url="http://agent-service.test:8080", workload_scope=workload_scope
+        )
+    )
