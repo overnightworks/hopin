@@ -1,7 +1,0 @@
-claim_id = "76aed5663d00448ea8387405e58cbff2"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "48444452eb118f4d3f6546971efb985cce09a6d3"
-branch = "docs/probe-lock-wait"
-scope = ["AGENTS.md"]
-opened_commit = "09163cca506b6f7b843376cad5bed6eca4198892"
