@@ -2,8 +2,7 @@
 import type { ComponentInternals } from "svelte";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ServerFrame } from "#lib/call/signaling.ts";
-import { SIGNAL_TYPE } from "#lib/wire.ts";
+import { type ChatBroadcastFrame, SIGNAL_TYPE } from "#lib/wire.ts";
 
 const signaling = vi.hoisted(() => ({
     isConnected: vi.fn(),
@@ -32,13 +31,13 @@ function newView(): FeatureView {
     return () => ({});
 }
 
-function registeredChatHandler(): (data: ServerFrame) => void {
+function registeredChatHandler(): (data: ChatBroadcastFrame) => void {
     const [type, handler] = signaling.on.mock.calls[0] ?? [];
     expect(type).toBe(SIGNAL_TYPE.CHAT);
-    return handler as (data: ServerFrame) => void;
+    return handler as (data: ChatBroadcastFrame) => void;
 }
 
-function receive(data: Record<string, unknown>) {
+function receive(data: Omit<ChatBroadcastFrame, "type">) {
     registeredChatHandler()({ type: SIGNAL_TYPE.CHAT, ...data });
 }
 

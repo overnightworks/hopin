@@ -32,6 +32,7 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
+    SEQUENCE_KEY,
     AnswerRelayFrame,
     ChatBroadcastFrame,
     ErrorFrame,
@@ -43,6 +44,7 @@ from hopin.signaling.frames import (  # noqa: E402
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
     PeerId,
+    ResumedFrame,
     RoomClosedFrame,
     RoomCreatedFrame,
     RoomLockedFrame,
@@ -127,24 +129,38 @@ def render_frame_type(
     return f"export type {frame_cls.__name__} = {{\n" + "".join(lines) + "};\n"
 
 
-def _server_frames() -> str:
-    return "\n".join(
-        (
-            render_frame_type(RoomClosedFrame, ROOM_CLOSED_FIELD_TYPES),
-            render_frame_type(ErrorFrame, ERROR_FIELD_TYPES),
-            render_frame_type(RoomCreatedFrame),
-            render_frame_type(ExistingParticipantsFrame),
-            render_frame_type(ParticipantJoinedFrame),
-            render_frame_type(ParticipantLeftFrame),
-            render_frame_type(RoomLockedFrame),
-            render_frame_type(RoomUnlockedFrame),
-            render_frame_type(ChatBroadcastFrame),
-            render_frame_type(MediaStateBroadcastFrame),
-            render_frame_type(OfferRelayFrame, RELAY_FIELD_TYPES),
-            render_frame_type(AnswerRelayFrame, RELAY_FIELD_TYPES),
-            render_frame_type(IceCandidateRelayFrame, RELAY_FIELD_TYPES),
-        )
+SERVER_FRAMES: dict[type[ServerFrame], Mapping[object, str] | None] = {
+    RoomClosedFrame: ROOM_CLOSED_FIELD_TYPES,
+    ErrorFrame: ERROR_FIELD_TYPES,
+    RoomCreatedFrame: None,
+    ExistingParticipantsFrame: None,
+    ParticipantJoinedFrame: None,
+    ParticipantLeftFrame: None,
+    RoomLockedFrame: None,
+    RoomUnlockedFrame: None,
+    ChatBroadcastFrame: None,
+    MediaStateBroadcastFrame: None,
+    OfferRelayFrame: RELAY_FIELD_TYPES,
+    AnswerRelayFrame: RELAY_FIELD_TYPES,
+    IceCandidateRelayFrame: RELAY_FIELD_TYPES,
+    ResumedFrame: None,
+}
+
+
+def _server_frame_map() -> str:
+    entries = "".join(
+        f"{INDENT}[SIGNAL_TYPE.{frame_cls.TYPE.name}]: {frame_cls.__name__};\n" for frame_cls in SERVER_FRAMES
     )
+    return (
+        f"export type ServerFrameByType = {{\n{entries}}};\n"
+        "export type ServerFrame = ServerFrameByType[keyof ServerFrameByType];\n"
+        f"export type SequencedFrame = ServerFrame & {{ {SEQUENCE_KEY}?: number }};\n"
+    )
+
+
+def _server_frames() -> str:
+    frame_types = [render_frame_type(frame_cls, extra) for frame_cls, extra in SERVER_FRAMES.items()]
+    return "\n".join((*frame_types, _server_frame_map()))
 
 
 def render_core() -> str:
