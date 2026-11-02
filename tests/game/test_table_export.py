@@ -5,13 +5,12 @@ import pytest
 from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
+from hopin.agent.feature import GameFeature
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
-from hopin.game.feature import game_feature
 from hopin.game.vocabulary import GameSignal
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Succeeds
-from tests.game.support.world import agent_settings
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, read_archive, withheld_counts
@@ -28,18 +27,18 @@ def stores():
 
 @pytest.fixture
 def quiz_call(sign_in_settings, stores):
-    """A HopIn whose issuer and agent service are fakes, the service answering the first run with `question`."""
+    """A HopIn whose issuer and agent backend are fakes, the backend answering the first run with `question`."""
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
-    service = FakeAgentBackend(issuer)
+    backend = FakeAgentBackend()
     question = f"Quizfrage {secrets.token_hex(8)}?"
-    service.answer_next(Succeeds(question))
+    backend.answer_next(Succeeds(question))
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
-        call_feature=game_feature(agent_settings(), service),
+        call_feature=GameFeature(backend),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client:
         yield client, issuer, installed_web_auth_config(app), question

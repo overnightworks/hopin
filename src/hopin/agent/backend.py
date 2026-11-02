@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from contextlib import aclosing, nullcontext
 from enum import StrEnum
 from functools import partial
@@ -8,14 +7,12 @@ from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
 from agent_runtime_client.agents import load_agent
-from agent_runtime_client.backend import AgentBackend, Asker, RunTokens, TurnEvent, TurnStopKind, TurnStopped
-from agent_runtime_client.backend.service import ServiceBackend
-from agent_runtime_client.capability import CapabilityPrincipal
+from agent_runtime_client.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopKind, TurnStopped
+from agent_runtime_client.backend.gateway import GatewayBackend
+from agent_runtime_client.turn import AgentRole, Principal, RejectionCode, TurnMessage, TurnRole
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
-from agent_runtime_client.wire import RejectionCode, TurnMessage, TurnRole
 from webauth.dependencies import session_id_from_request
-from webauth.oidc import OidcRefusal
-from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, fresh_access_token
+from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, current_groups
 
 from hopin.agent.tools import TOOLS
 from hopin.game.quiz import Speaker, Turn
@@ -27,10 +24,9 @@ from hopin.game.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from pydantic import SecretStr
     from starlette.requests import HTTPConnection
     from webauth.config import WebAuthConfig
-    from webauth.oidc import OidcRelyingParty
+    from webauth.oidc import OidcRefusal, OidcRelyingParty
     from webauth.ports import SessionRecordStore
 
     from hopin.agent.settings import AgentSettings
@@ -44,39 +40,10 @@ CUT_MARK: Final = "…"
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: TurnRole.ASSISTANT}
 NO_ACCESS_CODES: Final = frozenset({RejectionCode.NOT_ENABLED, RejectionCode.FORBIDDEN})
-# The loggers httpx2 and httpcore2 log on: the status line at INFO, the headers and every transport error
-# at DEBUG, where the agent service may echo a token or the game's text. A logger's filter sees only the
-# records logged on that logger, not on its children, so each one gets it; only this package sends through them.
-TRANSPORT_LOGGERS: Final = (
-    "httpx2",
-    "httpcore2.connection",
-    "httpcore2.http11",
-    "httpcore2.http2",
-    "httpcore2.proxy",
-    "httpcore2.socks",
-)
 
 
-def _unlogged(record: logging.LogRecord) -> bool:
-    del record
-    return False
-
-
-def silence_transport_logs() -> None:
-    for logger_name in TRANSPORT_LOGGERS:
-        logging.getLogger(logger_name).addFilter(_unlogged)
-
-
-def service_backend(settings: AgentSettings) -> QuizBackend:
-    """The client's backend on the agent service; as a side effect, silence the transport loggers
-    that could write a token."""
-    silence_transport_logs()
-    return ServiceBackend(settings.agent)
-
-
-class RunToken(StrEnum):
-    PERSON = "person"
-    WORKLOAD = "workload"
+def gateway_backend(settings: AgentSettings) -> QuizBackend:
+    return GatewayBackend(settings.agent)
 
 
 class IssuerError(StrEnum):
@@ -100,55 +67,45 @@ class IssuerError(StrEnum):
 
 
 class StarterRefusedError(Exception):
-    """The starter's tokens cannot be had; raised to the backend's caller so that no request is made."""
+    """The starter's standing cannot be read; raised to the backend's caller so that no request is made."""
 
     def __init__(self, refusal: GameRefusal) -> None:
         super().__init__(refusal.value)
         self.refusal = refusal
 
 
-class StarterTokens:
-    """Fetches the two tokens a run is sent with, from the issuer, for the session the starter's socket opened with."""
+class StarterPerson:
+    """Reads who a run is for, from the session the starter's socket opened with."""
 
-    def __init__(
-        self,
-        relying_party: OidcRelyingParty,
-        sessions: SessionRecordStore,
-        web_auth: WebAuthConfig,
-        workload_scope: str,
-    ) -> None:
+    def __init__(self, relying_party: OidcRelyingParty, sessions: SessionRecordStore, web_auth: WebAuthConfig) -> None:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
-        self._workload_scope = workload_scope
 
-    async def asker_for(self, starter: HTTPConnection) -> Asker:
-        """The starter as the backend's `Asker`; raises `StarterRefusedError` without a standing session."""
+    async def person_of(self, starter: HTTPConnection) -> TurnPerson:
+        """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
         session_id = session_id_from_request(starter, self._web_auth)
         if session_id is None:
             raise StarterRefusedError(GameRefusal.SIGN_IN_AGAIN)
         record = await asyncio.to_thread(self._sessions.load, session_id)
         if record is None:
-            ended = AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)
-            raise StarterRefusedError(_refusal_of_person_token(ended))
-        # webauth binds the store to one issuer, and an account's id is that issuer's `sub`.
-        principal = CapabilityPrincipal(iss=self._relying_party.issuer, sub=record.user.id)
-        return Asker(principal, partial(self._tokens, session_id))
+            raise StarterRefusedError(_refusal_of_groups(AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)))
+        # webauth binds the store to one issuer, and an account's id is that issuer's `sub`. Two spellings
+        # of the issuer would split one person's budget, so it goes out exactly as the relying party holds it.
+        principal = Principal(iss=self._relying_party.issuer, sub=record.user.id)
+        role: AgentRole = "admin" if record.user.role == self._web_auth.admin_role else "user"
+        return TurnPerson(principal, role, partial(self._groups, session_id))
 
-    async def _tokens(self, session_id: str) -> RunTokens:
-        # Both grants block on the issuer, so each runs in a worker. A cancelled run cancels the await,
-        # not the worker: its token is dropped unread and no later step runs.
-        person = await asyncio.to_thread(self._person_token, session_id)
-        if isinstance(person, AccessTokenRefusal):
-            raise StarterRefusedError(_refusal_of_person_token(person))
-        workload = await asyncio.to_thread(self._relying_party.workload_access_token, scopes=(self._workload_scope,))
-        if isinstance(workload, OidcRefusal):
-            _log_token_refusal(RunToken.WORKLOAD, workload)
-            raise StarterRefusedError(GameRefusal.UNAVAILABLE)
-        return RunTokens(person=person, workload=workload)
+    async def _groups(self, session_id: str) -> frozenset[str]:
+        # The grant blocks on the issuer, so it runs in a worker. A cancelled run cancels the await,
+        # not the worker: it still stores the rotated refresh token, and no later step runs.
+        groups = await asyncio.to_thread(self._current_groups, session_id)
+        if isinstance(groups, AccessTokenRefusal):
+            raise StarterRefusedError(_refusal_of_groups(groups))
+        return frozenset(groups)
 
-    def _person_token(self, session_id: str) -> SecretStr | AccessTokenRefusal:
-        return fresh_access_token(
+    def _current_groups(self, session_id: str) -> tuple[str, ...] | AccessTokenRefusal:
+        return current_groups(
             self._relying_party,
             session_id,
             session_transaction=lambda: nullcontext(self._sessions),
@@ -157,18 +114,18 @@ class StarterTokens:
 
 
 class QuizGameMaster:
-    """Asks the quiz agent for the game master's next line through the backend, on the starter's own access."""
+    """Asks the quiz agent for the game master's next line through the backend, for the starter."""
 
-    def __init__(self, backend: QuizBackend, tokens: StarterTokens) -> None:
+    def __init__(self, backend: QuizBackend, starter_person: StarterPerson) -> None:
         self._backend = backend
-        self._tokens = tokens
+        self._starter_person = starter_person
         self._agent = load_agent(QUIZ_AGENT_FILE, list(TOOLS))
 
     async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
         request = self._agent.request(_turn_messages(transcript))
         try:
-            asker = await self._tokens.asker_for(starter)
-            async with aclosing(self._backend.run(request, asker)) as events:
+            person = await self._starter_person.person_of(starter)
+            async with aclosing(self._backend.run(request, person)) as events:
                 async for event in events:
                     outcome = _outcome_of_event(event)
                     if outcome is not None:
@@ -226,12 +183,12 @@ def _cut(text: str) -> str:
 
 
 def _log_refusal(**codes: str | None) -> None:
-    # Only closed values: a body, a message or an exception's text may carry the person's token or the game's text.
-    logger.info("agent_service_refused", **{name: code for name, code in codes.items() if code is not None})
+    # Only closed values: a body, a message or an exception's text may carry the game's text.
+    logger.info("game_master_turn_refused", **{name: code for name, code in codes.items() if code is not None})
 
 
-def _refusal_of_person_token(refusal: AccessTokenRefusal) -> GameRefusal:
-    _log_token_refusal(RunToken.PERSON, refusal.issuer_refusal, reason=refusal.reason)
+def _refusal_of_groups(refusal: AccessTokenRefusal) -> GameRefusal:
+    _log_groups_refusal(refusal)
     match refusal.reason:
         case AccessTokenRefusalReason.SESSION_ENDED | AccessTokenRefusalReason.SIGN_IN_AGAIN:
             return GameRefusal.SIGN_IN_AGAIN
@@ -241,17 +198,15 @@ def _refusal_of_person_token(refusal: AccessTokenRefusal) -> GameRefusal:
             assert_never(refusal.reason)
 
 
-def _log_token_refusal(
-    token: RunToken, issuer_refusal: OidcRefusal | None, *, reason: AccessTokenRefusalReason | None = None
-) -> None:
+def _log_groups_refusal(refusal: AccessTokenRefusal) -> None:
+    issuer_refusal = refusal.issuer_refusal
     codes = {
-        "reason": None if reason is None else reason.value,
         "issuer_reason": None if issuer_refusal is None else issuer_refusal.reason.value,
         "idp_error": _issuer_error(issuer_refusal),
     }
     logger.info(
-        "game_master_token_refused",
-        token=token.value,
+        "game_master_groups_refused",
+        reason=refusal.reason.value,
         **{name: code for name, code in codes.items() if code},
     )
 

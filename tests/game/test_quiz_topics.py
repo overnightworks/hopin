@@ -2,7 +2,7 @@ from functools import partial
 
 import pytest
 
-from hopin.game.feature import draw_quiz_topics
+from hopin.agent.feature import draw_quiz_topics
 from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS, question_request
 from hopin.game.table import Game, Line
 from tests.game.support.table_world import END, IDLE, call_of, let_every_task_run, open_a_question, sent_to_all

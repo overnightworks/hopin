@@ -3,25 +3,23 @@
 import asyncio
 import json
 import secrets
-from contextlib import ExitStack
-from dataclasses import dataclass
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 
 import pytest
 import structlog.testing
-from agent_runtime_client.wire import RejectionCode
-from fastapi.testclient import TestClient
+from agent_runtime_client.turn import RejectionCode
 from webauth.config import installed_web_auth_config
 
+from hopin.agent.feature import GameFeature
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
-from hopin.game.feature import game_feature
-from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS, question_request
-from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
-from tests.game.support.fake_agent_backend import DEFAULT_QUESTION, FakeAgentBackend, Holds, Rejects, Succeeds
+from hopin.game.quiz import QUIZ_TOPICS, question_request
+from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefusal, GameSignal
+from tests.game.support.call_world import IDLE, asked, phase, question, refused, serving_call
+from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
-from tests.game.support.world import agent_settings
+from tests.game.support.world import wait_in_a_worker
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -31,146 +29,20 @@ from tests.support.signed_in import handshake_headers, seed_member
 pytestmark = pytest.mark.integration
 
 
-class Seat:
-    """One browser's socket: it numbers each frame after the join, as the page does."""
-
-    def __init__(self, socket):
-        self._socket = socket
-        self._sent = 0
-        self.participant_id = None
-
-    def join(self, room_id=None):
-        join = {"type": SignalType.JOIN.value}
-        if room_id is not None:
-            join["room_id"] = room_id
-        self._socket.send_json(join)
-        joined = self._socket.receive_json()
-        self.participant_id = joined["participant_id"]
-        return joined
-
-    def send(self, frame):
-        self._sent += 1
-        self._socket.send_json({**frame, "seq": self._sent})
-
-    def start(self):
-        self.send({"type": GameSignal.GAME_START.value})
-
-    def reveal(self):
-        self.send({"type": GameSignal.GAME_REVEAL.value})
-
-    def answer(self, text):
-        self.send({"type": GameSignal.GAME_ANSWER.value, "text": text})
-
-    def chat(self, text):
-        self.send({"type": SignalType.CHAT.value, "message": text})
-
-    def frames(self, count):
-        """The next `count` frames, without their replay sequence number."""
-        received = [self._socket.receive_json() for _ in range(count)]
-        return [{key: value for key, value in frame.items() if key != "seq"} for frame in received]
-
-
-@dataclass
-class Call:
-    """A HopIn instance whose agent backend and issuer are fakes, and a way to seat its members."""
-
-    issuer: FakeIssuer
-    backend: FakeAgentBackend
-    stores: SignInStores
-    client: TestClient
-    sockets: ExitStack
-
-    def member(self, *, with_refresh_token=True):
-        config = installed_web_auth_config(self.client.app)
-        name = f"member-{secrets.token_hex(4)}"
-        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=config.user_role)
-        refresh_token = self.issuer.refresh_token_for(account.id) if with_refresh_token else None
-        return seed_member(self.stores, config, account=account, refresh_token=refresh_token)
-
-    def seat(self, member, room_id=None):
-        socket = self.sockets.enter_context(
-            self.client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member))
-        )
-        seat = Seat(socket)
-        return seat, seat.join(room_id)
-
-    def host_and_guest(self, host_member=None):
-        host, created = self.seat(self.member() if host_member is None else host_member)
-        guest_member = self.member()
-        guest, _ = self.seat(guest_member, created["room_id"])
-        host.frames(1)
-        return host, guest, guest_member
-
-    def client_credentials_scopes(self):
-        return [
-            request.form["scope"]
-            for request, _ in self.issuer.exchanges
-            if request.form["grant_type"] == "client_credentials"
-        ]
-
-    def refresh_tokens_granted(self):
-        return [
-            request.form["refresh_token"]
-            for request, _ in self.issuer.exchanges
-            if request.form["grant_type"] == "refresh_token"
-        ]
-
-
 @pytest.fixture
-def operator_chosen_scope():
-    return "scenario-audience"
-
-
-@pytest.fixture
-def call(sign_in_settings, operator_chosen_scope):
+def call(sign_in_settings):
     sign_in = sign_in_settings()
-    issuer = FakeIssuer(sign_in)
-    backend = FakeAgentBackend(issuer)
-    stores = SignInStores.in_memory()
-    app = create_app(
-        sign_in.settings,
-        page_build=fixture_page_build(),
-        issuer_transports=issuer.transports,
-        stores=stores,
-        scheduler=ManualScheduler(),
-        call_feature=game_feature(agent_settings(operator_chosen_scope), backend),
-    )
-    with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
-        yield Call(issuer, backend, stores, client, sockets)
-
-
-IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
-
-
-def phase(game_phase, starter, round_number=1):
-    return {
-        "type": GameSignal.GAME_PHASE.value,
-        "phase": game_phase.value,
-        "round": round_number,
-        "rounds": QUIZ_ROUNDS,
-        "starter": starter.participant_id,
-    }
-
-
-def question(text=DEFAULT_QUESTION, round_number=1):
-    return {"type": GameSignal.GAME_LINE.value, "text": text, "round": round_number}
+    with serving_call(sign_in, FakeIssuer(sign_in), FakeAgentBackend()) as serving:
+        yield serving
 
 
 def line(text):
     return {"type": GameSignal.GAME_LINE.value, "text": text}
 
 
-def refused(reason):
-    return {"type": GameSignal.GAME_REFUSED.value, "reason": reason.value}
-
-
 def chat_text_of(frame):
     assert frame["type"] == SignalType.CHAT.value
     return frame["message"]
-
-
-def asked(starter, text=DEFAULT_QUESTION):
-    return [phase(GamePhase.THINKING, starter), question(text), phase(GamePhase.ANSWERING, starter)]
 
 
 def revealed(starter, text):
@@ -190,7 +62,7 @@ def test_a_guests_start_puts_the_question_in_the_hosts_chat_too(call):
     assert guest.frames(3) == asked(guest)
 
 
-def test_the_run_goes_out_on_the_starters_token_pair_not_the_hosts(call):
+def test_the_run_goes_out_for_the_starter_on_the_starters_own_grant_not_the_hosts(call):
     host, guest, guest_member = call.host_and_guest()
     guest_refresh_token = call.stores.sessions.load(guest_member.session.id).refresh_token.get_secret_value()
 
@@ -198,24 +70,8 @@ def test_the_run_goes_out_on_the_starters_token_pair_not_the_hosts(call):
     host.frames(3)
 
     [run] = call.backend.runs
-    assert (run.subject, run.workload_admitted) == (guest_member.account.id, True)
+    assert run.principal.sub == guest_member.account.id
     assert call.refresh_tokens_granted() == [guest_refresh_token]
-
-
-def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(call, operator_chosen_scope):
-    host, _, _ = call.host_and_guest()
-
-    host.start()
-    host.frames(3)
-
-    assert call.client_credentials_scopes() == [operator_chosen_scope]
-
-
-def test_sign_in_redirects_to_the_issuer_asking_for_the_configured_scope_too(call, operator_chosen_scope):
-    response = call.client.get("/auth/start")
-
-    scope = parse_qs(urlsplit(response.headers["location"]).query)["scope"]
-    assert scope == [f"openid profile groups {operator_chosen_scope}"]
 
 
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):
@@ -257,7 +113,28 @@ def test_a_session_without_a_refresh_token_is_asked_to_sign_in_again_and_the_cal
     assert call.backend.runs == []
 
 
-def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent_service(call):
+def test_a_store_failure_while_reading_the_groups_is_logged_by_its_type_alone_and_the_call_goes_on(call, monkeypatch):
+    host, guest, _ = call.host_and_guest()
+    detail = secrets.token_hex(8)
+
+    def fail_to_store(*_arguments, **_keywords):
+        raise ConnectionError(detail)
+
+    monkeypatch.setattr(call.stores.sessions, "replace_refresh_token", fail_to_store)
+
+    with structlog.testing.capture_logs() as logs:
+        host.start()
+        frames = host.frames(3)
+    host.chat("Noch da?")
+
+    assert frames == [phase(GamePhase.THINKING, host), refused(GameRefusal.UNAVAILABLE), IDLE]
+    assert {"event": "game_master_raised", "log_level": "error", "error": "ConnectionError"} in logs
+    assert detail not in repr(logs)
+    assert guest.frames(3)[-1]["message"] == "Noch da?"
+    assert call.backend.runs == []
+
+
+def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent(call):
     host, guest, _ = call.host_and_guest()
     held = Holds()
     call.backend.answer_next(held, Succeeds("Lissabon."))
@@ -391,44 +268,82 @@ def socket_scope(member):
     }
 
 
+class OneLoopServer:
+    """One event loop serves the lifespan and the socket here, as the server's does; the test client
+    would run each socket on a loop of its own, whose end cancels the run before a shutdown could."""
+
+    def __init__(self, sign_in_settings):
+        sign_in = sign_in_settings()
+        self.issuer = FakeIssuer(sign_in)
+        self.backend = FakeAgentBackend()
+        self.scheduler = ManualScheduler()
+        self._stores = SignInStores.in_memory()
+        self.app = create_app(
+            sign_in.settings,
+            page_build=fixture_page_build(),
+            issuer_transports=self.issuer.transports,
+            stores=self._stores,
+            scheduler=self.scheduler,
+            call_feature=GameFeature(self.backend),
+        )
+        self._to_app, self._from_app = asyncio.Queue(), asyncio.Queue()
+        self._connection = None
+
+    def _member(self):
+        config = installed_web_auth_config(self.app)
+        account = self._stores.accounts.create_for_subject("subject-anna", "anna", role=config.user_role)
+        return seed_member(
+            self._stores, config, account=account, refresh_token=self.issuer.refresh_token_for(account.id)
+        )
+
+    async def start_a_quiz(self):
+        scope = socket_scope(self._member())
+        self._connection = asyncio.create_task(self.app(scope, self._to_app.get, self._from_app.put))
+        await self._to_app.put({"type": "websocket.connect"})
+        assert (await self._from_app.get())["type"] == "websocket.accept"
+        await self._to_app.put({"type": "websocket.receive", "text": json.dumps({"type": SignalType.JOIN.value})})
+        await self._from_app.get()
+        game_start = {"type": GameSignal.GAME_START.value, "seq": 1}
+        await self._to_app.put({"type": "websocket.receive", "text": json.dumps(game_start)})
+
+    async def leave(self):
+        await self._to_app.put({"type": "websocket.disconnect", "code": 1000})
+        await self._connection
+
+
 @pytest.mark.asyncio
 async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_settings):
-    # One event loop serves the lifespan and the socket here, as the server's does; the test client
-    # would run each socket on a loop of its own, whose end cancels the run before the shutdown could.
-    sign_in = sign_in_settings()
-    issuer = FakeIssuer(sign_in)
-    backend = FakeAgentBackend(issuer)
-    stores = SignInStores.in_memory()
+    server = OneLoopServer(sign_in_settings)
     held = Holds()
-    backend.answer_next(held)
-    app = create_app(
-        sign_in.settings,
-        page_build=fixture_page_build(),
-        issuer_transports=issuer.transports,
-        stores=stores,
-        scheduler=ManualScheduler(),
-        call_feature=game_feature(agent_settings(), backend),
-    )
-    config = installed_web_auth_config(app)
-    account = stores.accounts.create_for_subject("subject-anna", "anna", role=config.user_role)
-    member = seed_member(stores, config, account=account, refresh_token=issuer.refresh_token_for(account.id))
-    to_app, from_app = asyncio.Queue(), asyncio.Queue()
+    server.backend.answer_next(held)
 
     with structlog.testing.capture_logs() as logs:
-        async with app.router.lifespan_context(app):
-            connection = asyncio.create_task(app(socket_scope(member), to_app.get, from_app.put))
-            await to_app.put({"type": "websocket.connect"})
-            assert (await from_app.get())["type"] == "websocket.accept"
-            await to_app.put({"type": "websocket.receive", "text": json.dumps({"type": SignalType.JOIN.value})})
-            await from_app.get()
-            game_start = {"type": GameSignal.GAME_START.value, "seq": 1}
-            await to_app.put({"type": "websocket.receive", "text": json.dumps(game_start)})
+        async with server.app.router.lifespan_context(server.app):
+            await server.start_a_quiz()
             await held.started.wait_async()
         runs_logged = [log["outcome"] for log in logs if log["event"] == "game_master_run"]
-    [run] = backend.runs
+    [run] = server.backend.runs
     run_closed_at_shutdown = run.closed.is_set()
-    await to_app.put({"type": "websocket.disconnect", "code": 1000})
-    await connection
+    await server.leave()
 
     assert run_closed_at_shutdown
     assert runs_logged == [GameRefusal.UNAVAILABLE.value]
+
+
+@pytest.mark.asyncio
+async def test_the_run_deadline_during_a_held_refresh_grant_ends_the_run_unavailable_with_no_turn(sign_in_settings):
+    server = OneLoopServer(sign_in_settings)
+    hold = server.issuer.hold("refresh_token")
+
+    with structlog.testing.capture_logs() as logs:
+        async with server.app.router.lifespan_context(server.app):
+            await server.start_a_quiz()
+            await wait_in_a_worker(hold.parked)
+            await server.scheduler.advance(GAME_RUN_DEADLINE_SECONDS)
+            hold.release.set()
+            await wait_in_a_worker(hold.answered)
+            await server.leave()
+        runs_logged = [log["outcome"] for log in logs if log["event"] == "game_master_run"]
+
+    assert runs_logged == [GameRefusal.UNAVAILABLE.value]
+    assert server.backend.runs == []

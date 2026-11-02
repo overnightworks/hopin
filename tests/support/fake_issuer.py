@@ -68,12 +68,11 @@ class FakeIssuer:
         self.token_endpoint_is_down = False
         self.key_set_is_down = False
         self.refuses_refresh_grants = False
-        self.refuses_workload_grants = False
-        self.workload_refusal_error = "unauthorized_client"
+        self.refresh_refusal_error = "invalid_grant"
+        self.omits_the_id_token_of_a_refresh_grant = False
         self._guard = threading.Lock()
         self._subjects_of_refresh_tokens: dict[str, str] = {}
-        self._subjects_of_access_tokens: dict[str, str] = {}
-        self._workload_tokens: set[str] = set()
+        self._groups_of_subjects: dict[str, list[str]] = {}
         self._holds: dict[str, GrantHold] = {}
 
     @property
@@ -108,13 +107,10 @@ class FakeIssuer:
             self._subjects_of_refresh_tokens[refresh_token] = subject
         return refresh_token
 
-    def subject_of_access_token(self, access_token: str) -> str | None:
+    def grant_groups(self, subject: str, groups: tuple[str, ...]) -> None:
+        """The group paths the ID token of the subject's refresh grants holds; a subject never named here holds none."""
         with self._guard:
-            return self._subjects_of_access_tokens.get(access_token)
-
-    def is_workload_token(self, access_token: str) -> bool:
-        with self._guard:
-            return access_token in self._workload_tokens
+            self._groups_of_subjects[subject] = list(groups)
 
     def hold(self, grant_type: str) -> GrantHold:
         """Park every later grant of this type until the hold is released."""
@@ -160,41 +156,31 @@ class FakeIssuer:
     def _grant(self, grant_type: str, request: TokenRequest) -> TokenEndpointAnswer:
         if grant_type == "refresh_token":
             return self._renewal(request.form["refresh_token"])
-        if grant_type == "client_credentials":
-            return self._workload_access()
         return self._code_exchange(request)
 
     def _renewal(self, refresh_token: str) -> TokenEndpointAnswer:
         with self._guard:
             subject = self._subjects_of_refresh_tokens.pop(refresh_token, None)
             if subject is None or self.refuses_refresh_grants:
-                return self._refusal(HTTPStatus.BAD_REQUEST, "invalid_grant")
+                return self._refusal(HTTPStatus.BAD_REQUEST, self.refresh_refusal_error)
             rotated = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
             self._subjects_of_refresh_tokens[rotated] = subject
-            access_token = secrets.token_urlsafe(ACCESS_TOKEN_BYTES)
-            self._subjects_of_access_tokens[access_token] = subject
-        return self._bearer_answer(access_token, refresh_token=rotated)
-
-    def _workload_access(self) -> TokenEndpointAnswer:
-        if self.refuses_workload_grants:
-            return self._refusal(HTTPStatus.BAD_REQUEST, self.workload_refusal_error)
-        access_token = secrets.token_urlsafe(ACCESS_TOKEN_BYTES)
-        with self._guard:
-            self._workload_tokens.add(access_token)
-        return self._bearer_answer(access_token)
-
-    @staticmethod
-    def _bearer_answer(access_token: str, *, refresh_token: str | None = None) -> TokenEndpointAnswer:
-        body = {"access_token": access_token, "token_type": "Bearer", "expires_in": TOKEN_LIFETIME_SECONDS}
-        if refresh_token is not None:
-            body["refresh_token"] = refresh_token
+            groups = self._groups_of_subjects.get(subject, [])
+        body: dict[str, object] = {
+            "access_token": secrets.token_urlsafe(ACCESS_TOKEN_BYTES),
+            "token_type": "Bearer",
+            "expires_in": TOKEN_LIFETIME_SECONDS,
+            "refresh_token": rotated,
+        }
+        if not self.omits_the_id_token_of_a_refresh_grant:
+            body["id_token"] = self._sign({"sub": subject, "groups": groups})
         return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
 
     def _code_exchange(self, request: TokenRequest) -> TokenEndpointAnswer:
         issued = self._codes.pop(request.form["code"], None)
         if issued is None or not self._proves_possession(issued, request.form["code_verifier"]):
             return self._refusal(HTTPStatus.BAD_REQUEST, "invalid_grant")
-        body = {"id_token": self._sign(issued), "refresh_token": self.refresh_token}
+        body = {"id_token": self._sign({"nonce": issued.nonce, **issued.claims}), "refresh_token": self.refresh_token}
         return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
 
     def fetch_key_set(self, url: str) -> bytes:
@@ -221,14 +207,12 @@ class FakeIssuer:
         digest = hashlib.sha256(code_verifier.encode()).digest()
         return base64.urlsafe_b64encode(digest).rstrip(b"=").decode() == issued.code_challenge
 
-    def _sign(self, issued: _IssuedCode) -> str:
+    def _sign(self, claims: dict[str, object]) -> str:
         issued_at = int(time.time())
-        claims = {
+        registered = {
             "iss": self._issuer,
             "aud": self._client_id,
             "iat": issued_at,
             "exp": issued_at + TOKEN_LIFETIME_SECONDS,
-            "nonce": issued.nonce,
-            **issued.claims,
         }
-        return jwt.encode(claims, self._key, algorithm="RS256", headers={"kid": KEY_ID})
+        return jwt.encode({**registered, **claims}, self._key, algorithm="RS256", headers={"kid": KEY_ID})

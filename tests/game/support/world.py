@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
-from agent_runtime_client.config import AgentConfig, BackendKind
+from agent_runtime_client.config import AgentConfig, BackendKind, ChatGateway
 from starlette.requests import HTTPConnection
 
-from hopin.agent.backend import QuizGameMaster, StarterTokens
+from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.auth.stores import InMemorySessions, SignInStores
@@ -19,10 +19,12 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.signed_in import cookie_header, seed_member
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from tests.support.sign_in_settings import SignInSettings
 
 WAIT_CAP_SECONDS = 10
-WORKLOAD_SCOPE = "test-audience"
+API_GROUP = "/services/scenario/api"
 # A quiz's first run: it asks for the first question.
 OPENING = (Turn(Speaker.HOPIN, question_request(QUIZ_TOPICS[0])),)
 
@@ -54,12 +56,11 @@ class World:
 
     @property
     def game_master(self):
-        tokens = StarterTokens(self.relying_party, self.sessions, self.web_auth, WORKLOAD_SCOPE)
-        return QuizGameMaster(self.backend, tokens)
+        return QuizGameMaster(self.backend, StarterPerson(self.relying_party, self.sessions, self.web_auth))
 
-    def starter(self, name="anna", *, with_refresh_token=True):
+    def starter(self, name="anna", *, with_refresh_token=True, role=None):
         """A socket's connection carrying the session cookie of a member, and the member."""
-        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=self.web_auth.user_role)
+        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role or self.web_auth.user_role)
         refresh_token = self.issuer.refresh_token_for(account.id) if with_refresh_token else None
         member = seed_member(self.stores, self.web_auth, account=account, refresh_token=refresh_token)
         return connection_with(cookie_header(member.set_cookie_headers)), member
@@ -75,11 +76,11 @@ def connection_with(cookie):
 
 def build_world(sign_in: SignInSettings) -> World:
     issuer = FakeIssuer(sign_in)
-    configs = build_sign_in_configs(sign_in.settings, ())
+    configs = build_sign_in_configs(sign_in.settings)
     stores = SignInStores.in_memory()
     sessions = StoreSpy(stores.sessions)
     relying_party = build_relying_party(configs, issuer.transports)
-    return World(issuer, FakeAgentBackend(issuer), stores, sessions, relying_party, configs.web_auth)
+    return World(issuer, FakeAgentBackend(), stores, sessions, relying_party, configs.web_auth)
 
 
 async def wait_in_a_worker(event):
@@ -92,9 +93,6 @@ async def cancelled(task):
         await task
 
 
-def agent_settings(workload_scope: str = WORKLOAD_SCOPE) -> AgentSettings:
-    return AgentSettings(
-        agent=AgentConfig(
-            backend=BackendKind.SERVICE, service_url="http://agent-service.test:8080", workload_scope=workload_scope
-        )
-    )
+def agent_settings(key_file: Path) -> AgentSettings:
+    gateway = ChatGateway(origin="http://gateway.test:4000", key_file=key_file)
+    return AgentSettings(agent=AgentConfig(backend=BackendKind.LITELLM, gateway=gateway, api_group=API_GROUP))

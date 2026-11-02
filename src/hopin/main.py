@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, TypedDict
 
 import uvicorn
 
+from hopin.agent.feature import configured_game_feature  # game
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
-from hopin.game.feature import configured_game_feature  # game
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
 if TYPE_CHECKING:

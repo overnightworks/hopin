@@ -1,6 +1,7 @@
-"""An agent backend that exists only in a test: it checks both tokens with the fake issuer and answers from a script.
+"""An agent backend that exists only in a test: it asks for the person's groups, as the real one does, and answers
+from a script.
 
-It stands where the client's `ServiceBackend` stands, at `TurnEvent` and `TurnStopped` level. The script and the
+It stands where the client's `GatewayBackend` stands, at `TurnEvent` and `TurnStopped` level. The script and the
 record are shared by all runs and all threads.
 """
 
@@ -10,17 +11,16 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from agent_runtime_client.backend import AgentBackend, Asker, TurnStopKind, TurnStopped
+from agent_runtime_client.backend import AgentBackend, TurnStopKind, TurnStopped
+from agent_runtime_client.turn import FailureCode, RejectionCode, RunFile
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent
-from agent_runtime_client.wire import FailureCode, RejectionCode, RunFile, RunRequest
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from agent_runtime_client.backend import TurnEvent
-    from agent_runtime_client.capability import CapabilityPrincipal
-
-    from tests.support.fake_issuer import FakeIssuer
+    from agent_runtime_client.agents import TurnRequest
+    from agent_runtime_client.backend import TurnEvent, TurnPerson
+    from agent_runtime_client.turn import AgentRole, Principal
 
 DEFAULT_QUESTION = "Welcher Fluss fließt durch Lissabon?"
 SIGNAL_CAP_SECONDS = 10
@@ -58,13 +58,12 @@ class Signal:
 
 @dataclass(frozen=True)
 class SeenRun:
-    """One run that reached the backend: whose tokens it carried, who it was for and what it asked."""
+    """One run that reached the backend: who it was for, the groups they hold and what it asked."""
 
-    subject: str | None
-    person_token: str = field(repr=False)
-    workload_admitted: bool
-    principal: CapabilityPrincipal | None
-    request: RunRequest
+    principal: Principal
+    role: AgentRole
+    groups: frozenset[str]
+    request: TurnRequest
     closed: Signal = field(default_factory=Signal, compare=False)
 
 
@@ -125,8 +124,7 @@ type Answer = Succeeds | Rejects | Fails | CancelsTheRun | CallsATool | EndsEarl
 
 
 class FakeAgentBackend(AgentBackend):
-    def __init__(self, issuer: FakeIssuer) -> None:
-        self._issuer = issuer
+    def __init__(self) -> None:
         self._guard = threading.Lock()
         self._script: deque[Answer] = deque()
         self._runs: list[SeenRun] = []
@@ -151,22 +149,12 @@ class FakeAgentBackend(AgentBackend):
         with self._guard:
             return list(self._runs)
 
-    async def run(self, request: RunRequest, asker: Asker) -> AsyncGenerator[TurnEvent]:
-        tokens = await asker.tokens()
-        person_token = "" if tokens.person is None else tokens.person.get_secret_value()
-        seen = SeenRun(
-            subject=self._issuer.subject_of_access_token(person_token),
-            person_token=person_token,
-            workload_admitted=self._issuer.is_workload_token(tokens.workload.get_secret_value()),
-            principal=asker.principal,
-            request=request,
-        )
+    async def run(self, request: TurnRequest, person: TurnPerson) -> AsyncGenerator[TurnEvent]:
+        seen = SeenRun(person.principal, person.role, await person.groups(), request)
         with self._guard:
             self._runs.append(seen)
             answer = self._script.popleft() if self._script else Succeeds()
         try:
-            if seen.subject is None or not seen.workload_admitted:
-                raise TurnStopped(TurnStopKind.REFUSED, RejectionCode.UNAUTHORIZED)
             async for event in _events_of(answer):
                 yield event
         finally:

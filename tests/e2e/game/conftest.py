@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
 import pytest
-
 from hopin.game.feature import game_feature
+
 from tests.e2e.support.server import LoopbackSignIn, RunningServer, loopback_sign_in, running_hopin
 from tests.game.support.fake_agent_backend import FakeAgentBackend
 from tests.game.support.world import agent_settings
