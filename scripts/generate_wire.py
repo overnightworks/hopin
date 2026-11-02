@@ -31,7 +31,10 @@ from hopin.config.constants import (  # noqa: E402
 )
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.signaling.frames import (  # noqa: E402
+    SENDER_KEY,
+    ChatBroadcastFrame,
     ExistingParticipantsFrame,
+    MediaStateBroadcastFrame,
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
     PeerId,
@@ -90,6 +93,7 @@ FRAME_FIELD_TYPES: dict[object, str] = {
     dict[str, str]: "Record<string, string>",
 }
 ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
+WIRE_FIELD_NAMES = {"from_": SENDER_KEY}
 
 
 def render_frame_type(
@@ -111,7 +115,7 @@ def render_frame_type(
             message = f"{frame_cls.__name__}.{field.name} has no TypeScript type for {annotation}"
             raise TypeError(message)
         optional = "?" if field.default is not dataclasses.MISSING else ""
-        lines.append(f"{INDENT}{field.name}{optional}: {field_types[annotation]};\n")
+        lines.append(f"{INDENT}{WIRE_FIELD_NAMES.get(field.name, field.name)}{optional}: {field_types[annotation]};\n")
     return f"export type {frame_cls.__name__} = {{\n" + "".join(lines) + "};\n"
 
 
@@ -125,6 +129,8 @@ def _server_frames() -> str:
             render_frame_type(ParticipantLeftFrame),
             render_frame_type(RoomLockedFrame),
             render_frame_type(RoomUnlockedFrame),
+            render_frame_type(ChatBroadcastFrame),
+            render_frame_type(MediaStateBroadcastFrame),
         )
     )
 

@@ -147,6 +147,29 @@ class RoomUnlockedFrame:
 
 
 @dataclass(frozen=True)
+class ChatBroadcastFrame:
+    TYPE: ClassVar[SignalType] = SignalType.CHAT
+
+    message: str
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "message": self.message, SENDER_KEY: self.from_}
+
+
+@dataclass(frozen=True)
+class MediaStateBroadcastFrame:
+    TYPE: ClassVar[SignalType] = SignalType.MEDIA_STATE
+
+    from_: PeerId
+    audio: bool
+    video: bool
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, SENDER_KEY: self.from_, "audio": self.audio, "video": self.video}
+
+
+@dataclass(frozen=True)
 class JoinFrame:
     room_id: str | None
 
@@ -184,7 +207,7 @@ class ForeignFrame:
 
 @dataclass(frozen=True)
 class ChatFrame:
-    message: JsonValue
+    message: str
 
 
 @dataclass(frozen=True)
@@ -249,7 +272,10 @@ def _decode_media_state(data: JsonObject, _kind: SignalType) -> MediaStateFrame:
 
 
 def _decode_chat(data: JsonObject, _kind: SignalType) -> ChatFrame:
-    return ChatFrame(data.get("message", ""))
+    message = data.get("message", "")
+    if not isinstance(message, str):
+        raise InvalidMessageError("message must be a string")
+    return ChatFrame(message)
 
 
 def _decode_resume(data: JsonObject, _kind: SignalType) -> ResumeFrame:
