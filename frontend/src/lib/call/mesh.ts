@@ -2,16 +2,16 @@ import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
 import { on, send } from "#lib/call/signaling.ts";
-import { ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
+import {
+    type AnswerRelayFrame,
+    ICE_SERVERS_PATH,
+    type IceCandidateRelayFrame,
+    type OfferRelayFrame,
+    SIGNAL_TYPE,
+} from "#lib/wire.ts";
 import { type MonitoredConnection, monitorSpeaking } from "#lib/call/speaking.ts";
 import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
-
-interface SignalFrame {
-    from: string;
-    sdp: RTCSessionDescriptionInit;
-    candidate?: RTCIceCandidateInit;
-}
 
 let rtcConfiguration: RTCConfiguration = { iceServers: [] };
 
@@ -129,9 +129,9 @@ function isClosed(connection: RTCPeerConnection) {
     return connection.signalingState === "closed";
 }
 
-async function answerOffer(data: SignalFrame) {
+async function answerOffer(data: OfferRelayFrame) {
     const connection = connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
-    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit));
     await sendLocalVideoInAnswer(connection);
     if (isClosed(connection)) return;
     const answer = await connection.createAnswer();
@@ -145,13 +145,13 @@ async function answerOffer(data: SignalFrame) {
     await capUploads();
 }
 
-async function applyAnswer(data: SignalFrame) {
+async function applyAnswer(data: AnswerRelayFrame) {
     const connection = connectionsByParticipant.get(data.from);
     if (connection?.signalingState !== "have-local-offer") return;
-    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    await connection.setRemoteDescription(new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit));
 }
 
-async function applyIceCandidate(data: SignalFrame) {
+async function applyIceCandidate(data: IceCandidateRelayFrame) {
     const connection = connectionsByParticipant.get(data.from);
     if (connection && data.candidate) {
         await connection.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -191,13 +191,6 @@ export async function replaceVideoTrackOnPeers(newTrack: MediaStreamTrack | null
     await capUploads();
 }
 
-function onSignalingStep(type: SIGNAL_TYPE, step: (frame: SignalFrame) => Promise<void>) {
-    on(type, (data) => {
-        const frame = data as unknown as SignalFrame;
-        applyInArrivalOrder(frame.from, () => step(frame));
-    });
-}
-
 export function registerMeshHandlers() {
     on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, (data) => {
         for (const participantId of data.participants) {
@@ -207,7 +200,13 @@ export function registerMeshHandlers() {
     on(SIGNAL_TYPE.PARTICIPANT_LEFT, (data) => {
         removePeer(data.participant_id);
     });
-    onSignalingStep(SIGNAL_TYPE.OFFER, answerOffer);
-    onSignalingStep(SIGNAL_TYPE.ANSWER, applyAnswer);
-    onSignalingStep(SIGNAL_TYPE.ICE_CANDIDATE, applyIceCandidate);
+    on(SIGNAL_TYPE.OFFER, (frame) => {
+        applyInArrivalOrder(frame.from, () => answerOffer(frame));
+    });
+    on(SIGNAL_TYPE.ANSWER, (frame) => {
+        applyInArrivalOrder(frame.from, () => applyAnswer(frame));
+    });
+    on(SIGNAL_TYPE.ICE_CANDIDATE, (frame) => {
+        applyInArrivalOrder(frame.from, () => applyIceCandidate(frame));
+    });
 }

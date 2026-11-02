@@ -8,6 +8,7 @@ import structlog
 from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.signaling.frames import (
+    RELAY_BROADCAST_FRAMES,
     ChatBroadcastFrame,
     ChatFrame,
     ExistingParticipantsFrame,
@@ -179,12 +180,7 @@ class RoomRouting:
             return
         await self._seats.send(
             target_id,
-            {
-                "type": frame.kind.value,
-                "sdp": frame.sdp,
-                "candidate": frame.candidate,
-                "from": peer_id,
-            },
+            RELAY_BROADCAST_FRAMES[frame.kind](sdp=frame.sdp, candidate=frame.candidate, from_=peer_id).to_json(),
         )
 
     async def handle_disconnect(self, peer_id: PeerId) -> None:

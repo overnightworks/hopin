@@ -170,6 +170,58 @@ class MediaStateBroadcastFrame:
 
 
 @dataclass(frozen=True)
+class OfferRelayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.OFFER
+
+    sdp: JsonValue
+    candidate: JsonValue
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "sdp": self.sdp, "candidate": self.candidate, SENDER_KEY: self.from_}
+
+
+@dataclass(frozen=True)
+class AnswerRelayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ANSWER
+
+    sdp: JsonValue
+    candidate: JsonValue
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "sdp": self.sdp, "candidate": self.candidate, SENDER_KEY: self.from_}
+
+
+@dataclass(frozen=True)
+class IceCandidateRelayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ICE_CANDIDATE
+
+    sdp: JsonValue
+    candidate: JsonValue
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "sdp": self.sdp, "candidate": self.candidate, SENDER_KEY: self.from_}
+
+
+RELAY_BROADCAST_FRAMES: dict[
+    SignalType, type[OfferRelayFrame] | type[AnswerRelayFrame] | type[IceCandidateRelayFrame]
+] = {frame_class.TYPE: frame_class for frame_class in (OfferRelayFrame, AnswerRelayFrame, IceCandidateRelayFrame)}
+
+
+@dataclass(frozen=True)
+class ResumedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.RESUMED
+
+    resume_token: str
+    last_seq: int
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "resume_token": self.resume_token, "last_seq": self.last_seq}
+
+
+@dataclass(frozen=True)
 class JoinFrame:
     room_id: str | None
 

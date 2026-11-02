@@ -95,6 +95,27 @@ export type MediaStateBroadcastFrame = {
     video: boolean;
 };
 
+export type OfferRelayFrame = {
+    type: SIGNAL_TYPE.OFFER;
+    sdp: unknown;
+    candidate: unknown;
+    from: string;
+};
+
+export type AnswerRelayFrame = {
+    type: SIGNAL_TYPE.ANSWER;
+    sdp: unknown;
+    candidate: unknown;
+    from: string;
+};
+
+export type IceCandidateRelayFrame = {
+    type: SIGNAL_TYPE.ICE_CANDIDATE;
+    sdp: unknown;
+    candidate: unknown;
+    from: string;
+};
+
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";
 export const ICE_SERVERS_PATH = "/api/ice-servers";
