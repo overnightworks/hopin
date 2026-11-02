@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "cec60574af60b009cd000479b59128ea115c2750"
 branch = "claude/issue-444-type-chat-and-media-state-from-their-pyt"
-scope = ["frontend/src/lib/call/media-state.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/ui/chat.svelte.test.ts", "frontend/src/lib/ui/chat.svelte.ts", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "tests/scripts/test_generate_wire.py", "tests/signaling/test_handler.py"]
+scope = ["frontend/src/lib/call/media-state.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/ui/chat.svelte.test.ts", "frontend/src/lib/ui/chat.svelte.ts", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "tests/scripts/test_generate_wire.py", "tests/signaling/support/browsers.py", "tests/signaling/test_handler.py", "tests/signaling/test_handler_chat.py"]
 opened_commit = "ccb5df55b90204338bc13a878ceb1ed49f904ccf"
 whole_reason = "Six production files, roughly 90 to 100 lines: one pass through frames.py, routing.py and the generator for one family, plus the small generator change this family and the relay family both need. Splitting chat's decode check from its typing would touch frames.py and its tests twice, and the guard cannot honestly go without that check."
