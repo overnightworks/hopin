@@ -1,8 +1,0 @@
-claim_id = "e667c4fdb82c4b398b4287df1b2a8781"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "6c1c9396db0c5c6f1d2883924a91987488086bbe"
-branch = "claude/issue-441-type-participant-joined-participant-left"
-scope = ["frontend/src/lib/call/mesh.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/wire.ts", "frontend/src/routes/(call)/start-up.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "tests/scripts/test_generate_wire.py"]
-opened_commit = "67128f8a551f300bad6fd92a6d2fc614f3aaf3e7"
-whole_reason = "Six production files and roughly 110 production lines, over the guide: one family's frames move from dict literals to typed records in one pass through frames.py, routing.py and the generator #439 already generalized; splitting the Python owners from their browser types would touch the same files twice for one mechanical pattern, a second review cycle rather than a smaller diff."
