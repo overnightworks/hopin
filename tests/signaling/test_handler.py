@@ -16,7 +16,7 @@ from hopin.config.constants import (
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
-from tests.signaling.support.browsers import Browser, Link
+from tests.signaling.support.browsers import Browser, Link, clear_sent, deliver, seat_in_room, sent_frames
 from tests.support.signaling_fakes import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
@@ -56,41 +56,6 @@ async def connect(link, name):
     browser = Browser(link, name)
     browser.sockets.append(await link.open(account_named(name)))
     return browser
-
-
-def clear_sent(*browsers):
-    """Forget what the browsers were sent so far, so a test judges only what follows its arrangement."""
-    for browser in browsers:
-        for socket in browser.sockets:
-            socket.sent.clear()
-
-
-async def seat_in_room(link, room_manager, host, *guests):
-    """The host and guests joined into one room by real joins, with the join chatter forgotten."""
-    browsers = {host: await link.join(host)}
-    room_id = browsers[host].sockets[0].sent[0]["room_id"]
-    for guest in guests:
-        browsers[guest] = await link.join(guest, room_id)
-    clear_sent(*browsers.values())
-    return room_manager.get_room(room_id), browsers
-
-
-async def deliver(browser, message):
-    """Hand the handler the browser's next frame: a string as typed, a dict numbered as a browser would."""
-    if isinstance(message, str):
-        browser.socket.push({"type": "websocket.receive", "text": message})
-        await browser.link.settle(browser.socket)
-    else:
-        await browser.say(message)
-
-
-def sent_frames(browser):
-    """The frames the browser was sent, without the sequence numbers a test about content does not care for."""
-    return [
-        {key: value for key, value in frame.items() if key != "seq"}
-        for socket in browser.sockets
-        for frame in socket.sent
-    ]
 
 
 def sent_types(browser):
@@ -485,59 +450,6 @@ class TestHandleWebsocket:
 
         first, second = (socket.sent[0]["participant_id"] for socket in sockets)
         assert first != second
-
-
-class TestChat:
-    async def test_chat_broadcasts_to_other_participants(self, link, room_manager):
-        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
-
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": "hello"})
-
-        assert sent_frames(browsers["p1"]) == [
-            {"type": SignalType.CHAT.value, "message": "hello", "from": browsers["host1"].peer_id}
-        ]
-        assert browsers["host1"].socket.sent == []
-
-    async def test_chat_empty_message_is_ignored(self, link, room_manager):
-        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
-
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": ""})
-
-        assert browsers["p1"].socket.sent == []
-
-    @pytest.mark.parametrize(
-        "message",
-        [
-            pytest.param(5, id="int"),
-            pytest.param(0, id="zero"),
-            pytest.param(True, id="true"),
-            pytest.param(False, id="false"),
-            pytest.param(None, id="null"),
-            pytest.param(["x"], id="list"),
-            pytest.param([], id="empty_list"),
-            pytest.param({"a": 1}, id="object"),
-            pytest.param({}, id="empty_object"),
-        ],
-    )
-    async def test_chat_with_a_non_string_message_is_answered_invalid_message(self, link, room_manager, message):
-        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
-
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": message})
-
-        assert [frame["reason"] for frame in sent_frames(browsers["host1"])] == [ErrorReason.INVALID_MESSAGE.value]
-        assert browsers["p1"].socket.sent == []
-
-    @pytest.mark.parametrize(
-        "chat",
-        [pytest.param({}, id="message_missing"), pytest.param({"message": ""}, id="message_empty")],
-    )
-    async def test_chat_without_a_message_is_dropped_without_an_error(self, link, room_manager, chat):
-        _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
-
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, **chat})
-
-        assert browsers["host1"].socket.sent == []
-        assert browsers["p1"].socket.sent == []
 
 
 class TestMediaState:

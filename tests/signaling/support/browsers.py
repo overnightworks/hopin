@@ -182,3 +182,38 @@ async def resume_holding_the_first_replayed_frame(link, browser):
 async def fill_server_log(host, frames):
     for index in range(frames):
         await host.say({"type": SignalType.CHAT.value, "message": f"message {index}"})
+
+
+def clear_sent(*browsers):
+    """Forget what the browsers were sent so far, so a test judges only what follows its arrangement."""
+    for browser in browsers:
+        for socket in browser.sockets:
+            socket.sent.clear()
+
+
+async def seat_in_room(link, room_manager, host, *guests):
+    """The host and guests joined into one room by real joins, with the join chatter forgotten."""
+    browsers = {host: await link.join(host)}
+    room_id = browsers[host].sockets[0].sent[0]["room_id"]
+    for guest in guests:
+        browsers[guest] = await link.join(guest, room_id)
+    clear_sent(*browsers.values())
+    return room_manager.get_room(room_id), browsers
+
+
+async def deliver(browser, message):
+    """Hand the handler the browser's next frame: a string as typed, a dict numbered as a browser would."""
+    if isinstance(message, str):
+        browser.socket.push({"type": "websocket.receive", "text": message})
+        await browser.link.settle(browser.socket)
+    else:
+        await browser.say(message)
+
+
+def sent_frames(browser):
+    """The frames the browser was sent, without the sequence numbers a test about content does not care for."""
+    return [
+        {key: value for key, value in frame.items() if key != "seq"}
+        for socket in browser.sockets
+        for frame in socket.sent
+    ]
