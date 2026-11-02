@@ -87,7 +87,9 @@ export function on(
         | ((frame: ParticipantJoinedFrame) => void)
         | ((frame: ParticipantLeftFrame) => void)
         | ((frame: RoomLockedFrame) => void)
-        | ((frame: RoomUnlockedFrame) => void),
+        | ((frame: RoomUnlockedFrame) => void)
+        | ((frame: ChatBroadcastFrame) => void)
+        | ((frame: MediaStateBroadcastFrame) => void),
 ) {
     addHandler(type, handler);
 }
