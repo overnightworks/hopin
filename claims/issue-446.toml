@@ -1,0 +1,8 @@
+claim_id = "6046df77f9264b3abbd68cbb3ac68901"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "590b57e7e9298b742c46febcdd6cfcf876ed0f17"
+branch = "claude/issue-446-type-offer-answer-and-ice-candidate-from"
+scope = ["frontend/src/lib/call/mesh.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/seats.py", "tests/scripts/test_generate_wire.py"]
+opened_commit = "94ed4d163e4f3cf6e2aec26432c3da420ca7bc48"
+whole_reason = "Six production files, roughly 90 to 110 lines: frames.py, routing.py, seats.py and the generator for two frame groups, plus signaling.ts's overloads and mesh.ts's cast removal. Splitting resumed out would save one small file for a second review of five lines; splitting the relay family's Python owner from its browser type would leave a record the generator cannot render."
