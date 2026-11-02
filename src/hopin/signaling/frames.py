@@ -1,8 +1,14 @@
 import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, NewType, TypeGuard
+from typing import TYPE_CHECKING, ClassVar, NewType, TypeGuard
 
-from hopin.config.constants import MAX_SIGNALING_FRAME_LENGTH, ResumeRefusalCause, SignalType
+from hopin.config.constants import (
+    MAX_SIGNALING_FRAME_LENGTH,
+    ErrorReason,
+    ResumeRefusalCause,
+    RoomClosedReason,
+    SignalType,
+)
 from hopin.errors import HopInError, InvalidMessageError, ResumeRefusedError
 
 if TYPE_CHECKING:
@@ -18,17 +24,220 @@ TYPE_KEY = "type"
 PeerId = NewType("PeerId", str)
 
 
-def error_frame(error: HopInError) -> JsonObject:
-    return {
-        TYPE_KEY: SignalType.ERROR.value,
-        "reason": error.reason.value,
-        "message": str(error),
-        **error.frame_fields(),
-    }
-
-
 def _is_sequence_number(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+@dataclass(frozen=True)
+class ErrorFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ERROR
+
+    reason: ErrorReason
+    message: str
+    capacity: int | None = None
+    limit: int | None = None
+
+    def to_json(self) -> JsonObject:
+        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value, "message": self.message}
+        if self.capacity is not None:
+            frame["capacity"] = self.capacity
+        if self.limit is not None:
+            frame["limit"] = self.limit
+        return frame
+
+
+def error_frame(error: HopInError) -> JsonObject:
+    return ErrorFrame(reason=error.reason, message=str(error), **error.frame_fields()).to_json()
+
+
+@dataclass(frozen=True)
+class RoomClosedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
+
+    reason: RoomClosedReason
+    grace_seconds: int | None = None
+
+    def to_json(self) -> JsonObject:
+        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value}
+        if self.grace_seconds is not None:
+            frame["grace_seconds"] = self.grace_seconds
+        return frame
+
+
+@dataclass(frozen=True)
+class RoomCreatedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_CREATED
+
+    room_id: str
+    is_host: bool
+    participant_id: PeerId
+    resume_token: str
+
+    def to_json(self) -> JsonObject:
+        return {
+            TYPE_KEY: self.TYPE.value,
+            "room_id": self.room_id,
+            "is_host": self.is_host,
+            "participant_id": self.participant_id,
+            "resume_token": self.resume_token,
+        }
+
+
+@dataclass(frozen=True)
+class ExistingParticipantsFrame:
+    TYPE: ClassVar[SignalType] = SignalType.EXISTING_PARTICIPANTS
+
+    participants: list[str]
+    names: dict[str, str]
+    is_host: bool
+    locked: bool
+    participant_id: PeerId
+    resume_token: str
+
+    def to_json(self) -> JsonObject:
+        return {
+            TYPE_KEY: self.TYPE.value,
+            # Copies: the frame goes into the seat's replay log, and list[str] and dict[str, str] are not JSON values.
+            "participants": [*self.participants],
+            "names": {**self.names},
+            "is_host": self.is_host,
+            "locked": self.locked,
+            "participant_id": self.participant_id,
+            "resume_token": self.resume_token,
+        }
+
+
+@dataclass(frozen=True)
+class ParticipantJoinedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.PARTICIPANT_JOINED
+
+    participant_id: PeerId
+    name: str
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "participant_id": self.participant_id, "name": self.name}
+
+
+@dataclass(frozen=True)
+class ParticipantLeftFrame:
+    TYPE: ClassVar[SignalType] = SignalType.PARTICIPANT_LEFT
+
+    participant_id: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "participant_id": self.participant_id}
+
+
+@dataclass(frozen=True)
+class HostBackFrame:
+    TYPE: ClassVar[SignalType] = SignalType.HOST_BACK
+
+    participant_id: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "participant_id": self.participant_id}
+
+
+@dataclass(frozen=True)
+class HostAwayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.HOST_AWAY
+
+    seconds_left: int
+    participant_id: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "seconds_left": self.seconds_left, "participant_id": self.participant_id}
+
+
+@dataclass(frozen=True)
+class RoomLockedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_LOCKED
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value}
+
+
+@dataclass(frozen=True)
+class RoomUnlockedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_UNLOCKED
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value}
+
+
+@dataclass(frozen=True)
+class ChatBroadcastFrame:
+    TYPE: ClassVar[SignalType] = SignalType.CHAT
+
+    message: str
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "message": self.message, SENDER_KEY: self.from_}
+
+
+@dataclass(frozen=True)
+class MediaStateBroadcastFrame:
+    TYPE: ClassVar[SignalType] = SignalType.MEDIA_STATE
+
+    from_: PeerId
+    audio: bool
+    video: bool
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, SENDER_KEY: self.from_, "audio": self.audio, "video": self.video}
+
+
+@dataclass(frozen=True)
+class OfferRelayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.OFFER
+
+    sdp: JsonValue
+    candidate: JsonValue
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "sdp": self.sdp, "candidate": self.candidate, SENDER_KEY: self.from_}
+
+
+@dataclass(frozen=True)
+class AnswerRelayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ANSWER
+
+    sdp: JsonValue
+    candidate: JsonValue
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "sdp": self.sdp, "candidate": self.candidate, SENDER_KEY: self.from_}
+
+
+@dataclass(frozen=True)
+class IceCandidateRelayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ICE_CANDIDATE
+
+    sdp: JsonValue
+    candidate: JsonValue
+    from_: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "sdp": self.sdp, "candidate": self.candidate, SENDER_KEY: self.from_}
+
+
+RELAY_BROADCAST_FRAMES: dict[
+    SignalType, type[OfferRelayFrame] | type[AnswerRelayFrame] | type[IceCandidateRelayFrame]
+] = {frame_class.TYPE: frame_class for frame_class in (OfferRelayFrame, AnswerRelayFrame, IceCandidateRelayFrame)}
+
+
+@dataclass(frozen=True)
+class ResumedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.RESUMED
+
+    resume_token: str
+    last_seq: int
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "resume_token": self.resume_token, "last_seq": self.last_seq}
 
 
 @dataclass(frozen=True)
@@ -69,7 +278,7 @@ class ForeignFrame:
 
 @dataclass(frozen=True)
 class ChatFrame:
-    message: JsonValue
+    message: str
 
 
 @dataclass(frozen=True)
@@ -134,7 +343,10 @@ def _decode_media_state(data: JsonObject, _kind: SignalType) -> MediaStateFrame:
 
 
 def _decode_chat(data: JsonObject, _kind: SignalType) -> ChatFrame:
-    return ChatFrame(data.get("message", ""))
+    message = data.get("message", "")
+    if not isinstance(message, str):
+        raise InvalidMessageError("message must be a string")
+    return ChatFrame(message)
 
 
 def _decode_resume(data: JsonObject, _kind: SignalType) -> ResumeFrame:

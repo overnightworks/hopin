@@ -17,15 +17,18 @@ from webauth.ports import AccountEventKind
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
-from hopin.auth.sign_in import LOGIN_FAILED_PAGE, NO_ACCESS_PAGE, SIGNED_OUT_PAGE, build_sign_in_configs
+from hopin.auth.sign_in import build_sign_in_configs
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
+    ACCOUNT_CONSOLE_PATH,
     ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     BACKCHANNEL_LOGOUT_PATH,
+    CALL_FEATURES_PATH,
     HEALTH_PATH,
     ICE_SERVERS_PATH,
+    IMMUTABLE_ASSET_CACHE_CONTROL,
     LOGIN_PATH,
     LOGOUT_PATH,
     NO_ACCESS_PATH,
@@ -33,10 +36,16 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from hopin.web.kit import KIT_DIR, KIT_PATH
-from hopin.web.wire import WIRE_MODULE_PATH
 from tests.support.fake_issuer import FakeIssuer
-from tests.support.page_build import FIXTURE_SCRIPT_HASH, IMMUTABLE_FILE, VERSION_FILE, fixture_page_build
+from tests.support.page_build import (
+    FIXTURE_DIRECTORY,
+    FIXTURE_SCRIPT_HASH,
+    IMMUTABLE_FILE,
+    SIGN_IN_FONT,
+    SIGN_IN_STYLESHEET,
+    VERSION_FILE,
+    fixture_page_build,
+)
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
@@ -47,16 +56,7 @@ if TYPE_CHECKING:
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
-STYLESHEETS = ["/static/css/ui-console.css", f"{KIT_PATH}/appkit.css", "/static/css/hopin.css"]
-KIT_FONTS = [f"{KIT_PATH}/fonts/{font.name}" for font in sorted((KIT_DIR / "fonts").glob("*.woff2"))]
-GATED_KIT_PATHS = [
-    f"{KIT_PATH}/fonts/oswald-LICENSE",
-    f"{KIT_PATH}/fonts/open-sans-LICENSE",
-    f"{KIT_PATH}/..%2Fcss/hopin.css",
-    f"{KIT_PATH}/appkit.css/",
-    f"{KIT_PATH}/appkit.cssx",
-    "/static/appkit-0.0.0/appkit.css",
-]
+STYLESHEETS = ["/static/css/hopin.css"]
 FAVICON = "/static/img/hopin.svg"
 STATIC_FILES = [*STYLESHEETS, FAVICON]
 LOOKALIKE_PATHS = [
@@ -71,13 +71,19 @@ LOOKALIKE_PATHS = [
     "/static/img/hopin.svg/",
     "/static/img/hopin.svgx",
     "/static/img/other.svg",
-    *GATED_KIT_PATHS,
+    f"{SIGN_IN_STYLESHEET}/",
+    f"{SIGN_IN_STYLESHEET}x",
+    f"{SIGN_IN_FONT}/",
+    f"{SIGN_IN_FONT}x",
+    "/_app/immutable/assets/..%2Ffixture-font.woff2",
+    "/_app/immutable/assets/..%2Fx.js",
     "/logout/",
     f"{BACKCHANNEL_LOGOUT_PATH}/",
     f"{BACKCHANNEL_LOGOUT_PATH}x",
     BACKCHANNEL_LOGOUT_PATH.upper(),
 ]
-SIGN_IN_PAGES = {LOGIN_PATH: SIGNED_OUT_PAGE, NO_ACCESS_PATH: NO_ACCESS_PAGE}
+SIGN_IN_PAGES = {LOGIN_PATH: FIXTURE_DIRECTORY / "login.html", NO_ACCESS_PATH: FIXTURE_DIRECTORY / "no-access.html"}
+LOGIN_FAILED_PAGE = FIXTURE_DIRECTORY / "login-failed.html"
 FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 JSON_POST = {"content-type": "application/json"}
@@ -153,13 +159,19 @@ class TestSignedOut:
         assert response.status_code == 302
         assert response.headers["location"] == "/auth/start?next=%2Fc%2Fabc%3Fx%3D1"
 
+    def test_a_navigation_to_the_account_console_is_sent_through_the_sign_in(self, application):
+        response = application.get(ACCOUNT_CONSOLE_PATH, **BROWSER_ACCEPT)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/auth/start?next=%2Faccount"
+
     @pytest.mark.parametrize(
         ("path", "headers"),
         [
             (ICE_SERVERS_PATH, FETCH_ACCEPT),
-            (WIRE_MODULE_PATH, FETCH_ACCEPT),
+            (CALL_FEATURES_PATH, FETCH_ACCEPT),
             ("/", FETCH_ACCEPT),
             (ACCOUNT_PATH, FETCH_ACCEPT),
+            (ACCOUNT_CONSOLE_PATH, FETCH_ACCEPT),
             (ICE_SERVERS_PATH, {"accept": "*/*"}),
         ],
     )
@@ -177,17 +189,21 @@ class TestSignedOut:
         assert response.status_code == 303
         assert response.headers["location"].startswith(TEST_ISSUER)
 
-    @pytest.mark.parametrize("path", [*STYLESHEETS, *SIGN_IN_PAGES])
+    @pytest.mark.parametrize("path", [*STYLESHEETS, SIGN_IN_STYLESHEET, *SIGN_IN_PAGES])
     def test_the_sign_in_pages_and_their_stylesheets_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
 
-    @pytest.mark.parametrize("font", KIT_FONTS)
-    def test_each_kit_font_is_public_with_its_content_type(self, application, font):
-        response = application.get(font, **BROWSER_ACCEPT)
-        assert (response.status_code, response.headers["content-type"]) == (200, "font/woff2")
+    def test_the_built_sign_in_stylesheet_is_public_as_immutable_css(self, application):
+        response = application.get(SIGN_IN_STYLESHEET, **FETCH_ACCEPT)
+        assert (response.status_code, response.headers["content-type"], response.headers["cache-control"]) == (
+            200,
+            "text/css; charset=utf-8",
+            IMMUTABLE_ASSET_CACHE_CONTROL,
+        )
 
-    def test_the_kit_has_eight_fonts(self):
-        assert len(KIT_FONTS) == 8
+    def test_a_font_the_sign_in_stylesheet_references_is_public_with_its_content_type(self, application):
+        response = application.get(SIGN_IN_FONT, **BROWSER_ACCEPT)
+        assert (response.status_code, response.headers["content-type"]) == (200, "font/woff2")
 
     def test_the_favicon_loads_signed_out_as_an_svg(self, application):
         response = application.get(FAVICON, **BROWSER_ACCEPT)
@@ -210,7 +226,7 @@ class TestSignedIn:
     def test_a_member_reaches_every_page_and_the_ice_servers(self, application):
         member = application.seed()
         with hosted_room(application, member) as room_id:
-            for path in ["/", f"/c/{room_id}", ICE_SERVERS_PATH, WIRE_MODULE_PATH]:
+            for path in ["/", f"/c/{room_id}", ICE_SERVERS_PATH, CALL_FEATURES_PATH]:
                 assert application.get(path, member, **BROWSER_ACCEPT).status_code == 200, path
 
     def test_a_session_of_another_application_instance_is_refused(self, sign_in_settings):
@@ -446,7 +462,7 @@ class TestSessionLifetime:
         sign_in = sign_in_settings()
         stores = SignInStores.in_memory()
         now = [1_800_000_000.0]
-        config: WebAuthConfig = replace(build_sign_in_configs(sign_in.settings).web_auth, wall_clock=lambda: now[0])
+        config: WebAuthConfig = replace(build_sign_in_configs(sign_in.settings, ()).web_auth, wall_clock=lambda: now[0])
         member = seed_member(stores, config)
         app = FastAPI()
         install_web_auth_config(app, config)
@@ -496,6 +512,11 @@ class TestPageBuildAssets:
 
         assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
 
+    def test_the_call_features_are_revalidated_on_every_use(self, application):
+        response = application.get(CALL_FEATURES_PATH, application.seed(), **FETCH_ACCEPT)
+
+        assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
+
 
 def install_gate(app: FastAPI, stores: SignInStores) -> None:
     install_web_auth_middleware(
@@ -504,7 +525,7 @@ def install_gate(app: FastAPI, stores: SignInStores) -> None:
             content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
         ),
         csrf_origin=CsrfPolicy(),
-        session_gate=session_gate(stores.sessions),
+        session_gate=session_gate(stores.sessions, frozenset()),
     )
 
 
@@ -515,20 +536,25 @@ class TestSecurityHeaders:
             ("GET", "/", False, BROWSER_ACCEPT, 302),
             ("GET", "/c/abc?x=1", False, BROWSER_ACCEPT, 302),
             ("GET", ICE_SERVERS_PATH, False, FETCH_ACCEPT, 401),
-            ("GET", WIRE_MODULE_PATH, False, FETCH_ACCEPT, 401),
+            ("GET", CALL_FEATURES_PATH, False, FETCH_ACCEPT, 401),
             ("GET", IMMUTABLE_FILE, False, FETCH_ACCEPT, 401),
             ("GET", "/", False, FETCH_ACCEPT, 401),
             ("GET", ACCOUNT_PATH, False, FETCH_ACCEPT, 401),
+            ("GET", ACCOUNT_CONSOLE_PATH, False, BROWSER_ACCEPT, 302),
             ("GET", HEALTH_PATH, False, {}, 200),
             ("HEAD", HEALTH_PATH, False, {}, 200),
             ("GET", AUTH_START_PATH, False, BROWSER_ACCEPT, 303),
             ("GET", AUTH_CALLBACK_PATH, False, {}, 403),
-            *[("GET", path, False, BROWSER_ACCEPT, 200) for path in [*STYLESHEETS, *SIGN_IN_PAGES]],
+            *[
+                ("GET", path, False, BROWSER_ACCEPT, 200)
+                for path in [*STYLESHEETS, *SIGN_IN_PAGES, SIGN_IN_STYLESHEET, SIGN_IN_FONT]
+            ],
             ("POST", LOGOUT_PATH, False, CROSS_SITE_FORM_POST, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
             ("GET", "/", True, BROWSER_ACCEPT, 200),
+            ("GET", ACCOUNT_CONSOLE_PATH, True, BROWSER_ACCEPT, 303),
             ("GET", ICE_SERVERS_PATH, True, FETCH_ACCEPT, 200),
-            ("GET", WIRE_MODULE_PATH, True, FETCH_ACCEPT, 200),
+            ("GET", CALL_FEATURES_PATH, True, FETCH_ACCEPT, 200),
             ("GET", IMMUTABLE_FILE, True, FETCH_ACCEPT, 200),
             ("GET", "/c/{room}", True, BROWSER_ACCEPT, 200),
             ("GET", "/c/unknown", True, BROWSER_ACCEPT, 404),

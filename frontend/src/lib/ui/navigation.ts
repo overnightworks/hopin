@@ -15,7 +15,7 @@ export function callUrl(roomId: string) {
 
 // A shallow replace rewrites only the address bar: no load runs and the layout stays mounted.
 export function showCallAddress(roomId: string) {
-    return goto(resolve("/c/[room]", { room: roomId }), { shallow: true, replace: true });
+    return goto(resolve("/(call)/c/[room]", { room: roomId }), { shallow: true, replace: true });
 }
 
 export function goThroughSignIn() {

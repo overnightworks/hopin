@@ -8,11 +8,10 @@ import structlog
 from hopin.errors import InvalidMessageError
 from hopin.game.quiz import QUIZ_ROUNDS, Quiz
 from hopin.game.vocabulary import (
-    BROWSER_MODULE,
+    FEATURE_NAME,
     GAME_ANSWER_MAX_CHARACTERS,
     GAME_RUN_DEADLINE_SECONDS,
     SIGNAL_TYPES,
-    WIRE_EXPORTS,
     GamePhase,
     GameRefusal,
     GameSignal,
@@ -132,16 +131,12 @@ class Game:
         self._drivers: set[asyncio.Task[None]] = set()
 
     @property
+    def name(self) -> str:
+        return FEATURE_NAME
+
+    @property
     def signal_types(self) -> Mapping[str, str]:
         return SIGNAL_TYPES
-
-    @property
-    def wire_exports(self) -> Mapping[str, Mapping[str, str]]:
-        return WIRE_EXPORTS
-
-    @property
-    def browser_module(self) -> str:
-        return BROWSER_MODULE
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         match frame.signal_type:

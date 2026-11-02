@@ -4,6 +4,11 @@ import svelte from "eslint-plugin-svelte";
 import globals from "globals";
 import ts from "typescript-eslint";
 
+const GAME_IMPORTS = {
+    group: ["#lib/features/game/**", "**/features/game/**"],
+    message: "The game is removable: the call's code never imports it; the page activates it by name.",
+};
+
 export default ts.config(
     { linterOptions: { reportUnusedDisableDirectives: "error" } },
     eslint.configs.recommended,
@@ -43,21 +48,9 @@ export default ts.config(
         rules: { "@typescript-eslint/no-explicit-any": "error" },
     },
     {
-        // The page code under lib/legacy is reached only by the layout's dynamic import after mount, never statically.
-        ignores: ["src/lib/legacy/**"],
-        rules: {
-            "no-restricted-imports": [
-                "error",
-                {
-                    patterns: [
-                        {
-                            group: ["#lib/legacy/**", "**/legacy/**"],
-                            message: "Legacy page code loads only through the layout's dynamic import after mount.",
-                        },
-                    ],
-                },
-            ],
-        },
+        // The call's code is bundled without the game, which loads only dynamically.
+        ignores: ["src/lib/features/game/**"],
+        rules: { "no-restricted-imports": ["error", { patterns: [GAME_IMPORTS] }] },
     },
     { ignores: ["build/", ".svelte-kit/", "coverage/", "../src/hopin/web/build/"] },
 );

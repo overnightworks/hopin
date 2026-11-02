@@ -10,21 +10,24 @@ from tests.e2e.support.calls import (
     record_page_errors,
     wait_until_the_prejoin_media_answered,
 )
-from tests.e2e.support.page_assertions import LEGAL_LINKS, expect_both_legal_links
-from tests.e2e.support.people import DESKTOP, PHONE, SMALL_PHONE_LANDSCAPE
+from tests.e2e.support.page_assertions import (
+    expect_both_legal_links,
+    expect_both_legal_links_in_the_profile_menu,
+    expect_no_legal_footer,
+)
+from tests.e2e.support.people import DESKTOP, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
 
-SCROLL_PAST_THE_END = 10_000
 SHORT_DESKTOP = {"viewport": {"width": 1280, "height": 400}}
 FORM_FACTORS = pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])
 
 
 @FORM_FACTORS
-def test_home_shows_start_a_call_and_both_legal_links(
+def test_home_shows_start_a_call_and_reaches_both_legal_links_through_the_profile_menu(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
     page = open_person(**form_factor)
@@ -32,18 +35,19 @@ def test_home_shows_start_a_call_and_both_legal_links(
 
     home = page.locator("[data-screen=home]")
     expect(home.get_by_role("button", name="Start a call")).to_be_visible()
-    expect_both_legal_links(home)
+    expect_no_legal_footer(home)
+    expect_both_legal_links_in_the_profile_menu(page)
     expect(page.locator("[data-screen=call]")).to_be_hidden()
 
 
 @FORM_FACTORS
-def test_prejoin_and_call_screen_reached_from_home_each_show_both_legal_links(
+def test_prejoin_has_no_legal_footer_and_the_call_screen_reached_from_home_keeps_both_legal_links_in_more(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
     page = record_page_errors(open_person(**form_factor), page_errors)
 
     open_prejoin(page, base_url)
-    expect_both_legal_links(page.locator("[data-screen=prejoin]"))
+    expect_no_legal_footer(page.locator("[data-screen=prejoin]"))
     expect(page.locator("[data-screen=home]")).to_be_hidden()
 
     wait_until_the_prejoin_media_answered(page)
@@ -51,24 +55,6 @@ def test_prejoin_and_call_screen_reached_from_home_each_show_both_legal_links(
     expect(page.locator("[data-screen=call]")).to_be_visible()
     expect_both_legal_links(more_legal_links(page))
     expect(page.locator("[data-screen=prejoin]")).to_be_hidden()
-
-
-@pytest.mark.parametrize("label", LEGAL_LINKS)
-def test_home_on_a_small_landscape_phone_reaches_each_legal_link_without_sideways_scroll(
-    open_person: Callable[..., Page], base_url: str, label: str
-) -> None:
-    page = open_person(**SMALL_PHONE_LANDSCAPE)
-    page.goto(f"{base_url}/")
-
-    expect(page.locator("[data-screen=home]")).to_be_visible()
-    link = page.locator("[data-screen=home]").get_by_role("link", name=label)
-    page.mouse.move(SMALL_PHONE_LANDSCAPE["viewport"]["width"] / 2, SMALL_PHONE_LANDSCAPE["viewport"]["height"] / 2)
-    page.mouse.wheel(0, SCROLL_PAST_THE_END)
-    expect(link).to_be_in_viewport(ratio=1)
-    link.click(trial=True)
-
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-    assert page.evaluate("document.querySelector('[data-screen=home]').scrollWidth <= window.innerWidth")
 
 
 def test_home_on_a_short_window_does_not_scroll_past_its_own_height(

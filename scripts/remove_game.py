@@ -13,11 +13,11 @@ from pathlib import Path
 
 GAME_PATHS = (
     "src/hopin/game",
-    "src/hopin/web/static/assets/game",
+    "frontend/src/lib/features/game",
     "tests/game",
     "tests/e2e/game",
 )
-MARKED_FILES = ("src/hopin/main.py", "tests/conftest.py")
+MARKED_FILES = ("src/hopin/main.py", "tests/conftest.py", "scripts/generate_wire.py")
 GAME_MARKER = "# game"
 # httpx2 is also a dev dependency (Starlette's TestClient needs it), which this removal leaves.
 GAME_ONLY_PACKAGES = ("overnightworks-agent-runtime-client", "httpx2")

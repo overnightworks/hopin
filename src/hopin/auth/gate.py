@@ -5,7 +5,6 @@ from webauth.middleware import SessionGate
 from webauth.policies import PathRules, PublicRule
 
 from hopin.config.constants import HEALTH_PATH, LOGIN_PATH, NO_ACCESS_PATH, SIGN_IN_PATHS, STATIC_PATH
-from hopin.web.kit import PUBLIC_KIT_PATHS
 
 if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore
@@ -15,18 +14,16 @@ PUBLIC_PATHS = frozenset(
         HEALTH_PATH,
         LOGIN_PATH,
         NO_ACCESS_PATH,
-        f"{STATIC_PATH}/css/ui-console.css",
         f"{STATIC_PATH}/css/hopin.css",
         f"{STATIC_PATH}/img/hopin.svg",
-        *PUBLIC_KIT_PATHS,
     }
 )
 
 
-def session_gate(sessions: SessionRecordStore) -> SessionGate:
+def session_gate(sessions: SessionRecordStore, sign_in_assets: frozenset[str]) -> SessionGate:
     # Each call takes the stores' shared guard, so a sign-in entry in progress holds this call back.
     return SessionGate(
         session_transaction=lambda: nullcontext(sessions),
         login_redirect=SIGN_IN_PATHS.login_redirect,
-        public=(PublicRule(PathRules(exact=PUBLIC_PATHS)), *SIGN_IN_PATHS.public_rules),
+        public=(PublicRule(PathRules(exact=PUBLIC_PATHS | sign_in_assets)), *SIGN_IN_PATHS.public_rules),
     )

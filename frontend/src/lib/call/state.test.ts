@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { state } from "./state.ts";
 
@@ -19,7 +18,7 @@ describe("call state", () => {
     });
 
     it("shares one object between importers", async () => {
-        const second = await import("./state.ts");
+        const second = await import("#lib/call/state.ts");
         expect(second.state).toBe(state);
     });
 });

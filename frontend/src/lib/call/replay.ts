@@ -6,10 +6,16 @@ export interface OutgoingMessage {
     [field: string]: unknown;
 }
 
-export type SentFrame = OutgoingMessage & { seq: number };
+export interface LoggedMessage {
+    type: string;
+    target?: string;
+    [field: string]: unknown;
+}
 
-const descriptionTypes = new Set(DESCRIPTION_TYPES);
-const supersededByADescription = new Set(SUPERSEDED_BY_A_DESCRIPTION);
+export type SentFrame = LoggedMessage & { seq: number };
+
+const descriptionTypes = new Set<string>(DESCRIPTION_TYPES);
+const supersededByADescription = new Set<string>(SUPERSEDED_BY_A_DESCRIPTION);
 
 export class SentLog {
     readonly #limit: number;
@@ -25,7 +31,7 @@ export class SentLog {
         return this.#floor;
     }
 
-    append(message: OutgoingMessage): SentFrame {
+    append(message: LoggedMessage): SentFrame {
         if (descriptionTypes.has(message.type)) this.#dropSupersededBy(message);
         this.#lastSeq += 1;
         const frame = { ...message, seq: this.#lastSeq };
@@ -44,7 +50,7 @@ export class SentLog {
         return [...this.#frames];
     }
 
-    #dropSupersededBy(description: OutgoingMessage) {
+    #dropSupersededBy(description: LoggedMessage) {
         this.#frames = this.#frames.filter(
             (frame) => !(supersededByADescription.has(frame.type) && frame.target === description.target),
         );

@@ -6,6 +6,7 @@ settings:
 
 overrides:
   deepmerge: '-'
+  minimatch: ^11.0.1
 
 patchedDependencies:
   '@sveltejs/vite-plugin-svelte@7.3.1':
@@ -19,6 +20,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.13.0)
+      '@jridgewell/sourcemap-codec':
+        specifier: ^1.6.0
+        version: 1.6.0
       '@sveltejs/adapter-static':
         specifier: ^4.0.0
         version: 4.0.0(@sveltejs/kit@3.1.0(@sveltejs/vite-plugin-svelte@7.3.1(patch_hash=7d619b4d4c0c3ed08e99a6d24c6486ca48d565aa699af8fe9dc0383dbc60f4fa)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(vite@8.3.5))(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)(vite@8.3.5))
@@ -49,6 +53,9 @@ importers:
       monocart-coverage-reports:
         specifier: ^3.2.0
         version: 3.2.0
+      overnightworks-appkit:
+        specifier: https://github.com/overnightworks/appkit/releases/download/v0.11.0/overnightworks-appkit-0.11.0.tgz
+        version: https://github.com/overnightworks/appkit/releases/download/v0.11.0/overnightworks-appkit-0.11.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -218,6 +225,9 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@isaacs/nonrecursive-glob-match@1.0.3':
+    resolution: {integrity: sha512-SI7kyKHq4XXDRozw+r9GlRZkia1ZkFrpLW98r2IC2Bpr8YkFGE3fvjzmxCG0x78A++69HmDNrDvSMYBZmHGpKA==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1003,8 +1013,8 @@ packages:
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
+  minimatch@11.0.3:
+    resolution: {integrity: sha512-iny/40PEGkNJQ5/Pv6z3nm6FbRAby32GeZRjCUJk2WnNDbgPSTcdI+DDvLqsgBdD4cD5sMtMheqPPnehCCa8Nw==}
     engines: {node: 18 || 20 || >=22}
 
   monocart-coverage-reports@3.2.0:
@@ -1049,6 +1059,12 @@ packages:
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
+
+  overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.11.0/overnightworks-appkit-0.11.0.tgz:
+    resolution: {integrity: sha512-JJ0UXHHQNH9dgTJeziw1Vpg41YifjMr3HdkX4w/egpPCt7sATbWXLYX1Pt8/8cprD/aEKGbteh1OVd2TpI7wug==, tarball: https://github.com/overnightworks/appkit/releases/download/v0.11.0/overnightworks-appkit-0.11.0.tgz}
+    version: 0.11.0
+    peerDependencies:
+      svelte: ^5.20.0
 
   p-limit@3.1.0:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
@@ -1548,7 +1564,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 3.0.5
       debug: 4.4.3
-      minimatch: 10.2.6
+      minimatch: 11.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -1588,6 +1604,8 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
+
+  '@isaacs/nonrecursive-glob-match@1.0.3': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -1787,7 +1805,7 @@ snapshots:
       '@typescript-eslint/types': 8.72.1
       '@typescript-eslint/visitor-keys': 8.72.1
       debug: 4.4.3
-      minimatch: 10.2.6
+      minimatch: 11.0.3
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@6.0.3)
@@ -2044,7 +2062,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
-      minimatch: 10.2.6
+      minimatch: 11.0.3
       natural-compare: 1.4.0
       optionator: 0.9.4
     transitivePeerDependencies:
@@ -2332,8 +2350,9 @@ snapshots:
 
   mdn-data@2.27.1: {}
 
-  minimatch@10.2.6:
+  minimatch@11.0.3:
     dependencies:
+      '@isaacs/nonrecursive-glob-match': 1.0.3
       brace-expansion: 5.0.12
 
   monocart-coverage-reports@3.2.0:
@@ -2388,6 +2407,10 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
       word-wrap: 1.2.5
+
+  overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.11.0/overnightworks-appkit-0.11.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
+    dependencies:
+      svelte: 5.57.3(@typescript-eslint/types@8.72.1)
 
   p-limit@3.1.0:
     dependencies:

@@ -15,10 +15,9 @@ from hopin.config.constants import (
     RESUME_WINDOW_SECONDS,
     SEAT_CLOSED_BY_SERVER_CODE,
     ResumeRefusalCause,
-    SignalType,
 )
 from hopin.errors import ResumeRefusedError, TooManyCallsError
-from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumeFrame, error_frame
+from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumedFrame, ResumeFrame, error_frame
 from hopin.signaling.replay import ReplayLog
 
 if TYPE_CHECKING:
@@ -153,9 +152,6 @@ class Seats:
             return False
         return True
 
-    def credentials(self, peer_id: PeerId) -> dict[str, str]:
-        return {"participant_id": peer_id, "resume_token": self._peers[peer_id].resume_token}
-
     async def resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
         try:
             if not is_first_frame:
@@ -229,12 +225,7 @@ class Seats:
 
         await self.close_socket(superseded)
         await self.write(
-            connection.websocket,
-            {
-                "type": SignalType.RESUMED.value,
-                "resume_token": seat.resume_token,
-                "last_seq": seat.received_seq,
-            },
+            connection.websocket, ResumedFrame(resume_token=seat.resume_token, last_seq=seat.received_seq).to_json()
         )
         await self._replay(connection.websocket, claim.participant_id, seat, claim.last_seq)
         await logger.ainfo("seat_resumed", peer_id=claim.participant_id)

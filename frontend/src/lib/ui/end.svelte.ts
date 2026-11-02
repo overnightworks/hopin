@@ -1,4 +1,4 @@
-import { ERROR_REASON, ROOM_CLOSED_REASON } from "#lib/wire.ts";
+import { ERROR_REASON, type ErrorFrame, ROOM_CLOSED_REASON, type RoomClosedFrame } from "#lib/wire.ts";
 import { getRoomIdFromUrl, openCall } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 
@@ -26,7 +26,7 @@ export enum END_ACTION {
     REJOIN = "rejoin",
 }
 
-export type EndFrame = { grace_seconds?: number; capacity?: number; limit?: number };
+export type EndFrame = Pick<RoomClosedFrame, "grace_seconds"> & Pick<ErrorFrame, "capacity" | "limit">;
 
 type EndView = {
     icon: END_ICON;

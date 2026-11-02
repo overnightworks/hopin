@@ -6,7 +6,7 @@ import secrets
 from contextlib import ExitStack
 from dataclasses import dataclass
 from http import HTTPStatus
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import structlog.testing
@@ -212,6 +212,13 @@ def test_the_workload_grant_posts_exactly_the_configured_agent_service_scope(cal
     assert call.client_credentials_scopes() == [operator_chosen_scope]
 
 
+def test_sign_in_redirects_to_the_issuer_asking_for_the_configured_scope_too(call, operator_chosen_scope):
+    response = call.client.get("/auth/start")
+
+    scope = parse_qs(urlsplit(response.headers["location"]).query)["scope"]
+    assert scope == [f"openid profile groups {operator_chosen_scope}"]
+
+
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):
     host, guest, _ = call.host_and_guest()
     held = Holds()
@@ -283,9 +290,12 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     host.start()
     guest.frames(3)
     host.answer("Tejo")
+    until_the_first_answer = host.frames(4)
+    assert until_the_first_answer[-1]["type"] == GameSignal.GAME_ANSWER_COUNT.value
     guest.answer("Mondego")
+    through_the_answers = until_the_first_answer + host.frames(1)
     guest.chat(chat_text)
-    through_the_chat = host.frames(6)
+    through_the_chat = through_the_answers + host.frames(1)
     assert [frame["type"] for frame in through_the_chat][-3:] == [
         GameSignal.GAME_ANSWER_COUNT.value,
         GameSignal.GAME_ANSWER_COUNT.value,

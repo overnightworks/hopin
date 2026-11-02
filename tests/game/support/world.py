@@ -81,7 +81,7 @@ def connection_with(cookie):
 
 def build_world(sign_in: SignInSettings) -> World:
     issuer = FakeIssuer(sign_in)
-    configs = build_sign_in_configs(sign_in.settings)
+    configs = build_sign_in_configs(sign_in.settings, ())
     stores = SignInStores.in_memory()
     sessions = StoreSpy(stores.sessions)
     relying_party = build_relying_party(configs, issuer.transports)

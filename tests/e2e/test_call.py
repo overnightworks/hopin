@@ -2,8 +2,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hopin.config.constants import APP_ASSET_PATH, IMMUTABLE_ASSET_DIRECTORY, STATIC_PATH
-from tests.e2e.support.calls import join_by_link, start_call
+from hopin.config.constants import APP_ASSET_PATH, CALL_FEATURES_PATH, IMMUTABLE_ASSET_DIRECTORY
+from tests.e2e.support.calls import join_by_link, open_more, start_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, PHONE
 
@@ -21,8 +21,10 @@ TWO_PLAYING_VIDEOS = """
 }
 """
 
-# What a call may load as a script: the served wire vocabulary and the page build's chunks, which hold the call code.
-SCRIPT_PATHS = (f"{STATIC_PATH}/js/", f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/")
+FETCH_JSON = "async (path) => (await fetch(path)).json()"
+START_QUIZ = "#gameStartBtn"
+# What a call may load as a script: the page build's chunks, which hold the call code.
+SCRIPT_PATHS = (f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/",)
 
 
 def record_scripts(person: Page, scripts: list[str]) -> Page:
@@ -49,5 +51,7 @@ def test_call_two_people_join_see_each_others_video_with_only_the_call_cores_mod
         "() => document.querySelectorAll('.tile').length === 1",
         timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     )
+    assert host.evaluate(FETCH_JSON, CALL_FEATURES_PATH) == {"features": []}
+    assert open_more(host).locator(START_QUIZ).count() == 0
     assert scripts
     assert [url for url in scripts if not url.startswith(tuple(f"{base_url}{path}" for path in SCRIPT_PATHS))] == []

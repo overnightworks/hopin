@@ -14,10 +14,14 @@ It carries these rulings:
 - the More-menu legal links
 - the dark stage in both themes
 - the leave dialog for the host only
-- HopIn's blue slot (#1d5bbf / #7aa7f0) and ui-console type tokens
+- HopIn's blue slot (#1d5bbf / #7aa7f0) and the kit's body font (Open Sans)
 - the English UI
 
 The sign-in pages are appkit `docs/family.html` section 3 at a161c7c; they are not drawn here.
+
+The account menu is appkit `docs/family.html` section 4 at v0.9.0, hopin's board, and is not drawn here; the call mockup's account-menu head (the avatar, the name and the "HopIn member" caption) is superseded.
+
+The More-menu legal links stay in More, one tap away; the mockup's icon items there and its quiet home footer are superseded: More shows appkit's `LegalLinks` row at its menu place, and home carries the links in the profile menu.
 
 The AI game master (#240) was added and blessed by the operator on 27.10.2026
 ("ok passt!") as version 2 of

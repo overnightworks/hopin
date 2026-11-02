@@ -7,10 +7,11 @@ async function freshToast() {
     return import("#lib/ui/toast.svelte.ts");
 }
 
-function renderToastLayer(animations: { finished: Promise<unknown> }[]) {
-    document.body.innerHTML = '<output id="toasts"><div class="toast"></div></output>';
-    const element = document.querySelector(".toast") as HTMLElement;
+// Gives the state its element the way Toasts.svelte does.
+function renderToastLayer(toast: Awaited<ReturnType<typeof freshToast>>, animations: { finished: Promise<unknown> }[]) {
+    const element = document.createElement("div");
     element.getAnimations = (() => animations) as unknown as HTMLElement["getAnimations"];
+    toast.toastElement.current = element;
 }
 
 beforeEach(() => {
@@ -19,7 +20,6 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.useRealTimers();
-    document.body.innerHTML = "";
 });
 
 describe("toast", () => {
@@ -61,7 +61,7 @@ describe("toast", () => {
 
         await vi.advanceTimersByTimeAsync(2399);
         expect(toast.toastState.current?.leaving).toBe(false);
-        renderToastLayer([{ finished: new Promise(() => {}) }]);
+        renderToastLayer(toast, [{ finished: new Promise(() => {}) }]);
         await vi.advanceTimersByTimeAsync(1);
 
         expect(toast.toastState.current?.leaving).toBe(true);
@@ -70,7 +70,7 @@ describe("toast", () => {
     it("starts leaving after 8000 ms when it carries an action", async () => {
         const toast = await freshToast();
         toast.showToast("Hi", toast.TOAST_KIND.WAIT, { label: "Undo", onAct: vi.fn() });
-        renderToastLayer([{ finished: new Promise(() => {}) }]);
+        renderToastLayer(toast, [{ finished: new Promise(() => {}) }]);
 
         await vi.advanceTimersByTimeAsync(7999);
         expect(toast.toastState.current?.leaving).toBe(false);
@@ -105,7 +105,7 @@ describe("toast", () => {
     it("removes the toast only once its animations finish", async () => {
         const toast = await freshToast();
         let finish: () => void = () => {};
-        renderToastLayer([{ finished: new Promise<void>((resolve) => (finish = resolve)) }]);
+        renderToastLayer(toast, [{ finished: new Promise<void>((resolve) => (finish = resolve)) }]);
         toast.showToast("Hi", toast.TOAST_KIND.DONE);
 
         await vi.advanceTimersByTimeAsync(2400);
@@ -118,7 +118,7 @@ describe("toast", () => {
 
     it("removes the toast even when an animation was cancelled", async () => {
         const toast = await freshToast();
-        renderToastLayer([
+        renderToastLayer(toast, [
             {
                 get finished() {
                     return Promise.reject(new Error("cancelled"));
@@ -144,7 +144,7 @@ describe("toast", () => {
     it("keeps a newer toast when the older one's animations finish late", async () => {
         const toast = await freshToast();
         let finish: () => void = () => {};
-        renderToastLayer([{ finished: new Promise<void>((resolve) => (finish = resolve)) }]);
+        renderToastLayer(toast, [{ finished: new Promise<void>((resolve) => (finish = resolve)) }]);
         toast.showToast("First", toast.TOAST_KIND.DONE);
         await vi.advanceTimersByTimeAsync(2400);
 

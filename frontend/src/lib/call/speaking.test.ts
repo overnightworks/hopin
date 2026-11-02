@@ -46,14 +46,9 @@ describe("isSpeaking", () => {
     );
 });
 
-interface FakeSource {
-    audioLevel: number;
-    age: number;
-}
-
 interface FakeReceiver {
     kind: string;
-    sources: FakeSource[];
+    sources: Source[];
 }
 
 function connectionWith(receivers: FakeReceiver[]) {

@@ -70,6 +70,10 @@ class GameFeature:
     settings: GameSettings
     transport: AgentTransport
 
+    @property
+    def sign_in_scopes(self) -> tuple[str, ...]:
+        return (self.settings.agent_service_scope,)
+
     def __call__(
         self,
         *,

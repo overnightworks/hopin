@@ -1,6 +1,6 @@
 # 0001 Static frontend modules
 
-Partly superseded by [ADR 0003](0003-page-layer-on-sveltekit.md): the page's markup is no longer `index.html` but the SvelteKit layout, and the build step exists. The modules, the stylesheets and the rules about class names, tokens and screens still hold.
+Superseded by [ADR 0003](0003-page-layer-on-sveltekit.md).
 
 ## Context
 
@@ -17,34 +17,25 @@ The page is markup, stylesheets and ES modules, served from
 webauth's session gate, and the CSP and the Permissions-Policy come from
 webauth:
 
-- `index.html` (superseded: the layout in `frontend/src/routes/+layout.svelte` and the shell's `app.html` hold the markup now) holds markup only: no inline script, `<style>`, `style=` or
+- `index.html` (superseded: the layout in `frontend/src/routes/(call)/+layout.svelte` and the shell's `app.html` hold the markup now) holds markup only: no inline script, `<style>`, `style=` or
   `on*=` attribute. Every `src` and every `href` outside an `<a>` is a
-  same-origin absolute path; an `<a href>` is only one of the two central legal
-  URLs, with `target="_blank" rel="noopener"`. CSP limits what the page
-  fetches, not where a link goes. The sign-in pages keep a guard test
-  (`tests/web/test_routes.py`); the shell's guards read the rendered DOM in `tests/e2e/test_page_shell.py`.
-- The stylesheets are `ui-console.css`, vendored verbatim and loaded first,
-  then appkit's `appkit.css`, then `hopin.css`. An upgrade of the first is a
-  new vendoring, never an edit. The kit is the installed `overnightworks-appkit`
-  package, mounted read-only at `/static/appkit-<version>` (`web/kit.py`) before
-  `/static`; the gate admits its stylesheet and fonts as exact paths, never its
-  licence files.
-- `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/`, `img/` (the
-  brand mark every page links as its icon) and `js/` are reachable, so the page
+  same-origin absolute path; an `<a href>` is one of the two central legal
+  URLs or `/account`. The shell's legal links open in a new tab (`target="_blank" rel="noopener"`);
+  the kit's sign-in card opens them in the same tab. CSP limits what the page
+  fetches, not where a link goes. The built sign-in pages' guards read the rendered DOM in `tests/e2e/test_sign_in_pages.py`, the shell's in `tests/e2e/test_page_shell.py`.
+- The shell loads the built kit stylesheet, then `hopin.css`, then the built stylesheets of the kit components it renders; the prerendered sign-in pages load the built kit stylesheet and the card's, then `hopin.css`. The kit is the
+  installed `overnightworks-appkit` npm package: the root layout imports its stylesheet once and Vite builds it and its fonts into
+  hashed `/_app/` files. The gate admits the exact stylesheet and font files it must open, derived from the built
+  sign-in pages' linked stylesheets, never a directory.
+- `assets/` is mounted at `/static` (`STATIC_PATH`); only `css/` and `img/` (the
+  brand mark every page links as its icon) are reachable, so the page
   is served only at its routes, never from the mount.
-- Every screen carries its own `<nav class="legal">` copy (a static page has no
-  templating). The guard test pins that each distinct `data-screen` value holds
-  exactly one, with both URLs (superseded: the e2e module `tests/e2e/test_page_shell.py` reads it from the DOM); the call screen is one element whose nav sits in
-  its More menu.
-- HopIn reuses no class name that `ui-console.css` defines, because its grammar
-  classes would otherwise style HopIn's markup. A name that both the
-  picture and ui-console define is renamed in HopIn. The tests
-  `test_defines_no_class_name_that_ui_console_defines` and `test_the_home_page_uses_no_class_name_that_ui_console_defines` enforce the rule.
-- The sign-in pages (`login-failed.html`, `login.html` for Signed out and
-  `no-access.html`) are ui-console's sign-in markup with its classes and
-  wording, and load the same three stylesheets. The no-reuse rule and the legal-only `<a>`
-  rule above are about `index.html` and `hopin.css`; a sign-in page links the
-  two legal URLs and `/auth/start`. No access and the account menu post one
+- Home, pre-join and end carry the legal links in the profile menu (the kit's `LegalLinks` inside `AccountMenu`) and have no footer; the running call, which has no
+  profile button, carries them in More as the kit's `LegalLinks` at the menu place, which opens both in a new tab so the call goes on.
+- Signed out, Login failed and No access are appkit's `SignInPage`, prerendered from
+  `frontend/src/routes/(sign-in)/`. The `<a>`
+  rule above is about `index.html` and `hopin.css`; a sign-in page links the
+  two legal URLs and `/auth/start`, except No access, which links only the two legal URLs. No access and the account menu post one
   same-origin form to `/logout`, which answers webauth's own end-session page
   under its own policy, so HopIn's policy adds no issuer source.
 - Showing and hiding is the `hidden` class; a native `<dialog>` uses its own `show()` and `close()` (never `showModal()`). Styles set from script go through
@@ -62,8 +53,7 @@ webauth:
 
 - There is no build step for the modules; the browser loads them as written (the shell is built since
   ADR 0003). The one installed package the pages' styles come from is the `overnightworks-appkit`
-  kit.
+  npm package.
 - Browser code is excluded from Python coverage and Sonar coverage
   (`sonar.coverage.exclusions`); its proof is the end-to-end suite (#45).
-- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the fonts still come from ui-console's `--sans`; `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `hopin.css` and `game.css` read no `ui-console.css` token beyond `--sans` and the shared states; the test `test_reads_no_ui_console_token_that_the_kit_does_not_also_define` pins it.
-- `ui-console.css` is byte-identical to its release and loaded first; the test `test_vendored_ui_console_is_byte_identical_to_its_release` pins its SHA-256.
+- Token ownership: appkit owns the neutrals, the states and `color-scheme`, and the shell's fonts come from the kit (`--font-body`); `hopin.css` owns the slot, stage, shadow, motion and mono tokens and defines none of the kit's. `.sign-in` in `hopin.css` wraps the built sign-in pages as their scroll container.

@@ -15,8 +15,6 @@ from hopin.config.constants import (
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
-from hopin.web.kit import KIT_DIR, KIT_PATH
-from hopin.web.wire import WIRE_MODULE_MEDIA_TYPE, WIRE_MODULE_PATH, render_wire_module
 
 if TYPE_CHECKING:
     import os
@@ -25,11 +23,15 @@ if TYPE_CHECKING:
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.handler import SignalingHandler
-    from hopin.web.page_build import PageBuild
+    from hopin.web.page_build import BuiltPage, PageBuild
 
 STATIC_DIR = Path(__file__).parent / "static"
 ASSETS_DIR = STATIC_DIR / "assets"
 READ_METHODS = ["GET", "HEAD"]
+
+
+def built_page_response(page: BuiltPage, status_code: int = 200) -> Response:
+    return Response(page.content, status_code=status_code, media_type="text/html", headers={"ETag": page.etag})
 
 
 class _PageBuildFiles(StaticFiles):
@@ -50,14 +52,13 @@ class _PageBuildFiles(StaticFiles):
 
 def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager, page_build: PageBuild) -> APIRouter:
     router = APIRouter()
-    wire_module_content = render_wire_module(signaling_handler.feature)
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
         return JSONResponse({"status": "ok"})
 
     def shell() -> Response:
-        return Response(page_build.shell, media_type="text/html", headers={"ETag": page_build.shell_etag})
+        return built_page_response(page_build.shell)
 
     @router.api_route(HOME_PATH, methods=READ_METHODS)
     def home_page() -> Response:
@@ -69,11 +70,6 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
             return PlainTextResponse("Room not found", status_code=404)
         return shell()
 
-    @router.api_route(WIRE_MODULE_PATH, methods=READ_METHODS)
-    def wire_module() -> Response:
-        return Response(wire_module_content, media_type=WIRE_MODULE_MEDIA_TYPE)
-
-    router.mount(KIT_PATH, StaticFiles(directory=KIT_DIR), name="appkit")
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
     router.mount(APP_ASSET_PATH, _PageBuildFiles(page_build.app_directory), name="page-build")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)

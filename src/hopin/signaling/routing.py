@@ -5,15 +5,27 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason, SignalType
+from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.signaling.frames import (
+    RELAY_BROADCAST_FRAMES,
+    ChatBroadcastFrame,
     ChatFrame,
+    ExistingParticipantsFrame,
+    HostAwayFrame,
+    HostBackFrame,
     JoinFrame,
     JsonObject,
+    MediaStateBroadcastFrame,
     MediaStateFrame,
+    ParticipantJoinedFrame,
+    ParticipantLeftFrame,
     PeerId,
     RelayFrame,
+    RoomClosedFrame,
+    RoomCreatedFrame,
+    RoomLockedFrame,
+    RoomUnlockedFrame,
 )
 from hopin.signaling.seats import Seats
 
@@ -28,7 +40,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 @dataclass(frozen=True)
 class HostGrace:
-    host_peer_id: str
+    host_peer_id: PeerId
     deadline: float
     timer: TimerHandle
 
@@ -82,12 +94,12 @@ class RoomRouting:
         self._peer_rooms[peer_id] = room.room_id
         await self._seats.send(
             peer_id,
-            {
-                "type": SignalType.ROOM_CREATED.value,
-                "room_id": room.room_id,
-                "is_host": True,
-                **self._seats.credentials(peer_id),
-            },
+            RoomCreatedFrame(
+                room_id=room.room_id,
+                is_host=True,
+                participant_id=peer_id,
+                resume_token=self._seats.seat(peer_id).resume_token,
+            ).to_json(),
         )
         await logger.ainfo("room_created", room_id=room.room_id, host=peer_id)
 
@@ -101,24 +113,23 @@ class RoomRouting:
 
         await self._seats.send(
             peer_id,
-            {
-                "type": SignalType.EXISTING_PARTICIPANTS.value,
-                # A copy: the frame goes into the seat's replay log, and a list[str] is not a JSON value list.
-                "participants": [*others],
-                "names": {pid: self._seats.account_of(pid).name for pid in others},
-                "is_host": room.is_hosted_by(account),
-                "locked": room.locked,
-                **self._seats.credentials(peer_id),
-            },
+            ExistingParticipantsFrame(
+                participants=others,
+                names={pid: self._seats.account_of(pid).name for pid in others},
+                is_host=room.is_hosted_by(account),
+                locked=room.locked,
+                participant_id=peer_id,
+                resume_token=self._seats.seat(peer_id).resume_token,
+            ).to_json(),
         )
         if grace is not None:
-            await self._seats.send(peer_id, self._host_away_frame(grace))
+            await self._seats.send(peer_id, self._host_away_frame(grace).to_json())
         await self._seats.send_all(
             others,
-            {"type": SignalType.PARTICIPANT_JOINED.value, "participant_id": peer_id, "name": account.name},
+            ParticipantJoinedFrame(participant_id=peer_id, name=account.name).to_json(),
         )
         if host_returned:
-            await self._seats.send_all(others, {"type": SignalType.HOST_BACK.value, "participant_id": peer_id})
+            await self._seats.send_all(others, HostBackFrame(participant_id=peer_id).to_json())
 
         await logger.ainfo("participant_joined", room_id=room_id, participant=peer_id)
 
@@ -127,9 +138,9 @@ class RoomRouting:
         if not room_id:
             return
         room = self._room_manager.set_room_locked(room_id, self._seats.account_of(peer_id), locked=locked)
-        signal_type = SignalType.ROOM_LOCKED if locked else SignalType.ROOM_UNLOCKED
-        await self._broadcast_to_room(room_id, {"type": signal_type.value})
-        await logger.ainfo(signal_type.value, room_id=room.room_id, by=peer_id)
+        frame = RoomLockedFrame() if locked else RoomUnlockedFrame()
+        await self._broadcast_to_room(room_id, frame.to_json())
+        await logger.ainfo(frame.TYPE.value, room_id=room.room_id, by=peer_id)
 
     async def handle_end_room(self, peer_id: PeerId) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -147,7 +158,7 @@ class RoomRouting:
             return
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
-        await self._seats.send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
+        await self._seats.send_all(others, ChatBroadcastFrame(message=message, from_=peer_id).to_json())
 
     async def handle_media_state(self, peer_id: PeerId, frame: MediaStateFrame) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -156,8 +167,7 @@ class RoomRouting:
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
         await self._seats.send_all(
-            others,
-            {"type": SignalType.MEDIA_STATE.value, "from": peer_id, "audio": frame.audio, "video": frame.video},
+            others, MediaStateBroadcastFrame(from_=peer_id, audio=frame.audio, video=frame.video).to_json()
         )
 
     async def handle_relay(self, peer_id: PeerId, frame: RelayFrame) -> None:
@@ -170,12 +180,7 @@ class RoomRouting:
             return
         await self._seats.send(
             target_id,
-            {
-                "type": frame.kind.value,
-                "sdp": frame.sdp,
-                "candidate": frame.candidate,
-                "from": peer_id,
-            },
+            RELAY_BROADCAST_FRAMES[frame.kind](sdp=frame.sdp, candidate=frame.candidate, from_=peer_id).to_json(),
         )
 
     async def handle_disconnect(self, peer_id: PeerId) -> None:
@@ -216,14 +221,14 @@ class RoomRouting:
         # Read now, not at the leave: a host back before the announcement has cancelled the grace.
         grace = self._graces.get(departure.room_id)
         if departure.host_left and grace is not None:
-            await self._seats.send_all(departure.remaining, self._host_away_frame(grace))
+            await self._seats.send_all(departure.remaining, self._host_away_frame(grace).to_json())
         await self._seats.send_all(
-            departure.remaining, {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": departure.peer_id}
+            departure.remaining, ParticipantLeftFrame(participant_id=departure.peer_id).to_json()
         )
         await logger.ainfo("participant_left", room_id=departure.room_id, participant=departure.peer_id)
         await self._on_seat_left(departure)
 
-    def _start_grace(self, room_id: str, host_peer_id: str, deadline: float) -> None:
+    def _start_grace(self, room_id: str, host_peer_id: PeerId, deadline: float) -> None:
         timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
         self._graces[room_id] = HostGrace(host_peer_id=host_peer_id, deadline=deadline, timer=timer)
 
@@ -247,21 +252,18 @@ class RoomRouting:
         # Before the first await, so nothing that belongs to the room outlives it by a frame.
         self._on_room_ended(room_id)
 
-        frame: JsonObject = {"type": SignalType.ROOM_CLOSED.value, "reason": reason.value}
-        if reason is RoomClosedReason.HOST_GONE:
-            frame["grace_seconds"] = HOST_GRACE_SECONDS
-        await self._seats.send_all(recipients, frame)
+        grace_seconds = HOST_GRACE_SECONDS if reason is RoomClosedReason.HOST_GONE else None
+        frame = RoomClosedFrame(reason=reason, grace_seconds=grace_seconds)
+        await self._seats.send_all(recipients, frame.to_json())
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
             await self._seats.close_socket(websocket)
         await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
 
-    def _host_away_frame(self, grace: HostGrace) -> JsonObject:
-        return {
-            "type": SignalType.HOST_AWAY.value,
-            "seconds_left": math.ceil(grace.deadline - self._scheduler.now()),
-            "participant_id": grace.host_peer_id,
-        }
+    def _host_away_frame(self, grace: HostGrace) -> HostAwayFrame:
+        return HostAwayFrame(
+            seconds_left=math.ceil(grace.deadline - self._scheduler.now()), participant_id=grace.host_peer_id
+        )
 
     async def _broadcast_to_room(self, room_id: str, data: JsonObject) -> None:
         await self._seats.send_all(self._room_manager.get_room(room_id).participant_ids, data)

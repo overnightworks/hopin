@@ -1,5 +1,8 @@
 # 0002 Served wire vocabulary
 
+Status: superseded by [ADR 0003](0003-page-layer-on-sveltekit.md). The bundle
+reads generated TypeScript wires, and `/static/js/wire.js` is gone.
+
 ## Context
 
 The signaling protocol's tokens (signal types, error and room-closed reasons,

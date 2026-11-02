@@ -1,20 +1,22 @@
-import { type OutgoingMessage, type SentFrame, SentLog } from "#lib/call/replay.ts";
+import { type LoggedMessage, type OutgoingMessage, type SentFrame, SentLog } from "#lib/call/replay.ts";
 import { state } from "#lib/call/state.ts";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
-import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
+import {
+    ERROR_REASON,
+    type ExistingParticipantsFrame,
+    type ResumedFrame,
+    type RoomCreatedFrame,
+    SESSION_ENDED_CLOSE_CODE,
+    SIGNAL_TYPE,
+    type SequencedFrame,
+    type ServerFrame,
+    type ServerFrameByType,
+    WEBSOCKET_PATH,
+} from "#lib/wire.ts";
 
-export interface ServerFrame {
-    type: SIGNAL_TYPE;
-    seq?: number;
-    resume_token?: string;
-    participant_id?: string;
-    last_seq?: number;
-    reason?: ERROR_REASON;
-    [field: string]: unknown;
-}
-
-type Handler = (data: ServerFrame) => void;
+// Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
+type Handler = { handle(data: ServerFrame): void }["handle"];
 
 interface Seat {
     participantId: string | undefined;
@@ -24,7 +26,7 @@ interface Seat {
 const NORMAL_CLOSURE_CODE = 1000;
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 6000];
 
-const handlersByType = new Map<SIGNAL_TYPE, Handler[]>();
+const handlersByType = new Map<string, Handler[]>();
 let socket: WebSocket | null = null;
 let socketIsLive = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -34,8 +36,20 @@ let lastDispatchedSeq = 0;
 let sessionLost = () => {};
 let sessionEnded = () => {};
 
-export function on(type: SIGNAL_TYPE, handler: Handler) {
+function addHandler(type: string, handler: Handler) {
     handlersByType.set(type, [...(handlersByType.get(type) ?? []), handler]);
+}
+
+export function on<Type extends keyof ServerFrameByType>(
+    type: Type,
+    handler: (frame: ServerFrameByType[Type]) => void,
+) {
+    addHandler(type, handler);
+}
+
+// The server the page trusts sends the frames a feature registers for, so the handler's frame type is taken on trust.
+export function onFeatureFrame(type: string, handler: (frame: never) => void) {
+    addHandler(type, handler);
 }
 
 export function onSessionLost(callback: () => void) {
@@ -47,6 +61,14 @@ export function onSessionEnded(callback: () => void) {
 }
 
 export function send(message: OutgoingMessage) {
+    sendLogged(message);
+}
+
+export function sendFeatureFrame(message: LoggedMessage) {
+    sendLogged(message);
+}
+
+function sendLogged(message: LoggedMessage) {
     if (socket === null) {
         throw new Error("No signaling session: connect() before send()");
     }
@@ -112,9 +134,9 @@ function handleOpen(current: WebSocket) {
     }
 }
 
-function handleResumed(current: WebSocket, heldSeat: Seat, data: ServerFrame) {
+function handleResumed(current: WebSocket, heldSeat: Seat, data: ResumedFrame) {
     heldSeat.token = data.resume_token;
-    sentLog.acknowledge(data.last_seq as number);
+    sentLog.acknowledge(data.last_seq);
     startWriting(current);
     state.reconnectAttempt = 0;
     setStatus("In call", "connected");
@@ -127,11 +149,11 @@ function fallBackToJoin(current: WebSocket) {
     send(joinMessage());
 }
 
-function keepSeat(data: ServerFrame) {
+function keepSeat(data: RoomCreatedFrame | ExistingParticipantsFrame) {
     seat = { participantId: data.participant_id, token: data.resume_token };
 }
 
-function isAlreadyDispatched(data: ServerFrame) {
+function isAlreadyDispatched(data: SequencedFrame) {
     if (data.seq === undefined) return false;
     if (data.seq <= lastDispatchedSeq) return true;
     lastDispatchedSeq = data.seq;
@@ -139,13 +161,13 @@ function isAlreadyDispatched(data: ServerFrame) {
 }
 
 function handleMessage(current: WebSocket, event: MessageEvent<string>) {
-    const data = JSON.parse(event.data) as ServerFrame;
+    const data = JSON.parse(event.data) as SequencedFrame;
     if (data.type === SIGNAL_TYPE.RESUMED) {
         handleResumed(current, seat as Seat, data);
     } else if (data.type === SIGNAL_TYPE.ERROR && data.reason === ERROR_REASON.RESUME_REFUSED) {
         fallBackToJoin(current);
     } else if (!isAlreadyDispatched(data)) {
-        if (data.resume_token) keepSeat(data);
+        if ("resume_token" in data) keepSeat(data);
         dispatch(data);
     }
 }
