@@ -85,7 +85,3 @@ def test_the_quiz_agent_file_ends_inside_the_tables_deadline():
     agent = load_agent(QUIZ_AGENT_FILE, list(TOOLS))
 
     assert agent.max_duration_seconds < GAME_RUN_DEADLINE_SECONDS
-
-
-def test_the_agents_call_no_tool():
-    assert TOOLS == ()

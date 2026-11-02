@@ -251,11 +251,15 @@ class TestEndings:
         assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
 
     @pytest.mark.parametrize("code", list(FailureCode))
-    async def test_a_failed_turn_is_unavailable_whatever_its_code(self, world, code):
+    async def test_a_failed_turn_is_unavailable_whatever_its_code_and_logs_that_code(self, world, code):
         starter, _ = world.starter()
         world.backend.answer_next(Fails(code))
 
-        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
+        with structlog.testing.capture_logs() as logs:
+            outcome = await world.game_master.ask(starter, OPENING)
+
+        assert outcome == Refused(GameRefusal.UNAVAILABLE)
+        assert [log["code"] for log in logs if log["event"] == TURN_REFUSED] == [code.value]
 
     @pytest.mark.parametrize(
         "answer",

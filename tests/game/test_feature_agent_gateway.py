@@ -80,6 +80,13 @@ def test_a_member_of_the_api_group_starts_a_quiz_and_every_seat_reads_the_gatewa
     assert len(gateway.requests) == 1
 
 
+def test_the_quiz_has_no_tools_and_no_capability_front_is_mounted(quiz_on_gateway):
+    call, _ = quiz_on_gateway()
+
+    assert TOOLS == ()
+    assert [route.path for route in call.client.app.routes if "mcp" in getattr(route, "path", "")] == []
+
+
 def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_turn_and_nothing_else(quiz_on_gateway):
     call, gateway = quiz_on_gateway()
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
