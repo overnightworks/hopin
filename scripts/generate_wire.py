@@ -34,6 +34,7 @@ from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
     AnswerRelayFrame,
     ChatBroadcastFrame,
+    ErrorFrame,
     ExistingParticipantsFrame,
     IceCandidateRelayFrame,
     JsonValue,
@@ -93,10 +94,12 @@ FRAME_FIELD_TYPES: dict[object, str] = {
     str: "string",
     PeerId: "string",
     bool: "boolean",
+    int: "number",
     list[str]: "string[]",
     dict[str, str]: "Record<string, string>",
 }
-ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
+ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON"}
+ERROR_FIELD_TYPES: dict[object, str] = {ErrorReason: "ERROR_REASON"}
 RELAY_FIELD_TYPES: dict[object, str] = {JsonValue: "unknown"}
 WIRE_FIELD_NAMES = {"from_": SENDER_KEY}
 
@@ -128,6 +131,7 @@ def _server_frames() -> str:
     return "\n".join(
         (
             render_frame_type(RoomClosedFrame, ROOM_CLOSED_FIELD_TYPES),
+            render_frame_type(ErrorFrame, ERROR_FIELD_TYPES),
             render_frame_type(RoomCreatedFrame),
             render_frame_type(ExistingParticipantsFrame),
             render_frame_type(ParticipantJoinedFrame),

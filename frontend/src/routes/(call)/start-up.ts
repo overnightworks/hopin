@@ -7,7 +7,7 @@ import {
     renderControls,
     showLockButton,
 } from "#lib/ui/controls.svelte.ts";
-import { END_KIND, type EndFrame, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
+import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "#lib/call/media.ts";
@@ -32,9 +32,8 @@ import {
     onSessionEnded,
     onSessionLost,
     sendFeatureFrame,
-    type ServerFrame,
 } from "#lib/call/signaling.ts";
-import { SIGNAL_TYPE, type ERROR_REASON } from "#lib/wire.ts";
+import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
 import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
@@ -184,14 +183,13 @@ function registerSessionHandlers() {
         showEnd(endKindOfClosedRoom(frame.reason), frame);
     });
     on(SIGNAL_TYPE.ERROR, (frame) => {
-        const data = frame as ServerFrame & EndFrame & { reason: ERROR_REASON; message: string };
-        const refusal = endKindOfRefusal(data.reason);
+        const refusal = endKindOfRefusal(frame.reason);
         if (refusal === null) {
-            setStatus(`Error: ${data.message}`, "error");
+            setStatus(`Error: ${frame.message}`, "error");
             return;
         }
         tearDownCall();
-        showEnd(refusal, data);
+        showEnd(refusal, frame);
     });
 }
 
