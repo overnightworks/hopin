@@ -1,0 +1,8 @@
+claim_id = "62fe8b51eef340719aa9407b4172555f"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "56bc510d04d66bcfab85215de84b7375da1b74a4"
+branch = "claude/issue-449-type-the-error-frame-from-its-python-own"
+scope = ["frontend/src/lib/call/signaling.ts", "frontend/src/lib/wire.ts", "frontend/src/routes/(call)/start-up.ts", "scripts/generate_wire.py", "src/hopin/errors.py", "src/hopin/signaling/frames.py", "tests/scripts/test_generate_wire.py"]
+opened_commit = "88f1e2c13dca0d3c20ce6d7d8cc93fbffae9e12e"
+whole_reason = "Seven files, about 50 production lines, for one frame: the Python record, its generated type and the handler that reads it are one change, because the generator cannot render a record that does not exist and the cast cannot go before the type does."
