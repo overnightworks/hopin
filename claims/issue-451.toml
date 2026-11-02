@@ -1,8 +1,0 @@
-claim_id = "159a5a2b41c0468a8bf4eabe98df5f02"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "f49c7ba3d88bff7b777bc438feae3ddb81ce651a"
-branch = "claude/issue-451-fold-the-frame-handlers-into-one-generat"
-scope = ["frontend/src/lib/call/signaling.ts", "frontend/src/lib/ui/chat.svelte.test.ts", "frontend/src/lib/ui/end.svelte.ts", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "tests/scripts/test_generate_wire.py"]
-opened_commit = "ddaf6e15ffba9141c418131ba48f64269f2b2d13"
-whole_reason = "Four production files that shrink the code by about 30 lines: the generated map and the on() signature replace the same hand lists, so neither lands alone."
