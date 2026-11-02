@@ -6,7 +6,13 @@ from typing import TYPE_CHECKING, ClassVar
 import pytest
 
 from hopin.config.constants import RoomClosedReason, SignalType
-from hopin.signaling.frames import RoomCreatedFrame
+from hopin.signaling.frames import (
+    ParticipantJoinedFrame,
+    ParticipantLeftFrame,
+    RoomCreatedFrame,
+    RoomLockedFrame,
+    RoomUnlockedFrame,
+)
 from scripts import generate_wire
 
 if TYPE_CHECKING:
@@ -90,6 +96,33 @@ def test_render_core_existing_participants_frame_types_its_containers() -> None:
     assert "    names: Record<string, string>;\n" in rendered
     assert "    locked: boolean;\n" in rendered
     assert "export type ExistingParticipantsFrame = {\n    type: SIGNAL_TYPE.EXISTING_PARTICIPANTS;\n" in rendered
+
+
+@pytest.mark.parametrize(
+    ("frame_cls", "rendered"),
+    [
+        (
+            ParticipantJoinedFrame,
+            "export type ParticipantJoinedFrame = {\n"
+            "    type: SIGNAL_TYPE.PARTICIPANT_JOINED;\n"
+            "    participant_id: string;\n"
+            "    name: string;\n"
+            "};\n",
+        ),
+        (
+            ParticipantLeftFrame,
+            "export type ParticipantLeftFrame = {\n"
+            "    type: SIGNAL_TYPE.PARTICIPANT_LEFT;\n"
+            "    participant_id: string;\n"
+            "};\n",
+        ),
+        (RoomLockedFrame, "export type RoomLockedFrame = {\n    type: SIGNAL_TYPE.ROOM_LOCKED;\n};\n"),
+        (RoomUnlockedFrame, "export type RoomUnlockedFrame = {\n    type: SIGNAL_TYPE.ROOM_UNLOCKED;\n};\n"),
+    ],
+)
+def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type, rendered: str) -> None:
+    assert generate_wire.render_frame_type(frame_cls) in generate_wire.render_core()
+    assert generate_wire.render_frame_type(frame_cls) == rendered
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

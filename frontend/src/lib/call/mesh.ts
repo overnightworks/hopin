@@ -205,7 +205,7 @@ export function registerMeshHandlers() {
         }
     });
     on(SIGNAL_TYPE.PARTICIPANT_LEFT, (data) => {
-        removePeer(data.participant_id as string);
+        removePeer(data.participant_id);
     });
     onSignalingStep(SIGNAL_TYPE.OFFER, answerOffer);
     onSignalingStep(SIGNAL_TYPE.ANSWER, applyAnswer);

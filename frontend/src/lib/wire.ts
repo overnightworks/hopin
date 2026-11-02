@@ -63,6 +63,25 @@ export type ExistingParticipantsFrame = {
     resume_token: string;
 };
 
+export type ParticipantJoinedFrame = {
+    type: SIGNAL_TYPE.PARTICIPANT_JOINED;
+    participant_id: string;
+    name: string;
+};
+
+export type ParticipantLeftFrame = {
+    type: SIGNAL_TYPE.PARTICIPANT_LEFT;
+    participant_id: string;
+};
+
+export type RoomLockedFrame = {
+    type: SIGNAL_TYPE.ROOM_LOCKED;
+};
+
+export type RoomUnlockedFrame = {
+    type: SIGNAL_TYPE.ROOM_UNLOCKED;
+};
+
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";
 export const ICE_SERVERS_PATH = "/api/ice-servers";

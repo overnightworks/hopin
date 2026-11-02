@@ -89,6 +89,64 @@ class ExistingParticipantsFrame:
 
 
 @dataclass(frozen=True)
+class ParticipantJoinedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.PARTICIPANT_JOINED
+
+    participant_id: PeerId
+    name: str
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "participant_id": self.participant_id, "name": self.name}
+
+
+@dataclass(frozen=True)
+class ParticipantLeftFrame:
+    TYPE: ClassVar[SignalType] = SignalType.PARTICIPANT_LEFT
+
+    participant_id: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "participant_id": self.participant_id}
+
+
+@dataclass(frozen=True)
+class HostBackFrame:
+    TYPE: ClassVar[SignalType] = SignalType.HOST_BACK
+
+    participant_id: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "participant_id": self.participant_id}
+
+
+@dataclass(frozen=True)
+class HostAwayFrame:
+    TYPE: ClassVar[SignalType] = SignalType.HOST_AWAY
+
+    seconds_left: int
+    participant_id: PeerId
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "seconds_left": self.seconds_left, "participant_id": self.participant_id}
+
+
+@dataclass(frozen=True)
+class RoomLockedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_LOCKED
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value}
+
+
+@dataclass(frozen=True)
+class RoomUnlockedFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_UNLOCKED
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value}
+
+
+@dataclass(frozen=True)
 class JoinFrame:
     room_id: str | None
 
