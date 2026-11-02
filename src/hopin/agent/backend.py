@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
 from agent_runtime_client.agents import load_agent
-from agent_runtime_client.backend import AgentBackend, Asker, RunTokens, TurnStopKind, TurnStopped
+from agent_runtime_client.backend import AgentBackend, Asker, RunTokens, TurnEvent, TurnStopKind, TurnStopped
 from agent_runtime_client.backend.service import ServiceBackend
 from agent_runtime_client.capability import CapabilityPrincipal
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
@@ -184,7 +184,7 @@ def _turn_messages(transcript: tuple[Turn, ...]) -> list[TurnMessage]:
     return [TurnMessage(role=ROLE_OF_SPEAKER[turn.speaker], text=turn.text) for turn in transcript]
 
 
-def _outcome_of_event(event: object) -> GameOutcome | None:
+def _outcome_of_event(event: TurnEvent) -> GameOutcome | None:
     # Text before the end stays unread: only the final text becomes a line.
     match event:
         case FinalEvent(text=text) if text:
@@ -194,8 +194,6 @@ def _outcome_of_event(event: object) -> GameOutcome | None:
         case ToolCallEvent() | ToolResultEvent():
             _log_refusal(failure="tool_event")
         case AssistantTextEvent():
-            return None
-        case _:  # pragma: no cover - the backend yields no other event
             return None
     return UNAVAILABLE
 
@@ -224,7 +222,7 @@ def _cut(text: str) -> str:
     return text[: GAME_LINE_MAX_CHARACTERS - len(CUT_MARK)] + CUT_MARK
 
 
-def _log_refusal(**codes: str | int | None) -> None:
+def _log_refusal(**codes: str | None) -> None:
     # Only closed values: a body, a message or an exception's text may carry the person's token or the game's text.
     logger.info("agent_service_refused", **{name: code for name, code in codes.items() if code is not None})
 

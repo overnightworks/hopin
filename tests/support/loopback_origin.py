@@ -18,16 +18,12 @@ def http_response(
 
 @dataclass
 class Origin:
-    """A loopback HTTP origin: it answers each path from a script and can hold an answer until released.
-
-    `connections` counts the connections it accepted.
-    """
+    """A loopback HTTP origin: it answers each path from a script and can hold an answer until released."""
 
     requests: list[tuple[str, str, dict[str, str], bytes]] = field(default_factory=list)
     received: dict[str, threading.Event] = field(default_factory=dict)
     release: dict[str, threading.Event] = field(default_factory=dict)
     scripts: dict[str, bytes] = field(default_factory=dict)
-    connections: int = 0
     listener: socket.socket = field(default_factory=socket.socket)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -65,7 +61,6 @@ class Origin:
                 connection, _ = self.listener.accept()
             except OSError:
                 return
-            self.connections += 1
             self._start(self._answer, connection)
 
     def _start(self, target, *args) -> None:
