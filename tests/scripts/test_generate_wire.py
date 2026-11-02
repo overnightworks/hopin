@@ -197,7 +197,7 @@ def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type
         ),
     ],
 )
-def test_render_frame_type_types_the_chat_media_state_and_relay_broadcasts(
+def test_render_frame_type_types_the_error_chat_media_state_and_relay_frames(
     frame_cls: type, extra_field_types: dict[object, str] | None, rendered: str
 ) -> None:
     assert generate_wire.render_frame_type(frame_cls, extra_field_types) in generate_wire.render_core()
