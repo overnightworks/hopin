@@ -1,8 +1,0 @@
-claim_id = "de3a06f38f264598a64d876b624fa313"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "1ecef86d3647ff4517c320038728b959caaa665e"
-branch = "claude/issue-448-git-pins"
-scope = [".github/dependabot.yml", ".github/workflows/ci.yml", "Dockerfile", "pyproject.toml", "uv.lock"]
-opened_commit = "7c9ba3e20aadb700f681f9f82a21ff38efd5ab05"
-whole_reason = "One pin move: the pins, the lock, every install step that reads them and the Dependabot comment that proves them land together, or CI and the image fail at the first sync."
