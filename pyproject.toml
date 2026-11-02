@@ -7,7 +7,7 @@ dependencies = [
     "fastapi>=0.123.7",
     "httpx2>=2.13.1",
     "overnightworks-agent-runtime-client @ git+https://github.com/overnightworks/agent-runtime@v0.16.0#subdirectory=packages/client",
-    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.27.0",
+    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.29.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "structlog>=24.4",
