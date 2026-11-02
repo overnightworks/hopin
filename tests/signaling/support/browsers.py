@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 
-from hopin.config.constants import SignalType
+from hopin.config.constants import ErrorReason, SignalType
 from tests.support.signaling_fakes import FakeSocket, account_named, disconnect_frame, text_frame
 
 SETTLE_TIMEOUT_SECONDS = 5
@@ -217,3 +217,10 @@ def sent_frames(browser):
         for socket in browser.sockets
         for frame in socket.sent
     ]
+
+
+async def assert_refused_as_invalid_message(sender, bystander, frame):
+    await deliver(sender, frame)
+
+    assert [sent["reason"] for sent in sent_frames(sender)] == [ErrorReason.INVALID_MESSAGE.value]
+    assert bystander.socket.sent == []

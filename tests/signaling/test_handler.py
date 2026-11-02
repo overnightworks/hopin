@@ -16,7 +16,15 @@ from hopin.config.constants import (
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
-from tests.signaling.support.browsers import Browser, Link, clear_sent, deliver, seat_in_room, sent_frames
+from tests.signaling.support.browsers import (
+    Browser,
+    Link,
+    assert_refused_as_invalid_message,
+    clear_sent,
+    deliver,
+    seat_in_room,
+    sent_frames,
+)
 from tests.support.signaling_fakes import (
     ADMITTED_ACCOUNT,
     ROOM_LIMIT,
@@ -482,10 +490,9 @@ class TestMediaState:
     ):
         _, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(browsers["p1"], {"type": SignalType.MEDIA_STATE.value, **state})
-
-        assert [frame["reason"] for frame in sent_frames(browsers["p1"])] == [ErrorReason.INVALID_MESSAGE.value]
-        assert browsers["host1"].socket.sent == []
+        await assert_refused_as_invalid_message(
+            browsers["p1"], browsers["host1"], {"type": SignalType.MEDIA_STATE.value, **state}
+        )
 
 
 class TestSend:

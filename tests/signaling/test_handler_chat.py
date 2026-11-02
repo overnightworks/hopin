@@ -1,8 +1,8 @@
 import pytest
 import pytest_asyncio
 
-from hopin.config.constants import ErrorReason, SignalType
-from tests.signaling.support.browsers import Link, deliver, seat_in_room, sent_frames
+from hopin.config.constants import SignalType
+from tests.signaling.support.browsers import Link, assert_refused_as_invalid_message, deliver, seat_in_room, sent_frames
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -49,10 +49,9 @@ class TestChat:
     async def test_chat_with_a_non_string_message_is_answered_invalid_message(self, link, room_manager, message):
         _room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": message})
-
-        assert [frame["reason"] for frame in sent_frames(browsers["host1"])] == [ErrorReason.INVALID_MESSAGE.value]
-        assert browsers["p1"].socket.sent == []
+        await assert_refused_as_invalid_message(
+            browsers["host1"], browsers["p1"], {"type": SignalType.CHAT.value, "message": message}
+        )
 
     @pytest.mark.parametrize(
         "chat",
