@@ -7,8 +7,11 @@ import pytest
 
 from hopin.config.constants import RoomClosedReason, SignalType
 from hopin.signaling.frames import (
+    AnswerRelayFrame,
     ChatBroadcastFrame,
+    IceCandidateRelayFrame,
     MediaStateBroadcastFrame,
+    OfferRelayFrame,
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
     PeerId,
@@ -129,10 +132,11 @@ def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type
 
 
 @pytest.mark.parametrize(
-    ("frame_cls", "rendered"),
+    ("frame_cls", "extra_field_types", "rendered"),
     [
         (
             ChatBroadcastFrame,
+            None,
             "export type ChatBroadcastFrame = {\n"
             "    type: SIGNAL_TYPE.CHAT;\n"
             "    message: string;\n"
@@ -141,6 +145,7 @@ def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type
         ),
         (
             MediaStateBroadcastFrame,
+            None,
             "export type MediaStateBroadcastFrame = {\n"
             "    type: SIGNAL_TYPE.MEDIA_STATE;\n"
             "    from: string;\n"
@@ -148,24 +153,68 @@ def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type
             "    video: boolean;\n"
             "};\n",
         ),
+        (
+            OfferRelayFrame,
+            generate_wire.RELAY_FIELD_TYPES,
+            "export type OfferRelayFrame = {\n"
+            "    type: SIGNAL_TYPE.OFFER;\n"
+            "    sdp: unknown;\n"
+            "    candidate: unknown;\n"
+            "    from: string;\n"
+            "};\n",
+        ),
+        (
+            AnswerRelayFrame,
+            generate_wire.RELAY_FIELD_TYPES,
+            "export type AnswerRelayFrame = {\n"
+            "    type: SIGNAL_TYPE.ANSWER;\n"
+            "    sdp: unknown;\n"
+            "    candidate: unknown;\n"
+            "    from: string;\n"
+            "};\n",
+        ),
+        (
+            IceCandidateRelayFrame,
+            generate_wire.RELAY_FIELD_TYPES,
+            "export type IceCandidateRelayFrame = {\n"
+            "    type: SIGNAL_TYPE.ICE_CANDIDATE;\n"
+            "    sdp: unknown;\n"
+            "    candidate: unknown;\n"
+            "    from: string;\n"
+            "};\n",
+        ),
     ],
 )
-def test_render_frame_type_types_the_chat_and_media_state_broadcasts(frame_cls: type, rendered: str) -> None:
-    assert generate_wire.render_frame_type(frame_cls) in generate_wire.render_core()
-    assert generate_wire.render_frame_type(frame_cls) == rendered
+def test_render_frame_type_types_the_chat_media_state_and_relay_broadcasts(
+    frame_cls: type, extra_field_types: dict[object, str] | None, rendered: str
+) -> None:
+    assert generate_wire.render_frame_type(frame_cls, extra_field_types) in generate_wire.render_core()
+    assert generate_wire.render_frame_type(frame_cls, extra_field_types) == rendered
 
 
 @pytest.mark.parametrize(
-    "frame",
+    ("frame", "extra_field_types"),
     [
-        pytest.param(ChatBroadcastFrame(message="hi", from_=PeerId("p1")), id="chat"),
-        pytest.param(MediaStateBroadcastFrame(from_=PeerId("p1"), audio=True, video=False), id="media_state"),
+        pytest.param(ChatBroadcastFrame(message="hi", from_=PeerId("p1")), None, id="chat"),
+        pytest.param(MediaStateBroadcastFrame(from_=PeerId("p1"), audio=True, video=False), None, id="media_state"),
+        pytest.param(
+            OfferRelayFrame(sdp="s", candidate=None, from_=PeerId("p1")), generate_wire.RELAY_FIELD_TYPES, id="offer"
+        ),
+        pytest.param(
+            AnswerRelayFrame(sdp="s", candidate=None, from_=PeerId("p1")), generate_wire.RELAY_FIELD_TYPES, id="answer"
+        ),
+        pytest.param(
+            IceCandidateRelayFrame(sdp=None, candidate={"c": 1}, from_=PeerId("p1")),
+            generate_wire.RELAY_FIELD_TYPES,
+            id="ice_candidate",
+        ),
     ],
 )
 def test_render_frame_type_names_the_properties_the_frame_sends_in_order(
-    frame: ChatBroadcastFrame | MediaStateBroadcastFrame,
+    frame: ChatBroadcastFrame | MediaStateBroadcastFrame | OfferRelayFrame | AnswerRelayFrame | IceCandidateRelayFrame,
+    extra_field_types: dict[object, str] | None,
 ) -> None:
-    rendered = generate_wire.render_frame_type(type(frame))
+    rendered = generate_wire.render_frame_type(type(frame), extra_field_types)
     properties = [line.split(":")[0].strip() for line in rendered.splitlines()[1:-1]]
 
     assert properties == list(frame.to_json())

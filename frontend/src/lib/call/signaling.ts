@@ -3,10 +3,13 @@ import { state } from "#lib/call/state.ts";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
 import {
+    type AnswerRelayFrame,
     type ChatBroadcastFrame,
     ERROR_REASON,
     type ExistingParticipantsFrame,
+    type IceCandidateRelayFrame,
     type MediaStateBroadcastFrame,
+    type OfferRelayFrame,
     type ParticipantJoinedFrame,
     type ParticipantLeftFrame,
     type RoomLockedFrame,
@@ -41,7 +44,10 @@ type Handler = {
             | RoomLockedFrame
             | RoomUnlockedFrame
             | ChatBroadcastFrame
-            | MediaStateBroadcastFrame,
+            | MediaStateBroadcastFrame
+            | OfferRelayFrame
+            | AnswerRelayFrame
+            | IceCandidateRelayFrame,
     ): void;
 }["handle"];
 
@@ -76,21 +82,11 @@ export function on(type: SIGNAL_TYPE.ROOM_LOCKED, handler: (frame: RoomLockedFra
 export function on(type: SIGNAL_TYPE.ROOM_UNLOCKED, handler: (frame: RoomUnlockedFrame) => void): void;
 export function on(type: SIGNAL_TYPE.CHAT, handler: (frame: ChatBroadcastFrame) => void): void;
 export function on(type: SIGNAL_TYPE.MEDIA_STATE, handler: (frame: MediaStateBroadcastFrame) => void): void;
+export function on(type: SIGNAL_TYPE.OFFER, handler: (frame: OfferRelayFrame) => void): void;
+export function on(type: SIGNAL_TYPE.ANSWER, handler: (frame: AnswerRelayFrame) => void): void;
+export function on(type: SIGNAL_TYPE.ICE_CANDIDATE, handler: (frame: IceCandidateRelayFrame) => void): void;
 export function on(type: SIGNAL_TYPE, handler: (data: ServerFrame) => void): void;
-export function on(
-    type: SIGNAL_TYPE,
-    handler:
-        | Handler
-        | ((frame: RoomClosedFrame) => void)
-        | ((frame: RoomCreatedFrame) => void)
-        | ((frame: ExistingParticipantsFrame) => void)
-        | ((frame: ParticipantJoinedFrame) => void)
-        | ((frame: ParticipantLeftFrame) => void)
-        | ((frame: RoomLockedFrame) => void)
-        | ((frame: RoomUnlockedFrame) => void)
-        | ((frame: ChatBroadcastFrame) => void)
-        | ((frame: MediaStateBroadcastFrame) => void),
-) {
+export function on(type: SIGNAL_TYPE, handler: Handler | ((frame: never) => void)) {
     addHandler(type, handler);
 }
 

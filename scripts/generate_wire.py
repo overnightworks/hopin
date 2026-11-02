@@ -32,9 +32,13 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
+    AnswerRelayFrame,
     ChatBroadcastFrame,
     ExistingParticipantsFrame,
+    IceCandidateRelayFrame,
+    JsonValue,
     MediaStateBroadcastFrame,
+    OfferRelayFrame,
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
     PeerId,
@@ -93,6 +97,7 @@ FRAME_FIELD_TYPES: dict[object, str] = {
     dict[str, str]: "Record<string, string>",
 }
 ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON", int: "number"}
+RELAY_FIELD_TYPES: dict[object, str] = {JsonValue: "unknown"}
 WIRE_FIELD_NAMES = {"from_": SENDER_KEY}
 
 
@@ -131,6 +136,9 @@ def _server_frames() -> str:
             render_frame_type(RoomUnlockedFrame),
             render_frame_type(ChatBroadcastFrame),
             render_frame_type(MediaStateBroadcastFrame),
+            render_frame_type(OfferRelayFrame, RELAY_FIELD_TYPES),
+            render_frame_type(AnswerRelayFrame, RELAY_FIELD_TYPES),
+            render_frame_type(IceCandidateRelayFrame, RELAY_FIELD_TYPES),
         )
     )
 
