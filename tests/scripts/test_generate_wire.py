@@ -138,7 +138,7 @@ def test_render_core_existing_participants_frame_types_its_containers() -> None:
         ),
     ],
 )
-def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type, rendered: str) -> None:
+def test_render_frame_type_types_the_participant_lock_and_resumed_frames(frame_cls: type, rendered: str) -> None:
     assert generate_wire.render_frame_type(frame_cls) in generate_wire.render_core()
     assert generate_wire.render_frame_type(frame_cls) == rendered
 
@@ -236,6 +236,7 @@ def test_render_frame_type_types_the_error_chat_media_state_and_relay_frames(
             generate_wire.RELAY_FIELD_TYPES,
             id="ice_candidate",
         ),
+        pytest.param(ResumedFrame(resume_token="t", last_seq=1), None, id="resumed"),
     ],
 )
 def test_render_frame_type_names_the_properties_the_frame_sends_in_order(
@@ -244,7 +245,8 @@ def test_render_frame_type_names_the_properties_the_frame_sends_in_order(
     | ErrorFrame
     | OfferRelayFrame
     | AnswerRelayFrame
-    | IceCandidateRelayFrame,
+    | IceCandidateRelayFrame
+    | ResumedFrame,
     extra_field_types: dict[object, str] | None,
 ) -> None:
     rendered = generate_wire.render_frame_type(type(frame), extra_field_types)
@@ -308,7 +310,10 @@ def test_render_core_server_frame_map_has_one_entry_per_rendered_frame() -> None
     assert frames
     assert sorted(entries) == sorted((signal, frame) for frame, signal in frames)
     assert map_body.count("\n") == len(frames)
-    assert "export type ServerFrame = ServerFrameByType[keyof ServerFrameByType];\n" in rendered
+
+
+def test_render_core_server_frame_union_is_the_value_union_of_the_map() -> None:
+    assert "export type ServerFrame = ServerFrameByType[keyof ServerFrameByType];\n" in generate_wire.render_core()
 
 
 def test_render_core_sequenced_frame_adds_the_replay_sequence_key_as_optional() -> None:
