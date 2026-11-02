@@ -99,7 +99,7 @@ class IssuerError(StrEnum):
             return cls.OTHER
 
 
-class StarterRefused(Exception):  # noqa: N818 - it names the refusal, not an error class
+class StarterRefusedError(Exception):
     """The starter's tokens cannot be had; raised to the backend's caller so that no request is made."""
 
     def __init__(self, refusal: GameRefusal) -> None:
@@ -123,13 +123,14 @@ class StarterTokens:
         self._workload_scope = workload_scope
 
     async def asker_for(self, starter: HTTPConnection) -> Asker:
-        """The starter as the backend's `Asker`; raises `StarterRefused` when the socket has no standing session."""
+        """The starter as the backend's `Asker`; raises `StarterRefusedError` without a standing session."""
         session_id = session_id_from_request(starter, self._web_auth)
         if session_id is None:
-            raise StarterRefused(GameRefusal.SIGN_IN_AGAIN)
+            raise StarterRefusedError(GameRefusal.SIGN_IN_AGAIN)
         record = await asyncio.to_thread(self._sessions.load, session_id)
         if record is None:
-            raise StarterRefused(_refusal_of_person_token(AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)))
+            ended = AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)
+            raise StarterRefusedError(_refusal_of_person_token(ended))
         # webauth binds the store to one issuer, and an account's id is that issuer's `sub`.
         principal = CapabilityPrincipal(iss=self._relying_party.issuer, sub=record.user.id)
         return Asker(principal, partial(self._tokens, session_id))
@@ -139,11 +140,11 @@ class StarterTokens:
         # not the worker: its token is dropped unread and no later step runs.
         person = await asyncio.to_thread(self._person_token, session_id)
         if isinstance(person, AccessTokenRefusal):
-            raise StarterRefused(_refusal_of_person_token(person))
+            raise StarterRefusedError(_refusal_of_person_token(person))
         workload = await asyncio.to_thread(self._relying_party.workload_access_token, scopes=(self._workload_scope,))
         if isinstance(workload, OidcRefusal):
             _log_token_refusal(RunToken.WORKLOAD, workload)
-            raise StarterRefused(GameRefusal.UNAVAILABLE)
+            raise StarterRefusedError(GameRefusal.UNAVAILABLE)
         return RunTokens(person=person, workload=workload)
 
     def _person_token(self, session_id: str) -> SecretStr | AccessTokenRefusal:
@@ -172,7 +173,7 @@ class QuizGameMaster:
                     outcome = _outcome_of_event(event)
                     if outcome is not None:
                         return outcome
-        except StarterRefused as refused:
+        except StarterRefusedError as refused:
             return Refused(refused.refusal)
         except TurnStopped as stopped:
             return _refusal_of_stop(stopped)
