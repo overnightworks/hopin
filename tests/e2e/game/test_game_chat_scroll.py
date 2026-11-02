@@ -23,12 +23,12 @@ def test_the_chat_stays_scrolled_to_the_newest_line_when_the_typing_bubble_and_t
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentBackend,
+    agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     held = Holds()
-    agent_service.answer_next(held)
+    agent_backend.answer_next(held)
     open_chat(guest)
     open_chat(host)
     for number in range(MESSAGES_IN_A_LONG_HISTORY):
