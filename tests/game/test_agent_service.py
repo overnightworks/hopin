@@ -5,7 +5,7 @@ from http import HTTPStatus
 import httpx2
 import pytest
 import structlog.testing
-from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode
+from agent_runtime_client.wire import PROTOCOL_VERSION, FailureCode, RejectionCode, RunFile
 
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import Line, Refused
@@ -268,6 +268,9 @@ class TestStream:
             pytest.param(CancelsTheRun(), id="cancelled"),
             pytest.param(CallsATool(), id="tool-call"),
             pytest.param(EndsEarly(), id="truncated"),
+            pytest.param(
+                Succeeds(text="", files=(RunFile(name="note.txt", content=b"unread"),)), id="succeeded-without-words"
+            ),
             pytest.param(SendsBytes(b"event: nonsense\n\n"), id="malformed"),
         ],
     )
@@ -350,6 +353,9 @@ class TestNothingLeaksIntoLogs:
                 ),
                 id="unknown-type",
             ),
+            pytest.param(
+                Succeeds(text="", files=(RunFile(name="note.txt", content=b"{secrets}"),)), id="succeeded-without-words"
+            ),
         ],
     )
     async def test_neither_the_token_nor_the_game_text_reaches_a_log_or_the_outcome(
@@ -391,6 +397,11 @@ def _with_secrets(answer, embedded):
             return Fails(answer.code, message=embedded)
         case SendsBytes():
             return SendsBytes(answer.body.replace(b"{secrets}", embedded.encode()))
+        case Succeeds():
+            return Succeeds(
+                text=answer.text,
+                files=tuple(RunFile(name=file.name, content=embedded.encode()) for file in answer.files),
+            )
     raise AssertionError(answer)
 
 

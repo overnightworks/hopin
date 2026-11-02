@@ -192,8 +192,10 @@ async def _outcome_of_stream(response: httpx2.Response) -> GameOutcome:
 
 def _outcome_of_event(item: Decoded) -> GameOutcome | None:
     match item:
-        case Succeeded(text=text):
+        case Succeeded(text=text) if text:
             return Line(_cut(text))
+        case Succeeded():
+            _log_refusal(failure="no_words")
         case Failed(code=code):
             _log_refusal(failure=code.value)
         case Cancelled():
