@@ -16,14 +16,16 @@ services:
       HOPIN_TURN_PROVIDER: cloudflare
       HOPIN_TURN_KEY_ID_FILE: /run/secrets/turn_key_id
       HOPIN_TURN_API_TOKEN_FILE: /run/secrets/turn_api_token
-      HOPIN_AGENT__BACKEND: service
-      HOPIN_AGENT__SERVICE_URL: http://agent-service:8080
-      HOPIN_AGENT__WORKLOAD_SCOPE: agent-service-audience
+      HOPIN_AGENT__BACKEND: litellm
+      HOPIN_AGENT__GATEWAY__ORIGIN: http://litellm-front:4000
+      HOPIN_AGENT__GATEWAY__KEY_FILE: /run/secrets/litellm_key
+      HOPIN_AGENT__API_GROUP: /services/agent-service/api
     secrets:
       - oidc_client_secret
       - session_secret
       - turn_key_id
       - turn_api_token
+      - litellm_key
     networks:
       default: {}
       backchannel:
@@ -50,6 +52,8 @@ secrets:
     file: ${HOME}/.secrets/cloudflare/turn-hopin/key-id
   turn_api_token:
     file: ${HOME}/.secrets/cloudflare/turn-hopin/api-token
+  litellm_key:
+    file: ${HOME}/.secrets/litellm/apps/hopin
 
 networks:
   # HOPIN_TRUSTED_PROXIES names this network's gateway, and edge allocated the subnet.
@@ -63,7 +67,7 @@ networks:
   backchannel:
     name: hal_backchannel_hopin
     external: true
-  # HopIn reaches the agent service as agent-service:8080 on this network; edge creates it.
+  # HopIn reaches the gateway as litellm-front:4000 on this network; edge creates it.
   agent:
     name: hal_agent_hopin
     external: true

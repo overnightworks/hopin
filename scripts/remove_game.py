@@ -1,7 +1,8 @@
 """Remove the AI game from a throwaway copy of this checkout.
 
 CI runs it on a copy and then proves the call still works: removing the game is
-exactly this deletion, plus the compose network and the doc paragraphs. It
+exactly this deletion, plus the compose network, the four `HOPIN_AGENT__`
+variables, the `litellm_key` mount and declaration, and the doc paragraphs. It
 refuses to touch the checkout it lives in, and fails when anything it expects
 to delete is missing, so the drill cannot pass by deleting nothing.
 """
@@ -19,7 +20,7 @@ GAME_PATHS = (
     "tests/game",
     "tests/e2e/game",
 )
-MARKED_FILES = ("src/hopin/main.py", "tests/conftest.py", "scripts/generate_wire.py")
+MARKED_FILES = ("src/hopin/main.py", "tests/conftest.py", "scripts/generate_wire.py", "pyproject.toml")
 GAME_MARKER = "# game"
 GAME_ONLY_PACKAGES = ("overnightworks-agent-runtime-client",)
 REPOSITORY = Path(__file__).resolve().parent.parent
