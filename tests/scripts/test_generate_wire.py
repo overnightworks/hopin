@@ -1,5 +1,6 @@
 """Tests for the generator that writes the browser's typed wire vocabulary."""
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
@@ -7,6 +8,7 @@ import pytest
 
 from hopin.config.constants import ErrorReason, RoomClosedReason, SignalType
 from hopin.signaling.frames import (
+    SEQUENCE_KEY,
     AnswerRelayFrame,
     ChatBroadcastFrame,
     ErrorFrame,
@@ -16,6 +18,7 @@ from hopin.signaling.frames import (
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
     PeerId,
+    ResumedFrame,
     RoomCreatedFrame,
     RoomLockedFrame,
     RoomUnlockedFrame,
@@ -125,6 +128,14 @@ def test_render_core_existing_participants_frame_types_its_containers() -> None:
         ),
         (RoomLockedFrame, "export type RoomLockedFrame = {\n    type: SIGNAL_TYPE.ROOM_LOCKED;\n};\n"),
         (RoomUnlockedFrame, "export type RoomUnlockedFrame = {\n    type: SIGNAL_TYPE.ROOM_UNLOCKED;\n};\n"),
+        (
+            ResumedFrame,
+            "export type ResumedFrame = {\n"
+            "    type: SIGNAL_TYPE.RESUMED;\n"
+            "    resume_token: string;\n"
+            "    last_seq: number;\n"
+            "};\n",
+        ),
     ],
 )
 def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type, rendered: str) -> None:
@@ -286,3 +297,19 @@ def test_render_core_line_of_exactly_the_print_width_stays_on_one_line(monkeypat
     monkeypatch.setattr(generate_wire, "PRINT_WIDTH", len(one_line) - 1)
 
     assert f"\n{one_line}\n" not in generate_wire.render_core()
+
+
+def test_render_core_server_frame_map_has_one_entry_per_rendered_frame() -> None:
+    rendered = generate_wire.render_core()
+    frames = re.findall(r"export type (\w+) = \{\n    type: SIGNAL_TYPE\.(\w+);", rendered)
+    map_body = rendered.split("export type ServerFrameByType = {\n", 1)[1].split("};\n", 1)[0]
+    entries = re.findall(r"    \[SIGNAL_TYPE\.(\w+)\]: (\w+);\n", map_body)
+
+    assert frames
+    assert sorted(entries) == sorted((signal, frame) for frame, signal in frames)
+    assert map_body.count("\n") == len(frames)
+    assert "export type ServerFrame = ServerFrameByType[keyof ServerFrameByType];\n" in rendered
+
+
+def test_render_core_sequenced_frame_adds_the_replay_sequence_key_as_optional() -> None:
+    assert f"export type SequencedFrame = ServerFrame & {{ {SEQUENCE_KEY}?: number }};\n" in generate_wire.render_core()

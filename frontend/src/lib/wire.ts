@@ -124,6 +124,31 @@ export type IceCandidateRelayFrame = {
     from: string;
 };
 
+export type ResumedFrame = {
+    type: SIGNAL_TYPE.RESUMED;
+    resume_token: string;
+    last_seq: number;
+};
+
+export type ServerFrameByType = {
+    [SIGNAL_TYPE.ROOM_CLOSED]: RoomClosedFrame;
+    [SIGNAL_TYPE.ERROR]: ErrorFrame;
+    [SIGNAL_TYPE.ROOM_CREATED]: RoomCreatedFrame;
+    [SIGNAL_TYPE.EXISTING_PARTICIPANTS]: ExistingParticipantsFrame;
+    [SIGNAL_TYPE.PARTICIPANT_JOINED]: ParticipantJoinedFrame;
+    [SIGNAL_TYPE.PARTICIPANT_LEFT]: ParticipantLeftFrame;
+    [SIGNAL_TYPE.ROOM_LOCKED]: RoomLockedFrame;
+    [SIGNAL_TYPE.ROOM_UNLOCKED]: RoomUnlockedFrame;
+    [SIGNAL_TYPE.CHAT]: ChatBroadcastFrame;
+    [SIGNAL_TYPE.MEDIA_STATE]: MediaStateBroadcastFrame;
+    [SIGNAL_TYPE.OFFER]: OfferRelayFrame;
+    [SIGNAL_TYPE.ANSWER]: AnswerRelayFrame;
+    [SIGNAL_TYPE.ICE_CANDIDATE]: IceCandidateRelayFrame;
+    [SIGNAL_TYPE.RESUMED]: ResumedFrame;
+};
+export type ServerFrame = ServerFrameByType[keyof ServerFrameByType];
+export type SequencedFrame = ServerFrame & { seq?: number };
+
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";
 export const ICE_SERVERS_PATH = "/api/ice-servers";
