@@ -12,9 +12,9 @@ updates:
       interval: daily
     cooldown:
       default-days: 7
-    # why: Dependabot's proxy gets 401 from the presigned asset URL a GitHub
-    # release download redirects to, which fails the whole uv job; these
-    # packages move by their owners' release items instead.
+    # why: these are direct git references; Dependabot looks a direct reference
+    # up on PyPI by name, so a published or squatted name would become a
+    # proposal against the git pin. They move by their owners' release items.
     ignore:
       - dependency-name: "overnightworks-*"
   - package-ecosystem: docker
