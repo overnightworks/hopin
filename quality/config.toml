@@ -11,12 +11,6 @@ reason = "the SvelteKit project is a toolchain of its own: its manifest, lockfil
 
 [[gate.loosened]]
 what = "import contract \"HopIn's packages depend downwards only\" changes layers"
-item = "#265"
-date = 2026-10-28
-reason = "#265 puts the optional game layer where the agents package stood, so the game can be removed again, a tightening the gate reads as a change (overnightworks/quality#217)"
-
-[[gate.loosened]]
-what = "import contract \"HopIn's packages depend downwards only\" changes layers"
 item = "#453"
 date = 2026-11-02
 reason = "#453 puts the agent connector in the game's layer, because the connector builds on the game's domain and the game's composition on the connector, a layer merge the gate reads as a change (overnightworks/quality#217)"
