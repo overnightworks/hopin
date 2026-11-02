@@ -6,8 +6,8 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
     "httpx2>=2.13.1",
-    "overnightworks-agent-runtime-client @ https://github.com/overnightworks/agent-runtime/releases/download/v0.16.0/overnightworks_agent_runtime_client-0.16.0-py3-none-any.whl#sha256=9dc841c87da315dc678bbfd8439a38d6352a7e1ad765632593cea36fedf65e86",
-    "overnightworks-webauth @ https://github.com/overnightworks/webauth/releases/download/v0.27.0/overnightworks_webauth-0.27.0-py3-none-any.whl",
+    "overnightworks-agent-runtime-client @ git+https://github.com/overnightworks/agent-runtime@v0.16.0#subdirectory=packages/client",
+    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.27.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "structlog>=24.4",
@@ -22,6 +22,13 @@ hopin = "hopin.main:main"
 [build-system]
 requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+# The two overnightworks libraries are built from their git tags; a named package
+# overrides a global --no-build, so every other package still installs as a wheel.
+no-binary-package = ["overnightworks-agent-runtime-client", "overnightworks-webauth"]
+# Their build backends run with these exact tools, as hatchling is pinned above.
+build-constraint-dependencies = ["setuptools==84.2.1", "wheel==0.48.0"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
