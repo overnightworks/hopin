@@ -8,7 +8,7 @@ imports it.
 The `Makefile` owns the targets. Traps:
 
 - `make e2e` and `make run` build the page first (`make frontend`, which needs Node 26, or 24, and pnpm), and the server refuses to
-  start without that build. `make e2e` takes no lock itself: run it under the global contract's probe-stack recipe.
+  start without that build. `make e2e` takes no lock itself: run it under the `flock` rule in the global contract's section "Machine load and local runs".
   It needs Playwright's Chromium installed once; the `End-to-end` job in `.github/workflows/ci.yml` owns that install step.
 - `make wire-check` (part of `make lint`) fails when `frontend/src/lib/wire.ts` or
   `frontend/src/lib/features/game/wire.ts` drifts from the Python wire owners;
