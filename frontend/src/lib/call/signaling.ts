@@ -3,8 +3,10 @@ import { state } from "#lib/call/state.ts";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
 import {
+    type ChatBroadcastFrame,
     ERROR_REASON,
     type ExistingParticipantsFrame,
+    type MediaStateBroadcastFrame,
     type ParticipantJoinedFrame,
     type ParticipantLeftFrame,
     type RoomLockedFrame,
@@ -37,7 +39,9 @@ type Handler = {
             | ParticipantJoinedFrame
             | ParticipantLeftFrame
             | RoomLockedFrame
-            | RoomUnlockedFrame,
+            | RoomUnlockedFrame
+            | ChatBroadcastFrame
+            | MediaStateBroadcastFrame,
     ): void;
 }["handle"];
 
@@ -70,6 +74,8 @@ export function on(type: SIGNAL_TYPE.PARTICIPANT_JOINED, handler: (frame: Partic
 export function on(type: SIGNAL_TYPE.PARTICIPANT_LEFT, handler: (frame: ParticipantLeftFrame) => void): void;
 export function on(type: SIGNAL_TYPE.ROOM_LOCKED, handler: (frame: RoomLockedFrame) => void): void;
 export function on(type: SIGNAL_TYPE.ROOM_UNLOCKED, handler: (frame: RoomUnlockedFrame) => void): void;
+export function on(type: SIGNAL_TYPE.CHAT, handler: (frame: ChatBroadcastFrame) => void): void;
+export function on(type: SIGNAL_TYPE.MEDIA_STATE, handler: (frame: MediaStateBroadcastFrame) => void): void;
 export function on(type: SIGNAL_TYPE, handler: (data: ServerFrame) => void): void;
 export function on(
     type: SIGNAL_TYPE,

@@ -82,6 +82,19 @@ export type RoomUnlockedFrame = {
     type: SIGNAL_TYPE.ROOM_UNLOCKED;
 };
 
+export type ChatBroadcastFrame = {
+    type: SIGNAL_TYPE.CHAT;
+    message: string;
+    from: string;
+};
+
+export type MediaStateBroadcastFrame = {
+    type: SIGNAL_TYPE.MEDIA_STATE;
+    from: string;
+    audio: boolean;
+    video: boolean;
+};
+
 export const SESSION_ENDED_CLOSE_CODE = 4002;
 export const WEBSOCKET_PATH = "/ws";
 export const ICE_SERVERS_PATH = "/api/ice-servers";

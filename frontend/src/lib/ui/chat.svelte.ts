@@ -1,6 +1,6 @@
 import { flushSync, type Component } from "svelte";
 import type { Attachment } from "svelte/attachments";
-import { isConnected, on, send, type ServerFrame } from "#lib/call/signaling.ts";
+import { isConnected, on, send } from "#lib/call/signaling.ts";
 import { playMessageSound } from "#lib/call/sounds.ts";
 import { state } from "#lib/call/state.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -92,13 +92,8 @@ export function sendOnEnter(event: KeyboardEvent) {
     if (event.key === "Enter") sendChatMessage();
 }
 
-function isChatFrame(data: ServerFrame): data is ServerFrame & { message: string; from: string } {
-    return typeof data.message === "string" && typeof data.from === "string";
-}
-
 export function registerChatHandlers() {
     on(SIGNAL_TYPE.CHAT, (data) => {
-        if (!isChatFrame(data)) return;
         addLine({ kind: "other", text: data.message, sender: state.namesByParticipant.get(data.from) ?? "" });
         countUnread();
     });

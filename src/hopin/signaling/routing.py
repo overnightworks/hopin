@@ -5,15 +5,17 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason, SignalType
+from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.signaling.frames import (
+    ChatBroadcastFrame,
     ChatFrame,
     ExistingParticipantsFrame,
     HostAwayFrame,
     HostBackFrame,
     JoinFrame,
     JsonObject,
+    MediaStateBroadcastFrame,
     MediaStateFrame,
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
@@ -155,7 +157,7 @@ class RoomRouting:
             return
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
-        await self._seats.send_all(others, {"type": SignalType.CHAT.value, "message": message, "from": peer_id})
+        await self._seats.send_all(others, ChatBroadcastFrame(message=message, from_=peer_id).to_json())
 
     async def handle_media_state(self, peer_id: PeerId, frame: MediaStateFrame) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -164,8 +166,7 @@ class RoomRouting:
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
         await self._seats.send_all(
-            others,
-            {"type": SignalType.MEDIA_STATE.value, "from": peer_id, "audio": frame.audio, "video": frame.video},
+            others, MediaStateBroadcastFrame(from_=peer_id, audio=frame.audio, video=frame.video).to_json()
         )
 
     async def handle_relay(self, peer_id: PeerId, frame: RelayFrame) -> None:

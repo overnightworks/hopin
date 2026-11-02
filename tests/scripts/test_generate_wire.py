@@ -7,8 +7,11 @@ import pytest
 
 from hopin.config.constants import RoomClosedReason, SignalType
 from hopin.signaling.frames import (
+    ChatBroadcastFrame,
+    MediaStateBroadcastFrame,
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
+    PeerId,
     RoomCreatedFrame,
     RoomLockedFrame,
     RoomUnlockedFrame,
@@ -118,11 +121,44 @@ def test_render_core_existing_participants_frame_types_its_containers() -> None:
         ),
         (RoomLockedFrame, "export type RoomLockedFrame = {\n    type: SIGNAL_TYPE.ROOM_LOCKED;\n};\n"),
         (RoomUnlockedFrame, "export type RoomUnlockedFrame = {\n    type: SIGNAL_TYPE.ROOM_UNLOCKED;\n};\n"),
+        (
+            ChatBroadcastFrame,
+            "export type ChatBroadcastFrame = {\n"
+            "    type: SIGNAL_TYPE.CHAT;\n"
+            "    message: string;\n"
+            "    from: string;\n"
+            "};\n",
+        ),
+        (
+            MediaStateBroadcastFrame,
+            "export type MediaStateBroadcastFrame = {\n"
+            "    type: SIGNAL_TYPE.MEDIA_STATE;\n"
+            "    from: string;\n"
+            "    audio: boolean;\n"
+            "    video: boolean;\n"
+            "};\n",
+        ),
     ],
 )
 def test_render_frame_type_types_the_participant_and_lock_frames(frame_cls: type, rendered: str) -> None:
     assert generate_wire.render_frame_type(frame_cls) in generate_wire.render_core()
     assert generate_wire.render_frame_type(frame_cls) == rendered
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [
+        pytest.param(ChatBroadcastFrame(message="hi", from_=PeerId("p1")), id="chat"),
+        pytest.param(MediaStateBroadcastFrame(from_=PeerId("p1"), audio=True, video=False), id="media_state"),
+    ],
+)
+def test_render_frame_type_names_the_properties_the_frame_sends_in_order(
+    frame: ChatBroadcastFrame | MediaStateBroadcastFrame,
+) -> None:
+    rendered = generate_wire.render_frame_type(type(frame))
+    properties = [line.split(":")[0].strip() for line in rendered.splitlines()[1:-1]]
+
+    assert properties == list(frame.to_json())
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

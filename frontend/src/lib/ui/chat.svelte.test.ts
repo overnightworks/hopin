@@ -214,21 +214,6 @@ describe("receiving", () => {
 
         expect(chat.chat.lines).toEqual([{ kind: "other", text: "hi", sender: "" }]);
     });
-
-    it.each([
-        ["no message", { from: "p1" }],
-        ["a message that is no text", { message: 5, from: "p1" }],
-        ["no sender", { message: "hi" }],
-        ["a sender that is no text", { message: "hi", from: 5 }],
-    ])("ignores a frame with %s", async (_name, frame) => {
-        const chat = await freshChat();
-        chat.registerChatHandlers();
-
-        receive(frame);
-
-        expect(chat.chat.lines).toEqual([]);
-        expect(chat.chat.unread).toBe(0);
-    });
 });
 
 describe("feature views", () => {
