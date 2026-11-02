@@ -195,6 +195,8 @@ def _outcome_of_event(event: TurnEvent) -> GameOutcome | None:
             _log_refusal(failure="tool_event")
         case AssistantTextEvent():
             return None
+        case _:  # pragma: no cover - the type checker proves the match exhaustive
+            assert_never(event)
     return UNAVAILABLE
 
 
