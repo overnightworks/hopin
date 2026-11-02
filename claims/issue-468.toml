@@ -1,0 +1,7 @@
+claim_id = "6a93342bb10a4b908cf1f0c57263a6d7"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b440f9b6d99bb7d7a909b797f0eed272bd3e1be3"
+branch = "claude/issue-468-uv-from-line"
+scope = ["Dockerfile"]
+opened_commit = "8496aeaa51f22e8b97bf268e727cb97812d8bc9c"
