@@ -45,7 +45,7 @@ Server packages under `src/hopin/`, each with one job. Their dependency order is
 | `auth` | sign-in against Keycloak through webauth, the session gate, the in-memory stores of accounts and sessions |
 | `rooms` | rooms, participants, their capacity and lock |
 | `signaling` | the WebSocket: who a socket is, the frames, seats, replay, timers, and the port for the call's one optional feature (`signaling/features.py`) |
-| `game` | the AI game, optional: one quiz per call (its rules in `game/quiz.py`), its runs one at a time, and `game/feature.py`, which composes it with the connector |
+| `game` | the AI game, optional: one quiz per call (its rules in `game/quiz.py`), its runs one at a time |
 | `agent` | the game's agent connector, optional and in a layer above the game: `agent/settings.py` (`AgentSettings`, with the client's `AgentConfig` as `agent`), `agent/backend.py` (the starter's verified identity and current groups, one quiz run on the client's `GatewayBackend`, turned into a line or a refusal), `agent/feature.py` (the game composed on them for `main`) and `agent/tools.py` (no tools); the quiz agent's file is `src/hopin/agents/quiz.md` |
 | `web` | the page build and its files, static files, the health route, the ICE server list and the TURN provider adapter |
 | `main` | starts the server and switches the game in |
