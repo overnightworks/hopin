@@ -4,6 +4,7 @@ import json
 import logging
 import secrets
 from contextlib import ExitStack
+from dataclasses import dataclass
 
 import pytest
 import structlog.testing
@@ -21,18 +22,19 @@ from tests.support.fake_issuer import FakeIssuer
 
 pytestmark = pytest.mark.integration
 
-# The vector agent-runtime's wire.md gives for this issuer and subject.
-ISSUER = "https://issuer.example"
-SUBJECT = "subject-1"
-FINGERPRINT = "fp-2db44d96ffdef38f9e1cbfe73e9cf248fb66955b894846b34843a2d3a849d764"
-QUESTION = "Welcher Fluss fließt durch Lissabon?"
-MAX_KEY_BYTES = 1024
-GATEWAY_LOGGER = "agent_runtime_client.backend.gateway"
-TURN_REFUSED = "game_master_turn_refused"
+
+@dataclass(frozen=True)
+class QuizScenario:
+    """One turn's values; the issuer, subject and fingerprint are the vector agent-runtime's wire.md gives."""
+
+    issuer: str = "https://issuer.example"
+    subject: str = "subject-1"
+    fingerprint: str = "fp-2db44d96ffdef38f9e1cbfe73e9cf248fb66955b894846b34843a2d3a849d764"
+    question: str = "Welcher Fluss fließt durch Lissabon?"
+    key_past_the_clients_bound: str = "k" * 1025
 
 
-def key_of_size(size):
-    return "k" * size
+SCENARIO = QuizScenario()
 
 
 @pytest.fixture
@@ -45,11 +47,11 @@ def key_file(tmp_path):
 @pytest.fixture
 def quiz_on_gateway(sign_in_settings, key_file):
     """Opens one HopIn whose game runs on a real `GatewayBackend` over a gateway that answers with `replies`."""
-    sign_in = sign_in_settings(oidc_issuer=ISSUER)
+    sign_in = sign_in_settings(oidc_issuer=SCENARIO.issuer)
     with ExitStack() as serving:
 
         def open_quiz(*replies):
-            gateway = FakeGateway(*(replies or (completion(QUESTION),)))
+            gateway = FakeGateway(*(replies or (completion(SCENARIO.question),)))
             backend = GatewayBackend(agent_settings(key_file).agent, transport=gateway)
             return serving.enter_context(serving_call(sign_in, FakeIssuer(sign_in), backend)), gateway
 
@@ -61,7 +63,7 @@ def refused_frames(reason, starter, *, retry_after_seconds=None):
 
 
 def stops_logged(logs):
-    return [log for log in logs if log["event"] == TURN_REFUSED]
+    return [log for log in logs if log["event"] == "game_master_turn_refused"]
 
 
 def first_post_of(gateway):
@@ -75,8 +77,8 @@ def test_a_member_of_the_api_group_starts_a_quiz_and_every_seat_reads_the_gatewa
 
     host.start()
 
-    assert host.frames(3) == asked(host, QUESTION)
-    assert guest.frames(3) == asked(host, QUESTION)
+    assert host.frames(3) == asked(host, SCENARIO.question)
+    assert guest.frames(3) == asked(host, SCENARIO.question)
     assert len(gateway.requests) == 1
 
 
@@ -108,19 +110,19 @@ def test_the_fingerprint_is_wire_mds_vector_so_the_issuer_goes_out_exactly_as_th
     quiz_on_gateway,
 ):
     call, gateway = quiz_on_gateway()
-    host, _ = call.seat(call.member(subject=SUBJECT, groups=(API_GROUP,)))
+    host, _ = call.seat(call.member(subject=SCENARIO.subject, groups=(API_GROUP,)))
 
     host.start()
     host.frames(3)
 
     _, body = first_post_of(gateway)
-    assert body["user"] == FINGERPRINT
+    assert body["user"] == SCENARIO.fingerprint
 
 
 @pytest.mark.parametrize(
     "reply",
     [
-        pytest.param(completion(QUESTION), id="answered"),
+        pytest.param(completion(SCENARIO.question), id="answered"),
         pytest.param(Reply(status=403), id="refused"),
         pytest.param(Reply(status=500), id="failed"),
     ],
@@ -188,7 +190,9 @@ def test_a_gateway_at_its_limit_is_busy_for_as_long_as_it_says(quiz_on_gateway, 
         pytest.param(Reply(status=503), GatewayDetail.GATEWAY_FAILED, id="5xx"),
         pytest.param(Reply(body=b"{not json"), GatewayDetail.MALFORMED_REPLY, id="malformed-json"),
         pytest.param(completion(""), GatewayDetail.MALFORMED_REPLY, id="empty-text"),
-        pytest.param(completion(QUESTION, finish_reason="length"), GatewayDetail.MALFORMED_REPLY, id="cut-off"),
+        pytest.param(
+            completion(SCENARIO.question, finish_reason="length"), GatewayDetail.MALFORMED_REPLY, id="cut-off"
+        ),
     ],
 )
 def test_a_gateway_that_gives_no_answer_reads_as_unavailable_with_its_closed_detail_logged(
@@ -213,7 +217,7 @@ def test_a_gateway_that_gives_no_answer_reads_as_unavailable_with_its_closed_det
         pytest.param(lambda path: path.unlink(), id="missing"),
         pytest.param(lambda path: path.write_text(""), id="empty"),
         pytest.param(lambda path: path.write_text("one\ntwo\n"), id="two-lines"),
-        pytest.param(lambda path: path.write_text(key_of_size(MAX_KEY_BYTES + 1)), id="too-long"),
+        pytest.param(lambda path: path.write_text(SCENARIO.key_past_the_clients_bound), id="too-long"),
     ],
 )
 def test_an_unusable_key_file_leaves_the_start_standing_and_makes_the_turn_unavailable_with_no_post(
