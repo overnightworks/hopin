@@ -331,7 +331,9 @@ class TestNothingLeaksIntoLogs:
             pytest.param(SaysThenStops("{secrets}", CancelsTheRun()), id="cancelled-after-speaking"),
         ],
     )
-    async def test_neither_a_token_nor_a_group_path_nor_the_game_text_reaches_a_log_or_the_outcome(self, world, answer):
+    async def test_neither_a_token_nor_a_group_path_nor_the_game_text_reaches_a_log_or_the_outcome(
+        self, world, stdlib_records, answer
+    ):
         sentinel = f"Sentinel-Frage {secrets.token_hex(8)}?"
         group = f"/scenario/{secrets.token_hex(8)}"
         starter, member = world.starter()
@@ -342,7 +344,7 @@ class TestNothingLeaksIntoLogs:
             outcome = await world.game_master.ask(starter, (*OPENING, Turn(Speaker.GAME_MASTER, sentinel)))
 
         refresh_token = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
-        shown = repr(logs) + repr(outcome)
+        shown = repr(logs) + "".join(stdlib_records) + repr(outcome)
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         for secret in (refresh_token, group, sentinel):
             assert secret[:SHOWN_PREFIX_LENGTH] not in shown
@@ -365,7 +367,7 @@ class TestNothingLeaksIntoLogs:
             }
         ]
 
-    async def test_a_successful_answer_carries_the_question_and_logs_nothing_of_it(self, world):
+    async def test_a_successful_answer_carries_the_question_and_logs_nothing_of_it(self, world, stdlib_records):
         starter, _ = world.starter()
         question = f"Sentinel-Frage {secrets.token_hex(8)}?"
         world.backend.answer_next(Succeeds(question, said=(question,)))
@@ -374,7 +376,7 @@ class TestNothingLeaksIntoLogs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Line(question)
-        assert question not in repr(logs)
+        assert question not in repr(logs) + "".join(stdlib_records)
 
 
 def _with_sentinel(answer, sentinel):
