@@ -29,6 +29,10 @@ class GameFeature:
 
     backend: QuizBackend
 
+    @property
+    def sign_in_scopes(self) -> tuple[str, ...]:
+        return ()
+
     def __call__(
         self,
         *,

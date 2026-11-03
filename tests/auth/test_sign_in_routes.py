@@ -131,7 +131,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         sign_in.settings.oidc_client_secret_file.write_text(
             sign_in.client_secret + ("\r\n" if windows_line_ending else "\n")
         )
-        configs = build_sign_in_configs(sign_in.settings)
+        configs = build_sign_in_configs(sign_in.settings, ())
         issuer = FakeIssuer(sign_in)
         transports = issuer.transports
         if key_set_of is not None:
