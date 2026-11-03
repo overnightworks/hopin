@@ -1,0 +1,7 @@
+claim_id = "2262f920a3144ddb99d3e62bf511f4fa"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "aae14cbf6b20811411a6d790eac53b689e79f0d8"
+branch = "dependabot/docker/astral-sh/uv-0.13.7"
+scope = ["Dockerfile"]
+opened_commit = "edc74deb967bd37e1c36d4477872cdd0ae676ec7"
