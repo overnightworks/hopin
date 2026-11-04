@@ -29,3 +29,14 @@ updates:
       interval: daily
     cooldown:
       default-days: 7
+    groups:
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+    # why: svelte-check and typescript-eslint do not yet admit TypeScript 7 in
+    # their peer ranges, so a major bump cannot be installed. This ignore goes
+    # when both admit it.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
