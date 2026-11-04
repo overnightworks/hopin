@@ -1,8 +1,0 @@
-claim_id = "995e90f726d64bf6b27f2f72946e254d"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "8b618ec57d3cea6a26ce584f94ccaff77c3ff591"
-branch = "claude/issue-453-ho1-agent-backend"
-scope = ["README.md", "compose.yaml", "docs/ARCHITECTURE.md", "pyproject.toml", "quality/config.toml", "scripts/remove_game.py", "src/hopin/agent", "src/hopin/agents", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/game/__init__.py", "src/hopin/game/agent_service.py", "src/hopin/game/feature.py", "src/hopin/game/quiz.md", "src/hopin/game/tokens.py", "src/hopin/game/vocabulary.py", "src/hopin/main.py", "tests/auth/test_gate.py", "tests/auth/test_sign_in_config.py", "tests/auth/test_sign_in_rate_limit.py", "tests/auth/test_sign_in_routes.py", "tests/conftest.py", "tests/e2e/game", "tests/game", "tests/support/fake_issuer.py", "tests/support/loopback_origin.py", "uv.lock"]
-opened_commit = "87305b206baa811916f1c1924c36b83d5c4c36cb"
-whole_reason = "One owner moves: the adapter, its token reader, the settings and their tests leave together, because the client's connector replaces all of them at once and half a move would leave two run paths. About 120 production lines added, 340 deleted."
