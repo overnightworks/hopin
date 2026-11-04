@@ -7,13 +7,13 @@ from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, TYPING, close_chat
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
 from tests.e2e.support.people import FORM_FACTORS
-from tests.game.support.fake_agent_service import Holds
+from tests.game.support.fake_agent_backend import Holds
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from tests.e2e.support.server import RunningServer
-    from tests.game.support.fake_agent_service import FakeAgentService
+    from tests.game.support.fake_agent_backend import FakeAgentBackend
 
 pytestmark = pytest.mark.e2e
 
@@ -23,12 +23,12 @@ def test_the_chat_stays_scrolled_to_the_newest_line_when_the_typing_bubble_and_t
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
-    agent_service: FakeAgentService,
+    agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     held = Holds()
-    agent_service.answer_next(held)
+    agent_backend.answer_next(held)
     open_chat(guest)
     open_chat(host)
     for number in range(MESSAGES_IN_A_LONG_HISTORY):

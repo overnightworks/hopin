@@ -5,8 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "httpx2>=2.13.1",
-    "overnightworks-agent-runtime-client @ git+https://github.com/overnightworks/agent-runtime@v0.16.0#subdirectory=packages/client",
+    "overnightworks-agent-runtime-client[backend] @ git+https://github.com/overnightworks/agent-runtime@v0.19.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.29.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
@@ -26,7 +25,10 @@ build-backend = "hatchling.build"
 [tool.uv]
 # The two overnightworks libraries are built from their git tags; a named package
 # overrides a global --no-build, so every other package still installs as a wheel.
-no-binary-package = ["overnightworks-agent-runtime-client", "overnightworks-webauth"]
+no-binary-package = [
+    "overnightworks-agent-runtime-client",  # game
+    "overnightworks-webauth",
+]
 # Their build backends run with these exact tools, as hatchling is pinned above.
 build-constraint-dependencies = ["setuptools==84.2.1", "wheel==0.48.0"]
 
@@ -165,12 +167,14 @@ containers = ["hopin"]
 # placed by a decision rather than slipping in between. `main` starts the server
 # and `app` is the composition root: nothing imports `main`, and only `main`
 # imports `app`. The game is optional: it plugs into signaling's feature port,
-# `main` switches it in, and deleting it needs no contract edit. The person export
+# `main` switches it in, and deleting it needs no contract edit. The agent connector
+# is optional with it and stands above it: it composes the game on the client's
+# backend, and the game knows nothing of it. The person export
 # joins sign-in's sessions with signaling's seats, so `people` sits above both.
 # Sign-in sits above the web routes it guards, the routes above the signaling and
 # room services they are handed, and `config` is the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "(game)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "(agent)", "(game)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"
@@ -197,8 +201,8 @@ allow_indirect_imports = true
 id = "call-core-knows-no-game"
 name = "The call core knows no game"
 type = "forbidden"
-# The game must stay removable: the call core reaches neither it nor the agent service
-# it speaks to, not even through another module.
+# The game must stay removable: the call core reaches neither it nor its agent connector
+# and the client and HTTP library under them, not even through another module.
 source_modules = [
     "hopin.people",
     "hopin.auth",
@@ -208,16 +212,16 @@ source_modules = [
     "hopin.errors",
     "hopin.config",
 ]
-forbidden_modules = ["hopin.game", "agent_runtime_client", "httpx2"]
+forbidden_modules = ["hopin.game", "hopin.agent", "agent_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"
 name = "Only the game reaches the agent service"
 type = "forbidden"
-# The agent service's wire and its HTTP client are the game's alone.
+# The client of the agent runtime and its HTTP library are the connector's alone.
 source_modules = ["hopin.main", "hopin.app"]
 forbidden_modules = ["agent_runtime_client", "httpx2"]
-# main imports hopin.game to switch it in; only a direct import is the violation.
+# main imports hopin.agent to switch the game in; only a direct import is the violation.
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]

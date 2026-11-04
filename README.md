@@ -19,7 +19,7 @@ Only members of the Keycloak group `/apps/hopin` use it. How it is built, how a 
 
 ## Quick Start
 
-You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
+You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings and the four required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
 Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start.
 
@@ -43,7 +43,7 @@ HopIn holds a person's account (name and role), their sessions and their seats i
 - **Not counted:** copies of the person's own frames in other participants' replay buffers (their name, chat lines, media state, connection descriptions), which stay until newer frames push them out and which HopIn cannot trace to the person once the seat has ended, and a call the person hosts during its 60-second grace.
 - **Logs:** the `account_event` log lines carry the person's Keycloak id until the host's log period ends. They are described here and not part of the export.
 
-**The game master.** Start quiz is one run at the fleet's agent service and each reveal, tapped or automatic, two (the answer, then the next question or the final score), five questions and eleven runs in all, each made on the starter's account: HopIn spends the session's refresh token once for a fresh access token, keeps the rotated one in the session, and sends the quiz prompt, this quiz's turns so far (its requests and the game master's lines) and the request for the question, its answer or the final score, with that access token and HopIn's own workload token. Each reveal request carries every answer given to that question, each with the player's name as the call shows it, so the game master can name them and keep score, and every later run of that quiz carries them again; a player without an answer is not listed. A run sends no chat line and no media; the access token carries the starter's own account and name. Every line reaches everyone in the call; HopIn keeps the quiz in memory until it ends, and never logs a prompt, a line or what the service answered. The game's server side lives in `src/hopin/game/`, and `src/hopin/main.py` switches it in.
+**The game master.** Start quiz is one run and each reveal, tapped or automatic, two (the answer, then the next question or the final score), five questions and eleven runs in all, each one chat completion at the fleet's LiteLLM gateway (`litellm-front`) with HopIn's own key, made for the starter: HopIn spends the session's refresh token once to read the starter's current groups from Keycloak, keeps the rotated one in the session, and starts the run only for a member of the API group (`HOPIN_AGENT__API_GROUP`); anyone else is told they have no access. The gateway receives the quiz prompt, this quiz's turns so far (its requests and the game master's lines), the request for the question, its answer or the final score, and the starter's fingerprint, a hash of their issuer and account id that keeps their budget apart. Each reveal request carries every answer given to that question, each with the player's name as the call shows it, so the game master can name them and keep score, and every later run of that quiz carries them again; a player without an answer is not listed. A run sends no chat line and no media. A person over budget reads as unavailable, the same as an outage. Every line reaches everyone in the call; HopIn keeps the quiz in memory until it ends, and never logs a prompt, a line or what the gateway answered. The game's server side lives in `src/hopin/game/` and its agent connector in `src/hopin/agent/`, and `src/hopin/main.py` switches it in.
 
 The shape of `export.json` follows the fleet's shared people contract (`docs/people.md` in the edge repository). HopIn admits only an admin's signed-in browser session, not an access token, so hal cannot call the route yet.
 
@@ -76,10 +76,15 @@ Afterwards the export shows no account and no sessions, and no seats once the ca
 | `HOPIN_PUBLIC_ORIGIN` | required | HopIn's own https origin, without a path or trailing slash |
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 | `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits; empty trusts none, so every request counts against its direct peer |
-| `HOPIN_AGENT_SERVICE_URL` | `http://agent-service:8080` | The agent service's origin, without a path or trailing slash; the game master starts its runs at `/runs` there (read by the game's own settings) |
-| `HOPIN_AGENT_SERVICE_SCOPE` | `agent-service-audience` | The scope that names the agent service in HopIn's workload token and that person sign-in also requests while the game is installed, one RFC 6749 scope token; the issuer's realm must offer it to HopIn's client, and a malformed value stops the start (read by the game's own settings) |
+| `HOPIN_AGENT__BACKEND` | required while the game is installed | Which backend runs the game master's turns: `litellm`, the one value |
+| `HOPIN_AGENT__GATEWAY__ORIGIN` | required while the game is installed | The gateway's http(s) origin (scheme, host and optional port), `http://litellm-front:4000` in `compose.yaml` |
+| `HOPIN_AGENT__GATEWAY__KEY_FILE` | required while the game is installed | Absolute path of the file holding HopIn's gateway key, read at every turn, so a missing or unusable file does not stop the start: the turn then reads as unavailable |
+| `HOPIN_AGENT__GATEWAY__CA_FILE` | required for an HTTPS origin, refused for an HTTP one | Absolute path of the CA the gateway's HTTPS certificate is trusted by |
+| `HOPIN_AGENT__API_GROUP` | required while the game is installed | The full Keycloak group path that admits a person to the game master, compared exactly, so a subgroup does not admit |
 
-HopIn refuses to start without the four required settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
+The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`; a missing or malformed one stops the start and echoes no input.
+
+HopIn refuses to start without the four required settings and the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Development
 

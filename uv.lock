@@ -391,8 +391,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "httpx2" },
-    { name = "overnightworks-agent-runtime-client" },
+    { name = "overnightworks-agent-runtime-client", extra = ["backend"] },
     { name = "overnightworks-webauth" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -420,8 +419,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
-    { name = "httpx2", specifier = ">=2.13.1" },
-    { name = "overnightworks-agent-runtime-client", git = "https://github.com/overnightworks/agent-runtime?subdirectory=packages%2Fclient&rev=v0.16.0" },
+    { name = "overnightworks-agent-runtime-client", extras = ["backend"], git = "https://github.com/overnightworks/agent-runtime?subdirectory=packages%2Fclient&rev=v0.19.0" },
     { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.29.0" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
@@ -655,11 +653,16 @@ wheels = [
 
 [[package]]
 name = "overnightworks-agent-runtime-client"
-version = "0.16.0"
-source = { git = "https://github.com/overnightworks/agent-runtime?subdirectory=packages%2Fclient&rev=v0.16.0#c22e1c2f15c892dfddcefb4079787ecd3bf9a6cd" }
+version = "0.19.0"
+source = { git = "https://github.com/overnightworks/agent-runtime?subdirectory=packages%2Fclient&rev=v0.19.0#b8d20be9783429b7b789e220d535526c45ea7cdb" }
 dependencies = [
     { name = "pydantic" },
     { name = "ruamel-yaml" },
+]
+
+[package.optional-dependencies]
+backend = [
+    { name = "httpx2" },
 ]
 
 [[package]]
