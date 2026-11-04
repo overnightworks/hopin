@@ -1,0 +1,7 @@
+claim_id = "2e95b328271e4e3792a49c3396f52fd9"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "70f899891c1ec6e2753720b0708b3f484373ef25"
+branch = "dependabot/uv/hatchling-1.33.0"
+scope = ["pyproject.toml"]
+opened_commit = "8520819bed183c00cc5930e1efb107fdadca36d0"
