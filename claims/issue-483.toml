@@ -1,0 +1,7 @@
+claim_id = "9944cbc8c2f5456fad07b6a9247ae359"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "84dcf2d3229981108ae7f1ee5a574c2218b36964"
+branch = "claude/issue-483-dependabot-npm-vitest-group"
+scope = [".github/dependabot.yml"]
+opened_commit = "b3e348aaf45b9a2178f2b106f0502e77070ed19d"
