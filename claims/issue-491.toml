@@ -1,7 +1,0 @@
-claim_id = "93d5778213d14e41bcc3b23e494a4bdb"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "2294ef70273f088d9236dd368ff48ce95930d53b"
-branch = "claude/issue-491-webauth-v0-30-0"
-scope = ["pyproject.toml", "src/hopin/auth/sign_in.py", "uv.lock"]
-opened_commit = "9ddac5ec14eb67b5d4c61fdc7850275d002d31e3"
