@@ -1,0 +1,7 @@
+claim_id = "8da4a19831bf4aa593438fb5469008de"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "9fc1a7fd4d5ad2d7c4878c6c95fda4f39629fc8b"
+branch = "claude/issue-493-legal-texts"
+scope = ["legal/datenschutz.html", "legal/nutzungsbedingungen.html", "quality/config.toml"]
+opened_commit = "d020ec6380871307a69e25dcca712017eccdbc13"
