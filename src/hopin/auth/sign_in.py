@@ -13,7 +13,12 @@ from webauth.oidc_login import AdmissionConfig, AdmissionRefusal
 from webauth.oidc_transport import post_token_request_over_https
 from webauth.proxies import TrustedProxies
 from webauth.rate_limit import SingleProcessRateLimitBackend
-from webauth.sign_in_routes import RefusalPage, SignInRefusal, install_sign_in_routes
+from webauth.sign_in_routes import (
+    LogoutPageText,
+    RefusalPage,
+    SignInRefusal,
+    install_sign_in_routes,
+)
 
 from hopin.config.constants import (
     ADMIN_GROUP,
@@ -146,7 +151,7 @@ def install_sign_in(
         refused=lambda _request, refusal: _refusal_response(refusal, page_build),
         keeps_id_token=True,
         max_sessions=None,
-        logout_button_label=lambda _request: LOGOUT_LABEL,
+        logout_page_text=lambda _request: LogoutPageText(language="en", button_label=LOGOUT_LABEL),
     )
     app.include_router(_create_pages_router(page_build))
 
