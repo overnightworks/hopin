@@ -135,17 +135,16 @@ The model is HopIn's own; no operator ruling narrows it.
 ## 6. Constraints and reasons
 
 - The import-linter contracts in `pyproject.toml` hold the dependency direction between packages, so a new top-level module is placed in a layer by a decision, and the optional game and agent connector can be deleted without touching a contract.
-- The page holds no inline script, `<style>`, `style=` or `on*=` attribute: it runs under webauth's policy, which refuses them. Script sets styles only through the CSSOM and attaches handlers with `addEventListener`.
+- HopIn's own markup holds no inline script, `<style>`, `style=` or `on*=` attribute: the page runs under webauth's policy, which admits only the SvelteKit bootstrap script and the announcer style by hash. Script sets styles only through the CSSOM and attaches handlers with `addEventListener`.
 - Every `src` and every `href` outside an `<a>` is a same-origin absolute path, so a page resolves at any address `PageBuild` serves it at. An `<a href>` is one of the central legal URLs or `/account`; the shell opens the legal links in a new tab so the call goes on, the sign-in pages in the same tab.
-- The sign-in pages (Signed out, Login failed and No access, appkit's `SignInPage`) are prerendered with `csr = false`, so they carry no script and resolve at any address. They link the legal URLs and `/auth/start` (No access only the legal URLs).
+- The sign-in pages (Signed out, Login failed and No access, appkit's `SignInPage`) are prerendered with `csr = false`, so they carry no script. Besides the legal URLs they link `/auth/start` (No access only the legal URLs).
 - The wire tokens have one owner each in Python, and `make wire` generates the TypeScript from it, so a drifting token fails `make wire-check` instead of showing at runtime.
 
 ## 7. Not chosen
 
-- A media server (SFU) instead of the mesh: the server never sees media and needs no media bandwidth, which holds while `MAX_PARTICIPANTS_PER_ROOM` keeps the mesh affordable; calls larger than that cap reopen it.
-- A database: accounts, sessions, rooms and replay logs are lost on restart by design; calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
-- Hand-written page modules with a runtime-served wire vocabulary: the SvelteKit build gives the typed shell and a checked, generated wire; a page that needs neither reopens it.
-- An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through `agent-runtime-client`, whose `GatewayBackend` checks the API group in HopIn's process; a policy that must live outside HopIn reopens it.
+- A media server (SFU) instead of the mesh: the server never sees media and needs no media bandwidth, a call size the mesh upload cannot carry reopens it.
+- A database: accounts, sessions, rooms and replay logs are lost on restart by design (see Risks); calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
+- An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through `agent-runtime-client`; a second consumer of the gateway needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
 
 ## 8. Risks and Technical Debt
 
