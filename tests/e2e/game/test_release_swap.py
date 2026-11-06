@@ -18,6 +18,25 @@ VERSION_FILE = "_app/version.json"
 MARK_THE_OLD_PAGE = "() => { window.openedOnTheOldBuild = true; }"
 IS_THE_OLD_PAGE = "() => window.openedOnTheOldBuild === true"
 IS_A_NEW_PAGE = "() => window.openedOnTheOldBuild !== true"
+WATCH_THE_VERSION_CHECK = """
+() => {
+    window.reloadStarted = false;
+    window.addEventListener("beforeunload", () => { window.reloadStarted = true; });
+    let settle;
+    window.versionCheckSettled = new Promise((resolve) => { settle = resolve; });
+    const fetchFromTheBrowser = window.fetch;
+    window.fetch = async (...request) => {
+        const response = await fetchFromTheBrowser(...request);
+        if (response.url.endsWith("/_app/version.json")) {
+            // Reading the body and yielding one task lets the check's own continuation run, and reload() fires
+            // beforeunload synchronously, so a reload it decided on has started by the time this settles.
+            response.clone().text().then(() => setTimeout(settle));
+        }
+        return response;
+    };
+}
+"""
+HAS_STARTED_A_RELOAD = "() => window.reloadStarted === true"
 SAVED_KEYS_BEYOND_SVELTEKIT = """
 () => [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter((key) => !key.startsWith("sveltekit:"))
 """
@@ -59,10 +78,12 @@ def test_a_tab_from_before_a_release_reloads_itself_when_start_a_call_needs_a_ch
 
 
 def test_a_tab_keeps_the_add_on_toast_and_stays_when_the_chunk_is_missing_without_a_new_version(old_page: Page) -> None:
-    with old_page.expect_response(f"**/{VERSION_FILE}"):
-        press_start_a_call(old_page)
+    old_page.evaluate(WATCH_THE_VERSION_CHECK)
+    press_start_a_call(old_page)
 
+    old_page.evaluate("() => window.versionCheckSettled")
     expect(old_page.get_by_text(ADD_ON_TOAST)).to_be_visible()
+    assert not old_page.evaluate(HAS_STARTED_A_RELOAD)
     assert old_page.evaluate(IS_THE_OLD_PAGE)
 
 
