@@ -142,7 +142,7 @@ The model is HopIn's own; no operator ruling narrows it.
 
 ## 7. Not chosen
 
-- A media server (SFU) instead of the mesh: the server never sees media and needs no media bandwidth, a call size the mesh upload cannot carry reopens it.
+- A media server (SFU) instead of the mesh: the server never sees media and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
 - A database: accounts, sessions, rooms and replay logs are lost on restart by design (see Risks); calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
 - An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through `agent-runtime-client`; a second consumer of the gateway needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
 
