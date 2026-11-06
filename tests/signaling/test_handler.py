@@ -617,6 +617,7 @@ class TestHostGrace:
         closed = {
             "type": SignalType.ROOM_CLOSED.value,
             "reason": RoomClosedReason.HOST_GONE.value,
+            "host_name": room.host.name,
             "grace_seconds": HOST_GRACE_SECONDS,
         }
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == [closed]
@@ -730,11 +731,16 @@ class TestHostGrace:
 
 class TestEndRoom:
     async def test_host_ending_the_room_closes_it_as_ended_for_every_peer_including_the_host(self, link, room_manager):
+        """CALL-17, CALL-46: The closing frame carries the host's account name to every peer."""
         room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
 
         await deliver(browsers["host1"], {"type": SignalType.END_ROOM.value})
 
-        closed = {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.ENDED.value}
+        closed = {
+            "type": SignalType.ROOM_CLOSED.value,
+            "reason": RoomClosedReason.ENDED.value,
+            "host_name": room.host.name,
+        }
         assert frames_of_type(browsers["host1"], SignalType.ROOM_CLOSED) == [closed]
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == [closed]
         assert not room_manager.has_room(room.room_id)

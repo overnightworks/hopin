@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from tests.e2e.support.browser_coverage import BrowserCoverage
+    from tests.support.signed_in import SeededMember
 
 pytestmark = pytest.mark.e2e
 
@@ -84,12 +85,6 @@ class EndScreenText:
 
 LEFT_BY_GUEST = EndScreenText("You left the call", "The others are still talking.", ("Back to start", "Rejoin"))
 LEFT_BY_HOST = EndScreenText("You left the call", "The others are still talking.", ("Back to start",))
-ENDED_BY_HOST = EndScreenText("Call ended", "The host ended the call for everyone.", ("Back to start",))
-HOST_GONE = EndScreenText(
-    "Call ended",
-    f"The host didn't come back within {HOST_GRACE_SECONDS} seconds, so the call ended for everyone.",
-    ("Back to start",),
-)
 EXPIRED = EndScreenText("This link has expired", "The call is over. Ask for a new link.", ("Back to start",))
 LOCKED = EndScreenText(
     "Call is locked",
@@ -156,6 +151,18 @@ def call(hosted_call: HostedCall, open_person: Callable[..., Page], form_factor:
     join_by_link(guest, hosted_call.invite_link)
     expect(guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     return Call(hosted_call.host, hosted_call.host_frames, hosted_call.invite_link, hosted_call.base_url, guest)
+
+
+def ended_by_host(host_name: str) -> EndScreenText:
+    return EndScreenText("Call ended", f"{host_name} ended the call for everyone.", ("Back to start",))
+
+
+def host_gone(host_name: str) -> EndScreenText:
+    return EndScreenText(
+        "Call ended",
+        f"{host_name} didn't come back within {HOST_GRACE_SECONDS} seconds, so the call ended for everyone.",
+        ("Back to start",),
+    )
 
 
 def end_screen(person: Page) -> Locator:
@@ -371,11 +378,13 @@ def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rej
     expect_end_screen(host, LEFT_BY_HOST)
 
 
-def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(call: Call) -> None:
-    """CALL-17: Guest sees the call ended when the host ends it for everyone."""
+def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(
+    call: Call, member_of: Callable[[Page], SeededMember]
+) -> None:
+    """CALL-17, CALL-46: Guest sees the host, by name, ended the call for everyone."""
     call.host_frames.send({"type": SignalType.END_ROOM})
 
-    expect_end_screen(call.guest, ENDED_BY_HOST)
+    expect_end_screen(call.guest, ended_by_host(member_of(call.host).account.username))
 
 
 def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at_join(
@@ -520,19 +529,24 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
 
 
 def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
-    hosted_call: HostedCall, open_person: Callable[..., Page], form_factor: dict[str, Any]
+    hosted_call: HostedCall,
+    open_person: Callable[..., Page],
+    form_factor: dict[str, Any],
+    member_of: Callable[[Page], SeededMember],
 ) -> None:
-    """CALL-01: Guest sees the grace seconds when the host did not come back."""
+    """CALL-01, CALL-46: Guest sees the grace seconds when the host did not come back."""
+    host_name = member_of(hosted_call.host).account.username
     person = open_recording_person(open_person, form_factor)
     answer_join_with(
         person,
         {
             "type": SignalType.ROOM_CLOSED.value,
             "reason": RoomClosedReason.HOST_GONE.value,
+            "host_name": host_name,
             "grace_seconds": HOST_GRACE_SECONDS,
         },
     )
 
     join_by_link(person, hosted_call.invite_link)
 
-    expect_end_screen(person, HOST_GONE)
+    expect_end_screen(person, host_gone(host_name))

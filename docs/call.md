@@ -35,7 +35,7 @@ Ruled by the operator:
 - CALL-14: A call link whose call has ended shows "This link has expired" when someone joins; HopIn keeps no store of ended calls.
 - CALL-15: The start page is `/` and a call is `/c/{id}`; the old addresses `/call` and `/join/{id}` answer not found.
 - CALL-16: Back to start opens the start page as a new page; the browser's back button then returns to the call link, which shows the call as it is now.
-- CALL-17: When the host ends the call, everyone else sees "Call ended" and "The host ended the call for everyone."
+- CALL-17: When the host ends the call, everyone else sees "Call ended" and that the host, by name, ended the call for everyone.
 - CALL-18: A host who leaves sees "You left the call" with only "Back to start"; the call goes on for the others for up to 60 seconds.
 - CALL-19: Rejoin and Retry open the call link again, as tapping it in a message does; if the call is over, the person sees "This link has expired".
 - CALL-20: When a call ends for me, or HopIn refuses to let me in, my camera and microphone turn off at once.
@@ -55,3 +55,4 @@ Ruled by the operator:
 - CALL-42: One account is in at most 8 calls at once, tabs and devices together. The 9th is refused without retrying and shows "Too many calls open" with "Your account is in 8 calls. Leave one to join this one."; a reconnect that meets the limit ends the same way.
 - CALL-44: A long chat scrolls inside its panel, and the newest line and the composer stay reachable.
 - CALL-45: A tab opened before a release still starts a call: it reloads itself when the new build lacks a piece it needs.
+- CALL-46: The end screens name the host by the account's name, and say "The host" only when that name is empty.

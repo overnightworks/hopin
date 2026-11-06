@@ -244,7 +244,9 @@ class RoomRouting:
             await self._end_room(room_id, RoomClosedReason.HOST_GONE)
 
     async def _end_room(self, room_id: str, reason: RoomClosedReason) -> None:
-        recipients = self._room_manager.get_room(room_id).participant_ids
+        room = self._room_manager.get_room(room_id)
+        recipients = room.participant_ids
+        host_name = room.host.name
         for peer_id in recipients:
             self._peer_rooms.pop(peer_id, None)
         self._cancel_grace(room_id)
@@ -253,7 +255,7 @@ class RoomRouting:
         self._on_room_ended(room_id)
 
         grace_seconds = HOST_GRACE_SECONDS if reason is RoomClosedReason.HOST_GONE else None
-        frame = RoomClosedFrame(reason=reason, grace_seconds=grace_seconds)
+        frame = RoomClosedFrame(reason=reason, host_name=host_name, grace_seconds=grace_seconds)
         await self._seats.send_all(recipients, frame.to_json())
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
