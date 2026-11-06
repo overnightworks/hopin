@@ -97,7 +97,6 @@ The frontend in `frontend/` needs Node 26 (24 also works) and pnpm, whose versio
 ## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): context, building blocks, a call's runtime, deployment, trust
-- [docs/mockups/](docs/mockups/): the blessed pictures a surface change starts from
 
 ## License
 
