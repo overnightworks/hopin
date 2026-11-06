@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "bd473b397a4d31c88923622a2d4e894107189fc0"
 branch = "claude/issue-544-split-e2e-files"
-scope = ["docs/call.md", "quality/baseline.toml", "tests/e2e/support/mesh_pair.py", "tests/e2e/test_media.py", "tests/e2e/test_media_tile_picture.py", "tests/e2e/test_mesh.py", "tests/e2e/test_mesh_resume.py"]
+scope = ["docs/call.md", "quality/baseline.toml", "tests/e2e/support/camera_less_call.py", "tests/e2e/support/mesh_pair.py", "tests/e2e/test_media.py", "tests/e2e/test_media_tile_picture.py", "tests/e2e/test_mesh.py", "tests/e2e/test_mesh_resume.py"]
 opened_commit = "a9b94765c792f04cdabaa8db8866f79ced583d63"
 whole_reason = "Two oversized test files split along their topics, their size baseline entries removed, and the citations the split makes room for; landing the split without the citations would leave CALL-25 unproven in the spec."
