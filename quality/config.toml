@@ -8,3 +8,7 @@ reason = "make finds its Makefile only in the directory it runs from"
 [[root.allow]]
 entry = "frontend/"
 reason = "the SvelteKit project is a toolchain of its own: its manifest, lockfile and configuration must sit in its project directory"
+
+[[root.allow]]
+entry = "legal/"
+reason = "hal reads the app's part of the legal pages from its release at exactly legal/datenschutz.html and legal/nutzungsbedingungen.html"
