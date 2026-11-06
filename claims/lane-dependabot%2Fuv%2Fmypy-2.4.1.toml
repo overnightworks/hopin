@@ -1,0 +1,7 @@
+claim_id = "b05053f15abd4a548fc111cf83901396"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "823c1fe25553e580f9a712d1bd9c48d40298132a"
+branch = "dependabot/uv/mypy-2.4.1"
+scope = ["uv.lock"]
+opened_commit = "1dd849f07eb66792fcf0141c047a6b5d8b691b90"
