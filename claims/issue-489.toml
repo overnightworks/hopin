@@ -1,0 +1,8 @@
+claim_id = "e215e31447e14c02ab2533320d79d75f"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "d517ed36c97a39a332e764dd96e28ab2d3a22c3c"
+branch = "claude/issue-489-reload-after-release"
+scope = ["frontend/src/hooks.client.ts", "tests/e2e/game/conftest.py", "tests/e2e/game/test_release_swap.py", "tests/e2e/support/server.py"]
+opened_commit = "741278c2789fa1d9c640e2d9d8b61604113a9e81"
+whole_reason = "One production file; the other three are the browser test and the e2e harness it may need to serve a copy of the build, which only together prove the reload."
