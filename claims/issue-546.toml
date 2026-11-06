@@ -1,0 +1,8 @@
+claim_id = "1774a73c9ad74baf8d8fcb976e72e10f"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "3d3b501bbbec25705140e6a46ab4647843c04e77"
+branch = "claude/issue-546-host-name-on-end-screens"
+scope = ["docs/call.md", "frontend/src/lib/ui/end.svelte.test.ts", "frontend/src/lib/ui/end.svelte.ts", "frontend/src/lib/wire.ts", "src/hopin/signaling/frames.py", "src/hopin/signaling/routing.py", "tests/e2e/test_end.py", "tests/signaling/test_handler.py", "tests/signaling/test_handler_flow.py"]
+opened_commit = "ef148b5508181d5139db7f5b129e26c99c8a4642"
+whole_reason = "One wire field from the room to the two end texts that read it, its generated type, the tests that pin the frame and the texts, and the spec lines they prove."
