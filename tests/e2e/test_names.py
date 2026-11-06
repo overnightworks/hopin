@@ -6,7 +6,7 @@ import pytest
 from playwright.sync_api import Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
-from tests.e2e.support.calls import join_by_link, record_page_errors, start_call
+from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
@@ -26,13 +26,6 @@ CHAT_SENDER = "#chatMessages .chat-msg.other .chat-sender"
 MARKUP_NAME = "<b>x</b>"
 ACCOUNT_ROUTE = "**/api/account"
 BOTH_FORM_FACTORS = pytest.mark.parametrize("form_factor", [PHONE, DESKTOP], ids=["390", "1280"])
-
-
-def say_in_chat(person: Page, text: str) -> None:
-    if not person.locator("#chatPanel.visible").count():
-        person.click("#chatBtn")
-    person.fill("#chatInput", text)
-    person.click("#chatSend")
 
 
 def drop_the_socket_once(person: Page) -> tuple[Callable[[], None], list[str]]:

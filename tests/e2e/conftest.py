@@ -3,8 +3,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from tests.e2e.support.browser_coverage import BrowserCoverage
+from tests.e2e.support.camera_less_call import (
+    CameraLessCall,
+    CameraLessHostCall,
+    start_camera_less_call,
+    start_camera_less_host_call,
+)
 from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
-from tests.e2e.support.people import PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
+from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
+from tests.e2e.support.people import DESKTOP, PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.signed_in import SeededMember, new_account, seed_member
 
@@ -127,3 +134,40 @@ def page_errors() -> Iterator[list[str]]:
     errors: list[str] = []
     yield errors
     assert errors == []
+
+
+@pytest.fixture
+def form_factor() -> dict[str, Any]:
+    return DESKTOP
+
+
+@pytest.fixture
+def start_call_with(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+) -> Callable[..., Any]:
+    """Runs a call arrangement with the person opener, the server address, the form factor and the error list."""
+
+    def start(arrangement: Callable[..., Any], *extra: Any, **options: Any) -> Any:
+        return arrangement(open_person, base_url, form_factor, page_errors, *extra, **options)
+
+    return start
+
+
+@pytest.fixture
+def camera_less_call(start_call_with: Callable[..., Any]) -> CameraLessCall:
+    return start_call_with(start_camera_less_call)
+
+
+@pytest.fixture
+def camera_less_host_call(start_call_with: Callable[..., Any]) -> CameraLessHostCall:
+    return start_call_with(start_camera_less_host_call)
+
+
+@pytest.fixture
+def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Callable[..., ConnectedPair]]:
+    yield from pair_connector(open_person, base_url)
+
+
+@pytest.fixture
+def connected_pair(connect_pair: Callable[..., ConnectedPair]) -> ConnectedPair:
+    return connect_pair()
