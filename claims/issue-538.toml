@@ -1,0 +1,8 @@
+claim_id = "15d8b1adfbf541eb8ff7273670914340"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "c6024c5ee1a475e8778c7c78fa32ccd98b7f08ec"
+branch = "claude/issue-538-prejoin-own-row-name"
+scope = ["docs/call.md", "frontend/src/lib/ui/account.svelte.test.ts", "frontend/src/lib/ui/account.svelte.ts", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e/test_prejoin.py"]
+opened_commit = "39ed5c28442440628777d0aa505754c51d2d2102"
+whole_reason = "One visible text, its fallback, the test that pins it and the spec line it proves."
