@@ -1,7 +1,0 @@
-claim_id = "47d60cd4113f49639e0838476ececdf2"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "16e533cd05193f7239e751fa8e89f0159419cd9c"
-branch = "claude/issue-537-release-image"
-scope = [".github/workflows/release.yml", "Dockerfile", "README.md"]
-opened_commit = "4e4269769ec5e9a9817507fc1373af6ad03b6378"
