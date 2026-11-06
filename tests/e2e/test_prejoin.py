@@ -49,6 +49,8 @@ from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from tests.support.signed_in import SeededMember
+
 pytestmark = pytest.mark.e2e
 
 IN_CALL = "In call"
@@ -417,7 +419,7 @@ def test_prejoin_off_choice_shows_on_the_call_buttons_while_the_ice_servers_load
     held_ice_requests.pop().continue_()
 
 
-def expect_the_desktop_texts(prejoin: Locator, texts: KindTexts) -> None:
+def expect_the_desktop_texts(prejoin: Locator, texts: KindTexts, account_name: str) -> None:
     expect(prejoin.get_by_role("heading", name=texts.heading)).to_be_visible()
     if texts.sub_line is None:
         expect(prejoin.locator(".prejoin-sub")).to_be_hidden()
@@ -429,11 +431,11 @@ def expect_the_desktop_texts(prejoin: Locator, texts: KindTexts) -> None:
     expect_both_legal_links_in_the_profile_menu(prejoin.page)
 
 
-def expect_the_phone_texts(prejoin: Locator, texts: KindTexts) -> None:
+def expect_the_phone_texts(prejoin: Locator, texts: KindTexts, account_name: str) -> None:
     expect(prejoin.get_by_text(texts.phone_title)).to_be_visible()
     expect(prejoin.get_by_role("button", name="Back")).to_be_visible()
     expect(prejoin.locator(".self-row .av svg")).to_be_visible()
-    expect(prejoin.locator(".self-row")).to_have_text("You")
+    expect(prejoin.locator(".self-row")).to_have_text(account_name)
     expect(prejoin.get_by_role("heading", name=texts.heading)).to_be_hidden()
     expect_no_legal_footer(prejoin)
     expect_both_legal_links_in_the_profile_menu(prejoin.page)
@@ -452,14 +454,15 @@ def test_prejoin_texts_fit_the_kind_and_the_form_factor(
     open_answered_prejoin_of: Callable[..., Page | None],
     kind: Kind,
     form_factor: dict[str, Any],
-    expect_the_texts: Callable[[Locator, KindTexts], None],
+    expect_the_texts: Callable[[Locator, KindTexts, str], None],
+    member_of: Callable[[Page], SeededMember],
 ) -> None:
-    """CALL-30: Prejoin texts fit the kind and the form factor."""
+    """CALL-30, CALL-32: Prejoin texts fit the kind and the form factor."""
     person = open_recorded(form_factor)
 
     open_answered_prejoin_of(kind, person)
 
-    expect_the_texts(person.page.locator(PREJOIN_SCREEN), TEXTS[kind])
+    expect_the_texts(person.page.locator(PREJOIN_SCREEN), TEXTS[kind], member_of(person.page).account.username)
 
 
 @pytest.mark.parametrize("kind", KINDS)

@@ -12,6 +12,7 @@ Ruled by the operator:
 - CALL-29: The call starts with what is on at the pre-join, and what is switched off there stays off in the call; the Start or Join button names that state, such as "Join with camera and mic".
 - CALL-30: A guest who opens a call link gets the same pre-join as the host.
 - CALL-31: On a desktop, the HopIn brand leads back from the pre-join to the start page.
+- CALL-32: The pre-join's own row shows the account's name, and "You" until the name is known.
 - CALL-33: The address becomes the call link when the call starts.
 
 ## Call and end screens

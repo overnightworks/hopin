@@ -20,19 +20,19 @@ afterEach(() => {
 });
 
 describe("account name", () => {
-    it("reads Account and no initials before any answer", async () => {
-        const { avatarInitials, menuName } = await freshAccount();
+    it("CALL-32: reads Account, You and no initials before any answer", async () => {
+        const { avatarInitials, menuName, ownRowName } = await freshAccount();
 
-        expect([menuName(), avatarInitials()]).toEqual(["Account", ""]);
+        expect([menuName(), ownRowName(), avatarInitials()]).toEqual(["Account", "You", ""]);
     });
 
-    it("resolves to the answered name and the menu follows it", async () => {
+    it("CALL-32: resolves to the answered name and the menu and the own row follow it", async () => {
         answerWith(200, JSON.stringify({ name: "felix.hummert" }));
-        const { menuName, readAccount } = await freshAccount();
+        const { menuName, ownRowName, readAccount } = await freshAccount();
 
         const name = await readAccount();
 
-        expect([name, menuName()]).toEqual(["felix.hummert", "felix.hummert"]);
+        expect([name, menuName(), ownRowName()]).toEqual(["felix.hummert", "felix.hummert", "felix.hummert"]);
     });
 
     it.each([

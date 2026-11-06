@@ -5,7 +5,7 @@
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
-    import { avatarInitials, menuName } from "#lib/ui/account.svelte.ts";
+    import { avatarInitials, menuName, ownRowName } from "#lib/ui/account.svelte.ts";
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
     import {
         chat,
@@ -146,7 +146,7 @@
                 <button id="prejoinCamBtn" class="cb" class:off={!prejoin.isCameraOn} type="button" aria-label="Camera off" aria-pressed={!prejoin.isCameraOn} disabled={isPrejoinInert()} onclick={() => void prejoinCameraClicked()}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
             </div>
         </div>
-        <div class="self-row"><span class="av av-28"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span><b>You</b></div>
+        <div class="self-row"><span class="av av-28"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span><b>{ownRowName()}</b></div>
         <div class="prejoin-side">
             <h2 id="prejoinHeading">{prejoinTexts().heading}</h2>
             <p id="prejoinSub" class="prejoin-sub" class:hidden={prejoinTexts().subLine === ""}>{prejoinTexts().subLine}</p>

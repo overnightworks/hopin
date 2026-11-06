@@ -3,6 +3,7 @@ import { ACCOUNT_PATH } from "#lib/wire.ts";
 
 const SIGNED_OUT_STATUS = 401;
 const UNNAMED_MENU_NAME = "Account";
+const UNNAMED_ROW_NAME = "You";
 const INITIAL_SEPARATOR = /[._-]/;
 const INITIAL_CHARACTER = /[\p{L}\p{N}]/u;
 const INITIAL_COUNT = 2;
@@ -11,6 +12,10 @@ const account: { name: string | null } = $state({ name: null });
 
 export function menuName(): string {
     return account.name ?? UNNAMED_MENU_NAME;
+}
+
+export function ownRowName(): string {
+    return account.name ?? UNNAMED_ROW_NAME;
 }
 
 export function avatarInitials(): string {
