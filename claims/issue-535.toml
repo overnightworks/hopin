@@ -1,0 +1,7 @@
+claim_id = "5c5759ca810b46718093594b6caaa909"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "df39828d0e5e164694bc7b70184ed3153bc6c624"
+branch = "claude/issue-535-delete-mockups"
+scope = ["README.md", "docs/mockups/README.md", "docs/mockups/hopin-call.html"]
+opened_commit = "d1b84bbc6924d204a1344c34ee737585d826a5ba"
