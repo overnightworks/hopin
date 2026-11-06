@@ -1,0 +1,7 @@
+claim_id = "94a292ffdf774afc9336d6e5f4fa7900"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "40b0cbb97bbec2329b65e38deed3f167e017c689"
+branch = "claude/issue-523-codeql-mockup-alerts"
+scope = ["docs/mockups/hopin-call.html"]
+opened_commit = "c195d92ce0362d1342bc83bd9c196422ce58e6ed"
