@@ -1,0 +1,7 @@
+claim_id = "f7e77d8f6485404b9c1fcded5626e8d2"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "256a0de48c05b8d056da066b5e11cc65cf8a391e"
+branch = "claude/issue-515-drop-ballast"
+scope = ["quality/config.toml", "sonar-project.properties", "tests/game/test_quiz_agent_settings.py"]
+opened_commit = "8ce609bf9364ae929bc11291350eecde9c55c135"
