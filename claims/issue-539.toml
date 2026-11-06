@@ -1,8 +1,0 @@
-claim_id = "1befab51dcb944448a4cdfa99d695a38"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "461b8d7006f51a74958d327bdbd8f101f3d966f0"
-branch = "claude/issue-539-game-master-spec"
-scope = ["README.md", "docs/game-master.md", "frontend/src/lib/features/game/index.test.ts", "tests/auth/test_stores.py", "tests/e2e/game/test_game_gateway.py", "tests/e2e/game/test_game_master.py", "tests/game/test_quiz.py", "tests/game/test_quiz_agent_backend.py", "tests/game/test_quiz_agent_backend_flow.py", "tests/game/test_quiz_agent_gateway.py", "tests/game/test_quiz_topics.py", "tests/game/test_table.py", "tests/game/test_table_answers.py", "tests/game/test_table_end.py", "tests/game/test_table_leave.py", "tests/game/test_table_rounds.py"]
-opened_commit = "685f895249cffb8a0aec91cf460c06f0b6496bb4"
-whole_reason = "One spec and the docstrings of the tests that prove its lines; splitting would land a spec whose IDs no test cites, or citations of IDs no spec defines."
