@@ -1,0 +1,8 @@
+claim_id = "c87e888374654a8c80868d14c7ceef5f"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "a455cd5c3893b65e99d7c005b77320cd84b5d19c"
+branch = "claude/issue-495-legal-row-three-links"
+scope = ["docs/mockups/hopin-call.html", "frontend/src/lib/legal.ts", "frontend/src/lib/ui/SignIn.svelte", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e/support/page_assertions.py", "tests/support/page_inventory.py"]
+opened_commit = "1aca3a11041379430959688d20abba2845204e9d"
+whole_reason = "One legal list, its two test pins and its mockup change together; a split would leave a pin or the picture contradicting the page."
