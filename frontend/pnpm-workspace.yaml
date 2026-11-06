@@ -13,3 +13,8 @@ patchedDependencies:
 overrides:
     deepmerge: "-"
     minimatch: "^11.0.1"
+
+# A coverage reporter's agent skills are not part of building the page.
+permissions:
+    monocart-coverage-reports:
+        skills: false
