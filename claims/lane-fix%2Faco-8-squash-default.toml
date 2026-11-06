@@ -1,0 +1,7 @@
+claim_id = "d6b8fb98ac044b6588e15dc4df25cc1f"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "127f26c7606775f5f9f2a8ca940967f7ef1f30f3"
+branch = "fix/aco-8-squash-default"
+scope = [".aco/board.toml"]
+opened_commit = "3cc8908123203c22df48fa3ae49f5aad7428a516"
