@@ -95,6 +95,7 @@ class TestCallPage:
 
     @pytest.mark.parametrize("path", ["/call", "/join/x"])
     def test_the_retired_addresses_answer_404(self, client, path):
+        """CALL-15: The retired addresses answer 404."""
         assert client.get(path).status_code == 404
 
 

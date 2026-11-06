@@ -246,6 +246,7 @@ def test_stage_unmirrors_the_own_screen_and_mirrors_the_camera_again(
 def test_stage_with_the_camera_off_shows_the_person_icon_on_the_neutral_surface(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
+    """CALL-21: Stage with the camera off shows the person icon on the neutral surface."""
     host, _ = start_hosting(open_person, base_url)
 
     host.click("#videoBtn")
@@ -317,6 +318,7 @@ def _start_hosting_on_a_phone_with_one_guest(open_person: Callable[..., Page], b
 def test_stage_snaps_the_phone_picture_in_picture_to_the_corner_it_is_dragged_towards(
     open_person: Callable[..., Page], base_url: str, corner: str
 ) -> None:
+    """CALL-22: Stage snaps the phone picture in picture to the corner it is dragged towards."""
     host, _ = _start_hosting_on_a_phone_with_one_guest(open_person, base_url)
 
     _drag_own_tile_to(host, _stage_boxes(host, 2)["stage"], corner)
@@ -327,6 +329,7 @@ def test_stage_snaps_the_phone_picture_in_picture_to_the_corner_it_is_dragged_to
 def test_stage_keeps_the_dragged_corner_while_people_join_and_leave(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
+    """CALL-22: Stage keeps the dragged corner while people join and leave."""
     host, invite_link = _start_hosting_on_a_phone_with_one_guest(open_person, base_url)
     _drag_own_tile_to(host, _stage_boxes(host, 2)["stage"], "tl")
 

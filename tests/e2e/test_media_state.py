@@ -37,6 +37,7 @@ def host_and_guest(open_person: Callable[..., Page], base_url: str, form_factor:
 def test_media_state_shows_the_mute_mark_on_the_tile_of_the_person_who_muted(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
+    """CALL-23: Media state shows the mute mark on the tile of the person who muted."""
     host, guest = host_and_guest(open_person, base_url, form_factor)
     expect(host.locator(OTHER_MUTE_MARK)).to_be_hidden()
 
@@ -51,6 +52,7 @@ def test_media_state_shows_the_mute_mark_on_the_tile_of_the_person_who_muted(
 def test_media_state_shows_the_own_mute_mark_on_the_own_tile(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
+    """CALL-23: Media state shows the own mute mark on the own tile."""
     host = open_person(**form_factor)
     start_call(host, base_url)
     expect(host.locator(OWN_MUTE_MARK)).to_be_hidden()
@@ -66,6 +68,7 @@ def test_media_state_shows_the_own_mute_mark_on_the_own_tile(
 def test_media_state_shows_the_person_icon_while_the_camera_is_off_and_the_video_when_it_is_on_again(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
+    """CALL-21, CALL-23: Media state shows the person icon while the camera is off and the video when it is on again."""
     host, guest = host_and_guest(open_person, base_url, form_factor)
     host.wait_for_function(OTHER_VIDEO_HAS_A_PICTURE, arg=OTHER_VIDEO, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
@@ -83,6 +86,7 @@ def test_media_state_shows_the_person_icon_while_the_camera_is_off_and_the_video
 def test_media_state_reaches_a_person_who_joins_after_the_host_muted(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any]
 ) -> None:
+    """CALL-23: Media state reaches a person who joins after the host muted."""
     host = open_person(**form_factor)
     invite_link = start_call(host, base_url)
     host.click("#muteBtn")

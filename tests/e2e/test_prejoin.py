@@ -241,6 +241,7 @@ def test_prejoin_plays_the_own_camera_mirrored_with_both_on_and_reaches_no_serve
     form_factor: dict[str, Any],
     kind: Kind,
 ) -> None:
+    """CALL-28: Prejoin plays the own camera mirrored with both on and reaches no server."""
     person = open_recorded(form_factor)
 
     calling_host = open_answered_prejoin_of(kind, person)
@@ -265,6 +266,7 @@ def test_prejoin_plays_the_own_camera_mirrored_with_both_on_and_reaches_no_serve
 def test_started_call_puts_its_link_in_the_address_without_a_new_history_entry(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-33: Started call puts its link in the address without a new history entry."""
     host = record_page_errors(open_person(**form_factor), page_errors)
     open_prejoin(host, base_url)
     history_length = host.evaluate(HISTORY_LENGTH)
@@ -280,6 +282,7 @@ def test_started_call_puts_its_link_in_the_address_without_a_new_history_entry(
 def test_guest_who_opens_the_hosts_address_joins_the_call(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-30: Guest who opens the hosts address joins the call."""
     host = record_page_errors(open_person(**form_factor), page_errors)
     start_call(host, base_url)
 
@@ -293,6 +296,7 @@ def test_guest_who_opens_the_hosts_address_joins_the_call(
 def test_prejoin_camera_off_turns_the_light_off_and_on_brings_the_picture_back(
     open_recorded: Callable[..., Person], base_url: str, form_factor: dict[str, Any]
 ) -> None:
+    """CALL-27: Prejoin camera off turns the light off and on brings the picture back."""
     person = open_recorded(form_factor)
     open_answered_prejoin(person, base_url)
     start = person.page.locator(PREJOIN_START)
@@ -359,6 +363,7 @@ def test_prejoin_choice_is_what_the_call_starts_with(
     form_factor: dict[str, Any],
     choice: Choice,
 ) -> None:
+    """CALL-29: Prejoin choice is what the call starts with."""
     chooser = open_recorded(form_factor)
     calling_host = open_answered_prejoin_of(kind, chooser, (RECORD_PEER_CONNECTIONS,))
     if not choice.camera:
@@ -389,6 +394,7 @@ def test_prejoin_choice_is_what_the_call_starts_with(
 def test_prejoin_off_choice_shows_on_the_call_buttons_while_the_ice_servers_load(
     open_recorded: Callable[..., Person], open_answered_prejoin_of: Callable[..., Page | None], kind: Kind
 ) -> None:
+    """CALL-29: Prejoin off choice shows on the call buttons while the ice servers load."""
     person = open_recorded()
     open_answered_prejoin_of(kind, person)
     for selector in (PREJOIN_CAMERA, PREJOIN_MICROPHONE):
@@ -448,6 +454,7 @@ def test_prejoin_texts_fit_the_kind_and_the_form_factor(
     form_factor: dict[str, Any],
     expect_the_texts: Callable[[Locator, KindTexts], None],
 ) -> None:
+    """CALL-30: Prejoin texts fit the kind and the form factor."""
     person = open_recorded(form_factor)
 
     open_answered_prejoin_of(kind, person)
@@ -486,6 +493,7 @@ def test_prejoin_brand_or_back_opens_the_start_page_as_a_new_document(
     form_factor: dict[str, Any],
     way_home: str,
 ) -> None:
+    """CALL-31: Prejoin brand or back opens the start page as a new document."""
     person = open_recorded(form_factor)
     open_answered_prejoin_of(kind, person)
     person.page.evaluate(MARK_THE_DOCUMENT)

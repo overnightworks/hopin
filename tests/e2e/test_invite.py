@@ -88,6 +88,7 @@ def focus_by_tabbing_to(person: Page, element_id: str) -> None:
 def test_every_bar_has_an_enabled_invite_without_a_tooltip_in_the_call(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-36: Every bar has an enabled invite without a tooltip in the call."""
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
 
     for person in (host, guest):

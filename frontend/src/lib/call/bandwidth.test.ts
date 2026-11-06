@@ -55,7 +55,7 @@ describe("video transceivers", () => {
 });
 
 describe("applying upload caps", () => {
-    it("caps every video sender at the budget split by the connection count", async () => {
+    it("CALL-09: caps every video sender at the budget split by the connection count", async () => {
         const first = senderRejecting();
         const second = senderRejecting();
         const audio = senderRejecting();

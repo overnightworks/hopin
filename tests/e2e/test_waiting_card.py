@@ -98,6 +98,7 @@ def start_as_host(
 def test_alone_the_desktop_host_sees_the_card_with_the_link_and_copy_link_only(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-34: Alone the desktop host sees the card with the link and copy link only."""
     host = start_as_host(open_person, base_url, page_errors, DESKTOP, STUB_SHARE)
 
     card = host.locator(CARD)
@@ -125,6 +126,7 @@ def test_alone_the_phone_host_without_web_share_sees_copy_link_alone_and_no_link
 def test_alone_the_phone_host_with_web_share_sees_copy_link_and_share_in_one_row(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-34: Alone the phone host with web share sees copy link and share in one row."""
     host = start_as_host(open_person, base_url, page_errors, PHONE, STUB_SHARE)
 
     copy_box = host.locator(COPY_BUTTON).bounding_box()
@@ -139,6 +141,7 @@ def test_alone_the_phone_host_with_web_share_sees_copy_link_and_share_in_one_row
 def test_copy_link_puts_the_call_link_in_the_clipboard_and_says_so_briefly(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-35: Copy link puts the call link in the clipboard and says so briefly."""
     host = start_as_host(open_person, base_url, page_errors, {**form_factor, **CLIPBOARD_ALLOWED})
 
     host.click(COPY_BUTTON)
@@ -162,6 +165,7 @@ def test_copy_link_without_clipboard_permission_reports_the_failure_and_throws_n
 def test_share_hands_the_share_menu_the_call_link_alone(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-34: Share hands the share menu the call link alone."""
     host = start_as_host(open_person, base_url, page_errors, PHONE, STUB_SHARE)
 
     host.click(SHARE_BUTTON)
@@ -221,6 +225,7 @@ def test_the_card_comes_back_with_the_same_link_when_the_guest_leaves(
 def test_starting_a_call_leaves_the_clipboard_as_it_was(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], browser_coverage: BrowserCoverage
 ) -> None:
+    """CALL-35: Starting a call leaves the clipboard as it was."""
     host = open_host(open_person, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
     host.goto(base_url)
     host.evaluate(SEED_CLIPBOARD, "seed")
@@ -250,6 +255,7 @@ def test_keyboard_reaches_copy_link_and_enter_copies(
 def test_a_toast_fades_out_before_it_is_removed(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-41: A toast fades out before it is removed."""
     host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
     host.click(COPY_BUTTON)
     expect_toast(host, "Link copied", CHECK_ICON_PATH)

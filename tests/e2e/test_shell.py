@@ -44,6 +44,7 @@ def test_home_shows_start_a_call_and_reaches_both_legal_links_through_the_profil
 def test_prejoin_has_no_legal_footer_and_the_call_screen_reached_from_home_keeps_both_legal_links_in_more(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
+    """CALL-39: Prejoin has no legal footer and the call screen reached from home keeps both legal links in more."""
     page = record_page_errors(open_person(**form_factor), page_errors)
 
     open_prejoin(page, base_url)
@@ -70,6 +71,7 @@ def test_home_on_a_short_window_does_not_scroll_past_its_own_height(
 
 @pytest.mark.parametrize("retired_path", ["/call", "/join/anything"])
 def test_retired_addresses_answer_not_found(open_person: Callable[..., Page], base_url: str, retired_path: str) -> None:
+    """CALL-15: Retired addresses answer not found."""
     page = open_person()
 
     response = page.goto(f"{base_url}{retired_path}")

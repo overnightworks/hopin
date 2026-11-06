@@ -164,6 +164,7 @@ def expect_no_ringing_tile(viewer: Page, sound: str, milliseconds: int = OBSERVA
 def test_speaking_rings_the_tile_of_the_guest_who_speaks_with_the_pictures_ring_and_wave(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-38: Speaking rings the tile of the guest who speaks with the pictures ring and wave."""
     host, guest, other_guest = start_call_with_guests(open_person, base_url, page_errors, 2, form_factor)
     guest.evaluate(f"window.speak({LOUD})")
 
@@ -211,6 +212,7 @@ def test_speaking_full_tile_of_two_shows_only_the_wave_on_a_phone(
     form_factor: dict[str, Any],
     ring_display: str,
 ) -> None:
+    """CALL-38: Speaking full tile of two shows only the wave on a phone."""
     host, guest = start_call_with_guests(open_person, base_url, page_errors, 1, form_factor)
     guest.evaluate(f"window.speak({LOUD})")
 
@@ -223,6 +225,7 @@ def test_speaking_full_tile_of_two_shows_only_the_wave_on_a_phone(
 def test_speaking_muted_guest_shows_the_mute_mark_and_never_rings_until_unmuted(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-38: Speaking muted guest shows the mute mark and never rings until unmuted."""
     host, guest = start_call_with_guests(open_person, base_url, page_errors, 1, form_factor)
     guest.evaluate(f"window.speak({LOUD})")
     expect_a_ringing_tile(host)

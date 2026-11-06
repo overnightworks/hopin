@@ -95,6 +95,7 @@ async def call(sign_in_settings) -> AsyncIterator[Call]:
 class TestRealTransport:
     @pytest.mark.asyncio
     async def test_aborted_connection_parks_the_seat_and_the_token_resumes_it(self, call: Call) -> None:
+        """CALL-10: Aborted connection parks the seat and the token resumes it."""
         call.guest.transport.abort()
 
         resumed_guest, resumed = await call.resume_guest_seat()

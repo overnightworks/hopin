@@ -40,6 +40,7 @@ ACQUIRED_TRACK_COUNT = "() => window.acquiredStreams.flatMap((stream) => stream.
 
 
 def test_call_peer_connections_use_the_servers_ice_servers(open_person: Callable[..., Page], base_url: str) -> None:
+    """CALL-03: Call peer connections use the servers ice servers."""
     host = open_person(**DESKTOP)
     guest = open_person(**DESKTOP)
     for person in (host, guest):
@@ -58,6 +59,7 @@ def test_call_peer_connections_use_the_servers_ice_servers(open_person: Callable
 def test_call_start_with_failing_ice_servers_shows_the_error_and_releases_the_camera(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
+    """CALL-20: Call start with failing ice servers shows the error and releases the camera."""
     host = open_person(**DESKTOP)
     host.add_init_script(RECORD_MEDIA_STREAMS)
 

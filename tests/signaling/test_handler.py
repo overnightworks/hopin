@@ -607,6 +607,7 @@ class TestHostGrace:
     async def test_room_survives_until_the_grace_runs_out_then_closes_for_every_peer_as_host_gone(
         self, link, room_manager, scheduler
     ):
+        """CALL-01: Room survives until the grace runs out then closes for every peer as host gone."""
         room, browsers = await drop_host(link, room_manager, "p1", "p2")
 
         await scheduler.advance(59)
@@ -643,6 +644,7 @@ class TestHostGrace:
     async def test_host_account_rejoining_within_the_grace_is_host_again_and_the_room_stays(
         self, link, room_manager, scheduler
     ):
+        """CALL-01: Host account rejoining within the grace is host again and the room stays."""
         room, browsers = await drop_host(link, room_manager, "p1")
         await scheduler.advance(30)
 
@@ -677,6 +679,7 @@ class TestHostGrace:
         assert frames_of_type(browsers["p1"], SignalType.HOST_BACK)
 
     async def test_host_account_returns_into_its_reserved_seat_of_an_otherwise_full_room(self, link, room_manager):
+        """CALL-07: Host account returns into its reserved seat of an otherwise full room."""
         guests = [f"g{index}" for index in range(ROOM_LIMIT - 1)]
         room, _browsers = await drop_host(link, room_manager, *guests)
         stranger = await connect(link, "stranger")
@@ -690,6 +693,7 @@ class TestHostGrace:
     async def test_joiner_during_the_grace_gets_host_away_with_the_seconds_left_after_the_existing_list(
         self, link, room_manager, scheduler
     ):
+        """CALL-06: Joiner during the grace gets host away with the seconds left after the existing list."""
         room, browsers = await drop_host(link, room_manager, "p1")
         await scheduler.advance(20)
 
@@ -701,6 +705,7 @@ class TestHostGrace:
         assert frames_of_type(browsers["p1"], SignalType.HOST_BACK) == []
 
     async def test_host_with_two_connections_keeps_the_room_hosted_when_one_drops(self, link, room_manager):
+        """CALL-13: Host with two connections keeps the room hosted when one drops."""
         room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
         second = await link.join("host1", room.room_id)
 

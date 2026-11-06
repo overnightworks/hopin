@@ -74,6 +74,7 @@ def test_home_greets_the_member_by_their_username(
 def test_each_tile_carries_the_username_of_the_other_person(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict
 ) -> None:
+    """CALL-12: Each tile carries the username of the other person."""
     host = record_page_errors(open_person(username="anna", **form_factor), page_errors)
     invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **form_factor), page_errors)
@@ -88,6 +89,7 @@ def test_each_tile_carries_the_username_of_the_other_person(
 def test_chat_message_shows_the_username_of_its_sender(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict
 ) -> None:
+    """CALL-12: Chat message shows the username of its sender."""
     host = record_page_errors(open_person(username="anna", **form_factor), page_errors)
     invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **form_factor), page_errors)

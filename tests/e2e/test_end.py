@@ -198,6 +198,7 @@ def host_leaves(call: Call) -> None:
 
 
 def test_guest_who_leaves_sees_the_left_screen_and_no_live_media_track(call: Call) -> None:
+    """CALL-20: Guest who leaves sees the left screen and no live media track."""
     guest_leaves(call)
 
     expect_end_screen(call.guest, LEFT_BY_GUEST)
@@ -280,6 +281,7 @@ def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped
 
 @pytest.mark.parametrize("form_factor", [DESKTOP], indirect=True)
 def test_host_who_shared_the_screen_and_leaves_has_no_live_media_track(hosted_call: HostedCall) -> None:
+    """CALL-20: Host who shared the screen and leaves has no live media track."""
     share_the_screen(hosted_call.host)
 
     leave_with_confirmation(hosted_call.host)
@@ -305,6 +307,7 @@ def test_host_who_presses_share_twice_while_the_picker_is_open_and_leaves_has_no
 
 
 def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:
+    """CALL-19: Guest who rejoins is back in the call."""
     guest_leaves(call)
 
     end_screen(call.guest).get_by_role("button", name="Rejoin").click()
@@ -317,6 +320,7 @@ def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:
 def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_call_link(
     call: Call, browser_coverage: BrowserCoverage
 ) -> None:
+    """CALL-16: Guest who goes back to start lands on the home and back returns to the call link."""
     guest_leaves(call)
 
     end_screen(call.guest).get_by_role("button", name="Back to start").click()
@@ -342,6 +346,7 @@ def test_host_who_cancels_the_leave_dialog_stays_in_the_call_with_the_guest(call
 
 
 def test_host_who_leaves_sees_the_left_screen_without_rejoin(call: Call) -> None:
+    """CALL-18: Host who leaves sees the left screen without rejoin."""
     host_leaves(call)
 
     expect_end_screen(call.host, LEFT_BY_HOST)
@@ -367,6 +372,7 @@ def test_host_who_reloads_the_call_link_with_the_same_account_leaves_without_rej
 
 
 def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(call: Call) -> None:
+    """CALL-17: Guest sees the call ended when the host ends it for everyone."""
     call.host_frames.send({"type": SignalType.END_ROOM})
 
     expect_end_screen(call.guest, ENDED_BY_HOST)
@@ -375,6 +381,7 @@ def test_guest_sees_the_call_ended_when_the_host_ends_it_for_everyone(call: Call
 def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at_join(
     hosted_call: HostedCall, open_person: Callable[..., Page], page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-14: Guest waiting on the prejoin of an ended call finds the link expired at join."""
     guest = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
     open_prejoin_by_link(guest, hosted_call.invite_link)
     wait_until_the_prejoin_media_answered(guest)
@@ -389,6 +396,7 @@ def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at
 def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(
     call: Call, browser_coverage: BrowserCoverage
 ) -> None:
+    """CALL-02, CALL-19: Guest who finds the call locked can retry once the host unlocks."""
     guest_leaves(call)
     toggle_the_lock(call.host)
     expect(call.host.locator("#lockIndicator")).to_be_visible()
@@ -420,6 +428,7 @@ def test_refused_join_shows_the_screen_of_its_reason(
     error: dict[str, Any],
     expected: EndScreenText,
 ) -> None:
+    """CALL-14, CALL-20: Refused join shows the screen of its reason."""
     person = open_recording_person(open_person, form_factor)
     answer_join_with(person, {"type": SignalType.ERROR.value, **error})
 
@@ -447,7 +456,7 @@ def test_guest_whose_request_the_server_answers_with_an_error_that_is_no_refusal
 def test_person_whose_account_is_in_the_maximum_of_calls_sees_the_refusal_and_does_not_retry(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> None:
-    """#238 line 1: a person whose account is in the maximum of calls sees the refusal and does not retry."""
+    """CALL-42: a person whose account is in the maximum of calls sees the refusal and does not retry."""
     person = record_page_errors(open_recording_person(open_person, form_factor, [COUNT_SOCKETS]), page_errors)
     other_device = open_person(same_account_as=person, **DESKTOP)
     other_device.goto(f"{base_url}/")
@@ -490,7 +499,7 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
     page_errors: list[str],
     server_notices: bool,
 ) -> None:
-    """#238 line 1: a reconnect refused at the maximum of calls ends with the same refusal screen, without a retry."""
+    """CALL-42: a reconnect refused at the maximum of calls ends with the same refusal screen, without a retry."""
     guest = record_page_errors(open_recording_person(open_person, form_factor, [COUNT_SOCKETS]), page_errors)
     cut = cut_the_socket_on_demand(guest)
     guest.clock.install()
@@ -513,6 +522,7 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
 def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
     hosted_call: HostedCall, open_person: Callable[..., Page], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-01: Guest sees the grace seconds when the host did not come back."""
     person = open_recording_person(open_person, form_factor)
     answer_join_with(
         person,

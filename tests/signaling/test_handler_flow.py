@@ -116,6 +116,7 @@ class TestRoomCreation:
         assert response["is_host"] is True
 
     def test_create_room_ignores_a_password_key(self, connect):
+        """CALL-02: Create room ignores a password key."""
         ws = connect("host1")
         ws.send_json({"type": SignalType.JOIN.value, "password": "secret"})
         response = ws.receive_json()
@@ -220,6 +221,7 @@ class TestRelay:
 @pytest.mark.integration
 class TestLockUnlock:
     def test_lock_prevents_joining(self, connect):
+        """CALL-02: Lock prevents joining."""
         host_ws = connect("host1")
         host_ws.send_json({"type": SignalType.JOIN.value})
         created = host_ws.receive_json()
@@ -411,6 +413,7 @@ class TestMediaState:
 @pytest.mark.integration
 class TestPeersAreServerMinted:
     def test_two_sockets_of_one_account_join_as_two_peers_that_reach_each_other(self, connect):
+        """CALL-13: Two sockets of one account join as two peers that reach each other."""
         first_ws, room_id = open_room(connect, "alice")
         second_ws, existing = join_room(connect, "alice", room_id)
         [first_peer_id] = existing["participants"]
@@ -548,7 +551,7 @@ def assert_admitted(websocket):
 @pytest.mark.integration
 class TestCallCap:
     def test_refusal_holds_no_seat_and_does_not_block_other_accounts(self, connect):
-        """#238 line 1: the cap is per account, and closing a live call frees room after a refusal."""
+        """CALL-42: the cap is per account, and closing a live call frees room after a refusal."""
         live = open_idle_sockets(connect, "busy", MAX_LIVE_SEATS_PER_ACCOUNT)
         assert_refused_for_too_many_calls(connect("busy"))
         assert_admitted(connect("other"))

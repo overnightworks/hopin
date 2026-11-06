@@ -18,6 +18,7 @@ OTHERS_IN_THE_CALL = 2
 def test_account_in_the_call_on_two_devices_stays_host_while_either_is_there(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-13: Account in the call on two devices stays host while either is there."""
     laptop = record_page_errors(open_person(**DESKTOP), page_errors)
     invite_link = start_call(laptop, base_url)
     phone = record_page_errors(open_person(same_account_as=laptop, **PHONE), page_errors)

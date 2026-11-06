@@ -101,6 +101,7 @@ def intersects(first: dict[str, float], second: dict[str, float]) -> bool:
 def test_host_bar_shows_round_buttons_in_order_inside_the_stage_and_no_old_strip(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-36: Host bar shows round buttons in order inside the stage and no old strip."""
     name = form_factor_name(form_factor)
     host, _, _ = open_call(open_person, base_url, page_errors, form_factor)
 
@@ -192,6 +193,7 @@ def test_share_screen_is_pressed_and_active_exactly_while_sharing(
 def test_chat_button_shows_the_unread_count_and_clears_it_when_the_panel_opens(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-37: Chat button shows the unread count and clears it when the panel opens."""
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
     chat = button_named(host, "Chat")
     badge = host.locator("#chatBadge")
