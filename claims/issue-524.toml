@@ -1,0 +1,8 @@
+claim_id = "e4fba2b521894ec488308852909efb20"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "40b0cbb97bbec2329b65e38deed3f167e017c689"
+branch = "claude/issue-524-drop-decision-records"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/decisions"]
+opened_commit = "98e80aea95a7d7461c612d16003e25b42b720e50"
+whole_reason = "The records, the overview that takes over their facts and the README that lists them change together; a split would leave a dangling link or a fact without a home."
