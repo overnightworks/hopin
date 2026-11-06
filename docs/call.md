@@ -42,6 +42,7 @@ Ruled by the operator:
 - CALL-22: On a phone, the small own picture can be dragged to any corner; it snaps to the nearest one and stays there for the rest of the call, also when people join or leave.
 - CALL-23: Everyone in a call sees, on that person's tile, who has muted the microphone or turned the camera off; people who join later see it too, and I see my own mute mark on my own tile.
 - CALL-24: After I stop sharing my screen, my camera comes back only if it was on before.
+- CALL-25: Without a camera I still see and hear everyone; when I turn my camera on later, everyone in the call sees it, those who were there before me and those who joined after me.
 - CALL-34: Alone in the call, the host sees "Waiting for others" with a way to invite: Copy link, and on a phone Share, which opens the system share menu. No share box stands in the call otherwise.
 - CALL-35: HopIn writes the clipboard only when the person presses Copy.
 - CALL-36: The call's controls are round buttons floating over the video. On a phone: mic, camera, invite, chat, more, leave in one row at the bottom. On a desktop: mic, camera, screen | invite, chat, more | leave, centred, with Leave as a pill. Screen sharing exists only on a desktop.

@@ -1,19 +1,13 @@
-import json
 import re
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
-from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
-from playwright.sync_api import Expect, Page, WebSocketRoute
+from playwright.sync_api import Expect, Page
 
-from hopin.config.constants import RESUME_WINDOW_SECONDS, ErrorReason, SignalType
+from hopin.config.constants import SignalType
 from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
-    COUNT_OFFERS,
     EVERY_VIDEO_CAP_IS,
     FIVE_CAPS_PER_CONNECTION,
     FOUR_CAPS_PER_CONNECTION,
@@ -23,7 +17,6 @@ from tests.e2e.support.media import (
     OTHER_CAMERA_OFF,
     OTHER_TILE,
     RECORD_PEER_CONNECTIONS,
-    REFUSE_THE_CAMERA,
     TWO_CAPS_PER_CONNECTION,
     VIDEO_TRANSCEIVERS_PER_CONNECTION,
     inbound_per_connection,
@@ -33,137 +26,46 @@ from tests.e2e.support.media import (
     wait_for_peer_count,
     wait_for_the_picture,
 )
-from tests.e2e.support.signaling import (
-    LATE_EVENTS_OF_THE_FIRST_SOCKET,
-    NEW_SOCKET_IS_CLOSED,
-    RECONNECT_DELAYS_MS,
-    RECORD_SOCKETS,
-    SOCKETS_OPENED,
+from tests.e2e.support.mesh_pair import (
+    FIRST_CONNECTION_IS_CONNECTED,
+    FORCE_STATE,
+    LEAVE_AND_JOIN_NEWS,
+    RESTART_DELAY_BY_ATTEMPT,
+    UNLIMITED_DROPS,
+    ConnectedPair,
+    Side,
+    _expect_to_reconnect_on_a_new_ufrag,
+    _frames_of,
+    _heard_since,
+    _restart_offers,
+    _sdp_ufrag,
+    _wait_for,
+    _wait_for_new_ufrag_in_stats,
+    pump_until,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable
 
+pytest_plugins = ["tests.e2e.support.mesh_pair"]
 pytestmark = pytest.mark.e2e
 
 expect = Expect()
 expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
-CLOCK_PAUSE_LEAD = timedelta(seconds=5)
 QUALITY_POLL_INTERVAL_MS = 3000
-HEARD_CHAT = "#chatMessages .chat-msg.other"
-LEAVE_AND_JOIN_NEWS = {SignalType.PARTICIPANT_LEFT, SignalType.PARTICIPANT_JOINED}
-HOST_PRESENCE_NEWS = {SignalType.HOST_AWAY, SignalType.HOST_BACK}
-PUMP_DEADLINE_SECONDS = 30
-CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
-UNLIMITED_DROPS = 1_000_000
 SIX_PEOPLE = 6
-CUTS_IN_A_ROW = 3
-FORCE_ICE_FAULTS = """
-window.forcedStates = new WeakMap();
-window.restartOfferCount = 0;
-const peerConnectionPrototype = RTCPeerConnection.prototype;
-for (const property of ["iceConnectionState", "connectionState"]) {
-    const nativeGetter = Object.getOwnPropertyDescriptor(peerConnectionPrototype, property).get;
-    Object.defineProperty(peerConnectionPrototype, property, {
-        configurable: true,
-        get() { return window.forcedStates.get(this) ?? nativeGetter.call(this); },
-    });
-}
-const nativeCreateOffer = peerConnectionPrototype.createOffer;
-peerConnectionPrototype.createOffer = function (options) {
-    if (options?.iceRestart) window.restartOfferCount += 1;
-    return nativeCreateOffer.call(this, options);
-};
-window.localDescriptionCount = 0;
-const nativeSetLocalDescription = peerConnectionPrototype.setLocalDescription;
-peerConnectionPrototype.setLocalDescription = function (description) {
-    return nativeSetLocalDescription.call(this, description).then(() => { window.localDescriptionCount += 1; });
-};
-const nativeSetRemoteDescription = peerConnectionPrototype.setRemoteDescription;
-peerConnectionPrototype.setRemoteDescription = function (description) {
-    if (description.type !== "answer") return nativeSetRemoteDescription.call(this, description);
-    if (window.rejectNextAnswerApplication) {
-        window.rejectNextAnswerApplication = false;
-        return Promise.reject(new Error(window.injectedRejectionMessage));
-    }
-    window.forcedStates.delete(this);
-    const gate = window.answerApplicationGate ?? Promise.resolve();
-    return gate.then(() => nativeSetRemoteDescription.call(this, description));
-};
-window.answerCreationsStarted = 0;
-window.answerCreationsSettled = 0;
-const nativeCreateAnswer = peerConnectionPrototype.createAnswer;
-peerConnectionPrototype.createAnswer = function (options) {
-    window.answerCreationsStarted += 1;
-    const created = nativeCreateAnswer.call(this, options);
-    const heldUntilReleased = window.answerCreationGate ? window.answerCreationGate.then(() => created) : created;
-    return heldUntilReleased.finally(() => { window.answerCreationsSettled += 1; });
-};
-window.forceFirstConnectionInto = (state) => {
-    const connection = window.recordedConnections[0];
-    if (state) window.forcedStates.set(connection, state);
-    else window.forcedStates.delete(connection);
-    connection.dispatchEvent(new Event("iceconnectionstatechange"));
-    connection.dispatchEvent(new Event("connectionstatechange"));
-};
-window.localUfrags = async (connection) => {
-    const stats = await connection.getStats();
-    const transport = [...stats.values()].find((report) => report.type === "transport");
-    const description = connection.localDescription.sdp;
-    return { statsUfrag: transport?.iceLocalUsernameFragment, sdpUfrag: /a=ice-ufrag:(\\S+)/.exec(description)[1] };
-};
-"""
-FORCE_STATE = "(state) => window.forceFirstConnectionInto(state)"
 CLEAR_FORCED_STATE = "() => window.forceFirstConnectionInto(null)"
-FIRST_CONNECTION_IS_CONNECTED = """
-() => ["connected", "completed"].includes(window.recordedConnections[0]?.iceConnectionState)
-"""
-ANSWER_APPLIED = '() => window.recordedConnections[0].signalingState === "stable"'
 AWAITING_ANSWER = '() => window.recordedConnections[0].signalingState === "have-local-offer"'
-RESTART_OFFER_COUNT = "() => window.restartOfferCount"
 HOLD_ANSWER_CREATION = """
 () => {
     window.answerCreationGate = new Promise((release) => { window.releaseAnswerCreation = release; });
 }
 """
 RELEASE_ANSWER_CREATION = "() => window.releaseAnswerCreation()"
-HOLD_ANSWER_APPLICATION = """
-() => {
-    window.answerApplicationGate = new Promise((release) => { window.releaseAnswerApplication = release; });
-}
-"""
-RELEASE_ANSWER_APPLICATION = "() => window.releaseAnswerApplication()"
-REJECT_NEXT_ANSWER_APPLICATION = """
-(message) => {
-    window.injectedRejectionMessage = message;
-    window.rejectNextAnswerApplication = true;
-}
-"""
-INJECTED_REJECTION = "answer application rejected on purpose"
 ANSWER_CREATIONS_COUNTED = "() => [window.answerCreationsStarted, window.answerCreationsSettled]"
 ANSWER_CREATION_STARTED = "(before) => window.answerCreationsStarted > before"
 ANSWER_CREATION_SETTLED = "(before) => window.answerCreationsSettled > before"
-LOCAL_DESCRIPTIONS_SET = "(count) => window.localDescriptionCount >= count"
-STATUS_IS = '(text) => document.getElementById("status").textContent === text'
-IN_CALL = "In call"
-CONNECTION_COUNT_AND_OPEN = """
-() => window.recordedConnections.length === 1 && window.recordedConnections[0].signalingState !== "closed"
-"""
-A_NEW_CONNECTION_IS_CONNECTED = """
-() => window.recordedConnections.slice(1).some(
-    (connection) => ["connected", "completed"].includes(connection.iceConnectionState)
-)
-"""
-FIRST_CONNECTION_IS_CLOSED = '() => window.recordedConnections[0].signalingState === "closed"'
-RESTART_DELAY_BY_ATTEMPT = {0: 2000, 1: 4000, 2: 8000, 3: 15000, 4: 15000, 5: 15000}
-SDP_UFRAG = "async () => (await window.localUfrags(window.recordedConnections[0])).sdpUfrag"
-UFRAG_ROTATED_AND_IN_STATS = """
-async (previousUfrag) => {
-    const { statsUfrag, sdpUfrag } = await window.localUfrags(window.recordedConnections[0]);
-    return sdpUfrag !== previousUfrag && statsUfrag === sdpUfrag;
-}
-"""
 REMOTE_UFRAG = "() => /a=ice-ufrag:(\\S+)/.exec(window.recordedConnections[0].remoteDescription.sdp)[1]"
 ICE_DISCONNECTED_GRACE_MS = 2000
 BLANK_QUALITY_BARS = """
@@ -183,200 +85,10 @@ async () => {
 """
 
 
-@dataclass
-class SignalingTap:
-    """Sits on one person's signaling socket, records what it carries and can damage the connection."""
-
-    urls: list[str] = field(default_factory=list)
-    upstream: list[dict[str, Any]] = field(default_factory=list)
-    downstream: list[dict[str, Any]] = field(default_factory=list)
-    swallow_upstream: int = 0
-    offers_to_drop: int = 0
-    blackhole_downstream: bool = False
-    refused_connections: int = 0
-    corrupt_resume_token: bool = False
-    deliver_chats_twice: bool = False
-    hold_resumed: bool = False
-    held_resumed: list[str | bytes] = field(default_factory=list)
-    sent_before_resumed_released: int = 0
-    _sides: tuple[WebSocketRoute, WebSocketRoute] | None = None
-
-    def relay(self, browser_side: WebSocketRoute) -> None:
-        self.urls.append(browser_side.url)
-        refusing = self.refused_connections > 0
-        self.refused_connections -= int(refusing)
-        server_side = browser_side.connect_to_server()
-        self._sides = (browser_side, server_side)
-        browser_side.on_message(lambda frame: self._to_server(server_side, frame, refusing=refusing))
-        server_side.on_message(lambda frame: self._to_browser(browser_side, frame))
-
-    def cut(self) -> None:
-        assert self._sides is not None
-        browser_side, server_side = self._sides
-        browser_side.close()
-        server_side.close()
-
-    def release_held_resumed(self) -> None:
-        assert self._sides is not None
-        self.sent_before_resumed_released = len(self.upstream)
-        for frame in self.held_resumed:
-            self._sides[0].send(frame)
-        self.held_resumed.clear()
-
-    def _to_server(self, server_side: WebSocketRoute, frame: str | bytes, *, refusing: bool) -> None:
-        message = json.loads(frame)
-        self.upstream.append(message)
-        if refusing:
-            self.cut()
-        elif self.swallow_upstream > 0:
-            self.swallow_upstream -= 1
-        elif self.offers_to_drop > 0 and message["type"] == SignalType.OFFER:
-            self.offers_to_drop -= 1
-        else:
-            if self.corrupt_resume_token and message["type"] == SignalType.RESUME:
-                frame = json.dumps({**message, "token": message["token"] + "x"})
-            server_side.send(frame)
-
-    def _to_browser(self, browser_side: WebSocketRoute, frame: str | bytes) -> None:
-        message = json.loads(frame)
-        self.downstream.append(message)
-        if self.blackhole_downstream:
-            return
-        if self.hold_resumed and message["type"] == SignalType.RESUMED:
-            self.held_resumed.append(frame)
-        else:
-            browser_side.send(frame)
-            if self.deliver_chats_twice and message["type"] == SignalType.CHAT:
-                browser_side.send(frame)
-
-    def types(self, direction: list[dict[str, Any]]) -> list[str]:
-        return [message["type"] for message in direction]
-
-
-class Side(Enum):
-    HOST = "host"
-    GUEST = "guest"
-
-
-@dataclass
-class ConnectedPair:
-    host: Page
-    guest: Page
-    host_tap: SignalingTap
-    guest_tap: SignalingTap
-    invite_link: str
-    page_errors: list[str]
-
-    def force_failed_on(self, person: Page) -> None:
-        person.evaluate(FORCE_STATE, "failed")
-
-    def tap_of(self, person: Page) -> SignalingTap:
-        return self.host_tap if person is self.host else self.guest_tap
-
-    def person_on(self, side: Side) -> Page:
-        return self.host if side is Side.HOST else self.guest
-
-    def other_than(self, person: Page) -> Page:
-        return self.guest if person is self.host else self.host
-
-    def cut(self, person: Page) -> None:
-        self.tap_of(person).cut()
-        wait_for_status(person, _reconnecting_status(RECONNECT_DELAYS_MS[0]))
-
-    def reconnect(self, person: Page) -> None:
-        person.clock.run_for(RECONNECT_DELAYS_MS[0])
-
-    def resume(self, person: Page) -> None:
-        self.reconnect(person)
-        wait_for_status(person, IN_CALL)
-
-    @contextmanager
-    def socket_down(self, person: Page) -> Iterator[None]:
-        self.cut(person)
-        yield
-        self.resume(person)
-
-
-def _reconnecting_status(delay_ms: int) -> str:
-    return f"Reconnecting in {delay_ms // 1000}s..."
-
-
-def _wait_for(person: Page, condition: str, arg: Any = None) -> None:
-    person.wait_for_function(condition, arg=arg, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-
-
-def wait_for_status(person: Page, text: str) -> None:
-    _wait_for(person, STATUS_IS, text)
-
-
-def pump_until(
-    person: Page,
-    condition: Callable[[], bool],
-    deadline_seconds: int = PUMP_DEADLINE_SECONDS,
-    failure: str = "the awaited signaling traffic never happened",
-) -> None:
-    poll_until(person, condition, bool, failure, deadline_seconds)
-
-
-def _restart_offers(person: Page) -> int:
-    return int(person.evaluate(RESTART_OFFER_COUNT))
-
-
-def _sdp_ufrag(person: Page) -> str:
-    return str(person.evaluate(SDP_UFRAG))
-
-
-def _wait_for_new_ufrag_in_stats(person: Page, previous_ufrag: str) -> None:
-    pump_until(person, lambda: bool(person.evaluate(UFRAG_ROTATED_AND_IN_STATS, previous_ufrag)))
-
-
-@contextmanager
-def _expect_to_reconnect_on_a_new_ufrag(*people: Page) -> Iterator[None]:
-    ufrags_before = [_sdp_ufrag(person) for person in people]
-    yield
-    for person, ufrag_before in zip(people, ufrags_before, strict=True):
-        _wait_for_new_ufrag_in_stats(person, ufrag_before)
-        _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
-
-
-@pytest.fixture
-def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Callable[..., ConnectedPair]]:
-    page_errors: list[str] = []
-
-    def connect(without_camera: Side | None = None) -> ConnectedPair:
-        host, guest = open_person(), open_person()
-        host_tap, guest_tap = SignalingTap(), SignalingTap()
-        for person, tap in ((host, host_tap), (guest, guest_tap)):
-            person.route_web_socket("**/ws", tap.relay)
-            person.on("pageerror", lambda error: page_errors.append(str(error)))
-            person.clock.install()
-            person.add_init_script(RECORD_PEER_CONNECTIONS)
-            person.add_init_script(FORCE_ICE_FAULTS)
-            person.add_init_script(COUNT_OFFERS)
-            person.add_init_script(RECORD_SOCKETS)
-
-        guest.goto("about:blank")
-        if without_camera is Side.GUEST:
-            guest.add_init_script(REFUSE_THE_CAMERA)
-        invite_link = start_call(host, base_url, with_camera=without_camera is not Side.HOST)
-        join_by_link(guest, invite_link)
-        for person in (host, guest):
-            _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
-            person.clock.pause_at(datetime.now(tz=UTC) + CLOCK_PAUSE_LEAD)
-        return ConnectedPair(host, guest, host_tap, guest_tap, invite_link, page_errors)
-
-    yield connect
-    assert page_errors == []
-
-
-@pytest.fixture
-def connected_pair(connect_pair: Callable[..., ConnectedPair]) -> ConnectedPair:
-    return connect_pair()
-
-
 def test_forced_failure_on_the_joiner_restarts_ice_once_and_both_sides_take_the_new_ufrag(
     connected_pair: ConnectedPair,
 ) -> None:
+    """CALL-08: A failed connection restarts by itself and both sides take the new ICE credentials."""
     guest = connected_pair.guest
 
     with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
@@ -410,6 +122,7 @@ def test_disconnected_joiner_that_recovers_within_the_grace_does_not_restart(con
 def test_lost_restart_offer_is_retried_from_have_local_offer_and_the_retry_schedule_resets(
     connected_pair: ConnectedPair,
 ) -> None:
+    """CALL-08: A lost restart offer is retried until the connection is back."""
     guest = connected_pair.guest
     first_delay = RESTART_DELAY_BY_ATTEMPT[0]
     connected_pair.guest_tap.offers_to_drop = 1
@@ -473,6 +186,7 @@ def _wait_for_video_targets_at_most(person: Page, peer_count: int, ceiling: int)
 
 
 def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Callable[..., Page], base_url: str) -> None:
+    """CALL-09: Every video upload is capped by the size of the call."""
     people = [open_person() for _ in range(SIX_PEOPLE)]
     for person in people:
         person.add_init_script(RECORD_PEER_CONNECTIONS)
@@ -490,280 +204,6 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
 
     people[-1].close()
     _wait_for_video_caps(people[:-1], *FOUR_CAPS_PER_CONNECTION)
-
-
-def _inbound_video_bytes(person: Page) -> int:
-    return int(sum(inbound_per_connection(person, "video", "bytesReceived")))
-
-
-def _wait_for_more_video_bytes_than(person: Page, baseline: int, deadline_seconds: int = PUMP_DEADLINE_SECONDS) -> int:
-    pump_until(
-        person,
-        lambda: _inbound_video_bytes(person) > baseline,
-        deadline_seconds,
-        "no new video bytes arrived",
-    )
-    return _inbound_video_bytes(person)
-
-
-def _frames_of(tap: SignalingTap, direction: str, frame_type: str, since: int = 0) -> list[dict[str, Any]]:
-    return [message for message in getattr(tap, direction)[since:] if message["type"] == frame_type]
-
-
-def _say_in_chat(person: Page, text: str) -> None:
-    if not person.locator("#chatPanel.visible").count():
-        person.click("#chatBtn")
-    person.fill("#chatInput", text)
-    person.click("#chatSend")
-
-
-def _heard_since(tap: SignalingTap, since: int) -> set[str]:
-    return set(tap.types(tap.downstream[since:]))
-
-
-@pytest.mark.parametrize("cut_side", [Side.GUEST, Side.HOST], ids=["guest_cut", "host_cut"])
-def test_cut_signaling_socket_resumes_the_seat_while_the_video_keeps_flowing_and_nobody_hears_a_leave_or_join(
-    connected_pair: ConnectedPair, cut_side: Side
-) -> None:
-    cut_person = connected_pair.person_on(cut_side)
-    cut_tap = connected_pair.tap_of(cut_person)
-    observer_tap = connected_pair.tap_of(connected_pair.other_than(cut_person))
-    heard_before = len(observer_tap.downstream)
-    bytes_before = _inbound_video_bytes(cut_person)
-
-    with connected_pair.socket_down(cut_person):
-        bytes_during_the_cut = _wait_for_more_video_bytes_than(cut_person, bytes_before, CUT_VIDEO_DEADLINE_SECONDS)
-    _wait_for_more_video_bytes_than(cut_person, bytes_during_the_cut)
-
-    for person in (connected_pair.host, connected_pair.guest):
-        assert person.evaluate(CONNECTION_COUNT_AND_OPEN)
-    assert LEAVE_AND_JOIN_NEWS.union(HOST_PRESENCE_NEWS).isdisjoint(_heard_since(observer_tap, heard_before))
-    sent = cut_tap.types(cut_tap.upstream)
-    assert (sent.count(SignalType.JOIN), sent.count(SignalType.RESUME)) == (1, 1)
-
-
-def test_restart_answer_swallowed_at_the_cut_is_resent_after_the_resume_and_both_sides_take_the_new_ufrag(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, host, host_tap = connected_pair.guest, connected_pair.host, connected_pair.host_tap
-    answers_before = len(_frames_of(connected_pair.guest_tap, "downstream", SignalType.ANSWER))
-    upstream_before = len(host_tap.upstream)
-    host_tap.swallow_upstream = UNLIMITED_DROPS
-
-    with _expect_to_reconnect_on_a_new_ufrag(guest, host):
-        connected_pair.force_failed_on(guest)
-        pump_until(host, lambda: bool(_frames_of(host_tap, "upstream", SignalType.ANSWER, since=upstream_before)))
-        with connected_pair.socket_down(host):
-            host_tap.swallow_upstream = 0
-
-    _say_in_chat(host, "sent after the answer")
-    expect(guest.locator(HEARD_CHAT)).to_have_count(1)
-    assert len(_frames_of(connected_pair.guest_tap, "downstream", SignalType.ANSWER)) == answers_before + 1
-
-
-def test_chat_swallowed_at_the_cut_reaches_the_other_side_exactly_once_after_the_resume(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest = connected_pair.guest
-    connected_pair.guest_tap.swallow_upstream = 1
-
-    _say_in_chat(guest, "lost in the cut")
-    pump_until(guest, lambda: connected_pair.guest_tap.swallow_upstream == 0)
-    connected_pair.cut(guest)
-    connected_pair.resume(guest)
-
-    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_text([re.compile("lost in the cut$")])
-    assert len(_frames_of(connected_pair.host_tap, "downstream", SignalType.CHAT)) == 1
-
-
-def test_chat_typed_while_the_socket_is_down_is_written_in_order_after_the_resume(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, guest_tap = connected_pair.guest, connected_pair.guest_tap
-
-    with connected_pair.socket_down(guest):
-        _say_in_chat(guest, "first")
-        _say_in_chat(guest, "second")
-
-    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(2)
-    last_resume = max(index for index, message in enumerate(guest_tap.upstream) if message["type"] == SignalType.RESUME)
-    chats_after_it = _frames_of(guest_tap, "upstream", SignalType.CHAT, since=last_resume + 1)
-    assert [chat["message"] for chat in chats_after_it] == ["first", "second"]
-
-
-def _retry_the_restart_while_the_first_reconnect_is_refused(person: Page, retry_made: Callable[[], bool]) -> None:
-    first_delay, second_delay = RECONNECT_DELAYS_MS[:2]
-    until_the_retry = RESTART_DELAY_BY_ATTEMPT[0] - first_delay
-    person.clock.run_for(first_delay)
-    wait_for_status(person, _reconnecting_status(second_delay))
-    person.clock.run_for(until_the_retry)
-    pump_until(person, retry_made)
-    person.clock.run_for(second_delay - until_the_retry)
-    wait_for_status(person, IN_CALL)
-
-
-def test_two_restart_offers_made_while_the_socket_is_down_reach_the_host_as_one(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, host = connected_pair.guest, connected_pair.host
-    offers_before = len(_frames_of(connected_pair.host_tap, "downstream", SignalType.OFFER))
-    descriptions_before = int(guest.evaluate("() => window.localDescriptionCount"))
-    connected_pair.guest_tap.refused_connections = 1
-    connected_pair.cut(guest)
-
-    connected_pair.force_failed_on(guest)
-    _wait_for(guest, LOCAL_DESCRIPTIONS_SET, descriptions_before + 1)
-    _retry_the_restart_while_the_first_reconnect_is_refused(
-        guest, lambda: bool(guest.evaluate(LOCAL_DESCRIPTIONS_SET, descriptions_before + 2))
-    )
-    _say_in_chat(guest, "sent after both offers")
-    expect(host.locator(HEARD_CHAT)).to_have_count(1)
-
-    assert _restart_offers(guest) == 2
-    assert len(_frames_of(connected_pair.host_tap, "downstream", SignalType.OFFER)) == offers_before + 1
-    assert host.evaluate(CONNECTION_COUNT_AND_OPEN)
-
-
-def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_and_raises_no_page_error(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, host = connected_pair.guest, connected_pair.host
-    guest_tap, host_tap = connected_pair.guest_tap, connected_pair.host_tap
-    answers_before = len(_frames_of(guest_tap, "downstream", SignalType.ANSWER))
-    answers_sent = len(_frames_of(host_tap, "upstream", SignalType.ANSWER))
-    guest_tap.blackhole_downstream = True
-    guest_tap.refused_connections = 1
-    guest.evaluate(HOLD_ANSWER_APPLICATION)
-
-    with _expect_to_reconnect_on_a_new_ufrag(guest, host):
-        connected_pair.force_failed_on(guest)
-        pump_until(guest, lambda: len(_frames_of(guest_tap, "downstream", SignalType.ANSWER)) > answers_before)
-        connected_pair.cut(guest)
-        guest_tap.blackhole_downstream = False
-        _retry_the_restart_while_the_first_reconnect_is_refused(guest, lambda: _restart_offers(guest) == 2)
-        pump_until(host, lambda: len(_frames_of(host_tap, "upstream", SignalType.ANSWER)) == answers_sent + 2)
-        _say_in_chat(host, "sent after both answers")
-        expect(guest.locator(HEARD_CHAT)).to_have_count(1)
-        guest.evaluate(RELEASE_ANSWER_APPLICATION)
-        guest.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
-
-
-def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_applied(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest = connected_pair.guest
-    guest.evaluate(REJECT_NEXT_ANSWER_APPLICATION, INJECTED_REJECTION)
-
-    with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
-        connected_pair.force_failed_on(guest)
-        pump_until(guest, lambda: bool(connected_pair.page_errors))
-        guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
-        _wait_for(guest, ANSWER_APPLIED)
-        assert [INJECTED_REJECTION in error for error in connected_pair.page_errors] == [True]
-        connected_pair.page_errors.pop()
-
-
-def test_every_cut_in_a_row_resumes_with_the_first_delay_because_each_resume_resets_the_attempts(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, tap = connected_pair.guest, connected_pair.guest_tap
-    for _ in range(CUTS_IN_A_ROW + 1):
-        sockets_before_the_cut = len(tap.urls)
-        connected_pair.cut(guest)
-        assert len(tap.urls) == sockets_before_the_cut
-        connected_pair.resume(guest)
-        assert len(tap.urls) == sockets_before_the_cut + 1
-
-
-def test_server_frame_delivered_twice_is_dispatched_once(connected_pair: ConnectedPair) -> None:
-    guest, host = connected_pair.guest, connected_pair.host
-    connected_pair.guest_tap.deliver_chats_twice = True
-
-    _say_in_chat(host, "once")
-    _say_in_chat(host, "marker")
-
-    expect(guest.locator(HEARD_CHAT)).to_have_text([re.compile("once$"), re.compile("marker$")])
-
-
-def test_events_of_a_replaced_socket_are_ignored(connected_pair: ConnectedPair) -> None:
-    guest = connected_pair.guest
-    connected_pair.cut(guest)
-    connected_pair.resume(guest)
-
-    guest.evaluate(LATE_EVENTS_OF_THE_FIRST_SOCKET)
-    guest.clock.run_for(RECONNECT_DELAYS_MS[0])
-    _say_in_chat(guest, "still connected")
-
-    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(1)
-    assert len(connected_pair.guest_tap.urls) == 2
-    wait_for_status(guest, IN_CALL)
-
-
-def test_chat_typed_while_the_socket_is_open_but_not_yet_resumed_waits_for_the_resumed_frame(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, host, tap = connected_pair.guest, connected_pair.host, connected_pair.guest_tap
-    tap.hold_resumed = True
-    connected_pair.cut(guest)
-    connected_pair.reconnect(guest)
-    pump_until(guest, lambda: bool(tap.held_resumed))
-
-    _say_in_chat(guest, "typed while resuming")
-    tap.release_held_resumed()
-
-    expect(host.locator(HEARD_CHAT)).to_have_count(1)
-    assert SignalType.CHAT not in tap.types(tap.upstream[: tap.sent_before_resumed_released])
-    assert len(_frames_of(connected_pair.host_tap, "downstream", SignalType.CHAT)) == 1
-
-
-def test_refused_resume_falls_back_to_a_fresh_join_with_new_peer_connections(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest = connected_pair.guest
-    connected_pair.guest_tap.corrupt_resume_token = True
-
-    connected_pair.cut(guest)
-    connected_pair.reconnect(guest)
-    _wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
-
-    assert guest.evaluate(FIRST_CONNECTION_IS_CLOSED)
-    sent = connected_pair.guest_tap.types(connected_pair.guest_tap.upstream)
-    assert (sent.count(SignalType.JOIN), sent.count(SignalType.RESUME)) == (2, 1)
-    refusals = _frames_of(connected_pair.guest_tap, "downstream", SignalType.ERROR)
-    assert [refusal["reason"] for refusal in refusals] == [ErrorReason.RESUME_REFUSED]
-
-
-def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_window(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, tap = connected_pair.guest, connected_pair.guest_tap
-    tap.refused_connections = len(RECONNECT_DELAYS_MS)
-    connected_pair.cut(guest)
-
-    for attempt, delay in enumerate(RECONNECT_DELAYS_MS, start=1):
-        sockets_before = guest.evaluate(SOCKETS_OPENED)
-        guest.clock.run_for(delay)
-        _wait_for(guest, NEW_SOCKET_IS_CLOSED, sockets_before)
-        if attempt < len(RECONNECT_DELAYS_MS):
-            wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
-    wait_for_status(guest, "Connection lost")
-    upstream_before = len(tap.upstream)
-    _say_in_chat(guest, "nobody hears this")
-
-    assert len(tap.urls) == len(RECONNECT_DELAYS_MS) + 1
-    assert len(tap.upstream) == upstream_before
-    window_ms = RESUME_WINDOW_SECONDS * 1000
-    assert window_ms - RECONNECT_DELAYS_MS[-1] <= sum(RECONNECT_DELAYS_MS) < window_ms
-
-
-def test_no_signaling_url_carries_a_resume_token(connected_pair: ConnectedPair) -> None:
-    guest = connected_pair.guest
-    connected_pair.cut(guest)
-    connected_pair.resume(guest)
-
-    tokens = {message["resume_token"] for message in connected_pair.guest_tap.downstream if "resume_token" in message}
-    assert len(tokens) == 2
-    assert not any(token in url for token in tokens for url in connected_pair.guest_tap.urls)
 
 
 def test_leaving_while_a_newcomers_offer_is_being_answered_raises_no_page_error(
