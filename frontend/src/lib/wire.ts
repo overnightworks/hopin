@@ -42,6 +42,7 @@ export enum ROOM_CLOSED_REASON {
 export type RoomClosedFrame = {
     type: SIGNAL_TYPE.ROOM_CLOSED;
     reason: ROOM_CLOSED_REASON;
+    host_name: string;
     grace_seconds?: number;
 };
 

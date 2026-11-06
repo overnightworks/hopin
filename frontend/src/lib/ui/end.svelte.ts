@@ -26,7 +26,8 @@ export enum END_ACTION {
     REJOIN = "rejoin",
 }
 
-export type EndFrame = Pick<RoomClosedFrame, "grace_seconds"> & Pick<ErrorFrame, "capacity" | "limit">;
+export type EndFrame = Partial<Pick<RoomClosedFrame, "grace_seconds" | "host_name">> &
+    Pick<ErrorFrame, "capacity" | "limit">;
 
 type EndView = {
     icon: END_ICON;
@@ -38,19 +39,24 @@ type EndView = {
 };
 
 const OTHERS_STILL_TALKING = "The others are still talking.";
+const UNNAMED_HOST = "The host";
+
+function hostNameOf({ host_name }: EndFrame) {
+    return host_name || UNNAMED_HOST;
+}
 
 const END_VIEWS: Record<END_KIND, EndView> = {
     [END_KIND.HOST_GONE]: {
         icon: END_ICON.ENDED,
         title: "Call ended",
-        text: ({ grace_seconds }) =>
-            `The host didn't come back within ${String(grace_seconds)} seconds, so the call ended for everyone.`,
+        text: (frame) =>
+            `${hostNameOf(frame)} didn't come back within ${String(frame.grace_seconds)} seconds, so the call ended for everyone.`,
         actions: [END_ACTION.HOME],
     },
     [END_KIND.ENDED_BY_HOST]: {
         icon: END_ICON.ENDED,
         title: "Call ended",
-        text: () => "The host ended the call for everyone.",
+        text: (frame) => `${hostNameOf(frame)} ended the call for everyone.`,
         actions: [END_ACTION.HOME],
     },
     [END_KIND.LEFT]: {
@@ -75,7 +81,7 @@ const END_VIEWS: Record<END_KIND, EndView> = {
         icon: END_ICON.LOCK,
         warn: true,
         title: "Call is locked",
-        text: () => "The host isn't letting anyone new in right now. Try again in a moment.",
+        text: () => `${UNNAMED_HOST} isn't letting anyone new in right now. Try again in a moment.`,
         actions: [END_ACTION.RETRY, END_ACTION.HOME],
     },
     [END_KIND.FULL]: {

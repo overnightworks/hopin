@@ -55,10 +55,11 @@ class RoomClosedFrame:
     TYPE: ClassVar[SignalType] = SignalType.ROOM_CLOSED
 
     reason: RoomClosedReason
+    host_name: str
     grace_seconds: int | None = None
 
     def to_json(self) -> JsonObject:
-        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value}
+        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value, "host_name": self.host_name}
         if self.grace_seconds is not None:
             frame["grace_seconds"] = self.grace_seconds
         return frame

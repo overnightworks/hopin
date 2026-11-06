@@ -27,24 +27,24 @@ describe("showEnd", () => {
     it.each([
         {
             kind: END_KIND.HOST_GONE,
-            frame: { grace_seconds: 30 },
+            frame: { grace_seconds: 30, host_name: "Ada" },
             expected: {
                 icon: END_ICON.ENDED,
                 isWarning: false,
                 title: "Call ended",
-                text: "The host didn't come back within 30 seconds, so the call ended for everyone.",
+                text: "Ada didn't come back within 30 seconds, so the call ended for everyone.",
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
         },
         {
             kind: END_KIND.ENDED_BY_HOST,
-            frame: {},
+            frame: { host_name: "Ada" },
             expected: {
                 icon: END_ICON.ENDED,
                 isWarning: false,
                 title: "Call ended",
-                text: "The host ended the call for everyone.",
+                text: "Ada ended the call for everyone.",
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
@@ -121,11 +121,24 @@ describe("showEnd", () => {
                 actions: [END_ACTION.HOME],
             },
         },
-    ])("shows the $kind end", ({ kind, frame, expected }) => {
+    ])("CALL-46: shows the $kind end", ({ kind, frame, expected }) => {
         showEnd(kind, frame);
 
         expect(shownEndView()).toEqual(expected);
         expect(screens.current).toBe(SCREEN.END);
+    });
+
+    it.each([
+        [END_KIND.ENDED_BY_HOST, { host_name: "" }, "The host ended the call for everyone."],
+        [
+            END_KIND.HOST_GONE,
+            { host_name: "", grace_seconds: 30 },
+            "The host didn't come back within 30 seconds, so the call ended for everyone.",
+        ],
+    ])("CALL-46: the %s end says The host when the host's name is empty", (kind, frame, text) => {
+        showEnd(kind, frame);
+
+        expect(shownEndView().text).toBe(text);
     });
 
     it("shows a kind given without a frame", () => {

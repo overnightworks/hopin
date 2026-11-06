@@ -312,14 +312,18 @@ class TestHostGrace:
 
 @pytest.mark.integration
 class TestEndRoom:
-    def test_end_room_closes_it_for_both_peers_and_the_id_is_gone(self, connect):
+    def test_end_room_closes_it_for_both_peers_and_the_id_is_gone(self, connect, member_named):
         host_ws, room_id = open_room(connect, "host1")
         guest_ws, _existing = join_room(connect, "guest", room_id)
         host_ws.receive_json()
 
         host_ws.send_json({"type": SignalType.END_ROOM.value})
 
-        expected = {"type": SignalType.ROOM_CLOSED.value, "reason": RoomClosedReason.ENDED.value}
+        expected = {
+            "type": SignalType.ROOM_CLOSED.value,
+            "reason": RoomClosedReason.ENDED.value,
+            "host_name": member_named("host1").account.username,
+        }
         assert without_seq(host_ws.receive_json()) == expected
         assert without_seq(guest_ws.receive_json()) == expected
         _late_ws, refusal = join_room(connect, "late", room_id)
