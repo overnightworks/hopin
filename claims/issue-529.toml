@@ -1,7 +1,0 @@
-claim_id = "944884fa3a414fbbb4168bb47613bc44"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "7d295eae593db1e83c301ba344d166d6d60a7ce6"
-branch = "claude/issue-529-drop-local-rules"
-scope = ["AGENTS.md"]
-opened_commit = "ef41dd29f9839152f6b56f458753ccbf228b5c07"
