@@ -29,13 +29,3 @@ The `Makefile` owns the targets. Traps:
 ## Scanner exceptions
 
 - The scanner marker traps are in the `sonar-distributor` skill, section "Marker grammar".
-
-## Local rules awaiting the operator's ruling
-
-Each differs from the global contract. They stay here only until the operator rules.
-
-- Test names follow `test_<method>_<scenario>_<expected_result>`. Differs from the contract: "its name states that behaviour", with no fixed pattern.
-- Test-driven development: write the tests first, then implement. Differs from the contract: "a new behaviour is not done until a test pins it", with no order.
-- Use dependency injection; never instantiate dependencies inside a class. Differs from the contract: no such rule.
-- Async-first: `async/await` for all IO-bound operations. Differs from the contract: no such rule.
-- Never catch bare `Exception` unless re-raising. Differs from the contract: stricter than "fail loud, no silent catches".
