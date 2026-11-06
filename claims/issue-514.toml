@@ -1,7 +1,0 @@
-claim_id = "7efc4d020b4e49659005c3ed0113e36f"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "3d17945fb934e5810d0d5170f8c383620b49a048"
-branch = "claude/issue-514-pnpm-12"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/pnpm-workspace.yaml"]
-opened_commit = "5cb35f7d5f505aa6f40e82c8b6aabc2b8a512ae0"
