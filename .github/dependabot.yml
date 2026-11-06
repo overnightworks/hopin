@@ -34,6 +34,9 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
+      sveltejs:
+        patterns:
+          - "@sveltejs/*"
     # why: svelte-check and typescript-eslint do not yet admit TypeScript 7 in
     # their peer ranges, so a major bump cannot be installed. This ignore goes
     # when both admit it.
