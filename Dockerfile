@@ -54,7 +54,8 @@ COPY --from=page-build /build/src/hopin/web/build ./src/hopin/web/build
 RUN uv build --wheel --out-dir /tmp/wheel \
  && uv pip install --python /opt/venv/bin/python --no-deps --no-build /tmp/wheel/*.whl \
  && rm -r /tmp/wheel
-USER hopin
+# A pod's runAsNonRoot can verify only a numeric user; 1001 is hopin's uid.
+USER 1001
 
 EXPOSE 8080
 CMD ["hopin", "serve"]

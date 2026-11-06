@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The release as YYYY.MM.DD.N, without a v
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Gate
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+    uses: overnightworks/quality/.github/workflows/release-gate.yml@7715afe5c911a00ae3076057691e0b5d4e4a65f7
+    with:
+      version: ${{ inputs.version }}
+      form: YYYY.MM.DD.N
+
+  image:
+    name: Image
+    needs: gate
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    uses: overnightworks/quality/.github/workflows/image.yml@7715afe5c911a00ae3076057691e0b5d4e4a65f7
+    with:
+      context: .
+      file: Dockerfile
+      version: ${{ inputs.version }}
+      push: true
+
+  tag:
+    name: Tag
+    needs: [gate, image]
+    permissions:
+      contents: write
+    uses: overnightworks/quality/.github/workflows/release-tag.yml@7715afe5c911a00ae3076057691e0b5d4e4a65f7
+    with:
+      version: ${{ inputs.version }}
+      commit: ${{ needs.gate.outputs.commit }}
