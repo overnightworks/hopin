@@ -119,12 +119,18 @@ def loopback_sign_in(directory: Path) -> LoopbackSignIn:
 
 @contextmanager
 def running_hopin(
-    loopback: LoopbackSignIn, tls_directory: Path, call_feature: CallFeatureBuilder | None = None
+    loopback: LoopbackSignIn,
+    tls_directory: Path,
+    call_feature: CallFeatureBuilder | None = None,
+    page_build_directory: Path = BUILD_DIRECTORY,
 ) -> Iterator[RunningServer]:
-    """Serve HopIn over https on `loopback`, with the call's feature only when one is given."""
+    """Serve HopIn over https on `loopback`, with the call's feature only when one is given.
+
+    The page comes from `page_build_directory`, so a test can serve a copy it changes.
+    """
     app = create_app(
         loopback.sign_in.settings,
-        page_build=PageBuild.load(BUILD_DIRECTORY),
+        page_build=PageBuild.load(page_build_directory),
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_feature=call_feature,
