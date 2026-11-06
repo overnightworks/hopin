@@ -1,7 +1,0 @@
-claim_id = "7316e28afeb44c43b5c33e8c41652f67"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "25911dbbc5b14a75fc2d1f616850967b83a7583c"
-branch = "fix/aco-frontend-dependency-paths"
-scope = [".aco/board.toml"]
-opened_commit = "bf53e3dffde41b1c6a23cfb9c93136fb0e585772"
