@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agent-runtime-client[backend] @ git+https://github.com/overnightworks/agent-runtime@v0.20.0#subdirectory=packages/client",
+    "overnightworks-agent-runtime-client[backend] @ git+https://github.com/overnightworks/agent-runtime@v0.21.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.30.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
