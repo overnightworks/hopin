@@ -3,7 +3,11 @@
 import re
 from html.parser import HTMLParser
 
-LEGAL_URLS = ("https://hallucinai.de/impressum", "https://hallucinai.de/datenschutz#hopin")
+LEGAL_URLS = (
+    "https://hallucinai.de/impressum#hopin",
+    "https://hallucinai.de/datenschutz#hopin",
+    "https://hallucinai.de/nutzungsbedingungen#hopin",
+)
 NEW_TAB_LINK_ATTRIBUTES = {"target": "_blank", "rel": "noopener"}
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 

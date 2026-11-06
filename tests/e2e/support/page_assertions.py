@@ -5,8 +5,9 @@ from playwright.sync_api import Locator, Page, expect
 from tests.e2e.support.media import MEDIA_PERMISSIONS
 
 LEGAL_LINKS = {
-    "Impressum": "https://hallucinai.de/impressum",
+    "Impressum": "https://hallucinai.de/impressum#hopin",
     "Datenschutz": "https://hallucinai.de/datenschutz#hopin",
+    "Nutzungsbedingungen": "https://hallucinai.de/nutzungsbedingungen#hopin",
 }
 
 ACCOUNT_AVATAR = ".account-button:visible"

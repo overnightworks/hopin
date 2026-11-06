@@ -1,6 +1,7 @@
 <script lang="ts">
     import { AccountMenu, LegalLinks } from "overnightworks-appkit";
     import { onMount, type Snippet } from "svelte";
+    import { LEGAL_LINKS } from "#lib/legal.ts";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
@@ -45,11 +46,6 @@
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
     import { startUp } from "./start-up.ts";
-
-    const legalLinks = [
-        { label: "Impressum", href: "https://hallucinai.de/impressum" },
-        { label: "Datenschutz", href: "https://hallucinai.de/datenschutz#hopin" },
-    ];
 
     const { children }: { children: Snippet } = $props();
     const shownEnd = $derived(shownEndView());
@@ -203,7 +199,7 @@
         <dialog bind:this={moreMenu} id="moreMenu" class="overlay" aria-label="More">
             <div class="grab"></div>
             <button id="lockBtn" class={["mi", !lockSwitch.isShown && "hidden"]} type="button" role="switch" aria-checked={lockSwitch.isLocked} aria-label="Lock call" onclick={lockClicked}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.6"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg><span class="grow">Lock call<small>{lockSwitch.line}</small></span><span class={["switch", lockSwitch.isLocked && "on"]}></span></button>
-            <LegalLinks links={legalLinks} place="menu" />
+            <LegalLinks links={LEGAL_LINKS} place="menu" />
         </dialog>
         <dialog bind:this={inviteMenu} id="inviteMenu" class="overlay invite" aria-label="Invite people" data-share={invite.share}>
             <div class="grab"></div>
@@ -249,7 +245,7 @@
         accountHref={ACCOUNT_CONSOLE_PATH}
         onAccountOpen={closeOpenMenu}
         appRows={[]}
-        {legalLinks}
+        legalLinks={LEGAL_LINKS}
         logOutAction={LOGOUT_PATH}
     />
 </dialog>
