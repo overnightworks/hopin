@@ -1,8 +1,0 @@
-claim_id = "cc39fab3dcb34dfcb0b7addf29b4ce5e"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "d517ed36c97a39a332e764dd96e28ab2d3a22c3c"
-branch = "claude/issue-501-one-owner-dev-commands"
-scope = [".pre-commit-config.yaml", "AGENTS.md", "Makefile", "pyproject.toml", "uv.lock"]
-opened_commit = "0d2979519e1ef37ff6bcda234682eeb764a6db8d"
-whole_reason = "Removing a dev tool touches its config, its dependency and the lock together, and the new make target and its AGENTS.md line are one change; splitting would leave one half pointing at a missing other."
