@@ -1,0 +1,7 @@
+claim_id = "d8eedc4da5544a91b510180b4a3781f3"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "7d295eae593db1e83c301ba344d166d6d60a7ce6"
+branch = "claude/issue-531-architecture-sections"
+scope = ["docs/ARCHITECTURE.md"]
+opened_commit = "bcdc3322448d5cfebcf8cbd745388f134f59a35f"
