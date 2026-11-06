@@ -1,5 +1,6 @@
 <script lang="ts">
     import { SignInPage, type SignInState } from "overnightworks-appkit";
+    import { LEGAL_LINKS } from "#lib/legal.ts";
     import { AUTH_START_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     const { page }: { page: SignInState["page"] } = $props();
@@ -12,12 +13,5 @@
 </script>
 
 <div class="sign-in">
-    <SignInPage
-        appName="HopIn"
-        state={signInState}
-        legalLinks={[
-            { label: "Impressum", href: "https://hallucinai.de/impressum" },
-            { label: "Datenschutz", href: "https://hallucinai.de/datenschutz#hopin" },
-        ]}
-    />
+    <SignInPage appName="HopIn" state={signInState} legalLinks={LEGAL_LINKS} />
 </div>

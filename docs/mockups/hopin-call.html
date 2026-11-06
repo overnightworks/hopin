@@ -861,7 +861,7 @@ const ROSTER_ORDER = ["felix", "anna", "ben", "chris", "dana", "emil"];
 const MAX_PEOPLE = 6;
 const HOST_GRACE_S = 60;
 const CALL_LINK = "hopin.hallucinai.de/c/k3x9q7pm";
-const LEGAL = { impressum: "https://hallucinai.de/impressum", datenschutz: "https://hallucinai.de/datenschutz#hopin" };
+const LEGAL = { impressum: "https://hallucinai.de/impressum#hopin", datenschutz: "https://hallucinai.de/datenschutz#hopin", nutzungsbedingungen: "https://hallucinai.de/nutzungsbedingungen#hopin" };
 const DEVICES = {
   cam: ["FaceTime HD Camera", "Studio Display Camera"],
   mic: ["MacBook Pro Microphone", "AirPods Pro"],
@@ -1045,7 +1045,8 @@ const statusBar = () => (isPhone() ? STATUS_BAR : "");
 
 const legalLinks = () => `<nav class="legal" aria-label="Legal">
   <a href="${LEGAL.impressum}" target="_blank" rel="noopener">Impressum</a>
-  <a href="${LEGAL.datenschutz}" target="_blank" rel="noopener">Datenschutz</a></nav>`;
+  <a href="${LEGAL.datenschutz}" target="_blank" rel="noopener">Datenschutz</a>
+  <a href="${LEGAL.nutzungsbedingungen}" target="_blank" rel="noopener">Nutzungsbedingungen</a></nav>`;
 const brand = () => `<div class="brand"><span class="glyph">${ic("cam", 18, 2)}</span>HopIn</div>`;
 const topbar = () => `<div class="topbar">${brand()}
   <button class="av av-btn" style="${pv("felix")}" data-act="avatar" aria-label="Account" aria-expanded="${S.overlay === "menu"}">FH</button></div>`;
@@ -1311,7 +1312,7 @@ function moreMenu() {
   const flip = isPhone() ? `<button class="mi" data-act="flip">${ic("flip", 22)}<span class="grow">Flip camera</span></button>` : "";
   const link = (href, icon, label) => `<a class="mi" href="${href}" target="_blank" rel="noopener">${ic(icon, 22)}<span class="grow">${label}</span><span class="end">${ic("external", 16)}</span></a>`;
   return `${lock}<button class="mi" data-act="people">${ic("users", 22)}<span class="grow">Participants</span><span class="end num">${S.count}${ic("chevRight", 18)}</span></button>${quizItem()}${TRANSPARENCY}${flip}
-    <div class="sep"></div>${link(LEGAL.impressum, "doc", "Impressum")}${link(LEGAL.datenschutz, "shield", "Datenschutz")}`;
+    <div class="sep"></div>${link(LEGAL.impressum, "doc", "Impressum")}${link(LEGAL.datenschutz, "shield", "Datenschutz")}${link(LEGAL.nutzungsbedingungen, "doc", "Nutzungsbedingungen")}`;
 }
 
 function inviteBody() {
