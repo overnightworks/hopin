@@ -1,0 +1,7 @@
+claim_id = "8e4b6c83989d48ddada72b28f3f33d19"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "bd89ef2ffaa3c25d664ec93e933ee07b7ff91fa6"
+branch = "fix/dependabot-sveltejs-group"
+scope = [".github/dependabot.yml"]
+opened_commit = "d17111b40c8cd00b085bd18a392a0335395b825a"
