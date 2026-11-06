@@ -1,0 +1,7 @@
+claim_id = "da2e80ec2031436d9c9fff6fb197b9a2"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "f12719c788abd998695c108fe6ffc2c361e4819c"
+branch = "fix/board-toml-defaults"
+scope = [".aco/board.toml"]
+opened_commit = "79c1e6ee77bb4ed32924fddb2b356826d5698637"
