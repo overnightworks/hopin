@@ -127,13 +127,14 @@ describe("Start quiz in More", () => {
         expect(game.startButton.disabled).toBe(true);
     });
 
-    it("shows the game master thinking, then the running quiz and its progress", async () => {
+    it("GM-28: shows the game master thinking, then the running quiz and its progress", async () => {
         const game = await installedGame();
         game.seat();
 
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME });
         expect(game.startButton.classList.contains("thinking")).toBe(true);
         expect(game.startButton.getAttribute("aria-busy")).toBe("true");
+        expect(game.startButton.classList.contains("ending")).toBe(false);
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.ANSWERING, round: 1, rounds: 3, starter: ME });
 
         expect(game.startButton.classList.contains("thinking")).toBe(false);
@@ -176,7 +177,7 @@ describe("Start quiz in More", () => {
 });
 
 describe("the game master's lines", () => {
-    it("hands over each line as a game master line with its text", async () => {
+    it("GM-07: hands over each line as a game master line with its text", async () => {
         const game = await installedGame();
 
         game.emit(GAME_SIGNAL.GAME_LINE, { text: "Welcome." });
@@ -289,7 +290,7 @@ describe("refusals", () => {
         expect(game.toasts[0]?.text).toBe("The game master is busy. Try again in 12 s.");
     });
 
-    it("unlocks Start quiz after a refusal", async () => {
+    it("GM-13: unlocks Start quiz after a refusal", async () => {
         const game = await installedGame();
         game.startButton.click();
         expect(game.startButton.disabled).toBe(true);

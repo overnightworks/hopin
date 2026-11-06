@@ -109,6 +109,7 @@ class TestOneRun:
     async def test_a_game_master_that_raises_is_unavailable_to_the_starter_and_logged_by_its_type_only(
         self, link, game_master
     ):
+        """GM-13: A game master that raises is unavailable to the starter and logged by its type only."""
         [host] = await call_of(link, "host")
         game_master.answer_next(RuntimeError("the secret text of a failure"))
 
@@ -150,6 +151,7 @@ class TestOneRun:
         assert (game_frames(loner), game_master.calls) == ([], [])
 
     async def test_a_call_alone_gets_its_question(self, link):
+        """GM-18: A call alone gets its question."""
         [host] = await call_of(link, "host")
 
         await open_a_question([host], host)
@@ -248,6 +250,7 @@ class TestReveal:
     async def test_a_refused_reveal_ends_the_quiz_with_the_reason_to_the_starter_and_idle_to_all(
         self, link, game_master
     ):
+        """GM-23: A refused reveal ends the quiz with the reason to the starter and idle to all."""
         host, guest = await call_of(link, "host", "guest")
         game_master.answer_next(Line(DEFAULT_QUESTION), Refused(GameRefusal.NO_ACCESS))
         await open_a_question([host, guest], guest)
@@ -288,6 +291,7 @@ class TestReveal:
 
 class TestOneRunPerRoom:
     async def test_a_second_start_in_flight_is_refused_to_its_sender_only(self, link, game_master):
+        """GM-10: A second start in flight is refused to its sender only."""
         host, guest, third = await call_of(link, "host", "guest", "third")
         held = await start_and_hold(game_master, guest)
 
@@ -376,6 +380,7 @@ class TestDeadline:
     async def test_a_run_past_its_deadline_is_cancelled_unavailable_to_the_starter_and_idle_to_all(
         self, link, game_master, scheduler
     ):
+        """GM-28: A run past its deadline is cancelled unavailable to the starter and idle to all."""
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
 
@@ -672,6 +677,7 @@ class TestSeatsComingAndGoing:
 
 
 async def test_six_seats_get_the_question(scheduler, game):
+    """GM-18: Six seats get the question."""
     handler = SignalingHandler(
         RoomManager(max_participants_per_room=MAX_PARTICIPANTS_PER_ROOM),
         SocketAccountResolver(),

@@ -68,6 +68,7 @@ class TestFiveRounds:
     async def test_five_reveals_make_eleven_runs_on_the_starters_socket_ending_in_the_final_line(
         self, link, game_master
     ):
+        """GM-05, GM-22: Five reveals make eleven runs on the starters socket ending in the final line."""
         call = await call_of(link, "host", "guest")
         scripted_quiz(game_master)
 

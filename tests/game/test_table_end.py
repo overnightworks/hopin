@@ -62,6 +62,7 @@ class TestWhoMayEnd:
     async def test_the_starters_end_gives_every_seat_ended_then_idle_and_the_next_quiz_starts_afresh(
         self, link, game_master
     ):
+        """GM-09: The starters end gives every seat ended then idle and the next quiz starts afresh."""
         host, guest = await call_of(link, "host", "guest")
         await open_a_question([host, guest], guest)
 
@@ -75,6 +76,7 @@ class TestWhoMayEnd:
         assert game_master.calls[-1].transcript == OPENING
 
     async def test_the_hosts_end_of_a_guests_quiz_gives_every_seat_ended_then_idle(self, link, game_master):
+        """GM-09: The hosts end of a guests quiz gives every seat ended then idle."""
         host, guest, third = await call_of(link, "host", "guest", "third")
         await open_a_question([host, guest, third], guest)
 
@@ -87,6 +89,7 @@ class TestWhoMayEnd:
         assert len(game_master.calls) == 1
 
     async def test_a_third_seats_end_is_refused_to_that_seat_alone_and_the_quiz_goes_on(self, link, game_master):
+        """GM-09: A third seats end is refused to that seat alone and the quiz goes on."""
         host, guest, third = await call_of(link, "host", "guest", "third")
         await open_a_question([host, guest, third], guest)
 

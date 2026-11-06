@@ -54,6 +54,7 @@ def asked_next(starter, text):
 
 
 def test_a_guests_start_puts_the_question_in_the_hosts_chat_too(call):
+    """GM-01: A guests start puts the question in the hosts chat too."""
     host, guest, _ = call.host_and_guest()
 
     guest.start()
@@ -63,6 +64,7 @@ def test_a_guests_start_puts_the_question_in_the_hosts_chat_too(call):
 
 
 def test_the_run_goes_out_for_the_starter_on_the_starters_own_grant_not_the_hosts(call):
+    """GM-08: The run goes out for the starter on the starters own grant not the hosts."""
     host, guest, guest_member = call.host_and_guest()
     guest_refresh_token = call.stores.sessions.load(guest_member.session.id).refresh_token.get_secret_value()
 
@@ -75,6 +77,7 @@ def test_the_run_goes_out_for_the_starter_on_the_starters_own_grant_not_the_host
 
 
 def test_a_second_start_while_the_run_is_held_is_refused_to_its_sender_alone(call):
+    """GM-10: A second start while the run is held is refused to its sender alone."""
     host, guest, _ = call.host_and_guest()
     held = Holds()
     call.backend.answer_next(held)
@@ -102,6 +105,7 @@ def test_an_account_without_ai_access_is_told_alone_and_the_others_thinking_turn
 
 
 def test_a_session_without_a_refresh_token_is_asked_to_sign_in_again_and_the_call_goes_on(call):
+    """GM-12: A session without a refresh token is asked to sign in again and the call goes on."""
     host, guest, _ = call.host_and_guest(call.member(with_refresh_token=False))
 
     host.start()
@@ -135,6 +139,7 @@ def test_a_store_failure_while_reading_the_groups_is_logged_by_its_type_alone_an
 
 
 def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent(call):
+    """GM-21: Chat during a held run reaches the others and never the agent."""
     host, guest, _ = call.host_and_guest()
     held = Holds()
     call.backend.answer_next(held, Succeeds("Lissabon."))
@@ -154,6 +159,7 @@ def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent(call):
 
 
 def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_no_chat_line(call):
+    """GM-21, GM-26: The reveal request carries each given answer with its players name and no chat line."""
     host_member, guest_member, third_member = call.member(), call.member(), call.member()
     host, created = call.seat(host_member)
     guest, _ = call.seat(guest_member, created["room_id"])

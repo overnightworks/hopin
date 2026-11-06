@@ -90,6 +90,7 @@ def test_the_quiz_has_no_tools_and_no_capability_front_is_mounted(quiz_on_gatewa
 
 
 def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_turn_and_nothing_else(quiz_on_gateway):
+    """GM-21: A post carries the agent files model the quiz prompt and this quizs turn and nothing else."""
     call, gateway = quiz_on_gateway()
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
 
@@ -109,6 +110,7 @@ def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_tur
 def test_the_fingerprint_is_wire_mds_vector_so_the_issuer_goes_out_exactly_as_the_relying_party_binds_it(
     quiz_on_gateway,
 ):
+    """GM-21: The fingerprint is wire mds vector so the issuer goes out exactly as the relying party binds it."""
     call, gateway = quiz_on_gateway()
     host, _ = call.seat(call.member(subject=SCENARIO.subject, groups=(API_GROUP,)))
 
@@ -152,6 +154,7 @@ def test_the_key_files_line_is_the_bearer_and_stays_out_of_every_log_frame_and_r
     ],
 )
 def test_a_starter_outside_the_api_group_is_told_alone_and_nothing_is_posted(quiz_on_gateway, groups):
+    """GM-11, GM-19: A starter outside the api group is told alone and nothing is posted."""
     call, gateway = quiz_on_gateway()
     host, guest, _ = call.host_and_guest(call.member(groups=groups))
 
@@ -173,6 +176,7 @@ def test_a_starter_outside_the_api_group_is_told_alone_and_nothing_is_posted(qui
     ],
 )
 def test_a_gateway_at_its_limit_is_busy_for_as_long_as_it_says(quiz_on_gateway, headers, expected_wait):
+    """GM-13: A gateway at its limit is busy for as long as it says."""
     call, _ = quiz_on_gateway(Reply(status=429, headers=headers))
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
 

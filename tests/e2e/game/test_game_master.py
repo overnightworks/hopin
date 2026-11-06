@@ -8,15 +8,7 @@ from playwright.sync_api import Page, Route, expect
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
 from tests.e2e.game.build_files import GameFile, url_of
-from tests.e2e.game.game_page import (
-    CARD,
-    GAME_MASTER_LINES,
-    START_QUIZ,
-    TYPING,
-    close_chat,
-    open_chat,
-    start_quiz,
-)
+from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, START_QUIZ, TYPING, close_chat, open_chat, start_quiz
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -148,6 +140,7 @@ def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not
     page_errors: list[str],
     unreachable_file: GameFile,
 ) -> None:
+    """GM-29: The call starts without the game and says so when a file of it does not load."""
     unreachable_url = url_of(unreachable_file)
     expected_request_failures.append(f"{e2e_server.base_url}{unreachable_url}")
     host = record_page_errors(open_person(**DESKTOP), page_errors)
@@ -165,6 +158,7 @@ def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not
 def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for_the_guest(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """GM-01: More holds start quiz under lock call for the host and starts on it for the guest."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
 
     open_more(host)
@@ -179,6 +173,7 @@ def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for
 def test_more_says_under_start_quiz_what_goes_to_the_ai_service(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """GM-31: More says under start quiz what goes to the ai service."""
     host, _ = open_host(open_person, e2e_server.base_url, page_errors, form_factor)
 
     menu = open_more(host)
@@ -194,6 +189,7 @@ def test_more_says_under_start_quiz_what_goes_to_the_ai_service(
 def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
+    """GM-01, GM-07: The hosts start puts one question marked ai in both chats."""
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
 
@@ -211,6 +207,7 @@ def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(
 def test_the_guest_sees_the_game_master_thinking_while_the_run_is_in_flight(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
+    """GM-10: The guest sees the game master thinking while the run is in flight."""
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     held = Holds()
     agent_backend.answer_next(held)
@@ -236,6 +233,7 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
     agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
+    """GM-06: The question opens the card on both pages and only the starter sees reveal."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
 
@@ -323,6 +321,7 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     member_of: Callable[[Page], SeededMember],
     form_factor: dict[str, Any],
 ) -> None:
+    """GM-04: Everyone answers privately and the reveal follows the last answer on its own."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     host_name, guest_name = (member_of(person).account.username for person in (host, guest))
     reveal_line = f"Der Tejo! {host_name} hat recht, {guest_name} tippte auf Guadiana."
@@ -368,10 +367,7 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
 
 
 def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_sent_mark(
-    open_person: Callable[..., Page],
-    e2e_server: RunningServer,
-    page_errors: list[str],
-    agent_backend: FakeAgentBackend,
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -392,10 +388,7 @@ def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_se
 
 
 def test_an_answer_over_the_cap_after_a_given_answer_keeps_the_answer_sent_mark(
-    open_person: Callable[..., Page],
-    e2e_server: RunningServer,
-    page_errors: list[str],
-    agent_backend: FakeAgentBackend,
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -446,6 +439,7 @@ def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_ca
 def test_a_page_that_joins_during_a_question_has_no_card_and_plays_from_the_next(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
+    """GM-16: A page that joins during a question has no card and plays from the next."""
     host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     agent_backend.answer_next(Succeeds("Erste?"), Succeeds("Der Tejo."), Succeeds("Zweite?"))
     start_quiz(host)
@@ -510,6 +504,7 @@ def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_s
     agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
+    """GM-05: Five rounds end in the game masters final line on both pages and free start quiz."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     lines = [text for number in range(1, QUIZ_ROUNDS + 1) for text in (f"Frage {number}?", f"Antwort {number}.")] + [
         "Ihr wart großartig."
@@ -547,6 +542,7 @@ def test_while_a_question_is_open_more_says_end_quiz_to_the_starter_and_quiz_run
     agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
+    """GM-09: While a question is open more says end quiz to the starter and quiz running to the others."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
 
@@ -568,6 +564,7 @@ def test_the_starters_end_quiz_shows_everyone_quiz_ended_and_frees_start_quiz(
     agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
+    """GM-27: The starters end quiz shows everyone quiz ended and frees start quiz."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
     runs_before = len(agent_backend.runs)
@@ -597,6 +594,7 @@ def test_the_starters_leave_shows_everyone_quiz_ended_with_the_name_and_frees_st
     member_of: Callable[[Page], SeededMember],
     form_factor: dict[str, Any],
 ) -> None:
+    """GM-15: The starters leave shows everyone quiz ended with the name and frees start quiz."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     guest_name = member_of(guest).account.username
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"))
@@ -689,6 +687,7 @@ def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alo
 def test_a_refused_reveal_shows_the_starter_the_reason_and_everyone_else_quiz_ended(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
+    """GM-23, GM-27: A refused reveal shows the starter the reason and everyone else quiz ended."""
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_backend.answer_next(Succeeds("Welcher Fluss fließt durch Lissabon?"), Rejects(RejectionCode.NOT_ENABLED))
     start_quiz(host)
@@ -710,6 +709,7 @@ def test_a_refused_reveal_shows_the_starter_the_reason_and_everyone_else_quiz_en
 def test_an_account_without_ai_access_gets_the_toast_alone_and_the_other_returns_to_idle(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
+    """GM-11: An account without ai access gets the toast alone and the other returns to idle."""
     host, guest = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_backend.answer_next(Rejects(RejectionCode.NOT_ENABLED))
 
@@ -725,6 +725,7 @@ def test_an_account_without_ai_access_gets_the_toast_alone_and_the_other_returns
 def test_a_busy_game_master_names_the_seconds_the_service_asked_for(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], agent_backend: FakeAgentBackend
 ) -> None:
+    """GM-13: A busy game master names the seconds the service asked for."""
     host, _ = call_of_two(open_person, e2e_server.base_url, page_errors)
     agent_backend.answer_next(Rejects(RejectionCode.BUSY, retry_after_s=17))
 
@@ -758,6 +759,7 @@ def test_sign_in_again_returns_to_this_call_through_the_sign_in(
     page_errors: list[str],
     browser_coverage: BrowserCoverage,
 ) -> None:
+    """GM-12: Sign in again returns to this call through the sign in."""
     host, _ = call_of_two(open_person, e2e_server.base_url, page_errors, with_refresh_token=False)
     call_path = host.evaluate("() => location.pathname")
     sign_in_requests: list[str] = []

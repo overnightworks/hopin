@@ -31,6 +31,7 @@ def game(scheduler, game_master):
 
 @pytest.mark.asyncio
 async def test_each_quiz_started_in_a_room_draws_its_own_topics(link, game_master):
+    """GM-30: Each quiz started in a room draws its own topics."""
     host, guest = await call_of(link, "host", "guest")
     game_master.answer_next(Line("Frage?"), Line("Frage?"))
     await open_a_question([host, guest], host)

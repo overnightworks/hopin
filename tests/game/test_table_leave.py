@@ -62,6 +62,7 @@ class TestTheStartersLeave:
     async def test_during_answering_every_other_seat_sees_ended_with_the_name_then_idle_and_a_new_start_is_free(
         self, link, game_master, scheduler, ending
     ):
+        """GM-15: During answering every other seat sees ended with the name then idle and a new start is free."""
         host, guest, third = await call_of(link, "host", "guest", "third")
         await open_a_question([host, guest, third], guest)
 
@@ -86,6 +87,7 @@ class TestTheStartersLeave:
     async def test_a_dropped_connection_ends_the_quiz_only_once_its_grace_has_run_out(
         self, link, game_master, scheduler
     ):
+        """GM-14: A dropped connection ends the quiz only once its grace has run out."""
         host, guest, third = await call_of(link, "host", "guest", "third")
         await open_a_question([host, guest, third], guest)
 
@@ -100,6 +102,7 @@ class TestTheStartersLeave:
             assert game_frames(browser) == [*asked(guest), ended_by("guest"), IDLE]
 
     async def test_a_return_within_the_grace_keeps_the_quiz_and_nobody_sees_it_end(self, link, game_master, scheduler):
+        """GM-14: A return within the grace keeps the quiz and nobody sees it end."""
         host, guest = await call_of(link, "host", "guest")
         await open_a_question([host, guest], guest)
 
