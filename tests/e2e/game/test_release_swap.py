@@ -67,14 +67,19 @@ def press_start_a_call(page: Page) -> None:
     press_through_the_prejoin(page)
 
 
+def wait_for_the_reload(page: Page) -> None:
+    """The reload lands on whatever route the tab had reached, so only the new document is asserted, not a screen."""
+    page.wait_for_function(IS_A_NEW_PAGE)
+    page.wait_for_load_state("load")
+
+
 def test_a_tab_from_before_a_release_reloads_itself_when_start_a_call_needs_a_chunk_the_new_build_lacks(
     old_page: Page, page_build_without_the_game_chunk: Path
 ) -> None:
     publish_a_new_version(page_build_without_the_game_chunk)
     press_start_a_call(old_page)
 
-    old_page.wait_for_function(IS_A_NEW_PAGE)
-    expect(old_page.locator("#homeStartBtn")).to_be_visible()
+    wait_for_the_reload(old_page)
 
 
 def test_a_tab_keeps_the_add_on_toast_and_stays_when_the_chunk_is_missing_without_a_new_version(old_page: Page) -> None:
@@ -92,7 +97,6 @@ def test_the_reload_after_a_release_saves_nothing_in_the_browser_beyond_svelteki
 ) -> None:
     publish_a_new_version(page_build_without_the_game_chunk)
     press_start_a_call(old_page)
-    old_page.wait_for_function(IS_A_NEW_PAGE)
-    expect(old_page.locator("#homeStartBtn")).to_be_visible()
+    wait_for_the_reload(old_page)
 
     assert old_page.evaluate(SAVED_KEYS_BEYOND_SVELTEKIT) == []
