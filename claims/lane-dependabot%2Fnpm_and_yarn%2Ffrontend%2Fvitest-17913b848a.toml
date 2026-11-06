@@ -1,7 +1,0 @@
-claim_id = "ede7d99e94da42208c3f5c583930ab91"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "06ed46b8a297a4ba65ee1bdc9179427865f47808"
-branch = "dependabot/npm_and_yarn/frontend/vitest-17913b848a"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml"]
-opened_commit = "43ca52e42970f2c2617f15b58256eb6aaf5bcea2"
