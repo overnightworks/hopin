@@ -124,6 +124,7 @@ def test_phone_sheet_grab_handle_and_lock_switch_off_track_reach_non_text_contra
 def test_more_holds_both_legal_links_and_a_click_opens_one_in_a_new_tab_while_the_call_goes_on(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-39: More holds both legal links and a click opens one in a new tab while the call goes on."""
     host, _, _ = open_call(open_person, base_url, page_errors, form_factor)
     host.context.route("https://hallucinai.de/**", lambda route: route.fulfill(status=200, body="legal"))
     legal_links = more_legal_links(host)
@@ -141,6 +142,7 @@ def test_more_holds_both_legal_links_and_a_click_opens_one_in_a_new_tab_while_th
 def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_tag_for_everyone(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-02, CALL-40: Lock call switch locks and unlocks with a toast for the host and the tag for everyone."""
     host, guest, invite_link = open_call(open_person, base_url, page_errors, form_factor)
     switch = host.get_by_role("switch", name="Lock call")
 

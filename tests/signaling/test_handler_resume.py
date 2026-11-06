@@ -103,6 +103,7 @@ def next_pending_timer(scheduler):
 
 class TestParkingAndWindow:
     async def test_resume_window_is_shorter_than_the_host_grace(self):
+        """CALL-11: Resume window is shorter than the host grace."""
         assert RESUME_WINDOW_SECONDS < HOST_GRACE_SECONDS
 
     @pytest.mark.parametrize("code", [1005, 1006, 1011])
@@ -110,6 +111,7 @@ class TestParkingAndWindow:
     async def test_dropped_seat_stays_in_the_room_and_the_other_hears_neither_away_nor_left(
         self, link, room_manager, dropper, listener, code
     ):
+        """CALL-10: Dropped seat stays in the room and the other hears neither away nor left."""
         browsers = dict(zip(("host", "guest"), await host_and_guest(link), strict=True))
         heard_before = len(browsers[listener].socket.sent)
 
@@ -159,6 +161,7 @@ class TestParkingAndWindow:
     async def test_guest_resuming_inside_the_window_keeps_its_seat_and_the_others_hear_nothing(
         self, link, scheduler, silent_seconds
     ):
+        """CALL-10: Guest resuming inside the window keeps its seat and the others hear nothing."""
         host, guest = await host_and_guest(link)
         old_token = guest.token
         await guest.drop()
@@ -235,6 +238,7 @@ class TestParkedHost:
     async def test_host_unseen_for_the_window_is_away_with_the_rest_of_the_grace_and_the_call_ends_a_minute_on(
         self, link, scheduler, room_manager
     ):
+        """CALL-11: Host unseen for the window is away with the rest of the grace and the call ends a minute on."""
         host, guest = await host_and_guest(link)
         await host.drop()
 

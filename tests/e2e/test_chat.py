@@ -22,6 +22,7 @@ LIST_IS_AT_THE_TOP = "(list) => list.scrollTop === 0"
 def test_chat_with_a_long_history_scrolls_inside_the_panel_and_keeps_the_composer_in_view(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
+    """CALL-44: Chat with a long history scrolls inside the panel and keeps the composer in view."""
     _, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
     guest.click("#chatBtn")
     for number in range(MESSAGES_IN_A_LONG_HISTORY):

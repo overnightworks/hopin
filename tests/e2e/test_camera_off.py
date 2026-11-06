@@ -150,6 +150,7 @@ def offers_made(call: CallWithWatcher) -> list[int]:
 def test_camera_off_in_a_call_releases_the_camera_and_sends_no_picture(
     call_with_host_watching_the_guest: CallWithWatcher,
 ) -> None:
+    """CALL-26, CALL-27: Camera off in a call releases the camera and sends no picture."""
     call_with_watcher = call_with_host_watching_the_guest
     presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
     wait_for_the_picture(watcher)
@@ -168,6 +169,7 @@ def test_camera_off_in_a_call_releases_the_camera_and_sends_no_picture(
 def test_camera_on_again_opens_the_camera_and_sends_it_without_an_offer(
     call_with_host_watching_the_guest: CallWithWatcher,
 ) -> None:
+    """CALL-27: Camera on again opens the camera and sends it without an offer."""
     call_with_watcher = call_with_host_watching_the_guest
     presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
     wait_for_the_picture(watcher)
@@ -187,6 +189,7 @@ def test_camera_on_again_opens_the_camera_and_sends_it_without_an_offer(
 def test_a_later_joiner_gets_no_frame_from_a_camera_that_is_off_and_then_the_picture(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-26: A later joiner gets no frame from a camera that is off and then the picture."""
     presser, invite_link = start_presser(open_person, base_url, DESKTOP, page_errors)
     turn_the_camera_off(presser)
 
@@ -205,6 +208,7 @@ def test_a_later_joiner_gets_no_frame_from_a_camera_that_is_off_and_then_the_pic
 def test_camera_off_during_a_share_keeps_the_share_and_leaves_the_camera_off_when_it_ends(
     call_with_watcher: CallWithWatcher,
 ) -> None:
+    """CALL-24: Camera off during a share keeps the share and leaves the camera off when it ends."""
     presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
     wait_for_the_picture(watcher)
     share_the_screen(presser)

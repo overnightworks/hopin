@@ -54,6 +54,7 @@ class TestRoom:
         assert room_with().locked is False
 
     def test_is_hosted_by_compares_the_account_id_not_the_name(self):
+        """CALL-01: Is hosted by compares the account id not the name."""
         room = room_with()
         assert room.is_hosted_by(Account(id="h1", name="renamed"))
         assert not room.is_hosted_by(account_named("p1"))
@@ -170,6 +171,7 @@ class TestRoomManager:
         assert "h1-second-device" in updated.participants
 
     def test_add_participant_stranger_cannot_take_the_away_hosts_seat(self, manager):
+        """CALL-07: Add participant stranger cannot take the away hosts seat."""
         room = manager.create_room("h1", account_named("h1"))
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.remove_participant(room.room_id, "h1")

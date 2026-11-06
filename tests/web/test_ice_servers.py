@@ -56,6 +56,7 @@ def test_ice_servers_route_answers_in_the_browsers_rtc_configuration_shape():
 
 
 def test_a_relay_adds_its_entries_with_their_credentials_after_the_stun_entry():
+    """CALL-03: A relay adds its entries with their credentials after the stun entry."""
     username, credential = secrets.token_urlsafe(8), secrets.token_urlsafe(8)
     relay = RelayFake([IceServer(urls=["turn:turn.example.test:3478"], username=username, credential=credential)])
     response = client_for(STUN_SERVER, relay).get("/api/ice-servers")
@@ -73,6 +74,7 @@ def test_a_served_credential_is_not_shown_by_the_servers_repr():
 
 
 def test_with_no_relay_the_route_answers_stun_only():
+    """CALL-05: With no relay the route answers stun only."""
     response = client_for(STUN_SERVER, None).get("/api/ice-servers")
     assert response.json() == {"iceServers": [{"urls": [STUN_SERVER]}]}
 
@@ -89,6 +91,7 @@ def test_a_relay_that_is_unavailable_gives_stun_only_and_one_warning_with_its_re
 
 
 def test_page_sources_name_no_ice_server_url():
+    """CALL-03: Page sources name no ice server url."""
     offenders = [
         path.name
         for directory in PAGE_SOURCE_DIRECTORIES

@@ -413,6 +413,7 @@ def test_home_asks_for_the_account_once(
 def test_a_running_call_has_no_avatar_and_no_account_menu(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
+    """CALL-39: A running call has no avatar and no account menu."""
     host = watch(open_person(**PHONE), page_errors)
     start_call(host, base_url)
 

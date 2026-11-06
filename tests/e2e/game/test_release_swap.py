@@ -76,6 +76,7 @@ def wait_for_the_reload(page: Page) -> None:
 def test_a_tab_from_before_a_release_reloads_itself_when_start_a_call_needs_a_chunk_the_new_build_lacks(
     old_page: Page, page_build_without_the_game_chunk: Path
 ) -> None:
+    """CALL-45: A tab from before a release reloads itself when start a call needs a chunk the new build lacks."""
     publish_a_new_version(page_build_without_the_game_chunk)
     press_start_a_call(old_page)
 

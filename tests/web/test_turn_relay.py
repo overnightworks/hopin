@@ -135,6 +135,7 @@ class TestStart:
     def test_a_key_file_that_cannot_be_used_stops_the_start_without_leaking(
         self, turn_settings, capsys, setting, state
     ):
+        """CALL-05: A key file that cannot be used stops the start without leaking."""
         settings = turn_settings()
         path = getattr(settings, setting)
         sentinel = secrets.token_urlsafe(16)
@@ -170,12 +171,14 @@ class TestStart:
         assert build_turn_relay(turn_settings(TurnKeys(api_token=PADDED_RFC_TOKEN)), FakeTransport()) is not None
 
     def test_turn_off_builds_no_relay_and_reads_no_file(self, sign_in_settings, tmp_path):
+        """CALL-05: Turn off builds no relay and reads no file."""
         settings = sign_in_settings(turn_key_id_file=tmp_path / "gone", turn_api_token_file=tmp_path / "gone").settings
         assert build_turn_relay(settings, FakeTransport()) is None
 
 
 class TestCredentials:
     def test_a_call_start_posts_one_request_with_the_key_the_token_and_a_12_hour_ttl(self, turn_settings):
+        """CALL-04: A call start posts one request with the key the token and a 12 hour ttl."""
         keys = TurnKeys()
         transport = FakeTransport()
 
@@ -188,6 +191,7 @@ class TestCredentials:
         assert body == b'{"ttl": 43200}'
 
     def test_each_call_start_asks_again_and_serves_its_own_credential(self, turn_settings):
+        """CALL-04: Each call start asks again and serves its own credential."""
         answers = iter(secrets.token_urlsafe(8) for _ in range(2))
         transport = FakeTransport(body=lambda: json.dumps(provider_answer(credential=next(answers))).encode())
         settings = turn_settings()
@@ -234,6 +238,7 @@ class TestCredentials:
         assert relay_entry(response)[0]["urls"] == urls[2:]
 
     def test_a_signed_out_fetch_is_refused_and_asks_the_provider_for_nothing(self, turn_settings):
+        """CALL-04: A signed out fetch is refused and asks the provider for nothing."""
         transport = FakeTransport()
 
         response = served_by(turn_settings(), transport, signed_in=False)

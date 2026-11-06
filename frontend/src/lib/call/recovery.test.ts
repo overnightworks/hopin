@@ -10,9 +10,12 @@ const restartDelayByAttempt: [number, number][] = [
     [5, 15000],
 ];
 
-it.each(restartDelayByAttempt)("restart delay of attempt %i is %i ms and the last delay repeats", (attempt, delay) => {
-    expect(restartDelay(attempt)).toBe(delay);
-});
+it.each(restartDelayByAttempt)(
+    "CALL-08: restart delay of attempt %i is %i ms and the last delay repeats",
+    (attempt, delay) => {
+        expect(restartDelay(attempt)).toBe(delay);
+    },
+);
 
 class FakeConnection extends EventTarget {
     iceConnectionState: RTCIceConnectionState = "connected";
@@ -92,7 +95,7 @@ describe("watching an ICE connection", () => {
         expect(restart).not.toHaveBeenCalled();
     });
 
-    it("retries after the growing delays until the connection is connected again", () => {
+    it("CALL-08: retries after the growing delays until the connection is connected again", () => {
         connection.changeTo("failed");
         expect(restart).toHaveBeenCalledTimes(1);
 

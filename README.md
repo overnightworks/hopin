@@ -98,6 +98,7 @@ The frontend in `frontend/` needs Node 26 (24 also works) and pnpm, whose versio
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): context, building blocks, a call's runtime, deployment, trust
 - [docs/game-master.md](docs/game-master.md): the game master's ruled behaviour and the tests that prove it
+- [docs/call.md](docs/call.md): the call's ruled behaviour, pre-join to end screen, and the tests that prove it
 
 ## License
 
