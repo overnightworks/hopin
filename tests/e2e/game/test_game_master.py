@@ -158,7 +158,7 @@ def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not
 def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for_the_guest(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    """GM-01: More holds start quiz under lock call for the host and starts on it for the guest."""
+    """GM-01, CALL-40: More holds start quiz under lock call for the host and starts on it for the guest."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
 
     open_more(host)

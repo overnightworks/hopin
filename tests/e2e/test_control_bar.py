@@ -124,7 +124,6 @@ def test_host_bar_shows_round_buttons_in_order_inside_the_stage_and_no_old_strip
 def test_guest_bar_has_more_and_no_lock_and_no_button_carries_a_title(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    """CALL-40: Guest bar has more and no lock and no button carries a title."""
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
 
     for person in (host, guest):

@@ -103,7 +103,6 @@ def next_pending_timer(scheduler):
 
 class TestParkingAndWindow:
     async def test_resume_window_is_shorter_than_the_host_grace(self):
-        """CALL-11: Resume window is shorter than the host grace."""
         assert RESUME_WINDOW_SECONDS < HOST_GRACE_SECONDS
 
     @pytest.mark.parametrize("code", [1005, 1006, 1011])

@@ -428,7 +428,7 @@ def test_refused_join_shows_the_screen_of_its_reason(
     error: dict[str, Any],
     expected: EndScreenText,
 ) -> None:
-    """CALL-14: Refused join shows the screen of its reason."""
+    """CALL-14, CALL-20: Refused join shows the screen of its reason."""
     person = open_recording_person(open_person, form_factor)
     answer_join_with(person, {"type": SignalType.ERROR.value, **error})
 

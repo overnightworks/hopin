@@ -44,7 +44,7 @@ Ruled by the operator:
 - CALL-24: After I stop sharing my screen, my camera comes back only if it was on before.
 - CALL-34: Alone in the call, the host sees "Waiting for others" with a way to invite: Copy link, and on a phone Share, which opens the system share menu. No share box stands in the call otherwise.
 - CALL-35: HopIn writes the clipboard only when the person presses Copy.
-- CALL-36: The call's controls are round buttons floating over the video. On a phone: mic, camera, invite, chat, more, leave in one row at the bottom. On a desktop: mic, camera, screen | invite, chat, more | leave, centred, with Leave as a red pill. Screen sharing exists only on a desktop.
+- CALL-36: The call's controls are round buttons floating over the video. On a phone: mic, camera, invite, chat, more, leave in one row at the bottom. On a desktop: mic, camera, screen | invite, chat, more | leave, centred, with Leave as a pill. Screen sharing exists only on a desktop.
 - CALL-37: The number on the Chat button disappears when the chat opens.
 - CALL-38: The tile of another person who speaks carries a pulsing accent ring and a three-bar wave in the name pill; the mute mark takes the wave's place while muted; on a phone with two people the full tile shows only the wave.
 - CALL-39: In a running call, Impressum and Datenschutz are in More, one tap away; the call screen shows no account button.
