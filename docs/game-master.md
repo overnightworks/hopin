@@ -4,32 +4,32 @@ What exactly does the game master promise a call, and which test proves each rul
 
 Ruled by the operator:
 
-GM-01: Everyone's More holds "Start quiz"; a tap makes the game master ask one question in everyone's chat.
-GM-04: Answers go into their own answer field, never into the chat; the others see only how many have answered until the reveal.
-GM-05: A quiz has 5 questions, then the game master's final score.
-GM-06: A question is revealed once everyone present has answered, or when the person who started the quiz taps Reveal.
-GM-07: Game master lines carry "Game master" and an AI badge, never a person's name.
-GM-08: Every run of a quiz goes out for the person who started it, on that person's access, never another person's.
-GM-09: The person who started the quiz or the host ends it with End quiz; other guests cannot.
-GM-10: While the game master runs, everyone sees "Game master is thinking…"; a second start is refused to the person who tapped it alone.
-GM-11: Start quiz is visible to everyone; without AI access, a tap tells only that person "Your account has no AI access."
-GM-12: Without a refresh token, the person sees "Sign in again to use the game master." and the call goes on.
-GM-13: When the game master is busy the starter sees "Try again in N s", on any other failure "The game master is unavailable right now."; only the starter sees it, and Start quiz is free again.
-GM-14: A drop of up to 30 seconds does not end the quiz.
-GM-15: When the person who started the quiz leaves the call, the quiz ends for everyone with "Quiz ended: <name> left."
-GM-16: People who join during a quiz play from the next question.
-GM-17: Until the reveal, a person can overwrite their own answer.
-GM-18: The quiz works with 1 to 6 people.
-GM-19: Only members of the AI API group can start a quiz; HopIn adds no group, admin switch or check of its own.
-GM-20: HopIn holds the refresh token per sign-in session in memory only, never on disk or in a log, and uses it only for the game master.
-GM-21: Only game text (system text, questions, answers), people's display names and a fingerprint of the starter's identity leave the call for the AI; chat, audio and video never do, and no name, mail, `sub` or token goes in the identity field.
-GM-22: Each round takes two AI runs, the reveal and then the next question, so a quiz of 5 questions takes up to 11 runs; HopIn never splits AI text.
-GM-23: A run refused mid-quiz ends the quiz for everyone; only the person who started it sees the reason.
-GM-24: The AI keeps the score from the quiz so far.
-GM-25: A briefly dropped seat inside its 30-second grace counts toward "everyone present has answered".
-GM-26: The AI names each answer in its reveal line.
-GM-27: Every seat sees "Quiz ended." when the quiz is ended or a run is refused; on a refused run the starter sees only the reason.
-GM-28: There is no End quiz while the game master thinks; the server accepts an end in any phase, and a stuck run ends at its 90-second deadline.
-GM-29: The game can be removed again without breaking the call.
-GM-30: A restarted quiz asks different questions: each question names a topic drawn without repetition.
-GM-31: More says under Start quiz: "Game answers and names go to the AI service. Chat does not.", linked to the privacy text.
+- GM-01: Everyone's More holds "Start quiz"; a tap makes the game master ask one question in everyone's chat.
+- GM-04: Answers go into their own answer field, never into the chat; the others see only how many have answered until the reveal.
+- GM-05: A quiz has 5 questions, then the game master's final score.
+- GM-06: A question is revealed once everyone present has answered, or when the person who started the quiz taps Reveal.
+- GM-07: Game master lines carry "Game master" and an AI badge, never a person's name.
+- GM-08: Every run of a quiz goes out for the person who started it, on that person's access, never another person's.
+- GM-09: The person who started the quiz or the host ends it with End quiz; other guests cannot.
+- GM-10: While the game master runs, everyone sees "Game master is thinking…"; a second start is refused to the person who tapped it alone.
+- GM-11: Start quiz is visible to everyone; without AI access, a tap tells only that person "Your account has no AI access."
+- GM-12: Without a refresh token, the person sees "Sign in again to use the game master." and the call goes on.
+- GM-13: When the game master is busy the starter sees "Try again in N s", on any other failure "The game master is unavailable right now."; only the starter sees it, and Start quiz is free again.
+- GM-14: A drop of up to 30 seconds does not end the quiz.
+- GM-15: When the person who started the quiz leaves the call, the quiz ends for everyone with "Quiz ended: <name> left."
+- GM-16: People who join during a quiz play from the next question.
+- GM-17: Until the reveal, a person can overwrite their own answer.
+- GM-18: The quiz works with 1 to 6 people.
+- GM-19: Only members of the AI API group can start a quiz; HopIn adds no group, admin switch or check of its own.
+- GM-20: HopIn holds the refresh token per sign-in session in memory only, never on disk or in a log, and uses it only for the game master.
+- GM-21: Only game text (system text, questions, answers), people's display names and a fingerprint of the starter's identity leave the call for the AI; chat, audio and video never do, and no name, mail, `sub` or token goes in the identity field.
+- GM-22: Each round takes two AI runs, the reveal and then the next question, so a quiz of 5 questions takes up to 11 runs; HopIn never splits AI text.
+- GM-23: A run refused mid-quiz ends the quiz for everyone; only the person who started it sees the reason.
+- GM-24: The AI keeps the score from the quiz so far.
+- GM-25: A briefly dropped seat inside its 30-second grace counts toward "everyone present has answered".
+- GM-26: The AI names each answer in its reveal line.
+- GM-27: Every seat sees "Quiz ended." when the quiz is ended or a run is refused; on a refused run the starter sees only the reason.
+- GM-28: There is no End quiz while the game master thinks; the server accepts an end in any phase, and a stuck run ends at its 90-second deadline.
+- GM-29: The game can be removed again without breaking the call.
+- GM-30: A restarted quiz asks different questions: each question names a topic drawn without repetition.
+- GM-31: More says under Start quiz: "Game answers and names go to the AI service. Chat does not.", linked to the privacy text.
