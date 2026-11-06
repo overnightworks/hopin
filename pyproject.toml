@@ -215,8 +215,8 @@ source_modules = [
 forbidden_modules = ["hopin.game", "hopin.agent", "agent_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
-id = "agent-client-only-through-the-game"
-name = "Only the game reaches the agent client"
+id = "agent-service-only-through-the-game"
+name = "Only the game reaches the agent service"
 type = "forbidden"
 # The client of the agent runtime and its HTTP library are the connector's alone.
 source_modules = ["hopin.main", "hopin.app"]
