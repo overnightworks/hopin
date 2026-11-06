@@ -12,7 +12,7 @@ The `Makefile` owns the targets. Traps:
   It needs Playwright's Chromium installed once; the `End-to-end` job in `.github/workflows/ci.yml` owns that install step.
 - `make wire-check` (part of `make lint`) fails when `frontend/src/lib/wire.ts` or
   `frontend/src/lib/features/game/wire.ts` drifts from the Python wire owners;
-  regenerate them with `uv run python scripts/generate_wire.py`.
+  regenerate them with `make wire`.
 - CI's `Coverage` job judges 100 % over unit, integration and end-to-end data
   together, and the merged frontend report (Vitest and the browser) at 100 %
   lines, branches and functions; no local run judges it.

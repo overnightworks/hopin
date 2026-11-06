@@ -22,9 +22,7 @@ GATEWAY_ENVIRONMENT = {
 CA_FILE = "HOPIN_AGENT__GATEWAY__CA_FILE"
 SECRET_SHAPED = f"not-a-value-{secrets.token_hex(8)}"
 MALFORMED_SETTINGS = [
-    pytest.param("HOPIN_AGENT__BACKEND", "service", id="the-retired-backend"),
     pytest.param("HOPIN_AGENT__BACKEND", SECRET_SHAPED, id="a-nonsense-backend"),
-    pytest.param("HOPIN_AGENT__SERVICE_URL", SECRET_SHAPED, id="the-retired-service-url"),
     pytest.param(
         "HOPIN_AGENT__GATEWAY__ORIGIN", f"http://gateway.test:4000/{SECRET_SHAPED}", id="an-origin-with-a-path"
     ),

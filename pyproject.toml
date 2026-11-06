@@ -130,7 +130,7 @@ markers = [
 # The measured set has one owner, here: `--cov` in addopts turns measurement
 # on and takes its sources from this key, so every way of running the suite
 # measures the same files. Naming the set in the CI command instead let the
-# local run and the pre-commit hook pass over an uncovered line that CI then
+# local run pass over an uncovered line that CI then
 # turned red for.
 source = ["src"]
 branch = true
@@ -241,7 +241,6 @@ dev = [
     "cryptography>=50.0.2",
     "httpx2>=2.13.1",
     "mypy>=1.19.1",
-    "pre-commit>=4.5.1",
     "pyjwt>=2.15.1",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
