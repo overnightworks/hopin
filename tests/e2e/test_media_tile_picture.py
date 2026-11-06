@@ -74,9 +74,13 @@ STOP_THE_TILE_PICTURE_WATCH = """
 }
 """
 TILE_SAMPLE_INTERVAL_MILLISECONDS = 5
+# Mean channel value of the drawn tile; an empty canvas and a black frame both stay at or below it
 PICTURE_BRIGHTNESS_FLOOR = 16
 LAST_SAMPLES_WITH_THE_PICTURE = 3
+# Chromium runs the timers of a page that is not in front at most once a second
 THROTTLED_TIMER_INTERVAL_MILLISECONDS = 1_000
+# A gap between two samples longer than a tenth of that wake-up means the sampler was throttled, however long the
+# watch ran; twenty sample intervals still let a page in front ride out a busy runner's main-thread stall
 MAXIMUM_SAMPLE_GAP_MILLISECONDS = THROTTLED_TIMER_INTERVAL_MILLISECONDS // 10
 
 

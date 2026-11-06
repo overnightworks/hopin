@@ -160,6 +160,8 @@ THE_RECORDED_AUDIO_LEVEL_WAITS = """
     context_states: window.audioContextsOpened.map((context) => context.state),
 })
 """
+# On the page's virtual clock each loop turn costs the interval plus this, so the deadline falls
+# inside a partial final interval and a wait that ignores the remaining budget overruns it
 AUDIO_SAMPLING_COST_MILLISECONDS = 5
 AUDIO_LEVEL_DEADLINE_MILLISECONDS = 520
 
