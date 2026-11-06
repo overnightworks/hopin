@@ -1487,7 +1487,10 @@ function revealActiveChip() {
 function noteUnderFrame(text) {
   const el = $("#proofText");
   if (!el) return;
-  el.innerHTML = `${el.textContent} <span class="proof-note">${text}</span>`;
+  const note = document.createElement("span");
+  note.className = "proof-note";
+  note.textContent = text;
+  el.replaceChildren(`${el.textContent} `, note);
   clearTimeout(timers.note);
   timers.note = setTimeout(syncControls, NOTE_MS);
 }
@@ -1765,7 +1768,8 @@ function boot() {
   const narrow = window.innerWidth < 700;
   S.device = savedDevice === "phone" || savedDevice === "desktop" ? savedDevice : narrow ? "phone" : "desktop";
   applyTheme(["auto", "light", "dark"].includes(store.get("hopin-proto-theme")) ? store.get("hopin-proto-theme") : "auto");
-  (PRESETS[hashChip] || PRESETS[savedChip] || PRESETS.home)();
+  const ownPreset = (name) => Object.hasOwn(PRESETS, name) ? PRESETS[name] : null;
+  (ownPreset(hashChip) || ownPreset(savedChip) || PRESETS.home)();
   render();
   new ResizeObserver(fit).observe($("#frameCol"));
   setInterval(tick, 1000);
