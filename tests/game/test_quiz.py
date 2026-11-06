@@ -49,6 +49,7 @@ def last_round_revealed():
 
 @pytest.mark.parametrize(("peer_id", "may_reveal"), [(STARTER, True), (OTHER, False)], ids=["starter", "other"])
 def test_only_the_starter_may_reveal_an_open_question(peer_id, may_reveal):
+    """GM-06: Only the starter may reveal an open question."""
     quiz = opening_quiz().heard("Frage?", PLAYERS)
 
     assert quiz.may_reveal(peer_id) is may_reveal
@@ -78,6 +79,7 @@ def test_a_revealed_answer_before_the_last_round_asks_for_the_next_question():
 
 
 def test_the_last_rounds_revealed_answer_asks_for_the_final_score():
+    """GM-24: The last rounds revealed answer asks for the final score."""
     quiz = last_round_revealed()
 
     assert (quiz.round, quiz.transcript[-1]) == (QUIZ_ROUNDS, Turn(Speaker.HOPIN, FINAL_SCORE_REQUEST))
@@ -127,6 +129,7 @@ def test_nobody_may_answer_while_no_question_is_open(quiz):
 
 
 def test_a_second_answer_replaces_the_first_so_the_count_stays():
+    """GM-17: A second answer replaces the first so the count stays."""
     quiz = open_question().with_answer(OTHER, "Otto", "Porto").with_answer(OTHER, "Otto", "Lissabon")
 
     assert quiz.answered_count(PLAYERS) == 1
@@ -135,6 +138,7 @@ def test_a_second_answer_replaces_the_first_so_the_count_stays():
 
 
 def test_the_count_covers_only_players_who_are_present():
+    """GM-25: The count covers only players who are present."""
     quiz = open_question().with_answer(STARTER, "Sam", "A").with_answer(OTHER, "Otto", "B")
 
     assert (quiz.answered_count(PLAYERS), quiz.answered_count(frozenset({STARTER, LATE}))) == (2, 1)
@@ -201,6 +205,7 @@ def revealed_answers(quiz):
 
 
 def test_revealing_lists_each_given_answer_with_its_name_in_the_order_last_sent():
+    """GM-26: Revealing lists each given answer with its name in the order last sent."""
     quiz = open_question().with_answer(OTHER, "Otto", "Mondego").with_answer(STARTER, "Sam", "Tejo")
 
     assert revealed_answers(quiz) == [{"name": "Otto", "antwort": "Mondego"}, {"name": "Sam", "antwort": "Tejo"}]
@@ -225,6 +230,7 @@ def test_a_name_and_an_answer_with_special_characters_come_back_exactly_as_one_e
 
 
 def test_the_next_rounds_transcript_still_holds_the_reveal_request_with_its_answers():
+    """GM-24: The next rounds transcript still holds the reveal request with its answers."""
     quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing().heard("Sam hat recht.", PLAYERS)
 
     assert answers_in_reveal(quiz.transcript[-3].text) == [{"name": "Sam", "antwort": "Tejo"}]
@@ -246,6 +252,7 @@ def every_step_of_a_quiz():
     ids=["starter", "host who did not start", "another seat"],
 )
 def test_the_starter_or_a_host_may_end_the_quiz_in_every_step(quiz, peer_id, hosts_call, may_end):
+    """GM-28: The starter or a host may end the quiz in every step."""
     assert quiz.may_end(peer_id, hosts_call=hosts_call) is may_end
 
 
@@ -277,6 +284,7 @@ def test_only_the_first_rounds_asking_is_the_opening_run(quiz, is_opening):
 
 
 def test_every_question_request_of_a_quiz_names_a_different_topic():
+    """GM-30: Every question request of a quiz names a different topic."""
     quiz = opening_quiz()
     for _ in range(QUIZ_ROUNDS - 1):
         quiz = quiz.heard("Frage?", PLAYERS).revealing().heard("Lissabon.", PLAYERS)

@@ -361,6 +361,7 @@ class TestRefreshToken:
             assert sessions.load(session_id) is None
 
     def test_no_repr_shows_the_token_value(self, accounts, sessions):
+        """GM-20: No repr shows the token value."""
         user = accounts.create_for_subject("subject", "name", "user")
         value = secrets.token_urlsafe()
         created = sessions.create(

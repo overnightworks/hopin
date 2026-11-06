@@ -46,6 +46,7 @@ def world(sign_in_settings):
 
 class TestThePerson:
     async def test_ask_reads_the_starters_groups_on_one_refresh_grant_and_asks_for_no_other_token(self, world):
+        """GM-20: Ask reads the starters groups on one refresh grant and asks for no other token."""
         starter, member = world.starter()
         world.issuer.grant_groups(member.account.id, ("/scenario/one", "/scenario/two"))
 
@@ -90,6 +91,7 @@ class TestThePerson:
         ]
 
     async def test_ask_is_for_the_starters_verified_identity_never_for_the_apps_own_run(self, world):
+        """GM-08: Ask is for the starters verified identity never for the apps own run."""
         starter, member = world.starter()
 
         await world.game_master.ask(starter, OPENING)
@@ -205,6 +207,7 @@ class TestHeldGrants:
 class TestEndings:
     @pytest.mark.parametrize("said", [(), ("Ein Teil.", "Noch ein Teil.")])
     async def test_a_final_text_is_the_line_alone_whatever_the_agent_said_before(self, world, said):
+        """GM-22: A final text is the line alone whatever the agent said before."""
         starter, _ = world.starter()
         world.backend.answer_next(Succeeds("Die ganze Frage?", said=said))
 
@@ -334,6 +337,7 @@ class TestNothingLeaksIntoLogs:
     async def test_neither_a_token_nor_a_group_path_nor_the_game_text_reaches_a_log_or_the_outcome(
         self, world, stdlib_records, answer
     ):
+        """GM-20: Neither a token nor a group path nor the game text reaches a log or the outcome."""
         sentinel = f"Sentinel-Frage {secrets.token_hex(8)}?"
         group = f"/scenario/{secrets.token_hex(8)}"
         starter, member = world.starter()

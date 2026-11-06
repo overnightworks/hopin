@@ -38,6 +38,7 @@ PRIVATE_ANSWER = "Mondego-Geheimnis"
 
 
 async def test_an_answer_gives_every_seat_the_count_and_no_seat_its_text(link, game_master):
+    """GM-04: An answer gives every seat the count and no seat its text."""
     host, guest = await call_of(link, "host", "guest")
     await open_a_question([host, guest], host)
 
@@ -50,6 +51,7 @@ async def test_an_answer_gives_every_seat_the_count_and_no_seat_its_text(link, g
 
 
 async def test_a_second_answer_replaces_the_first_and_the_count_stays(link, game_master):
+    """GM-17: A second answer replaces the first and the count stays."""
     host, guest = await call_of(link, "host", "guest")
     await open_a_question([host, guest], host)
 
@@ -61,6 +63,7 @@ async def test_a_second_answer_replaces_the_first_and_the_count_stays(link, game
 
 
 async def test_the_last_present_players_answer_runs_the_reveal_on_the_starters_socket(link, game_master):
+    """GM-06: The last present players answer runs the reveal on the starters socket."""
     host, guest = await call_of(link, "host", "guest")
     script_two_questions(game_master)
     await open_a_question([host, guest], guest)
@@ -102,6 +105,7 @@ async def test_the_starters_reveal_before_everyone_answered_runs_once_and_a_late
 
 
 async def test_a_parked_player_holds_the_reveal_back_until_it_answers_after_its_resume(link, game_master):
+    """GM-25: A parked player holds the reveal back until it answers after its resume."""
     host, guest = await call_of(link, "host", "guest")
     script_two_questions(game_master)
     await open_a_question([host, guest], host)
@@ -126,6 +130,7 @@ async def test_a_parked_player_holds_the_reveal_back_until_it_answers_after_its_
 
 
 async def test_a_seat_that_joined_during_answering_plays_from_the_next_question(link, game_master):
+    """GM-16: A seat that joined during answering plays from the next question."""
     host, guest = await call_of(link, "host", "guest")
     script_two_questions(game_master)
     await open_a_question([host, guest], host)

@@ -53,6 +53,7 @@ def test_a_member_of_the_api_group_starts_a_quiz_and_both_browsers_read_the_gate
     member_of: Callable[[Page], SeededMember],
     page_errors: list[str],
 ) -> None:
+    """GM-19: A member of the api group starts a quiz and both browsers read the gateways question."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     e2e_server.issuer.grant_groups(member_of(host).account.id, (API_GROUP,))
 
