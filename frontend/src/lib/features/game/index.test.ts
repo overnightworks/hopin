@@ -134,6 +134,7 @@ describe("Start quiz in More", () => {
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME });
         expect(game.startButton.classList.contains("thinking")).toBe(true);
         expect(game.startButton.getAttribute("aria-busy")).toBe("true");
+        expect(game.startButton.classList.contains("ending")).toBe(false);
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.ANSWERING, round: 1, rounds: 3, starter: ME });
 
         expect(game.startButton.classList.contains("thinking")).toBe(false);
