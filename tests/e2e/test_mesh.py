@@ -47,7 +47,6 @@ from tests.e2e.support.mesh_pair import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-pytest_plugins = ["tests.e2e.support.mesh_pair"]
 pytestmark = pytest.mark.e2e
 
 expect = Expect()

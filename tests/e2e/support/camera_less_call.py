@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import pytest
-
 from tests.e2e.support.calls import join, record_page_errors, start_call
 from tests.e2e.support.media import (
     COUNT_OFFERS,
@@ -11,7 +9,6 @@ from tests.e2e.support.media import (
     REFUSE_THE_CAMERA,
     wait_for_peer_count,
 )
-from tests.e2e.support.people import DESKTOP
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -40,11 +37,6 @@ class CameraLessHostCall:
     invite_link: str
 
 
-@pytest.fixture
-def form_factor() -> dict[str, Any]:
-    return DESKTOP
-
-
 def start_camera_less_call(
     open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
 ) -> CameraLessCall:
@@ -56,13 +48,6 @@ def start_camera_less_call(
     for person in (host, guest):
         wait_for_peer_count(person, 1)
     return CameraLessCall(host, guest, invite_link)
-
-
-@pytest.fixture
-def camera_less_call(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
-) -> CameraLessCall:
-    return start_camera_less_call(open_person, base_url, form_factor, page_errors)
 
 
 def start_camera_less_host_call(
@@ -80,13 +65,6 @@ def start_camera_less_host_call(
     for person in (host, later_joiner):
         wait_for_peer_count(person, 1)
     return CameraLessHostCall(host, later_joiner, invite_link)
-
-
-@pytest.fixture
-def camera_less_host_call(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
-) -> CameraLessHostCall:
-    return start_camera_less_host_call(open_person, base_url, form_factor, page_errors)
 
 
 OFFER_THE_VIDEO_DIRECTION = """

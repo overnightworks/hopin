@@ -124,6 +124,13 @@ def more_legal_links(person: Page) -> Locator:
     return open_more(person).get_by_role("navigation", name="Legal")
 
 
+def say_in_chat(person: Page, text: str) -> None:
+    if not person.locator("#chatPanel.visible").count():
+        person.click("#chatBtn")
+    person.fill("#chatInput", text)
+    person.click("#chatSend")
+
+
 def toggle_the_lock(host: Page) -> None:
     open_more(host)
     host.click("#lockBtn")

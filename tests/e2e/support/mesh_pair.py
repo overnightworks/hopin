@@ -5,8 +5,6 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-import pytest
-
 from hopin.config.constants import SignalType
 from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import (
@@ -260,8 +258,7 @@ def _expect_to_reconnect_on_a_new_ufrag(*people: Page) -> Iterator[None]:
         _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
 
 
-@pytest.fixture
-def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Callable[..., ConnectedPair]]:
+def pair_connector(open_person: Callable[..., Page], base_url: str) -> Iterator[Callable[..., ConnectedPair]]:
     page_errors: list[str] = []
 
     def connect(without_camera: Side | None = None) -> ConnectedPair:
@@ -288,11 +285,6 @@ def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Ca
 
     yield connect
     assert page_errors == []
-
-
-@pytest.fixture
-def connected_pair(connect_pair: Callable[..., ConnectedPair]) -> ConnectedPair:
-    return connect_pair()
 
 
 def _inbound_video_bytes(person: Page) -> int:

@@ -45,7 +45,6 @@ from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-pytest_plugins = ["tests.e2e.support.camera_less_call"]
 pytestmark = pytest.mark.e2e
 
 

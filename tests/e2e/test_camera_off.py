@@ -61,11 +61,6 @@ class CallWithWatcher:
     watcher: Page
 
 
-@pytest.fixture
-def form_factor() -> dict[str, Any]:
-    return DESKTOP
-
-
 def start_presser(
     open_person: Callable[..., Page],
     base_url: str,
@@ -103,24 +98,18 @@ def start_call_with_watcher(
 
 
 @pytest.fixture
-def call_with_watcher(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
-) -> CallWithWatcher:
-    return start_call_with_watcher(open_person, base_url, form_factor, page_errors)
+def call_with_watcher(start_call_with: Callable[..., Any]) -> CallWithWatcher:
+    return start_call_with(start_call_with_watcher)
 
 
 @pytest.fixture
-def call_with_host_watching_the_guest(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
-) -> CallWithWatcher:
-    return start_call_with_watcher(open_person, base_url, form_factor, page_errors, presser_joins=True)
+def call_with_host_watching_the_guest(start_call_with: Callable[..., Any]) -> CallWithWatcher:
+    return start_call_with(start_call_with_watcher, presser_joins=True)
 
 
 @pytest.fixture
-def call_with_watcher_and_no_camera(
-    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
-) -> CallWithWatcher:
-    return start_call_with_watcher(open_person, base_url, form_factor, page_errors, (REFUSE_THE_CAMERA,))
+def call_with_watcher_and_no_camera(start_call_with: Callable[..., Any]) -> CallWithWatcher:
+    return start_call_with(start_call_with_watcher, (REFUSE_THE_CAMERA,))
 
 
 def press_camera_button(person: Page, *, pressed: bool) -> None:

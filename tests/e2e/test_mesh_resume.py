@@ -5,6 +5,7 @@ import pytest
 from playwright.sync_api import Expect, Page
 
 from hopin.config.constants import RESUME_WINDOW_SECONDS, ErrorReason, SignalType
+from tests.e2e.support.calls import say_in_chat
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
@@ -37,7 +38,6 @@ from tests.e2e.support.signaling import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-pytest_plugins = ["tests.e2e.support.mesh_pair"]
 pytestmark = pytest.mark.e2e
 
 expect = Expect()
@@ -83,13 +83,6 @@ def _wait_for_more_video_bytes_than(person: Page, baseline: int, deadline_second
     return _inbound_video_bytes(person)
 
 
-def _say_in_chat(person: Page, text: str) -> None:
-    if not person.locator("#chatPanel.visible").count():
-        person.click("#chatBtn")
-    person.fill("#chatInput", text)
-    person.click("#chatSend")
-
-
 @pytest.mark.parametrize("cut_side", [Side.GUEST, Side.HOST], ids=["guest_cut", "host_cut"])
 def test_cut_signaling_socket_resumes_the_seat_while_the_video_keeps_flowing_and_nobody_hears_a_leave_or_join(
     connected_pair: ConnectedPair, cut_side: Side
@@ -126,7 +119,7 @@ def test_restart_answer_swallowed_at_the_cut_is_resent_after_the_resume_and_both
         with connected_pair.socket_down(host):
             host_tap.swallow_upstream = 0
 
-    _say_in_chat(host, "sent after the answer")
+    say_in_chat(host, "sent after the answer")
     expect(guest.locator(HEARD_CHAT)).to_have_count(1)
     assert len(_frames_of(connected_pair.guest_tap, "downstream", SignalType.ANSWER)) == answers_before + 1
 
@@ -137,7 +130,7 @@ def test_chat_swallowed_at_the_cut_reaches_the_other_side_exactly_once_after_the
     guest = connected_pair.guest
     connected_pair.guest_tap.swallow_upstream = 1
 
-    _say_in_chat(guest, "lost in the cut")
+    say_in_chat(guest, "lost in the cut")
     pump_until(guest, lambda: connected_pair.guest_tap.swallow_upstream == 0)
     connected_pair.cut(guest)
     connected_pair.resume(guest)
@@ -152,8 +145,8 @@ def test_chat_typed_while_the_socket_is_down_is_written_in_order_after_the_resum
     guest, guest_tap = connected_pair.guest, connected_pair.guest_tap
 
     with connected_pair.socket_down(guest):
-        _say_in_chat(guest, "first")
-        _say_in_chat(guest, "second")
+        say_in_chat(guest, "first")
+        say_in_chat(guest, "second")
 
     expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(2)
     last_resume = max(index for index, message in enumerate(guest_tap.upstream) if message["type"] == SignalType.RESUME)
@@ -186,7 +179,7 @@ def test_two_restart_offers_made_while_the_socket_is_down_reach_the_host_as_one(
     _retry_the_restart_while_the_first_reconnect_is_refused(
         guest, lambda: bool(guest.evaluate(LOCAL_DESCRIPTIONS_SET, descriptions_before + 2))
     )
-    _say_in_chat(guest, "sent after both offers")
+    say_in_chat(guest, "sent after both offers")
     expect(host.locator(HEARD_CHAT)).to_have_count(1)
 
     assert _restart_offers(guest) == 2
@@ -212,7 +205,7 @@ def test_answer_arriving_while_an_earlier_answer_is_being_applied_waits_for_it_a
         guest_tap.blackhole_downstream = False
         _retry_the_restart_while_the_first_reconnect_is_refused(guest, lambda: _restart_offers(guest) == 2)
         pump_until(host, lambda: len(_frames_of(host_tap, "upstream", SignalType.ANSWER)) == answers_sent + 2)
-        _say_in_chat(host, "sent after both answers")
+        say_in_chat(host, "sent after both answers")
         expect(guest.locator(HEARD_CHAT)).to_have_count(1)
         guest.evaluate(RELEASE_ANSWER_APPLICATION)
         guest.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
@@ -249,8 +242,8 @@ def test_server_frame_delivered_twice_is_dispatched_once(connected_pair: Connect
     guest, host = connected_pair.guest, connected_pair.host
     connected_pair.guest_tap.deliver_chats_twice = True
 
-    _say_in_chat(host, "once")
-    _say_in_chat(host, "marker")
+    say_in_chat(host, "once")
+    say_in_chat(host, "marker")
 
     expect(guest.locator(HEARD_CHAT)).to_have_text([re.compile("once$"), re.compile("marker$")])
 
@@ -262,7 +255,7 @@ def test_events_of_a_replaced_socket_are_ignored(connected_pair: ConnectedPair) 
 
     guest.evaluate(LATE_EVENTS_OF_THE_FIRST_SOCKET)
     guest.clock.run_for(RECONNECT_DELAYS_MS[0])
-    _say_in_chat(guest, "still connected")
+    say_in_chat(guest, "still connected")
 
     expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(1)
     assert len(connected_pair.guest_tap.urls) == 2
@@ -278,7 +271,7 @@ def test_chat_typed_while_the_socket_is_open_but_not_yet_resumed_waits_for_the_r
     connected_pair.reconnect(guest)
     pump_until(guest, lambda: bool(tap.held_resumed))
 
-    _say_in_chat(guest, "typed while resuming")
+    say_in_chat(guest, "typed while resuming")
     tap.release_held_resumed()
 
     expect(host.locator(HEARD_CHAT)).to_have_count(1)
@@ -318,7 +311,7 @@ def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_
             wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
     wait_for_status(guest, "Connection lost")
     upstream_before = len(tap.upstream)
-    _say_in_chat(guest, "nobody hears this")
+    say_in_chat(guest, "nobody hears this")
 
     assert len(tap.urls) == len(RECONNECT_DELAYS_MS) + 1
     assert len(tap.upstream) == upstream_before
