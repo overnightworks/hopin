@@ -134,7 +134,7 @@ The model is HopIn's own; no operator ruling narrows it.
 
 ## 6. Architectural Decisions
 
-[ADR 0001](decisions/0001-static-frontend-modules.md) and [ADR 0003](decisions/0003-page-layer-on-sveltekit.md) hold the frontend decisions. The import-linter contracts in `pyproject.toml` hold the dependency direction between packages.
+[ADR 0003](decisions/0003-page-layer-on-sveltekit.md) holds the frontend decision and supersedes [ADR 0001](decisions/0001-static-frontend-modules.md). The import-linter contracts in `pyproject.toml` hold the dependency direction between packages.
 
 ## 7. Risks and Technical Debt
 
