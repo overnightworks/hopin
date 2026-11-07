@@ -1,0 +1,8 @@
+claim_id = "1c2bbe9c313349468b4900bfb68b5019"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "f5df896305ff6c4fa40ce45dec517b16450d61fc"
+branch = "claude/issue-567-webauth-0-33"
+scope = ["pyproject.toml", "src/hopin/auth/stores.py", "tests", "uv.lock"]
+opened_commit = "de7cceded8d02f8868936a8726398d0d1bb38bd8"
+whole_reason = "One pin bump with the account-port adaptation it forces; the tests are the store's callers."
