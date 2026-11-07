@@ -61,7 +61,7 @@ def game(scheduler, game_master, voice, voices):
 
 @pytest.fixture
 def handler(room_manager, scheduler, game):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, game)
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, [game])
 
 
 @pytest_asyncio.fixture

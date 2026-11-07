@@ -10,6 +10,8 @@ pytest.register_assert_rewrite("tests.game.support")  # game
 
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
+from tests.support.dialed_call import serving_dialed_call  # noqa: E402
+from tests.support.fake_issuer import FakeIssuer  # noqa: E402
 from tests.support.page_build import FIXTURE_DIRECTORY  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
 from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
@@ -48,3 +50,11 @@ def scheduler():
 @pytest.fixture
 def handler(room_manager, scheduler):
     return SignalingHandler(room_manager, SocketAccountResolver(), scheduler)
+
+
+@pytest.fixture
+def dialed_call(sign_in_settings: Callable[..., SignInSettings]):
+    """HopIn with participation and a fake issuer, and the means to seat people and call its MCP endpoint."""
+    sign_in = sign_in_settings()
+    with serving_dialed_call(sign_in, FakeIssuer(sign_in)) as call:
+        yield call

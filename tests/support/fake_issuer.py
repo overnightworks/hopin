@@ -140,6 +140,33 @@ class FakeIssuer:
         }
         return jwt.encode(claims, self._key, algorithm="RS256", headers={"kid": KEY_ID, "typ": "logout+jwt"})
 
+    def access_token(
+        self,
+        subject: str,
+        *,
+        audience: str,
+        authorized_party: str,
+        scope: str,
+        groups: tuple[str, ...],
+        issued_at: int | None = None,
+        extra_claims: dict[str, object] | None = None,
+    ) -> str:
+        """A signed access token (RFC 9068) of a person's agent, valid for the issuer's lifetime from `issued_at`;
+        `extra_claims` add or replace claims."""
+        issued = int(time.time()) if issued_at is None else issued_at
+        claims = {
+            "iss": self._issuer,
+            "sub": subject,
+            "aud": audience,
+            "azp": authorized_party,
+            "scope": scope,
+            "groups": list(groups),
+            "iat": issued,
+            "exp": issued + TOKEN_LIFETIME_SECONDS,
+            **(extra_claims or {}),
+        }
+        return jwt.encode(claims, self._key, algorithm="RS256", headers={"kid": KEY_ID, "typ": "at+jwt"})
+
     def post_token_request(self, request: TokenRequest) -> TokenEndpointAnswer:
         if self.token_endpoint_is_down:
             self.exchanges.append((request, None))

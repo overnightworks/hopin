@@ -24,6 +24,7 @@ from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolve
 pytestmark = pytest.mark.integration
 
 FOREIGN_TYPE = "quiz_start"
+DECLARES_FOREIGN_TYPE = {"signal_types": {"QUIZ_START": FOREIGN_TYPE}}
 
 
 def without_seq(frame):
@@ -42,8 +43,8 @@ def refusal_of_unknown(signal_type):
     }
 
 
-def handler_with(room_manager, scheduler, feature):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, feature)
+def handler_with(room_manager, scheduler, *features):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, features)
 
 
 @pytest_asyncio.fixture
@@ -51,9 +52,9 @@ async def link_with(room_manager, scheduler):
     """Links to handlers that carry a recording feature built with the given options, or none."""
     links = []
 
-    def make(**feature_options):
-        feature = partial(RecordingFeature, **feature_options) if feature_options else None
-        links.append(Link(handler_with(room_manager, scheduler, feature)))
+    def make(*feature_options):
+        factories = [partial(RecordingFeature, **options) for options in feature_options]
+        links.append(Link(handler_with(room_manager, scheduler, *factories)))
         return links[-1]
 
     yield make
@@ -78,24 +79,24 @@ class TestUnknownSignalType:
         assert unknown_type_refusals(host) == [refusal_of_unknown(FOREIGN_TYPE)]
 
     async def test_one_the_feature_declines_is_refused_once_after_its_sequence_number_counts(self, link_with):
-        link = link_with(handles=frozenset())
+        link = link_with({**DECLARES_FOREIGN_TYPE, "handles": frozenset()})
         host = await link.join("host")
 
         await say_twice(host, {"type": FOREIGN_TYPE, "answer": 42})
 
         assert unknown_type_refusals(host) == [refusal_of_unknown(FOREIGN_TYPE)]
-        assert link.handler.feature.offered == [
+        assert link.handler.features[0].offered == [
             (host.peer_id, ForeignFrame(FOREIGN_TYPE, {"type": FOREIGN_TYPE, "answer": 42, "seq": 1}))
         ]
 
     async def test_one_the_feature_handles_is_offered_once_and_refused_never(self, link_with):
-        link = link_with(handles=frozenset({FOREIGN_TYPE}))
+        link = link_with({**DECLARES_FOREIGN_TYPE, "handles": frozenset({FOREIGN_TYPE})})
         host = await link.join("host")
 
         await say_twice(host, {"type": FOREIGN_TYPE})
 
         assert unknown_type_refusals(host) == []
-        assert [frame for _, frame in link.handler.feature.offered] == [
+        assert [frame for _, frame in link.handler.features[0].offered] == [
             ForeignFrame(FOREIGN_TYPE, {"type": FOREIGN_TYPE, "seq": 1})
         ]
 
@@ -103,21 +104,21 @@ class TestUnknownSignalType:
 @pytest.mark.asyncio
 class TestSeatJoined:
     async def test_it_fires_for_each_join_and_not_for_a_resume(self, link_with):
-        link = link_with(handles=frozenset())
+        link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
 
         await guest.drop()
         await guest.resume()
 
         assert guest.frames(SignalType.RESUMED)
-        assert link.handler.feature.joined == [host.peer_id, guest.peer_id]
+        assert link.handler.features[0].joined == [host.peer_id, guest.peer_id]
 
     async def test_it_does_not_fire_for_a_refused_join(self, link_with):
-        link = link_with(handles=frozenset())
+        link = link_with({"handles": frozenset()})
         stranger = await link.join("stranger", "no-such-room")
 
         assert stranger.frames(SignalType.ERROR)
-        assert link.handler.feature.joined == []
+        assert link.handler.features[0].joined == []
 
 
 def room_id_of(browser):
@@ -201,13 +202,13 @@ class TestSeatLeft:
         ],
     )
     async def test_the_feature_hears_a_final_leave_once_with_the_room_and_the_name(self, link_with, scheduler, ending):
-        link = link_with(handles=frozenset())
+        link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
 
         await ending(link, host, guest, scheduler)
         await scheduler.advance(RESUME_WINDOW_SECONDS)
 
-        assert link.handler.feature.left == [(guest.peer_id, room_id_of(host), "guest")]
+        assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
 
     @pytest.mark.parametrize(
         "refusal",
@@ -221,19 +222,19 @@ class TestSeatLeft:
     async def test_a_refused_resume_that_keeps_the_seat_is_no_leave_until_its_grace_runs_out(
         self, link_with, scheduler, refusal
     ):
-        link = link_with(handles=frozenset())
+        link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
 
         await guest.drop()
         await refusal(link, host, guest, scheduler)
-        heard_after_the_refusal = list(link.handler.feature.left)
+        heard_after_the_refusal = list(link.handler.features[0].left)
         await scheduler.advance(RESUME_WINDOW_SECONDS)
 
         assert heard_after_the_refusal == []
-        assert link.handler.feature.left == [(guest.peer_id, room_id_of(host), "guest")]
+        assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
 
     async def test_a_park_a_resume_and_the_rooms_end_are_no_leave(self, link_with, scheduler):
-        link = link_with(handles=frozenset())
+        link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
 
         await guest.drop()
@@ -242,7 +243,7 @@ class TestSeatLeft:
         await scheduler.advance(RESUME_WINDOW_SECONDS)
         await host.say({"type": SignalType.END_ROOM.value})
 
-        assert link.handler.feature.left == []
+        assert link.handler.features[0].left == []
 
 
 class TestClashAtStart:
@@ -258,3 +259,43 @@ class TestClashAtStart:
 
         with pytest.raises(FeatureClashError):
             handler_with(room_manager, scheduler, clashing)
+
+    @pytest.mark.parametrize(
+        ("first", "second"),
+        [
+            pytest.param({"name": "same"}, {"name": "same"}, id="a feature name"),
+            pytest.param({"signal_types": {"SAME": "one"}}, {"signal_types": {"SAME": "two"}}, id="a wire name"),
+            pytest.param({"signal_types": {"ONE": "same"}}, {"signal_types": {"TWO": "same"}}, id="a wire value"),
+        ],
+    )
+    def test_two_features_that_share_a_name_are_refused(self, room_manager, scheduler, first, second):
+        features = [partial(RecordingFeature, **first), partial(RecordingFeature, **second)]
+
+        with pytest.raises(FeatureClashError):
+            handler_with(room_manager, scheduler, *features)
+
+
+FIRST = {"name": "first", "signal_types": {"FIRST": "first_frame"}, "handles": frozenset({"first_frame"})}
+SECOND = {"name": "second", "signal_types": {"SECOND": "second_frame"}, "handles": frozenset({"second_frame"})}
+
+
+@pytest.mark.asyncio
+class TestSeveralFeatures:
+    async def test_a_frame_goes_to_the_feature_that_declared_its_type_and_to_no_other(self, link_with):
+        link = link_with(FIRST, SECOND)
+        host = await link.join("host")
+
+        await host.say({"type": "second_frame"})
+
+        first, second = link.handler.features
+        assert [frame.signal_type for _, frame in first.offered] == []
+        assert [frame.signal_type for _, frame in second.offered] == ["second_frame"]
+
+    async def test_every_feature_hears_a_join_and_a_final_leave(self, link_with):
+        link = link_with(FIRST, SECOND)
+        host, guest = await host_and_guest(link)
+
+        await guest.drop(1000)
+
+        assert [feature.joined for feature in link.handler.features] == [[host.peer_id, guest.peer_id]] * 2
+        assert [feature.left for feature in link.handler.features] == [[(guest.peer_id, room_id_of(host), "guest")]] * 2

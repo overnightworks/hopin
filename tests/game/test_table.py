@@ -682,7 +682,7 @@ async def test_six_seats_get_the_question(scheduler, game):
         RoomManager(max_participants_per_room=MAX_PARTICIPANTS_PER_ROOM),
         SocketAccountResolver(),
         scheduler,
-        game,
+        [game],
     )
     link = Link(handler)
     call = await call_of(link, *[f"person{number}" for number in range(MAX_PARTICIPANTS_PER_ROOM)])

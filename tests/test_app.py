@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 import structlog
 import structlog.testing
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 from webauth.config import WebAuthConfig, installed_web_auth_config
@@ -69,6 +69,24 @@ class TestCreateApp:
         page_build = fixture_page_build()
         with pytest.raises(StartRefusedError, match="session_secret_file"):
             create_app(settings, page_build=page_build)
+
+    def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
+        class BearerFeature:
+            sign_in_scopes: tuple[str, ...] = ()
+
+            def __call__(self, **_: object) -> BearerFeature:
+                return self
+
+            factory = None
+            router = APIRouter()
+            bearer_resource = object()
+
+        settings = sign_in_settings().settings
+        page_build = fixture_page_build()
+        call_features = (BearerFeature(), BearerFeature())
+
+        with pytest.raises(StartRefusedError, match="bearer"):
+            create_app(settings, page_build=page_build, call_features=call_features)
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()

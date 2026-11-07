@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 from webauth.config import installed_web_auth_config
 
+from hopin.agent.mcp import ParticipationFeature
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.main import uvicorn_options
@@ -123,8 +124,10 @@ def running_hopin(
     tls_directory: Path,
     call_feature: CallFeatureBuilder | None = None,
     page_build_directory: Path = BUILD_DIRECTORY,
+    *,
+    participation: bool = False,
 ) -> Iterator[RunningServer]:
-    """Serve HopIn over https on `loopback`, with the call's feature only when one is given.
+    """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for.
 
     The page comes from `page_build_directory`, so a test can serve a copy it changes.
     """
@@ -133,7 +136,10 @@ def running_hopin(
         page_build=PageBuild.load(page_build_directory),
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
-        call_feature=call_feature,
+        call_features=(
+            *(() if call_feature is None else (call_feature,)),
+            *((ParticipationFeature(loopback.sign_in.settings.public_origin),) if participation else ()),
+        ),
     )
     key_file, certificate_file = _write_self_signed_certificate(tls_directory)
     server = uvicorn.Server(

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 import structlog
 from fastapi import FastAPI
 from webauth.config import install_web_auth_config
-from webauth.middleware import install_web_auth_middleware
+from webauth.middleware import install_resource_metadata, install_web_auth_middleware
 from webauth.policies import (
     BodySizePolicy,
     CacheControlRule,
@@ -19,7 +19,7 @@ from webauth.policies import (
 )
 
 from hopin.auth.account import create_account_router
-from hopin.auth.gate import session_gate
+from hopin.auth.gate import bearer_gate, session_gate
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
@@ -40,6 +40,7 @@ from hopin.config.constants import (
     SIGN_IN_PATHS,
     SIGN_IN_RATE_LIMIT_BUDGET,
 )
+from hopin.config.secret_files import StartRefusedError
 from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
@@ -51,12 +52,13 @@ from hopin.web.routes import create_router
 from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_turn_relay
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable
+    from collections.abc import AsyncIterator, Callable, Sequence
 
     from fastapi import APIRouter
     from webauth.config import WebAuthConfig
+    from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore
+    from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
@@ -67,7 +69,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 class BuiltCallFeature(Protocol):
-    """What the call's feature adds to the app: the factory its signaling handler builds it with, and its routes."""
+    """What a call feature adds to the app: the factory its signaling handler builds it with, its routes and the one
+    bearer-token door it may open."""
 
     @property
     def factory(self) -> FeatureFactory:
@@ -77,9 +80,13 @@ class BuiltCallFeature(Protocol):
     def router(self) -> APIRouter:
         """The routes the feature serves."""
 
+    @property
+    def bearer_resource(self) -> ProtectedResource | None:
+        """The resource a bearer token reaches, with the gate admitting it, when the feature serves one."""
+
 
 class CallFeatureBuilder(Protocol):
-    """Builds the call's one optional feature on the app's own sign-in and scheduler; `main` passes it in."""
+    """Builds an optional call feature on the app's own sign-in and scheduler; `main` passes each one in."""
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -92,8 +99,9 @@ class CallFeatureBuilder(Protocol):
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
+        transaction: SignInTransaction,
     ) -> BuiltCallFeature:
-        """The feature's factory and its router."""
+        """The feature's factory, its router and its bearer resource."""
 
 
 class _ExpiredSessionSweep:
@@ -158,7 +166,12 @@ def _configure_logging() -> None:
     )
 
 
-def _install_web_auth(app: FastAPI, sessions: InMemorySessions, page_build: PageBuild) -> None:
+def _install_web_auth(
+    app: FastAPI,
+    sessions: InMemorySessions,
+    page_build: PageBuild,
+    bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
+) -> None:
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
@@ -182,8 +195,16 @@ def _install_web_auth(app: FastAPI, sessions: InMemorySessions, page_build: Page
             rules=(RateLimitRule(paths=SIGN_IN_PATHS.browser_paths, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
             exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
-        session_gate=session_gate(sessions, page_build.sign_in_assets),
+        bearer_gate=None if bearer is None else bearer_gate(*bearer),
+        session_gate=session_gate(sessions, page_build.sign_in_assets, None if bearer is None else bearer[1]),
     )
+
+
+def _include_feature_routes(app: FastAPI, built_features: list[BuiltCallFeature], issuer: str) -> None:
+    for built in built_features:
+        app.include_router(built.router)
+        if built.bearer_resource is not None:
+            install_resource_metadata(app, built.bearer_resource, issuer=issuer)
 
 
 def create_app(
@@ -194,9 +215,11 @@ def create_app(
     stores: SignInStores | None = None,
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
-    call_feature: CallFeatureBuilder | None = None,
+    call_features: Sequence[CallFeatureBuilder] = (),
 ) -> FastAPI:
-    sign_in_configs = build_sign_in_configs(settings, () if call_feature is None else call_feature.sign_in_scopes)
+    sign_in_configs = build_sign_in_configs(
+        settings, tuple(scope for builder in call_features for scope in builder.sign_in_scopes)
+    )
     turn_relay = build_turn_relay(settings, turn_transport)
 
     _configure_logging()
@@ -205,21 +228,24 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    built_feature = (
-        None
-        if call_feature is None
-        else call_feature(
+    built_features = [
+        builder(
             relying_party=relying_party,
             sessions=sign_in_stores.sessions,
             auth_config=sign_in_configs.web_auth,
             scheduler=timers,
+            transaction=sign_in_stores.transaction,
         )
-    )
+        for builder in call_features
+    ]
+    resources = [built.bearer_resource for built in built_features if built.bearer_resource is not None]
+    if len(resources) > 1:
+        raise StartRefusedError("Only one call feature may serve a bearer-token resource")
     signaling_handler = SignalingHandler(
         room_manager,
         SessionIdentityResolver(sign_in_stores.sessions),
         timers,
-        None if built_feature is None else built_feature.factory,
+        [built.factory for built in built_features],
     )
 
     app = FastAPI(
@@ -230,14 +256,13 @@ def create_app(
     )
     app.include_router(create_router(signaling_handler, room_manager, page_build))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
-    app.include_router(create_call_features_router(signaling_handler.feature))
-    if built_feature is not None:
-        app.include_router(built_feature.router)
+    app.include_router(create_call_features_router(signaling_handler.features))
+    _include_feature_routes(app, built_features, settings.oidc_issuer)
     app.include_router(create_account_router(settings.oidc_issuer))
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
-    _install_web_auth(app, sign_in_stores.sessions, page_build)
+    _install_web_auth(app, sign_in_stores.sessions, page_build, (relying_party, resources[0]) if resources else None)
 
     return app

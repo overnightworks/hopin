@@ -292,7 +292,7 @@ class OneLoopServer:
             issuer_transports=self.issuer.transports,
             stores=self._stores,
             scheduler=self.scheduler,
-            call_feature=GameFeature(self.backend),
+            call_features=(GameFeature(self.backend),),
         )
         self._to_app, self._from_app = asyncio.Queue(), asyncio.Queue()
         self._connection = None

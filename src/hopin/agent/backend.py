@@ -15,7 +15,6 @@ from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, current_groups, fresh_access_token
 
-from hopin.agent.tools import TOOLS
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
@@ -143,7 +142,7 @@ class QuizGameMaster:
     def __init__(self, backend: QuizBackend, starter_person: StarterPerson) -> None:
         self._backend = backend
         self._starter_person = starter_person
-        self._agent = load_agent(QUIZ_AGENT_FILE, list(TOOLS))
+        self._agent = load_agent(QUIZ_AGENT_FILE, [])
 
     async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
         request = self._agent.request(_turn_messages(transcript))
@@ -214,7 +213,7 @@ def _log_refusal(**codes: str | None) -> None:
 
 
 def _refusal_of_grant(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSED_EVENT) -> GameRefusal:
-    _log_groups_refusal(refusal, event)
+    _log_grant_refusal(refusal, event)
     match refusal.reason:
         case AccessTokenRefusalReason.SESSION_ENDED | AccessTokenRefusalReason.SIGN_IN_AGAIN:
             return GameRefusal.SIGN_IN_AGAIN
@@ -224,7 +223,7 @@ def _refusal_of_grant(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSE
             assert_never(refusal.reason)
 
 
-def _log_groups_refusal(refusal: AccessTokenRefusal, event: str) -> None:
+def _log_grant_refusal(refusal: AccessTokenRefusal, event: str) -> None:
     issuer_refusal = refusal.issuer_refusal
     codes = {
         "issuer_reason": None if issuer_refusal is None else issuer_refusal.reason.value,

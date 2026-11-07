@@ -9,7 +9,6 @@ from agent_runtime_client.turn import FailureCode, Principal, RejectionCode, Run
 from webauth.admission import AppRole
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
-from hopin.agent.tools import TOOLS
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GameRefusal
@@ -297,7 +296,7 @@ class TestWhatLeaves:
 
         [run] = world.backend.runs
         request = run.request
-        agent = load_agent(QUIZ_AGENT_FILE, list(TOOLS))
+        agent = load_agent(QUIZ_AGENT_FILE, [])
         assert (request.agent, request.roles, request.tools) == ("quiz", ["admin", "user"], ())
         assert (request.model, request.max_duration_seconds) == (agent.model, agent.max_duration_seconds)
         assert request.turn.system == agent.prompt

@@ -131,7 +131,7 @@ def serving_call(
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        call_feature=GameFeature(backend) if speech is None else GameFeature(backend, speech),
+        call_features=(GameFeature(backend) if speech is None else GameFeature(backend, speech),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         yield Call(issuer, backend, stores, client, sockets)

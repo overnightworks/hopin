@@ -13,7 +13,7 @@ from hopin.config.constants import (
     WEBSOCKET_DISCONNECT_EVENT,
 )
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
-from hopin.signaling.features import CallRooms, build_feature
+from hopin.signaling.features import CallRooms, build_features
 from hopin.signaling.frames import (
     ChatFrame,
     DispatchedFrame,
@@ -33,6 +33,8 @@ from hopin.signaling.routing import Departure, RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.features import CallFeature, FeatureFactory
     from hopin.signaling.identity import IdentityResolver
@@ -47,31 +49,34 @@ class SignalingHandler:
         room_manager: RoomManager,
         identity_resolver: IdentityResolver,
         scheduler: Scheduler,
-        feature: FeatureFactory | None = None,
+        features: Sequence[FeatureFactory] = (),
     ) -> None:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
         self._routing = RoomRouting(room_manager, scheduler, self._room_ended, self._seat_left)
         self._seats = self._routing.seats
-        self._feature = None if feature is None else build_feature(feature, CallRooms(self._routing, room_manager))
+        self._features = build_features(features, CallRooms(self._routing, room_manager))
+        self._feature_of_type = {
+            signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
+        }
 
     @property
-    def feature(self) -> CallFeature | None:
-        return self._feature
+    def features(self) -> tuple[CallFeature, ...]:
+        return self._features
 
     def _room_ended(self, room_id: str) -> None:
-        if self._feature is not None:
-            self._feature.room_ended(room_id)
+        for feature in self._features:
+            feature.room_ended(room_id)
 
     async def _seat_left(self, departure: Departure) -> None:
-        if self._feature is not None:
-            await self._feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
+        for feature in self._features:
+            await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
 
     async def shut_down(self) -> None:
-        """Shut the call's feature down and wait until it has cleaned up."""
-        if self._feature is not None:
-            await self._feature.shut_down()
+        """Shut the call's features down in order and wait until each has cleaned up."""
+        for feature in self._features:
+            await feature.shut_down()
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
@@ -208,8 +213,8 @@ class SignalingHandler:
         match frame:
             case JoinFrame():
                 await self._routing.handle_join(peer_id, frame)
-                if self._feature is not None:
-                    await self._feature.seat_joined(peer_id)
+                for feature in self._features:
+                    await feature.seat_joined(peer_id)
             case RelayFrame():
                 await self._routing.handle_relay(peer_id, frame)
             case LockFrame():
@@ -228,7 +233,8 @@ class SignalingHandler:
                 assert_never(frame)
 
     async def _offer_to_feature(self, peer_id: PeerId, frame: ForeignFrame) -> None:
-        if self._feature is None or not await self._feature.on_frame(peer_id, frame):
+        feature = self._feature_of_type.get(frame.signal_type)
+        if feature is None or not await feature.on_frame(peer_id, frame):
             raise InvalidMessageError(f"Unknown signal type: {frame.signal_type}")
 
     async def _send_error(self, peer_id: PeerId, error: HopInError) -> None:

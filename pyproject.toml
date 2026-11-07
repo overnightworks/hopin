@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agent-runtime-client[backend] @ git+https://github.com/overnightworks/agent-runtime@v0.23.0",
+    "overnightworks-agent-runtime-client[backend,mcp-server] @ git+https://github.com/overnightworks/agent-runtime@v0.23.0",
     "overnightworks-speech-runtime-client @ git+https://github.com/overnightworks/speech-runtime@v0.3.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.33.0",
     "pydantic>=2.10",
@@ -27,7 +27,7 @@ build-backend = "hatchling.build"
 # The two overnightworks libraries are built from their git tags; a named package
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
-    "overnightworks-agent-runtime-client",  # game
+    "overnightworks-agent-runtime-client",
     "overnightworks-speech-runtime-client",  # game
     "overnightworks-webauth",
 ]
@@ -168,15 +168,15 @@ containers = ["hopin"]
 # Every top-level module of hopin stands in exactly one layer, so a new one is
 # placed by a decision rather than slipping in between. `main` starts the server
 # and `app` is the composition root: nothing imports `main`, and only `main`
-# imports `app`. The game is optional: it plugs into signaling's feature port,
-# `main` switches it in, and deleting it needs no contract edit. The agent connector
-# is optional with it and stands above it: it composes the game on the client's
-# backend, and the game knows nothing of it. The person export
+# imports `app`. The game and participation are optional: each plugs into signaling's
+# feature port, `main` switches it in, and deleting the game needs no contract edit. The
+# agent connector stands above both: it composes the game on the client's backend and
+# serves participation over MCP, and neither knows it. The person export
 # joins sign-in's sessions with signaling's seats, so `people` sits above both.
 # Sign-in sits above the web routes it guards, the routes above the signaling and
 # room services they are handed, and `config` is the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "(agent)", "(game)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "(agent)", "(game) | (participation)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"
@@ -203,8 +203,8 @@ allow_indirect_imports = true
 id = "call-core-knows-no-game"
 name = "The call core knows no game"
 type = "forbidden"
-# The game must stay removable: the call core reaches neither it nor its agent connector
-# and the client and HTTP library under them, not even through another module.
+# The game must stay removable and participation optional: the call core reaches neither them nor the agent
+# connector and the client and HTTP library under them, not even through another module.
 source_modules = [
     "hopin.people",
     "hopin.auth",
@@ -214,7 +214,22 @@ source_modules = [
     "hopin.errors",
     "hopin.config",
 ]
-forbidden_modules = ["hopin.game", "hopin.agent", "agent_runtime_client", "speech_runtime_client", "httpx2"]
+forbidden_modules = [
+    "hopin.game",
+    "hopin.participation",
+    "hopin.agent",
+    "agent_runtime_client",
+    "speech_runtime_client",
+    "httpx2",
+]
+
+[[tool.importlinter.contracts]]
+id = "participation-knows-no-agent-runtime"
+name = "Participation names no agent runtime"
+type = "forbidden"
+# Participation holds who is in a call, with no AI in it; the connector adapts it to the runtime's tools.
+source_modules = ["hopin.participation"]
+forbidden_modules = ["agent_runtime_client", "speech_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"

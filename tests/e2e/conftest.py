@@ -11,6 +11,7 @@ from tests.e2e.support.camera_less_call import (
     start_camera_less_call,
     start_camera_less_host_call,
 )
+from tests.e2e.support.dialed_agent import Agent
 from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.people import DESKTOP, PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
@@ -20,7 +21,7 @@ from tests.support.signed_in import SeededMember, new_account, seed_member
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    from playwright.sync_api import Browser, BrowserContext, Page, Request
+    from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Request
 
 PAGE_NAVIGATED_AWAY = "net::ERR_ABORTED"
 
@@ -64,6 +65,21 @@ def seeded_members() -> dict[Page, SeededMember]:
 @pytest.fixture
 def member_of(seeded_members: dict[Page, SeededMember]) -> Callable[[Page], SeededMember]:
     return seeded_members.__getitem__
+
+
+@pytest.fixture
+def agent_of(
+    playwright: Playwright, e2e_server: RunningServer, member_of: Callable[..., Any]
+) -> Callable[[Page], Agent]:
+    agents: list[Agent] = []
+
+    def make(person: Page) -> Agent:
+        agents.append(Agent(playwright, e2e_server, person, member_of))
+        return agents[-1]
+
+    yield make
+    for agent in agents:
+        agent.close()
 
 
 @pytest.fixture
