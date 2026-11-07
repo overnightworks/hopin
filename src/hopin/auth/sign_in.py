@@ -6,10 +6,10 @@ from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, FastAPI, Response
+from webauth.admission import AdmissionConfig, AdmissionRefusal
 from webauth.config import SessionLifetime, WebAuthConfig
 from webauth.https_client import fetch_key_set_over_https
 from webauth.oidc import OidcClientConfig, OidcRefusal, OidcRelyingParty, TokenRequestPost
-from webauth.oidc_login import AdmissionConfig, AdmissionRefusal
 from webauth.oidc_transport import post_token_request_over_https
 from webauth.proxies import TrustedProxies
 from webauth.rate_limit import SingleProcessRateLimitBackend

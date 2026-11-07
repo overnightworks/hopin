@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from webauth.admission import AppRole
 
 from tests.e2e.support.browser_coverage import BrowserCoverage
 from tests.e2e.support.camera_less_call import (
@@ -112,7 +113,7 @@ def open_person(
             account = None if same_account_as is None else seeded_members[same_account_as].account
             if username is not None:
                 account = e2e_server.stores.accounts.create_for_subject(
-                    f"subject-{username}", username, role=e2e_server.config.user_role
+                    f"subject-{username}", username, role=AppRole.USER
                 )
             if account is None:
                 account = new_account(e2e_server.stores, e2e_server.config)

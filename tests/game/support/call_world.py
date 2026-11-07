@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fastapi.testclient import TestClient
+from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 
 from hopin.agent.feature import GameFeature
@@ -81,7 +82,7 @@ class Call:
     def member(self, *, subject=None, groups=(), with_refresh_token=True):
         config = installed_web_auth_config(self.client.app)
         name = f"member-{secrets.token_hex(4)}"
-        account = self.stores.accounts.create_for_subject(subject or f"subject-{name}", name, role=config.user_role)
+        account = self.stores.accounts.create_for_subject(subject or f"subject-{name}", name, role=AppRole.USER)
         self.issuer.grant_groups(account.id, groups)
         refresh_token = self.issuer.refresh_token_for(account.id) if with_refresh_token else None
         return seed_member(self.stores, config, account=account, refresh_token=refresh_token)

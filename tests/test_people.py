@@ -11,6 +11,7 @@ import pytest
 import structlog.testing
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from webauth.admission import AppRole
 from webauth.config import install_web_auth_config, installed_web_auth_config
 
 from hopin.app import create_app
@@ -68,15 +69,15 @@ def person(stores, config):
     """A signed-in person whose subject is the label; a role other than a member's makes them an admin."""
 
     def make(subject, role=None):
-        account = stores.accounts.create_for_subject(subject, subject, config.user_role if role is None else role)
+        account = stores.accounts.create_for_subject(subject, subject, AppRole.USER if role is None else role)
         return seed_member(stores, config, account=account)
 
     return make
 
 
 @pytest.fixture
-def admin(person, config):
-    return person("olga", role=config.admin_role)
+def admin(person):
+    return person("olga", role=AppRole.ADMIN)
 
 
 def stored_state_of_anna(stores, scene):
@@ -166,7 +167,7 @@ def scene(client, stores, person):
 
 
 class TestExportOfAPerson:
-    def test_answers_a_zip_of_export_json_listing_the_account_sessions_and_seats(self, client, admin, scene, config):
+    def test_answers_a_zip_of_export_json_listing_the_account_sessions_and_seats(self, client, admin, scene):
         answer = ask(client, "anna", admin)
 
         names, export = read_archive(answer.content)
@@ -176,7 +177,7 @@ class TestExportOfAPerson:
         assert names == ["export.json"]
         assert list(export) == ["people_export", "app", "subject", "exported_at", "data", "files", "withheld"]
         assert (export["people_export"], export["app"], export["subject"], export["files"]) == (1, "hopin", "anna", [])
-        assert export["data"]["account"] == {"name": "anna", "role": config.user_role}
+        assert export["data"]["account"] == {"name": "anna", "role": AppRole.USER}
         assert export["data"]["sessions"] == [
             {
                 "started_at": started.isoformat().replace("+00:00", "Z"),
@@ -263,12 +264,12 @@ class TestExportOfAPerson:
         assert {"call_id": None, "host": False} in seats
         assert withheld_counts(export)["resume_token"] == 3
 
-    def test_lists_the_account_of_a_person_with_no_session(self, client, admin, stores, config):
-        stores.accounts.create_for_subject("anna", "anna", config.user_role)
+    def test_lists_the_account_of_a_person_with_no_session(self, client, admin, stores):
+        stores.accounts.create_for_subject("anna", "anna", AppRole.USER)
 
         _, export = read_archive(ask(client, "anna", admin).content)
 
-        assert export["data"] == {"account": {"name": "anna", "role": config.user_role}, "sessions": [], "seats": []}
+        assert export["data"] == {"account": {"name": "anna", "role": AppRole.USER}, "sessions": [], "seats": []}
         assert export["withheld"] == ZERO_WITHHELD
 
     def test_answers_an_empty_export_for_an_unknown_subject_and_creates_nothing(self, client, admin, stores):
@@ -303,9 +304,9 @@ class TestWhoMayExport:
         assert "anna" not in answer.text
         assert ask(client, "anna", member, method="HEAD").status_code == 403
 
-    def test_refuses_an_admin_who_became_a_member_at_her_next_sign_in(self, client, admin, stores, config):
+    def test_refuses_an_admin_who_became_a_member_at_her_next_sign_in(self, client, admin, stores):
         assert ask(client, "anna", admin).status_code == 200
-        stores.accounts.set_role("olga", config.user_role)
+        stores.accounts.set_role("olga", AppRole.USER)
 
         assert ask(client, "anna", admin).status_code == 403
 

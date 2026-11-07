@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import pytest
 import structlog.testing
 from agent_runtime_client.turn import RejectionCode
+from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 
 from hopin.agent.feature import GameFeature
@@ -297,7 +298,7 @@ class OneLoopServer:
 
     def _member(self):
         config = installed_web_auth_config(self.app)
-        account = self._stores.accounts.create_for_subject("subject-anna", "anna", role=config.user_role)
+        account = self._stores.accounts.create_for_subject("subject-anna", "anna", role=AppRole.USER)
         return seed_member(
             self._stores, config, account=account, refresh_token=self.issuer.refresh_token_for(account.id)
         )

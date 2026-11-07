@@ -1,12 +1,12 @@
 import asyncio
 import secrets
-from dataclasses import replace
 
 import pytest
 import structlog.testing
 from agent_runtime_client.agents import load_agent
 from agent_runtime_client.backend import TurnStopKind
 from agent_runtime_client.turn import FailureCode, Principal, RejectionCode, RunFile
+from webauth.admission import AppRole
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
 from hopin.agent.tools import TOOLS
@@ -99,17 +99,14 @@ class TestThePerson:
         [run] = world.backend.runs
         assert run.principal == Principal(iss=world.relying_party.issuer, sub=member.account.id)
 
-    @pytest.mark.parametrize(("stored", "role"), [("admin_role", "admin"), ("user_role", "user")])
-    async def test_ask_names_the_stored_role_by_the_clients_word_whatever_the_configured_spelling(
-        self, world, stored, role
-    ):
-        world.web_auth = replace(world.web_auth, admin_role="scenario-chief", user_role="scenario-guest")
-        starter, _ = world.starter(role=getattr(world.web_auth, stored))
+    @pytest.mark.parametrize("stored", [AppRole.ADMIN, AppRole.USER])
+    async def test_ask_names_the_stored_role_by_the_clients_word(self, world, stored):
+        starter, _ = world.starter(role=stored)
 
         await world.game_master.ask(starter, OPENING)
 
         [run] = world.backend.runs
-        assert run.role == role
+        assert run.role == stored.value
 
     async def test_ask_while_the_issuer_is_down_is_unavailable(self, world):
         starter, _ = world.starter()
