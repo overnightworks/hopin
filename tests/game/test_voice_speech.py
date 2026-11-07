@@ -35,7 +35,7 @@ OUTCOMES = [
     pytest.param(refusal_answer(RefusalCode.FORBIDDEN), {"outcome": "refused", "code": "forbidden"}, id="refused"),
     pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), {"outcome": "busy"}, id="busy"),
     pytest.param(chunked_wav(SPOKEN_WAV, terminated=False), {"outcome": "cut"}, id="cut"),
-    pytest.param(chunked_wav(bytes(VOICE_MAX_BYTES + 1)), {"outcome": "over_cap"}, id="over-cap"),
+    pytest.param(chunked_wav(SPOKEN_WAV + bytes(VOICE_MAX_BYTES)), {"outcome": "over_cap"}, id="over-cap"),
     pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
 ]
 

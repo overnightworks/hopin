@@ -4,11 +4,12 @@ import io
 import wave
 from http import HTTPStatus
 
-from speech_runtime_client.wire import SPEECH_PATH, SpeechRequest, refusal
+from speech_runtime_client.wire import SPEECH_PATH, ResponseFormat, SpeechRequest, refusal
 
 from tests.support.loopback_origin import Origin, http_response
 
-SPOKEN_WAV = b"RIFF-spoken-by-the-fake-service"
+SPOKEN_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
+WAV_MEDIA_TYPE = ResponseFormat.WAV.media_type
 AUDIENCE_SCOPE = "speech-service-audience"
 
 
@@ -24,7 +25,9 @@ def silent_wav(seconds: float = 0.2, rate: int = 8000) -> bytes:
 
 
 def chunked_wav(wav: bytes, *, terminated: bool = True) -> bytes:
-    head = b"HTTP/1.1 200 OK\r\nContent-Type: audio/wav\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"
+    head = (
+        f"HTTP/1.1 200 OK\r\nContent-Type: {WAV_MEDIA_TYPE}\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"
+    ).encode()
     body = f"{len(wav):x}\r\n".encode() + wav + b"\r\n"
     return head + body + (b"0\r\n\r\n" if terminated else b"")
 
@@ -37,7 +40,9 @@ def refusal_answer(code, param=None, *, retry_after_seconds=None) -> bytes:
 
 
 def not_chunked_answer() -> bytes:
-    return http_response(f"{HTTPStatus.OK.value} OK", b"RIFF", extra_header=b"Content-Type: audio/wav\r\n")
+    return http_response(
+        f"{HTTPStatus.OK.value} OK", SPOKEN_WAV, extra_header=f"Content-Type: {WAV_MEDIA_TYPE}\r\n".encode()
+    )
 
 
 def speaking(origin: Origin, answer: bytes) -> None:
