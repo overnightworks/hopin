@@ -59,6 +59,12 @@ Remove the person from `/apps/hopin` in Keycloak and sign them out there. Keyclo
 
 Once the logout has arrived, the export shows no account and no sessions, and no seats once the calls have closed.
 
+## A person's own agent
+
+A person's own agent (first the operator's Claude Code) dials into a call the person sits in, through HopIn's MCP endpoint `POST /mcp` (the tools `join_call` and `leave_call`, `src/hopin/agent/mcp.py` and `src/hopin/participation/`). Everyone in the call then sees a tile with the name the person gave the agent, an AI badge and the person's name; the person or the host removes it. The agent joins only a call in which its person holds exactly one live seat, and it leaves when that seat leaves for good. It has no host or admin right, and no tool lets it read or write chat yet.
+
+The bearer is accepted on this one path and nowhere else. webauth's gate admits a token that carries the audience `HOPIN_PUBLIC_ORIGIN` + `/mcp`, the client `agents`, the scope `mcp-hopin` and membership of the Keycloak group `/apps/hopin/mcp`, for a person who has signed in once; the metadata of RFC 9728 is public at `/.well-known/oauth-protected-resource/mcp`. The cookie session and its CSRF protection govern every other route, and the bearer opens neither `/api` nor `/ws`. Until the privacy text names the person's own AI agent and its provider as a recipient at the person's wish, nobody but the operator is put into `/apps/hopin/mcp`; that group is the disclosure gate, and the operator alone controls it. Bounds: one agent per seat, two per call, 32 per process; beyond them a join answers `busy`.
+
 ## Configuration
 
 `src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix. The client secret, the session signing key and the two TURN key files are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
@@ -89,7 +95,7 @@ Once the logout has arrived, the export shows no account and no sessions, and no
 
 The `HOPIN_AGENT__` and `HOPIN_SPEECH__` settings are read by the connector's `AgentSettings`; a missing or malformed one stops the start and echoes no input.
 
-HopIn refuses to start without the four required settings and the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
+Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the four required settings and the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Development
 

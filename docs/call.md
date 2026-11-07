@@ -56,4 +56,7 @@ Ruled by the operator:
 - CALL-44: A long chat scrolls inside its panel, and the newest line and the composer stay reachable.
 - CALL-45: A tab opened before a release still starts a call: it reloads itself when the new build lacks a piece it needs.
 - CALL-46: The end screens name the host by the account's name, and say "The host" only when that name is empty.
-- CALL-47: An agent's tile takes none of the call's six places; the stage shows up to seven tiles, and the participant count names people only.
+- CALL-47: Agent tiles take none of the call's six places: the stage shows up to six people plus every agent in the call (the quiz master and up to two dialed-in agents), at most nine tiles, and the participant count names people only. With eight or nine tiles the grid is two columns of four or five rows on a phone and three of three on a desktop, and the call controls stay uncovered.
+- CALL-48: A person's own agent joins only a call in which that person holds exactly one live seat, is bound to that seat, and leaves when that seat leaves for good; while the seat waits to resume (CALL-10) the tile stays and the agent's calls answer that the sponsor is away.
+- CALL-49: The agent's sponsor or the call's host removes an agent from its tile; a removal by anyone else is refused, and other guests see no remove button on the tile.
+- CALL-50: A dialed-in agent shows under the name its sponsor gave it (1 to 32 characters after trimming, no control character), with an AI badge and its sponsor's name, so an agent named like a person is still told apart; a name that is no name is refused and no tile shows.
