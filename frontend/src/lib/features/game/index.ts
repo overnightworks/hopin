@@ -97,15 +97,18 @@ function moreItems() {
 /** Plays one voice at a time, a newer one replacing the playing one; a voice that cannot be fetched or played leaves its line as text. */
 function createVoicePlayer() {
     let releaseCurrent: (() => void) | null = null;
-    let generation = 0;
+    let requested = 0;
+    let playingSequence = 0;
 
     function stop() {
-        generation += 1;
+        playingSequence = requested + 1;
         releaseCurrent?.();
         releaseCurrent = null;
     }
 
-    function begin(blob: Blob) {
+    function begin(blob: Blob, sequence: number) {
+        if (sequence < playingSequence) return;
+        playingSequence = sequence;
         releaseCurrent?.();
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
@@ -119,12 +122,13 @@ function createVoicePlayer() {
     }
 
     async function play(path: string) {
-        const turn = generation;
+        requested += 1;
+        const sequence = requested;
         try {
             const response = await fetch(path);
             if (!response.ok) return;
             const blob = await response.blob();
-            if (turn === generation) begin(blob);
+            begin(blob, sequence);
         } catch {
             // The line stays text.
         }
