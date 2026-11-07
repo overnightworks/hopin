@@ -1,7 +1,0 @@
-claim_id = "8849b5fa119340d0ace7d55d0757c6c6"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "60b16110c881fa3c27bd66ffba72d25b472e88ed"
-branch = "claude/issue-563-webauth-0-32-0"
-scope = ["pyproject.toml", "tests/auth/test_gate.py", "uv.lock"]
-opened_commit = "ebb443d404f087d0ced988f3a072af424e5e9ff5"
