@@ -19,7 +19,7 @@ from hopin.participation.vocabulary import (
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
@@ -188,7 +188,7 @@ class Participation:
         await self._send_to_room(agent.room_id, _left_frame(agent))
         await logger.ainfo("agent_left", room_id=agent.room_id, agent_id=agent.agent_id)
 
-    async def _announce_joined(self, agent: DialedAgent, peer_ids: list[PeerId], sponsor_name: str) -> None:
+    async def _announce_joined(self, agent: DialedAgent, peer_ids: Sequence[str], sponsor_name: str) -> None:
         """Tell the seats of the agent's tile, each only while the agent is still in the call."""
         frame = _joined_frame(agent, sponsor_name)
         for peer_id in peer_ids:

@@ -12,7 +12,7 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
 )
 from tests.participation.support.people import person_named, room_of
-from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, Hold, HeldClose, host_and_guest
+from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, HeldClose, Hold, host_and_guest
 
 pytestmark = pytest.mark.integration
 
@@ -25,11 +25,6 @@ def agent_frames(browser, signal):
 
 def without_seq(frames):
     return [{key: value for key, value in frame.items() if key != "seq"} for frame in frames]
-
-
-async def _until(condition):
-    while not condition():
-        await asyncio.sleep(0)
 
 
 async def dial(participation, browser, name=NAME):
@@ -200,12 +195,19 @@ class TestJoiningOneLiveSeat:
             await send_text(text)
 
         slow.socket.send_text = hold_the_tile_only
+        last_told_of_the_leaving = asyncio.Event()
+        last_send_text = last.socket.send_text
+
+        async def note_the_leaving(text):
+            await last_send_text(text)
+            if ParticipationSignal.AGENT_LEFT.value in text:
+                last_told_of_the_leaving.set()
+
+        last.socket.send_text = note_the_leaving
         dialing = asyncio.create_task(dial(participation, guest))
         await slow_write.reached()
         leaving = asyncio.create_task(guest.drop(code=1000))
-        await asyncio.wait_for(
-            _until(lambda: agent_frames(last, ParticipationSignal.AGENT_LEFT)), timeout=SETTLE_TIMEOUT_SECONDS
-        )
+        await asyncio.wait_for(last_told_of_the_leaving.wait(), timeout=SETTLE_TIMEOUT_SECONDS)
 
         slow_write.release.set()
         await asyncio.gather(dialing, leaving)
