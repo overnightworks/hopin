@@ -29,9 +29,11 @@ Press "Start a call" and share the generated link.
 
 ## Run in a Container
 
-`compose.yaml` owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
+HopIn runs on the platform (k3s with Flux) from its attested private image in GHCR; the platform's repository owns its manifests and the live settings. [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs. Two gaps hold there today ([platform#46](https://github.com/overnightworks/platform/issues/46)): the quiz master reads unavailable, and Keycloak's back-channel logout does not reach HopIn.
 
-A release is the `Release` workflow, which the operator dispatches with a version `YYYY.MM.DD.N`. It gates `main`, builds and attests the image in GHCR and tags `vYYYY.MM.DD.N`. Production today runs from edge's catalog: `hal apply` takes the newest `v…` tag and publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands, and [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs.
+`compose.yaml` serves only the rollback path on hal. It owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
+
+A release is the `Release` workflow, which the operator dispatches with a version `YYYY.MM.DD.N`. It gates `main`, builds and attests the image in GHCR and tags `vYYYY.MM.DD.N`. The image ref reaches production in a platform pull request the operator merges. On the rollback path, edge's catalog applies instead: `hal apply` takes the newest `v…` tag and publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands.
 
 ## A Person's Data
 
@@ -49,13 +51,13 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ### Erasing a person
 
-Remove the person from `/apps/hopin` in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves) then makes HopIn drop the person; a second logout for the same person, or one for a person HopIn does not know, changes nothing, and a logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
+Remove the person from `/apps/hopin` in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves) drops the person from HopIn. Today it does not reach HopIn on the platform ([platform#46](https://github.com/overnightworks/platform/issues/46)), so there the session lasts until its 12-hour lifetime ends. The steps below hold once the logout arrives. A second logout for the same person, or one for a person HopIn does not know, changes nothing. A logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
 
-- **Removed at once:** every session of the person, refresh and ID tokens included, and their account.
+- **Removed at once, once the logout arrives:** every session of the person, refresh and ID tokens included, and their account.
 - **Removed within 60 seconds:** the person's own seats in calls, with the resume token and the frames held for it. A seat closes at the person's next frame or at the next minute check, or, for a seat whose connection dropped, when its 30-second wait ends. A call the person hosts ends for everyone after a further 60-second wait.
 - **Stays until it ends by itself:** the person's answers and name in a running quiz, until the quiz ends; frames that already reached other participants (the person's name, chat lines, media state, and offers, answers and connection candidates, which carry network addresses) stay in those participants' replay buffers, at most 256 frames per seat, until newer frames push them out or that participant's seat ends. A call the person hosts keeps their account as its host until it ends. The `account_event` log lines (`user_created`, `role_changed`, `backchannel_logout`) keep the person's Keycloak id until the host's log period ends.
 
-Afterwards the export shows no account and no sessions, and no seats once the calls have closed.
+Once the logout has arrived, the export shows no account and no sessions, and no seats once the calls have closed.
 
 ## Configuration
 
