@@ -124,8 +124,10 @@ def running_hopin(
     tls_directory: Path,
     call_feature: CallFeatureBuilder | None = None,
     page_build_directory: Path = BUILD_DIRECTORY,
+    *,
+    participation: bool = False,
 ) -> Iterator[RunningServer]:
-    """Serve HopIn over https on `loopback`, with participation and the given feature when there is one.
+    """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for.
 
     The page comes from `page_build_directory`, so a test can serve a copy it changes.
     """
@@ -136,7 +138,7 @@ def running_hopin(
         issuer_transports=loopback.issuer.transports,
         call_features=(
             *(() if call_feature is None else (call_feature,)),
-            ParticipationFeature(loopback.sign_in.settings.public_origin),
+            *((ParticipationFeature(loopback.sign_in.settings.public_origin),) if participation else ()),
         ),
     )
     key_file, certificate_file = _write_self_signed_certificate(tls_directory)
