@@ -35,10 +35,6 @@ class CallRooms:
         """The name the call shows for the seat; the seat must exist."""
         return self._routing.seats.account_of(peer_id).name
 
-    def account_id_of(self, peer_id: PeerId) -> str:
-        """The id of the account behind the seat; the seat must exist."""
-        return self._routing.seats.account_of(peer_id).id
-
     def seats_in(self, room_id: str, account_id: str) -> list[PeerId]:
         """The seats the account holds in the room now, parked ones included."""
         return [
