@@ -1,8 +1,0 @@
-claim_id = "e3fbd510934547a282af249162311fe9"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "d489c4c04bf91ccb6e7013161f728ea10f27d491"
-branch = "claude/issue-572-bump-speech-and-agent-runtime"
-scope = ["pyproject.toml", "src/hopin/agent/backend.py", "src/hopin/agent/speech.py", "src/hopin/game", "tests", "uv.lock"]
-opened_commit = "a038c8d2fd193e87207ee952da83f9e2c5359fc5"
-whole_reason = "Two client bumps on neighbouring pin lines of one lockfile; the speech bump forces type and refusal changes at every caller, and the tests are those callers."
