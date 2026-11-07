@@ -96,7 +96,7 @@ EXPECTED_CONTENT_SECURITY_POLICY = (
     f"script-src 'self' '{FIXTURE_SCRIPT_HASH}'; "
     f"style-src 'self' {ANNOUNCER_STYLE_SOURCES}; "
     "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; "
-    "manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; form-action 'self'"
+    "manifest-src 'self'; worker-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'"
 )
 IMMUTABLE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 SESSION_LIFETIME = timedelta(hours=12)
