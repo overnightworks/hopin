@@ -12,7 +12,7 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
 )
 from tests.participation.support.people import person_named, room_of
-from tests.signaling.support.browsers import HeldClose, host_and_guest
+from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, Hold, HeldClose, host_and_guest
 
 pytestmark = pytest.mark.integration
 
@@ -25,6 +25,11 @@ def agent_frames(browser, signal):
 
 def without_seq(frames):
     return [{key: value for key, value in frame.items() if key != "seq"} for frame in frames]
+
+
+async def _until(condition):
+    while not condition():
+        await asyncio.sleep(0)
 
 
 async def dial(participation, browser, name=NAME):
@@ -161,6 +166,51 @@ class TestJoiningOneLiveSeat:
         closing.release.set()
         await ending
         assert answered is AgentRefusal.GONE
+
+    async def test_call_48_a_late_joiner_is_not_shown_an_agent_whose_seat_is_leaving(
+        self, link, participation, scheduler
+    ):
+        """CALL-48: A seat that joins while an agent's seat is leaving is shown no tile for it."""
+        host, guest = await host_and_guest(link)
+        await dial(participation, guest)
+        guest.socket.account = None
+        closing = HeldClose(guest.socket)
+        ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+
+        late = await link.join("late", room_of(host))
+
+        closing.release.set()
+        await ending
+        assert agent_frames(late, ParticipationSignal.AGENT_JOINED) == []
+
+    async def test_call_48_a_join_still_being_announced_does_not_show_the_tile_of_an_agent_that_left(
+        self, link, participation
+    ):
+        """CALL-48: Seats not yet told of an agent are never told once it has left."""
+        host, guest = await host_and_guest(link)
+        slow = await link.join("slow", room_of(host))
+        last = await link.join("last", room_of(host))
+        slow_write = Hold()
+        send_text = slow.socket.send_text
+
+        async def hold_the_tile_only(text):
+            if ParticipationSignal.AGENT_JOINED.value in text:
+                await slow_write.hold()
+            await send_text(text)
+
+        slow.socket.send_text = hold_the_tile_only
+        dialing = asyncio.create_task(dial(participation, guest))
+        await slow_write.reached()
+        leaving = asyncio.create_task(guest.drop(code=1000))
+        await asyncio.wait_for(
+            _until(lambda: agent_frames(last, ParticipationSignal.AGENT_LEFT)), timeout=SETTLE_TIMEOUT_SECONDS
+        )
+
+        slow_write.release.set()
+        await asyncio.gather(dialing, leaving)
+
+        assert agent_frames(last, ParticipationSignal.AGENT_JOINED) == []
 
     async def test_call_48_a_seat_that_resumes_within_its_window_keeps_its_agent(self, link, participation, scheduler):
         """CALL-48: A seat that resumes inside its window keeps its agent, and nobody is told it left."""

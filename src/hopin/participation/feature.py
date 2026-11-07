@@ -120,7 +120,7 @@ class Participation:
             return AgentRefusal.BUSY
         agent = DialedAgent(secrets.token_hex(AGENT_ID_BYTES), agent_name, person, sponsor, room_id)
         self._agents[agent.agent_id] = agent
-        await self._send_to_room(room_id, _joined_frame(agent, self._rooms.name_of(sponsor)))
+        await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(sponsor))
         await logger.ainfo("agent_dialed_in", room_id=room_id, agent_id=agent.agent_id)
         return agent
 
@@ -157,7 +157,8 @@ class Participation:
         """Show a seat that just joined the agents already in its room."""
         room_id = self._rooms.room_of(peer_id)
         for agent in [agent for agent in self._agents.values() if agent.room_id == room_id]:
-            await self._rooms.send(peer_id, _joined_frame(agent, self._rooms.name_of(agent.sponsor)))
+            if self._rooms.room_of(agent.sponsor) == room_id:
+                await self._announce_joined(agent, [peer_id], self._rooms.name_of(agent.sponsor))
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
         """A seat that left for good takes its agents with it."""
@@ -186,6 +187,14 @@ class Participation:
         del self._agents[agent.agent_id]
         await self._send_to_room(agent.room_id, _left_frame(agent))
         await logger.ainfo("agent_left", room_id=agent.room_id, agent_id=agent.agent_id)
+
+    async def _announce_joined(self, agent: DialedAgent, peer_ids: list[PeerId], sponsor_name: str) -> None:
+        """Tell the seats of the agent's tile, each only while the agent is still in the call."""
+        frame = _joined_frame(agent, sponsor_name)
+        for peer_id in peer_ids:
+            if agent.agent_id not in self._agents:
+                return
+            await self._rooms.send(peer_id, frame)
 
     async def _send_to_room(self, room_id: str, frame: JsonObject) -> None:
         for peer_id in self._rooms.members(room_id):
