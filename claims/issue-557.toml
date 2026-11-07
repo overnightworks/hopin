@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "aa040900833b71ce6f4a8bac6c9ef25140814be8"
 branch = "claude/issue-557-take-agent-runtime-0-23-0"
-scope = ["pyproject.toml", "tests", "uv.lock"]
+scope = ["pyproject.toml", "src/hopin/agent/backend.py", "tests", "uv.lock"]
 opened_commit = "8d615e28eebb24d267cc7fe179ab6b0174cb4092"
 whole_reason = "One release take: the pin, the lock and the test rows that name removed members must land together or the suite breaks."
