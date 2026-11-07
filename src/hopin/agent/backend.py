@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
 from agent_runtime_client.agents import load_agent
-from agent_runtime_client.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopKind, TurnStopped
+from agent_runtime_client.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopped
 from agent_runtime_client.backend.gateway import GatewayBackend
-from agent_runtime_client.turn import AgentRole, Principal, RejectionCode, TurnMessage, TurnRole
+from agent_runtime_client.turn import AgentRole, FailureCode, Principal, RejectionCode, TurnMessage, TurnRole
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
 from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
@@ -40,7 +40,6 @@ QUIZ_AGENT_FILE: Final = Path(__file__).parent.parent / "agents" / "quiz.md"
 CUT_MARK: Final = "…"
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: TurnRole.ASSISTANT}
-NO_ACCESS_CODES: Final = frozenset({RejectionCode.NOT_ENABLED, RejectionCode.FORBIDDEN})
 
 
 def gateway_backend(settings: AgentSettings) -> QuizBackend:
@@ -161,14 +160,16 @@ def _outcome_of_event(event: TurnEvent) -> GameOutcome | None:
 
 def _refusal_of_stop(stopped: TurnStopped) -> Refused:
     code = stopped.code
-    _log_refusal(kind=stopped.kind.value, code=None if code is None else code.value, detail=stopped.detail)
-    if stopped.kind is not TurnStopKind.REFUSED:
-        return UNAVAILABLE
-    if code in NO_ACCESS_CODES:
-        return Refused(GameRefusal.NO_ACCESS)
-    if code is RejectionCode.BUSY:
-        return Refused(GameRefusal.BUSY, retry_after_seconds=_busy_wait(stopped.retry_after_s))
-    return UNAVAILABLE
+    _log_refusal(kind=stopped.kind.value, code=code.value, detail=stopped.detail)
+    match code:
+        case RejectionCode.NOT_ENABLED | RejectionCode.FORBIDDEN:
+            return Refused(GameRefusal.NO_ACCESS)
+        case RejectionCode.BUSY:
+            return Refused(GameRefusal.BUSY, retry_after_seconds=_busy_wait(stopped.retry_after_s))
+        case FailureCode():
+            return UNAVAILABLE
+        case _:  # pragma: no cover - the type checker proves the match exhaustive
+            assert_never(code)
 
 
 def _busy_wait(retry_after_seconds: int | None) -> int:
