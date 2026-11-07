@@ -483,6 +483,20 @@ describe("the game master's voice", () => {
         expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1", "blob:voice-2"]);
     });
 
+    it("GM-32: starts a voice whose fetch finished after a newer voice's fetch", async () => {
+        const deliveries = new Map<string, (response: Response) => void>();
+        stubbedVoicePlayback((url) => new Promise<Response>((resolve) => void deliveries.set(url, resolve)));
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
+
+        deliveries.get(voiceFrame("voice-two").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
+        deliveries.get(voiceFrame("voice-one").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
+        await settled();
+
+        expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1", "blob:voice-2"]);
+    });
+
     it("GM-34: leaves the line as text when the voice is missing", async () => {
         stubbedVoicePlayback(() => Promise.resolve(new Response(null, { status: 404 })));
         const game = await installedGame();

@@ -94,21 +94,20 @@ function moreItems() {
     };
 }
 
-/** Plays one voice at a time, a newer one replacing the playing one; a voice that cannot be fetched or played leaves its line as text. */
+/** Plays one voice at a time: the voice whose fetch finishes last replaces the playing one, and a stop drops every voice still being fetched; a voice that cannot be fetched or played leaves its line as text. */
 function createVoicePlayer() {
     let releaseCurrent: (() => void) | null = null;
     let requested = 0;
-    let playingSequence = 0;
+    let stoppedThrough = 0;
 
     function stop() {
-        playingSequence = requested + 1;
+        stoppedThrough = requested;
         releaseCurrent?.();
         releaseCurrent = null;
     }
 
     function begin(blob: Blob, sequence: number) {
-        if (sequence < playingSequence) return;
-        playingSequence = sequence;
+        if (sequence <= stoppedThrough) return;
         releaseCurrent?.();
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);

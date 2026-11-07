@@ -30,7 +30,7 @@ flowchart LR
     A & B & C -. media, only when a direct path fails .-> R[TURN relay, optional]
     hopin -. TURN credentials, https .-> R
     hopin -. quiz run, http, HopIn's key .-> AG[LiteLLM gateway]
-    hopin -. refresh grant, the tapper's groups; client-credentials grant, the voice .-> K
+    hopin -. refresh grant, the tapper's groups and the starter's access token for the voice; client-credentials grant, the voice .-> K
     hopin -. spoken lines, http, the tapper's and HopIn's tokens .-> SP[Speech service]
 ```
 
