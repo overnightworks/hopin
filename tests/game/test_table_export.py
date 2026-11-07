@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
+from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature
 from hopin.app import create_app
@@ -48,9 +49,13 @@ def quiz_call(sign_in_settings, stores):
 class TestExportAfterAGame:
     def test_holds_no_game_text_and_counts_the_game_frames_among_the_replay_frames(self, quiz_call, stores):
         client, issuer, config, question = quiz_call
-        anna_account = stores.accounts.create_for_subject("anna", "anna", AppRole.USER)
+        anna_account = stores.accounts.create_for_subject("anna", "anna", AppRole.USER, kind=AccountKind.PERSON)
         anna = seed_member(stores, config, account=anna_account, refresh_token=issuer.refresh_token_for("anna"))
-        olga = seed_member(stores, config, account=stores.accounts.create_for_subject("olga", "olga", AppRole.ADMIN))
+        olga = seed_member(
+            stores,
+            config,
+            account=stores.accounts.create_for_subject("olga", "olga", AppRole.ADMIN, kind=AccountKind.PERSON),
+        )
         with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(anna)) as socket:
             socket.send_json({"type": SignalType.JOIN.value})
             socket.receive_json()
