@@ -120,9 +120,9 @@ export class Quiz {
         return { name: GAME_MASTER_NAME, activity };
     }
 
-    /** Whether the quiz runs with voices on, which is when the person can mute them. */
+    /** Whether a voiced line of this quiz played or plays, for as long as the quiz master's tile shows. */
     get voiceToggleShown() {
-        return this.#phase !== GAME_PHASE.IDLE && this.#voicesOffered;
+        return this.#voicesOffered && this.agentTile !== null;
     }
 
     get voiceMuted() {
@@ -159,12 +159,12 @@ export class Quiz {
     }
 
     receivePhase(frame: PhaseFrame) {
+        if (this.#phase === GAME_PHASE.IDLE && frame.phase !== GAME_PHASE.IDLE) this.#voicesOffered = false;
         this.#phase = frame.phase;
         this.#awaitingAnswer = false;
         if (frame.phase === GAME_PHASE.IDLE) {
             this.#quizRound = null;
             this.#question = null;
-            this.#voicesOffered = false;
         } else {
             this.#quizRound = { round: frame.round, rounds: frame.rounds, starter: frame.starter };
         }

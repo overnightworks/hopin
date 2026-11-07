@@ -310,7 +310,7 @@ describe("a seat that joins or a call that ends", () => {
 });
 
 describe("the quiz master's voice toggle", () => {
-    it("GM-37: shows only while a quiz runs with voices on", () => {
+    it("GM-37: shows from the first voiced line until the tile goes", () => {
         const { quiz } = seatedQuiz();
         const shown = [quiz.voiceToggleShown];
 
@@ -320,8 +320,26 @@ describe("the quiz master's voice toggle", () => {
         shown.push(quiz.voiceToggleShown);
         quiz.receivePhase({ phase: GAME_PHASE.IDLE });
         shown.push(quiz.voiceToggleShown);
+        quiz.voiceFrameArrived();
+        shown.push(quiz.voiceToggleShown);
 
-        expect(shown).toEqual([false, false, true, false]);
+        expect(shown).toEqual([false, false, true, true, false]);
+    });
+
+    it("GM-37: stays while the final line's voice plays and goes with the tile once muting ends that voice", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        quiz.receiveLine({ text: "Final score", voiced: true });
+        quiz.receivePhase({ phase: GAME_PHASE.IDLE });
+        quiz.voiceFrameArrived();
+        quiz.voiceRequested("voice-one");
+        quiz.voiceStarted("voice-one");
+        const shownWhilePlaying = quiz.voiceToggleShown;
+
+        quiz.toggleVoiceMuted();
+        quiz.voiceEnded("voice-one");
+
+        expect([shownWhilePlaying, quiz.voiceToggleShown, quiz.agentTile]).toEqual([true, false, null]);
     });
 
     it("GM-37: holds the choice for the call, and a new call starts with the voice on", () => {
