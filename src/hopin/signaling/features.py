@@ -1,9 +1,10 @@
+from collections import Counter
 from typing import TYPE_CHECKING, Protocol
 
 from hopin.config.constants import SignalType
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
@@ -34,6 +35,22 @@ class CallRooms:
         """The name the call shows for the seat; the seat must exist."""
         return self._routing.seats.account_of(peer_id).name
 
+    def account_id_of(self, peer_id: PeerId) -> str:
+        """The id of the account behind the seat; the seat must exist."""
+        return self._routing.seats.account_of(peer_id).id
+
+    def seats_in(self, room_id: str, account_id: str) -> list[PeerId]:
+        """The seats the account holds in the room now, parked ones included."""
+        return [
+            peer_id
+            for peer_id, _ in self._routing.seats.held_by(account_id)
+            if self._routing.room_of(peer_id) == room_id
+        ]
+
+    def is_parked(self, peer_id: PeerId) -> bool:
+        """Whether the seat has lost its socket and waits for a resume; the seat must exist."""
+        return self._routing.seats.seat(peer_id).park is not None
+
     def is_host(self, peer_id: PeerId) -> bool:
         """Whether the seat's account hosts the call it sits in; the seat must be in a room."""
         room_id = self.room_of(peer_id)
@@ -47,7 +64,7 @@ class CallRooms:
 
 
 class CallFeature(Protocol):
-    """The one optional feature a call can carry, offered every frame the call core does not know."""
+    """An optional feature of the call, offered each frame whose type it declares."""
 
     @property
     def name(self) -> str:
@@ -60,7 +77,7 @@ class CallFeature(Protocol):
         generated wire."""
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        """Handle the frame and say so, or say it is none of the feature's."""
+        """Handle a frame of a type the feature declared and say so, or say it is none of the feature's."""
 
     async def seat_joined(self, peer_id: PeerId) -> None:
         """A seat has just joined a room; a resumed seat has not."""
@@ -81,18 +98,32 @@ type FeatureFactory = Callable[[CallRooms], CallFeature]
 
 
 class FeatureClashError(ValueError):
-    """A feature names something the call core already owns; the call core refuses it at start."""
+    """Features reuse a name the call core or another feature already owns; the call core refuses them at start."""
 
     def __init__(self, clashes: list[str]) -> None:
-        super().__init__(f"The call's feature reuses the call core's {', '.join(clashes)}")
+        super().__init__(f"The call's features reuse {', '.join(clashes)}")
 
 
-def build_feature(factory: FeatureFactory, rooms: CallRooms) -> CallFeature:
-    feature = factory(rooms)
-    clashes = sorted(
-        {name for name in feature.signal_types if name in SignalType.__members__}
-        | {value for value in feature.signal_types.values() if value in SignalType}
-    )
+def build_features(factories: Sequence[FeatureFactory], rooms: CallRooms) -> tuple[CallFeature, ...]:
+    features = tuple(factory(rooms) for factory in factories)
+    clashes = _clashes(features)
     if clashes:
         raise FeatureClashError(clashes)
-    return feature
+    return features
+
+
+def _clashes(features: tuple[CallFeature, ...]) -> list[str]:
+    core = {name for feature in features for name in feature.signal_types if name in SignalType.__members__} | {
+        value for feature in features for value in feature.signal_types.values() if value in SignalType
+    }
+    between_features = {
+        name
+        for counted in (
+            Counter(feature.name for feature in features),
+            Counter(name for feature in features for name in feature.signal_types),
+            Counter(value for feature in features for value in feature.signal_types.values()),
+        )
+        for name, uses in counted.items()
+        if uses > 1
+    }
+    return sorted(core | between_features)

@@ -14,8 +14,9 @@ from hopin.game.voice import VoiceStore, create_voice_router
 if TYPE_CHECKING:
     from fastapi import APIRouter
     from webauth.config import WebAuthConfig
+    from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore
+    from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.agent.backend import QuizBackend
     from hopin.signaling.features import FeatureFactory
@@ -33,6 +34,7 @@ class BuiltGameFeature:
 
     factory: FeatureFactory
     router: APIRouter
+    bearer_resource: ProtectedResource | None = None
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,9 @@ class GameFeature:
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
+        transaction: SignInTransaction,
     ) -> BuiltGameFeature:
+        del transaction
         starter_person = StarterPerson(relying_party, sessions, auth_config)
         voices = VoiceStore()
         factory = partial(

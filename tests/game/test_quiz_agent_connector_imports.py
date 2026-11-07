@@ -9,6 +9,11 @@ HTTP_LIBRARY = "httpx2"
 BACKEND_MODULE = SOURCE / "agent" / "backend.py"
 SETTINGS_MODULE = SOURCE / "agent" / "settings.py"
 CLIENT_CONFIG = f"{CLIENT}.config"
+# The tools name only the client's tool contract, and the MCP module only the MCP profile and that contract.
+CLIENT_PARTS_OF = {
+    SOURCE / "agent" / "tools.py": {f"{CLIENT}.tools"},
+    SOURCE / "agent" / "mcp.py": {f"{CLIENT}.mcp_server", f"{CLIENT}.mcp_wire", f"{CLIENT}.tools"},
+}
 SPEECH_CLIENT = "speech_runtime_client"
 SPEECH_MODULE = SOURCE / "agent" / "speech.py"
 
@@ -39,6 +44,9 @@ def test_only_the_connector_names_the_client_and_only_its_settings_name_the_clie
         assert client_config == set()
     elif path == SETTINGS_MODULE:
         assert client == client_config
+    elif path in CLIENT_PARTS_OF:
+        assert client_config == set()
+        assert all(any(names(module, part) for part in CLIENT_PARTS_OF[path]) for module in client)
     else:
         assert client == set()
 

@@ -39,7 +39,7 @@ def quiz_call(sign_in_settings, stores):
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
-        call_feature=GameFeature(backend),
+        call_features=(GameFeature(backend),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client:
         yield client, issuer, installed_web_auth_config(app), question

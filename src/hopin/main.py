@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, TypedDict
 import uvicorn
 
 from hopin.agent.feature import configured_game_feature  # game
+from hopin.agent.mcp import ParticipationFeature
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
@@ -46,7 +47,10 @@ def main(arguments: Sequence[str] | None = None) -> None:
     app = create_app(
         settings,
         page_build=PageBuild.load(BUILD_DIRECTORY),
-        call_feature=configured_game_feature(),  # game
+        call_features=(
+            configured_game_feature(),  # game
+            ParticipationFeature(settings.public_origin),
+        ),
     )
     uvicorn.run(app, **uvicorn_options(settings))
 

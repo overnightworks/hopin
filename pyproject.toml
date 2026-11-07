@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agent-runtime-client[backend] @ git+https://github.com/overnightworks/agent-runtime@v0.23.0",
+    "overnightworks-agent-runtime-client[backend,mcp-server] @ git+https://github.com/overnightworks/agent-runtime@v0.23.0",
     "overnightworks-speech-runtime-client @ git+https://github.com/overnightworks/speech-runtime@v0.3.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.32.0",
     "pydantic>=2.10",
@@ -27,7 +27,7 @@ build-backend = "hatchling.build"
 # The two overnightworks libraries are built from their git tags; a named package
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
-    "overnightworks-agent-runtime-client",  # game
+    "overnightworks-agent-runtime-client",
     "overnightworks-speech-runtime-client",  # game
     "overnightworks-webauth",
 ]

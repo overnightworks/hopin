@@ -1,4 +1,4 @@
-"""Write the browser's typed copies of the wire vocabulary: the core's, and the game's beside the game.
+"""Write the browser's typed copies of the wire vocabulary: the core's, and each feature's beside the feature.
 
 The Python enums and constants own the vocabulary; this generator renders them as
 TypeScript string enums and typed constants. `--check` writes nothing and fails when a
@@ -30,6 +30,7 @@ from hopin.config.constants import (  # noqa: E402
     SignalType,
 )
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
+from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
 from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
     SEQUENCE_KEY,
@@ -187,6 +188,7 @@ def outputs(root: Path) -> dict[Path, str]:
     return {
         root / CORE_OUTPUT: render_core(),
         root / "frontend/src/lib/features/game/wire.ts": _generated_file(_enums(BROWSER_ENUMS)),  # game
+        root / "frontend/src/lib/features/participation/wire.ts": _generated_file(_enums(PARTICIPATION_BROWSER_ENUMS)),
     }
 
 

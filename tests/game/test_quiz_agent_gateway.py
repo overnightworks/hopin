@@ -13,7 +13,6 @@ from agent_runtime_client.backend.fake_gateway import FakeGateway, Reply, comple
 from agent_runtime_client.backend.gateway import GatewayBackend, GatewayDetail
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
-from hopin.agent.tools import TOOLS
 from hopin.game.quiz import QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GamePhase, GameRefusal
 from tests.game.support.call_world import IDLE, asked, phase, refused, serving_call
@@ -82,11 +81,15 @@ def test_a_member_of_the_api_group_starts_a_quiz_and_every_seat_reads_the_gatewa
     assert len(gateway.requests) == 1
 
 
-def test_the_quiz_has_no_tools_and_no_capability_front_is_mounted(quiz_on_gateway):
-    call, _ = quiz_on_gateway()
+def test_the_quiz_offers_the_gateway_no_tools(quiz_on_gateway):
+    call, gateway = quiz_on_gateway()
+    host, _ = call.seat(call.member(groups=(API_GROUP,)))
 
-    assert TOOLS == ()
-    assert [route.path for route in call.client.app.routes if "mcp" in getattr(route, "path", "")] == []
+    host.start()
+    host.frames(3)
+
+    _, body = first_post_of(gateway)
+    assert "tools" not in body
 
 
 def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_turn_and_nothing_else(quiz_on_gateway):
@@ -98,7 +101,7 @@ def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_tur
     host.frames(3)
 
     _, body = first_post_of(gateway)
-    agent = load_agent(QUIZ_AGENT_FILE, list(TOOLS))
+    agent = load_agent(QUIZ_AGENT_FILE, [])
     [system, turn] = body["messages"]
     assert sorted(body) == ["messages", "model", "user"]
     assert body["model"] == agent.model

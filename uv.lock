@@ -364,7 +364,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "overnightworks-agent-runtime-client", extra = ["backend"] },
+    { name = "overnightworks-agent-runtime-client", extra = ["backend", "mcp-server"] },
     { name = "overnightworks-speech-runtime-client" },
     { name = "overnightworks-webauth" },
     { name = "pydantic" },
@@ -392,7 +392,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
-    { name = "overnightworks-agent-runtime-client", extras = ["backend"], git = "https://github.com/overnightworks/agent-runtime?rev=v0.23.0" },
+    { name = "overnightworks-agent-runtime-client", extras = ["backend", "mcp-server"], git = "https://github.com/overnightworks/agent-runtime?rev=v0.23.0" },
     { name = "overnightworks-speech-runtime-client", git = "https://github.com/overnightworks/speech-runtime?subdirectory=packages%2Fclient&rev=v0.3.0" },
     { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.32.0" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -618,6 +618,9 @@ dependencies = [
 [package.optional-dependencies]
 backend = [
     { name = "httpx2" },
+]
+mcp-server = [
+    { name = "anyio" },
 ]
 
 [[package]]

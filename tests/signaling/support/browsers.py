@@ -17,6 +17,7 @@ class Browser:
         self.name = name
         self.sockets = []
         self.peer_id = None
+        self.room_id = None
         self.token = None
         self.sent_count = 0
 
@@ -96,6 +97,7 @@ class Link:
         browser.sockets.append(await self.open(account_named(name)))
         await browser.send_raw({"type": SignalType.JOIN.value, "room_id": room_id})
         first_reply = browser.sockets[0].sent[0]
+        browser.room_id = first_reply.get("room_id", room_id)
         if "resume_token" in first_reply:
             browser.take_credentials(first_reply)
         return browser

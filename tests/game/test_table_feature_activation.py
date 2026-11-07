@@ -31,4 +31,4 @@ def test_the_app_main_starts_offers_a_member_the_game_as_the_calls_feature(
         served_app, base_url=TEST_PUBLIC_ORIGIN, headers={"cookie": cookie_header(member.set_cookie_headers)}
     )
 
-    assert member_browser.get(CALL_FEATURES_PATH).json() == {"features": [FEATURE_NAME]}
+    assert FEATURE_NAME in member_browser.get(CALL_FEATURES_PATH).json()["features"]

@@ -8,7 +8,6 @@ from pydantic import ValidationError
 from hopin.agent.backend import QUIZ_AGENT_FILE
 from hopin.agent.feature import GameFeature, configured_game_feature
 from hopin.agent.settings import AgentSettings, SpeechSettings
-from hopin.agent.tools import TOOLS
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, VOICE_DEADLINE_SECONDS
 
 pytestmark = pytest.mark.integration
@@ -91,7 +90,7 @@ def test_a_malformed_agent_setting_fails_when_the_settings_load_and_echoes_no_in
 
 
 def test_the_quiz_agent_file_and_a_voice_wait_end_inside_the_tables_deadline():
-    agent = load_agent(QUIZ_AGENT_FILE, list(TOOLS))
+    agent = load_agent(QUIZ_AGENT_FILE, [])
 
     assert agent.max_duration_seconds + VOICE_DEADLINE_SECONDS < GAME_RUN_DEADLINE_SECONDS
 
