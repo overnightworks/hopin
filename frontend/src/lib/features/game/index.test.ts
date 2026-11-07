@@ -173,9 +173,9 @@ describe("installing the game", () => {
     it("adds Start quiz and the privacy note to More, and resolves", async () => {
         const game = await installedGame();
 
-        expect(game.moreItems.map((item) => item.tagName)).toEqual(["BUTTON", "BUTTON", "P"]);
+        expect(game.moreItems.map((item) => item.tagName)).toEqual(["BUTTON", "P", "BUTTON"]);
         expect(game.startButton.textContent).toContain("Start quiz");
-        expect(game.moreItems[2]?.textContent).toContain("Datenschutz");
+        expect(game.moreItems[1]?.textContent).toContain("Datenschutz");
     });
 });
 
