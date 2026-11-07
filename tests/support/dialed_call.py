@@ -12,8 +12,9 @@ from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERS
 from fastapi.testclient import TestClient
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
+from webauth.ports import AccountKind
 
-from hopin.agent.mcp import MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, ParticipationFeature
+from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, ParticipationFeature
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
@@ -54,7 +55,8 @@ class Seat:
     def settle(self):
         """Wait until the server has finished handling the join: it handles a seat's frames one after another, so
         the answer to a later frame comes after everything the join does. Only the host of a call may lock it."""
-        self._socket.send_json({"type": SignalType.LOCK_ROOM.value, "seq": 1})
+        self._sent += 1
+        self._socket.send_json({"type": SignalType.LOCK_ROOM.value, "seq": self._sent})
         assert self.next_frame()["type"] == SignalType.ROOM_LOCKED.value
 
     def next_frame(self):
@@ -85,7 +87,7 @@ class DialedCall:
     def member(self, *, role=AppRole.USER):
         config = installed_web_auth_config(self.client.app)
         name = f"member-{secrets.token_hex(4)}"
-        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role)
+        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role, kind=AccountKind.PERSON)
         return account, seed_member(self.stores, config, account=account)
 
     def seated(self):
@@ -120,6 +122,17 @@ class DialedCall:
             scope=scope,
             groups=groups,
             issued_at=int(time.time()) - age_seconds,
+        )
+
+    def agent_token(self, subject="agent-subject", *, owner="owner-subject", name="Claude"):
+        """The token of an agent's own account: client credentials shape, any client, no username."""
+        return self.issuer.access_token(
+            subject,
+            audience=self.audience,
+            authorized_party="some-agent-client",
+            scope=MCP_SCOPE,
+            groups=(AGENT_GROUP, MCP_GROUP),
+            extra_claims={"agent_owner": owner, "agent_name": name},
         )
 
     def call(self, token, tool, arguments, **headers):

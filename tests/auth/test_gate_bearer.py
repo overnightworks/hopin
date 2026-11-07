@@ -95,3 +95,11 @@ class TestWhoIsLetIn:
         dialed = dialed_call.call(dialed_call.token(account, groups=admin_groups()), JOIN_CALL, join_arguments(seat))
 
         assert (dialed.status, dialed.is_error) == (200, False)
+
+    def test_a_token_of_an_agents_own_account_is_admitted_as_an_agent_and_join_call_answers_no_seat(self, dialed_call):
+        _, _, seat = dialed_call.seated()
+
+        dialed = dialed_call.call(dialed_call.agent_token(), JOIN_CALL, join_arguments(seat))
+
+        assert (dialed.status, dialed.outcome) == (200, {"refused": AgentRefusal.NO_SEAT.value})
+        seat.settle()  # the first frame after the call is the answer to this one, so no tile was announced

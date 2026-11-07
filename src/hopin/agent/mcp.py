@@ -27,9 +27,11 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler
 
 # The realm's objects for HopIn's MCP path: the scope and audience a token carries, the group whose members the
-# gate admits, and the public client an agent signs in with.
+# gate admits, the group of agents' own accounts it admits from any client, and the public client an agent signs in
+# with.
 MCP_SCOPE: Final = "mcp-hopin"
 MCP_GROUP: Final = "/apps/hopin/mcp"
+AGENT_GROUP: Final = "/agents"
 MCP_CLIENT_ID: Final = "agents"
 
 
@@ -95,6 +97,7 @@ class ParticipationFeature:
             url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
             scope=MCP_SCOPE,
             required_group=MCP_GROUP,
+            agent_group=AGENT_GROUP,
             authorized_parties=AuthorizedParties(frozenset({MCP_CLIENT_ID})),
             transaction=transaction,
         )

@@ -149,8 +149,10 @@ class FakeIssuer:
         scope: str,
         groups: tuple[str, ...],
         issued_at: int | None = None,
+        extra_claims: dict[str, object] | None = None,
     ) -> str:
-        """A signed access token (RFC 9068) of a person's agent, valid for the issuer's lifetime from `issued_at`."""
+        """A signed access token (RFC 9068) of a person's agent, valid for the issuer's lifetime from `issued_at`;
+        `extra_claims` add or replace claims."""
         issued = int(time.time()) if issued_at is None else issued_at
         claims = {
             "iss": self._issuer,
@@ -161,6 +163,7 @@ class FakeIssuer:
             "groups": list(groups),
             "iat": issued,
             "exp": issued + TOKEN_LIFETIME_SECONDS,
+            **(extra_claims or {}),
         }
         return jwt.encode(claims, self._key, algorithm="RS256", headers={"kid": KEY_ID, "typ": "at+jwt"})
 
