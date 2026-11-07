@@ -1,0 +1,8 @@
+claim_id = "898699c52f8d46cd99259f1717f64e9c"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "572ddac448812f38f7ae2ba00b12f7eda479c70c"
+branch = "claude/issue-559-agent-dials-in"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/participation", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/lib/ui/stage.svelte.test.ts", "frontend/src/lib/ui/stage.svelte.ts", "pyproject.toml", "scripts/generate_wire.py", "scripts/remove_game.py", "src/hopin/agent", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/main.py", "src/hopin/participation", "src/hopin/signaling/features.py", "src/hopin/signaling/handler.py", "src/hopin/web/call_features.py", "tests/auth", "tests/conftest.py", "tests/e2e/conftest.py", "tests/e2e/participation", "tests/e2e/support", "tests/game", "tests/integration", "tests/participation", "tests/scripts", "tests/signaling", "tests/support", "tests/test_app.py", "tests/test_main.py", "tests/web", "uv.lock"]
+opened_commit = "67a925e2a02ccd88657d76b5ca266ed0293f1453"
+whole_reason = "The seam, the bearer gate, the tools and the presence each have no observable effect without the others: an agent that cannot join proves nothing, and a seam without a caller is dead code."
