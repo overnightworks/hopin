@@ -81,12 +81,12 @@ class TestCreateApp:
             router = APIRouter()
             bearer_resource = object()
 
+        settings = sign_in_settings().settings
+        page_build = fixture_page_build()
+        call_features = (BearerFeature(), BearerFeature())
+
         with pytest.raises(StartRefusedError, match="bearer"):
-            create_app(
-                sign_in_settings().settings,
-                page_build=fixture_page_build(),
-                call_features=(BearerFeature(), BearerFeature()),
-            )
+            create_app(settings, page_build=page_build, call_features=call_features)
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()
