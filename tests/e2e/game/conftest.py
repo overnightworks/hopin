@@ -35,8 +35,10 @@ def _drop_queued_agent_answers(agent_backend: FakeAgentBackend) -> Iterator[None
 def game_server(
     game_sign_in: LoopbackSignIn, agent_backend: FakeAgentBackend, tmp_path_factory: pytest.TempPathFactory
 ) -> Iterator[RunningServer]:
-    """HopIn with the game wired into its calls, its agent backend a fake."""
-    with running_hopin(game_sign_in, tmp_path_factory.mktemp("game-tls"), GameFeature(agent_backend)) as server:
+    """HopIn with the game and participation wired into its calls, the game's agent backend a fake."""
+    with running_hopin(
+        game_sign_in, tmp_path_factory.mktemp("game-tls"), GameFeature(agent_backend), participation=True
+    ) as server:
         yield server
 
 
