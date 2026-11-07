@@ -8,7 +8,8 @@ from speech_runtime_client.wire import SPEECH_PATH, RefusalCode
 
 from hopin.agent.feature import GameFeature
 from hopin.agent.settings import SpeechSettings
-from tests.e2e.game.game_page import CARD, open_chat, start_quiz
+from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, open_chat, start_quiz
+from tests.e2e.game.test_game_master import answer_on_card
 from tests.e2e.support.calls import join, open_host
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import FORM_FACTORS
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 QUESTION = "Welcher Fluss fließt durch Lissabon?"
+REVEAL = "Der Tejo."
 # A page records each blob audio it is asked to play and whether the browser allowed it.
 RECORD_VOICES = """
 window.voicesPlayed = [];
@@ -102,7 +104,7 @@ def test_a_service_that_refuses_leaves_the_quiz_as_it_runs_without_a_voice(
 ) -> None:
     """GM-34: A service that refuses leaves the quiz as it runs without a voice."""
     speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=1))
-    agent_backend.answer_next(Succeeds(QUESTION))
+    agent_backend.answer_next(Succeeds(QUESTION), Succeeds(REVEAL))
     host, guest = open_call_recording_voices(open_person, e2e_server.base_url, page_errors, form_factor)
 
     start_quiz(host)
@@ -111,5 +113,10 @@ def test_a_service_that_refuses_leaves_the_quiz_as_it_runs_without_a_voice(
         open_chat(person)
         expect(person.locator(CARD)).to_contain_text(QUESTION)
     assert speech_origin.received[SPEECH_PATH].wait(ARRIVAL_CAP_SECONDS)
+    # The reveal's run starts only after the question's voice was sent or failed, so its line follows the outcome.
+    for person in (host, guest):
+        answer_on_card(person, "Tejo")
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).filter(has_text=REVEAL)).to_have_count(1)
     for person in (host, guest):
         assert person.evaluate("() => window.voicesPlayed") == []
