@@ -1,7 +1,0 @@
-claim_id = "2eae305e30a046a1b1910492a3580a6e"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "572ddac448812f38f7ae2ba00b12f7eda479c70c"
-branch = "docs/runs-on-platform"
-scope = ["README.md", "docs/ARCHITECTURE.md"]
-opened_commit = "4b30aaaf807874df84712af64d32c28b9f3b2a10"
