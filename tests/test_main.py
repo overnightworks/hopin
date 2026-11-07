@@ -1,10 +1,13 @@
 from unittest.mock import patch
 
 import pytest
+from fastapi.testclient import TestClient
 
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.main import main
+from tests.participation.dialed_call import METADATA_PATH
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 pytestmark = pytest.mark.usefixtures("fixture_build_directory")
 
@@ -42,6 +45,18 @@ class TestMain:
             monkeypatch.setenv(name, value)
         main(["serve"])
         assert mock_run.call_args[1]["proxy_headers"] is False
+
+    @patch("hopin.main.uvicorn.run")
+    def test_serves_participation_at_the_mcp_endpoint_for_agents_to_dial_in(
+        self, mock_run, sign_in_settings, monkeypatch
+    ):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        main(["serve"])
+        served = TestClient(mock_run.call_args[0][0], base_url=TEST_PUBLIC_ORIGIN)
+
+        assert served.get(METADATA_PATH).status_code == 200
+        assert served.post("/mcp").status_code == 401
 
     @patch("hopin.main.uvicorn.run")
     def test_refuses_to_start_without_the_page_build_and_names_the_build_command(

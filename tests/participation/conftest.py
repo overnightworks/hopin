@@ -3,7 +3,9 @@ import pytest_asyncio
 
 from hopin.participation.feature import Participation, Person
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.dialed_call import serving_dialed_call
 from tests.signaling.support.browsers import Link
+from tests.support.fake_issuer import FakeIssuer
 from tests.support.signaling_fakes import SocketAccountResolver
 
 ISSUER = "https://issuer.test.invalid/realms/test"
@@ -34,3 +36,10 @@ async def link(handler):
     link = Link(handler)
     yield link
     await link.close_all()
+
+
+@pytest.fixture
+def dialed_call(sign_in_settings):
+    sign_in = sign_in_settings()
+    with serving_dialed_call(sign_in, FakeIssuer(sign_in)) as call:
+        yield call

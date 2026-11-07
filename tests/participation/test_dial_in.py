@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, SignalType
@@ -10,7 +12,7 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
 )
 from tests.participation.conftest import person_named, room_of
-from tests.signaling.support.browsers import host_and_guest
+from tests.signaling.support.browsers import HeldClose, host_and_guest
 
 pytestmark = pytest.mark.integration
 
@@ -143,6 +145,23 @@ class TestJoiningOneLiveSeat:
         assert [frame["agent_id"] for frame in agent_frames(host, ParticipationSignal.AGENT_LEFT)] == [agent.agent_id]
         assert await participation.leave(person_named("guest"), agent.agent_id) is AgentRefusal.GONE
 
+    async def test_call_48_a_call_made_while_its_seat_is_leaving_finds_the_agent_gone(
+        self, link, participation, scheduler
+    ):
+        """CALL-48: A call that meets an agent whose seat has just left is answered gone."""
+        _host, guest = await host_and_guest(link)
+        agent = await dial(participation, guest)
+        guest.socket.account = None
+        closing = HeldClose(guest.socket)
+        ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+
+        answered = await participation.leave(person_named("guest"), agent.agent_id)
+
+        closing.release.set()
+        await ending
+        assert answered is AgentRefusal.GONE
+
     async def test_call_48_a_seat_that_resumes_within_its_window_keeps_its_agent(self, link, participation, scheduler):
         """CALL-48: A seat that resumes inside its window keeps its agent, and nobody is told it left."""
         host, guest = await host_and_guest(link)
@@ -163,6 +182,17 @@ class TestJoiningOneLiveSeat:
 
         assert agent_frames(guest, ParticipationSignal.AGENT_LEFT) == []
         assert await participation.leave(person_named("guest"), agent.agent_id) is AgentRefusal.GONE
+
+
+@pytest.mark.asyncio
+class TestFramesOnlyTheServerSends:
+    @pytest.mark.parametrize("signal", [ParticipationSignal.AGENT_JOINED, ParticipationSignal.AGENT_LEFT])
+    async def test_a_browser_that_sends_one_is_refused_as_an_unknown_type(self, link, participation, signal):
+        host = await link.join("host")
+
+        await host.say({"type": signal.value, "agent_id": "x"})
+
+        assert [frame["message"] for frame in host.frames(SignalType.ERROR)] == [f"Unknown signal type: {signal.value}"]
 
 
 @pytest.mark.asyncio
