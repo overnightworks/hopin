@@ -1,0 +1,8 @@
+claim_id = "31e46ce55d2f457fa84bfaa6dd1db36e"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "60b16110c881fa3c27bd66ffba72d25b472e88ed"
+branch = "claude/issue-556-agent-tile"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "docs/game-master.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/game", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/lib/ui/stage.svelte.test.ts", "frontend/src/lib/ui/stage.svelte.ts", "frontend/src/routes/(call)", "src/hopin/web/static/assets/css/hopin.css", "tests/e2e"]
+opened_commit = "d6ba85bfdbfe65ade54ce58b3bbb0ee2def11809"
+whole_reason = "One tile whose slot, owner, stage rendering and layout each have no observable effect without the others."
