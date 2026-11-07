@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 START_QUIZ = "#gameStartBtn"
+MUTE_VOICE = "#gameVoiceBtn"
 GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
 TYPING = "#chatMessages .game-master.typing"
 CARD = "#chatPanel .qcard"

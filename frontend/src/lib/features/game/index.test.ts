@@ -70,7 +70,10 @@ async function installedGame({ connected = true } = {}) {
     const startButton = moreItems.find((item) => item.id === "gameStartBtn");
     if (!(startButton instanceof HTMLButtonElement)) throw new Error("no start button");
     const progress = startButton.querySelector("#gameProgress");
+    const voiceButton = moreItems.find((item) => item.id === "gameVoiceBtn");
+    if (!(voiceButton instanceof HTMLButtonElement)) throw new Error("no voice button");
     return {
+        voiceButton,
         emit,
         sent,
         lines,
@@ -170,7 +173,7 @@ describe("installing the game", () => {
     it("adds Start quiz and the privacy note to More, and resolves", async () => {
         const game = await installedGame();
 
-        expect(game.moreItems.map((item) => item.tagName)).toEqual(["BUTTON", "P"]);
+        expect(game.moreItems.map((item) => item.tagName)).toEqual(["BUTTON", "P", "BUTTON"]);
         expect(game.startButton.textContent).toContain("Start quiz");
         expect(game.moreItems[1]?.textContent).toContain("Datenschutz");
     });
@@ -543,6 +546,60 @@ describe("the game master's voice", () => {
         FakeAudio.instances[0]?.listeners.get("ended")?.();
 
         expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
+    });
+});
+
+describe("muting the game master's voice", () => {
+    const voicedQuiz = (game: Game) => {
+        game.seat();
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.ANSWERING, round: 1, rounds: 3, starter: ME });
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Question 1?", round: 1, voiced: true });
+        game.voiceButton.click();
+    };
+
+    it("GM-37: fetches no voice while muted, and the tile never speaks", async () => {
+        const voices = stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        voicedQuiz(game);
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        await settled();
+
+        expect([voices.requested, FakeAudio.instances, lastTile(game)]).toEqual([
+            [],
+            [],
+            tileOf(AGENT_ACTIVITY.WAITING),
+        ]);
+        expect(game.voiceButton).toMatchObject({ hidden: false, textContent: "Quiz master voiceOff" });
+        expect(game.voiceButton.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("GM-37: stops a playing voice at once on mute", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        voicedQuiz(game);
+        game.voiceButton.click();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        await settled();
+
+        game.voiceButton.click();
+
+        expect([FakeAudio.instances[0]?.paused, lastTile(game)]).toEqual([true, tileOf(AGENT_ACTIVITY.WAITING)]);
+    });
+
+    it("GM-37: plays from the next line on after unmuting, never a line already gone", async () => {
+        const voices = stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        voicedQuiz(game);
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        await settled();
+
+        game.voiceButton.click();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
+        await settled();
+
+        expect(voices.requested).toEqual([voiceFrame("voice-two").path]);
     });
 });
 
