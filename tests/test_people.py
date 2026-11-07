@@ -76,7 +76,7 @@ def person(stores, config):
 
 
 @pytest.fixture
-def admin(person, config):
+def admin(person):
     return person("olga", role=AppRole.ADMIN)
 
 
@@ -167,7 +167,7 @@ def scene(client, stores, person):
 
 
 class TestExportOfAPerson:
-    def test_answers_a_zip_of_export_json_listing_the_account_sessions_and_seats(self, client, admin, scene, config):
+    def test_answers_a_zip_of_export_json_listing_the_account_sessions_and_seats(self, client, admin, scene):
         answer = ask(client, "anna", admin)
 
         names, export = read_archive(answer.content)
@@ -264,7 +264,7 @@ class TestExportOfAPerson:
         assert {"call_id": None, "host": False} in seats
         assert withheld_counts(export)["resume_token"] == 3
 
-    def test_lists_the_account_of_a_person_with_no_session(self, client, admin, stores, config):
+    def test_lists_the_account_of_a_person_with_no_session(self, client, admin, stores):
         stores.accounts.create_for_subject("anna", "anna", AppRole.USER)
 
         _, export = read_archive(ask(client, "anna", admin).content)
@@ -304,7 +304,7 @@ class TestWhoMayExport:
         assert "anna" not in answer.text
         assert ask(client, "anna", member, method="HEAD").status_code == 403
 
-    def test_refuses_an_admin_who_became_a_member_at_her_next_sign_in(self, client, admin, stores, config):
+    def test_refuses_an_admin_who_became_a_member_at_her_next_sign_in(self, client, admin, stores):
         assert ask(client, "anna", admin).status_code == 200
         stores.accounts.set_role("olga", AppRole.USER)
 
