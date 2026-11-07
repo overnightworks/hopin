@@ -8,8 +8,7 @@ from speech_runtime_client.wire import SPEECH_PATH, RefusalCode
 
 from hopin.agent.feature import GameFeature
 from hopin.agent.settings import SpeechSettings
-from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, open_chat, start_quiz
-from tests.e2e.game.test_game_master import answer_on_card
+from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, answer_on_card, open_chat, start_quiz
 from tests.e2e.support.calls import join, open_host
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import FORM_FACTORS
