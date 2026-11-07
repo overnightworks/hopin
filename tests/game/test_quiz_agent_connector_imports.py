@@ -9,6 +9,8 @@ HTTP_LIBRARY = "httpx2"
 BACKEND_MODULE = SOURCE / "agent" / "backend.py"
 SETTINGS_MODULE = SOURCE / "agent" / "settings.py"
 CLIENT_CONFIG = f"{CLIENT}.config"
+SPEECH_CLIENT = "speech_runtime_client"
+SPEECH_MODULE = SOURCE / "agent" / "speech.py"
 
 
 def imported_modules(path: Path) -> set[str]:
@@ -39,3 +41,10 @@ def test_only_the_connector_names_the_client_and_only_its_settings_name_the_clie
         assert client == client_config
     else:
         assert client == set()
+
+
+@pytest.mark.parametrize("path", sorted(SOURCE.rglob("*.py")), ids=lambda path: str(path.relative_to(SOURCE)))
+def test_only_the_speech_connector_names_the_speech_client(path):
+    named = {module for module in imported_modules(path) if names(module, SPEECH_CLIENT)}
+
+    assert bool(named) == (path == SPEECH_MODULE)

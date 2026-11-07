@@ -5,6 +5,7 @@ import pytest
 import pytest_asyncio
 
 from hopin.game.table import Game
+from hopin.game.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import FakeGameMaster
 from tests.game.support.table_world import fixed_topics, shut_down_within_cap
@@ -41,9 +42,21 @@ def game_master():
 
 
 @pytest.fixture
-def game(scheduler, game_master):
+def voice():
+    """The game's voice; none unless a module overrides it."""
+
+
+@pytest.fixture
+def voices():
+    return VoiceStore()
+
+
+@pytest.fixture
+def game(scheduler, game_master, voice, voices):
     """The game as `create_app` builds it, its game master a fake."""
-    return partial(Game, scheduler=scheduler, game_master=game_master, topic_drawer=fixed_topics)
+    return partial(
+        Game, scheduler=scheduler, game_master=game_master, topic_drawer=fixed_topics, voice=voice, voices=voices
+    )
 
 
 @pytest.fixture

@@ -14,18 +14,19 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import GamePhase, GameSignal
+from hopin.game.vocabulary import VOICE_PATH, GamePhase, GameSignal
 from tests.game.support.fake_agent_backend import DEFAULT_QUESTION
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
-from tests.support.signed_in import handshake_headers, seed_member
+from tests.support.signed_in import cookie_header, handshake_headers, seed_member
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from agent_runtime_client.backend import AgentBackend
 
+    from hopin.agent.settings import SpeechSettings
     from tests.support.fake_issuer import FakeIssuer
     from tests.support.sign_in_settings import SignInSettings
 
@@ -101,6 +102,13 @@ class Call:
         host.frames(1)
         return host, guest, guest_member
 
+    def voice(self, member, voice_id):
+        """What a seat's browser gets fetching the voice, on its session cookie."""
+        return self.client.get(f"{VOICE_PATH}/{voice_id}", headers={"cookie": cookie_header(member.set_cookie_headers)})
+
+    def grant_types(self):
+        return [request.form["grant_type"] for request, _ in self.issuer.exchanges]
+
     def refresh_tokens_granted(self):
         return [
             request.form["refresh_token"]
@@ -110,7 +118,9 @@ class Call:
 
 
 @contextmanager
-def serving_call(sign_in: SignInSettings, issuer: FakeIssuer, backend: AgentBackend) -> Iterator[Call]:
+def serving_call(
+    sign_in: SignInSettings, issuer: FakeIssuer, backend: AgentBackend, speech: SpeechSettings | None = None
+) -> Iterator[Call]:
     stores = SignInStores.in_memory()
     app = create_app(
         sign_in.settings,
@@ -118,7 +128,7 @@ def serving_call(sign_in: SignInSettings, issuer: FakeIssuer, backend: AgentBack
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        call_feature=GameFeature(backend),
+        call_feature=GameFeature(backend) if speech is None else GameFeature(backend, speech),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         yield Call(issuer, backend, stores, client, sockets)

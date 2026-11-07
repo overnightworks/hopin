@@ -53,6 +53,7 @@ from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_tur
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
+    from fastapi import APIRouter
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore
@@ -63,6 +64,18 @@ if TYPE_CHECKING:
     from hopin.web.page_build import PageBuild
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+class BuiltCallFeature(Protocol):
+    """What the call's feature adds to the app: the factory its signaling handler builds it with, and its routes."""
+
+    @property
+    def factory(self) -> FeatureFactory:
+        """The factory the signaling handler builds the feature with, once it has its rooms."""
+
+    @property
+    def router(self) -> APIRouter:
+        """The routes the feature serves."""
 
 
 class CallFeatureBuilder(Protocol):
@@ -79,8 +92,8 @@ class CallFeatureBuilder(Protocol):
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
-    ) -> FeatureFactory:
-        """The factory the signaling handler builds the feature with, once it has its rooms."""
+    ) -> BuiltCallFeature:
+        """The feature's factory and its router."""
 
 
 class _ExpiredSessionSweep:
@@ -192,7 +205,7 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    feature = (
+    built_feature = (
         None
         if call_feature is None
         else call_feature(
@@ -203,7 +216,10 @@ def create_app(
         )
     )
     signaling_handler = SignalingHandler(
-        room_manager, SessionIdentityResolver(sign_in_stores.sessions), timers, feature
+        room_manager,
+        SessionIdentityResolver(sign_in_stores.sessions),
+        timers,
+        None if built_feature is None else built_feature.factory,
     )
 
     app = FastAPI(
@@ -215,6 +231,8 @@ def create_app(
     app.include_router(create_router(signaling_handler, room_manager, page_build))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.feature))
+    if built_feature is not None:
+        app.include_router(built_feature.router)
     app.include_router(create_account_router(settings.oidc_issuer))
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings

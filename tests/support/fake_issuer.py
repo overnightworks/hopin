@@ -69,6 +69,7 @@ class FakeIssuer:
         self.key_set_is_down = False
         self.refuses_refresh_grants = False
         self.refresh_refusal_error = "invalid_grant"
+        self.refuses_client_credentials_grants = False
         self.omits_the_id_token_of_a_refresh_grant = False
         self._guard = threading.Lock()
         self._subjects_of_refresh_tokens: dict[str, str] = {}
@@ -111,6 +112,14 @@ class FakeIssuer:
         """The group paths the ID token of the subject's refresh grants holds; a subject never named here holds none."""
         with self._guard:
             self._groups_of_subjects[subject] = list(groups)
+
+    def access_tokens_issued(self, grant_type: str) -> list[str]:
+        """The access tokens the issuer handed out for grants of this type, in order."""
+        return [
+            json.loads(answer.body)["access_token"]
+            for request, answer in self.exchanges
+            if answer is not None and answer.status == HTTPStatus.OK and request.form["grant_type"] == grant_type
+        ]
 
     def hold(self, grant_type: str) -> GrantHold:
         """Park every later grant of this type until the hold is released."""
@@ -156,7 +165,19 @@ class FakeIssuer:
     def _grant(self, grant_type: str, request: TokenRequest) -> TokenEndpointAnswer:
         if grant_type == "refresh_token":
             return self._renewal(request.form["refresh_token"])
+        if grant_type == "client_credentials":
+            return self._workload_token()
         return self._code_exchange(request)
+
+    def _workload_token(self) -> TokenEndpointAnswer:
+        if self.refuses_client_credentials_grants:
+            return self._refusal(HTTPStatus.BAD_REQUEST, "unauthorized_client")
+        body = {
+            "access_token": secrets.token_urlsafe(ACCESS_TOKEN_BYTES),
+            "token_type": "Bearer",
+            "expires_in": TOKEN_LIFETIME_SECONDS,
+        }
+        return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
 
     def _renewal(self, refresh_token: str) -> TokenEndpointAnswer:
         with self._guard:

@@ -13,7 +13,7 @@ from agent_runtime_client.turn import AgentRole, FailureCode, Principal, Rejecti
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
 from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
-from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, current_groups
+from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, current_groups, fresh_access_token
 
 from hopin.agent.tools import TOOLS
 from hopin.game.quiz import Speaker, Turn
@@ -25,6 +25,7 @@ from hopin.game.vocabulary import (
 )
 
 if TYPE_CHECKING:
+    from pydantic import SecretStr
     from starlette.requests import HTTPConnection
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRefusal, OidcRelyingParty
@@ -38,6 +39,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 QUIZ_AGENT_FILE: Final = Path(__file__).parent.parent / "agents" / "quiz.md"
 CUT_MARK: Final = "…"
+GROUPS_REFUSED_EVENT: Final = "game_master_groups_refused"
+STARTER_REFUSED_EVENT: Final = "game_voice_starter_refused"
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: TurnRole.ASSISTANT}
 
@@ -84,9 +87,7 @@ class StarterPerson:
 
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
-        session_id = session_id_from_request(starter, self._web_auth)
-        if session_id is None:
-            raise StarterRefusedError(GameRefusal.SIGN_IN_AGAIN)
+        session_id = self._session_id_of(starter)
         record = await asyncio.to_thread(self._sessions.load, session_id)
         if record is None:
             raise StarterRefusedError(_refusal_of_groups(AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)))
@@ -96,6 +97,21 @@ class StarterPerson:
         role: AgentRole = "admin" if record.user.role == AppRole.ADMIN else "user"
         return TurnPerson(principal, role, partial(self._groups, session_id))
 
+    async def access_token_of(self, starter: HTTPConnection) -> str:
+        """A new access token of the starter, from one refresh grant; raises `StarterRefusedError` without one."""
+        session_id = self._session_id_of(starter)
+        # Like the groups grant, it runs in a worker that still stores a rotated refresh token when cancelled.
+        token = await asyncio.to_thread(self._fresh_access_token, session_id)
+        if isinstance(token, AccessTokenRefusal):
+            raise StarterRefusedError(_refusal_of_groups(token, event=STARTER_REFUSED_EVENT))
+        return token.get_secret_value()
+
+    def _session_id_of(self, starter: HTTPConnection) -> str:
+        session_id = session_id_from_request(starter, self._web_auth)
+        if session_id is None:
+            raise StarterRefusedError(GameRefusal.SIGN_IN_AGAIN)
+        return session_id
+
     async def _groups(self, session_id: str) -> frozenset[str]:
         # The grant blocks on the issuer, so it runs in a worker. A cancelled run cancels the await,
         # not the worker: it still stores the rotated refresh token, and no later step runs.
@@ -103,6 +119,14 @@ class StarterPerson:
         if isinstance(groups, AccessTokenRefusal):
             raise StarterRefusedError(_refusal_of_groups(groups))
         return frozenset(groups)
+
+    def _fresh_access_token(self, session_id: str) -> SecretStr | AccessTokenRefusal:
+        return fresh_access_token(
+            self._relying_party,
+            session_id,
+            session_transaction=lambda: nullcontext(self._sessions),
+            config=self._web_auth,
+        )
 
     def _current_groups(self, session_id: str) -> tuple[str, ...] | AccessTokenRefusal:
         return current_groups(
@@ -189,8 +213,8 @@ def _log_refusal(**codes: str | None) -> None:
     logger.info("game_master_turn_refused", **{name: code for name, code in codes.items() if code is not None})
 
 
-def _refusal_of_groups(refusal: AccessTokenRefusal) -> GameRefusal:
-    _log_groups_refusal(refusal)
+def _refusal_of_groups(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSED_EVENT) -> GameRefusal:
+    _log_groups_refusal(refusal, event)
     match refusal.reason:
         case AccessTokenRefusalReason.SESSION_ENDED | AccessTokenRefusalReason.SIGN_IN_AGAIN:
             return GameRefusal.SIGN_IN_AGAIN
@@ -200,19 +224,19 @@ def _refusal_of_groups(refusal: AccessTokenRefusal) -> GameRefusal:
             assert_never(refusal.reason)
 
 
-def _log_groups_refusal(refusal: AccessTokenRefusal) -> None:
+def _log_groups_refusal(refusal: AccessTokenRefusal, event: str) -> None:
     issuer_refusal = refusal.issuer_refusal
     codes = {
         "issuer_reason": None if issuer_refusal is None else issuer_refusal.reason.value,
-        "idp_error": _issuer_error(issuer_refusal),
+        "idp_error": issuer_error(issuer_refusal),
     }
     logger.info(
-        "game_master_groups_refused",
+        event,
         reason=refusal.reason.value,
         **{name: code for name, code in codes.items() if code},
     )
 
 
-def _issuer_error(issuer_refusal: OidcRefusal | None) -> str | None:
+def issuer_error(issuer_refusal: OidcRefusal | None) -> str | None:
     idp_error = None if issuer_refusal is None else issuer_refusal.idp_error
     return None if idp_error is None else IssuerError.of(idp_error).value

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND, type ToastAction, type ToastKind } from "#lib/ui/toast.svelte.ts";
@@ -105,6 +105,60 @@ function lastCardProps(game: Game) {
 afterEach(() => {
     vi.unstubAllGlobals();
 });
+
+class FakeAudio {
+    static readonly instances: FakeAudio[] = [];
+    readonly listeners = new Map<string, () => void>();
+    static playResult: () => Promise<void> = () => Promise.resolve();
+    paused = false;
+
+    constructor(readonly source: string) {
+        FakeAudio.instances.push(this);
+    }
+
+    addEventListener(type: string, listener: () => void) {
+        this.listeners.set(type, listener);
+    }
+
+    pause() {
+        this.paused = true;
+    }
+
+    play() {
+        return FakeAudio.playResult();
+    }
+}
+
+/** A page whose voices come from `fetchVoice`, with the browser's audio and blob URLs replaced by fakes. */
+function stubbedVoicePlayback(fetchVoice: (url: string) => Promise<Response>) {
+    FakeAudio.instances.length = 0;
+    const urls = { created: [] as Blob[], revoked: [] as string[] };
+    // jsdom has no blob URLs, so the test supplies them and takes them away again.
+    const createObjectURL = (blob: Blob) => {
+        urls.created.push(blob);
+        return `blob:voice-${String(urls.created.length)}`;
+    };
+    const revokeObjectURL = (url: string) => void urls.revoked.push(url);
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    onTestFinished(() => {
+        Reflect.deleteProperty(URL, "createObjectURL");
+        Reflect.deleteProperty(URL, "revokeObjectURL");
+    });
+    vi.stubGlobal("Audio", FakeAudio);
+    const requested: string[] = [];
+    vi.stubGlobal("fetch", (url: string) => {
+        requested.push(url);
+        return fetchVoice(url);
+    });
+    return { urls, requested };
+}
+
+const wavResponse = () => Promise.resolve(new Response(new Blob(["wav"]), { status: 200 }));
+
+/** Lets every pending fetch and promise of the page run to its end. */
+async function settled() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 describe("installing the game", () => {
     it("adds Start quiz and the privacy note to More, and resolves", async () => {
@@ -337,5 +391,123 @@ describe("a call that is not connected", () => {
 
         expect(game.sent).toEqual([]);
         expect(game.startButton.disabled).toBe(false);
+    });
+});
+
+describe("the game master's voice", () => {
+    it("GM-32: fetches a voice from the game's route and starts playing it", async () => {
+        const voices = stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        expect(voices.requested).toEqual(["/api/game/voice/voice-one"]);
+        expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1"]);
+    });
+
+    it("GM-32: plays a voice once, so a replayed frame after a resume starts nothing", async () => {
+        const voices = stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+        game.seat();
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        expect(voices.requested).toEqual(["/api/game/voice/voice-one"]);
+    });
+
+    it("GM-33: stops a playing voice when the quiz ends", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        game.emit(GAME_SIGNAL.GAME_ENDED, {});
+
+        expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true]);
+    });
+
+    it("GM-33: starts no voice that arrives from the network after the quiz ended", async () => {
+        let deliver: (response: Response) => void = () => undefined;
+        stubbedVoicePlayback(() => new Promise<Response>((resolve) => void (deliver = resolve)));
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+
+        game.emit(GAME_SIGNAL.GAME_ENDED, {});
+        deliver(new Response(new Blob(["wav"]), { status: 200 }));
+        await settled();
+
+        expect(FakeAudio.instances).toEqual([]);
+    });
+
+    it("GM-33: stops a playing voice when the call ends", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        game.endCall();
+
+        expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true]);
+    });
+
+    it("stops the voice that plays when the next one starts", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-two" });
+        await settled();
+
+        expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true, false]);
+    });
+
+    it("GM-34: leaves the line as text when the voice is missing", async () => {
+        stubbedVoicePlayback(() => Promise.resolve(new Response(null, { status: 404 })));
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        expect(FakeAudio.instances).toEqual([]);
+    });
+
+    it("GM-34: leaves the line as text when the voice cannot be fetched", async () => {
+        stubbedVoicePlayback(() => Promise.reject(new Error("offline")));
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        expect(FakeAudio.instances).toEqual([]);
+    });
+
+    it("GM-34: lets go of the voice when the browser refuses to play it", async () => {
+        const voices = stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        FakeAudio.playResult = () => Promise.reject(new Error("autoplay"));
+        onTestFinished(() => {
+            FakeAudio.playResult = () => Promise.resolve();
+        });
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
+    });
+
+    it("lets go of the voice when it has played to its end", async () => {
+        const voices = stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        await settled();
+
+        FakeAudio.instances[0]?.listeners.get("ended")?.();
+
+        expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
     });
 });

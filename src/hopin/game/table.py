@@ -12,6 +12,7 @@ from hopin.game.vocabulary import (
     GAME_ANSWER_MAX_CHARACTERS,
     GAME_RUN_DEADLINE_SECONDS,
     SIGNAL_TYPES,
+    VOICE_DEADLINE_SECONDS,
     GamePhase,
     GameRefusal,
     GameSignal,
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
 
     from hopin.game.quiz import Turn
+    from hopin.game.voice import Voice, VoiceStore
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
     from hopin.signaling.scheduler import Scheduler, TimerHandle
@@ -74,6 +76,10 @@ def _line_frame(line: Line, quiz: Quiz) -> JsonObject:
     return frame
 
 
+def _voice_frame(voice_id: str) -> JsonObject:
+    return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice_id}
+
+
 def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId]) -> JsonObject:
     return {
         TYPE_KEY: GameSignal.GAME_ANSWER_COUNT.value,
@@ -98,10 +104,23 @@ class _Phase:
 
 
 @dataclass(eq=False)
+class _VoiceRun:
+    """A line's voice being made, and the deadline that cuts it."""
+
+    task: asyncio.Task[bytes | None]
+    deadline: TimerHandle
+
+    def stop(self) -> None:
+        self.deadline.cancel()
+        self.task.cancel()
+
+
+@dataclass(eq=False)
 class _Run:
     """A room's run; the record itself is the run's generation, and it starts once its previous run has ended."""
 
     quiz: Quiz
+    starter: HTTPConnection
     previous: asyncio.Task[None] | None
     ask: asyncio.Task[GameOutcome]
     broken_writes: list[Exception] = field(default_factory=list)
@@ -109,6 +128,13 @@ class _Run:
     started_at: float = field(init=False)
     driver: asyncio.Task[None] = field(init=False)
     deadline: TimerHandle = field(init=False)
+    voice: _VoiceRun | None = None
+
+    def stop(self) -> None:
+        self.deadline.cancel()
+        self.ask.cancel()
+        if self.voice is not None:
+            self.voice.stop()
 
 
 class Game:
@@ -120,11 +146,15 @@ class Game:
         scheduler: Scheduler,
         game_master: GameMaster,
         topic_drawer: Callable[[], tuple[str, ...]],
+        voice: Voice | None,
+        voices: VoiceStore,
     ) -> None:
         self._rooms = rooms
         self._scheduler = scheduler
         self._topic_drawer = topic_drawer
         self._game_master = game_master
+        self._voice = voice
+        self._voices = voices
         self._quizzes: dict[str, Quiz] = {}
         self._runs: dict[str, list[_Run]] = {}
         self._phases: dict[str, _Phase] = {}
@@ -192,8 +222,7 @@ class Game:
         for run in self._runs.get(room_id, []):
             # The room keeps the run until its call has closed, so a new quiz never overlaps it.
             run.ended = True
-            run.deadline.cancel()
-            run.ask.cancel()
+            run.stop()
         recipients = self._rooms.members(room_id)
         try:
             for frame in (notice, IDLE_FRAME):
@@ -259,6 +288,7 @@ class Game:
         previous = runs[-1].driver if runs else None
         run = _Run(
             quiz=quiz,
+            starter=starter,
             previous=previous,
             ask=asyncio.create_task(self._ask_after(previous, starter, quiz.transcript)),
         )
@@ -298,9 +328,9 @@ class Game:
         """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
         self._quizzes.pop(room_id, None)
         self._phases.pop(room_id, None)
+        self._voices.forget_room(room_id)
         for run in self._runs.pop(room_id, []):
-            run.deadline.cancel()
-            run.ask.cancel()
+            run.stop()
 
     async def shut_down(self) -> None:
         # A quiz waiting for its reveal has no run, and a run delivering idle has no quiz any more.
@@ -323,6 +353,7 @@ class Game:
             self._log_run(room_id, run, outcome)
             await self._deliver(room_id, run, outcome)
         finally:
+            await self._stop_voice(run)
             if self._holds(room_id, run):
                 self._forget(room_id, run)
         if run.broken_writes:
@@ -331,8 +362,10 @@ class Game:
     async def _deliver(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         if not self._is_live(room_id, run):
             return
+        recipients: list[str] = []
         if isinstance(outcome, Line):
             recipients = self._rooms.members(room_id)
+            self._start_voice(run, outcome)
             await self._send_each(room_id, run, recipients, _line_frame(outcome, run.quiz))
             quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
@@ -348,12 +381,42 @@ class Game:
             return
         # Each phase's recipients are read in the same step that sets it, so every seat seated now is told
         # here, a seat that joins later is greeted by `seat_joined`, and idle greets no one.
+        chained: Quiz | None = None
         if quiz is None or quiz.is_over:
             await self._end_quiz(room_id, run)
         elif quiz.awaits_game_master:
-            self._chain(room_id, quiz)
+            chained = quiz
         else:
             await self._open_question(room_id, run, quiz)
+        await self._send_voice(room_id, run, recipients)
+        if chained is not None and self._is_live(room_id, run):
+            self._chain(room_id, chained)
+
+    def _start_voice(self, run: _Run, line: Line) -> None:
+        """Make the line's voice beside the run, on its own deadline; the line and its phase never wait for it."""
+        if self._voice is not None:
+            task = asyncio.create_task(self._voice.speak(run.starter, line.text))
+            run.voice = _VoiceRun(
+                task, self._scheduler.call_later(VOICE_DEADLINE_SECONDS, partial(_expire_voice, task))
+            )
+
+    @staticmethod
+    async def _stop_voice(run: _Run) -> None:
+        if run.voice is not None:
+            run.voice.stop()
+            await asyncio.wait({run.voice.task})
+
+    async def _send_voice(self, room_id: str, run: _Run, recipients: list[str]) -> None:
+        """Wait for the run's voice and send its frame to the line's recipients still seated, if the run is live."""
+        if run.voice is None:
+            return
+        await asyncio.wait({run.voice.task})
+        run.voice.deadline.cancel()
+        wav = _voice_of(run.voice.task)
+        if wav is None or not self._is_live(room_id, run):
+            return
+        seated = [seat for seat in recipients if self._rooms.room_of(PeerId(seat)) == room_id]
+        await self._send_each(room_id, run, seated, _voice_frame(self._voices.put(room_id, wav)))
 
     def _chain(self, room_id: str, quiz: Quiz) -> None:
         """Run the quiz's next request at once, on the starter's token and with no idle in between.
@@ -441,6 +504,23 @@ class Game:
 async def _expire(run: _Run) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
     # A run that already ended has a finished `ask`, so the cancel is a no-op then.
     run.ask.cancel()
+
+
+async def _expire_voice(
+    voice: asyncio.Task[bytes | None],
+) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
+    voice.cancel()
+
+
+def _voice_of(voice: asyncio.Task[bytes | None]) -> bytes | None:
+    if voice.cancelled():
+        return None
+    error = voice.exception()
+    if error is not None:
+        # The port raises nothing but cancellation; anything else is logged by its type, never its text.
+        logger.error("game_voice_raised", error=type(error).__name__)
+        return None
+    return voice.result()
 
 
 def _outcome_of(ask: asyncio.Task[GameOutcome]) -> GameOutcome:

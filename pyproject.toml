@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
     "overnightworks-agent-runtime-client[backend] @ git+https://github.com/overnightworks/agent-runtime@v0.23.0",
+    "overnightworks-speech-runtime-client @ git+https://github.com/overnightworks/speech-runtime@v0.3.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.31.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
@@ -27,6 +28,7 @@ build-backend = "hatchling.build"
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
     "overnightworks-agent-runtime-client",  # game
+    "overnightworks-speech-runtime-client",  # game
     "overnightworks-webauth",
 ]
 # Their build backends run with these exact tools, as hatchling is pinned above.
@@ -212,7 +214,7 @@ source_modules = [
     "hopin.errors",
     "hopin.config",
 ]
-forbidden_modules = ["hopin.game", "hopin.agent", "agent_runtime_client", "httpx2"]
+forbidden_modules = ["hopin.game", "hopin.agent", "agent_runtime_client", "speech_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"
@@ -221,6 +223,16 @@ type = "forbidden"
 # The client of the agent runtime and its HTTP library are the connector's alone.
 source_modules = ["hopin.main", "hopin.app"]
 forbidden_modules = ["agent_runtime_client", "httpx2"]
+# main imports hopin.agent to switch the game in; only a direct import is the violation.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "speech-service-only-through-the-game"
+name = "Only the game reaches the speech service"
+type = "forbidden"
+# The speech client is the connector's alone.
+source_modules = ["hopin.main", "hopin.app"]
+forbidden_modules = ["speech_runtime_client"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
 allow_indirect_imports = true
 

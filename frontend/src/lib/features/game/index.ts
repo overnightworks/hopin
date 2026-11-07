@@ -12,10 +12,12 @@ import {
     type PhaseFrame,
     type QuestionCardProps,
     type RefusedFrame,
+    type VoiceFrame,
 } from "./quiz.svelte.ts";
 import { GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
 import "./game.css";
 
+const VOICE_PATH = "/api/game/voice";
 const SPARK_PATHS =
     '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
 const X_PATHS = '<path d="M6 6l12 12M18 6L6 18"/>';
@@ -93,13 +95,56 @@ function moreItems() {
     };
 }
 
+/** Plays one voice at a time; a voice that cannot be fetched or played leaves its line as text. */
+function createVoicePlayer() {
+    let releaseCurrent: (() => void) | null = null;
+    let generation = 0;
+
+    function stop() {
+        generation += 1;
+        releaseCurrent?.();
+        releaseCurrent = null;
+    }
+
+    function begin(blob: Blob) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        const release = () => {
+            audio.pause();
+            URL.revokeObjectURL(url);
+        };
+        releaseCurrent = release;
+        audio.addEventListener("ended", release);
+        void audio.play().catch(release);
+    }
+
+    async function play(voiceId: string) {
+        stop();
+        const turn = generation;
+        try {
+            const response = await fetch(`${VOICE_PATH}/${voiceId}`);
+            if (!response.ok) return;
+            const blob = await response.blob();
+            if (turn === generation) begin(blob);
+        } catch {
+            // The line stays text.
+        }
+    }
+
+    return { play, stop };
+}
+
 function listen(core: FeatureCore, quiz: Quiz) {
+    const voice = createVoicePlayer();
     core.on(GAME_SIGNAL.GAME_PHASE, (frame: PhaseFrame) => {
         quiz.receivePhase(frame);
     });
     core.on(GAME_SIGNAL.GAME_LINE, (frame: LineFrame) => {
         core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
         quiz.receiveLine(frame);
+    });
+    core.on(GAME_SIGNAL.GAME_VOICE, (frame: VoiceFrame) => {
+        if (quiz.isFirstHearing(frame.id)) void voice.play(frame.id);
     });
     core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
         quiz.receiveAnswerCount(frame);
@@ -112,6 +157,7 @@ function listen(core: FeatureCore, quiz: Quiz) {
     core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
         const text = frame.leaver === undefined ? "Quiz ended." : `Quiz ended: ${frame.leaver} left.`;
         core.showToast(text, core.toastKind.FAILED, null);
+        voice.stop();
     });
     const joined = (frame: SeatFrame) => {
         quiz.joined(frame.participant_id, frame.is_host);
@@ -119,6 +165,7 @@ function listen(core: FeatureCore, quiz: Quiz) {
     core.on(SIGNAL_TYPE.ROOM_CREATED, joined);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, joined);
     core.onCallEnded(() => {
+        voice.stop();
         quiz.reset();
     });
 }

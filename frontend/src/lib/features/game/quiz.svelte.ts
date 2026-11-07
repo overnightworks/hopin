@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import type { OutgoingFrame } from "#lib/call/feature-port.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
 
@@ -8,6 +9,10 @@ export type PhaseFrame =
 export interface LineFrame {
     text: string;
     round?: number;
+}
+
+export interface VoiceFrame {
+    id: string;
 }
 
 export interface AnswerCountFrame {
@@ -58,6 +63,8 @@ export class Quiz {
     #answerSentBeforeLastSend = false;
     #cardRound: number | null = null;
     #card: QuestionCardProps | null = null;
+    // Kept across a reset: a resumed seat is replayed frames it already played.
+    readonly #heardVoices = new SvelteSet<string>();
 
     constructor(outlet: QuizOutlet, onChange: () => void) {
         this.#outlet = outlet;
@@ -121,6 +128,13 @@ export class Quiz {
         // A line without a round is the reveal or the final score: the card shows only an open question.
         this.#question = frame.round === undefined ? null : { round: frame.round, text: frame.text };
         this.#changed();
+    }
+
+    /** Whether this is the first time the page is offered the voice, so a replayed one plays nothing. */
+    isFirstHearing(voiceId: string) {
+        const isFirst = !this.#heardVoices.has(voiceId);
+        this.#heardVoices.add(voiceId);
+        return isFirst;
     }
 
     receiveAnswerCount(frame: AnswerCountFrame) {

@@ -8,6 +8,7 @@ export enum GAME_SIGNAL {
     GAME_ANSWER_COUNT = "game_answer_count",
     GAME_PHASE = "game_phase",
     GAME_LINE = "game_line",
+    GAME_VOICE = "game_voice",
     GAME_REFUSED = "game_refused",
     GAME_ENDED = "game_ended",
 }
