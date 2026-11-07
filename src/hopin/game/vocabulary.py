@@ -5,6 +5,9 @@ GAME_LINE_MAX_CHARACTERS = 600
 GAME_ANSWER_MAX_CHARACTERS = 200
 GAME_RETRY_AFTER_FALLBACK_SECONDS = 30
 GAME_RUN_DEADLINE_SECONDS = 90
+VOICE_DEADLINE_SECONDS = 20
+VOICE_MAX_BYTES = 4 * 1024 * 1024
+VOICE_PATH = "/api/game/voice"
 
 
 class GameSignal(StrEnum):
@@ -15,6 +18,7 @@ class GameSignal(StrEnum):
     GAME_ANSWER_COUNT = "game_answer_count"
     GAME_PHASE = "game_phase"
     GAME_LINE = "game_line"
+    GAME_VOICE = "game_voice"
     GAME_REFUSED = "game_refused"
     GAME_ENDED = "game_ended"
 

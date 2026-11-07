@@ -22,7 +22,7 @@ Ruled by the operator:
 - GM-18: The quiz works with 1 to 6 people.
 - GM-19: Only members of the AI API group can start a quiz; HopIn adds no group, admin switch or check of its own.
 - GM-20: HopIn holds the refresh token per sign-in session in memory only, never on disk or in a log, and uses it only for the game master.
-- GM-21: Only game text (system text, questions, answers), people's display names and a fingerprint of the starter's identity leave the call for the AI; chat, audio and video never do, and no name, mail, `sub` or token goes in the identity field.
+- GM-21: Only game text (system text, questions, answers), people's display names and a fingerprint of the starter's identity leave the call for the AI; chat, audio and video never do, and no name, mail, `sub` or token goes in the identity field. For the voice (GM-32), the line's text and the starter's access token go to the operator's own speech service, which needs the token to admit the starter; HopIn's own workload token goes with it; nothing else leaves the call for it.
 - GM-22: Each round takes two AI runs, the reveal and then the next question, so a quiz of 5 questions takes up to 11 runs; HopIn never splits AI text.
 - GM-23: A run refused mid-quiz ends the quiz for everyone; only the person who started it sees the reason.
 - GM-24: The AI keeps the score from the quiz so far.
@@ -33,3 +33,6 @@ Ruled by the operator:
 - GM-29: The game can be removed again without breaking the call.
 - GM-30: A restarted quiz asks different questions: each question names a topic drawn without repetition.
 - GM-31: More says under Start quiz: "Game answers and names go to the AI service. Chat does not.", linked to the privacy text.
+- GM-32: With speech configured, every seat that received a game master line and is still in the call starts that line's voice once, unless the browser refuses playback; a resumed seat does not start a voice it already played.
+- GM-33: A line's text and its phase change are sent without waiting for its voice; the run for the next line starts only after the previous line's voice was sent or failed; a page stops a playing voice on `game_ended`.
+- GM-34: Without its voice for any reason (among them speech unset, the starter's or HopIn's token refused, the service unreachable, refusing, busy or past VOICE_DEADLINE_SECONDS, an answer malformed, incomplete or over VOICE_MAX_BYTES, a line the client refuses, or a browser that cannot fetch or play it) a line stays text only, the quiz goes on as today, nobody sees a notice, and HopIn logs only an outcome code.

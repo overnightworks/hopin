@@ -23,10 +23,17 @@ def test_a_draw_gives_one_listed_topic_per_round_and_none_twice():
 
 
 @pytest.fixture
-def game(scheduler, game_master):
+def game(scheduler, game_master, voice, voices):
     drawn = iter([FIRST_QUIZ, SECOND_QUIZ])
 
-    return partial(Game, scheduler=scheduler, game_master=game_master, topic_drawer=lambda: next(drawn))
+    return partial(
+        Game,
+        scheduler=scheduler,
+        game_master=game_master,
+        topic_drawer=lambda: next(drawn),
+        voice=voice,
+        voices=voices,
+    )
 
 
 @pytest.mark.asyncio

@@ -8,7 +8,17 @@ from playwright.sync_api import Page, Route, expect
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
 from tests.e2e.game.build_files import GameFile, url_of
-from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, START_QUIZ, TYPING, close_chat, open_chat, start_quiz
+from tests.e2e.game.game_page import (
+    CARD,
+    GAME_MASTER_LINES,
+    START_QUIZ,
+    TYPING,
+    YOUR_ANSWER,
+    answer_on_card,
+    close_chat,
+    open_chat,
+    start_quiz,
+)
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -41,8 +51,6 @@ pytestmark = pytest.mark.e2e
 
 TOASTS = "#toasts"
 REVEAL = "Reveal"
-SEND = "Send"
-YOUR_ANSWER = "Your answer"
 STATUS = ".qcard-status"
 SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
@@ -275,12 +283,6 @@ def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_opens_the_ne
         expect(lines.nth(1)).to_contain_text("Der Tejo.")
         expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
         expect(person.locator(CARD).locator(".qcard-q")).to_have_text("Zweite?")
-
-
-def answer_on_card(person: Page, text: str) -> None:
-    card = person.locator(CARD)
-    card.get_by_label(YOUR_ANSWER).fill(text)
-    card.get_by_role("button", name=SEND).click()
 
 
 def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_render_the_form_again(

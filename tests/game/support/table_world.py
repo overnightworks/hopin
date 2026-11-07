@@ -19,6 +19,7 @@ GAME_TYPES = frozenset(
     {
         GameSignal.GAME_PHASE,
         GameSignal.GAME_LINE,
+        GameSignal.GAME_VOICE,
         GameSignal.GAME_REFUSED,
         GameSignal.GAME_ANSWER_COUNT,
         GameSignal.GAME_ENDED,
