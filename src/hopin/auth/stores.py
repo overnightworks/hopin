@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from pydantic import SecretStr
-    from webauth.ports import AccountEvent, AuditSink
+    from webauth.ports import AccountEvent, AccountKind, AuditSink
 
 SESSION_ID_BYTES = 32
 
@@ -26,6 +26,7 @@ class StoredAccount:
     id: str
     username: str
     role: str
+    kind: AccountKind
 
 
 @dataclass(frozen=True)
@@ -80,8 +81,8 @@ class InMemoryAccounts:
         with self.guard:
             return self._by_subject[user_id]
 
-    def create_for_subject(self, subject: str, username: str, role: str) -> StoredAccount:
-        account = StoredAccount(id=subject, username=username, role=role)
+    def create_for_subject(self, subject: str, username: str, role: str, kind: AccountKind) -> StoredAccount:
+        account = StoredAccount(id=subject, username=username, role=role, kind=kind)
         with self.guard:
             self._by_subject[subject] = account
         return account
@@ -101,7 +102,14 @@ class InMemoryAccounts:
     def set_role(self, user_id: str, role: str) -> StoredAccount:
         with self.guard:
             existing = self._by_subject[user_id]
-            account = StoredAccount(id=existing.id, username=existing.username, role=role)
+            account = StoredAccount(id=existing.id, username=existing.username, role=role, kind=existing.kind)
+            self._by_subject[user_id] = account
+        return account
+
+    def set_kind(self, user_id: str, kind: AccountKind) -> StoredAccount:
+        with self.guard:
+            existing = self._by_subject[user_id]
+            account = StoredAccount(id=existing.id, username=existing.username, role=existing.role, kind=kind)
             self._by_subject[user_id] = account
         return account
 
