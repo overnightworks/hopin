@@ -308,3 +308,31 @@ describe("a seat that joins or a call that ends", () => {
         expect(quiz.isEnding).toBe(true);
     });
 });
+
+describe("the quiz master's voice toggle", () => {
+    it("GM-37: shows only while a quiz runs with voices on", () => {
+        const { quiz } = seatedQuiz();
+        const shown = [quiz.voiceToggleShown];
+
+        openRound(quiz, 1);
+        shown.push(quiz.voiceToggleShown);
+        quiz.receiveLine({ text: "Question 1?", round: 1, voiced: true });
+        shown.push(quiz.voiceToggleShown);
+        quiz.receivePhase({ phase: GAME_PHASE.IDLE });
+        shown.push(quiz.voiceToggleShown);
+
+        expect(shown).toEqual([false, false, true, false]);
+    });
+
+    it("GM-37: holds the choice for the call, and a new call starts with the voice on", () => {
+        const { quiz } = seatedQuiz();
+        const muted = [quiz.voiceMuted];
+
+        quiz.toggleVoiceMuted();
+        muted.push(quiz.voiceMuted);
+        quiz.joined(SOMEONE, false);
+        muted.push(quiz.voiceMuted);
+
+        expect(muted).toEqual([false, true, false]);
+    });
+});

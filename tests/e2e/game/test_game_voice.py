@@ -8,8 +8,16 @@ from speech_runtime_client.wire import SPEECH_PATH, RefusalCode
 
 from hopin.agent.feature import GameFeature
 from hopin.agent.settings import SpeechSettings
-from tests.e2e.game.game_page import CARD, GAME_MASTER_LINES, answer_on_card, open_chat, start_quiz
-from tests.e2e.support.calls import join, open_host
+from hopin.game.vocabulary import VOICE_PATH
+from tests.e2e.game.game_page import (
+    CARD,
+    GAME_MASTER_LINES,
+    MUTE_VOICE,
+    answer_on_card,
+    open_chat,
+    start_quiz,
+)
+from tests.e2e.support.calls import join, open_host, open_more
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
@@ -119,3 +127,41 @@ def test_a_service_that_refuses_leaves_the_quiz_as_it_runs_without_a_voice(
         expect(person.locator(GAME_MASTER_LINES).filter(has_text=REVEAL)).to_have_count(1)
     for person in (host, guest):
         assert person.evaluate("() => window.voicesPlayed") == []
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_muted_browser_fetches_no_voice_while_the_other_still_hears_it(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    speech_origin: Origin,
+    agent_backend: FakeAgentBackend,
+    page_errors: list[str],
+    form_factor: dict[str, Any],
+) -> None:
+    """GM-37: A muted browser fetches no voice while the other still hears it, and the text lines are the same."""
+    speaking(speech_origin, chunked_wav(silent_wav()))
+    agent_backend.answer_next(Succeeds(QUESTION), Succeeds(REVEAL))
+    host, guest = open_call_recording_voices(open_person, e2e_server.base_url, page_errors, form_factor)
+    voice_fetches: dict[Page, list[str]] = {host: [], guest: []}
+    for person, fetches in voice_fetches.items():
+        person.on("request", lambda request, fetches=fetches: fetches.append(request.url))
+    start_quiz(host)
+    for person in (host, guest):
+        person.wait_for_function("() => window.voicesPlayed.length > 0")
+
+    open_more(guest)
+    mute = guest.locator(MUTE_VOICE)
+    expect(mute).to_have_attribute("aria-pressed", "true")
+    mute.click()
+    expect(mute).to_have_attribute("aria-pressed", "false")
+    for person in (host, guest):
+        open_chat(person)
+        answer_on_card(person, "Tejo")
+
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).filter(has_text=REVEAL)).to_have_count(1)
+    host.wait_for_function("() => window.voicesPlayed.length > 1")
+    fetched = {person: [url for url in urls if VOICE_PATH in url] for person, urls in voice_fetches.items()}
+    assert len(fetched[host]) > 1
+    assert len(fetched[guest]) == 1
+    assert guest.evaluate("() => window.voicesPlayed") == ["started"]

@@ -55,6 +55,11 @@
 .game-item.ending .not-ending {
     display: none;
 }
+.game-item[hidden],
+.game-item:not(.muted) .voice-off-only,
+.game-item.muted .voice-on-only {
+    display: none;
+}
 .qcard {
     margin: 4px 12px 6px;
     padding: 14px;

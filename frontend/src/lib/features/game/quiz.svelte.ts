@@ -72,6 +72,9 @@ export class Quiz {
     readonly #voicesPlaying = new SvelteSet<string>();
     // The last line was voiced and its voice frame has not come yet.
     #voiceFrameDue = false;
+    // A line of this quiz was voiced, so the person can mute the voice; the choice lasts for the call.
+    #voicesOffered = false;
+    #voiceMuted = false;
 
     constructor(outlet: QuizOutlet, onChange: () => void) {
         this.#outlet = outlet;
@@ -117,6 +120,20 @@ export class Quiz {
         return { name: GAME_MASTER_NAME, activity };
     }
 
+    /** Whether the quiz runs with voices on, which is when the person can mute them. */
+    get voiceToggleShown() {
+        return this.#phase !== GAME_PHASE.IDLE && this.#voicesOffered;
+    }
+
+    get voiceMuted() {
+        return this.#voiceMuted;
+    }
+
+    toggleVoiceMuted() {
+        this.#voiceMuted = !this.#voiceMuted;
+        this.#changed();
+    }
+
     joined(participantId: string, isHost: boolean) {
         this.#ownParticipantId = participantId;
         this.#isHost = isHost;
@@ -128,12 +145,14 @@ export class Quiz {
         this.#quizRound = null;
         this.#question = null;
         this.#awaitingAnswer = false;
+        this.#voiceMuted = false;
         this.receiveEnd();
     }
 
     /** The quiz was ended: its voices stop with it, so the tile goes with the phase. */
     receiveEnd() {
         this.#voiceFrameDue = false;
+        this.#voicesOffered = false;
         this.#voicesOutstanding.clear();
         this.#voicesPlaying.clear();
         this.#changed();
@@ -145,6 +164,7 @@ export class Quiz {
         if (frame.phase === GAME_PHASE.IDLE) {
             this.#quizRound = null;
             this.#question = null;
+            this.#voicesOffered = false;
         } else {
             this.#quizRound = { round: frame.round, rounds: frame.rounds, starter: frame.starter };
         }
@@ -155,6 +175,7 @@ export class Quiz {
         // A line without a round is the reveal or the final score: the card shows only an open question.
         this.#question = frame.round === undefined ? null : { round: frame.round, text: frame.text };
         this.#voiceFrameDue = frame.voiced === true;
+        this.#voicesOffered ||= this.#voiceFrameDue;
         this.#changed();
     }
 

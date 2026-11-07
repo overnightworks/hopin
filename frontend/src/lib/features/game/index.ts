@@ -20,7 +20,11 @@ import "./game.css";
 const SPARK_PATHS =
     '<path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z"/><path d="M18.5 3v4M16.5 5h4"/>';
 const X_PATHS = '<path d="M6 6l12 12M18 6L6 18"/>';
+const VOICE_ON_PATHS =
+    '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>';
+const VOICE_OFF_PATHS = '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>';
 const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking not-ending" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon ending-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">Start quiz<small>The game master asks the call</small></span><span class="grow running-only"><span class="not-ending">Quiz running</span><span class="ending-only">End quiz</span><small id="gameProgress"></small></span><span class="grow thinking-only">Game master is thinking…</span></button>
+<button id="gameVoiceBtn" class="mi game-item" type="button" hidden><svg class="icon voice-on-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_ON_PATHS}</svg><svg class="icon voice-off-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_OFF_PATHS}</svg><span class="grow">Quiz master voice<small id="gameVoiceState"></small></span></button>
 <p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>`;
 
 interface SeatFrame {
@@ -91,15 +95,18 @@ function moreItems() {
         items: Array.from(fragment.children),
         startButton: fragment.querySelector("#gameStartBtn") as HTMLButtonElement,
         progress: fragment.querySelector("#gameProgress") as HTMLElement,
+        voiceButton: fragment.querySelector("#gameVoiceBtn") as HTMLButtonElement,
+        voiceState: fragment.querySelector("#gameVoiceState") as HTMLElement,
     };
 }
 
 interface VoiceEvents {
+    isMuted(): boolean;
     started(voiceId: string): void;
     ended(voiceId: string): void;
 }
 
-/** Plays one voice at a time: the voice whose fetch finishes last replaces the playing one, and a stop drops every voice still being fetched; a voice that cannot be fetched or played leaves its line as text. Every voice it takes reports its end exactly once, played or not. */
+/** Plays one voice at a time, none while muted (a skipped voice ends like one that failed to load): the voice whose fetch finishes last replaces the playing one, and a stop drops every voice still being fetched; a voice that cannot be fetched or played leaves its line as text. Every voice it takes reports its end exactly once, played or not. */
 function createVoicePlayer(events: VoiceEvents) {
     let releaseCurrent: (() => void) | null = null;
     let requested = 0;
@@ -130,6 +137,10 @@ function createVoicePlayer(events: VoiceEvents) {
     }
 
     async function play(voiceId: string, path: string) {
+        if (events.isMuted()) {
+            events.ended(voiceId);
+            return;
+        }
         requested += 1;
         const sequence = requested;
         try {
@@ -146,6 +157,7 @@ function createVoicePlayer(events: VoiceEvents) {
 
 function listen(core: FeatureCore, quiz: Quiz) {
     const voice = createVoicePlayer({
+        isMuted: () => quiz.voiceMuted,
         started: (voiceId) => {
             quiz.voiceStarted(voiceId);
         },
@@ -190,6 +202,7 @@ function listen(core: FeatureCore, quiz: Quiz) {
         voice.stop();
         quiz.reset();
     });
+    return voice.stop;
 }
 
 export function install(core: FeatureCore): Promise<void> {
@@ -205,6 +218,10 @@ export function install(core: FeatureCore): Promise<void> {
         more.startButton.disabled = quiz.startDisabled;
         more.startButton.setAttribute("aria-busy", String(quiz.isThinking));
         more.progress.textContent = quiz.progress;
+        more.voiceButton.hidden = !quiz.voiceToggleShown;
+        more.voiceButton.setAttribute("aria-pressed", String(!quiz.voiceMuted));
+        more.voiceButton.classList.toggle("muted", quiz.voiceMuted);
+        more.voiceState.textContent = quiz.voiceMuted ? "Off" : "On";
     }
 
     function showThinking() {
@@ -238,7 +255,11 @@ export function install(core: FeatureCore): Promise<void> {
     more.startButton.addEventListener("click", () => {
         quiz.startOrEnd();
     });
-    listen(core, quiz);
+    const stopVoice = listen(core, quiz);
+    more.voiceButton.addEventListener("click", () => {
+        quiz.toggleVoiceMuted();
+        if (quiz.voiceMuted) stopVoice();
+    });
     core.addMoreItems(...more.items);
     return Promise.resolve();
 }
