@@ -13,7 +13,7 @@ from tests.e2e.game.game_page import (
     relaying_frames,
     start_quiz,
 )
-from tests.e2e.support.calls import join, open_call, press_start_call
+from tests.e2e.support.calls import join, open_call, press_through_the_prejoin
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector, wait_for_status
 from tests.e2e.support.people import DESKTOP
 from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
@@ -226,7 +226,8 @@ def test_a_new_call_after_the_end_of_one_with_a_running_quiz_shows_no_tile(
     guest.get_by_role("button", name="Back to start").click()
     expect(guest).to_have_url(f"{e2e_server.base_url}/")
     expect(guest.locator("[data-screen=home]")).to_be_visible()
-    press_start_call(guest, e2e_server.base_url)
+    guest.click("#homeStartBtn")
+    press_through_the_prejoin(guest)
 
     expect(guest.locator("#stage")).to_be_visible()
     expect(guest.locator(AGENT_TILE)).to_have_count(0)
