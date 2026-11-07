@@ -64,7 +64,7 @@ class TestTheVoiceInARealCall:
         guest.start()
 
         [host_frames, guest_frames] = [seat.frames(4) for seat in (host, guest)]
-        assert host_frames[:3] == asked(guest, FIRST)
+        assert host_frames[:3] == asked(guest, FIRST, voiced=True)
         assert voice_path_of(host_frames[3]) == voice_path_of(guest_frames[3])
         fetched = call.voice(guest_member, voice_path_of(guest_frames[3]))
         assert (fetched.status_code, fetched.content, fetched.headers["content-type"]) == (
@@ -152,7 +152,7 @@ class TestWithoutTheVoice:
         _host, guest, _ = call.host_and_guest()
 
         guest.start()
-        assert guest.frames(3) == asked(guest, FIRST)
+        assert guest.frames(4) == [*asked(guest, FIRST, voiced=True), {"type": VOICE_TYPE}]
         guest.answer("Lissabon")
 
         assert guest.frames(1)[0]["type"] == GameSignal.GAME_ANSWER_COUNT.value

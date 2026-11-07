@@ -1,6 +1,13 @@
 <script lang="ts">
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
-    import { remoteTiles } from "#lib/ui/stage.svelte.ts";
+    import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
+    import { agentTile, remoteTiles } from "#lib/ui/stage.svelte.ts";
+
+    const ACTIVITY_LABEL = {
+        [AGENT_ACTIVITY.THINKING]: "thinking",
+        [AGENT_ACTIVITY.WAITING]: "waiting for answers",
+        [AGENT_ACTIVITY.SPEAKING]: "speaking",
+    };
 </script>
 
 {#each remoteTiles as tile (tile.id)}
@@ -35,3 +42,39 @@
         </div>
     </div>
 {/each}
+{#if agentTile.current !== null}
+    {@const agent = agentTile.current}
+    {@const tileClass = "tile agent activity-" + agent.activity}
+    {@const tileLabel = agent.name + ", AI, " + ACTIVITY_LABEL[agent.activity]}
+    <div
+        class={tileClass}
+        class:speaking={agent.activity === AGENT_ACTIVITY.SPEAKING}
+        id="container-agent"
+        role="status"
+        aria-label={tileLabel}
+    >
+        <div class="vid off">
+            <span class="av"
+                ><svg
+                    class="icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    ><path d="M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z" /><path
+                        d="M18.5 3v4M16.5 5h4"
+                    /></svg
+                ></span
+            >
+            <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
+        </div>
+        <span class="name"
+            ><span class="wave" class:hidden={agent.activity !== AGENT_ACTIVITY.SPEAKING} aria-hidden="true"
+                ><i></i><i></i><i></i></span
+            >{agent.name}<span class="ai-badge">AI</span></span
+        >
+    </div>
+{/if}

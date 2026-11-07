@@ -57,6 +57,7 @@ const FEATURE_CORE: FeatureCore = Object.freeze({
     receiveChatLine: receiveLine,
     pinLastChatLine: pinLast,
     showChatCard: showCard,
+    showAgentTile: stageModule.showAgentTile,
     onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);
     },

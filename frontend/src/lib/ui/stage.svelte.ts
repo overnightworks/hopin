@@ -1,5 +1,6 @@
 import { SvelteMap } from "svelte/reactivity";
 import { untrack } from "svelte";
+import type { AgentTile } from "#lib/call/feature-port.ts";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
@@ -38,6 +39,18 @@ export interface RemoteTile {
 
 // In join order: appended on add, spliced on remove, never sorted.
 export const remoteTiles = $state<RemoteTile[]>([]);
+
+// The agent's tile comes from the feature that owns the agent; it is no person, so it has no stream and no place in the call.
+export const agentTile = $state<{ current: AgentTile | null }>({ current: null });
+
+export function showAgentTile(tile: AgentTile | null) {
+    agentTile.current = tile;
+}
+
+/** The tiles the stage lays out: the own one, the people's and the agent's. */
+export function stageTileCount() {
+    return remoteTiles.length + 1 + (agentTile.current === null ? 0 : 1);
+}
 
 // A media state can arrive before its tile and a speaking report after the tile is gone, so these follow the person, not the tile.
 const mediaStates = new SvelteMap<string, RemoteMediaState>();

@@ -302,3 +302,38 @@ describe("remote tiles", () => {
         expect([remoteVideoOf("a"), remoteTiles[0]?.showsVideo]).toEqual([undefined, false]);
     });
 });
+
+describe("agent tile", () => {
+    const tile = { name: "Game master", activity: "waiting" } as const;
+
+    it("CALL-47: takes none of the six places, so six people and an agent are seven tiles", async () => {
+        const { addRemoteTile, showAgentTile, stageTileCount } = await freshStage();
+        for (const person of ["a", "b", "c", "d", "e"]) addRemoteTile(person);
+        const peopleOnly = stageTileCount();
+
+        showAgentTile(tile);
+
+        expect([peopleOnly, stageTileCount()]).toEqual([6, 7]);
+    });
+
+    it("CALL-47: leaves the participant count to people", async () => {
+        vi.resetModules();
+        const { showAgentTile } = await import("#lib/ui/stage.svelte.ts");
+        const { participantCount, showParticipantCount } = await import("#lib/ui/status.svelte.ts");
+        showParticipantCount(3);
+
+        showAgentTile(tile);
+
+        expect(participantCount.count).toBe(3);
+    });
+
+    it("holds the tile until null takes it away", async () => {
+        const { agentTile, showAgentTile, stageTileCount } = await freshStage();
+
+        showAgentTile(tile);
+        const shown = agentTile.current;
+        showAgentTile(null);
+
+        expect([shown, agentTile.current, stageTileCount()]).toEqual([tile, null, 1]);
+    });
+});
