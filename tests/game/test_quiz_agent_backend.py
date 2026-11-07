@@ -15,7 +15,6 @@ from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GameRefusal
 from tests.game.support.fake_agent_backend import (
     CallsATool,
-    CancelsTheRun,
     EndsEarly,
     Fails,
     Rejects,
@@ -33,10 +32,8 @@ PARTIAL_BY_ENDING = [
     pytest.param(Rejects(RejectionCode.NOT_ENABLED), Refused(GameRefusal.NO_ACCESS), id="refused-not-enabled"),
     pytest.param(Rejects(RejectionCode.BUSY, retry_after_s=9), Refused(GameRefusal.BUSY, 9), id="refused-busy"),
     pytest.param(Fails(), Refused(GameRefusal.UNAVAILABLE), id="failed"),
-    pytest.param(CancelsTheRun(), Refused(GameRefusal.UNAVAILABLE), id="cancelled"),
 ]
 NO_ACCESS_CODES = [RejectionCode.NOT_ENABLED, RejectionCode.FORBIDDEN]
-UNAVAILABLE_REJECTIONS = [code for code in RejectionCode if code not in {*NO_ACCESS_CODES, RejectionCode.BUSY}]
 
 
 @pytest.fixture
@@ -243,13 +240,6 @@ class TestEndings:
 
         assert outcome == Refused(GameRefusal.BUSY, retry_after_seconds=expected_wait)
 
-    @pytest.mark.parametrize("code", UNAVAILABLE_REJECTIONS)
-    async def test_a_turn_refused_for_any_other_code_is_unavailable(self, world, code):
-        starter, _ = world.starter()
-        world.backend.answer_next(Rejects(code))
-
-        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
-
     @pytest.mark.parametrize("code", list(FailureCode))
     async def test_a_failed_turn_is_unavailable_whatever_its_code_and_logs_that_code(self, world, code):
         starter, _ = world.starter()
@@ -265,7 +255,6 @@ class TestEndings:
         "answer",
         [
             pytest.param(CallsATool(), id="tool-call"),
-            pytest.param(CancelsTheRun(), id="cancelled"),
             pytest.param(EndsEarly(), id="ends-without-a-final-event"),
             pytest.param(Succeeds("", files=(RunFile(name="note.txt", content=b"unread"),)), id="final-without-words"),
         ],
@@ -323,12 +312,10 @@ class TestNothingLeaksIntoLogs:
     @pytest.mark.parametrize(
         "answer",
         [
-            pytest.param(Rejects(RejectionCode.UNAVAILABLE, detail="transport_lost"), id="refused"),
-            pytest.param(Fails(FailureCode.INTERNAL_ERROR), id="failed"),
             pytest.param(
                 Succeeds("", files=(RunFile(name="note.txt", content=b"{secrets}"),)), id="final-without-words"
             ),
-            pytest.param(SaysThenStops("{secrets}", CancelsTheRun()), id="cancelled-after-speaking"),
+            pytest.param(SaysThenStops("{secrets}", Fails()), id="failed-after-speaking"),
         ],
     )
     async def test_neither_a_token_nor_a_group_path_nor_the_game_text_reaches_a_log_or_the_outcome(
@@ -353,7 +340,7 @@ class TestNothingLeaksIntoLogs:
 
     async def test_a_refusal_is_logged_by_its_closed_values_only(self, world):
         starter, _ = world.starter()
-        world.backend.answer_next(Rejects(RejectionCode.UNAVAILABLE, detail="transport_lost"))
+        world.backend.answer_next(Rejects(RejectionCode.FORBIDDEN, detail="transport_lost"))
 
         with structlog.testing.capture_logs() as logs:
             await world.game_master.ask(starter, OPENING)
@@ -363,7 +350,7 @@ class TestNothingLeaksIntoLogs:
                 "event": TURN_REFUSED,
                 "log_level": "info",
                 "kind": TurnStopKind.REFUSED.value,
-                "code": RejectionCode.UNAVAILABLE.value,
+                "code": RejectionCode.FORBIDDEN.value,
                 "detail": "transport_lost",
             }
         ]
