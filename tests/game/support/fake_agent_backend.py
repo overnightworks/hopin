@@ -89,11 +89,6 @@ class Fails:
 
 
 @dataclass(frozen=True)
-class CancelsTheRun:
-    pass
-
-
-@dataclass(frozen=True)
 class CallsATool:
     pass
 
@@ -108,7 +103,7 @@ class SaysThenStops:
     """Speaks `text`, then the turn ends short with `stop`."""
 
     text: str
-    stop: Rejects | Fails | CancelsTheRun
+    stop: Rejects | Fails
 
 
 @dataclass(frozen=True, eq=False)
@@ -120,7 +115,7 @@ class Holds:
     release: Signal = field(default_factory=Signal)
 
 
-type Answer = Succeeds | Rejects | Fails | CancelsTheRun | CallsATool | EndsEarly | SaysThenStops | Holds
+type Answer = Succeeds | Rejects | Fails | CallsATool | EndsEarly | SaysThenStops | Holds
 
 
 class FakeAgentBackend(AgentBackend):
@@ -171,8 +166,6 @@ async def _events_of(answer: Answer) -> AsyncGenerator[TurnEvent]:
             raise TurnStopped(TurnStopKind.REFUSED, code, retry_after_s=retry_after_s, detail=detail)
         case Fails(code=code):
             raise TurnStopped(TurnStopKind.FAILED, code)
-        case CancelsTheRun():
-            raise TurnStopped(TurnStopKind.CANCELLED)
         case CallsATool():
             yield ToolCallEvent(tool_use_id="call-1", name="lookup")
         case SaysThenStops(text=text, stop=stop):
