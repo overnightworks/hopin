@@ -400,11 +400,11 @@ button, input, textarea { font-family: inherit; }
 .tile.agent .av { color: var(--accent-stage); background: var(--stage-2); box-shadow: inset 0 0 0 2px var(--accent-stage); }
 .agent-activity { position: absolute; left: 50%; top: calc(50% + clamp(22px, 15cqmin, 56px) + 14px); display: flex; gap: 5px; transform: translateX(-50%); }
 .agent-activity i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); }
-.tile.agent.thinking .agent-activity i { background: var(--busy-stage); animation: speak var(--motion-think) ease-in-out infinite; }
-.tile.agent.thinking .agent-activity i:nth-child(2) { animation-delay: -.3s; }
-.tile.agent.thinking .agent-activity i:nth-child(3) { animation-delay: -.6s; }
-.tile.agent.waiting .agent-activity i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent-stage); }
-.tile.agent.speaking .agent-activity { display: none; }
+.tile.agent.activity-thinking .agent-activity i { background: var(--busy-stage); animation: speak var(--motion-think) ease-in-out infinite; }
+.tile.agent.activity-thinking .agent-activity i:nth-child(2) { animation-delay: -.3s; }
+.tile.agent.activity-thinking .agent-activity i:nth-child(3) { animation-delay: -.6s; }
+.tile.agent.activity-waiting .agent-activity i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent-stage); }
+.tile.agent.activity-speaking .agent-activity { display: none; }
 @keyframes speak { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (max-width: 600px) {
     .stage[data-count="1"] .grid, .stage[data-count="2"] .grid { inset: 0; }

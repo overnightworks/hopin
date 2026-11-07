@@ -45,7 +45,7 @@
 {#if agentTile.current !== null}
     {@const agent = agentTile.current}
     <div
-        class="tile agent {agent.activity}"
+        class="tile agent activity-{agent.activity}"
         class:speaking={agent.activity === AGENT_ACTIVITY.SPEAKING}
         id="container-agent"
         role="status"
