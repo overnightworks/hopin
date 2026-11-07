@@ -8,6 +8,7 @@ from pydantic import SecretStr
 from starlette.responses import Response
 from webauth.admission import AppRole
 from webauth.cookies import issue_session_cookies
+from webauth.ports import AccountKind
 
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -53,7 +54,9 @@ def handshake_headers(member: SeededMember | None, origin: str | None = TEST_PUB
 def new_account(stores: SignInStores, config: WebAuthConfig) -> StoredAccount:
     """A member's account under a fresh subject."""
     suffix = secrets.token_hex(SUBJECT_BYTES)
-    return stores.accounts.create_for_subject(f"subject-{suffix}", f"member-{suffix}", role=AppRole.USER)
+    return stores.accounts.create_for_subject(
+        f"subject-{suffix}", f"member-{suffix}", role=AppRole.USER, kind=AccountKind.PERSON
+    )
 
 
 def seed_member(

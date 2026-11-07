@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
+from webauth.ports import AccountKind
 
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
@@ -81,7 +82,9 @@ def members(app, stores):
 
     def member_named(label, *, role=None):
         if label not in seeded:
-            account = stores.accounts.create_for_subject(label, label, AppRole.USER if role is None else role)
+            account = stores.accounts.create_for_subject(
+                label, label, AppRole.USER if role is None else role, kind=AccountKind.PERSON
+            )
             seeded[label] = seed_member(stores, config, account=account)
         return seeded[label]
 

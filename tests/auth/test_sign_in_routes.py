@@ -16,7 +16,7 @@ from pydantic import SecretStr
 from webauth.admission import AppRole
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
-from webauth.ports import AccountEventKind
+from webauth.ports import AccountEventKind, AccountKind
 
 from hopin.auth.sign_in import (
     LOGOUT_LABEL,
@@ -443,7 +443,7 @@ class TestBackchannelLogout:
         assert harness.accounts.get("stranger") is None
 
     def test_a_token_for_a_subject_without_a_session_removes_the_account_and_logs_no_logout(self, harness):
-        harness.accounts.create_for_subject("anna", USERNAME, role="user")
+        harness.accounts.create_for_subject("anna", USERNAME, role="user", kind=AccountKind.PERSON)
 
         with structlog.testing.capture_logs() as logs:
             response = harness.post_logout_token(harness.issuer.logout_token("anna"))
@@ -506,7 +506,7 @@ class TestBackchannelLogout:
         assert harness.accounts.get("anna") is not None
 
     def test_an_unreachable_key_set_answers_400_and_ends_nothing(self, harness):
-        account = harness.accounts.create_for_subject("anna", USERNAME, role="user")
+        account = harness.accounts.create_for_subject("anna", USERNAME, role="user", kind=AccountKind.PERSON)
         now = datetime.now(UTC)
         session = harness.sessions.create(
             account.id, now=now, expires_at=now + timedelta(hours=1), refresh_token=None, id_token=new_id_token()

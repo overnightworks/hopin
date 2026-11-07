@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.admission import AppRole
 from webauth.config import install_web_auth_config, installed_web_auth_config
+from webauth.ports import AccountKind
 
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
@@ -69,7 +70,9 @@ def person(stores, config):
     """A signed-in person whose subject is the label; a role other than a member's makes them an admin."""
 
     def make(subject, role=None):
-        account = stores.accounts.create_for_subject(subject, subject, AppRole.USER if role is None else role)
+        account = stores.accounts.create_for_subject(
+            subject, subject, AppRole.USER if role is None else role, kind=AccountKind.PERSON
+        )
         return seed_member(stores, config, account=account)
 
     return make
@@ -265,7 +268,7 @@ class TestExportOfAPerson:
         assert withheld_counts(export)["resume_token"] == 3
 
     def test_lists_the_account_of_a_person_with_no_session(self, client, admin, stores):
-        stores.accounts.create_for_subject("anna", "anna", AppRole.USER)
+        stores.accounts.create_for_subject("anna", "anna", AppRole.USER, kind=AccountKind.PERSON)
 
         _, export = read_archive(ask(client, "anna", admin).content)
 
