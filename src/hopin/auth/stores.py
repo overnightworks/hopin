@@ -102,13 +102,14 @@ class InMemoryAccounts:
     def set_role(self, user_id: str, role: str) -> StoredAccount:
         with self.guard:
             existing = self._by_subject[user_id]
-            account = replace(existing, role=role)
+            account = StoredAccount(id=existing.id, username=existing.username, role=role, kind=existing.kind)
             self._by_subject[user_id] = account
         return account
 
     def set_kind(self, user_id: str, kind: AccountKind) -> StoredAccount:
         with self.guard:
-            account = replace(self._by_subject[user_id], kind=kind)
+            existing = self._by_subject[user_id]
+            account = StoredAccount(id=existing.id, username=existing.username, role=existing.role, kind=kind)
             self._by_subject[user_id] = account
         return account
 
