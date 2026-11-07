@@ -171,7 +171,7 @@ class Participation:
         for agent_id in [agent.agent_id for agent in self._agents.values() if agent.room_id == room_id]:
             del self._agents[agent_id]
 
-    async def shut_down(self) -> None:
+    async def shut_down(self) -> None:  # NOSONAR(S7503) the call feature contract awaits it
         self._agents.clear()
 
     def _agent_of(self, person: Person, sponsor: PeerId) -> DialedAgent | None:
