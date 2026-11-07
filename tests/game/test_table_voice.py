@@ -260,8 +260,8 @@ class TestAVoiceThatFails:
         with structlog.testing.capture_logs() as logs:
             await scheduler.advance(VOICE_DEADLINE_SECONDS)
             await yield_until(lambda: spoken.finished)
-        await host.say(REVEAL)
-        await sent_to_all([host, guest], answering(host, 2))
+            await host.say(REVEAL)
+            await sent_to_all([host, guest], answering(host, 2))
 
         assert [log for log in logs if log["event"] == "game_voice_failed"] == [
             {"event": "game_voice_failed", "log_level": "info", "outcome": "past_deadline"}

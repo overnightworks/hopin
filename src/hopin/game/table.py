@@ -109,10 +109,15 @@ class _VoiceRun:
     """A line's voice being made, and the deadline that cuts it."""
 
     task: asyncio.Task[bytes | None]
-    deadline: TimerHandle
+    deadline: TimerHandle = field(init=False)
+    expired: bool = False
 
     def stop(self) -> None:
         self.deadline.cancel()
+        self.task.cancel()
+
+    async def expire(self) -> None:  # NOSONAR(S7503) the scheduler awaits it
+        self.expired = True
         self.task.cancel()
 
 
@@ -397,9 +402,8 @@ class Game:
         """Make the line's voice beside the run, on its own deadline; the line and its phase never wait for it."""
         if self._voice is not None:
             task = asyncio.create_task(self._voice.speak(run.starter, line.text))
-            run.voice = _VoiceRun(
-                task, self._scheduler.call_later(VOICE_DEADLINE_SECONDS, partial(_expire_voice, task))
-            )
+            run.voice = _VoiceRun(task)
+            run.voice.deadline = self._scheduler.call_later(VOICE_DEADLINE_SECONDS, run.voice.expire)
 
     @staticmethod
     async def _stop_voice(run: _Run) -> None:
@@ -413,6 +417,8 @@ class Game:
             return
         await asyncio.wait({run.voice.task})
         run.voice.deadline.cancel()
+        if run.voice.expired and run.voice.task.cancelled():
+            logger.info("game_voice_failed", outcome="past_deadline")
         wav = _voice_of(run.voice.task)
         if wav is None or not self._is_live(room_id, run):
             return
@@ -505,14 +511,6 @@ class Game:
 async def _expire(run: _Run) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
     # A run that already ended has a finished `ask`, so the cancel is a no-op then.
     run.ask.cancel()
-
-
-async def _expire_voice(
-    voice: asyncio.Task[bytes | None],
-) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
-    if not voice.done():
-        logger.info("game_voice_failed", outcome="past_deadline")
-    voice.cancel()
 
 
 def _voice_of(voice: asyncio.Task[bytes | None]) -> bytes | None:
