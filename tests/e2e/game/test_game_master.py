@@ -18,6 +18,7 @@ from tests.e2e.game.game_page import (
     close_chat,
     end_quiz,
     open_chat,
+    relaying_frames,
     start_quiz,
 )
 from tests.e2e.support.calls import (
@@ -36,7 +37,6 @@ from tests.e2e.support.calls import (
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, poll_until
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
-from tests.e2e.support.signaling import FrameInjector
 from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
 
@@ -45,6 +45,7 @@ if TYPE_CHECKING:
 
     from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.server import RunningServer
+    from tests.e2e.support.signaling import FrameInjector
     from tests.game.support.fake_agent_backend import FakeAgentBackend
     from tests.support.signed_in import SeededMember
 
@@ -96,17 +97,6 @@ def expect_idle(person: Page) -> None:
     expect(item).to_be_enabled()
     expect(item).not_to_have_class(THINKING)
     expect(person.locator(TYPING)).to_have_count(0)
-
-
-def relaying_frames(open_person: Callable[..., Page], relays: list[FrameInjector]) -> Callable[..., Page]:
-    """Open people whose signaling sockets run through a FrameInjector, collected in the order they open."""
-
-    def open_relayed(**options: Any) -> Page:
-        person = open_person(**options)
-        relays.append(FrameInjector(person))
-        return person
-
-    return open_relayed
 
 
 def call_of_two(

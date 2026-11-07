@@ -671,6 +671,18 @@ describe("the game master's tile", () => {
         expect(lastTile(game)).toBeNull();
     });
 
+    it("GM-35: carries no tile into the next call after a call ended with the quiz running", async () => {
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+
+        game.endCall();
+        const afterTheCallEnded = lastTile(game);
+        game.seat();
+
+        expect([afterTheCallEnded, lastTile(game)]).toEqual([null, null]);
+    });
+
     it("GM-35: a fresh seat after a refused resume starts without the tile", async () => {
         const game = await installedGame();
         game.seat();
