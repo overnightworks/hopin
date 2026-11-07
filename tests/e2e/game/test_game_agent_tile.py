@@ -224,6 +224,7 @@ def test_a_new_call_after_the_end_of_one_with_a_running_quiz_shows_no_tile(
     expect(guest.locator("[data-screen=end]")).to_be_visible()
     expect(guest.locator(AGENT_TILE)).to_have_count(0)
     guest.get_by_role("button", name="Back to start").click()
+    expect(guest.locator("[data-screen=home]")).to_be_visible()
     press_start_call(guest, e2e_server.base_url)
 
     expect(guest.locator("#stage")).to_be_visible()
