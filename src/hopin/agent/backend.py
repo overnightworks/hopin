@@ -90,7 +90,7 @@ class StarterPerson:
         session_id = self._session_id_of(starter)
         record = await asyncio.to_thread(self._sessions.load, session_id)
         if record is None:
-            raise StarterRefusedError(_refusal_of_groups(AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)))
+            raise StarterRefusedError(_refusal_of_grant(AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)))
         # webauth binds the store to one issuer, and an account's id is that issuer's `sub`. Two spellings
         # of the issuer would split one person's budget, so it goes out exactly as the relying party holds it.
         principal = Principal(iss=self._relying_party.issuer, sub=record.user.id)
@@ -103,7 +103,7 @@ class StarterPerson:
         # Like the groups grant, it runs in a worker that still stores a rotated refresh token when cancelled.
         token = await asyncio.to_thread(self._fresh_access_token, session_id)
         if isinstance(token, AccessTokenRefusal):
-            raise StarterRefusedError(_refusal_of_groups(token, event=STARTER_REFUSED_EVENT))
+            raise StarterRefusedError(_refusal_of_grant(token, event=STARTER_REFUSED_EVENT))
         return token.get_secret_value()
 
     def _session_id_of(self, starter: HTTPConnection) -> str:
@@ -117,7 +117,7 @@ class StarterPerson:
         # not the worker: it still stores the rotated refresh token, and no later step runs.
         groups = await asyncio.to_thread(self._current_groups, session_id)
         if isinstance(groups, AccessTokenRefusal):
-            raise StarterRefusedError(_refusal_of_groups(groups))
+            raise StarterRefusedError(_refusal_of_grant(groups))
         return frozenset(groups)
 
     def _fresh_access_token(self, session_id: str) -> SecretStr | AccessTokenRefusal:
@@ -213,7 +213,7 @@ def _log_refusal(**codes: str | None) -> None:
     logger.info("game_master_turn_refused", **{name: code for name, code in codes.items() if code is not None})
 
 
-def _refusal_of_groups(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSED_EVENT) -> GameRefusal:
+def _refusal_of_grant(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSED_EVENT) -> GameRefusal:
     _log_groups_refusal(refusal, event)
     match refusal.reason:
         case AccessTokenRefusalReason.SESSION_ENDED | AccessTokenRefusalReason.SIGN_IN_AGAIN:
