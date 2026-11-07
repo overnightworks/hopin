@@ -15,6 +15,11 @@ def start_quiz(person: Page) -> None:
     person.click(START_QUIZ)
 
 
+def end_quiz(person: Page) -> None:
+    open_more(person)
+    person.click(START_QUIZ)
+
+
 def open_chat(person: Page) -> None:
     if person.locator("#moreMenu").is_visible():
         person.keyboard.press("Escape")

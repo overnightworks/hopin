@@ -56,3 +56,4 @@ Ruled by the operator:
 - CALL-44: A long chat scrolls inside its panel, and the newest line and the composer stay reachable.
 - CALL-45: A tab opened before a release still starts a call: it reloads itself when the new build lacks a piece it needs.
 - CALL-46: The end screens name the host by the account's name, and say "The host" only when that name is empty.
+- CALL-47: An agent's tile takes none of the call's six places; the stage shows up to seven tiles, and the participant count names people only.

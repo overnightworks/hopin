@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { FeatureCore } from "#lib/call/feature-port.ts";
+import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND, type ToastAction, type ToastKind } from "#lib/ui/toast.svelte.ts";
 import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
@@ -44,6 +44,7 @@ async function installedGame({ connected = true } = {}) {
     const lines: (HandedOver | null)[] = [];
     const pinned: (HandedOver | null)[] = [];
     const cards: (HandedOver | null)[] = [];
+    const agentTiles: (AgentTile | null)[] = [];
     const toasts: Toast[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
@@ -57,6 +58,7 @@ async function installedGame({ connected = true } = {}) {
         receiveChatLine: (view) => void lines.push(handedOver(view)),
         pinLastChatLine: (view) => void pinned.push(handedOver(view)),
         showChatCard: (view) => void cards.push(handedOver(view)),
+        showAgentTile: (tile) => void agentTiles.push(tile),
         onCallEnded: (hook) => void callEndedHooks.push(hook),
     };
     await install(core);
@@ -74,6 +76,7 @@ async function installedGame({ connected = true } = {}) {
         lines,
         pinned,
         cards,
+        agentTiles,
         toasts,
         moreItems,
         startButton,
@@ -540,5 +543,141 @@ describe("the game master's voice", () => {
         FakeAudio.instances[0]?.listeners.get("ended")?.();
 
         expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
+    });
+});
+
+const GAME_MASTER = "Game master";
+const tileOf = (activity: AgentTile["activity"]): AgentTile => ({ name: GAME_MASTER, activity });
+const thinkingPhase = { phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME };
+
+function lastTile(game: Game) {
+    return game.agentTiles.at(-1) ?? null;
+}
+
+describe("the game master's tile", () => {
+    it("GM-35: shows from the start's thinking, waits at the question and goes with the quiz", async () => {
+        const game = await installedGame();
+        game.seat();
+
+        game.emit(GAME_SIGNAL.GAME_PHASE, thinkingPhase);
+        const whileThinking = lastTile(game);
+        startRound(game, 1);
+        const whileAnswering = lastTile(game);
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+
+        expect([whileThinking, whileAnswering, lastTile(game)]).toEqual([
+            tileOf(AGENT_ACTIVITY.THINKING),
+            tileOf(AGENT_ACTIVITY.WAITING),
+            null,
+        ]);
+    });
+
+    it("GM-35: hands the stage a tile only when what it shows changes", async () => {
+        const game = await installedGame();
+        game.seat();
+
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_ANSWER_COUNT, { answered: 1, players: 2 });
+        startRound(game, 2);
+
+        expect(game.agentTiles).toEqual([tileOf(AGENT_ACTIVITY.WAITING)]);
+    });
+
+    it("GM-35: shows a late joiner the tile of the phase it is greeted with", async () => {
+        const game = await installedGame();
+
+        game.seat();
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.ANSWERING, round: 2, rounds: 3, starter: "someone" });
+
+        expect(lastTile(game)).toEqual(tileOf(AGENT_ACTIVITY.WAITING));
+    });
+
+    it("GM-35: speaks while a voice plays, then waits again", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        await settled();
+        const whilePlaying = lastTile(game);
+        FakeAudio.instances[0]?.listeners.get("ended")?.();
+
+        expect([whilePlaying, lastTile(game)]).toEqual([
+            tileOf(AGENT_ACTIVITY.SPEAKING),
+            tileOf(AGENT_ACTIVITY.WAITING),
+        ]);
+    });
+
+    it("GM-35: keeps the tile for the final voice after the quiz is idle, and goes when it has played", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score" });
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
+        const whileFetching = lastTile(game);
+        await settled();
+        const whilePlaying = lastTile(game);
+        FakeAudio.instances[0]?.listeners.get("ended")?.();
+
+        expect([whileFetching, whilePlaying, lastTile(game)]).toEqual([
+            tileOf(AGENT_ACTIVITY.WAITING),
+            tileOf(AGENT_ACTIVITY.SPEAKING),
+            null,
+        ]);
+    });
+
+    it("GM-35: goes when the final voice cannot be fetched", async () => {
+        stubbedVoicePlayback(() => Promise.reject(new Error("offline")));
+        const game = await installedGame();
+        game.seat();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
+
+        await settled();
+
+        expect(lastTile(game)).toBeNull();
+    });
+
+    it("GM-35: stops speaking when the quiz ends and goes with the idle that follows", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        await settled();
+
+        game.emit(GAME_SIGNAL.GAME_ENDED, {});
+        const afterEnded = lastTile(game);
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+
+        expect([afterEnded, lastTile(game)]).toEqual([tileOf(AGENT_ACTIVITY.WAITING), null]);
+    });
+
+    it("GM-35: shows no tile again when a voice starts late, after the call ended", async () => {
+        let deliver: (response: Response) => void = () => undefined;
+        stubbedVoicePlayback(() => new Promise<Response>((resolve) => void (deliver = resolve)));
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+
+        game.endCall();
+        deliver(new Response(new Blob(["wav"]), { status: 200 }));
+        await settled();
+
+        expect(lastTile(game)).toBeNull();
+    });
+
+    it("GM-35: a fresh seat after a refused resume starts without the tile", async () => {
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+
+        game.seat();
+
+        expect(lastTile(game)).toBeNull();
     });
 });

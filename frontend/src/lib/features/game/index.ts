@@ -1,4 +1,4 @@
-import type { FeatureCore } from "#lib/call/feature-port.ts";
+import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView, type FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
 import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
@@ -94,8 +94,13 @@ function moreItems() {
     };
 }
 
-/** Plays one voice at a time: the voice whose fetch finishes last replaces the playing one, and a stop drops every voice still being fetched; a voice that cannot be fetched or played leaves its line as text. */
-function createVoicePlayer() {
+interface VoiceEvents {
+    started(voiceId: string): void;
+    ended(voiceId: string): void;
+}
+
+/** Plays one voice at a time: the voice whose fetch finishes last replaces the playing one, and a stop drops every voice still being fetched; a voice that cannot be fetched or played leaves its line as text. Every voice it takes reports its end exactly once, played or not. */
+function createVoicePlayer(events: VoiceEvents) {
     let releaseCurrent: (() => void) | null = null;
     let requested = 0;
     let stoppedThrough = 0;
@@ -106,38 +111,48 @@ function createVoicePlayer() {
         releaseCurrent = null;
     }
 
-    function begin(blob: Blob, sequence: number) {
-        if (sequence <= stoppedThrough) return;
+    function begin(blob: Blob, sequence: number, voiceId: string) {
+        if (sequence <= stoppedThrough) return false;
         releaseCurrent?.();
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         const release = () => {
             audio.pause();
             URL.revokeObjectURL(url);
+            events.ended(voiceId);
         };
         releaseCurrent = release;
         audio.addEventListener("ended", release);
-        void audio.play().catch(release);
+        void audio.play().then(() => {
+            events.started(voiceId);
+        }, release);
+        return true;
     }
 
-    async function play(path: string) {
+    async function play(voiceId: string, path: string) {
         requested += 1;
         const sequence = requested;
         try {
             const response = await fetch(path);
-            if (!response.ok) return;
-            const blob = await response.blob();
-            begin(blob, sequence);
+            if (response.ok && begin(await response.blob(), sequence, voiceId)) return;
         } catch {
             // The line stays text.
         }
+        events.ended(voiceId);
     }
 
     return { play, stop };
 }
 
 function listen(core: FeatureCore, quiz: Quiz) {
-    const voice = createVoicePlayer();
+    const voice = createVoicePlayer({
+        started: (voiceId) => {
+            quiz.voiceStarted(voiceId);
+        },
+        ended: (voiceId) => {
+            quiz.voiceEnded(voiceId);
+        },
+    });
     core.on(GAME_SIGNAL.GAME_PHASE, (frame: PhaseFrame) => {
         quiz.receivePhase(frame);
     });
@@ -146,7 +161,9 @@ function listen(core: FeatureCore, quiz: Quiz) {
         quiz.receiveLine(frame);
     });
     core.on(GAME_SIGNAL.GAME_VOICE, (frame: VoiceFrame) => {
-        if (quiz.isFirstHearing(frame.id)) void voice.play(frame.path);
+        if (!quiz.isFirstHearing(frame.id)) return;
+        quiz.voiceRequested(frame.id);
+        void voice.play(frame.id, frame.path);
     });
     core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
         quiz.receiveAnswerCount(frame);
@@ -160,6 +177,7 @@ function listen(core: FeatureCore, quiz: Quiz) {
         const text = frame.leaver === undefined ? "Quiz ended." : `Quiz ended: ${frame.leaver} left.`;
         core.showToast(text, core.toastKind.FAILED, null);
         voice.stop();
+        quiz.receiveEnd();
     });
     const joined = (frame: SeatFrame) => {
         quiz.joined(frame.participant_id, frame.is_host);
@@ -176,6 +194,7 @@ export function install(core: FeatureCore): Promise<void> {
     const more = moreItems();
     let thinkingView: FeatureView | null = null;
     let handedCard: QuestionCardProps | null = null;
+    let handedTile: AgentTile | null = null;
 
     function renderMore() {
         more.startButton.classList.toggle("thinking", quiz.isThinking);
@@ -200,10 +219,18 @@ export function install(core: FeatureCore): Promise<void> {
         core.showChatCard(card === null ? null : featureView(QuestionCard, card));
     }
 
+    function showAgentTile() {
+        const tile = quiz.agentTile;
+        if (tile?.activity === handedTile?.activity && tile?.name === handedTile?.name) return;
+        handedTile = tile;
+        core.showAgentTile(tile);
+    }
+
     const quiz: Quiz = new Quiz(core, () => {
         renderMore();
         showThinking();
         showCard();
+        showAgentTile();
     });
 
     more.startButton.addEventListener("click", () => {

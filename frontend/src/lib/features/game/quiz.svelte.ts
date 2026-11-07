@@ -1,5 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
-import type { OutgoingFrame } from "#lib/call/feature-port.ts";
+import { AGENT_ACTIVITY, type AgentTile, type OutgoingFrame } from "#lib/call/feature-port.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
 
 export type PhaseFrame =
@@ -38,6 +38,8 @@ export type QuestionCardProps = {
     answer: (text: string) => void;
 };
 
+const GAME_MASTER_NAME = "Game master";
+
 interface QuizRound {
     round: number;
     rounds: number;
@@ -66,6 +68,9 @@ export class Quiz {
     #card: QuestionCardProps | null = null;
     // Kept across a reset: a resumed seat is replayed frames it already played.
     readonly #heardVoices = new SvelteSet<string>();
+    // The voices being fetched or played: only these may start or end, so a late callback after a reset changes nothing.
+    readonly #voicesOutstanding = new SvelteSet<string>();
+    readonly #voicesPlaying = new SvelteSet<string>();
 
     constructor(outlet: QuizOutlet, onChange: () => void) {
         this.#outlet = outlet;
@@ -99,6 +104,18 @@ export class Quiz {
         return this.#card;
     }
 
+    /**
+     * The game master's tile: it shows while the quiz runs and while a voice of it is fetched or played,
+     * so the final score's voice, which reaches the page after the quiz is idle, keeps or brings it back.
+     */
+    get agentTile(): AgentTile | null {
+        const speaking = this.#voicesPlaying.size > 0;
+        if (this.#phase === GAME_PHASE.IDLE && this.#voicesOutstanding.size === 0) return null;
+        if (speaking) return { name: GAME_MASTER_NAME, activity: AGENT_ACTIVITY.SPEAKING };
+        const activity = this.isThinking ? AGENT_ACTIVITY.THINKING : AGENT_ACTIVITY.WAITING;
+        return { name: GAME_MASTER_NAME, activity };
+    }
+
     joined(participantId: string, isHost: boolean) {
         this.#ownParticipantId = participantId;
         this.#isHost = isHost;
@@ -110,6 +127,13 @@ export class Quiz {
         this.#quizRound = null;
         this.#question = null;
         this.#awaitingAnswer = false;
+        this.receiveEnd();
+    }
+
+    /** The quiz was ended: its voices stop with it, so the tile goes with the phase. */
+    receiveEnd() {
+        this.#voicesOutstanding.clear();
+        this.#voicesPlaying.clear();
         this.#changed();
     }
 
@@ -136,6 +160,24 @@ export class Quiz {
         const isFirst = !this.#heardVoices.has(voiceId);
         this.#heardVoices.add(voiceId);
         return isFirst;
+    }
+
+    /** A voice frame the page will play: from here until it ends or fails, the tile stays. */
+    voiceRequested(voiceId: string) {
+        this.#voicesOutstanding.add(voiceId);
+        this.#changed();
+    }
+
+    voiceStarted(voiceId: string) {
+        if (!this.#voicesOutstanding.has(voiceId)) return;
+        this.#voicesPlaying.add(voiceId);
+        this.#changed();
+    }
+
+    voiceEnded(voiceId: string) {
+        if (!this.#voicesOutstanding.delete(voiceId)) return;
+        this.#voicesPlaying.delete(voiceId);
+        this.#changed();
     }
 
     receiveAnswerCount(frame: AnswerCountFrame) {

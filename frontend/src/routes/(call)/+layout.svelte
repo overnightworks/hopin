@@ -41,7 +41,7 @@
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
     import { pictureInPicture } from "#lib/ui/pip.ts";
     import { ownPictureMedia } from "#lib/ui/stage-media.ts";
-    import { ownPicture, remoteTiles } from "#lib/ui/stage.svelte.ts";
+    import { ownPicture, stageTileCount } from "#lib/ui/stage.svelte.ts";
     import { ACCOUNT_CONSOLE_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
@@ -157,7 +157,7 @@
 
 <!-- prettier-ignore -->
 <main class="call" class:hidden={screens.current !== SCREEN.CALL} data-screen="call">
-    <div class="stage" id="stage" data-count={remoteTiles.length + 1}>
+    <div class="stage" id="stage" data-count={stageTileCount()}>
         <div class="ctop">
             <div class="left">
                 <div id="status" class={"status status-" + statusLine.type}>{statusLine.text}</div>

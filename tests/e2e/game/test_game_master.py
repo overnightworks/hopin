@@ -16,6 +16,7 @@ from tests.e2e.game.game_page import (
     YOUR_ANSWER,
     answer_on_card,
     close_chat,
+    end_quiz,
     open_chat,
     start_quiz,
 )
@@ -83,11 +84,6 @@ window.WebSocket = class extends PageWebSocket {
 };
 """
 DELIVER_SERVER_FRAME = "(frame) => pageSocket.dispatchEvent(new MessageEvent('message', {data: JSON.stringify(frame)}))"
-
-
-def end_quiz(person: Page) -> None:
-    open_more(person)
-    person.click(START_QUIZ)
 
 
 def leave_the_call(guest: Page) -> None:

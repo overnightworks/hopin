@@ -10,6 +10,15 @@ export interface OutgoingFrame {
     [field: string]: unknown;
 }
 
+export const AGENT_ACTIVITY = { THINKING: "thinking", WAITING: "waiting", SPEAKING: "speaking" } as const;
+export type AgentActivity = (typeof AGENT_ACTIVITY)[keyof typeof AGENT_ACTIVITY];
+
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing. */
+export interface AgentTile {
+    name: string;
+    activity: AgentActivity;
+}
+
 export interface FeatureCore {
     /** The handler declares the fields of the frames it registers for; the server it trusts sends them. */
     on(type: string, handler: (frame: never) => void): void;
@@ -24,6 +33,8 @@ export interface FeatureCore {
     pinLastChatLine(view: FeatureView | null): void;
     /** Show a view between the chat's header and its lines until another view, or null, takes its place. */
     showChatCard(view: FeatureView | null): void;
+    /** Show an agent's tile on the stage, beside the people's and taking none of the call's places, until null takes it away. */
+    showAgentTile(tile: AgentTile | null): void;
     onCallEnded(hook: () => void): void;
 }
 
