@@ -1,0 +1,8 @@
+claim_id = "4d53db70137646c49d3de71597f52927"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "ece5a651f9d3b2a96ab29153181407e0c1054ca3"
+branch = "claude/issue-552-webauth-0-31-0"
+scope = ["pyproject.toml", "src/hopin/agent/backend.py", "src/hopin/auth/sign_in.py", "tests", "uv.lock"]
+opened_commit = "e206ff1f5def9e0a58992d14f5b65f7c4ff3d66c"
+whole_reason = "One dependency upgrade: the pin, its two production call sites and the tests that read the removed role options change in one landing."
