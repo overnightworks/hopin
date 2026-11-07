@@ -161,9 +161,11 @@ function listen(core: FeatureCore, quiz: Quiz) {
         quiz.receiveLine(frame);
     });
     core.on(GAME_SIGNAL.GAME_VOICE, (frame: VoiceFrame) => {
-        if (!quiz.isFirstHearing(frame.id)) return;
-        quiz.voiceRequested(frame.id);
-        void voice.play(frame.id, frame.path);
+        if (frame.id !== undefined && quiz.isFirstHearing(frame.id)) {
+            quiz.voiceRequested(frame.id);
+            void voice.play(frame.id, frame.path);
+        }
+        quiz.voiceFrameArrived();
     });
     core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
         quiz.receiveAnswerCount(frame);

@@ -609,13 +609,14 @@ describe("the game master's tile", () => {
         ]);
     });
 
-    it("GM-35: keeps the tile for the final voice after the quiz is idle, and goes when it has played", async () => {
+    it("GM-36: keeps the tile through the gap after the final line's idle until its voice has played", async () => {
         stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         game.seat();
         startRound(game, 1);
-        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score" });
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score", voiced: true });
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+        const inTheGap = lastTile(game);
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
         const whileFetching = lastTile(game);
@@ -623,11 +624,55 @@ describe("the game master's tile", () => {
         const whilePlaying = lastTile(game);
         FakeAudio.instances[0]?.listeners.get("ended")?.();
 
-        expect([whileFetching, whilePlaying, lastTile(game)]).toEqual([
+        expect([inTheGap, whileFetching, whilePlaying, lastTile(game)]).toEqual([
+            tileOf(AGENT_ACTIVITY.WAITING),
             tileOf(AGENT_ACTIVITY.WAITING),
             tileOf(AGENT_ACTIVITY.SPEAKING),
             null,
         ]);
+        expect(game.agentTiles).toEqual([tileOf(AGENT_ACTIVITY.WAITING), tileOf(AGENT_ACTIVITY.SPEAKING), null]);
+    });
+
+    it("GM-36: ends the tile at the empty voice frame of a final line whose voice failed", async () => {
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score", voiced: true });
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+        const inTheGap = lastTile(game);
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, {});
+
+        expect([inTheGap, lastTile(game)]).toEqual([tileOf(AGENT_ACTIVITY.WAITING), null]);
+    });
+
+    it("GM-36: ends the tile at idle when the final line is not voiced", async () => {
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score" });
+
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+
+        expect(lastTile(game)).toBeNull();
+    });
+
+    it("GM-36: ends the tile when the browser refuses the final voice's playback", async () => {
+        stubbedVoicePlayback(wavResponse);
+        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score", voiced: true });
+        game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
+        FakeAudio.playResult = () => Promise.reject(new Error("autoplay"));
+        onTestFinished(() => {
+            FakeAudio.playResult = () => Promise.resolve();
+        });
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
+        await settled();
+
+        expect(lastTile(game)).toBeNull();
     });
 
     it("GM-35: goes when the final voice cannot be fetched", async () => {

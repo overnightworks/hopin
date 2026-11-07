@@ -147,8 +147,9 @@ def phase(game_phase, starter, round_number=1):
     }
 
 
-def question(text=DEFAULT_QUESTION, round_number=1):
-    return {"type": GameSignal.GAME_LINE.value, "text": text, "round": round_number}
+def question(text=DEFAULT_QUESTION, round_number=1, *, voiced=False):
+    frame = {"type": GameSignal.GAME_LINE.value, "text": text, "round": round_number}
+    return {**frame, "voiced": True} if voiced else frame
 
 
 def refused(reason, retry_after_seconds=None):
@@ -158,5 +159,5 @@ def refused(reason, retry_after_seconds=None):
     return frame
 
 
-def asked(starter, text=DEFAULT_QUESTION):
-    return [phase(GamePhase.THINKING, starter), question(text), phase(GamePhase.ANSWERING, starter)]
+def asked(starter, text=DEFAULT_QUESTION, *, voiced=False):
+    return [phase(GamePhase.THINKING, starter), question(text, voiced=voiced), phase(GamePhase.ANSWERING, starter)]

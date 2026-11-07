@@ -9,12 +9,11 @@ export type PhaseFrame =
 export interface LineFrame {
     text: string;
     round?: number;
+    voiced?: true;
 }
 
-export interface VoiceFrame {
-    id: string;
-    path: string;
-}
+/** The voice of the line before it, or, without id and path, the word that none follows. */
+export type VoiceFrame = { id: string; path: string } | { id?: undefined; path?: undefined };
 
 export interface AnswerCountFrame {
     answered: number;
@@ -71,6 +70,8 @@ export class Quiz {
     // The voices being fetched or played: only these may start or end, so a late callback after a reset changes nothing.
     readonly #voicesOutstanding = new SvelteSet<string>();
     readonly #voicesPlaying = new SvelteSet<string>();
+    // The last line was voiced and its voice frame has not come yet.
+    #voiceFrameDue = false;
 
     constructor(outlet: QuizOutlet, onChange: () => void) {
         this.#outlet = outlet;
@@ -105,12 +106,12 @@ export class Quiz {
     }
 
     /**
-     * The game master's tile: it shows while the quiz runs and while a voice of it is fetched or played,
-     * so the final score's voice, which reaches the page after the quiz is idle, keeps or brings it back.
+     * The game master's tile: it shows while the quiz runs and, after the final line's idle, while that
+     * line's voice frame is due or its voice is fetched or played.
      */
     get agentTile(): AgentTile | null {
         const speaking = this.#voicesPlaying.size > 0;
-        if (this.#phase === GAME_PHASE.IDLE && this.#voicesOutstanding.size === 0) return null;
+        if (this.#phase === GAME_PHASE.IDLE && !this.#voiceFrameDue && this.#voicesOutstanding.size === 0) return null;
         if (speaking) return { name: GAME_MASTER_NAME, activity: AGENT_ACTIVITY.SPEAKING };
         const activity = this.isThinking ? AGENT_ACTIVITY.THINKING : AGENT_ACTIVITY.WAITING;
         return { name: GAME_MASTER_NAME, activity };
@@ -132,6 +133,7 @@ export class Quiz {
 
     /** The quiz was ended: its voices stop with it, so the tile goes with the phase. */
     receiveEnd() {
+        this.#voiceFrameDue = false;
         this.#voicesOutstanding.clear();
         this.#voicesPlaying.clear();
         this.#changed();
@@ -152,6 +154,7 @@ export class Quiz {
     receiveLine(frame: LineFrame) {
         // A line without a round is the reveal or the final score: the card shows only an open question.
         this.#question = frame.round === undefined ? null : { round: frame.round, text: frame.text };
+        this.#voiceFrameDue = frame.voiced === true;
         this.#changed();
     }
 
@@ -165,6 +168,12 @@ export class Quiz {
     /** A voice frame the page will play: from here until it ends or fails, the tile stays. */
     voiceRequested(voiceId: string) {
         this.#voicesOutstanding.add(voiceId);
+        this.#changed();
+    }
+
+    /** The last voiced line's voice frame came, with a voice to play or without one: it is no longer due. */
+    voiceFrameArrived() {
+        this.#voiceFrameDue = false;
         this.#changed();
     }
 

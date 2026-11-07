@@ -45,13 +45,26 @@ def voice():
     voice.release_every_hold()
 
 
+def voiced(frame):
+    return {**frame, "voiced": True}
+
+
+def voice_frames(browser):
+    return [frame for frame in game_frames(browser) if frame["type"] == VOICE_TYPE]
+
+
 def voice_ids(browser):
-    return [frame["id"] for frame in game_frames(browser) if frame["type"] == VOICE_TYPE]
+    return [frame["id"] for frame in voice_frames(browser) if "id" in frame]
 
 
 def shown(browser):
-    """The game frames the browser was sent, a voice frame without its id."""
-    return [{"type": VOICE_TYPE} if frame["type"] == VOICE_TYPE else frame for frame in game_frames(browser)]
+    """The game frames the browser was sent, a voice frame without its id and a line without its voiced mark."""
+    return [
+        {"type": VOICE_TYPE}
+        if frame["type"] == VOICE_TYPE
+        else {key: value for key, value in frame.items() if key != "voiced"}
+        for frame in game_frames(browser)
+    ]
 
 
 async def voice_sent(browsers, times=1):
@@ -162,7 +175,7 @@ class TestAVoiceThatTheTextDoesNotWaitFor:
         await let_every_task_run()
         asked_while_voice_was_made = len(game_master.calls)
         held.release.set()
-        await sent_to_all([host, guest], question("Zweite?", 2))
+        await sent_to_all([host, guest], voiced(question("Zweite?", 2)))
 
         assert (asked_while_voice_was_made, len(game_master.calls)) == (2, 3)
 
@@ -229,7 +242,7 @@ class TestAVoiceThatFails:
 
         for browser in (host, guest):
             assert shown(browser)[:3] == asked(host)
-            assert VOICE_TYPE not in [frame["type"] for frame in game_frames(browser)]
+            assert voice_ids(browser) == []
         assert_no_driver_failed(logs)
 
     async def test_a_voice_that_raises_is_logged_by_its_type_alone(self, link, voice):
@@ -267,4 +280,71 @@ class TestAVoiceThatFails:
             {"event": "game_voice_failed", "log_level": "info", "outcome": "past_deadline"}
         ]
         assert spoken.cancelled
-        assert shown(guest)[:5] == [*asked(host, "Frage?"), thinking(host), line(REVEAL_LINE)]
+        assert shown(guest)[:6] == [*asked(host, "Frage?"), {"type": VOICE_TYPE}, thinking(host), line(REVEAL_LINE)]
+
+
+class TestTheFrameThatEndsEveryVoice:
+    async def test_a_line_the_server_voices_carries_the_voiced_mark(self, link, voice):
+        """GM-36: A line the server will voice carries `voiced`."""
+        call = await call_of(link, "host", "guest")
+
+        await call[0].say(START)
+        await voice_sent(call)
+
+        for browser in call:
+            [spoken_line] = [f for f in game_frames(browser) if f["type"] == GameSignal.GAME_LINE.value]
+            assert spoken_line["voiced"] is True
+
+    async def test_a_voice_made_ends_in_one_voice_frame_with_its_id_and_path(self, link, voice):
+        """GM-36: A voice made ends in exactly one voice frame with its id and path."""
+        call = await call_of(link, "host", "guest")
+
+        await call[0].say(START)
+        await voice_sent(call)
+        await let_every_task_run()
+
+        for browser in call:
+            [frame] = voice_frames(browser)
+            assert frame["path"].endswith(frame["id"])
+
+    @pytest.mark.parametrize("answer_of_voice", [None, RuntimeError("a voice that broke")], ids=["nothing", "a raise"])
+    async def test_a_voice_that_failed_ends_in_one_voice_frame_without_id_or_path(self, link, voice, answer_of_voice):
+        """GM-36: A voice that failed ends in exactly one voice frame without id or path."""
+        call = await call_of(link, "host", "guest")
+        voice.answer_next(answer_of_voice)
+
+        await call[0].say(START)
+        for browser in call:
+            await browser.socket.wait_until(lambda browser=browser: len(voice_frames(browser)) >= 1)
+        await let_every_task_run()
+
+        for browser in call:
+            assert voice_frames(browser) == [{"type": VOICE_TYPE}]
+
+    async def test_a_voice_past_its_deadline_ends_in_a_voice_frame_without_id(self, link, voice, scheduler):
+        """GM-36: A voice past its deadline ends in a voice frame without id."""
+        call = await call_of(link, "host", "guest")
+        voice.hold(DEFAULT_QUESTION)
+        await call[0].say(START)
+        await sent_to_all(call, answering(call[0]))
+
+        await scheduler.advance(VOICE_DEADLINE_SECONDS)
+        for browser in call:
+            await browser.socket.wait_until(lambda browser=browser: len(voice_frames(browser)) >= 1)
+
+        for browser in call:
+            assert voice_frames(browser) == [{"type": VOICE_TYPE}]
+
+    async def test_the_final_voice_that_failed_follows_idle_as_an_empty_frame(self, link, game_master, voice):
+        """GM-36: The final line's failed voice is an empty voice frame after idle."""
+        host, guest = await call_of(link, "host", "guest")
+        game_master.answer_next(*[Line(DEFAULT_QUESTION)] * (2 * QUIZ_ROUNDS), Line(FINAL_LINE))
+        voice.answer_next(*[DEFAULT_WAV] * (2 * QUIZ_ROUNDS), None)
+        await host.say(START)
+        for number in range(1, QUIZ_ROUNDS + 1):
+            await sent_to_all([host, guest], answering(host, number))
+            await host.say(REVEAL)
+        await sent_to_all([host, guest], IDLE)
+        await let_every_task_run()
+
+        assert shown(guest)[-3:] == [line(FINAL_LINE), IDLE, {"type": VOICE_TYPE}]

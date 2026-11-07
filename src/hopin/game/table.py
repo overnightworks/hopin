@@ -70,14 +70,19 @@ def _quiz_phase_frame(phase: GamePhase, quiz: Quiz) -> JsonObject:
     }
 
 
-def _line_frame(line: Line, quiz: Quiz) -> JsonObject:
+def _line_frame(line: Line, quiz: Quiz, *, voiced: bool) -> JsonObject:
     frame: JsonObject = {TYPE_KEY: GameSignal.GAME_LINE.value, "text": line.text}
+    if voiced:
+        frame["voiced"] = True
     if quiz.is_asking:
         frame["round"] = quiz.round
     return frame
 
 
-def _voice_frame(voice_id: str) -> JsonObject:
+def _voice_frame(voice_id: str | None) -> JsonObject:
+    """The line's voice, or, with no id, the word that none follows."""
+    if voice_id is None:
+        return {TYPE_KEY: GameSignal.GAME_VOICE.value}
     return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice_id, "path": f"{VOICE_PATH}/{voice_id}"}
 
 
@@ -372,7 +377,8 @@ class Game:
         if isinstance(outcome, Line):
             recipients = self._rooms.members(room_id)
             self._start_voice(run, outcome)
-            await self._send_each(room_id, run, recipients, _line_frame(outcome, run.quiz))
+            frame = _line_frame(outcome, run.quiz, voiced=self._voice is not None)
+            await self._send_each(room_id, run, recipients, frame)
             quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
             # The refusal ends the quiz: it is over before the first write, so no End starts a second ending.
@@ -412,7 +418,7 @@ class Game:
             await asyncio.wait({run.voice.task})
 
     async def _send_voice(self, room_id: str, run: _Run, recipients: list[str]) -> None:
-        """Wait for the run's voice and send its frame to the line's recipients still seated, if the run is live."""
+        """Wait for the run's voice and send its one frame, made or empty, to the recipients still seated, if live."""
         if run.voice is None:
             return
         await asyncio.wait({run.voice.task})
@@ -420,10 +426,11 @@ class Game:
         if run.voice.expired and run.voice.task.cancelled():
             logger.info("game_voice_failed", outcome="past_deadline")
         wav = _voice_of(run.voice.task)
-        if wav is None or not self._is_live(room_id, run):
+        if not self._is_live(room_id, run):
             return
         seated = [seat for seat in recipients if self._rooms.room_of(PeerId(seat)) == room_id]
-        await self._send_each(room_id, run, seated, _voice_frame(self._voices.put(room_id, wav)))
+        voice_id = None if wav is None else self._voices.put(room_id, wav)
+        await self._send_each(room_id, run, seated, _voice_frame(voice_id))
 
     def _chain(self, room_id: str, quiz: Quiz) -> None:
         """Run the quiz's next request at once, on the starter's token and with no idle in between.
