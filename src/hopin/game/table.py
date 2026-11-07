@@ -13,6 +13,7 @@ from hopin.game.vocabulary import (
     GAME_RUN_DEADLINE_SECONDS,
     SIGNAL_TYPES,
     VOICE_DEADLINE_SECONDS,
+    VOICE_PATH,
     GamePhase,
     GameRefusal,
     GameSignal,
@@ -77,7 +78,7 @@ def _line_frame(line: Line, quiz: Quiz) -> JsonObject:
 
 
 def _voice_frame(voice_id: str) -> JsonObject:
-    return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice_id}
+    return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice_id, "path": f"{VOICE_PATH}/{voice_id}"}
 
 
 def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId]) -> JsonObject:
@@ -509,6 +510,8 @@ async def _expire(run: _Run) -> None:  # NOSONAR(S7503) the scheduler's contract
 async def _expire_voice(
     voice: asyncio.Task[bytes | None],
 ) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
+    if not voice.done():
+        logger.info("game_voice_failed", outcome="past_deadline")
     voice.cancel()
 
 

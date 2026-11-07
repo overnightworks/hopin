@@ -14,7 +14,7 @@ from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import VOICE_PATH, GamePhase, GameSignal
+from hopin.game.vocabulary import GamePhase, GameSignal
 from tests.game.support.fake_agent_backend import DEFAULT_QUESTION
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -102,9 +102,9 @@ class Call:
         host.frames(1)
         return host, guest, guest_member
 
-    def voice(self, member, voice_id):
-        """What a seat's browser gets fetching the voice, on its session cookie."""
-        return self.client.get(f"{VOICE_PATH}/{voice_id}", headers={"cookie": cookie_header(member.set_cookie_headers)})
+    def voice(self, member, path):
+        """What a seat's browser gets fetching the voice at the path its frame names, on its session cookie."""
+        return self.client.get(path, headers={"cookie": cookie_header(member.set_cookie_headers)})
 
     def grant_types(self):
         return [request.form["grant_type"] for request, _ in self.issuer.exchanges]

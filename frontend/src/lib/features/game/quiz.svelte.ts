@@ -13,6 +13,7 @@ export interface LineFrame {
 
 export interface VoiceFrame {
     id: string;
+    path: string;
 }
 
 export interface AnswerCountFrame {

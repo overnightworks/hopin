@@ -153,6 +153,9 @@ function stubbedVoicePlayback(fetchVoice: (url: string) => Promise<Response>) {
     return { urls, requested };
 }
 
+/** A voice frame as the server sends it; the page fetches the path the frame names. */
+const voiceFrame = (id: string) => ({ id, path: `/voices-of-the-server/${id}` });
+
 const wavResponse = () => Promise.resolve(new Response(new Blob(["wav"]), { status: 200 }));
 
 /** Lets every pending fetch and promise of the page run to its end. */
@@ -399,10 +402,10 @@ describe("the game master's voice", () => {
         const voices = stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
 
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
-        expect(voices.requested).toEqual(["/api/game/voice/voice-one"]);
+        expect(voices.requested).toEqual([voiceFrame("voice-one").path]);
         expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1"]);
     });
 
@@ -410,19 +413,19 @@ describe("the game master's voice", () => {
         const voices = stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
 
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
         game.seat();
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
-        expect(voices.requested).toEqual(["/api/game/voice/voice-one"]);
+        expect(voices.requested).toEqual([voiceFrame("voice-one").path]);
     });
 
     it("GM-33: stops a playing voice when the quiz ends", async () => {
         stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
         game.emit(GAME_SIGNAL.GAME_ENDED, {});
@@ -434,7 +437,7 @@ describe("the game master's voice", () => {
         let deliver: (response: Response) => void = () => undefined;
         stubbedVoicePlayback(() => new Promise<Response>((resolve) => void (deliver = resolve)));
         const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
 
         game.emit(GAME_SIGNAL.GAME_ENDED, {});
         deliver(new Response(new Blob(["wav"]), { status: 200 }));
@@ -446,7 +449,7 @@ describe("the game master's voice", () => {
     it("GM-33: stops a playing voice when the call ends", async () => {
         stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
         game.endCall();
@@ -457,20 +460,34 @@ describe("the game master's voice", () => {
     it("stops the voice that plays when the next one starts", async () => {
         stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-two" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
         await settled();
 
         expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true, false]);
+    });
+
+    it("GM-32: starts a voice whose fetch was still pending when the next voice arrived", async () => {
+        const deliveries = new Map<string, (response: Response) => void>();
+        stubbedVoicePlayback((url) => new Promise<Response>((resolve) => void deliveries.set(url, resolve)));
+        const game = await installedGame();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
+
+        deliveries.get(voiceFrame("voice-one").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
+        deliveries.get(voiceFrame("voice-two").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
+        await settled();
+
+        expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1", "blob:voice-2"]);
     });
 
     it("GM-34: leaves the line as text when the voice is missing", async () => {
         stubbedVoicePlayback(() => Promise.resolve(new Response(null, { status: 404 })));
         const game = await installedGame();
 
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
         expect(FakeAudio.instances).toEqual([]);
@@ -480,7 +497,7 @@ describe("the game master's voice", () => {
         stubbedVoicePlayback(() => Promise.reject(new Error("offline")));
         const game = await installedGame();
 
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
         expect(FakeAudio.instances).toEqual([]);
@@ -494,7 +511,7 @@ describe("the game master's voice", () => {
             FakeAudio.playResult = () => Promise.resolve();
         });
 
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
         expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
@@ -503,7 +520,7 @@ describe("the game master's voice", () => {
     it("lets go of the voice when it has played to its end", async () => {
         const voices = stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, { id: "voice-one" });
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
         FakeAudio.instances[0]?.listeners.get("ended")?.();

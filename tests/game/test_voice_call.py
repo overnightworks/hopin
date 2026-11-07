@@ -47,9 +47,9 @@ def call(sign_in_settings, backend, speech):
         yield serving
 
 
-def voice_id_of(frame):
+def voice_path_of(frame):
     assert frame["type"] == VOICE_TYPE
-    return frame["id"]
+    return frame["path"]
 
 
 def types_of(frames):
@@ -65,15 +65,15 @@ class TestTheVoiceInARealCall:
 
         [host_frames, guest_frames] = [seat.frames(4) for seat in (host, guest)]
         assert host_frames[:3] == asked(guest, FIRST)
-        assert voice_id_of(host_frames[3]) == voice_id_of(guest_frames[3])
-        fetched = call.voice(guest_member, voice_id_of(guest_frames[3]))
+        assert voice_path_of(host_frames[3]) == voice_path_of(guest_frames[3])
+        fetched = call.voice(guest_member, voice_path_of(guest_frames[3]))
         assert (fetched.status_code, fetched.content, fetched.headers["content-type"]) == (
             200,
             SPOKEN_WAV,
             "audio/wav",
         )
         assert fetched.headers["cache-control"] == "no-store"
-        without_session = call.client.get(f"{VOICE_PATH}/{voice_id_of(guest_frames[3])}", headers={"accept": "*/*"})
+        without_session = call.client.get(voice_path_of(guest_frames[3]), headers={"accept": "*/*"})
         assert without_session.status_code == 401
 
     def test_a_reveal_chains_into_the_next_question_through_the_voice_on_grants_the_issuer_honours_once(self, call):
@@ -101,14 +101,14 @@ class TestTheVoiceInARealCall:
         """GM-32: The voice of a line is replaced by the next and gone with the call."""
         host, guest, guest_member = call.host_and_guest()
         guest.start()
-        first_id = voice_id_of(guest.frames(4)[3])
+        first_path = voice_path_of(guest.frames(4)[3])
         host.frames(4)
         guest.reveal()
-        second_id = voice_id_of(guest.frames(7)[2])
+        second_path = voice_path_of(guest.frames(7)[2])
 
-        replaced = call.voice(guest_member, first_id)
+        replaced = call.voice(guest_member, first_path)
         host.send({"type": SignalType.END_ROOM.value})
-        gone = call.voice(guest_member, second_id)
+        gone = call.voice(guest_member, second_path)
 
         assert (replaced.status_code, gone.status_code) == (404, 404)
 
@@ -117,7 +117,8 @@ class TestTheVoiceInARealCall:
         _, _, guest_member = call.host_and_guest()
 
         assert [
-            call.voice(guest_member, voice_id).status_code for voice_id in ("short", secrets.token_urlsafe(16))
+            call.voice(guest_member, f"{VOICE_PATH}/{voice_id}").status_code
+            for voice_id in ("short", secrets.token_urlsafe(16))
         ] == [
             404,
             404,
