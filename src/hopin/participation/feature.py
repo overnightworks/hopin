@@ -131,7 +131,7 @@ class Participation:
             return AgentRefusal.GONE
         if agent.person != person:
             return AgentRefusal.NOT_YOURS
-        if self._rooms.room_of(agent.sponsor) != agent.room_id:
+        if not self._in_call(agent):
             return AgentRefusal.GONE
         if self._rooms.is_parked(agent.sponsor):
             return AgentRefusal.SPONSOR_AWAY
@@ -157,7 +157,7 @@ class Participation:
         """Show a seat that just joined the agents already in its room."""
         room_id = self._rooms.room_of(peer_id)
         for agent in [agent for agent in self._agents.values() if agent.room_id == room_id]:
-            if self._rooms.room_of(agent.sponsor) == room_id:
+            if self._in_call(agent):
                 await self._announce_joined(agent, [peer_id], self._rooms.name_of(agent.sponsor))
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
@@ -183,6 +183,10 @@ class Participation:
         in_room = sum(1 for agent in self._agents.values() if agent.room_id == room_id)
         return in_room >= AGENTS_PER_ROOM or len(self._agents) >= AGENTS_PER_PROCESS
 
+    def _in_call(self, agent: DialedAgent) -> bool:
+        """The agent is registered and its sponsor still sits in the agent's room."""
+        return agent.agent_id in self._agents and self._rooms.room_of(agent.sponsor) == agent.room_id
+
     async def _remove(self, agent: DialedAgent) -> None:
         del self._agents[agent.agent_id]
         await self._send_to_room(agent.room_id, _left_frame(agent))
@@ -192,7 +196,7 @@ class Participation:
         """Tell the seats of the agent's tile, each only while the agent is still in the call."""
         frame = _joined_frame(agent, sponsor_name)
         for peer_id in peer_ids:
-            if agent.agent_id not in self._agents:
+            if not self._in_call(agent):
                 return
             await self._rooms.send(peer_id, frame)
 
