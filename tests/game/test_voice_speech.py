@@ -9,10 +9,10 @@ from speech_runtime_client.wire import (
     RefusalCode,
 )
 
-from hopin.agent import speech
 from hopin.agent.backend import StarterPerson
+from hopin.agent.settings import SpeechService
 from hopin.agent.speech import SpeechVoice
-from hopin.game.vocabulary import VOICE_MAX_BYTES
+from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
 from tests.game.support.speech_origin import (
     AUDIENCE_SCOPE,
     SPOKEN_WAV,
@@ -52,9 +52,10 @@ def origin():
     origin.close()
 
 
-def voice_of(world, origin):
+def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS):
     person = StarterPerson(world.relying_party, world.sessions, world.web_auth)
-    return SpeechVoice(origin.base_url, VOICE_NAME, AUDIENCE_SCOPE, world.relying_party, person)
+    service = SpeechService(origin.base_url, VOICE_NAME, AUDIENCE_SCOPE)
+    return SpeechVoice(service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, person)
 
 
 def failures_in(logs):
@@ -125,14 +126,13 @@ class TestWithoutAVoice:
 
         assert (wav, failures_in(logs)) == (None, [{"outcome": "unreachable"}])
 
-    async def test_an_answer_past_the_deadline_is_nothing_and_logs_past_deadline(self, world, origin, monkeypatch):
+    async def test_an_answer_past_the_deadline_is_nothing_and_logs_past_deadline(self, world, origin):
         """GM-34: An answer past the deadline is nothing and logs past deadline."""
-        monkeypatch.setattr(speech, "VOICE_DEADLINE_SECONDS", 0.2)
         origin.serve(SPEECH_PATH, chunked_wav(SPOKEN_WAV), held=True)
         starter, _ = world.starter()
 
         with structlog.testing.capture_logs() as logs:
-            wav = await voice_of(world, origin).speak(starter, TEXT)
+            wav = await voice_of(world, origin, deadline_seconds=0.2).speak(starter, TEXT)
 
         assert (wav, failures_in(logs)) == (None, [{"outcome": "past_deadline"}])
 

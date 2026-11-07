@@ -8,6 +8,7 @@ from hopin.agent.settings import AgentSettings, SpeechSettings
 from hopin.agent.speech import SpeechVoice
 from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS
 from hopin.game.table import Game
+from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
 from hopin.game.voice import VoiceStore, create_voice_router
 
 if TYPE_CHECKING:
@@ -44,7 +45,8 @@ class GameFeature:
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
         """The audience scope the speech service's token carries, asked for only when the voice is on."""
-        return () if self.speech.audience_scope is None else (self.speech.audience_scope,)
+        service = self.speech.service
+        return () if service is None else (service.audience_scope,)
 
     def __call__(
         self,
@@ -67,10 +69,10 @@ class GameFeature:
         return BuiltGameFeature(factory, create_voice_router(voices))
 
     def _voice(self, relying_party: OidcRelyingParty, starter_person: StarterPerson) -> SpeechVoice | None:
-        speech = self.speech
-        if speech.origin is None or speech.audience_scope is None:
+        service = self.speech.service
+        if service is None:
             return None
-        return SpeechVoice(speech.origin, speech.voice, speech.audience_scope, relying_party, starter_person)
+        return SpeechVoice(service, VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES, relying_party, starter_person)
 
 
 def configured_game_feature() -> GameFeature:

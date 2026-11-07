@@ -18,13 +18,13 @@ from speech_runtime_client.speak import (
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.backend import StarterRefusedError, issuer_error
-from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
     from webauth.oidc import OidcRelyingParty
 
     from hopin.agent.backend import StarterPerson
+    from hopin.agent.settings import SpeechService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -34,15 +34,15 @@ class SpeechVoice:
 
     def __init__(
         self,
-        origin: str,
-        voice: str,
-        audience_scope: str,
+        service: SpeechService,
+        deadline_seconds: float,
+        cap_bytes: int,
         relying_party: OidcRelyingParty,
         starter_person: StarterPerson,
     ) -> None:
-        self._origin = origin
-        self._voice = voice
-        self._audience_scopes = (audience_scope,)
+        self._service = service
+        self._deadline_seconds = deadline_seconds
+        self._cap_bytes = cap_bytes
         self._relying_party = relying_party
         self._starter_person = starter_person
 
@@ -52,7 +52,9 @@ class SpeechVoice:
         except StarterRefusedError:
             _log_failure("starter_token_refused")
             return None
-        workload = await asyncio.to_thread(self._relying_party.workload_access_token, scopes=self._audience_scopes)
+        workload = await asyncio.to_thread(
+            self._relying_party.workload_access_token, scopes=(self._service.audience_scope,)
+        )
         if isinstance(workload, OidcRefusal):
             _log_failure("workload_token_refused", idp_error=issuer_error(workload))
             return None
@@ -60,13 +62,13 @@ class SpeechVoice:
             # A worker thread ends by its deadline, also when this call is cancelled.
             outcome = await asyncio.to_thread(
                 speak,
-                self._origin,
+                self._service.origin,
                 text,
-                self._voice,
+                self._service.voice,
                 workload_token=workload.get_secret_value(),
                 person_token=person_token,
-                deadline_seconds=VOICE_DEADLINE_SECONDS,
-                cap_bytes=VOICE_MAX_BYTES,
+                deadline_seconds=self._deadline_seconds,
+                cap_bytes=self._cap_bytes,
             )
         except ValidationError:
             _log_failure("input_refused")

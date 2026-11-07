@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Annotated
 from urllib.parse import urlsplit
 
@@ -9,12 +10,28 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 type ScopeToken = Annotated[str, Field(pattern=r"^[\x21\x23-\x5b\x5d-\x7e]+$")]
 
 
+@dataclass(frozen=True)
+class SpeechService:
+    """A speech service that is configured: its origin, the voice it speaks and the scope its token carries."""
+
+    origin: str
+    voice: str
+    audience_scope: str
+
+
 class SpeechSettings(BaseModel):
     """The speech service the game master speaks through; without an origin the voice is off."""
 
     origin: str | None = None
     voice: str = Field(default="piper", min_length=1)
     audience_scope: ScopeToken | None = None
+
+    @property
+    def service(self) -> SpeechService | None:
+        """The configured service, or nothing when the voice is off; the one decision of whether speech is on."""
+        if self.origin is None or self.audience_scope is None:
+            return None
+        return SpeechService(self.origin, self.voice, self.audience_scope)
 
     @model_validator(mode="after")
     def _origin_is_plain_http_and_names_its_scope(self) -> SpeechSettings:

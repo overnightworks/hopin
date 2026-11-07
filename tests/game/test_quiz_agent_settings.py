@@ -126,3 +126,9 @@ def test_the_sign_in_asks_for_no_audience_scope_without_speech_and_for_the_confi
     speech = SpeechSettings(origin="http://speech.test:8090", audience_scope="scenario-audience")
 
     assert (GameFeature(None).sign_in_scopes, GameFeature(None, speech).sign_in_scopes) == ((), ("scenario-audience",))
+
+
+def test_an_audience_scope_without_an_origin_leaves_the_sign_in_asking_for_no_scope_and_the_voice_off():
+    feature = GameFeature(None, SpeechSettings(audience_scope="scenario-audience"))
+
+    assert (feature.sign_in_scopes, feature._voice(None, None)) == ((), None)  # noqa: SLF001
