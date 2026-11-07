@@ -1,0 +1,8 @@
+claim_id = "a7fcffe005d448d7adf2da7530b12c09"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "572ddac448812f38f7ae2ba00b12f7eda479c70c"
+branch = "claude/issue-554-mute-voice"
+scope = ["docs/game-master.md", "frontend/src/lib/features/game", "tests/e2e/game"]
+opened_commit = "c2514c145ad3beda8ea149d6f996c7c1aa026c6d"
+whole_reason = "The toggle and the fetch it skips live in the game feature, and its proof in the game's end-to-end tests; neither shows anything without the other."
