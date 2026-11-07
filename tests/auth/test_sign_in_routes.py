@@ -13,6 +13,7 @@ import structlog.testing
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from webauth.admission import AppRole
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
 from webauth.ports import AccountEventKind
@@ -287,13 +288,13 @@ class TestMemberSignIn:
     )
     def test_the_role_follows_the_groups_at_each_sign_in(self, harness, groups, admin):
         harness.sign_in_through(harness.browser(), groups=groups)
-        expected = harness.config.admin_role if admin else harness.config.user_role
+        expected = AppRole.ADMIN if admin else AppRole.USER
         assert harness.accounts.get(SUBJECT).role == expected
 
     def test_a_member_who_left_the_admin_group_is_a_user_again_at_the_next_sign_in(self, harness):
         harness.sign_in_through(harness.browser(), groups=[ADMIN_GROUP])
         harness.sign_in_through(harness.browser(), groups=[LOGIN_GROUP])
-        assert harness.accounts.get(SUBJECT).role == harness.config.user_role
+        assert harness.accounts.get(SUBJECT).role == AppRole.USER
 
     def test_the_issued_refresh_token_is_held_in_the_session_row_as_a_secret(self, harness):
         browser = harness.browser()

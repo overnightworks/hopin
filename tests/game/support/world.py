@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 from agent_runtime_client.config import AgentConfig, BackendKind, ChatGateway
 from starlette.requests import HTTPConnection
+from webauth.admission import AppRole
 
 from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
@@ -60,7 +61,7 @@ class World:
 
     def starter(self, name="anna", *, with_refresh_token=True, role=None):
         """A socket's connection carrying the session cookie of a member, and the member."""
-        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role or self.web_auth.user_role)
+        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role or AppRole.USER)
         refresh_token = self.issuer.refresh_token_for(account.id) if with_refresh_token else None
         member = seed_member(self.stores, self.web_auth, account=account, refresh_token=refresh_token)
         return connection_with(cookie_header(member.set_cookie_headers)), member

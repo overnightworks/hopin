@@ -392,7 +392,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "overnightworks-agent-runtime-client", extras = ["backend"], git = "https://github.com/overnightworks/agent-runtime?rev=v0.22.0" },
-    { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.30.0" },
+    { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.31.0" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "structlog", specifier = ">=24.4" },
@@ -620,8 +620,8 @@ backend = [
 
 [[package]]
 name = "overnightworks-webauth"
-version = "0.30.0"
-source = { git = "https://github.com/overnightworks/webauth?rev=v0.30.0#69bdf2af24b3256ba818d1d2d1028d1aac6dad78" }
+version = "0.31.0"
+source = { git = "https://github.com/overnightworks/webauth?rev=v0.31.0#b889f4cc855b4bbbfc93c5735a5b01a52fc58aac" }
 dependencies = [
     { name = "anyio" },
     { name = "cryptography" },

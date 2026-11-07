@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
@@ -80,7 +81,7 @@ def members(app, stores):
 
     def member_named(label, *, role=None):
         if label not in seeded:
-            account = stores.accounts.create_for_subject(label, label, config.user_role if role is None else role)
+            account = stores.accounts.create_for_subject(label, label, AppRole.USER if role is None else role)
             seeded[label] = seed_member(stores, config, account=account)
         return seeded[label]
 
@@ -274,7 +275,7 @@ class TestExportAfterTheErasure:
     def test_the_export_shows_the_seat_until_the_tick_and_nothing_after_it(
         self, client, app, members, sockets, erase, advance
     ):
-        admin = members("olga", role=installed_web_auth_config(app).admin_role)
+        admin = members("olga", role=AppRole.ADMIN)
         _, guest, _ = a_call_with_a_guest(sockets, "ben", "anna")
         erase("anna")
 

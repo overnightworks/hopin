@@ -11,6 +11,7 @@ from agent_runtime_client.backend import AgentBackend, TurnEvent, TurnPerson, Tu
 from agent_runtime_client.backend.gateway import GatewayBackend
 from agent_runtime_client.turn import AgentRole, Principal, RejectionCode, TurnMessage, TurnRole
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
+from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, current_groups
 
@@ -93,7 +94,7 @@ class StarterPerson:
         # webauth binds the store to one issuer, and an account's id is that issuer's `sub`. Two spellings
         # of the issuer would split one person's budget, so it goes out exactly as the relying party holds it.
         principal = Principal(iss=self._relying_party.issuer, sub=record.user.id)
-        role: AgentRole = "admin" if record.user.role == self._web_auth.admin_role else "user"
+        role: AgentRole = "admin" if record.user.role == AppRole.ADMIN else "user"
         return TurnPerson(principal, role, partial(self._groups, session_id))
 
     async def _groups(self, session_id: str) -> frozenset[str]:
