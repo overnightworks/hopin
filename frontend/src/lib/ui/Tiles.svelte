@@ -1,12 +1,13 @@
 <script lang="ts">
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
-    import { agentTile, remoteTiles } from "#lib/ui/stage.svelte.ts";
+    import { agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
         [AGENT_ACTIVITY.THINKING]: "thinking",
         [AGENT_ACTIVITY.WAITING]: "waiting for answers",
         [AGENT_ACTIVITY.SPEAKING]: "speaking",
+        [AGENT_ACTIVITY.PRESENT]: "in the call",
     };
 </script>
 
@@ -42,14 +43,14 @@
         </div>
     </div>
 {/each}
-{#if agentTile.current !== null}
-    {@const agent = agentTile.current}
+{#each [...agentTiles] as [key, agent] (key)}
     {@const tileClass = "tile agent activity-" + agent.activity}
+    {@const tileId = "container-" + key}
     {@const tileLabel = agent.name + ", AI, " + ACTIVITY_LABEL[agent.activity]}
     <div
         class={tileClass}
         class:speaking={agent.activity === AGENT_ACTIVITY.SPEAKING}
-        id="container-agent"
+        id={tileId}
         role="status"
         aria-label={tileLabel}
     >
@@ -71,10 +72,27 @@
             >
             <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
+        {#if agent.onRemove !== undefined}
+            <button class="agent-remove" type="button" aria-label="Remove" onclick={agent.onRemove}>
+                <svg
+                    class="icon"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg
+                >
+            </button>
+        {/if}
         <span class="name"
             ><span class="wave" class:hidden={agent.activity !== AGENT_ACTIVITY.SPEAKING} aria-hidden="true"
                 ><i></i><i></i><i></i></span
-            >{agent.name}<span class="ai-badge">AI</span></span
+            >{agent.name}<span class="ai-badge">AI</span>{#if agent.sponsor !== undefined}<span class="sponsor"
+                    >{agent.sponsor}</span
+                >{/if}</span
         >
     </div>
-{/if}
+{/each}

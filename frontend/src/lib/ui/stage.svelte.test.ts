@@ -303,8 +303,9 @@ describe("remote tiles", () => {
     });
 });
 
-describe("agent tile", () => {
+describe("agent tiles", () => {
     const tile = { name: "Game master", activity: "waiting" } as const;
+    const dialed = { name: "Claude", activity: "present", sponsor: "Ada" } as const;
 
     it("CALL-47: takes none of the six places, so six people and an agent are seven tiles", async () => {
         const { addRemoteTile, showAgentTile, stageTileCount } = await freshStage();
@@ -316,6 +317,17 @@ describe("agent tile", () => {
         expect([peopleOnly, stageTileCount()]).toEqual([6, 7]);
     });
 
+    it("CALL-47: shows every agent beside six people, nine tiles at most with the quiz master and two dialed-in agents", async () => {
+        const { addRemoteTile, showAgentTile, stageTileCount } = await freshStage();
+        for (const person of ["a", "b", "c", "d", "e"]) addRemoteTile(person);
+
+        showAgentTile(tile);
+        showAgentTile(dialed, "agent-one");
+        showAgentTile({ ...dialed, name: "Codex" }, "agent-two");
+
+        expect(stageTileCount()).toBe(9);
+    });
+
     it("CALL-47: leaves the participant count to people", async () => {
         vi.resetModules();
         const { showAgentTile } = await import("#lib/ui/stage.svelte.ts");
@@ -323,17 +335,29 @@ describe("agent tile", () => {
         showParticipantCount(3);
 
         showAgentTile(tile);
+        showAgentTile(dialed, "agent-one");
 
         expect(participantCount.count).toBe(3);
     });
 
-    it("holds the tile until null takes it away", async () => {
-        const { agentTile, showAgentTile, stageTileCount } = await freshStage();
+    it("holds each tile under its key in the order shown until null takes it away", async () => {
+        const { agentTiles, showAgentTile, stageTileCount } = await freshStage();
 
         showAgentTile(tile);
-        const shown = agentTile.current;
+        showAgentTile(dialed, "agent-one");
+        const shown = [...agentTiles.values()];
         showAgentTile(null);
+        showAgentTile(null, "agent-one");
 
-        expect([shown, agentTile.current, stageTileCount()]).toEqual([tile, null, 1]);
+        expect([shown, agentTiles.size, stageTileCount()]).toEqual([[tile, dialed], 0, 1]);
+    });
+
+    it("shows a tile shown again under its key in place", async () => {
+        const { agentTiles, showAgentTile } = await freshStage();
+
+        showAgentTile(dialed, "agent-one");
+        showAgentTile({ ...dialed, name: "Renamed" }, "agent-one");
+
+        expect([...agentTiles.values()].map((shown) => shown.name)).toEqual(["Renamed"]);
     });
 });
