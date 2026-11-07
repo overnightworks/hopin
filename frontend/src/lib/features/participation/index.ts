@@ -69,7 +69,7 @@ export function install(core: FeatureCore): Promise<void> {
         core.showToast(REFUSED_TEXT, core.toastKind.LOCKED, null);
     });
     core.onCallEnded(() => {
-        for (const agentId of [...shown]) hide(agentId);
+        for (const agentId of shown) hide(agentId);
     });
     return Promise.resolve();
 }
