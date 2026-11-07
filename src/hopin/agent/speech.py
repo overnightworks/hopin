@@ -15,6 +15,7 @@ from speech_runtime_client.speak import (
     Unreachable,
     speak,
 )
+from speech_runtime_client.wire import ResponseFormat
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.backend import StarterRefusedError, issuer_error
@@ -65,6 +66,7 @@ class SpeechVoice:
                 self._service.origin,
                 text,
                 self._service.voice,
+                response_format=ResponseFormat.WAV,
                 workload_token=workload.get_secret_value(),
                 person_token=person_token,
                 deadline_seconds=self._deadline_seconds,
@@ -78,8 +80,8 @@ class SpeechVoice:
 
 def _wav_of(outcome: SpeakOutcome) -> bytes | None:
     match outcome:
-        case Spoken(wav=wav):
-            return wav
+        case Spoken(audio=audio):
+            return audio
         case Refused(code=code):
             _log_failure("refused", code=code.value)
         case Busy():

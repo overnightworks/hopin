@@ -143,7 +143,7 @@ class TestWithoutTheVoice:
 
     @pytest.mark.parametrize(
         "answer",
-        [refusal_answer(RefusalCode.BUSY, retry_after_seconds=2), refusal_answer(RefusalCode.NOT_ENABLED)],
+        [refusal_answer(RefusalCode.BUSY, retry_after_seconds=2), refusal_answer(RefusalCode.FORBIDDEN)],
         ids=["busy", "refused"],
     )
     def test_a_service_that_refuses_leaves_the_line_as_text_and_the_quiz_goes_on(self, call, origin, answer):
