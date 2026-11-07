@@ -13,6 +13,8 @@ from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from fastapi import FastAPI
+
 
 class UvicornOptions(TypedDict):
     host: str
@@ -41,10 +43,8 @@ def command_line_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(arguments: Sequence[str] | None = None) -> None:
-    command_line_parser().parse_args(arguments)
-    settings = ServerSettings()
-    app = create_app(
+def build_application(settings: ServerSettings) -> FastAPI:
+    return create_app(
         settings,
         page_build=PageBuild.load(BUILD_DIRECTORY),
         call_features=(
@@ -52,7 +52,12 @@ def main(arguments: Sequence[str] | None = None) -> None:
             ParticipationFeature(settings.public_origin),
         ),
     )
-    uvicorn.run(app, **uvicorn_options(settings))
+
+
+def main(arguments: Sequence[str] | None = None) -> None:
+    command_line_parser().parse_args(arguments)
+    settings = ServerSettings()
+    uvicorn.run(build_application(settings), **uvicorn_options(settings))
 
 
 if __name__ == "__main__":
