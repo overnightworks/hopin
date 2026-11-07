@@ -11,7 +11,7 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     ParticipationSignal,
 )
-from tests.participation.conftest import person_named, room_of
+from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import HeldClose, host_and_guest
 
 pytestmark = pytest.mark.integration

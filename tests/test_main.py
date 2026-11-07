@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.main import main
-from tests.participation.dialed_call import METADATA_PATH
+from tests.support.dialed_call import METADATA_PATH
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 pytestmark = pytest.mark.usefixtures("fixture_build_directory")

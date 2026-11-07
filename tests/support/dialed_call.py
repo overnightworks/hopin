@@ -88,6 +88,11 @@ class DialedCall:
         account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role)
         return account, seed_member(self.stores, config, account=account)
 
+    def seated(self):
+        """A person in a call of their own: their account for a token, their login and their seat."""
+        account, member = self.member()
+        return account, member, self.seat(member)
+
     def seat(self, seeded, room_id=None):
         socket = self.sockets.enter_context(
             self.client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(seeded))
@@ -142,6 +147,10 @@ class DialedCall:
             return Dialed(response.status_code, None, None, response)
         result = response.json()["result"]
         return Dialed(200, json.loads(result["content"][0]["text"]), result["isError"], response)
+
+
+def join_arguments(seat, name="Claude"):
+    return {"room": seat.room_id, "name": name}
 
 
 def admin_groups():

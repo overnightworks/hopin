@@ -199,6 +199,13 @@ def _install_web_auth(
     )
 
 
+def _include_feature_routes(app: FastAPI, built_features: list[BuiltCallFeature], issuer: str) -> None:
+    for built in built_features:
+        app.include_router(built.router)
+        if built.bearer_resource is not None:
+            install_resource_metadata(app, built.bearer_resource, issuer=issuer)
+
+
 def create_app(
     settings: ServerSettings,
     *,
@@ -247,10 +254,7 @@ def create_app(
     app.include_router(create_router(signaling_handler, room_manager, page_build))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))
-    for built in built_features:
-        app.include_router(built.router)
-    for resource in resources:
-        install_resource_metadata(app, resource, issuer=settings.oidc_issuer)
+    _include_feature_routes(app, built_features, settings.oidc_issuer)
     app.include_router(create_account_router(settings.oidc_issuer))
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings

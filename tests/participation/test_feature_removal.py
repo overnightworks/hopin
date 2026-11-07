@@ -2,7 +2,7 @@ import pytest
 
 from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
-from tests.participation.conftest import person_named, room_of
+from tests.participation.support.people import person_named, room_of
 
 pytestmark = pytest.mark.integration
 

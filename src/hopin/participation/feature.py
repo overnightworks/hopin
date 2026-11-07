@@ -16,7 +16,7 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     ParticipationSignal,
 )
-from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
+from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, PeerId
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -63,22 +63,26 @@ def _clean_name(name: str) -> str | None:
     return trimmed
 
 
+def _frame(signal: ParticipationSignal, **fields: JsonValue) -> JsonObject:
+    return {TYPE_KEY: signal.value, **fields}
+
+
 def _joined_frame(agent: DialedAgent, sponsor_name: str) -> JsonObject:
-    return {
-        TYPE_KEY: ParticipationSignal.AGENT_JOINED.value,
-        "agent_id": agent.agent_id,
-        "name": agent.name,
-        "sponsor": sponsor_name,
-        "sponsor_id": agent.sponsor,
-    }
+    return _frame(
+        ParticipationSignal.AGENT_JOINED,
+        agent_id=agent.agent_id,
+        name=agent.name,
+        sponsor=sponsor_name,
+        sponsor_id=agent.sponsor,
+    )
 
 
 def _left_frame(agent: DialedAgent) -> JsonObject:
-    return {TYPE_KEY: ParticipationSignal.AGENT_LEFT.value, "agent_id": agent.agent_id}
+    return _frame(ParticipationSignal.AGENT_LEFT, agent_id=agent.agent_id)
 
 
 def _refusal_frame(refusal: AgentRefusal) -> JsonObject:
-    return {TYPE_KEY: ParticipationSignal.AGENT_REFUSED.value, "reason": refusal.value}
+    return _frame(ParticipationSignal.AGENT_REFUSED, reason=refusal.value)
 
 
 class Participation:
