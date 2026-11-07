@@ -40,6 +40,7 @@ from hopin.config.constants import (
     SIGN_IN_PATHS,
     SIGN_IN_RATE_LIMIT_BUDGET,
 )
+from hopin.config.secret_files import StartRefusedError
 from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
@@ -237,13 +238,15 @@ def create_app(
         )
         for builder in call_features
     ]
+    resources = [built.bearer_resource for built in built_features if built.bearer_resource is not None]
+    if len(resources) > 1:
+        raise StartRefusedError("Only one call feature may serve a bearer-token resource")
     signaling_handler = SignalingHandler(
         room_manager,
         SessionIdentityResolver(sign_in_stores.sessions),
         timers,
         [built.factory for built in built_features],
     )
-    resources = [built.bearer_resource for built in built_features if built.bearer_resource is not None]
 
     app = FastAPI(
         docs_url=None,
