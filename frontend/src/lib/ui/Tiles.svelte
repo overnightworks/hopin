@@ -44,12 +44,14 @@
 {/each}
 {#if agentTile.current !== null}
     {@const agent = agentTile.current}
+    {@const tileClass = "tile agent activity-" + agent.activity}
+    {@const tileLabel = agent.name + ", AI, " + ACTIVITY_LABEL[agent.activity]}
     <div
-        class="tile agent activity-{agent.activity}"
+        class={tileClass}
         class:speaking={agent.activity === AGENT_ACTIVITY.SPEAKING}
         id="container-agent"
         role="status"
-        aria-label="{agent.name}, AI, {ACTIVITY_LABEL[agent.activity]}"
+        aria-label={tileLabel}
     >
         <div class="vid off">
             <span class="av"
