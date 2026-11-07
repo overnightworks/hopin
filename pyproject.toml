@@ -201,7 +201,7 @@ allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 id = "call-core-knows-no-game"
-name = "The call core knows no game and no participation"
+name = "The call core knows no game"
 type = "forbidden"
 # The game must stay removable and participation optional: the call core reaches neither them nor the agent
 # connector and the client and HTTP library under them, not even through another module.
@@ -232,8 +232,8 @@ source_modules = ["hopin.participation"]
 forbidden_modules = ["agent_runtime_client", "speech_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
-id = "agent-service-only-through-the-connector"
-name = "Only the connector reaches the agent runtime"
+id = "agent-service-only-through-the-game"
+name = "Only the game reaches the agent service"
 type = "forbidden"
 # The client of the agent runtime and its HTTP library are the connector's alone.
 source_modules = ["hopin.main", "hopin.app"]
