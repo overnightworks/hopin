@@ -51,7 +51,7 @@ class Agent:
         self._account = member_of(person).account
         self._room = re.search(r"/c/(\w+)", person.url).group(1)
 
-    def dial_in(self, name: str) -> str:
+    def dial_in(self, name: str) -> None:
         token = self._server.issuer.access_token(
             self._account.id,
             audience=f"{self._server.base_url}/mcp",
@@ -76,7 +76,6 @@ class Agent:
         )
         result = response.json()["result"]
         assert not result["isError"], result
-        return json.loads(result["content"][0]["text"])["agent_id"]
 
     def close(self) -> None:
         self._request.dispose()

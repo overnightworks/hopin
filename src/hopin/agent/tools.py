@@ -42,8 +42,8 @@ _LEAVE_CALL_DECLARATION: Final = ToolDeclaration(
     description="Leave the call you joined; your tile goes from the stage.",
     parameters={
         "type": "object",
-        "properties": {"agent_id": {"type": "string", "description": "The id join_call answered."}},
-        "required": ["agent_id"],
+        "properties": {"room": {"type": "string", "description": "The call's id, the last part of its link."}},
+        "required": ["room"],
         "additionalProperties": False,
     },
     effect=ToolEffect.SIDE_EFFECTING,
@@ -71,11 +71,11 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Han
             _person_of(principal), _text_of(arguments, "room"), _text_of(arguments, "name")
         )
         if isinstance(outcome, DialedAgent):
-            return ToolOutcome(json.dumps({"agent_id": outcome.agent_id, "name": outcome.name}), is_error=False)
+            return ToolOutcome(json.dumps({"room": outcome.room_id, "name": outcome.name}), is_error=False)
         return _refused(outcome)
 
     async def leave_call(principal: Principal, arguments: JsonObject) -> ToolOutcome:
-        refusal = await participation().leave(_person_of(principal), _text_of(arguments, "agent_id"))
+        refusal = await participation().leave(_person_of(principal), _text_of(arguments, "room"))
         if refusal is None:
             return ToolOutcome(json.dumps({"left": True}), is_error=False)
         return _refused(refusal)

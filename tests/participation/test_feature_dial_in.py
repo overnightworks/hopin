@@ -103,12 +103,12 @@ class TestJoiningOneLiveSeat:
     ):
         """CALL-48: A parked seat keeps its agent; calls answer sponsor_away, and after the resume they work."""
         host, guest = await host_and_guest(link)
-        agent = await dial(participation, guest)
+        await dial(participation, guest)
 
         await guest.drop()
-        parked = [await dial(participation, guest), await participation.leave(person_named("guest"), agent.agent_id)]
+        parked = [await dial(participation, guest), await participation.leave(person_named("guest"), room_of(guest))]
         await guest.resume()
-        resumed = await participation.leave(person_named("guest"), agent.agent_id)
+        resumed = await participation.leave(person_named("guest"), room_of(guest))
 
         assert parked == [AgentRefusal.SPONSOR_AWAY, AgentRefusal.SPONSOR_AWAY]
         assert resumed is None
@@ -143,24 +143,44 @@ class TestJoiningOneLiveSeat:
                 await guest.resume(sent_floor=1)
 
         assert [frame["agent_id"] for frame in agent_frames(host, ParticipationSignal.AGENT_LEFT)] == [agent.agent_id]
-        assert await participation.leave(person_named("guest"), agent.agent_id) is AgentRefusal.GONE
+        assert await participation.leave(person_named("guest"), room_of(guest)) is AgentRefusal.GONE
 
     async def test_call_48_a_call_made_while_its_seat_is_leaving_finds_the_agent_gone(
         self, link, participation, scheduler
     ):
         """CALL-48: A call that meets an agent whose seat has just left is answered gone."""
         _host, guest = await host_and_guest(link)
-        agent = await dial(participation, guest)
+        await dial(participation, guest)
         guest.socket.account = None
         closing = HeldClose(guest.socket)
         ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
         await closing.reached()
 
-        answered = await participation.leave(person_named("guest"), agent.agent_id)
+        answered = await participation.leave(person_named("guest"), room_of(guest))
 
         closing.release.set()
         await ending
         assert answered is AgentRefusal.GONE
+
+    async def test_call_48_a_leave_by_room_takes_the_live_agent_while_the_old_seats_agent_is_cleaned_up(
+        self, link, participation, scheduler
+    ):
+        """CALL-48: While a seat is leaving, a replacement seat's agent is the one a leave by room takes out."""
+        host, guest = await host_and_guest(link)
+        await dial(participation, guest)
+        guest.socket.account = None
+        closing = HeldClose(guest.socket)
+        ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+        replacement = await link.join("guest", room_of(host))
+        live = await dial(participation, replacement)
+
+        answered = await participation.leave(person_named("guest"), room_of(host))
+        left = [frame["agent_id"] for frame in agent_frames(host, ParticipationSignal.AGENT_LEFT)]
+
+        closing.release.set()
+        await ending
+        assert (answered, left) == (None, [live.agent_id])
 
     async def test_call_48_a_late_joiner_is_not_shown_an_agent_whose_seat_is_leaving(
         self, link, participation, scheduler
@@ -228,12 +248,12 @@ class TestJoiningOneLiveSeat:
     async def test_call_48_the_rooms_end_drops_its_agents_and_sends_nothing(self, link, participation):
         """CALL-48: The room's end drops its agents without an agent_left frame."""
         host, guest = await host_and_guest(link)
-        agent = await dial(participation, guest)
+        await dial(participation, guest)
 
         await host.say({"type": SignalType.END_ROOM.value})
 
         assert agent_frames(guest, ParticipationSignal.AGENT_LEFT) == []
-        assert await participation.leave(person_named("guest"), agent.agent_id) is AgentRefusal.GONE
+        assert await participation.leave(person_named("guest"), room_of(guest)) is AgentRefusal.GONE
 
 
 @pytest.mark.asyncio
@@ -310,20 +330,20 @@ class TestBounds:
 
 @pytest.mark.asyncio
 class TestWhoMayCall:
-    async def test_another_persons_agent_id_is_not_yours_and_the_agent_stays(self, link, participation):
+    async def test_another_persons_agent_in_the_room_is_not_reached_and_it_stays(self, link, participation):
         host, guest = await host_and_guest(link)
-        agent = await dial(participation, host)
+        await dial(participation, host)
 
-        assert await participation.leave(person_named("guest"), agent.agent_id) is AgentRefusal.NOT_YOURS
+        assert await participation.leave(person_named("guest"), room_of(guest)) is AgentRefusal.GONE
         assert agent_frames(guest, ParticipationSignal.AGENT_LEFT) == []
 
-    async def test_an_unknown_id_is_gone(self, link, participation):
-        assert await participation.leave(person_named("host"), "no-such-agent") is AgentRefusal.GONE
+    async def test_an_unknown_room_is_gone(self, link, participation):
+        assert await participation.leave(person_named("host"), "no-such-room") is AgentRefusal.GONE
 
     async def test_a_leave_by_its_own_person_takes_the_tile_from_every_seat(self, link, participation):
         host, guest = await host_and_guest(link)
-        agent = await dial(participation, guest)
+        await dial(participation, guest)
 
-        assert await participation.leave(person_named("guest"), agent.agent_id) is None
+        assert await participation.leave(person_named("guest"), room_of(guest)) is None
 
         assert [len(agent_frames(browser, ParticipationSignal.AGENT_LEFT)) for browser in (host, guest)] == [1, 1]
