@@ -182,6 +182,7 @@ class Participation:
             own_account.name,
             now=self._scheduler.now(),
             lease_seconds=self._lease_seconds,
+            new_key=partial(secrets.token_hex, AGENT_ID_BYTES),
         )
         self._live = admission.agents
         if admission.ended is not None:

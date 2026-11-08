@@ -3,15 +3,12 @@
 The registry is immutable and takes the time as an argument; its owner arms the timers and acts on what it answers.
 """
 
-import secrets
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from hopin.participation.vocabulary import AGENT_ID_BYTES
-
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
 
     from hopin.participation.feature import Person
 
@@ -64,17 +61,24 @@ class LiveAgents:
     by_person: Mapping[Person, LiveAgent] = field(default_factory=dict)
     registrations: int = 0
 
-    def admit(self, person: Person, owner_subject: str, name: str, *, now: float, lease_seconds: float) -> Admission:
+    def admit(
+        self,
+        person: Person,
+        owner_subject: str,
+        name: str,
+        *,
+        now: float,
+        lease_seconds: float,
+        new_key: Callable[[], str],
+    ) -> Admission:
         """Admit a call: register the agent, or renew its lease. A lease that ran out before its timer did, or another
-        owner, ends the old registration and starts a new one."""
+        owner, ends the old registration and starts a new one under a key from `new_key`."""
         current = self.by_person.get(person)
         deadline = now + lease_seconds
         if current is not None and current.owner_subject == owner_subject and now < current.deadline:
             renewed = LiveAgent(person, owner_subject, name, current.key, deadline, current.generation)
             return Admission(self._with(renewed), renewed, ended=None, registered=False)
-        registered = LiveAgent(
-            person, owner_subject, name, secrets.token_hex(AGENT_ID_BYTES), deadline, self.registrations + 1
-        )
+        registered = LiveAgent(person, owner_subject, name, new_key(), deadline, self.registrations + 1)
         agents = LiveAgents({**self.by_person, person: registered}, self.registrations + 1)
         return Admission(agents, registered, ended=current, registered=True)
 
