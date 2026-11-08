@@ -82,6 +82,9 @@ class LiveAgents:
         agents = LiveAgents({**self.by_person, person: registered}, self.registrations + 1)
         return Admission(agents, registered, ended=current, registered=True)
 
+    def by_key(self, key: str) -> LiveAgent | None:
+        return next((agent for agent in self.by_person.values() if agent.key == key), None)
+
     def checked(self, person: Person, generation: int, *, now: float) -> TimerCheck:
         """A timer's look: nothing for a registration that is gone or replaced, a re-arm before the deadline, else the
         end of the lease."""

@@ -8,6 +8,7 @@ from hopin.agent.mcp import ParticipationFeature
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
+from hopin.participation.settings import ParticipationSettings
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ def build_application(settings: ServerSettings) -> FastAPI:
         page_build=PageBuild.load(BUILD_DIRECTORY),
         call_features=(
             configured_game_feature(),  # game
-            ParticipationFeature(settings.public_origin),
+            ParticipationFeature(settings.public_origin, ParticipationSettings().agent_adders),
         ),
     )
 

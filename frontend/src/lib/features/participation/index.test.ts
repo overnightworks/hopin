@@ -4,7 +4,7 @@ import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feat
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { install } from "./index.ts";
-import { PARTICIPATION_SIGNAL } from "./wire.ts";
+import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 const ME = "me";
 
@@ -13,6 +13,7 @@ async function installedParticipation() {
     const sent: unknown[] = [];
     const tiles = new Map<string, AgentTile>();
     const toasts: string[] = [];
+    const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
     const core: FeatureCore = {
         on: (type, handler) => void handlers.set(type, handler),
@@ -24,7 +25,7 @@ async function installedParticipation() {
             if (tile === null) tiles.delete(key);
             else tiles.set(key, tile);
         },
-        addMoreItems: () => undefined,
+        addMoreItems: (...items) => void moreItems.push(...items),
         receiveChatLine: () => undefined,
         pinLastChatLine: () => undefined,
         showChatCard: () => undefined,
@@ -41,6 +42,7 @@ async function installedParticipation() {
         sent,
         tiles,
         toasts,
+        buttons: () => [...moreItems.flatMap((item) => [...item.querySelectorAll("button")])],
         endCall: () => {
             callEndedHooks.forEach((hook) => {
                 hook();
@@ -93,12 +95,26 @@ describe("dialed-in agents", () => {
         expect(page.tiles.get("agent-a1")?.onRemove).toBeUndefined();
     });
 
-    it("CALL-49: tells a person whose removal was refused who may remove", async () => {
+    it.each([
+        {
+            reason: AGENT_REFUSAL.NOT_SPONSOR_OR_HOST,
+            text: "Only the person who brought the agent or the host can remove it.",
+        },
+        { reason: AGENT_REFUSAL.NOT_ADDER, text: "You may not add this agent." },
+        { reason: AGENT_REFUSAL.NO_SEAT, text: "The agent's owner is not in this call." },
+        { reason: AGENT_REFUSAL.TWO_SEATS, text: "The agent's owner is in this call twice, so the agent cannot join." },
+        { reason: AGENT_REFUSAL.SPONSOR_AWAY, text: "The agent's owner is away. Try again when they are back." },
+        { reason: AGENT_REFUSAL.ALREADY_THERE, text: "The agent is already invited or in the call." },
+        { reason: AGENT_REFUSAL.BUSY, text: "The call has no room for another agent." },
+        { reason: AGENT_REFUSAL.GONE, text: "The agent is not available any more." },
+        { reason: AGENT_REFUSAL.UNAVAILABLE, text: "Your access could not be checked. Try again." },
+        { reason: "another_reason", text: "The agent could not be added." },
+    ])("CALL-49: tells a person whose agent request was refused as $reason what to do", async ({ reason, text }) => {
         const page = await installedParticipation();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: "not_sponsor_or_host" });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason });
 
-        expect(page.toasts).toEqual(["Only the person who brought the agent or the host can remove it."]);
+        expect(page.toasts).toEqual([text]);
     });
 
     it("takes the tile away when its agent leaves, and shows a repeated join once", async () => {
@@ -151,5 +167,74 @@ describe("dialed-in agents", () => {
             ["agent-a1"],
             [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a1" }],
         ]);
+    });
+});
+
+describe("adding an agent that has an account of its own", () => {
+    const offered = (name: string, pending = false, key = "k1") => ({ agent_key: key, name, pending });
+
+    it("shows an Add item per offer, and tapping it asks the server to add that agent", async () => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart"), offered("Bach", false, "k2")] });
+        page.buttons()[1]?.click();
+
+        expect([page.buttons().map((button) => button.textContent), page.sent]).toEqual([
+            ["Add Mozart", "Add Bach"],
+            [{ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: "k2" }],
+        ]);
+    });
+
+    it("shows a disabled Inviting item while the invitation is pending, and tapping it sends nothing", async () => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart", true)] });
+        const [button] = page.buttons();
+        button?.click();
+
+        expect([button?.textContent, button?.disabled, page.sent]).toEqual(["Inviting Mozart…", true, []]);
+    });
+
+    it("follows each frame exactly: the items of the last frame are all there is", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart")] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart", true)] });
+        const pending = page.buttons().map((button) => button.textContent);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [] });
+
+        expect([pending, page.buttons()]).toEqual([["Inviting Mozart…"], []]);
+    });
+
+    it("keeps the agent's name as text, never as markup", async () => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("<b>Mozart</b>")] });
+
+        expect(page.buttons().map((button) => [button.textContent, button.querySelector("b")])).toEqual([
+            ["Add <b>Mozart</b>", null],
+        ]);
+    });
+
+    it.each([
+        {
+            when: "a fresh join",
+            end: (page: Awaited<ReturnType<typeof installedParticipation>>) => {
+                page.seat(false);
+            },
+        },
+        {
+            when: "the end of the call",
+            end: (page: Awaited<ReturnType<typeof installedParticipation>>) => {
+                page.endCall();
+            },
+        },
+    ])("takes the items away at $when", async ({ end }) => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart")] });
+
+        end(page);
+
+        expect(page.buttons()).toEqual([]);
     });
 });

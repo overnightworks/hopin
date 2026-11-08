@@ -5,6 +5,7 @@ AGENT_NAME_MAX_CHARACTERS = 32
 AGENT_ID_BYTES = 16
 AGENTS_PER_ROOM = 2
 AGENTS_PER_PROCESS = 32
+INVITATION_SECONDS = 120
 
 
 class ParticipationSignal(StrEnum):
@@ -12,10 +13,13 @@ class ParticipationSignal(StrEnum):
     AGENT_LEFT = "agent_left"
     AGENT_REMOVE = "agent_remove"
     AGENT_REFUSED = "agent_refused"
+    AGENT_OFFERS = "agent_offers"
+    AGENT_ADD = "agent_add"
 
 
 class AgentRefusal(StrEnum):
-    """Why a dial-in, a leave or a removal is refused; the tools answer with it and a seat's removal is told it."""
+    """Why a dial-in, an add, an accept, a leave or a removal is refused; the tools answer with it and a seat is
+    told it."""
 
     BAD_NAME = "bad_name"
     NO_SEAT = "no_seat"
@@ -26,6 +30,10 @@ class AgentRefusal(StrEnum):
     NOT_SPONSOR_OR_HOST = "not_sponsor_or_host"
     INVITATION_ONLY = "invitation_only"
     OWN_ACCOUNT_ONLY = "own_account_only"
+    NOT_ADDER = "not_adder"
+    ALREADY_THERE = "already_there"
+    STALE_INVITATION = "stale_invitation"
+    UNAVAILABLE = "unavailable"
 
 
 def _members(vocabulary: type[StrEnum]) -> dict[str, str]:
