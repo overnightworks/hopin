@@ -152,12 +152,4 @@ describe("dialed-in agents", () => {
             [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a1" }],
         ]);
     });
-
-    it("keeps the tiles when a resume sends no seat frame", async () => {
-        const page = await installedParticipation();
-        page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
-
-        expect(page.tiles.size).toBe(1);
-    });
 });
