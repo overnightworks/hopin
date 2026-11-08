@@ -1,0 +1,8 @@
+claim_id = "92109a2553134c848995226d3b190acd"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "e6de9fd200fef991abee697574ec6c31e1acabdc"
+branch = "claude/issue-574-own-account-agent"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/index.test.ts", "frontend/src/lib/features/participation/index.ts", "frontend/src/lib/features/participation/wire.ts", "src/hopin/agent/backend.py", "src/hopin/agent/mcp.py", "src/hopin/agent/session_groups.py", "src/hopin/agent/tools.py", "src/hopin/main.py", "src/hopin/participation/feature.py", "src/hopin/participation/live_agents.py", "src/hopin/participation/places.py", "src/hopin/participation/settings.py", "src/hopin/participation/vocabulary.py", "tests/e2e/participation", "tests/e2e/support/dialed_agent.py", "tests/e2e/support/server.py", "tests/participation", "tests/support/dialed_call.py", "tests/support/fake_issuer.py"]
+opened_commit = "dd64202caf02d412e0d88b9119d6e66ee7073583"
+whole_reason = "The add control, the adders check, the invitation, accept_invitation and the standings are one flow with no caller in parts, H1 to H16 drive it end to end, and the cut already took #577 to #581 off it."
