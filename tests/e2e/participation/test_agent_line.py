@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-AGENT_LINE = "#chatMessages .agent-line"
+AGENT_LINE = "#chatMessages .chat-msg:has(.participation-agent-sender)"
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -35,7 +35,7 @@ def test_a_line_an_agent_writes_is_read_by_another_seat_under_its_name_with_the_
 
     line = guest.locator(AGENT_LINE)
     expect(line).to_have_count(1)
-    expect(line.locator(".chat-sender")).to_contain_text("Claude")
-    expect(line.locator(".ai-badge")).to_be_visible()
+    expect(line.locator(".participation-agent-sender")).to_contain_text("Claude")
+    expect(line.locator(".participation-agent-badge")).to_be_visible()
     expect(line).to_contain_text("Hello <b>x</b>")
     expect(line.locator("b")).to_have_count(0)
