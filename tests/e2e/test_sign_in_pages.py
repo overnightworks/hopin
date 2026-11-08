@@ -14,7 +14,7 @@ from tests.e2e.support.page_assertions import (
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE, SMALL_PHONE_LANDSCAPE
 from tests.support.page_inventory import inventory_of
-from tests.support.sign_in_settings import TEST_ISSUER
+from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -42,7 +42,6 @@ BUILT_SIGN_IN_PAGES = [
     pytest.param(NO_ACCESS_PATH, id="no-access"),
 ]
 END_SESSION_PATH = "/realms/test/protocol/openid-connect/logout"
-END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 
 
 def open_login_failed(

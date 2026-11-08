@@ -46,7 +46,7 @@ from tests.support.page_build import (
     VERSION_FILE,
     fixture_page_build,
 )
-from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 
 pytestmark = pytest.mark.integration
@@ -88,7 +88,6 @@ FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 JSON_POST = {"content-type": "application/json"}
 CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
-END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 # The ruled text (Card A, 29.10.2026): kit 3.1.0's announcer style is the one inline style admitted, by its hash.
 ANNOUNCER_STYLE_SOURCES = "'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo='"
 EXPECTED_CONTENT_SECURITY_POLICY = (

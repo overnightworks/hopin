@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 TEST_ISSUER = "https://issuer.test.invalid/realms/test"
+END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 TEST_PUBLIC_ORIGIN = "https://hopin.test.invalid"
 SESSION_SECRET_BYTES = 36
 CLIENT_SECRET_BYTES = 24
