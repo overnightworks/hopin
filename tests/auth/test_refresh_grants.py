@@ -4,7 +4,7 @@ import pytest
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason
 
 from hopin.auth.refresh_grants import SessionGrants
-from tests.game.support.world import build_world, cancelled, wait_in_a_worker
+from tests.support.session_world import build_session_world, cancelled, settle, wait_in_a_worker
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -13,7 +13,7 @@ GROUPS = ("/group/one",)
 
 @pytest.fixture
 def world(sign_in_settings):
-    return build_world(sign_in_settings())
+    return build_session_world(sign_in_settings())
 
 
 @pytest.fixture
@@ -34,6 +34,8 @@ async def test_two_overlapping_grants_of_one_session_both_succeed_one_after_the_
     groups = asyncio.create_task(grants.current_groups(session_id))
     await wait_in_a_worker(hold.parked)
     token = asyncio.create_task(grants.fresh_access_token(session_id))
+    await settle()
+    assert not world.sessions.stored_refresh_token.is_set()
     hold.release.set()
 
     assert await groups == GROUPS
@@ -48,6 +50,8 @@ async def test_a_cancelled_caller_keeps_the_turn_until_its_worker_has_stored_the
     await wait_in_a_worker(hold.parked)
     await cancelled(cancelled_grant)
     next_grant = asyncio.create_task(grants.fresh_access_token(session_id))
+    await settle()
+    assert not world.sessions.stored_refresh_token.is_set()
     hold.release.set()
 
     assert not isinstance(await next_grant, AccessTokenRefusal)
@@ -60,11 +64,31 @@ async def test_a_caller_cancelled_before_its_turn_makes_no_grant(world, grants):
 
     first = asyncio.create_task(grants.current_groups(session_id))
     await wait_in_a_worker(hold.parked)
-    await cancelled(asyncio.create_task(grants.fresh_access_token(session_id)))
+    queued = asyncio.create_task(grants.fresh_access_token(session_id))
+    await settle()
+    await cancelled(queued)
     hold.release.set()
     await first
 
     assert world.grant_types().count("refresh_token") == 1
+
+
+async def test_cancelling_a_queued_grant_keeps_the_grants_behind_it_waiting_for_the_running_one(world, grants):
+    session_id = signed_in(world)
+    hold = world.issuer.hold("refresh_token")
+
+    first = asyncio.create_task(grants.current_groups(session_id))
+    await wait_in_a_worker(hold.parked)
+    second = asyncio.create_task(grants.fresh_access_token(session_id))
+    await settle()
+    third = asyncio.create_task(grants.fresh_access_token(session_id))
+    await settle()
+    await cancelled(second)
+    await settle()
+    hold.release.set()
+
+    assert await first == GROUPS
+    assert not isinstance(await third, AccessTokenRefusal)
 
 
 async def test_grants_of_different_sessions_do_not_wait_for_each_other(world, grants):
