@@ -12,7 +12,6 @@ export enum AGENT_REFUSAL {
     NO_SEAT = "no_seat",
     TWO_SEATS = "two_seats",
     BUSY = "busy",
-    NOT_YOURS = "not_yours",
     SPONSOR_AWAY = "sponsor_away",
     GONE = "gone",
     NOT_SPONSOR_OR_HOST = "not_sponsor_or_host",

@@ -39,7 +39,7 @@ class TestRemovalFromTheTile:
             1,
             1,
         ]
-        assert await participation.leave(person_named("guest"), agent.agent_id) is AgentRefusal.GONE
+        assert await participation.leave(person_named("guest"), room_of(host)) is AgentRefusal.GONE
 
     async def test_call_49_anyone_else_is_refused_and_the_agent_stays(self, link, participation):
         """CALL-49: A removal by anyone but the sponsor or the host is refused to the one who asked."""
@@ -50,7 +50,7 @@ class TestRemovalFromTheTile:
         [refusal] = frames_of(bystander, ParticipationSignal.AGENT_REFUSED)
         assert refusal["reason"] == AgentRefusal.NOT_SPONSOR_OR_HOST.value
         assert [frames_of(browser, ParticipationSignal.AGENT_LEFT) for browser in (host, guest, bystander)] == [[]] * 3
-        assert await participation.leave(person_named("guest"), agent.agent_id) is None
+        assert await participation.leave(person_named("guest"), room_of(host)) is None
 
     async def test_call_49_a_seat_of_another_call_removes_nothing(self, link, participation):
         """CALL-49: A removal from a seat outside the agent's call is ignored."""

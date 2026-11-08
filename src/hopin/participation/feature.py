@@ -124,14 +124,17 @@ class Participation:
         await logger.ainfo("agent_dialed_in", room_id=room_id, agent_id=agent.agent_id)
         return agent
 
-    async def leave(self, person: Person, agent_id: str) -> AgentRefusal | None:
-        """Take the person's agent out of its call; the refusal, or nothing when it is out."""
-        agent = self._agents.get(agent_id)
+    async def leave(self, person: Person, room_id: str) -> AgentRefusal | None:
+        """Take the person's live agent out of the room's call; the refusal, or nothing when it is out."""
+        agent = next(
+            (
+                agent
+                for agent in self._agents.values()
+                if agent.person == person and agent.room_id == room_id and self._in_call(agent)
+            ),
+            None,
+        )
         if agent is None:
-            return AgentRefusal.GONE
-        if agent.person != person:
-            return AgentRefusal.NOT_YOURS
-        if not self._in_call(agent):
             return AgentRefusal.GONE
         if self._rooms.is_parked(agent.sponsor):
             return AgentRefusal.SPONSOR_AWAY

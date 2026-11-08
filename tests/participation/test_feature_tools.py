@@ -17,10 +17,10 @@ class TestTheTools:
         dialed = dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat))
 
         tile = seat.next_frame()
-        assert (dialed.is_error, tile["type"], tile["agent_id"], tile["name"]) == (
+        assert (dialed.is_error, dialed.outcome, tile["type"], tile["name"]) == (
             False,
+            {"room": seat.room_id, "name": NAME},
             ParticipationSignal.AGENT_JOINED.value,
-            dialed.outcome["agent_id"],
             NAME,
         )
 
@@ -31,7 +31,7 @@ class TestTheTools:
 
         first = dialed_call.call(token, JOIN_CALL, join_arguments(seat, "First"))
         again = dialed_call.call(token, JOIN_CALL, join_arguments(seat, "Second"))
-        left = dialed_call.call(token, LEAVE_CALL, {"agent_id": first.outcome["agent_id"]})
+        left = dialed_call.call(token, LEAVE_CALL, {"room": seat.room_id})
 
         assert again.outcome == first.outcome
         assert (left.outcome, left.is_error) == ({"left": True}, False)
@@ -56,20 +56,21 @@ class TestTheTools:
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": refusal.value})
 
-    def test_another_persons_agent_id_is_not_yours(self, dialed_call):
+    def test_a_leave_by_room_reaches_only_the_callers_own_agent(self, dialed_call):
         account, _, seat = dialed_call.seated()
         other, _ = dialed_call.member()
-        agent_id = dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat)).outcome["agent_id"]
+        dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat))
 
-        dialed = dialed_call.call(dialed_call.token(other), LEAVE_CALL, {"agent_id": agent_id})
+        dialed = dialed_call.call(dialed_call.token(other), LEAVE_CALL, {"room": seat.room_id})
+        again = dialed_call.call(dialed_call.token(account), LEAVE_CALL, {"room": seat.room_id})
 
-        assert dialed.outcome == {"refused": AgentRefusal.NOT_YOURS.value}
+        assert (dialed.outcome, again.outcome) == ({"refused": AgentRefusal.GONE.value}, {"left": True})
 
     def test_a_token_past_its_life_leaves_the_agent_where_it_is(self, dialed_call):
         account, _, seat = dialed_call.seated()
-        agent_id = dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat)).outcome["agent_id"]
+        dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat))
 
-        expired = dialed_call.call(dialed_call.token(account, age_seconds=400), LEAVE_CALL, {"agent_id": agent_id})
-        fresh = dialed_call.call(dialed_call.token(account), LEAVE_CALL, {"agent_id": agent_id})
+        expired = dialed_call.call(dialed_call.token(account, age_seconds=400), LEAVE_CALL, {"room": seat.room_id})
+        fresh = dialed_call.call(dialed_call.token(account), LEAVE_CALL, {"room": seat.room_id})
 
         assert (expired.status, fresh.outcome) == (401, {"left": True})
