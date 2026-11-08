@@ -1,11 +1,13 @@
 import secrets
 import unicodedata
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
 
 from hopin.errors import InvalidMessageError
+from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     AGENT_NAME_MAX_CHARACTERS,
@@ -19,10 +21,12 @@ from hopin.participation.vocabulary import (
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
+    from hopin.participation.live_agents import LiveAgent
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
+    from hopin.signaling.scheduler import Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -104,8 +108,18 @@ def _refusal_frame(refusal: AgentRefusal) -> JsonObject:
 class Participation:
     """The agents dialed into calls: one per sponsoring seat, up to two per call and 32 in the process."""
 
-    def __init__(self, rooms: CallRooms) -> None:
+    def __init__(
+        self,
+        rooms: CallRooms,
+        scheduler: Scheduler,
+        lease_seconds: float,
+        on_changed: Callable[[Person], None],
+    ) -> None:
         self._rooms = rooms
+        self._scheduler = scheduler
+        self._lease_seconds = lease_seconds
+        self._on_changed = on_changed
+        self._live = LiveAgents()
         self._agents: dict[str, DialedAgent] = {}
         self._departed: dict[PeerId, list[DialedAgent]] = {}
 
@@ -159,6 +173,22 @@ class Participation:
         del person
         return ()
 
+    def agent_called(self, person: Person, own_account: OwnAccount) -> None:
+        """An admitted call of an agent with an account of its own: renew its lease, or register it. A lease that ran
+        out or another owner ends the old registration first."""
+        admission = self._live.admit(
+            person,
+            own_account.owner_subject,
+            own_account.name,
+            now=self._scheduler.now(),
+            lease_seconds=self._lease_seconds,
+        )
+        self._live = admission.agents
+        if admission.ended is not None:
+            self._end_lease(admission.ended)
+        if admission.registered:
+            self._arm(person, admission.agent.generation, self._lease_seconds)
+
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         if frame.signal_type != ParticipationSignal.AGENT_REMOVE:
             return False
@@ -207,6 +237,22 @@ class Participation:
     async def shut_down(self) -> None:  # NOSONAR(S7503) the call feature contract awaits it
         self._agents.clear()
         self._departed.clear()
+        self._live = LiveAgents()
+
+    def _arm(self, person: Person, generation: int, seconds: float) -> None:
+        self._scheduler.call_later(seconds, partial(self._lease_timer, person, generation))
+
+    async def _lease_timer(self, person: Person, generation: int) -> None:  # NOSONAR(S7503) the scheduler awaits it
+        check = self._live.checked(person, generation, now=self._scheduler.now())
+        self._live = check.agents
+        if check.action == TimerAction.REARM:
+            self._arm(person, generation, check.rearm_after)
+        elif check.ended is not None:
+            self._end_lease(check.ended)
+
+    def _end_lease(self, ended: LiveAgent) -> None:
+        """End every place of the agent in one synchronous step, then tell its waiters. It holds no place yet."""
+        self._on_changed(ended.person)
 
     def _agent_of(self, person: Person, sponsor: PeerId) -> DialedAgent | None:
         return next(

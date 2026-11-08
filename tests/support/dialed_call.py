@@ -83,6 +83,7 @@ class DialedCall:
     client: TestClient
     sockets: ExitStack
     audience: str
+    scheduler: ManualScheduler
 
     def member(self, *, role=AppRole.USER):
         config = installed_web_auth_config(self.client.app)
@@ -124,20 +125,24 @@ class DialedCall:
             issued_at=int(time.time()) - age_seconds,
         )
 
-    def agent_token(self, *, owner):
+    def agent_token(self, *, owner, subject="agent-subject", name="Claude"):
         """The token of an agent's own account: client credentials shape, any client, no username."""
         return self.issuer.access_token(
-            "agent-subject",
+            subject,
             audience=self.audience,
             authorized_party="some-agent-client",
             scope=MCP_SCOPE,
             groups=(AGENT_GROUP, MCP_GROUP),
-            extra_claims={"agent_owner": owner, "agent_name": "Claude"},
+            extra_claims={"agent_owner": owner, "agent_name": name},
         )
 
     def call(self, token, tool, arguments, **headers):
         body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
         return self._dialed(self.mcp("POST", token, extra_headers=headers, content=json.dumps(body)))
+
+    def pass_time(self, seconds):
+        """Move the app's clock on its own loop, running the timers that fall due."""
+        self.client.portal.call(self.scheduler.advance, seconds)
 
     def mcp(self, method, token, extra_headers=None, **options):
         extra_headers = extra_headers or {}
@@ -173,14 +178,15 @@ def admin_groups():
 @contextmanager
 def serving_dialed_call(sign_in: SignInSettings, issuer: FakeIssuer) -> Iterator[DialedCall]:
     stores = SignInStores.in_memory()
+    scheduler = ManualScheduler()
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
-        scheduler=ManualScheduler(),
+        scheduler=scheduler,
         call_features=(ParticipationFeature(sign_in.settings.public_origin),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
-        yield DialedCall(issuer, stores, client, sockets, audience)
+        yield DialedCall(issuer, stores, client, sockets, audience, scheduler)
