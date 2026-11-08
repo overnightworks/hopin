@@ -1,3 +1,4 @@
+import secrets
 from typing import TYPE_CHECKING
 
 import pytest
@@ -31,8 +32,8 @@ def e2e_server(participation_server: RunningServer) -> RunningServer:
 
 @pytest.fixture
 def own_account_agent(playwright: Playwright, e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
-    """The scripted agent of `OWNER_SUBJECT`."""
-    agent = OwnAccountAgent(playwright, e2e_server, OWNER_SUBJECT, AGENT_NAME)
+    """The scripted agent of `OWNER_SUBJECT`, named apart from the agents earlier tests left registered."""
+    agent = OwnAccountAgent(playwright, e2e_server, OWNER_SUBJECT, f"{AGENT_NAME}-{secrets.token_hex(3)}")
     yield agent
     agent.close()
 

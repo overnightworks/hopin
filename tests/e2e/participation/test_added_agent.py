@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
-from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, OWNER_USERNAME, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_USERNAME, REMOVE
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -45,6 +45,9 @@ class Scene:
         join_by_link(self.member, self.link)
         self.everyone = (self.host, self.owner, self.member)
 
+    def offer_of_agent(self, page: Page) -> Locator:
+        return page.locator(OFFER, has_text=self.agent.name)
+
     def agent_waits(self) -> None:
         """The agent's first call registers it, so a member's seat is offered it."""
         assert self.agent.standings() == []
@@ -52,13 +55,13 @@ class Scene:
     def member_adds_and_the_agent_accepts(self) -> None:
         self.agent_waits()
         open_more(self.member)
-        offer = self.member.locator(OFFER)
-        expect(offer).to_have_text(f"Add {AGENT_NAME}")
+        offer = self.offer_of_agent(self.member)
+        expect(offer).to_have_text(f"Add {self.agent.name}")
         offer.click()
-        expect(offer).to_have_text(f"Inviting {AGENT_NAME}…")
+        expect(offer).to_have_text(f"Inviting {self.agent.name}…")
         expect(offer).to_be_disabled()
         accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAIT_SECONDS))
-        assert accepted["name"] == AGENT_NAME
+        assert accepted["name"] == self.agent.name
 
 
 @pytest.fixture
@@ -89,7 +92,7 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
     for person in scene.everyone:
         tile = person.locator(AGENT_TILE)
         expect(tile).to_have_count(1)
-        expect(tile.locator(".name")).to_contain_text(AGENT_NAME)
+        expect(tile.locator(".name")).to_contain_text(scene.agent.name)
         expect(tile.locator(".ai-badge")).to_be_visible()
         expect(tile.locator(".sponsor")).to_have_text(OWNER_USERNAME)
     expect(scene.member.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
@@ -126,6 +129,6 @@ def test_a_member_outside_the_adders_group_is_offered_no_add(
     scene.agent_waits()
 
     open_more(scene.member)
-    expect(scene.member.locator(OFFER)).to_have_count(1)
+    expect(scene.offer_of_agent(scene.member)).to_have_count(1)
     open_more(outsider)
     expect(outsider.locator(OFFER)).to_have_count(0)

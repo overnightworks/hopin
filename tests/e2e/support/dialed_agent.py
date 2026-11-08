@@ -93,6 +93,7 @@ class OwnAccountAgent:
     def __init__(self, playwright: Playwright, server: RunningServer, owner_subject: str, name: str):
         self._request = playwright.request.new_context(ignore_https_errors=True)
         self._server = server
+        self.name = name
         self._token = server.issuer.access_token(
             f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
             audience=f"{server.base_url}/mcp",
