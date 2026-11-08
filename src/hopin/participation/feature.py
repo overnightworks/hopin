@@ -91,6 +91,7 @@ class Participation:
     def __init__(self, rooms: CallRooms) -> None:
         self._rooms = rooms
         self._agents: dict[str, DialedAgent] = {}
+        self._departed: dict[PeerId, list[DialedAgent]] = {}
 
     @property
     def name(self) -> str:
@@ -163,19 +164,32 @@ class Participation:
             if self._in_call(agent):
                 await self._announce_joined(agent, [peer_id], self._rooms.name_of(agent.sponsor))
 
+    def seat_changed(self, peer_id: PeerId) -> None:
+        """A seat that left its room takes its agents out of the state at once and holds them for `seat_left`."""
+        if self._rooms.room_of(peer_id) is not None:
+            return
+        agents = [agent for agent in self._agents.values() if agent.sponsor == peer_id]
+        for agent in agents:
+            del self._agents[agent.agent_id]
+        if agents:
+            self._departed[peer_id] = agents
+
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
-        """A seat that left for good takes its agents with it."""
+        """Announce the tiles of the agents the seat took with it."""
         del room_id, name
-        for agent in [agent for agent in self._agents.values() if agent.sponsor == peer_id]:
-            await self._remove(agent)
+        for agent in self._departed.pop(peer_id, []):
+            await self._announce_removed(agent)
 
     def room_ended(self, room_id: str) -> None:
         """Drop the room's agents; the room's seats hear the end itself."""
+        for sponsor in [sponsor for sponsor, gone in self._departed.items() if gone[0].room_id == room_id]:
+            del self._departed[sponsor]
         for agent_id in [agent.agent_id for agent in self._agents.values() if agent.room_id == room_id]:
             del self._agents[agent_id]
 
     async def shut_down(self) -> None:  # NOSONAR(S7503) the call feature contract awaits it
         self._agents.clear()
+        self._departed.clear()
 
     def _agent_of(self, person: Person, sponsor: PeerId) -> DialedAgent | None:
         return next(
@@ -192,6 +206,9 @@ class Participation:
 
     async def _remove(self, agent: DialedAgent) -> None:
         del self._agents[agent.agent_id]
+        await self._announce_removed(agent)
+
+    async def _announce_removed(self, agent: DialedAgent) -> None:
         await self._send_to_room(agent.room_id, _left_frame(agent))
         await logger.ainfo("agent_left", room_id=agent.room_id, agent_id=agent.agent_id)
 

@@ -80,9 +80,15 @@ class Connection:
 class Seats:
     """The seat registry: who holds which seat, what was sent to it and when a parked one lapses."""
 
-    def __init__(self, scheduler: Scheduler, on_seat_lost: Callable[[PeerId], Awaitable[None]]) -> None:
+    def __init__(
+        self,
+        scheduler: Scheduler,
+        on_seat_lost: Callable[[PeerId], Awaitable[None]],
+        on_seat_changed: Callable[[PeerId], None],
+    ) -> None:
         self._scheduler = scheduler
         self._on_seat_lost = on_seat_lost
+        self._on_seat_changed = on_seat_changed
         self._peers: dict[PeerId, Peer] = {}
         self._closed_by_server: WeakSet[WebSocket] = WeakSet()
 
@@ -116,6 +122,7 @@ class Seats:
         timer = self._scheduler.call_later(RESUME_WINDOW_SECONDS, partial(self._expire_park, peer_id, generation))
         peer.park = Park(generation=generation, dropped_at=self._scheduler.now(), timer=timer)
         peer.replaying = False
+        self._on_seat_changed(peer_id)
         await logger.ainfo("seat_parked", peer_id=peer_id)
 
     async def _expire_park(self, peer_id: PeerId, generation: int) -> None:
@@ -217,6 +224,7 @@ class Seats:
         if seat.park is not None:
             seat.park.timer.cancel()
             seat.park = None
+            self._on_seat_changed(claim.participant_id)
         self.forget(connection.peer_id)
         connection.peer_id = claim.participant_id
         seat.websocket = connection.websocket

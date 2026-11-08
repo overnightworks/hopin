@@ -63,13 +63,15 @@ class RoomRouting:
         scheduler: Scheduler,
         on_room_ended: Callable[[str], None],
         on_seat_left: Callable[[Departure], Awaitable[None]],
+        on_seat_changed: Callable[[PeerId], None],
     ) -> None:
         self._room_manager = room_manager
         self._scheduler = scheduler
         self._on_room_ended = on_room_ended
         self._on_seat_left = on_seat_left
+        self._on_seat_changed = on_seat_changed
         self._graces: dict[str, HostGrace] = {}
-        self._seats = Seats(scheduler, on_seat_lost=self.handle_disconnect)
+        self._seats = Seats(scheduler, on_seat_lost=self.handle_disconnect, on_seat_changed=on_seat_changed)
         self._peer_rooms: dict[str, str] = {}
 
     @property
@@ -204,6 +206,7 @@ class RoomRouting:
 
         leaver = room.participants[peer_id]
         self._room_manager.remove_participant(room_id, peer_id)
+        self._on_seat_changed(peer_id)
         host_left = room.is_hosted_by(leaver.account) and not room.host_present
         if host_left:
             self._start_grace(room_id, peer_id, left_at + HOST_GRACE_SECONDS)

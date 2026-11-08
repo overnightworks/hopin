@@ -83,6 +83,10 @@ class CallFeature(Protocol):
         seat released; called after the room has heard it left. A parked or resumed seat has not left, and a
         room's end calls `room_ended` instead."""
 
+    def seat_changed(self, peer_id: PeerId) -> None:
+        """A seat parked, a resume took it over, or it left its room; called at once after the change and before
+        the call core awaits anything."""
+
     def room_ended(self, room_id: str) -> None:
         """The room is gone; called before the call core awaits anything or tells a seat."""
 

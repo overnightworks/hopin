@@ -335,6 +335,9 @@ class Game:
             self._quizzes[room_id] = shrunk
             await self._count_and_reveal_when_due(room_id, shrunk)
 
+    def seat_changed(self, peer_id: PeerId) -> None:
+        """A seat's standing changes nothing at the table."""
+
     def room_ended(self, room_id: str) -> None:
         """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
         self._quizzes.pop(room_id, None)

@@ -162,6 +162,26 @@ class TestJoiningOneLiveSeat:
         await ending
         assert answered is AgentRefusal.GONE
 
+    async def test_call_48_a_leaving_seats_agent_takes_no_slot_while_its_cleanup_is_pending_and_its_tile_leaves(
+        self, link, participation, scheduler
+    ):
+        """CALL-48: The agent frees its slot when its seat leaves; its tile leaves for everyone after the cleanup."""
+        host, guest = await host_and_guest(link)
+        agent = await dial(participation, guest)
+        guest.socket.account = None
+        closing = HeldClose(guest.socket)
+        ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+
+        late = await link.join("late", room_of(host))
+        both_slots_free = [isinstance(await dial(participation, seat), DialedAgent) for seat in (host, late)]
+        tile_gone_early = agent_frames(host, ParticipationSignal.AGENT_LEFT)
+        closing.release.set()
+        await ending
+
+        assert (both_slots_free, tile_gone_early) == ([True, True], [])
+        assert [frame["agent_id"] for frame in agent_frames(host, ParticipationSignal.AGENT_LEFT)] == [agent.agent_id]
+
     async def test_call_48_a_leave_by_room_takes_the_live_agent_while_the_old_seats_agent_is_cleaned_up(
         self, link, participation, scheduler
     ):
