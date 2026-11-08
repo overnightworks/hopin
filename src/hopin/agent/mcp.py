@@ -88,8 +88,8 @@ def _as_person_tool(tool: CallerTool) -> PersonTool:
 def _wait_for_own_accounts(participation: Callable[[], Participation]) -> PersonTool:
     """The runtime's wait tool, served only to an agent with an account of its own."""
 
-    async def standings(principal: Principal) -> tuple[Standing, ...]:
-        rooms = await participation().standings_of(Person(principal.iss, principal.sub))
+    async def standings(principal: Principal) -> tuple[Standing, ...]:  # NOSONAR(S7503) CurrentStandings is async
+        rooms = participation().standings_of(Person(principal.iss, principal.sub))
         return tuple(Standing(place=PlaceRef(kind="call", id=room), state=StandingState.ACTIVE) for room in rooms)
 
     waiting = wait_tool(InMemoryMemberChanges(), standings)
