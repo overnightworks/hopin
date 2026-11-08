@@ -1,0 +1,8 @@
+claim_id = "10cf9dc4987942a3885c37f329594514"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "7193e58c22f40fee7ea65eb9d859484bc98d5244"
+branch = "claude/issue-578-session-refresh-grants"
+scope = ["src/hopin/agent/backend.py", "src/hopin/app.py", "src/hopin/auth", "tests"]
+opened_commit = "f0f6d49d0d42edef94678740e3999cfc08d9f40f"
+whole_reason = "One coordinator and its two callers: the coordinator must reach both grants through the app's builders."
