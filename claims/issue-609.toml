@@ -1,0 +1,8 @@
+claim_id = "00228a1db48b4087bec64de2b25cff32"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b04598eb3e26c66fe8a105d95b5d3964e068eeee"
+branch = "claude/issue-609-agent-standing-resource"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "tests/e2e/participation/conftest.py", "tests/e2e/participation/test_added_agent.py", "tests/e2e/support/dialed_agent.py", "tests/game/test_quiz_agent_connector_imports.py", "tests/participation/conftest.py", "tests/participation/test_feature_group_reads.py", "tests/participation/test_feature_invitation.py", "tests/participation/test_feature_lease.py", "tests/participation/test_feature_own_account.py", "tests/participation/test_feature_say.py", "tests/participation/test_feature_tool_kinds.py", "tests/support/dialed_call.py", "uv.lock"]
+opened_commit = "686640c6e187a26a23d907ccf6d8a9af938bfffa"
+whole_reason = "One library version replaces one tool; the pin, the front, its handlers and every test that writes the old wire must move together or nothing runs."
