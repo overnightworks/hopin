@@ -66,6 +66,10 @@ class Seat:
         self._socket.send_json({"type": SignalType.UNLOCK_ROOM.value, "seq": self._sent})
         assert self.next_frame()["type"] == SignalType.ROOM_UNLOCKED.value
 
+    def drop(self, code=1006):
+        """Close the socket abnormally, so the seat parks."""
+        self._socket.close(code=code)
+
     def send(self, frame):
         self._sent += 1
         self._socket.send_json({**frame, "seq": self._sent})
@@ -228,7 +232,11 @@ def admin_groups():
 
 @contextmanager
 def serving_dialed_call(
-    sign_in: SignInSettings, issuer: FakeIssuer, agent_adders: Mapping[str, str] | None = None
+    sign_in: SignInSettings,
+    issuer: FakeIssuer,
+    agent_adders: Mapping[str, str] | None = None,
+    *,
+    more_call_features=(),
 ) -> Iterator[DialedCall]:
     stores = SignInStores.in_memory()
     scheduler = ManualScheduler()
@@ -238,7 +246,7 @@ def serving_dialed_call(
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,
-        call_features=(ParticipationFeature(sign_in.settings.public_origin, agent_adders or {}),),
+        call_features=(ParticipationFeature(sign_in.settings.public_origin, agent_adders or {}), *more_call_features),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
