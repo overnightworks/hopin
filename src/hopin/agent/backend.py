@@ -1,5 +1,5 @@
 import asyncio
-from contextlib import aclosing, nullcontext
+from contextlib import aclosing
 from enum import StrEnum
 from functools import partial
 from pathlib import Path
@@ -13,8 +13,9 @@ from agent_runtime_client.turn import AgentRole, FailureCode, Principal, Rejecti
 from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
 from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
-from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, current_groups, fresh_access_token
+from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason
 
+from hopin.auth.refresh_grants import SessionGrants
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
@@ -24,7 +25,6 @@ from hopin.game.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from pydantic import SecretStr
     from starlette.requests import HTTPConnection
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRefusal, OidcRelyingParty
@@ -83,6 +83,7 @@ class StarterPerson:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
+        self._grants = SessionGrants(relying_party, sessions, web_auth)
 
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
@@ -99,8 +100,7 @@ class StarterPerson:
     async def access_token_of(self, starter: HTTPConnection) -> str:
         """A new access token of the starter, from one refresh grant; raises `StarterRefusedError` without one."""
         session_id = self._session_id_of(starter)
-        # Like the groups grant, it runs in a worker that still stores a rotated refresh token when cancelled.
-        token = await asyncio.to_thread(self._fresh_access_token, session_id)
+        token = await self._grants.fresh_access_token(session_id)
         if isinstance(token, AccessTokenRefusal):
             raise StarterRefusedError(_refusal_of_grant(token, event=STARTER_REFUSED_EVENT))
         return token.get_secret_value()
@@ -112,28 +112,10 @@ class StarterPerson:
         return session_id
 
     async def _groups(self, session_id: str) -> frozenset[str]:
-        # The grant blocks on the issuer, so it runs in a worker. A cancelled run cancels the await,
-        # not the worker: it still stores the rotated refresh token, and no later step runs.
-        groups = await asyncio.to_thread(self._current_groups, session_id)
+        groups = await self._grants.current_groups(session_id)
         if isinstance(groups, AccessTokenRefusal):
             raise StarterRefusedError(_refusal_of_grant(groups))
         return frozenset(groups)
-
-    def _fresh_access_token(self, session_id: str) -> SecretStr | AccessTokenRefusal:
-        return fresh_access_token(
-            self._relying_party,
-            session_id,
-            session_transaction=lambda: nullcontext(self._sessions),
-            config=self._web_auth,
-        )
-
-    def _current_groups(self, session_id: str) -> tuple[str, ...] | AccessTokenRefusal:
-        return current_groups(
-            self._relying_party,
-            session_id,
-            session_transaction=lambda: nullcontext(self._sessions),
-            config=self._web_auth,
-        )
 
 
 class QuizGameMaster:
