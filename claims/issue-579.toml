@@ -1,8 +1,0 @@
-claim_id = "5070712e79fa495ca2acb8fe16d030b8"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "a56c8bc3f5f6ef842a52722a14d17077df1c39a3"
-branch = "claude/issue-579-tool-kinds"
-scope = ["README.md", "docs/ARCHITECTURE.md", "frontend/src/lib/features/participation/wire.ts", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation", "tests"]
-opened_commit = "835002a4540bac61963130c17548ef825166f2b3"
-whole_reason = "One boundary between the two agent kinds: the connector reads the kind, participation enforces it in its tools, the wait tool serves only one kind, and the generated wire, the docs and the tests follow."
