@@ -3,6 +3,7 @@ import json
 import re
 import secrets
 import threading
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
@@ -125,23 +126,30 @@ class OwnAccountAgent:
         self._opened = threading.Event()
         self._acknowledged = threading.Event()
         self._woken = threading.Event()
-        self._stopping: asyncio.Event
+        self._stopping = asyncio.Event()
         self._client: Client
         self._stream: Future[None] | None = None
         self._thread = threading.Thread(target=self._loop.run_until_complete, args=(self._hold_the_client(),))
         self._thread.start()
-        assert self._opened.wait(REQUEST_SECONDS)
+        if not self._opened.wait(REQUEST_SECONDS):
+            self.close()
+            message = "the SDK client did not open"
+            raise TimeoutError(message)
 
     async def _hold_the_client(self) -> None:
-        self._stopping = asyncio.Event()
         http = httpx2.AsyncClient(
             headers={"authorization": f"Bearer {self._token}"},
             timeout=httpx2.Timeout(REQUEST_SECONDS, read=None),
             verify=False,  # the loopback certificate is self-signed
             trust_env=False,
         )
-        async with http, Client(streamable_http_client(self._url, http_client=http)) as client:
-            self._client = client
+        async with AsyncExitStack() as held:
+            # An opening that never finishes ends the thread, which `close` joins.
+            async with asyncio.timeout(REQUEST_SECONDS):
+                await held.enter_async_context(http)
+                self._client = await held.enter_async_context(
+                    Client(streamable_http_client(self._url, http_client=http))
+                )
             self._opened.set()
             await self._stopping.wait()
 
@@ -163,9 +171,13 @@ class OwnAccountAgent:
         read = self._run(self._client.read_resource(STANDING_URI))
         return json.loads(read.contents[0].text)["standings"]
 
+    def woken_within(self, seconds: float) -> bool:
+        """Whether the stream has woken the agent, waiting up to `seconds` for it."""
+        return self._woken.wait(seconds)
+
     def invitation_within(self, seconds: int) -> dict[str, Any]:
         """The standing that holds an invitation, once the stream has woken the agent."""
-        assert self._woken.wait(seconds), "the stream never woke the agent"
+        assert self.woken_within(seconds), "the stream never woke the agent"
         [invited] = [standing for standing in self.standings() if standing["state"] == "invited"]
         return invited
 
