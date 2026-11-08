@@ -371,6 +371,7 @@ class Participation:
             return
         group = self._adders[live.owner_subject]
         memberships = self._view_of(peer_id, room_id).memberships
+        refusal: AgentRefusal | None
         if groups is None:
             memberships[group] = Membership.FAILED
             refusal = AgentRefusal.UNAVAILABLE
@@ -448,7 +449,7 @@ class Participation:
 
     async def _end_lease(self, ended: LiveAgent) -> None:
         """End every place of the agent in one synchronous step, then tell the rooms and its waiters."""
-        departures: list[tuple[DialedAgent, list[str]]] = []
+        departures: list[tuple[DialedAgent, list[PeerId]]] = []
         for room_id, place in self._places.of_person(ended.person):
             self._places.remove(ended.person, room_id)
             if isinstance(place, DialedAgent):
@@ -490,10 +491,10 @@ class Participation:
             view = self._views[peer_id] = _SeatView(room_id)
         return view
 
-    def _recipients(self, room_id: str) -> list[str]:
+    def _recipients(self, room_id: str) -> list[PeerId]:
         """The room's seats now, none once the room has ended."""
         try:
-            return self._rooms.members(room_id)
+            return [PeerId(peer_id) for peer_id in self._rooms.members(room_id)]
         except RoomNotFoundError:
             return []
 
@@ -521,7 +522,7 @@ class Participation:
     async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: JsonObject) -> None:
         """Send to each seat that still sits in the room: a room that has ended gets nothing more."""
         for peer_id in peer_ids:
-            if self._rooms.room_of(peer_id) == room_id:
+            if self._rooms.room_of(PeerId(peer_id)) == room_id:
                 await self._rooms.send(peer_id, frame)
 
     async def _update_every_room_offers(self) -> None:
@@ -557,7 +558,7 @@ class Participation:
                 offers.append(Offer(live.key, live.name, pending=False))
         return tuple(offers)
 
-    def _start_reads(self, room_id: str, seats: Sequence[str]) -> None:
+    def _start_reads(self, room_id: str, seats: Sequence[PeerId]) -> None:
         """Read the groups of each seat that could see an offer and whose membership is unknown or failed to read."""
         groups = {
             group
