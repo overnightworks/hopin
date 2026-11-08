@@ -1,0 +1,8 @@
+claim_id = "5d4f5e96f0a0479ba0a123364c80a371"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "130d0558e42c4023c65e227db8f6326610d77729"
+branch = "claude/issue-607-e2e-room"
+scope = [".github/workflows/ci.yml", "tests/e2e/conftest.py", "tests/e2e/game/conftest.py", "tests/e2e/participation/conftest.py", "tests/e2e/support/server.py"]
+opened_commit = "5058c99ff63986cd94c6f872a98287ee0e4df115"
+whole_reason = "One CI step and the end-to-end fixtures whose parallel safety decides how it runs."
