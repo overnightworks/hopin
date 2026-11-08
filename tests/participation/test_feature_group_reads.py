@@ -40,14 +40,16 @@ class TestAGroupReadThatIsStillRunning:
 
     async def test_it_is_cancelled_with_the_participation_that_shuts_down(self, link, participation, groups_of_seat):
         owner = await link.join(OWNER)
-        await link.join("guest", owner.room_id)
-        groups_of_seat["guest"] = asyncio.Event()
+        member = await link.join("guest", owner.room_id)
+        groups_of_seat["guest"] = release = asyncio.Event()
         await agent_calls(participation)
         await let_reads_finish()
 
         await participation.shut_down()
+        release.set()
+        await let_reads_finish()
 
-        assert participation.standings_of(AGENT) == ()
+        assert offers_sent_to(member) is None
 
 
 class TestAnAddWhoseFreshReadIsStillRunning:

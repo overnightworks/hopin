@@ -1,7 +1,7 @@
 """The places agents hold in calls: an open invitation or a joined tile, one per agent and room.
 
 The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal, a
-withdrawal, an expiry or a decline raises the epoch of its (agent, room), so an invitation made before it is stale.
+withdrawal or an expiry raises the epoch of its (agent, room), so an invitation made before it is stale.
 """
 
 from dataclasses import dataclass

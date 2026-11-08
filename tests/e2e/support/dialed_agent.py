@@ -1,5 +1,6 @@
 import json
 import re
+import secrets
 from typing import TYPE_CHECKING, Any
 
 from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
@@ -93,7 +94,7 @@ class OwnAccountAgent:
         self._request = playwright.request.new_context(ignore_https_errors=True)
         self._server = server
         self._token = server.issuer.access_token(
-            f"agent-of-{owner_subject}",
+            f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
             audience=f"{server.base_url}/mcp",
             authorized_party="some-agent-client",
             scope=MCP_SCOPE,

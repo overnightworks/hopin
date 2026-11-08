@@ -568,12 +568,12 @@ class Participation:
         key = (peer_id, room_id)
         if key in self._reads:
             return
-        read = asyncio.create_task(self._read_groups(peer_id, room_id))
+        read = asyncio.create_task(self._read_groups(peer_id, room_id, self._rooms.connection_of(peer_id)))
         self._reads[key] = read
         read.add_done_callback(lambda _: self._reads.pop(key, None))
 
-    async def _read_groups(self, peer_id: PeerId, room_id: str) -> None:
-        groups = await self._groups_of(self._rooms.connection_of(peer_id))
+    async def _read_groups(self, peer_id: PeerId, room_id: str, connection: HTTPConnection) -> None:
+        groups = await self._groups_of(connection)
         if self._rooms.room_of(peer_id) != room_id:
             return
         memberships = self._view_of(peer_id, room_id).memberships
