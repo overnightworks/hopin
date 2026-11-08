@@ -147,6 +147,7 @@ class RecordingFeature:
     offered: list = field(default_factory=list)
     joined: list = field(default_factory=list)
     left: list = field(default_factory=list)
+    changed: list = field(default_factory=list)
 
     async def on_frame(self, peer_id, frame):
         self.offered.append((peer_id, frame))
@@ -157,6 +158,11 @@ class RecordingFeature:
 
     async def seat_left(self, peer_id, *, room_id, name):
         self.left.append((peer_id, room_id, name))
+
+    def seat_changed(self, peer_id):
+        """Records the seat's standing as it is the moment the call core announces the change."""
+        in_room = self.rooms.room_of(peer_id) is not None
+        self.changed.append((peer_id, in_room, in_room and self.rooms.is_parked(peer_id)))
 
     def room_ended(self, room_id):
         pass

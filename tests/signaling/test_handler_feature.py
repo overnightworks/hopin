@@ -1,3 +1,4 @@
+import asyncio
 from functools import partial
 
 import pytest
@@ -14,12 +15,19 @@ from hopin.signaling.features import FeatureClashError
 from hopin.signaling.frames import ForeignFrame
 from hopin.signaling.handler import SignalingHandler
 from tests.signaling.support.browsers import (
+    HeldWrite,
     Link,
     fill_server_log,
     host_and_guest,
     resume_holding_the_first_replayed_frame,
 )
-from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, account_named, disconnect_frame
+from tests.support.signaling_fakes import (
+    RecordingFeature,
+    SocketAccountResolver,
+    account_named,
+    disconnect_frame,
+    text_frame,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -244,6 +252,59 @@ class TestSeatLeft:
         await host.say({"type": SignalType.END_ROOM.value})
 
         assert link.handler.features[0].left == []
+
+
+@pytest.mark.asyncio
+class TestSeatChanged:
+    async def test_a_park_is_heard_with_the_seat_parked_in_its_room(self, link_with):
+        link = link_with({"handles": frozenset()})
+        _host, guest = await host_and_guest(link)
+
+        await guest.drop()
+
+        assert link.handler.features[0].changed == [(guest.peer_id, True, True)]
+
+    async def test_a_resume_is_heard_before_the_acknowledgement_is_written(self, link_with):
+        link = link_with({"handles": frozenset()})
+        _host, guest = await host_and_guest(link)
+        await guest.drop()
+        feature = link.handler.features[0]
+        feature.changed.clear()
+        guest.sockets.append(await link.open(account_named("guest")))
+        acknowledging = HeldWrite(guest.socket)
+
+        guest.socket.push(text_frame(guest.resume_frame()))
+        await acknowledging.reached()
+        heard_while_acknowledging = list(feature.changed)
+        acknowledging.release.set()
+
+        assert heard_while_acknowledging == [(guest.peer_id, True, False)]
+
+    async def test_a_leave_is_heard_before_the_departure_is_announced(self, link_with):
+        link = link_with({"handles": frozenset()})
+        host, guest = await host_and_guest(link)
+        feature = link.handler.features[0]
+        feature.changed.clear()
+        closing = HeldWrite(host.socket)
+
+        leaving = asyncio.create_task(guest.drop(1000))
+        await closing.reached()
+        heard_while_announcing = list(feature.changed)
+        closing.release.set()
+        await leaving
+
+        assert heard_while_announcing == [(guest.peer_id, False, False)]
+
+    async def test_a_refused_resume_is_not_heard_while_the_seat_stays_parked(self, link_with):
+        link = link_with({"handles": frozenset()})
+        _host, guest = await host_and_guest(link)
+        await guest.drop()
+        feature = link.handler.features[0]
+        feature.changed.clear()
+
+        await guest.resume(token="wrong")
+
+        assert feature.changed == []
 
 
 class TestClashAtStart:
