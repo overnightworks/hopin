@@ -496,7 +496,7 @@ class Participation:
             await self._end_lease(check.ended)
 
     async def _end_lease(self, ended: LiveAgent) -> None:
-        """End every place of the agent in one synchronous step, then tell the rooms and its waiters."""
+        """End every place of the agent in one synchronous step, then signal the standing and tell the rooms."""
         departures: list[tuple[DialedAgent, list[PeerId]]] = []
         for room_id, place in self._places.of_person(ended.person):
             self._places.remove(ended.person, room_id)

@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
@@ -15,10 +16,27 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.signaling_fakes import SocketAccountResolver
 
 
+class Change(NamedTuple):
+    person: object
+    states: tuple
+
+
+class Changes(list):
+    """What each `on_changed` call named, in order: the person and the states of that person's standings readable at
+    the moment of the call. `watch` names the feature whose standings are read."""
+
+    feature = None
+
+    def watch(self, feature):
+        self.feature = feature
+
+    def __call__(self, person):
+        self.append(Change(person, tuple(standing.state for standing in self.feature.standings_of(person))))
+
+
 @pytest.fixture
 def changes():
-    """The persons `on_changed` named, in order."""
-    return []
+    return Changes()
 
 
 @pytest.fixture
@@ -50,7 +68,7 @@ def handler(room_manager, scheduler, changes, adders, groups_of_seat, group_read
             return frozenset(adders.values())
         return groups
 
-    return SignalingHandler(
+    handler = SignalingHandler(
         room_manager,
         SocketAccountResolver(),
         scheduler,
@@ -59,13 +77,16 @@ def handler(room_manager, scheduler, changes, adders, groups_of_seat, group_read
                 Participation,
                 scheduler=scheduler,
                 lease_seconds=LEASE_SECONDS,
-                on_changed=changes.append,
+                on_changed=changes,
                 wall_clock=lambda: WALL_CLOCK_SECONDS,
                 adders=adders,
                 groups_of=groups_of,
             )
         ],
     )
+    [feature] = handler.features
+    changes.watch(feature)
+    return handler
 
 
 @pytest.fixture
