@@ -1,0 +1,8 @@
+claim_id = "e4d9bd50ed58474ab0049e17fd466a37"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "c1e8153927ba172d2b7faf9fd53fb214742e8649"
+branch = "claude/issue-601-indirect-imports"
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/account.py", "src/hopin/auth/gate.py", "src/hopin/auth/sign_in.py", "src/hopin/config/constants.py", "src/hopin/config/web_policy.py", "src/hopin/game/voice.py", "src/hopin/people.py", "src/hopin/web/call_features.py", "src/hopin/web/ice_servers.py", "src/hopin/web/page_build.py", "src/hopin/web/routes.py", "tests/auth/test_sign_in_routes.py", "tests/test_people.py"]
+opened_commit = "a5c9616002d9012adea3882d838a5d3b3dd1157d"
+whole_reason = "One boundary tightening: most files change only an import line, and the two contracts cannot be tightened before their values have moved."
