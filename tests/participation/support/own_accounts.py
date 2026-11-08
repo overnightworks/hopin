@@ -5,6 +5,7 @@ import asyncio
 from hopin.participation.feature import GROUPS_READ_TASK_NAME, OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named
+from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 
 OWNER = "owner"
 ADDERS = "/apps/hopin/agent-adders"
@@ -23,8 +24,9 @@ def _running_reads():
 
 async def let_reads_finish():
     """Wait until every read of a seat's groups that is running has ended, with its announcement."""
-    while reads := _running_reads():
-        await asyncio.gather(*reads, return_exceptions=True)
+    async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+        while reads := _running_reads():
+            await asyncio.gather(*reads)
 
 
 class GroupReadLog(list):
@@ -41,9 +43,10 @@ class GroupReadLog(list):
 
 async def let_reads_start(group_reads, count):
     """Wait until `count` reads have asked for a seat's groups, for a read the test holds back."""
-    while len(group_reads) < count:
-        group_reads.asked.clear()
-        await group_reads.asked.wait()
+    async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+        while len(group_reads) < count:
+            group_reads.asked.clear()
+            await group_reads.asked.wait()
 
 
 def offers_sent_to(browser):
