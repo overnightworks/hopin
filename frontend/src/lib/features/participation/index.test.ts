@@ -123,4 +123,41 @@ describe("dialed-in agents", () => {
 
         expect(page.tiles.size).toBe(0);
     });
+
+    it.each([SIGNAL_TYPE.ROOM_CREATED, SIGNAL_TYPE.EXISTING_PARTICIPANTS])(
+        "takes the tile of an agent that is not announced again away on a fresh join (%s)",
+        async (signal) => {
+            const page = await installedParticipation();
+            page.seat(false);
+            page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "gone"));
+
+            page.seat(false, signal);
+
+            expect(page.tiles.size).toBe(0);
+        },
+    );
+
+    it("shows a re-announced agent again with the new seat's remove right", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+
+        page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "new-seat", is_host: false });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("new-seat", "a1"));
+        page.tiles.get("agent-a1")?.onRemove?.();
+
+        expect([[...page.tiles.keys()], page.sent]).toEqual([
+            ["agent-a1"],
+            [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a1" }],
+        ]);
+    });
+
+    it("keeps the tiles when a resume sends no seat frame", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        expect(page.tiles.size).toBe(1);
+    });
 });

@@ -58,6 +58,8 @@ export function install(core: FeatureCore): Promise<void> {
     const seated = (frame: SeatFrame) => {
         seatId = frame.participant_id;
         isHost = frame.is_host;
+        // The server announces every agent still in the room to a new seat; one it does not announce has left.
+        for (const agentId of shown) hide(agentId);
     };
     core.on(SIGNAL_TYPE.ROOM_CREATED, seated);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, seated);
