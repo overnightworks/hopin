@@ -1,0 +1,7 @@
+claim_id = "c43a80cfccb442f686774b798b73622e"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "9f6f9f760a155294f60b32cbe6e802300e90e50c"
+branch = "claude/issue-590-pip-release"
+scope = ["frontend/src/lib/ui/pip.test.ts", "frontend/src/lib/ui/pip.ts"]
+opened_commit = "52e25c50b75a484e8472278ffadef933c17e9175"
