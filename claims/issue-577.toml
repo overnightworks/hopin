@@ -1,8 +1,0 @@
-claim_id = "2c412afda6c54d569766088e3c5d3868"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "7193e58c22f40fee7ea65eb9d859484bc98d5244"
-branch = "claude/issue-577-leave-call-by-room"
-scope = ["README.md", "frontend/src/lib/features/participation", "src/hopin/agent/tools.py", "src/hopin/participation", "tests"]
-opened_commit = "b50c518fa4126cdc558b23555364b98478a9918b"
-whole_reason = "One tool contract and its every reader: the tool, participation's lookup, the generated wire, README and the tests that call it."
