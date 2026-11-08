@@ -109,6 +109,15 @@ class TestTheStandingResource:
         [standing] = scene.standings()
         assert (standing["state"], standing["place"]) == ("invited", {"kind": "call", "id": scene.owner.room_id})
 
+    def test_the_standing_of_an_agent_whose_owners_seat_is_parked_reads_as_paused(self, scene):
+        scene.invite()
+        [standing] = scene.standings()
+        scene.accept(standing)
+
+        scene.owner.drop()
+
+        assert [item["state"] for item in scene.standings()] == ["paused"]
+
     def test_another_agents_read_shows_none_of_its_places(self, scene):
         scene.invite()
         other = scene.call.agent_token(owner="another-owner", subject="another-agent")

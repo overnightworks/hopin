@@ -66,7 +66,7 @@ class TestTheEndpoint:
 
         dialed = dialed_call.request(token, "tools/call", {"name": "wait", "arguments": {}}, routing_name="wait")
 
-        assert "error" in dialed.json() or dialed.json()["result"]["isError"]
+        assert "Unknown tool" in dialed.json()["error"]["message"]
 
     @pytest.mark.parametrize("version", [None, "2025-11-25"])
     def test_a_request_without_the_current_revision_answers_the_unsupported_version_error(self, dialed_call, version):
