@@ -125,15 +125,15 @@ class DialedCall:
             issued_at=int(time.time()) - age_seconds,
         )
 
-    def agent_token(self, *, owner, subject="agent-subject", name="Claude"):
+    def agent_token(self, *, owner):
         """The token of an agent's own account: client credentials shape, any client, no username."""
         return self.issuer.access_token(
-            subject,
+            "agent-subject",
             audience=self.audience,
             authorized_party="some-agent-client",
             scope=MCP_SCOPE,
             groups=(AGENT_GROUP, MCP_GROUP),
-            extra_claims={"agent_owner": owner, "agent_name": name},
+            extra_claims={"agent_owner": owner, "agent_name": "Claude"},
         )
 
     def call(self, token, tool, arguments, **headers):
