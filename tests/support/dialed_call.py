@@ -24,7 +24,7 @@ from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
     from hopin.auth.stores import StoredAccount
     from tests.support.fake_issuer import FakeIssuer
@@ -85,15 +85,23 @@ class DialedCall:
     audience: str
     scheduler: ManualScheduler
 
-    def member(self, *, role=AppRole.USER):
+    def member(self, *, role=AppRole.USER, subject=None, groups=None):
+        """A person with a login. With `groups` the issuer holds those groups for them and their login holds a refresh
+        token, so a read of their current groups succeeds."""
         config = installed_web_auth_config(self.client.app)
         name = f"member-{secrets.token_hex(4)}"
-        account = self.stores.accounts.create_for_subject(f"subject-{name}", name, role=role, kind=AccountKind.PERSON)
-        return account, seed_member(self.stores, config, account=account)
+        account = self.stores.accounts.create_for_subject(
+            f"subject-{name}" if subject is None else subject, name, role=role, kind=AccountKind.PERSON
+        )
+        refresh_token = None
+        if groups is not None:
+            self.issuer.grant_groups(account.id, groups)
+            refresh_token = self.issuer.refresh_token_for(account.id)
+        return account, seed_member(self.stores, config, account=account, refresh_token=refresh_token)
 
-    def seated(self):
+    def seated(self, **member_options):
         """A person in a call of their own: their account for a token, their login and their seat."""
-        account, member = self.member()
+        account, member = self.member(**member_options)
         return account, member, self.seat(member)
 
     def seat(self, seeded, room_id=None):
@@ -125,15 +133,17 @@ class DialedCall:
             issued_at=int(time.time()) - age_seconds,
         )
 
-    def agent_token(self, *, owner):
-        """The token of an agent's own account: client credentials shape, any client, no username."""
+    def agent_token(self, *, owner, subject="agent-subject", agent_name="Claude", preferred_username=None):
+        """The token of an agent's own account: client credentials shape, any client; a `preferred_username` is the
+        account's username, which the realm sets equal to the subject."""
+        username = {} if preferred_username is None else {"preferred_username": preferred_username}
         return self.issuer.access_token(
-            "agent-subject",
+            subject,
             audience=self.audience,
             authorized_party="some-agent-client",
             scope=MCP_SCOPE,
             groups=(AGENT_GROUP, MCP_GROUP),
-            extra_claims={"agent_owner": owner, "agent_name": "Claude"},
+            extra_claims={"agent_owner": owner, "agent_name": agent_name, **username},
         )
 
     def call(self, token, tool, arguments, **headers):
@@ -176,7 +186,9 @@ def admin_groups():
 
 
 @contextmanager
-def serving_dialed_call(sign_in: SignInSettings, issuer: FakeIssuer) -> Iterator[DialedCall]:
+def serving_dialed_call(
+    sign_in: SignInSettings, issuer: FakeIssuer, agent_adders: Mapping[str, str] | None = None
+) -> Iterator[DialedCall]:
     stores = SignInStores.in_memory()
     scheduler = ManualScheduler()
     app = create_app(
@@ -185,7 +197,7 @@ def serving_dialed_call(sign_in: SignInSettings, issuer: FakeIssuer) -> Iterator
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,
-        call_features=(ParticipationFeature(sign_in.settings.public_origin),),
+        call_features=(ParticipationFeature(sign_in.settings.public_origin, agent_adders or {}),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]

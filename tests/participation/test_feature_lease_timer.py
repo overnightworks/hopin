@@ -1,8 +1,12 @@
 import pytest
 
 from hopin.participation.feature import OwnAccount, Participation, Person
-from tests.participation.support.ports import unconfigured_ports
 from tests.support.signaling_fakes import ManualScheduler
+
+
+async def groups_never_read(connection):
+    raise AssertionError("nobody adds, so no groups are read")
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -25,7 +29,13 @@ def changed():
 @pytest.fixture
 def participation(scheduler, changed):
     return Participation(
-        rooms=None, scheduler=scheduler, lease_seconds=LEASE, on_changed=changed.append, **unconfigured_ports()
+        rooms=None,
+        scheduler=scheduler,
+        lease_seconds=LEASE,
+        on_changed=changed.append,
+        wall_clock=lambda: 0.0,
+        adders={},
+        groups_of=groups_never_read,
     )
 
 

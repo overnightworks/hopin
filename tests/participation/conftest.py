@@ -6,13 +6,43 @@ from agent_runtime_client.wait import LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.signaling.handler import SignalingHandler
-from tests.participation.support.ports import unconfigured_ports
 from tests.signaling.support.browsers import Link
 from tests.support.signaling_fakes import SocketAccountResolver
 
+WALL_CLOCK_SECONDS = 1000.0
+
 
 @pytest.fixture
-def handler(room_manager, scheduler):
+def changes():
+    """The persons `on_changed` named, in order."""
+    return []
+
+
+@pytest.fixture
+def adders():
+    """The owner's subject mapped to the group that may add the owner's agent; a module that adds overrides it."""
+    return {}
+
+
+@pytest.fixture
+def groups_of_seat():
+    """The groups the issuer holds for the seat of each name (`None` is a read that fails); a seat never named holds
+    none."""
+    return {}
+
+
+@pytest.fixture
+def group_reads(groups_of_seat):
+    """How many times a seat's groups were read."""
+    return []
+
+
+@pytest.fixture
+def handler(room_manager, scheduler, changes, adders, groups_of_seat, group_reads):
+    async def groups_of(connection):
+        group_reads.append(connection.account.name)
+        return groups_of_seat.get(connection.account.name, frozenset())
+
     return SignalingHandler(
         room_manager,
         SocketAccountResolver(),
@@ -22,8 +52,10 @@ def handler(room_manager, scheduler):
                 Participation,
                 scheduler=scheduler,
                 lease_seconds=LEASE_SECONDS,
-                on_changed=lambda person: None,
-                **unconfigured_ports(),
+                on_changed=changes.append,
+                wall_clock=lambda: WALL_CLOCK_SECONDS,
+                adders=adders,
+                groups_of=groups_of,
             )
         ],
     )
