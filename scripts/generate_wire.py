@@ -22,13 +22,13 @@ from hopin.config.constants import (  # noqa: E402
     ICE_SERVERS_PATH,
     LOGOUT_PATH,
     REPLAY_LOG_LIMIT,
-    RETURN_TO_QUERY_PARAMETER,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
     ErrorReason,
     RoomClosedReason,
     SignalType,
 )
+from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
 from hopin.signaling.frames import (  # noqa: E402
