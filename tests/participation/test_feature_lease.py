@@ -3,6 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from agent_runtime_client.wait import LEASE_SECONDS
 
+from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
+from tests.support.dialed_call import join_arguments
+
 pytestmark = pytest.mark.integration
 
 WAIT = "wait"
@@ -63,9 +66,9 @@ class TestTheLease:
 
     def test_a_persons_own_agent_holds_no_lease(self, dialed_call):
         account, _, seat = dialed_call.seated()
+        dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat))
 
-        timers_before = len(dialed_call.scheduler.pending_timers())
+        dialed_call.pass_time(LEASE_SECONDS)
 
-        dialed_call.call(dialed_call.token(account), "leave_call", {"room": seat.room_id})
-
-        assert len(dialed_call.scheduler.pending_timers()) == timers_before
+        left = dialed_call.call(dialed_call.token(account), LEAVE_CALL, {"room": seat.room_id})
+        assert left.outcome == {"left": True}
