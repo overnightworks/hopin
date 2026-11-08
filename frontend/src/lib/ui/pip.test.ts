@@ -12,6 +12,7 @@ interface Setup {
     tile: HTMLElement;
     capture: ReturnType<typeof vi.fn>;
     release: ReturnType<typeof vi.fn>;
+    heldCapture: { value: boolean };
     cleanup: () => void;
 }
 
@@ -24,12 +25,13 @@ function setUp({ count = "2", phone = true }: { count?: string; phone?: boolean 
     const capture = vi.fn();
     const release = vi.fn();
     tile.setPointerCapture = capture;
-    tile.hasPointerCapture = () => true;
+    const heldCapture = { value: true };
+    tile.hasPointerCapture = () => heldCapture.value;
     tile.releasePointerCapture = release;
     stage.append(tile);
     document.body.append(stage);
     vi.stubGlobal("matchMedia", () => ({ matches: phone }));
-    return { stage, tile, capture, release, cleanup: pictureInPicture(tile) };
+    return { stage, tile, capture, release, heldCapture, cleanup: pictureInPicture(tile) };
 }
 
 function firePointer(
@@ -166,6 +168,28 @@ describe("picture in picture", () => {
         expect(tile.classList.contains("dragging")).toBe(false);
         expect(release).toHaveBeenCalledWith(POINTER);
         expect(tile.dataset.corner).toBeUndefined();
+    });
+
+    it("does not release the pointer capture of a tile that no longer holds it", async () => {
+        const { stage, tile, release, heldCapture } = setUp();
+        firePointer(tile, "pointerdown");
+        heldCapture.value = false;
+
+        stage.dataset.count = "3";
+        await Promise.resolve();
+
+        expect(release).not.toHaveBeenCalled();
+        expect(tile.classList.contains("dragging")).toBe(false);
+    });
+
+    it("changes nothing when the call is outgrown without a held drag", async () => {
+        const { stage, tile, release } = setUp();
+
+        stage.dataset.count = "3";
+        await Promise.resolve();
+
+        expect(release).not.toHaveBeenCalled();
+        expect(tile.classList.contains("dragging")).toBe(false);
     });
 
     it("keeps a held tile when the count changes within picture in picture", async () => {
