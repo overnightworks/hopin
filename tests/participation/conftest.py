@@ -1,5 +1,8 @@
+from functools import partial
+
 import pytest
 import pytest_asyncio
+from agent_runtime_client.wait import LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.signaling.handler import SignalingHandler
@@ -9,7 +12,12 @@ from tests.support.signaling_fakes import SocketAccountResolver
 
 @pytest.fixture
 def handler(room_manager, scheduler):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, [Participation])
+    return SignalingHandler(
+        room_manager,
+        SocketAccountResolver(),
+        scheduler,
+        [partial(Participation, scheduler=scheduler, lease_seconds=LEASE_SECONDS, on_changed=lambda person: None)],
+    )
 
 
 @pytest.fixture

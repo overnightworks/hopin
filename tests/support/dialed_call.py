@@ -83,6 +83,7 @@ class DialedCall:
     client: TestClient
     sockets: ExitStack
     audience: str
+    scheduler: ManualScheduler
 
     def member(self, *, role=AppRole.USER):
         config = installed_web_auth_config(self.client.app)
@@ -139,6 +140,10 @@ class DialedCall:
         body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
         return self._dialed(self.mcp("POST", token, extra_headers=headers, content=json.dumps(body)))
 
+    def pass_time(self, seconds):
+        """Move the app's clock on its own loop, running the timers that fall due."""
+        self.client.portal.call(self.scheduler.advance, seconds)
+
     def mcp(self, method, token, extra_headers=None, **options):
         extra_headers = extra_headers or {}
         authorization = {} if token is None else {"authorization": f"Bearer {token}"}
@@ -173,14 +178,15 @@ def admin_groups():
 @contextmanager
 def serving_dialed_call(sign_in: SignInSettings, issuer: FakeIssuer) -> Iterator[DialedCall]:
     stores = SignInStores.in_memory()
+    scheduler = ManualScheduler()
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
-        scheduler=ManualScheduler(),
+        scheduler=scheduler,
         call_features=(ParticipationFeature(sign_in.settings.public_origin),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
-        yield DialedCall(issuer, stores, client, sockets, audience)
+        yield DialedCall(issuer, stores, client, sockets, audience, scheduler)

@@ -41,6 +41,10 @@ class ManualScheduler:
     def has_pending_timer(self):
         return bool(self.pending_timers())
 
+    def skip(self, seconds):
+        """Move the clock without running the timers that fall due."""
+        self._now += seconds
+
     async def advance(self, seconds):
         target = self._now + seconds
         while due := [timer for timer in self._timers if timer.pending and timer.deadline <= target]:
