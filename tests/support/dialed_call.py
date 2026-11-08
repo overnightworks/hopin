@@ -41,6 +41,7 @@ class Seat:
         self._sent = 0
         self.participant_id = None
         self.room_id = None
+        self.received = []
 
     def join(self, room_id=None):
         join = {"type": SignalType.JOIN.value}
@@ -54,13 +55,28 @@ class Seat:
 
     def settle(self):
         """Wait until the server has finished handling the join: it handles a seat's frames one after another, so
-        the answer to a later frame comes after everything the join does. Only the host of a call may lock it."""
+        the answer to a later frame comes after everything the join does. Only the host of a call may lock it, and it leaves the call open."""
         self._sent += 1
         self._socket.send_json({"type": SignalType.LOCK_ROOM.value, "seq": self._sent})
         assert self.next_frame()["type"] == SignalType.ROOM_LOCKED.value
+        self._sent += 1
+        self._socket.send_json({"type": SignalType.UNLOCK_ROOM.value, "seq": self._sent})
+        assert self.next_frame()["type"] == SignalType.ROOM_UNLOCKED.value
+
+    def send(self, frame):
+        self._sent += 1
+        self._socket.send_json({**frame, "seq": self._sent})
+
+    def frame_of_type(self, signal_type):
+        """The next frame of this type the server sends, those before it passed over."""
+        while True:
+            frame = self.next_frame()
+            if frame["type"] == signal_type:
+                return frame
 
     def next_frame(self):
         frame = self._socket.receive_json()
+        self.received.append(frame)
         return {key: value for key, value in frame.items() if key != "seq"}
 
 

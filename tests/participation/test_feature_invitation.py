@@ -36,7 +36,7 @@ def members(groups_of_seat):
 
 
 class Invited:
-    """An agent invited into a call: the owner hosts it, a member added the agent, and the agent holds the invitation."""
+    """An agent invited into a call: the owner hosts it, a member added it, and the agent holds the invitation."""
 
     def __init__(self, owner, member, participation):
         self.owner, self.member, self.participation = owner, member, participation

@@ -5,6 +5,8 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_LEFT = "agent_left",
     AGENT_REMOVE = "agent_remove",
     AGENT_REFUSED = "agent_refused",
+    AGENT_OFFERS = "agent_offers",
+    AGENT_ADD = "agent_add",
 }
 
 export enum AGENT_REFUSAL {
@@ -17,4 +19,8 @@ export enum AGENT_REFUSAL {
     NOT_SPONSOR_OR_HOST = "not_sponsor_or_host",
     INVITATION_ONLY = "invitation_only",
     OWN_ACCOUNT_ONLY = "own_account_only",
+    NOT_ADDER = "not_adder",
+    ALREADY_THERE = "already_there",
+    STALE_INVITATION = "stale_invitation",
+    UNAVAILABLE = "unavailable",
 }
