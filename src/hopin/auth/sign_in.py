@@ -31,8 +31,8 @@ from hopin.config.constants import (
     READ_METHODS,
     SESSION_LIFETIME_SECONDS,
 )
-from hopin.config.web_policy import SIGN_IN_PATHS
 from hopin.config.secret_files import StartRefusedError, read_secret_file
+from hopin.config.web_policy import SIGN_IN_PATHS
 from hopin.web.page_build import built_page_response
 
 if TYPE_CHECKING:
