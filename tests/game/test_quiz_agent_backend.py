@@ -20,7 +20,8 @@ from tests.game.support.fake_agent_backend import (
     SaysThenStops,
     Succeeds,
 )
-from tests.game.support.world import OPENING, build_world, cancelled, connection_with, wait_in_a_worker
+from tests.game.support.world import OPENING, build_world
+from tests.support.session_world import cancelled, connection_with, wait_in_a_worker
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 

@@ -4,7 +4,8 @@ import pytest
 
 from hopin.game.table import Line
 from tests.game.support.fake_agent_backend import Holds, Succeeds
-from tests.game.support.world import OPENING, build_world, cancelled
+from tests.game.support.world import OPENING, build_world
+from tests.support.session_world import cancelled
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 

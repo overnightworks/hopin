@@ -21,9 +21,9 @@ from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefu
 from tests.game.support.call_world import IDLE, asked, phase, question, refused, serving_call
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
-from tests.game.support.world import wait_in_a_worker
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import fixture_page_build
+from tests.support.session_world import wait_in_a_worker
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
