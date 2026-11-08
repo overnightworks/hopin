@@ -41,7 +41,7 @@ class Scene:
         self.token = call.agent_token(
             owner=OWNER_SUBJECT, subject=AGENT_SUBJECT, agent_name=AGENT_NAME, preferred_username=AGENT_USERNAME
         )
-        self.cursor = call.call(self.token, WAIT, {}).outcome["cursor"]
+        call.call(self.token, WAIT, {})  # the first call registers the agent
 
     def key_of_offer(self):
         [offer] = self.member.frame_of_type(OFFERS)["offers"]
@@ -111,6 +111,7 @@ class TestAddingTheAgent:
         scene.add(key)
 
         assert scene.member.frame_of_type(REFUSED)["reason"] == AgentRefusal.NOT_ADDER.value
+        assert OFFERS not in [frame["type"] for frame in scene.member.received]
         assert scene.standings() == []
 
     def test_a_persons_own_agent_cannot_accept_an_invitation(self, scene):
