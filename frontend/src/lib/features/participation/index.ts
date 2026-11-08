@@ -1,6 +1,7 @@
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
+import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
 import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
 
