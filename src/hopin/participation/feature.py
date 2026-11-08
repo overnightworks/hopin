@@ -128,11 +128,7 @@ class Participation:
     async def leave(self, person: Person, room_id: str) -> AgentRefusal | None:
         """Take the person's live agent out of the room's call; the refusal, or nothing when it is out."""
         agent = next(
-            (
-                agent
-                for agent in self._agents.values()
-                if agent.person == person and agent.room_id == room_id and self._in_call(agent)
-            ),
+            (agent for agent in self._agents.values() if agent.person == person and agent.room_id == room_id),
             None,
         )
         if agent is None:
