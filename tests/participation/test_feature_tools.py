@@ -66,6 +66,20 @@ class TestTheTools:
 
         assert (dialed.outcome, again.outcome) == ({"refused": AgentRefusal.GONE.value}, {"left": True})
 
+    def test_a_second_leave_by_room_answers_gone(self, dialed_call):
+        account, _, seat = dialed_call.seated()
+        token = dialed_call.token(account)
+        dialed_call.call(token, JOIN_CALL, join_arguments(seat))
+
+        first = dialed_call.call(token, LEAVE_CALL, {"room": seat.room_id})
+        second = dialed_call.call(token, LEAVE_CALL, {"room": seat.room_id})
+
+        assert (first.outcome, second.outcome, second.is_error) == (
+            {"left": True},
+            {"refused": AgentRefusal.GONE.value},
+            True,
+        )
+
     def test_a_token_past_its_life_leaves_the_agent_where_it_is(self, dialed_call):
         account, _, seat = dialed_call.seated()
         dialed_call.call(dialed_call.token(account), JOIN_CALL, join_arguments(seat))
