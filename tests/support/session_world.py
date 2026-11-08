@@ -2,6 +2,7 @@
 
 import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -83,8 +84,31 @@ async def cancelled(task):
         await task
 
 
-async def settle():
-    """Lets every task and worker thread that can make progress now do so, so a queued caller has reached its queue."""
+class CountingExecutor(ThreadPoolExecutor):
+    """The loop's worker pool, counting each hand-off to a worker; the loop makes every hand-off in its own thread."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.hand_offs = 0
+
+    def submit(self, fn, /, *args, **kwargs):
+        self.hand_offs += 1
+        return super().submit(fn, *args, **kwargs)
+
+
+def count_worker_hand_offs() -> CountingExecutor:
+    executor = CountingExecutor()
+    asyncio.get_running_loop().set_default_executor(executor)
+    return executor
+
+
+async def settle(executor: CountingExecutor) -> int:
+    """Runs the loop until every task has reached its next wait, and returns how many grants went to a worker meanwhile.
+
+    A grant hands off to a worker in the loop's own step once it holds its session's turn, so a queued
+    grant that had not waited for the turn is counted here, whatever its worker thread would do later.
+    """
+    before = executor.hand_offs
     for _ in range(SETTLE_ROUNDS):
         await asyncio.sleep(0)
-        await asyncio.to_thread(object)
+    return executor.hand_offs - before
