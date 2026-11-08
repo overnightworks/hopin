@@ -131,6 +131,21 @@ class TestAnAdd:
         assert refusals_sent_to(stranger) == [AgentRefusal.NOT_ADDER.value]
         assert participation.standings_of(AGENT) == ()
 
+    async def test_an_add_of_a_seat_that_joined_the_group_after_an_earlier_read_is_accepted(
+        self, link, participation, groups_of_seat
+    ):
+        owner = await link.join(OWNER)
+        member = await link.join("guest", owner.room_id)
+        stranger = await link.join("stranger", owner.room_id)
+        await agent_calls(participation)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        groups_of_seat["stranger"] = frozenset({ADDERS})
+
+        await add(stranger, offer["agent_key"])
+
+        assert (refusals_sent_to(stranger), len(participation.standings_of(AGENT))) == ([], 1)
+
     async def test_an_add_opens_an_invitation_the_adder_sees_pending_and_no_other_member_is_offered(
         self, link, participation, groups_of_seat
     ):

@@ -25,7 +25,7 @@ from hopin.participation.vocabulary import (
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
@@ -79,6 +79,8 @@ class DialedAgent:
     room_id: str
 
 
+GROUPS_READ_TASK_NAME = "participation-groups-read"
+
 type DialOutcome = DialedAgent | AgentRefusal
 
 
@@ -104,6 +106,13 @@ class _SeatView:
     room_id: str
     memberships: dict[str, Membership] = field(default_factory=dict)
     offered: tuple[Offer, ...] = ()
+
+
+def _membership_in(groups: Collection[str] | None, group: str) -> Membership:
+    """The membership a groups read shows: none when the read failed."""
+    if groups is None:
+        return Membership.FAILED
+    return Membership.MEMBER if group in groups else Membership.NOT_MEMBER
 
 
 def _clean_name(name: str) -> str | None:
@@ -240,7 +249,7 @@ class Participation:
             return AgentRefusal.SPONSOR_AWAY
         if self._is_busy(room_id, invitation.sponsor):
             return AgentRefusal.BUSY
-        agent = DialedAgent(live.key, live.name, person, invitation.sponsor, room_id)
+        agent = DialedAgent(secrets.token_hex(AGENT_ID_BYTES), live.name, person, invitation.sponsor, room_id)
         self._places.put(person, room_id, agent)
         self._on_changed(person)
         await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="accepted")
@@ -356,7 +365,7 @@ class Participation:
         if room_id is None or live is None:
             await self._rooms.send(peer_id, _refusal_frame(AgentRefusal.GONE))
             return
-        refusal = self._refusal_of_add(peer_id, room_id, live)
+        refusal = self._refusal_of_add(peer_id, room_id, live, membership_is_fresh=False)
         if refusal is not None:
             await self._rooms.send(peer_id, _refusal_frame(refusal))
             return
@@ -369,12 +378,11 @@ class Participation:
             return
         group = self._adders[live.owner_subject]
         memberships = self._view_of(peer_id, room_id).memberships
+        memberships[group] = _membership_in(groups, group)
         refusal: AgentRefusal | None
-        if groups is None:
-            memberships[group] = Membership.FAILED
+        if memberships[group] is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
         else:
-            memberships[group] = Membership.MEMBER if group in groups else Membership.NOT_MEMBER
             refusal = self._refusal_of_add_now(peer_id, room_id, live, sponsor)
         if refusal is not None:
             await self._rooms.send(peer_id, _refusal_frame(refusal))
@@ -389,19 +397,24 @@ class Participation:
         current = self._live.by_person.get(live.person)
         if current is None or current.generation != live.generation:
             return AgentRefusal.GONE
-        refusal = self._refusal_of_add(peer_id, room_id, live)
+        refusal = self._refusal_of_add(peer_id, room_id, live, membership_is_fresh=True)
         if refusal is None and self._rooms.seats_in(room_id, live.owner_subject) != [sponsor]:
             return AgentRefusal.NO_SEAT
         return refusal
 
-    def _refusal_of_add(self, peer_id: PeerId, room_id: str, live: LiveAgent) -> AgentRefusal | None:
+    def _refusal_of_add(
+        self, peer_id: PeerId, room_id: str, live: LiveAgent, *, membership_is_fresh: bool
+    ) -> AgentRefusal | None:
+        """The refusals an add meets; a membership read before this add decides nothing, only the fresh one does."""
         sponsor = self._sole_seat(room_id, live.owner_subject)
         if isinstance(sponsor, AgentRefusal):
             return sponsor
         if self._rooms.is_parked(sponsor):
             return AgentRefusal.SPONSOR_AWAY
         group = self._adders.get(live.owner_subject)
-        if group is None or self._view_of(peer_id, room_id).memberships.get(group) is Membership.NOT_MEMBER:
+        if group is None or (
+            membership_is_fresh and self._view_of(peer_id, room_id).memberships.get(group) is Membership.NOT_MEMBER
+        ):
             return AgentRefusal.NOT_ADDER
         if self._places.get(live.person, room_id) is not None:
             return AgentRefusal.ALREADY_THERE
@@ -568,7 +581,9 @@ class Participation:
         key = (peer_id, room_id)
         if key in self._reads:
             return
-        read = asyncio.create_task(self._read_groups(peer_id, room_id, self._rooms.connection_of(peer_id)))
+        read = asyncio.create_task(
+            self._read_groups(peer_id, room_id, self._rooms.connection_of(peer_id)), name=GROUPS_READ_TASK_NAME
+        )
         self._reads[key] = read
         read.add_done_callback(lambda _: self._reads.pop(key, None))
 
@@ -578,10 +593,7 @@ class Participation:
             return
         memberships = self._view_of(peer_id, room_id).memberships
         for group in set(self._adders.values()):
-            if groups is None:
-                memberships[group] = Membership.FAILED
-            else:
-                memberships[group] = Membership.MEMBER if group in groups else Membership.NOT_MEMBER
+            memberships[group] = _membership_in(groups, group)
         if groups is None:
             await logger.ainfo("agent_adders_read_failed", room_id=room_id)
         await self._update_offers(room_id, read=False)

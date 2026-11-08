@@ -160,16 +160,18 @@ class TestAnInvitation:
 
         assert await invited.accept() is AgentRefusal.BUSY
 
-    async def test_it_is_paused_while_its_owners_seat_is_parked_and_its_waiter_is_told_of_both_changes(
+    async def test_it_stays_invited_while_its_owners_seat_parks_and_resumes_and_its_waiter_is_told_of_both(
         self, invited, changes
     ):
         told = len(changes)
 
         await invited.owner.drop()
         after_the_park = len(changes)
+        states_while_parked = [standing.state for standing in invited.participation.standings_of(AGENT)]
         await invited.owner.resume()
 
         assert told < after_the_park < len(changes)
+        assert states_while_parked == [PlaceState.INVITED]
         assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
     async def test_a_leave_on_an_invited_place_is_gone_and_the_invitation_stays(self, invited):
@@ -184,6 +186,19 @@ class TestAnAgentInTheCall:
         assert await invited.participation.leave(AGENT, invited.owner.room_id) is None
         assert invited.participation.standings_of(AGENT) == ()
         assert len(frames_of(invited.member, ParticipationSignal.AGENT_LEFT)) == 1
+
+    async def test_an_agent_accepted_again_after_it_left_is_a_tile_under_another_id(self, invited):
+        await invited.accept()
+        await invited.participation.leave(AGENT, invited.owner.room_id)
+        [offer] = offers_sent_to(invited.member)
+        await invited.member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
+        await let_reads_finish()
+
+        await Invited(invited.owner, invited.member, invited.participation).accept()
+
+        joined = frames_of(invited.member, ParticipationSignal.AGENT_JOINED)
+        left = frames_of(invited.member, ParticipationSignal.AGENT_LEFT)
+        assert joined[0]["agent_id"] == left[0]["agent_id"] != joined[1]["agent_id"]
 
     async def test_its_sponsor_removes_it_and_an_old_accept_is_stale(self, invited):
         old = invited.invitation
