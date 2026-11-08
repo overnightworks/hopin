@@ -1,16 +1,16 @@
+import secrets
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_USERNAME, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, OWNER_USERNAME, REMOVE, OwnAccountAgent
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
@@ -18,6 +18,7 @@ pytestmark = pytest.mark.e2e
 OFFER = "#agentOffers button"
 LEAVE = "#leaveBtn"
 INVITATION_WAKE_SECONDS = 20
+BYSTANDER_QUIET_SECONDS = 2
 
 
 class Scene:
@@ -104,6 +105,22 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
     assert scene.agent.standings() == []
+
+
+def test_another_agents_stream_is_not_woken_by_this_agents_invitation(
+    scene_of: Callable[[dict[str, Any]], Scene], e2e_server: RunningServer
+) -> None:
+    """The stream of an agent of another owner stays asleep while this agent's invitation wakes this agent."""
+    scene = scene_of(DESKTOP)
+    bystander = OwnAccountAgent(e2e_server, "subject-another-owner", f"{AGENT_NAME}-{secrets.token_hex(3)}")
+    try:
+        bystander.listen()
+
+        scene.member_adds_and_the_agent_accepts()
+
+        assert not bystander.woken_within(BYSTANDER_QUIET_SECONDS)
+    finally:
+        bystander.close()
 
 
 def test_the_agent_leaves_when_its_owner_leaves_for_good(scene_of: Callable[[dict[str, Any]], Scene]) -> None:
