@@ -15,4 +15,6 @@ export enum AGENT_REFUSAL {
     SPONSOR_AWAY = "sponsor_away",
     GONE = "gone",
     NOT_SPONSOR_OR_HOST = "not_sponsor_or_host",
+    INVITATION_ONLY = "invitation_only",
+    OWN_ACCOUNT_ONLY = "own_account_only",
 }

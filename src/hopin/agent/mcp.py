@@ -6,18 +6,23 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from agent_runtime_client.mcp_server import McpPersonFront, PersonRequest, PersonTool
+from agent_runtime_client.mcp_server.wait import InMemoryMemberChanges, wait_tool
 from agent_runtime_client.mcp_wire import MCP_ENDPOINT_PATH
-from agent_runtime_client.tools import HandTool, JsonObject, Principal, ToolOutcome
+from agent_runtime_client.tools import JsonObject, Principal, ToolOutcome
+from agent_runtime_client.wait import PlaceRef, Standing, StandingState
 from fastapi import APIRouter
 from starlette.requests import HTTPConnection
 from starlette.routing import Route
 from webauth.middleware import ProtectedResource, resource_person
 from webauth.policies import AuthorizedParties
 
-from hopin.agent.tools import participation_tools
-from hopin.participation.feature import Participation
+from hopin.agent.tools import CallerTool, participation_tools, refused
+from hopin.participation.feature import Caller, OwnAccount, Participation, Person
+from hopin.participation.vocabulary import AgentRefusal
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from starlette.types import Scope
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
@@ -65,11 +70,36 @@ def _principal_of(issuer: str, scope: Scope) -> Principal:
     return Principal(iss=issuer, sub=person.id)
 
 
-def _as_person_tool(tool: HandTool) -> PersonTool:
+def _caller_of(request: PersonRequest) -> Caller:
+    person = Person(request.principal.iss, request.principal.sub)
+    facts = resource_person(HTTPConnection(request.scope)).agent
+    if facts is None:
+        return Caller(person)
+    return Caller(person, OwnAccount(facts.owner, facts.name))
+
+
+def _as_person_tool(tool: CallerTool) -> PersonTool:
     async def handler(request: PersonRequest, arguments: JsonObject) -> ToolOutcome:
-        return await tool.handler(request.principal, arguments)
+        return await tool.handler(_caller_of(request), arguments)
 
     return PersonTool(tool.declaration, handler)
+
+
+def _wait_for_own_accounts(participation: Callable[[], Participation]) -> PersonTool:
+    """The runtime's wait tool, served only to an agent with an account of its own."""
+
+    async def standings(principal: Principal) -> tuple[Standing, ...]:
+        rooms = participation().standings_of(Person(principal.iss, principal.sub))
+        return tuple(Standing(place=PlaceRef(kind="call", id=room), state=StandingState.ACTIVE) for room in rooms)
+
+    waiting = wait_tool(InMemoryMemberChanges(), standings)
+
+    async def handler(request: PersonRequest, arguments: JsonObject) -> ToolOutcome:
+        if _caller_of(request).own_account is None:
+            return refused(AgentRefusal.OWN_ACCOUNT_ONLY)
+        return await waiting.handler(request, arguments)
+
+    return PersonTool(waiting.declaration, handler)
 
 
 @dataclass(frozen=True)
@@ -103,7 +133,10 @@ class ParticipationFeature:
         )
         built = _BuiltParticipation()
         front = McpPersonFront(
-            [_as_person_tool(tool) for tool in participation_tools(built.current)],
+            [
+                *(_as_person_tool(tool) for tool in participation_tools(built.current)),
+                _wait_for_own_accounts(built.current),
+            ],
             resolve_person=partial(_principal_of, relying_party.issuer),
         )
         router = APIRouter()

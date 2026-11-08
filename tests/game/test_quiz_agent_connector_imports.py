@@ -9,10 +9,16 @@ HTTP_LIBRARY = "httpx2"
 BACKEND_MODULE = SOURCE / "agent" / "backend.py"
 SETTINGS_MODULE = SOURCE / "agent" / "settings.py"
 CLIENT_CONFIG = f"{CLIENT}.config"
-# The tools name only the client's tool contract, and the MCP module only the MCP profile and that contract.
+# The tools name only the client's tool contract, and the MCP module only the MCP profile, the wait standings and
+# that contract.
 CLIENT_PARTS_OF = {
     SOURCE / "agent" / "tools.py": {f"{CLIENT}.tools"},
-    SOURCE / "agent" / "mcp.py": {f"{CLIENT}.mcp_server", f"{CLIENT}.mcp_wire", f"{CLIENT}.tools"},
+    SOURCE / "agent" / "mcp.py": {
+        f"{CLIENT}.mcp_server",
+        f"{CLIENT}.mcp_wire",
+        f"{CLIENT}.tools",
+        f"{CLIENT}.wait",
+    },
 }
 SPEECH_CLIENT = "speech_runtime_client"
 SPEECH_MODULE = SOURCE / "agent" / "speech.py"

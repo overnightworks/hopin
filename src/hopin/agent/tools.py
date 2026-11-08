@@ -1,15 +1,16 @@
 """The tools HopIn offers an agent over MCP: each is the act of a person's own agent in a call."""
 
 import json
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
-from agent_runtime_client.tools import HandTool, JsonObject, Principal, ToolDeclaration, ToolEffect, ToolOutcome
+from agent_runtime_client.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 
-from hopin.participation.feature import DialedAgent, Person
+from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.vocabulary import AGENT_NAME_MAX_CHARACTERS, AgentRefusal
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from hopin.participation.feature import Participation
 
@@ -50,11 +51,15 @@ _LEAVE_CALL_DECLARATION: Final = ToolDeclaration(
 )
 
 
-def _person_of(principal: Principal) -> Person:
-    return Person(principal.iss, principal.sub)
+@dataclass(frozen=True)
+class CallerTool:
+    """A tool and the handler that serves it to the caller the connector admitted."""
+
+    declaration: ToolDeclaration
+    handler: Callable[[Caller, JsonObject], Awaitable[ToolOutcome]]
 
 
-def _refused(refusal: AgentRefusal) -> ToolOutcome:
+def refused(refusal: AgentRefusal) -> ToolOutcome:
     return ToolOutcome(json.dumps({"refused": refusal.value}), is_error=True)
 
 
@@ -63,21 +68,21 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def participation_tools(participation: Callable[[], Participation]) -> tuple[HandTool, ...]:
+def participation_tools(participation: Callable[[], Participation]) -> tuple[CallerTool, ...]:
     """The tools on the participation the call's handler builds; `participation` is read at each call."""
 
-    async def join_call(principal: Principal, arguments: JsonObject) -> ToolOutcome:
-        outcome = await participation().dial_in(
-            _person_of(principal), _text_of(arguments, "room"), _text_of(arguments, "name")
-        )
+    async def join_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        if caller.own_account is not None:
+            return refused(AgentRefusal.INVITATION_ONLY)
+        outcome = await participation().dial_in(caller.person, _text_of(arguments, "room"), _text_of(arguments, "name"))
         if isinstance(outcome, DialedAgent):
             return ToolOutcome(json.dumps({"room": outcome.room_id, "name": outcome.name}), is_error=False)
-        return _refused(outcome)
+        return refused(outcome)
 
-    async def leave_call(principal: Principal, arguments: JsonObject) -> ToolOutcome:
-        refusal = await participation().leave(_person_of(principal), _text_of(arguments, "room"))
+    async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        refusal = await participation().leave(caller.person, _text_of(arguments, "room"))
         if refusal is None:
             return ToolOutcome(json.dumps({"left": True}), is_error=False)
-        return _refused(refusal)
+        return refused(refusal)
 
-    return (HandTool(_JOIN_CALL_DECLARATION, join_call), HandTool(_LEAVE_CALL_DECLARATION, leave_call))
+    return (CallerTool(_JOIN_CALL_DECLARATION, join_call), CallerTool(_LEAVE_CALL_DECLARATION, leave_call))

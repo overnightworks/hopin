@@ -38,6 +38,22 @@ class Person:
 
 
 @dataclass(frozen=True)
+class OwnAccount:
+    """What an agent with an account of its own says about itself: its owner's subject and its name."""
+
+    owner_subject: str
+    name: str
+
+
+@dataclass(frozen=True)
+class Caller:
+    """Who calls a tool: a person, and the account of its own when the caller is an agent that has one."""
+
+    person: Person
+    own_account: OwnAccount | None = None
+
+
+@dataclass(frozen=True)
 class DialedAgent:
     """An agent in a call. Its person is whose token it uses; its sponsor is the seat that decides where it may be and
     when it goes. Today both are the one person who dialed it in."""
@@ -137,6 +153,11 @@ class Participation:
             return AgentRefusal.SPONSOR_AWAY
         await self._remove(agent)
         return None
+
+    def standings_of(self, person: Person) -> tuple[str, ...]:
+        """The rooms where the person holds a place of its own. An agent with an account of its own holds none yet."""
+        del person
+        return ()
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         if frame.signal_type != ParticipationSignal.AGENT_REMOVE:
