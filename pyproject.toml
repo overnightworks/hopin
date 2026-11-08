@@ -7,7 +7,7 @@ dependencies = [
     "fastapi>=0.123.7",
     "overnightworks-agent-runtime-client[backend,mcp-server] @ git+https://github.com/overnightworks/agent-runtime@v0.25.0",
     "overnightworks-speech-runtime-client @ git+https://github.com/overnightworks/speech-runtime@v0.5.0#subdirectory=packages/client",
-    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.33.0",
+    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.34.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "structlog>=24.4",
