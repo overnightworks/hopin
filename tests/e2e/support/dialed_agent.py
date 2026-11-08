@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
     from tests.e2e.support.server import RunningServer
 
+OWNER_USERNAME = "owner"
+OWNER_SUBJECT = f"subject-{OWNER_USERNAME}"
+ADDERS_GROUP = "/apps/hopin/agent-adders"
+AGENT_NAME = "Mozart"
 AGENT_TILE = '#stage [id^="container-agent-"]'
 REMOVE = ".agent-remove"
 COUNT = "#participantCount .num"

@@ -11,6 +11,7 @@ ADDERS = "/apps/hopin/agent-adders"
 AGENT = person_named("agent-subject")
 NAME = "Claude"
 SETTLE_TURNS = 20
+WALL_CLOCK_SECONDS = 1000.0
 
 
 async def agent_calls(participation, *, owner=OWNER, name=NAME):

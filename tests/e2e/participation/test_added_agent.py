@@ -3,9 +3,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.participation.conftest import AGENT_NAME, OWNER_USERNAME
 from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
-from tests.e2e.support.dialed_agent import AGENT_TILE, COUNT, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, COUNT, OWNER_USERNAME, REMOVE
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:

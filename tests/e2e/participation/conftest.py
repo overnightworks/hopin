@@ -2,18 +2,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.e2e.support.dialed_agent import OwnAccountAgent
+from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_NAME, OWNER_SUBJECT, OwnAccountAgent
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from playwright.sync_api import Playwright
-
-OWNER_USERNAME = "owner"
-OWNER_SUBJECT = f"subject-{OWNER_USERNAME}"
-ADDERS_GROUP = "/apps/hopin/agent-adders"
-AGENT_NAME = "Mozart"
 
 
 @pytest.fixture(scope="session")

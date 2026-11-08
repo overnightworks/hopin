@@ -8,12 +8,12 @@ from hopin.config.constants import SignalType
 from hopin.participation.feature import DialedAgent
 from hopin.participation.places import PlaceState
 from hopin.participation.vocabulary import INVITATION_SECONDS, AgentRefusal, ParticipationSignal
-from tests.participation.conftest import WALL_CLOCK_SECONDS
 from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
     NAME,
     OWNER,
+    WALL_CLOCK_SECONDS,
     agent_calls,
     let_reads_finish,
     offers_sent_to,

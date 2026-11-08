@@ -6,10 +6,9 @@ from agent_runtime_client.wait import LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS
 from tests.signaling.support.browsers import Link
 from tests.support.signaling_fakes import SocketAccountResolver
-
-WALL_CLOCK_SECONDS = 1000.0
 
 
 @pytest.fixture
