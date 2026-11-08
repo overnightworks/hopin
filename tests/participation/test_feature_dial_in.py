@@ -254,6 +254,39 @@ class TestJoiningOneLiveSeat:
 
         assert agent_frames(last, ParticipationSignal.AGENT_JOINED) == []
 
+    async def test_call_48_a_join_being_announced_skips_the_agent_of_a_sponsor_that_left_meanwhile(
+        self, link, participation
+    ):
+        """CALL-48: A seat joining while an agent's sponsor leaves for good is told of the other agents only."""
+        host, guest = await host_and_guest(link)
+        host_agent = await dial(participation, host)
+        await dial(participation, guest)
+        late_write = Hold()
+        open_socket = link.open
+
+        async def open_with_held_tile(account, **socket_options):
+            socket = await open_socket(account, **socket_options)
+            send_text = socket.send_text
+
+            async def hold_the_tile_only(text):
+                if ParticipationSignal.AGENT_JOINED.value in text:
+                    await late_write.hold()
+                await send_text(text)
+
+            socket.send_text = hold_the_tile_only
+            return socket
+
+        link.open = open_with_held_tile
+        joining = asyncio.create_task(link.join("late", room_of(host)))
+        await late_write.reached()
+        await guest.drop(code=1000)
+        late_write.release.set()
+        late = await joining
+
+        assert [frame["agent_id"] for frame in agent_frames(late, ParticipationSignal.AGENT_JOINED)] == [
+            host_agent.agent_id
+        ]
+
     async def test_call_48_a_seat_that_resumes_within_its_window_keeps_its_agent(self, link, participation, scheduler):
         """CALL-48: A seat that resumes inside its window keeps its agent, and nobody is told it left."""
         host, guest = await host_and_guest(link)
