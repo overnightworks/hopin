@@ -143,7 +143,7 @@ jobs:
         env:
           COVERAGE_FILE: .coverage.e2e
           HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
-        run: pytest -m e2e --tracing retain-on-failure --screenshot only-on-failure --output test-results
+        run: pytest -n 2 -m e2e --tracing retain-on-failure --screenshot only-on-failure --output test-results
 
       - name: Upload the end-to-end coverage data
         if: ${{ !cancelled() }}
