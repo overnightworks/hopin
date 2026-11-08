@@ -223,6 +223,27 @@ def _install_sign_in_surface(
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer)
 
 
+def _build_features(
+    call_features: Sequence[CallFeatureBuilder],
+    relying_party: OidcRelyingParty,
+    sign_in_stores: SignInStores,
+    sign_in_configs: SignInConfigs,
+    timers: Scheduler,
+) -> list[BuiltCallFeature]:
+    grants = SessionGrants(relying_party, sign_in_stores.sessions, sign_in_configs.web_auth)
+    return [
+        builder(
+            relying_party=relying_party,
+            sessions=sign_in_stores.sessions,
+            auth_config=sign_in_configs.web_auth,
+            scheduler=timers,
+            transaction=sign_in_stores.transaction,
+            grants=grants,
+        )
+        for builder in call_features
+    ]
+
+
 def create_app(
     settings: ServerSettings,
     *,
@@ -244,18 +265,7 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    grants = SessionGrants(relying_party, sign_in_stores.sessions, sign_in_configs.web_auth)
-    built_features = [
-        builder(
-            relying_party=relying_party,
-            sessions=sign_in_stores.sessions,
-            auth_config=sign_in_configs.web_auth,
-            scheduler=timers,
-            transaction=sign_in_stores.transaction,
-            grants=grants,
-        )
-        for builder in call_features
-    ]
+    built_features = _build_features(call_features, relying_party, sign_in_stores, sign_in_configs, timers)
     resources = [built.bearer_resource for built in built_features if built.bearer_resource is not None]
     if len(resources) > 1:
         raise StartRefusedError("Only one call feature may serve a bearer-token resource")
