@@ -76,7 +76,7 @@ class SessionGrants:
         if turn.waiting == 0:
             del self._turns[session_id]
         if not finished.cancelled() and (failure := finished.exception()) is not None:
-            # The caller of a cancelled grant never reads its outcome, so the failure is logged here.
+            # Every failed grant is logged here, because a cancelled caller never reads its outcome.
             logger.error("refresh_grant_failed", failure_type=type(failure).__name__)
 
     def _groups_grant(self, session_id: str) -> tuple[str, ...] | AccessTokenRefusal:

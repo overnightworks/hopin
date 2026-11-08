@@ -162,4 +162,4 @@ async def test_a_store_failure_of_a_cancelled_callers_worker_is_logged_without_t
         hold.release.set()
         await queued
 
-    assert [(log["event"], log["failure_type"]) for log in logs] == [("refresh_grant_failed", "OSError")]
+    assert logs == [{"event": "refresh_grant_failed", "failure_type": "OSError", "log_level": "error"}]
