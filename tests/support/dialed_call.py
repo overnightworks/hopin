@@ -55,7 +55,8 @@ class Seat:
 
     def settle(self):
         """Wait until the server has finished handling the join: it handles a seat's frames one after another, so
-        the answer to a later frame comes after everything the join does. Only the host of a call may lock it, and it leaves the call open."""
+        the answer to a later frame comes after everything the join does. Only the host of a call may lock it; the call
+        is left unlocked."""
         self._sent += 1
         self._socket.send_json({"type": SignalType.LOCK_ROOM.value, "seq": self._sent})
         assert self.next_frame()["type"] == SignalType.ROOM_LOCKED.value

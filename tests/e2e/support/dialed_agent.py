@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any
 from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
 from playwright.sync_api import Page, Playwright, expect
 
-from hopin.agent.mcp import MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
-from hopin.agent.tools import JOIN_CALL
+from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
+from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, WAIT
 from hopin.config.constants import LOGIN_GROUP
 from tests.e2e.support.people import PHONE
 
@@ -76,6 +76,59 @@ class Agent:
         )
         result = response.json()["result"]
         assert not result["isError"], result
+
+    def close(self) -> None:
+        self._request.dispose()
+
+
+class OwnAccountAgent:
+    """An agent with an account of its own, as a scripted client: it signs in with a client-credentials shaped token
+    and calls HopIn's MCP endpoint the way the runner does."""
+
+    def __init__(self, playwright: Playwright, server: RunningServer, owner_subject: str, name: str):
+        self._request = playwright.request.new_context(ignore_https_errors=True)
+        self._server = server
+        self._token = server.issuer.access_token(
+            f"agent-of-{owner_subject}",
+            audience=f"{server.base_url}/mcp",
+            authorized_party="some-agent-client",
+            scope=MCP_SCOPE,
+            groups=(AGENT_GROUP, MCP_GROUP),
+            extra_claims={"agent_owner": owner_subject, "agent_name": name},
+        )
+
+    def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
+        response = self._request.post(
+            f"{self._server.base_url}/mcp",
+            data=json.dumps(body),
+            headers={
+                "authorization": f"Bearer {self._token}",
+                "content-type": "application/json",
+                PROTOCOL_VERSION_HEADER: LATEST_PROTOCOL_VERSION,
+            },
+        )
+        return json.loads(response.json()["result"]["content"][0]["text"])
+
+    def standings(self) -> list[dict[str, Any]]:
+        return self.call(WAIT, {})["standings"]
+
+    def invitation_within(self, seconds: int) -> dict[str, Any]:
+        """The standing that holds an invitation, waiting up to `seconds` for it."""
+        answer = self.call(WAIT, {})
+        for _ in range(seconds):
+            invited = [standing for standing in answer["standings"] if standing["state"] == "invited"]
+            if invited:
+                return invited[0]
+            answer = self.call(WAIT, {"after": answer["cursor"], "timeout_seconds": 1})
+        raise AssertionError("the agent was not invited")
+
+    def accept(self, standing: dict[str, Any]) -> dict[str, Any]:
+        invitation = standing["invitation"]
+        return self.call(
+            ACCEPT_INVITATION,
+            {"room": standing["place"]["id"], "invitation": invitation["id"], "epoch": invitation["epoch"]},
+        )
 
     def close(self) -> None:
         self._request.dispose()

@@ -24,7 +24,7 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
     from pathlib import Path
 
     from webauth.config import WebAuthConfig
@@ -126,8 +126,10 @@ def running_hopin(
     page_build_directory: Path = BUILD_DIRECTORY,
     *,
     participation: bool = False,
+    agent_adders: Mapping[str, str] | None = None,
 ) -> Iterator[RunningServer]:
-    """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for.
+    """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for;
+    `agent_adders` maps an owner's subject to the group whose members may add that owner's agent.
 
     The page comes from `page_build_directory`, so a test can serve a copy it changes.
     """
@@ -138,7 +140,11 @@ def running_hopin(
         issuer_transports=loopback.issuer.transports,
         call_features=(
             *(() if call_feature is None else (call_feature,)),
-            *((ParticipationFeature(loopback.sign_in.settings.public_origin),) if participation else ()),
+            *(
+                (ParticipationFeature(loopback.sign_in.settings.public_origin, agent_adders or {}),)
+                if participation
+                else ()
+            ),
         ),
     )
     key_file, certificate_file = _write_self_signed_certificate(tls_directory)
