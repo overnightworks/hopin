@@ -5,8 +5,7 @@ import structlog
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from hopin.config.constants import ICE_SERVERS_PATH
-from hopin.web.routes import READ_METHODS
+from hopin.config.constants import ICE_SERVERS_PATH, READ_METHODS
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 

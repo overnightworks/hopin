@@ -12,9 +12,11 @@ from hopin.config.constants import (
     HOME_PATH,
     IMMUTABLE_ASSET_CACHE_CONTROL,
     IMMUTABLE_ASSET_DIRECTORY,
+    READ_METHODS,
     STATIC_PATH,
     WEBSOCKET_PATH,
 )
+from hopin.web.page_build import built_page_response
 
 if TYPE_CHECKING:
     import os
@@ -23,15 +25,10 @@ if TYPE_CHECKING:
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.handler import SignalingHandler
-    from hopin.web.page_build import BuiltPage, PageBuild
+    from hopin.web.page_build import PageBuild
 
 STATIC_DIR = Path(__file__).parent / "static"
 ASSETS_DIR = STATIC_DIR / "assets"
-READ_METHODS = ["GET", "HEAD"]
-
-
-def built_page_response(page: BuiltPage, status_code: int = 200) -> Response:
-    return Response(page.content, status_code=status_code, media_type="text/html", headers={"ETag": page.etag})
 
 
 class _PageBuildFiles(StaticFiles):

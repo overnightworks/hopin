@@ -10,8 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from webauth.config import web_auth_config
 from webauth.middleware import admitted_admin
 
-from hopin.config.constants import EXPORT_APP_NAME, PEOPLE_EXPORT_VERSION, PERSON_EXPORT_PATH
-from hopin.web.routes import READ_METHODS
+from hopin.config.constants import EXPORT_APP_NAME, PEOPLE_EXPORT_VERSION, PERSON_EXPORT_PATH, READ_METHODS
 
 if TYPE_CHECKING:
     from hopin.auth.stores import InMemorySessions, PersonRecords

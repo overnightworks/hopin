@@ -3,8 +3,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from hopin.config.constants import CALL_FEATURES_PATH
-from hopin.web.routes import READ_METHODS
+from hopin.config.constants import CALL_FEATURES_PATH, READ_METHODS
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
