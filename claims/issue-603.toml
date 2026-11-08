@@ -1,0 +1,8 @@
+claim_id = "d0b9ff55bdaf4c6b8941889cb1c33f3f"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "5583739fc0b58ebbfce2ea141bfb6600e86c6816"
+branch = "claude/issue-603-end-session-url"
+scope = ["tests/auth/test_gate.py", "tests/e2e/test_account_menu.py", "tests/e2e/test_sign_in_pages.py", "tests/support/sign_in_settings.py"]
+opened_commit = "b268872f0b279eaff8275376c51736c4629dd792"
+whole_reason = "One test constant and its three importers, which only make sense moved together."
