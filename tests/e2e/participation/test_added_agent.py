@@ -17,7 +17,7 @@ pytestmark = pytest.mark.e2e
 
 OFFER = "#agentOffers button"
 LEAVE = "#leaveBtn"
-INVITATION_WAIT_SECONDS = 20
+INVITATION_WAKE_SECONDS = 20
 
 
 class Scene:
@@ -48,19 +48,20 @@ class Scene:
     def offer_of_agent(self, page: Page) -> Locator:
         return page.locator(OFFER, has_text=self.agent.name)
 
-    def agent_waits(self) -> None:
-        """The agent's first call registers it, so a member's seat is offered it."""
+    def agent_listens(self) -> None:
+        """The agent opens its stream, which registers it, so a member's seat is offered it; it holds no place yet."""
+        self.agent.listen()
         assert self.agent.standings() == []
 
     def member_adds_and_the_agent_accepts(self) -> None:
-        self.agent_waits()
+        self.agent_listens()
         open_more(self.member)
         offer = self.offer_of_agent(self.member)
         expect(offer).to_have_text(f"Add {self.agent.name}")
         offer.click()
         expect(offer).to_have_text(f"Inviting {self.agent.name}…")
         expect(offer).to_be_disabled()
-        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAIT_SECONDS))
+        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS))
         assert accepted["name"] == self.agent.name
 
 
@@ -126,7 +127,7 @@ def test_a_member_outside_the_adders_group_is_offered_no_add(
     outsider = record_page_errors(open_person(**DESKTOP), page_errors)
     join_by_link(outsider, scene.link)
 
-    scene.agent_waits()
+    scene.agent_listens()
 
     open_more(scene.member)
     expect(scene.offer_of_agent(scene.member)).to_have_count(1)
