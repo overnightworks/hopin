@@ -15,7 +15,6 @@ from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason
 
-from hopin.auth.refresh_grants import SessionGrants
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore
 
     from hopin.agent.settings import AgentSettings
+    from hopin.auth.refresh_grants import SessionGrants
 
 type QuizBackend = AgentBackend
 
@@ -79,11 +79,17 @@ class StarterRefusedError(Exception):
 class StarterPerson:
     """Reads who a run is for, from the session the starter's socket opened with."""
 
-    def __init__(self, relying_party: OidcRelyingParty, sessions: SessionRecordStore, web_auth: WebAuthConfig) -> None:
+    def __init__(
+        self,
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        web_auth: WebAuthConfig,
+        grants: SessionGrants,
+    ) -> None:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
-        self._grants = SessionGrants(relying_party, sessions, web_auth)
+        self._grants = grants
 
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""

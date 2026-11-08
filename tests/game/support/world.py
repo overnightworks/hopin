@@ -3,6 +3,7 @@
 import asyncio
 import threading
 from dataclasses import dataclass
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 import pytest
@@ -13,6 +14,7 @@ from webauth.ports import AccountKind
 
 from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
+from hopin.auth.refresh_grants import SessionGrants
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.auth.stores import InMemorySessions, SignInStores
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
@@ -56,9 +58,15 @@ class World:
     relying_party: object
     web_auth: object
 
+    @cached_property
+    def grants(self):
+        return SessionGrants(self.relying_party, self.sessions, self.web_auth)
+
     @property
     def game_master(self):
-        return QuizGameMaster(self.backend, StarterPerson(self.relying_party, self.sessions, self.web_auth))
+        return QuizGameMaster(
+            self.backend, StarterPerson(self.relying_party, self.sessions, self.web_auth, self.grants)
+        )
 
     def starter(self, name="anna", *, with_refresh_token=True, role=None):
         """A socket's connection carrying the session cookie of a member, and the member."""

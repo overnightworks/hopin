@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore, SignInTransaction
 
+    from hopin.auth.refresh_grants import SessionGrants
     from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
     from hopin.signaling.scheduler import Scheduler
 
@@ -91,8 +92,9 @@ class ParticipationFeature:
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         transaction: SignInTransaction,
+        grants: SessionGrants,
     ) -> BuiltParticipationFeature:
-        del sessions, auth_config, scheduler
+        del sessions, auth_config, scheduler, grants
         resource = ProtectedResource(
             url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
             scope=MCP_SCOPE,

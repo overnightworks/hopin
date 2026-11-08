@@ -2,6 +2,7 @@ import asyncio
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
@@ -87,6 +88,28 @@ class TestCreateApp:
 
         with pytest.raises(StartRefusedError, match="bearer"):
             create_app(settings, page_build=page_build, call_features=call_features)
+
+    def test_hands_every_call_feature_the_one_coordinator_of_a_sessions_refresh_grants(self, sign_in_settings):
+        received = []
+
+        class RecordingFeature:
+            sign_in_scopes: tuple[str, ...] = ()
+            factory = staticmethod(lambda *_, **__: SimpleNamespace(name=object(), signal_types={}))
+            router = APIRouter()
+            bearer_resource = None
+
+            def __call__(self, *, grants: object, **_: object) -> RecordingFeature:
+                received.append(grants)
+                return self
+
+        create_app(
+            sign_in_settings().settings,
+            page_build=fixture_page_build(),
+            call_features=(RecordingFeature(), RecordingFeature()),
+        )
+
+        assert len(received) == 2
+        assert received[0] is received[1]
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()

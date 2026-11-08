@@ -20,6 +20,7 @@ from webauth.policies import (
 
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import bearer_gate, session_gate
+from hopin.auth.refresh_grants import SessionGrants
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
@@ -100,6 +101,7 @@ class CallFeatureBuilder(Protocol):
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         transaction: SignInTransaction,
+        grants: SessionGrants,
     ) -> BuiltCallFeature:
         """The feature's factory, its router and its bearer resource."""
 
@@ -228,6 +230,7 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
+    grants = SessionGrants(relying_party, sign_in_stores.sessions, sign_in_configs.web_auth)
     built_features = [
         builder(
             relying_party=relying_party,
@@ -235,6 +238,7 @@ def create_app(
             auth_config=sign_in_configs.web_auth,
             scheduler=timers,
             transaction=sign_in_stores.transaction,
+            grants=grants,
         )
         for builder in call_features
     ]

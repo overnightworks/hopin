@@ -53,7 +53,7 @@ def origin():
 
 
 def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS):
-    person = StarterPerson(world.relying_party, world.sessions, world.web_auth)
+    person = StarterPerson(world.relying_party, world.sessions, world.web_auth, world.grants)
     service = SpeechService(origin.base_url, VOICE_NAME, AUDIENCE_SCOPE)
     return SpeechVoice(service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, person)
 

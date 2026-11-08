@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.agent.backend import QuizBackend
+    from hopin.auth.refresh_grants import SessionGrants
     from hopin.signaling.features import FeatureFactory
     from hopin.signaling.scheduler import Scheduler
 
@@ -58,9 +59,10 @@ class GameFeature:
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         transaction: SignInTransaction,
+        grants: SessionGrants,
     ) -> BuiltGameFeature:
         del transaction
-        starter_person = StarterPerson(relying_party, sessions, auth_config)
+        starter_person = StarterPerson(relying_party, sessions, auth_config, grants)
         voices = VoiceStore()
         factory = partial(
             Game,
