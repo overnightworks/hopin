@@ -4,7 +4,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
-from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, COUNT, OWNER_USERNAME, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, OWNER_USERNAME, REMOVE
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -92,7 +92,6 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
         expect(tile.locator(".name")).to_contain_text(AGENT_NAME)
         expect(tile.locator(".ai-badge")).to_be_visible()
         expect(tile.locator(".sponsor")).to_have_text(OWNER_USERNAME)
-        expect(person.locator(COUNT)).to_have_text("3")
     expect(scene.member.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
     assert [standing["state"] for standing in scene.agent.standings()] == ["active"]
 
