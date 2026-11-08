@@ -79,6 +79,7 @@ class TestAnInvitation:
         assert changes[-1:] == [AGENT]
 
     async def test_accepting_it_puts_the_agent_in_the_call_under_its_name_and_everyone_sees_the_tile(self, invited):
+        """CALL-52: The agent accepts the invitation and shows as a tile under its own name."""
         agent = await invited.accept()
 
         assert isinstance(agent, DialedAgent)
@@ -103,16 +104,22 @@ class TestAnInvitation:
         [pytest.param({"invitation_id": "another"}, id="another id"), pytest.param({"epoch": 7}, id="another epoch")],
     )
     async def test_it_is_stale_for_an_id_or_an_epoch_that_is_not_its_own(self, invited, mistake):
+        """CALL-52: An accept with another invitation or epoch changes nothing."""
         assert await invited.accept(**mistake) is AgentRefusal.STALE_INVITATION
         assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
-    async def test_it_ends_after_its_lifetime_and_the_adder_may_add_again(self, invited, scheduler, participation):
+    async def test_it_ends_after_its_lifetime_and_the_adder_may_add_again(
+        self, invited, scheduler, participation, changes
+    ):
+        """CALL-52: The invitation lasts 120 seconds."""
         await scheduler.advance(INVITATION_SECONDS - 1)
         await agent_calls(participation)  # the agent still waits, so its lease holds
+        told = len(changes)
         await scheduler.advance(1)
 
         assert invited.participation.standings_of(AGENT) == ()
         assert offers_sent_to(invited.member)[0]["pending"] is False
+        assert len(changes) > told
 
     async def test_it_ends_with_the_lease_of_the_agent_it_was_made_for(self, invited, scheduler):
         await scheduler.advance(LEASE_SECONDS)
@@ -125,13 +132,16 @@ class TestAnInvitation:
         assert await invited.accept() is AgentRefusal.STALE_INVITATION
 
     async def test_it_is_withdrawn_when_the_owner_leaves_and_stays_stale_for_a_seat_that_takes_the_place(
-        self, invited, link
+        self, invited, link, changes
     ):
+        """CALL-52: It ends when the owner's seat leaves for good, and an accept after it is stale."""
         old = invited.invitation
+        told = len(changes)
         await invited.owner.drop(code=1000)
         await link.join(OWNER, invited.owner.room_id)
 
         assert invited.participation.standings_of(AGENT) == ()
+        assert len(changes) > told
         refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch)
         assert refusal is AgentRefusal.STALE_INVITATION
 
@@ -150,7 +160,19 @@ class TestAnInvitation:
 
         assert await invited.accept() is AgentRefusal.BUSY
 
-    async def test_the_owner_may_decline_it_by_leaving_but_an_invited_place_has_nothing_to_leave(self, invited):
+    async def test_it_is_paused_while_its_owners_seat_is_parked_and_its_waiter_is_told_of_both_changes(
+        self, invited, changes
+    ):
+        told = len(changes)
+
+        await invited.owner.drop()
+        after_the_park = len(changes)
+        await invited.owner.resume()
+
+        assert told < after_the_park < len(changes)
+        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
+
+    async def test_a_leave_on_an_invited_place_is_gone_and_the_invitation_stays(self, invited):
         assert await invited.participation.leave(AGENT, invited.owner.room_id) is AgentRefusal.GONE
         assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
