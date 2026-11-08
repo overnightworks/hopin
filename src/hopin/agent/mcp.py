@@ -96,8 +96,8 @@ class _LeaseRenewingFront:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         own_account = _own_account_of(scope)
         if own_account is not None:
-            person = Person(self.issuer, resource_person(HTTPConnection(scope)).id)
-            self.participation().agent_called(person, own_account)
+            principal = _principal_of(self.issuer, scope)
+            self.participation().agent_called(Person(principal.iss, principal.sub), own_account)
         await self.front(scope, receive, send)
 
 
