@@ -1,0 +1,8 @@
+claim_id = "ad62f7e570e14b2f836e4382b2c8ac8b"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "9f6f9f760a155294f60b32cbe6e802300e90e50c"
+branch = "claude/issue-581-agent-lease"
+scope = ["docs/ARCHITECTURE.md", "src/hopin/agent/mcp.py", "src/hopin/participation/feature.py", "src/hopin/participation/live_agents.py", "tests/participation/conftest.py", "tests/participation/test_feature_lease.py", "tests/participation/test_live_agents.py", "tests/support/dialed_call.py", "tests/support/signaling_fakes.py"]
+opened_commit = "b215eab7dbec1160e4d8bd503145675ec1c08174"
+whole_reason = "One invariant: the registry, its lease timer and the /mcp wrapper that renews it decide together whether an agent with its own account is live; the tests and their fakes follow."
