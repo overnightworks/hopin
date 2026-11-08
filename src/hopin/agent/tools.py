@@ -21,6 +21,8 @@ ACCEPT_INVITATION: Final = "accept_invitation"
 WAIT: Final = "wait"
 SAY: Final = "say"
 
+ROOM_DESCRIPTION: Final = "The call's id, the last part of its link."
+
 
 class Audience(StrEnum):
     """The kind of agent a tool serves."""
@@ -61,7 +63,7 @@ _JOIN_CALL_DECLARATION: Final = ToolDeclaration(
     parameters={
         "type": "object",
         "properties": {
-            "room": {"type": "string", "description": "The call's id, the last part of its link."},
+            "room": {"type": "string", "description": ROOM_DESCRIPTION},
             "name": {
                 "type": "string",
                 "description": f"The name the call shows for you, 1 to {AGENT_NAME_MAX_CHARACTERS} characters.",
@@ -77,7 +79,7 @@ _LEAVE_CALL_DECLARATION: Final = ToolDeclaration(
     description="Leave the call you joined; your tile goes from the stage.",
     parameters={
         "type": "object",
-        "properties": {"room": {"type": "string", "description": "The call's id, the last part of its link."}},
+        "properties": {"room": {"type": "string", "description": ROOM_DESCRIPTION}},
         "required": ["room"],
         "additionalProperties": False,
     },
@@ -112,7 +114,7 @@ _SAY_DECLARATION: Final = ToolDeclaration(
     parameters={
         "type": "object",
         "properties": {
-            "room": {"type": "string", "description": "The call's id, the last part of its link."},
+            "room": {"type": "string", "description": ROOM_DESCRIPTION},
             "text": {"type": "string", "description": "The line, as plain text."},
         },
         "required": ["room", "text"],
