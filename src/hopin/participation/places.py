@@ -9,8 +9,6 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from hopin.participation.feature import DialedAgent, Person
     from hopin.signaling.frames import PeerId
 
@@ -65,12 +63,10 @@ class Places:
     def put(self, person: Person, room_id: str, place: Place) -> None:
         self._places[(person, room_id)] = place
 
-    def remove(self, person: Person, room_id: str) -> Place | None:
-        """Take the place away and raise its epoch; nothing happens, and no epoch rises, when there is none."""
-        place = self._places.pop((person, room_id), None)
-        if place is not None:
-            self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
-        return place
+    def remove(self, person: Person, room_id: str) -> None:
+        """Take the place, which must exist, away and raise its epoch."""
+        del self._places[(person, room_id)]
+        self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
 
     def drop_room(self, room_id: str) -> None:
         for key in [key for key in {*self._places, *self._epochs} if key[1] == room_id]:
@@ -86,11 +82,6 @@ class Places:
 
     def of_person(self, person: Person) -> list[tuple[str, Place]]:
         return [(room_id, place) for (holder, room_id), place in self._places.items() if holder == person]
-
-    def invitations(self) -> Iterator[tuple[PlaceKey, Invited]]:
-        for key, place in list(self._places.items()):
-            if isinstance(place, Invited):
-                yield key, place
 
     def joined(self) -> list[DialedAgent]:
         return [place for place in self._places.values() if not isinstance(place, Invited)]

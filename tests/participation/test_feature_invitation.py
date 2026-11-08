@@ -114,6 +114,11 @@ class TestAnInvitation:
         assert invited.participation.standings_of(AGENT) == ()
         assert offers_sent_to(invited.member)[0]["pending"] is False
 
+    async def test_it_ends_with_the_lease_of_the_agent_it_was_made_for(self, invited, scheduler):
+        await scheduler.advance(LEASE_SECONDS)
+
+        assert (invited.participation.standings_of(AGENT), offers_sent_to(invited.member)) == ((), [])
+
     async def test_it_is_stale_past_its_deadline_before_its_timer_ran(self, invited, scheduler):
         scheduler.skip(INVITATION_SECONDS)
 

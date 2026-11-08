@@ -1,3 +1,4 @@
+import asyncio
 from functools import partial
 
 import pytest
@@ -25,8 +26,8 @@ def adders():
 
 @pytest.fixture
 def groups_of_seat():
-    """The groups the issuer holds for the seat of each name (`None` is a read that fails); a seat never named holds
-    none."""
+    """The groups the issuer holds for the seat of each name; `None` is a read that fails and an `asyncio.Event` a
+    read that waits for it and then finds the adders group. A seat never named holds none."""
     return {}
 
 
@@ -40,7 +41,11 @@ def group_reads(groups_of_seat):
 def handler(room_manager, scheduler, changes, adders, groups_of_seat, group_reads):
     async def groups_of(connection):
         group_reads.append(connection.account.name)
-        return groups_of_seat.get(connection.account.name, frozenset())
+        groups = groups_of_seat.get(connection.account.name, frozenset())
+        if isinstance(groups, asyncio.Event):
+            await groups.wait()
+            return frozenset(adders.values())
+        return groups
 
     return SignalingHandler(
         room_manager,

@@ -11,6 +11,7 @@ from tests.participation.support.own_accounts import (
     let_reads_finish,
     offers_sent_to,
 )
+from tests.participation.support.people import person_named
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -156,6 +157,17 @@ class TestAnAdd:
         await add(member, offer["agent_key"])
 
         assert refusals_sent_to(member) == [AgentRefusal.ALREADY_THERE.value]
+
+    async def test_an_add_while_the_owners_seat_sponsors_another_agent_is_busy(self, link, participation):
+        owner, member = await owner_and_member(link)
+        await agent_calls(participation)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        await participation.dial_in(person_named(OWNER), owner.room_id, "Codex")
+
+        await add(member, offer["agent_key"])
+
+        assert refusals_sent_to(member) == [AgentRefusal.BUSY.value]
 
     async def test_an_add_with_the_owner_on_two_seats_is_refused_two_seats(self, link, participation):
         owner, member = await owner_and_member(link)

@@ -234,20 +234,17 @@ class Participation:
             or self._scheduler.now() >= invitation.deadline
         ):
             return AgentRefusal.STALE_INVITATION
-        sponsor = self._sole_seat(room_id, live.owner_subject)
-        if isinstance(sponsor, AgentRefusal):
-            return sponsor
-        if sponsor != invitation.sponsor:
-            return AgentRefusal.STALE_INVITATION
-        if self._rooms.is_parked(sponsor):
+        if self._rooms.seats_in(room_id, live.owner_subject) != [invitation.sponsor]:
+            return AgentRefusal.TWO_SEATS
+        if self._rooms.is_parked(invitation.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        if self._is_busy(room_id, sponsor):
+        if self._is_busy(room_id, invitation.sponsor):
             return AgentRefusal.BUSY
-        agent = DialedAgent(live.key, live.name, person, sponsor, room_id)
+        agent = DialedAgent(live.key, live.name, person, invitation.sponsor, room_id)
         self._places.put(person, room_id, agent)
         self._on_changed(person)
         await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="accepted")
-        await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(sponsor))
+        await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(invitation.sponsor))
         await self._update_offers(room_id)
         return agent
 
@@ -355,14 +352,15 @@ class Participation:
         if not isinstance(agent_key, str):
             raise InvalidMessageError("An add needs the agent's key")
         room_id = self._rooms.room_of(peer_id)
-        if room_id is None:
+        live = None if room_id is None else self._live.by_key(agent_key)
+        if room_id is None or live is None:
+            await self._rooms.send(peer_id, _refusal_frame(AgentRefusal.GONE))
             return
-        live = self._live.by_key(agent_key)
-        refusal = AgentRefusal.GONE if live is None else self._refusal_of_add(peer_id, room_id, live)
+        refusal = self._refusal_of_add(peer_id, room_id, live)
         if refusal is not None:
             await self._rooms.send(peer_id, _refusal_frame(refusal))
-        elif live is not None:
-            await self._add_after_a_fresh_read(peer_id, room_id, live)
+            return
+        await self._add_after_a_fresh_read(peer_id, room_id, live)
 
     async def _add_after_a_fresh_read(self, peer_id: PeerId, room_id: str, live: LiveAgent) -> None:
         [sponsor] = self._rooms.seats_in(room_id, live.owner_subject)  # the checks before it found exactly one
@@ -486,10 +484,7 @@ class Participation:
         return self._places.get(agent.person, agent.room_id) == agent
 
     def _view_of(self, peer_id: PeerId, room_id: str) -> _SeatView:
-        view = self._views.get(peer_id)
-        if view is None or view.room_id != room_id:
-            view = self._views[peer_id] = _SeatView(room_id)
-        return view
+        return self._views.setdefault(peer_id, _SeatView(room_id))
 
     def _recipients(self, room_id: str) -> list[PeerId]:
         """The room's seats now, none once the room has ended."""
@@ -499,8 +494,6 @@ class Participation:
             return []
 
     async def _remove(self, agent: DialedAgent) -> None:
-        if not self._in_call(agent):
-            return
         recipients = self._recipients(agent.room_id)
         self._places.remove(agent.person, agent.room_id)
         self._on_changed(agent.person)
