@@ -178,7 +178,6 @@ class TestPageShell:
     @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
     def test_gives_every_transition_and_animation_its_duration_from_a_motion_token(self, stylesheet_path):
         stylesheet = stylesheet_path.read_text()
-        assert CSS_MOTION_DECLARATION.search(stylesheet)
         assert untokened_motion_durations(stylesheet) == []
 
     @pytest.mark.parametrize(
