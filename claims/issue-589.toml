@@ -1,7 +1,0 @@
-claim_id = "17e9f9a7328e4cfa85f9859784151d74"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "9f6f9f760a155294f60b32cbe6e802300e90e50c"
-branch = "claude/issue-589-agent-tiles-fresh-join"
-scope = ["frontend/src/lib/features/participation/index.test.ts", "frontend/src/lib/features/participation/index.ts"]
-opened_commit = "2062ff0c36ff8823c79ff50b297199624f4db6f8"
