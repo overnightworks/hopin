@@ -1,0 +1,7 @@
+claim_id = "9afd435163454dc0947f404eade6919c"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "e24626500af17d867fb8ec77304250d4f440df4b"
+branch = "claude/issue-597-speech-client-0-5"
+scope = ["pyproject.toml", "uv.lock"]
+opened_commit = "707b5395944717547c7614f24fc7f01b68c439ea"
