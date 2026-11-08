@@ -2,7 +2,7 @@
 
 import asyncio
 
-from hopin.participation.feature import OwnAccount
+from hopin.participation.feature import GROUPS_READ_TASK_NAME, OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named
 
@@ -10,7 +10,6 @@ OWNER = "owner"
 ADDERS = "/apps/hopin/agent-adders"
 AGENT = person_named("agent-subject")
 NAME = "Claude"
-SETTLE_TURNS = 20
 WALL_CLOCK_SECONDS = 1000.0
 
 
@@ -18,10 +17,33 @@ async def agent_calls(participation, *, owner=OWNER, name=NAME):
     await participation.agent_called(AGENT, OwnAccount(owner, name))
 
 
+def _running_reads():
+    return [task for task in asyncio.all_tasks() if task.get_name() == GROUPS_READ_TASK_NAME]
+
+
 async def let_reads_finish():
-    """Give the tasks that read a seat's groups the turns they need; they wait on no clock."""
-    for _ in range(SETTLE_TURNS):
-        await asyncio.sleep(0)
+    """Wait until every read of a seat's groups that is running has ended, with its announcement."""
+    while reads := _running_reads():
+        await asyncio.gather(*reads, return_exceptions=True)
+
+
+class GroupReadLog(list):
+    """The names of the seats whose groups were read, in order; `asked` is set at each new entry."""
+
+    def __init__(self):
+        super().__init__()
+        self.asked = asyncio.Event()
+
+    def append(self, name):
+        super().append(name)
+        self.asked.set()
+
+
+async def let_reads_start(group_reads, count):
+    """Wait until `count` reads have asked for a seat's groups, for a read the test holds back."""
+    while len(group_reads) < count:
+        group_reads.asked.clear()
+        await group_reads.asked.wait()
 
 
 def offers_sent_to(browser):
