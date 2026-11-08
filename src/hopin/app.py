@@ -30,17 +30,19 @@ from hopin.auth.sign_in import (
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ANNOUNCER_STYLE_SOURCES,
-    DEFAULT_RATE_LIMIT_BUDGET,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
+    PERMISSIONS_POLICY,
+    SESSION_SWEEP_SECONDS,
+)
+from hopin.config.secret_files import StartRefusedError
+from hopin.config.web_policy import (
+    DEFAULT_RATE_LIMIT_BUDGET,
     NO_CACHE_PATH_RULES,
     PEOPLE_PATH_RULES,
-    PERMISSIONS_POLICY,
     RATE_LIMIT_EXEMPT_PATH_RULES,
-    SESSION_SWEEP_SECONDS,
     SIGN_IN_PATHS,
     SIGN_IN_RATE_LIMIT_BUDGET,
 )
-from hopin.config.secret_files import StartRefusedError
 from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler

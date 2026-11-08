@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Final, Protocol
 
 from fastapi import APIRouter, HTTPException, Response
 
+from hopin.config.constants import READ_METHODS
 from hopin.game.vocabulary import VOICE_PATH
-from hopin.web.routes import READ_METHODS
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection

@@ -11,9 +11,9 @@ from hopin.config.constants import (
     LOGIN_GROUP,
     LOGIN_PATH,
     NO_ACCESS_PATH,
-    SIGN_IN_PATHS,
     STATIC_PATH,
 )
+from hopin.config.web_policy import SIGN_IN_PATHS
 
 if TYPE_CHECKING:
     from webauth.middleware import ProtectedResource

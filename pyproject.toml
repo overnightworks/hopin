@@ -195,9 +195,6 @@ type = "forbidden"
 # reason to. A session's end reaches a call only through what app wires together.
 source_modules = ["hopin.auth"]
 forbidden_modules = ["hopin.rooms", "hopin.signaling"]
-# auth imports two values from hopin.web.routes, which names the handler and the
-# room manager for type checking only; only a direct import is the violation.
-allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 id = "call-core-knows-no-game"
@@ -259,9 +256,6 @@ type = "forbidden"
 # server, a socket or a session.
 source_modules = ["hopin.rooms"]
 forbidden_modules = ["fastapi", "starlette", "uvicorn", "websockets", "webauth"]
-# hopin.config.constants holds webauth's rate-limit values, so every package
-# reaches webauth through config; only a direct import is the violation.
-allow_indirect_imports = true
 
 [dependency-groups]
 dev = [

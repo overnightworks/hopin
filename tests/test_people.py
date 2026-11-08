@@ -25,10 +25,10 @@ from hopin.config.constants import (
     HOME_PATH,
     LOGIN_GROUP,
     NO_ACCESS_PATH,
-    RETURN_TO_QUERY_PARAMETER,
     WEBSOCKET_PATH,
     SignalType,
 )
+from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, export_path, read_archive, withheld_counts

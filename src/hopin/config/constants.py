@@ -1,8 +1,4 @@
-import re
 from enum import StrEnum
-
-from webauth.policies import PathRules, RateLimitBudget
-from webauth.sign_in_routes import SignInPaths
 
 DEFAULT_HOST = "0.0.0.0"  # noqa: S104 - the container must listen on every interface and HOPIN_HOST overrides it
 DEFAULT_PORT = 8080
@@ -28,26 +24,8 @@ LOGIN_PATH = "/login"
 NO_ACCESS_PATH = "/no-access"
 LOGOUT_PATH = "/logout"
 BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout"
-SIGN_IN_PATHS = SignInPaths(
-    start=AUTH_START_PATH, callback=AUTH_CALLBACK_PATH, logout=LOGOUT_PATH, backchannel_logout=BACKCHANNEL_LOGOUT_PATH
-)
-RETURN_TO_QUERY_PARAMETER = SIGN_IN_PATHS.login_redirect.redirect_query_param
+READ_METHODS = ["GET", "HEAD"]
 DEFAULT_REQUEST_BODY_MAX_BYTES = 4 * 1024
-# A complete sign-in is two requests, so 40 requests in ten minutes admit 20 sign-ins from one address.
-SIGN_IN_RATE_LIMIT_BUDGET = RateLimitBudget(name="sign-in", max_requests=40, window_seconds=10 * 60)
-DEFAULT_RATE_LIMIT_BUDGET = RateLimitBudget(name="requests", max_requests=600, window_seconds=60)
-# The health check is the edge's readiness probe; the back-channel logout comes from Keycloak's shared addresses.
-RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=SIGN_IN_PATHS.backchannel.exact | {HEALTH_PATH})
-
-PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
-
-# The immutable files of the page build set their own header on success (routes.py): a rule here would also
-# stamp it onto the 401, 429 and 404 that the same path can answer. Every other build file is revalidated.
-NO_CACHE_PATH_RULES = PathRules(
-    exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, CALL_FEATURES_PATH}),
-    prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
-    patterns=(re.compile(rf"^{APP_ASSET_PATH}/(?!{IMMUTABLE_ASSET_DIRECTORY}/)"),),
-)
 # Private, because the assets sit behind the sign-in and a shared cache would hand them out past it (RFC 9111 5.2.2.9).
 IMMUTABLE_ASSET_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
