@@ -1,0 +1,8 @@
+claim_id = "277a2733e3fd4bd882751f6118606e86"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "a56c8bc3f5f6ef842a52722a14d17077df1c39a3"
+branch = "claude/issue-585-quality-0-10"
+scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "quality/baseline.toml"]
+opened_commit = "f69d666e3ecb6e4dde996753c1ef42ab88389b05"
+whole_reason = "One pin moves in every caller of the quality workflows at once, and the size ceiling follows the new gate only if its check asks for it."
