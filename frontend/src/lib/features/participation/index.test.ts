@@ -217,10 +217,17 @@ describe("adding an agent that has an account of its own", () => {
     });
 
     it.each([
-        { when: "a fresh join", end: (page: Awaited<ReturnType<typeof installedParticipation>>) => page.seat(false) },
+        {
+            when: "a fresh join",
+            end: (page: Awaited<ReturnType<typeof installedParticipation>>) => {
+                page.seat(false);
+            },
+        },
         {
             when: "the end of the call",
-            end: (page: Awaited<ReturnType<typeof installedParticipation>>) => page.endCall(),
+            end: (page: Awaited<ReturnType<typeof installedParticipation>>) => {
+                page.endCall();
+            },
         },
     ])("takes the items away at $when", async ({ end }) => {
         const page = await installedParticipation();
