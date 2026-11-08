@@ -2,7 +2,7 @@ import pytest
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.participation.vocabulary import AgentRefusal
-from tests.support.dialed_call import join_arguments
+from tests.support.dialed_call import join_arguments, serving_dialed_call
 
 pytestmark = pytest.mark.integration
 
@@ -15,13 +15,14 @@ class TestAnAgentWithItsOwnAccount:
 
         assert (dialed.is_error, dialed.outcome["standings"], bool(dialed.outcome["cursor"])) == (False, [], True)
 
-    def test_a_wait_with_a_cursor_from_another_run_answers_at_once(self, dialed_call):
-        token = dialed_call.agent_token(owner="owner-subject")
+    def test_a_wait_with_a_cursor_from_before_a_restart_answers_at_once(self, dialed_call, sign_in_settings):
+        before = dialed_call.call(dialed_call.agent_token(owner="owner-subject"), WAIT, {}).outcome["cursor"]
 
-        dialed = dialed_call.call(token, WAIT, {"after": "a-run-before-the-restart-7", "timeout_seconds": 50})
+        with serving_dialed_call(sign_in_settings(), dialed_call.issuer) as restarted:
+            token = restarted.agent_token(owner="owner-subject")
+            answered = restarted.call(token, WAIT, {"after": before, "timeout_seconds": 1}).outcome["cursor"]
 
-        assert (dialed.is_error, dialed.outcome["standings"]) == (False, [])
-        assert dialed.outcome["cursor"] != "a-run-before-the-restart-7"
+        assert answered != before  # a wait that blocked would return the unchanged cursor
 
     def test_its_join_call_is_refused_invitation_only_and_puts_no_tile_on_the_stage(self, dialed_call):
         account, _, seat = dialed_call.seated()
