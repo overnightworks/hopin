@@ -96,7 +96,7 @@ class TestWhoIsLetIn:
 
         assert (dialed.status, dialed.is_error) == (200, False)
 
-    def test_a_token_of_an_agents_own_account_is_admitted_as_an_agent_and_join_call_is_refused_invitation_only(self, dialed_call):
+    def test_an_agents_own_account_is_admitted_as_an_agent_and_join_call_is_refused_invitation_only(self, dialed_call):
         account, _, seat = dialed_call.seated()
 
         dialed = dialed_call.call(dialed_call.agent_token(owner=account.id), JOIN_CALL, join_arguments(seat))
