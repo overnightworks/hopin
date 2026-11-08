@@ -43,9 +43,9 @@ from hopin.config.constants import (
     LOGIN_PATH,
     LOGOUT_PATH,
     NO_ACCESS_PATH,
-    RETURN_TO_QUERY_PARAMETER,
     SESSION_LIFETIME_SECONDS,
 )
+from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings

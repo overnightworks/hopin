@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 
+from fastapi.responses import Response
+
 from hopin.config.secret_files import StartRefusedError
 
 BUILD_DIRECTORY = Path(__file__).parent / "build"
@@ -81,6 +83,10 @@ class BuiltPage:
     @classmethod
     def of(cls, content: bytes) -> BuiltPage:
         return cls(content=content, etag=f'"{hashlib.sha256(content).hexdigest()}"')
+
+
+def built_page_response(page: BuiltPage, status_code: int = 200) -> Response:
+    return Response(page.content, status_code=status_code, media_type="text/html", headers={"ETag": page.etag})
 
 
 @dataclass(frozen=True)

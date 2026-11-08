@@ -3,8 +3,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from webauth.middleware import admitted_user
 
-from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH
-from hopin.web.routes import READ_METHODS
+from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH, READ_METHODS
 
 
 class AccountName(BaseModel):
