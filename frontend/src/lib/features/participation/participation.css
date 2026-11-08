@@ -1,0 +1,16 @@
+.chat-msg .participation-agent-sender {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--accent-stage);
+    font-weight: 650;
+}
+.participation-agent-badge {
+    border: 1.5px solid var(--accent-stage);
+    border-radius: 999px;
+    padding: 0 5px;
+    font-size: 0.6rem;
+    line-height: 13px;
+    font-weight: 750;
+    letter-spacing: 0.04em;
+}

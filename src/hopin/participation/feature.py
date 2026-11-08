@@ -9,10 +9,12 @@ from typing import TYPE_CHECKING, Final
 import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
+from hopin.participation.line_rate import admitted
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
+    AGENT_LINE_MAX_CHARACTERS,
     AGENT_NAME_MAX_CHARACTERS,
     AGENTS_PER_PROCESS,
     AGENTS_PER_ROOM,
@@ -126,6 +128,17 @@ def _clean_name(name: str) -> str | None:
     return trimmed
 
 
+def _clean_line(text: str) -> str | None:
+    """The line an agent writes, or nothing when it is no line: 1 to 600 characters after trimming, none a control
+    character, a line break included."""
+    trimmed = text.strip()
+    if not 0 < len(trimmed) <= AGENT_LINE_MAX_CHARACTERS:
+        return None
+    if any(unicodedata.category(character) == CONTROL_CHARACTER for character in trimmed):
+        return None
+    return trimmed
+
+
 def _frame(signal: ParticipationSignal, **fields: JsonValue) -> JsonObject:
     return {TYPE_KEY: signal.value, **fields}
 
@@ -138,6 +151,10 @@ def _joined_frame(agent: DialedAgent, sponsor_name: str) -> JsonObject:
         sponsor=sponsor_name,
         sponsor_id=agent.sponsor,
     )
+
+
+def _line_frame(agent: DialedAgent, text: str) -> JsonObject:
+    return _frame(ParticipationSignal.AGENT_LINE, agent_id=agent.agent_id, name=agent.name, text=text)
 
 
 def _left_frame(agent: DialedAgent) -> JsonObject:
@@ -178,6 +195,7 @@ class Participation:
         self._groups_of = groups_of
         self._live = LiveAgents()
         self._places = Places()
+        self._line_windows: dict[str, tuple[float, ...]] = {}
         self._departed: dict[PeerId, list[DialedAgent]] = {}
         self._views: dict[PeerId, _SeatView] = {}
         self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
@@ -225,6 +243,21 @@ class Participation:
         if self._rooms.is_parked(agent.sponsor):
             return AgentRefusal.SPONSOR_AWAY
         await self._remove(agent)
+        return None
+
+    async def say(self, person: Person, room_id: str, text: str) -> AgentRefusal | None:
+        """Show the person's agent's line to every seat in the room; the refusal, or nothing when it was sent."""
+        agent = self._places.get(person, room_id)
+        if not isinstance(agent, DialedAgent):
+            return AgentRefusal.GONE
+        line = _clean_line(text)
+        if line is None:
+            return AgentRefusal.BAD_LINE
+        window = admitted(self._line_windows_of_joined().get(agent.agent_id, ()), self._scheduler.now())
+        if window is None:
+            return AgentRefusal.TOO_FAST
+        self._line_windows[agent.agent_id] = window
+        await self._tell(room_id, self._recipients(room_id), _line_frame(agent, line))
         return None
 
     def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
@@ -491,6 +524,12 @@ class Participation:
         return (
             in_room >= AGENTS_PER_ROOM or len(joined) >= AGENTS_PER_PROCESS or any(a.sponsor == sponsor for a in joined)
         )
+
+    def _line_windows_of_joined(self) -> dict[str, tuple[float, ...]]:
+        """The windows of the agents that hold a place now: a window goes with its place, so a rejoin starts anew."""
+        joined = {agent.agent_id for agent in self._places.joined()}
+        self._line_windows = {agent_id: window for agent_id, window in self._line_windows.items() if agent_id in joined}
+        return self._line_windows
 
     def _in_call(self, agent: DialedAgent) -> bool:
         """The agent holds its place, so its seat has not taken it away."""

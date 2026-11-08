@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final
 from agent_runtime_client.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 
 from hopin.participation.feature import Caller, DialedAgent
-from hopin.participation.vocabulary import AGENT_NAME_MAX_CHARACTERS, AgentRefusal
+from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME_MAX_CHARACTERS, AgentRefusal
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -19,6 +19,9 @@ JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
 ACCEPT_INVITATION: Final = "accept_invitation"
 WAIT: Final = "wait"
+SAY: Final = "say"
+
+ROOM_DESCRIPTION: Final = "The call's id, the last part of its link."
 
 
 class Audience(StrEnum):
@@ -36,6 +39,7 @@ AUDIENCE_OF_TOOL: Final = {
     LEAVE_CALL: Audience.EVERY_AGENT,
     ACCEPT_INVITATION: Audience.OWN_ACCOUNT,
     WAIT: Audience.OWN_ACCOUNT,
+    SAY: Audience.EVERY_AGENT,
 }
 
 
@@ -59,7 +63,7 @@ _JOIN_CALL_DECLARATION: Final = ToolDeclaration(
     parameters={
         "type": "object",
         "properties": {
-            "room": {"type": "string", "description": "The call's id, the last part of its link."},
+            "room": {"type": "string", "description": ROOM_DESCRIPTION},
             "name": {
                 "type": "string",
                 "description": f"The name the call shows for you, 1 to {AGENT_NAME_MAX_CHARACTERS} characters.",
@@ -75,7 +79,7 @@ _LEAVE_CALL_DECLARATION: Final = ToolDeclaration(
     description="Leave the call you joined; your tile goes from the stage.",
     parameters={
         "type": "object",
-        "properties": {"room": {"type": "string", "description": "The call's id, the last part of its link."}},
+        "properties": {"room": {"type": "string", "description": ROOM_DESCRIPTION}},
         "required": ["room"],
         "additionalProperties": False,
     },
@@ -96,6 +100,24 @@ _ACCEPT_INVITATION_DECLARATION: Final = ToolDeclaration(
             "epoch": {"type": "integer", "minimum": 0, "description": "The invitation's epoch."},
         },
         "required": ["room", "invitation", "epoch"],
+        "additionalProperties": False,
+    },
+    effect=ToolEffect.SIDE_EFFECTING,
+)
+_SAY_DECLARATION: Final = ToolDeclaration(
+    name=SAY,
+    description=(
+        "Write a line in the chat of the call you joined. Everyone in the call reads it under your name with an AI "
+        f"mark. A line holds 1 to {AGENT_LINE_MAX_CHARACTERS} characters with no line break, and you may write 10 "
+        "lines a minute. The call keeps no history: only those in it now read the line."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "room": {"type": "string", "description": ROOM_DESCRIPTION},
+            "text": {"type": "string", "description": "The line, as plain text."},
+        },
+        "required": ["room", "text"],
         "additionalProperties": False,
     },
     effect=ToolEffect.SIDE_EFFECTING,
@@ -149,8 +171,15 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Cal
             return ToolOutcome(json.dumps({"left": True}), is_error=False)
         return refused(refusal)
 
+    async def say(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        refusal = await participation().say(caller.person, _text_of(arguments, "room"), _text_of(arguments, "text"))
+        if refusal is None:
+            return ToolOutcome(json.dumps({}), is_error=False)
+        return refused(refusal)
+
     return (
         CallerTool(_JOIN_CALL_DECLARATION, join_call),
         CallerTool(_ACCEPT_INVITATION_DECLARATION, accept_invitation),
         CallerTool(_LEAVE_CALL_DECLARATION, leave_call),
+        CallerTool(_SAY_DECLARATION, say),
     )
