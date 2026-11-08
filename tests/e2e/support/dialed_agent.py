@@ -7,7 +7,7 @@ from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERS
 from playwright.sync_api import Page, Playwright, expect
 
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
-from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, WAIT
+from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, SAY, WAIT
 from hopin.config.constants import LOGIN_GROUP
 from tests.e2e.support.people import PHONE
 
@@ -57,6 +57,12 @@ class Agent:
         self._room = re.search(r"/c/(\w+)", person.url).group(1)
 
     def dial_in(self, name: str) -> None:
+        self._call(JOIN_CALL, {"room": self._room, "name": name})
+
+    def say(self, text: str) -> None:
+        self._call(SAY, {"room": self._room, "text": text})
+
+    def _call(self, tool: str, arguments: dict[str, Any]) -> None:
         token = self._server.issuer.access_token(
             self._account.id,
             audience=f"{self._server.base_url}/mcp",
@@ -64,12 +70,7 @@ class Agent:
             scope=MCP_SCOPE,
             groups=(LOGIN_GROUP, MCP_GROUP),
         )
-        body = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": JOIN_CALL, "arguments": {"room": self._room, "name": name}},
-        }
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
         response = self._request.post(
             f"{self._server.base_url}/mcp",
             data=json.dumps(body),

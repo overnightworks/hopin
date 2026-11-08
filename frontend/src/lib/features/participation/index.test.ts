@@ -1,10 +1,22 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feature-port.ts";
+import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
+import AgentLine from "./AgentLine.svelte";
 import { install } from "./index.ts";
 import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
+
+// Core builds a view from a component and its props; the cases read the pair back to see what was handed over.
+const views = vi.hoisted(() => new WeakMap<object, { component: unknown; props: unknown }>());
+vi.mock("#lib/ui/chat.svelte.ts", () => ({
+    featureView: (component: unknown, props: unknown) => {
+        const view = () => ({});
+        views.set(view, { component, props });
+        return view;
+    },
+}));
 
 const ME = "me";
 
@@ -13,6 +25,7 @@ async function installedParticipation() {
     const sent: unknown[] = [];
     const tiles = new Map<string, AgentTile>();
     const toasts: string[] = [];
+    const lines: unknown[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
     const core: FeatureCore = {
@@ -26,7 +39,7 @@ async function installedParticipation() {
             else tiles.set(key, tile);
         },
         addMoreItems: (...items) => void moreItems.push(...items),
-        receiveChatLine: () => undefined,
+        receiveChatLine: (view: FeatureView) => void lines.push(views.get(view)),
         pinLastChatLine: () => undefined,
         showChatCard: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
@@ -42,6 +55,7 @@ async function installedParticipation() {
         sent,
         tiles,
         toasts,
+        lines,
         buttons: () => [...moreItems.flatMap((item) => [...item.querySelectorAll("button")])],
         endCall: () => {
             callEndedHooks.forEach((hook) => {
@@ -115,6 +129,14 @@ describe("dialed-in agents", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason });
 
         expect(page.toasts).toEqual([text]);
+    });
+
+    it("shows an agent's line in the chat under its name", async () => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LINE, { agent_id: "a1", name: "Claude", text: "Hello <b>x</b>" });
+
+        expect(page.lines).toEqual([{ component: AgentLine, props: { name: "Claude", text: "Hello <b>x</b>" } }]);
     });
 
     it("takes the tile away when its agent leaves, and shows a repeated join once", async () => {

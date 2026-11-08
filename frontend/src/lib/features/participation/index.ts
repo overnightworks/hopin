@@ -1,5 +1,7 @@
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
+import { featureView } from "#lib/ui/chat.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
+import AgentLine from "./AgentLine.svelte";
 import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 interface SeatFrame {
@@ -26,6 +28,11 @@ interface Offer {
 
 interface AgentOffersFrame {
     offers: Offer[];
+}
+
+interface AgentLineFrame {
+    name: string;
+    text: string;
 }
 
 interface AgentRefusedFrame {
@@ -125,6 +132,9 @@ export function install(core: FeatureCore): Promise<void> {
         hide(frame.agent_id);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
+    core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: AgentLineFrame) => {
+        core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
+    });
     core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame: AgentRefusedFrame) => {
         core.showToast(REFUSED_TEXT[frame.reason] ?? NOT_ADDED_TEXT, core.toastKind.LOCKED, null);
     });

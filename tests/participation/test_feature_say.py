@@ -2,8 +2,8 @@
 
 import pytest
 
-from hopin.config.constants import SignalType
 from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, LEAVE_CALL, SAY, WAIT
+from hopin.config.constants import SignalType
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AgentRefusal, ParticipationSignal
 from tests.support.dialed_call import join_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
@@ -181,7 +181,7 @@ class TestAnAgentThatIsNotJoined:
         assert nothing_read(seat, other)
 
     def test_an_agent_in_another_room_answers_gone(self, dialed_call, own_agent):
-        token, seat, _ = own_agent
+        token, _, _ = own_agent
 
         dialed = dialed_call.call(token, SAY, {"room": "another-room", "text": "hello"})
 
