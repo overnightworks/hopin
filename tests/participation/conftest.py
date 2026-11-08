@@ -3,12 +3,15 @@ from functools import partial
 
 import pytest
 import pytest_asyncio
-from agent_runtime_client.wait import LEASE_SECONDS
+from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
 
 from hopin.participation.feature import Participation
+from hopin.participation.vocabulary import ParticipationSignal
 from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.signaling.support.browsers import Link
+from tests.support.dialed_call import accept_arguments, serving_dialed_call
+from tests.support.fake_issuer import FakeIssuer
 from tests.support.signaling_fakes import SocketAccountResolver
 
 
@@ -76,3 +79,69 @@ async def link(handler):
     link = Link(handler)
     yield link
     await link.close_all()
+
+
+OWNER_SUBJECT = "subject-owner"
+ADDERS = "/apps/hopin/agent-adders"
+
+
+@pytest.fixture
+def adding_call(sign_in_settings):
+    """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
+    sign_in = sign_in_settings()
+    with serving_dialed_call(sign_in, FakeIssuer(sign_in), {OWNER_SUBJECT: ADDERS}) as call:
+        yield call
+
+
+class Scene:
+    """The owner in a call, a member of the adders group in it, and the owner's agent that has called once."""
+
+    agent_name = "Mozart"
+    agent_username = "agent-subject-username"
+
+    def __init__(self, call, *, member_groups=(ADDERS,)):
+        self.call = call
+        self.owner_account, owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS,))
+        self.owner = call.seat(owner_login)
+        self.member_account, self.member_login = call.member(groups=member_groups)
+        self.member = call.seat(self.member_login, self.owner.room_id)
+        self.token = call.agent_token(
+            owner=OWNER_SUBJECT,
+            subject="agent-subject",
+            agent_name=self.agent_name,
+            preferred_username=self.agent_username,
+        )
+        call.standing(self.token)  # the first call registers the agent
+
+    def key_of_offer(self):
+        [offer] = self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+        return offer["agent_key"]
+
+    def add(self, key):
+        self.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
+
+    def invite(self):
+        """The member adds the agent, and the invitation is open once the offers have been told again."""
+        self.add(self.key_of_offer())
+        self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+
+    def standings(self):
+        return self.call.standing(self.token)
+
+    def accept(self, standing):
+        return self.call.call(self.token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
+
+
+@pytest.fixture
+def scene_of(adding_call):
+    """The scene, with the options its arrangement takes."""
+
+    def build(**options):
+        return Scene(adding_call, **options)
+
+    return build
+
+
+@pytest.fixture
+def scene(scene_of):
+    return scene_of()

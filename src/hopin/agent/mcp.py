@@ -1,17 +1,26 @@
 """HopIn's MCP surface: the person front a person's own agent calls with a bearer token, and participation built to
 serve it."""
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
-from agent_runtime_client.mcp_server import McpPersonFront, PersonRequest, PersonTool
-from agent_runtime_client.mcp_server.wait import InMemoryMemberChanges, wait_tool
+from agent_runtime_client.mcp_server import McpPersonFront, PersonRequest, PersonTool, ResourceChanges
 from agent_runtime_client.mcp_wire import MCP_ENDPOINT_PATH
+from agent_runtime_client.member import (
+    LEASE_SECONDS,
+    STANDING_URI,
+    Invitation,
+    MemberStanding,
+    PlaceRef,
+    PlaceWindow,
+    Standing,
+    StandingState,
+)
 from agent_runtime_client.tools import JsonObject, Principal, ToolOutcome
-from agent_runtime_client.wait import LEASE_SECONDS, Invitation, PlaceRef, Standing, StandingState
 from fastapi import APIRouter
 from starlette.requests import HTTPConnection
 from starlette.routing import Route
@@ -20,12 +29,13 @@ from webauth.oidc_login import AccessTokenRefusal
 from webauth.policies import AuthorizedParties
 
 from hopin.agent.session_groups import SessionGroups
-from hopin.agent.tools import WAIT, CallerTool, participation_tools, refusal_to_serve, refused
+from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import AsyncIterator, Callable, Collection, Mapping
 
+    from fastapi import FastAPI
     from starlette.types import ASGIApp, Receive, Scope, Send
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
@@ -51,7 +61,7 @@ class _BuiltParticipation:
     """The participation the call's handler builds, which the tools reach once it exists."""
 
     scheduler: Scheduler
-    changes: InMemoryMemberChanges
+    changes: ResourceChanges
     wall_clock: Callable[[], float]
     adders: Mapping[str, str]
     groups: SessionGroups
@@ -71,7 +81,7 @@ class _BuiltParticipation:
         return groups
 
     def _tell_changed(self, person: Person) -> None:
-        self.changes.changed(Principal(iss=person.issuer, sub=person.subject))
+        self.changes.changed(Principal(iss=person.issuer, sub=person.subject), STANDING_URI)
 
     def current(self) -> Participation:
         return self.participation
@@ -105,7 +115,7 @@ def _caller_of(request: PersonRequest) -> Caller:
 @dataclass(frozen=True)
 class _LeaseRenewingFront:
     """The person front behind a lease: every admitted call of an agent with an account of its own renews that agent's
-    lease before the front serves it, `wait` included."""
+    lease before the front serves it, the opening of a listen included."""
 
     front: ASGIApp
     issuer: str
@@ -137,27 +147,32 @@ def _standing_of(standing: PlaceStanding) -> Standing:
             id=invited.invitation_id, epoch=invited.epoch, expires_at=datetime.fromtimestamp(invited.expires_at, UTC)
         )
     )
-    # "call" is the kind the runtime's runner maps to a call's id.
     return Standing(
-        place=PlaceRef(kind="call", id=standing.room_id),
+        place=PlaceRef(kind=CALL_KIND, id=standing.room_id),
         state=StandingState(standing.state.value),
         invitation=invitation,
     )
 
 
-def _wait_for_own_accounts(participation: Callable[[], Participation], changes: InMemoryMemberChanges) -> PersonTool:
-    """The runtime's wait tool, served only to an agent with an account of its own."""
+@dataclass(frozen=True)
+class _StandingResources:
+    """The one resource an agent with an account of its own reads: its standing in every place it holds."""
 
-    async def standings(principal: Principal) -> tuple[Standing, ...]:  # NOSONAR(S7503) CurrentStandings is async
-        return tuple(map(_standing_of, participation().standings_of(Person(principal.iss, principal.sub))))
+    participation: Callable[[], Participation]
 
-    waiting = wait_tool(changes, standings)
+    async def current(self, principal: Principal) -> Collection[str]:  # NOSONAR(S7503) MemberResources is async
+        return (STANDING_URI,) if self._is_live(principal) else ()
 
-    async def handler(request: PersonRequest, arguments: JsonObject) -> ToolOutcome:
-        refusal = refusal_to_serve(WAIT, _caller_of(request))
-        return refused(refusal) if refusal is not None else await waiting.handler(request, arguments)
+    async def read(  # NOSONAR(S7503) MemberResources is async
+        self, principal: Principal, uri: str
+    ) -> MemberStanding | PlaceWindow | None:
+        if uri != STANDING_URI or not self._is_live(principal):
+            return None
+        person = Person(principal.iss, principal.sub)
+        return MemberStanding(standings=tuple(map(_standing_of, self.participation().standings_of(person))))
 
-    return PersonTool(waiting.declaration, handler)
+    def _is_live(self, principal: Principal) -> bool:
+        return self.participation().is_live_agent(Person(principal.iss, principal.sub))
 
 
 @dataclass(frozen=True)
@@ -191,19 +206,24 @@ class ParticipationFeature:
         )
         built = _BuiltParticipation(
             scheduler,
-            InMemoryMemberChanges(),
+            ResourceChanges(),
             auth_config.wall_clock,
             self.agent_adders,
             SessionGroups(relying_party, sessions, auth_config),
         )
         front = McpPersonFront(
-            [
-                *(_as_person_tool(tool) for tool in participation_tools(built.current)),
-                _wait_for_own_accounts(built.current, built.changes),
-            ],
+            [_as_person_tool(tool) for tool in participation_tools(built.current)],
             resolve_person=partial(_principal_of, relying_party.issuer),
+            resources=_StandingResources(built.current),
+            changes=built.changes,
         )
-        router = APIRouter()
+
+        @asynccontextmanager
+        async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+            async with front.running():
+                yield
+
+        router = APIRouter(lifespan=lifespan)
         # No methods named, so every method reaches the front, which refuses all but POST itself.
         router.routes.append(
             Route(MCP_ENDPOINT_PATH, endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current))

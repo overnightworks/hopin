@@ -1,28 +1,20 @@
 import pytest
+from agent_runtime_client.mcp_wire import PROTOCOL_VERSION_HEADER
+from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI
+from mcp_types import UNSUPPORTED_PROTOCOL_VERSION
 
-from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
+from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY
 from hopin.participation.vocabulary import AgentRefusal
-from tests.support.dialed_call import join_arguments, serving_dialed_call
+from tests.support.dialed_call import join_arguments
 
 pytestmark = pytest.mark.integration
 
-WAIT = "wait"
+OWNER = "owner-subject"
 
 
 class TestAnAgentWithItsOwnAccount:
-    def test_its_wait_answers_at_once_with_its_empty_standing(self, dialed_call):
-        dialed = dialed_call.call(dialed_call.agent_token(owner="owner-subject"), WAIT, {})
-
-        assert (dialed.is_error, dialed.outcome["standings"], bool(dialed.outcome["cursor"])) == (False, [], True)
-
-    def test_a_wait_with_a_cursor_from_before_a_restart_answers_at_once(self, dialed_call, sign_in_settings):
-        before = dialed_call.call(dialed_call.agent_token(owner="owner-subject"), WAIT, {}).outcome["cursor"]
-
-        with serving_dialed_call(sign_in_settings(), dialed_call.issuer) as restarted:
-            token = restarted.agent_token(owner="owner-subject")
-            answered = restarted.call(token, WAIT, {"after": before, "timeout_seconds": 1}).outcome["cursor"]
-
-        assert answered != before  # a wait that blocked would return the unchanged cursor
+    def test_its_first_read_answers_its_empty_standing(self, dialed_call):
+        assert dialed_call.standing(dialed_call.agent_token(owner=OWNER)) == []
 
     def test_its_join_call_is_refused_invitation_only_and_puts_no_tile_on_the_stage(self, dialed_call):
         account, _, seat = dialed_call.seated()
@@ -35,15 +27,58 @@ class TestAnAgentWithItsOwnAccount:
     def test_its_leave_call_by_room_answers_gone(self, dialed_call):
         _, _, seat = dialed_call.seated()
 
-        dialed = dialed_call.call(dialed_call.agent_token(owner="owner-subject"), LEAVE_CALL, {"room": seat.room_id})
+        dialed = dialed_call.call(dialed_call.agent_token(owner=OWNER), LEAVE_CALL, {"room": seat.room_id})
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.GONE.value})
 
 
 class TestAPersonsOwnAgent:
-    def test_its_wait_is_refused_own_account_only(self, dialed_call):
+    def test_it_lists_no_resource_and_reads_no_standing(self, dialed_call):
         account, _ = dialed_call.member()
+        token = dialed_call.token(account)
 
-        dialed = dialed_call.call(dialed_call.token(account), WAIT, {})
+        listed = dialed_call.request(token, "resources/list").json()["result"]["resources"]
+        read = dialed_call.request(token, "resources/read", {"uri": STANDING_URI}, routing_name=STANDING_URI).json()
 
-        assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.OWN_ACCOUNT_ONLY.value})
+        assert (listed, read["error"]["message"]) == ([], "Unknown resource")
+
+    def test_it_joins_says_and_leaves_on_the_same_revision(self, dialed_call):
+        account, _, seat = dialed_call.seated()
+        token = dialed_call.token(account)
+
+        joined = dialed_call.call(token, JOIN_CALL, join_arguments(seat))
+        said = dialed_call.call(token, SAY, {"room": seat.room_id, "text": "hello"})
+        left = dialed_call.call(token, LEAVE_CALL, {"room": seat.room_id})
+
+        assert [dialed.is_error for dialed in (joined, said, left)] == [False, False, False]
+
+
+class TestTheEndpoint:
+    def test_tools_list_holds_the_four_tools_and_no_wait(self, dialed_call):
+        token = dialed_call.token(dialed_call.member()[0])
+
+        tools = dialed_call.request(token, "tools/list").json()["result"]["tools"]
+
+        assert {tool["name"] for tool in tools} == {JOIN_CALL, ACCEPT_INVITATION_TOOL, LEAVE_CALL, SAY}
+
+    def test_a_call_of_wait_is_an_unknown_tool(self, dialed_call):
+        token = dialed_call.agent_token(owner=OWNER)
+
+        dialed = dialed_call.request(token, "tools/call", {"name": "wait", "arguments": {}}, routing_name="wait")
+
+        assert "error" in dialed.json() or dialed.json()["result"]["isError"]
+
+    @pytest.mark.parametrize("version", [None, "2025-11-25"])
+    def test_a_request_without_the_current_revision_answers_the_unsupported_version_error(self, dialed_call, version):
+        token = dialed_call.token(dialed_call.member()[0])
+
+        answer = dialed_call.request(token, "tools/list", **{PROTOCOL_VERSION_HEADER: version})
+
+        assert answer.json()["error"]["code"] == UNSUPPORTED_PROTOCOL_VERSION
+
+    def test_initialize_answers_the_unsupported_version_error(self, dialed_call):
+        token = dialed_call.token(dialed_call.member()[0])
+
+        answer = dialed_call.request(token, "initialize")
+
+        assert answer.json()["error"]["code"] == UNSUPPORTED_PROTOCOL_VERSION

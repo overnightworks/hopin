@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, AcceptInvitationArguments
 from agent_runtime_client.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
+from pydantic import ValidationError
 
 from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME_MAX_CHARACTERS, AgentRefusal
@@ -17,9 +19,10 @@ if TYPE_CHECKING:
 
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
-ACCEPT_INVITATION: Final = "accept_invitation"
-WAIT: Final = "wait"
 SAY: Final = "say"
+
+# The kind of a place a call is, which the runtime's runner maps to a call's id.
+CALL_KIND: Final = "call"
 
 ROOM_DESCRIPTION: Final = "The call's id, the last part of its link."
 
@@ -33,12 +36,11 @@ class Audience(StrEnum):
 
 
 # The one rule of which tool serves which kind of agent: a person's own agent acts through its person's seat, and an
-# agent with an account of its own is invited and told its standing.
+# agent with an account of its own is invited and reads its standing.
 AUDIENCE_OF_TOOL: Final = {
     JOIN_CALL: Audience.OWN_AGENT,
     LEAVE_CALL: Audience.EVERY_AGENT,
-    ACCEPT_INVITATION: Audience.OWN_ACCOUNT,
-    WAIT: Audience.OWN_ACCOUNT,
+    ACCEPT_INVITATION_TOOL: Audience.OWN_ACCOUNT,
     SAY: Audience.EVERY_AGENT,
 }
 
@@ -87,21 +89,12 @@ _LEAVE_CALL_DECLARATION: Final = ToolDeclaration(
 )
 
 _ACCEPT_INVITATION_DECLARATION: Final = ToolDeclaration(
-    name=ACCEPT_INVITATION,
+    name=ACCEPT_INVITATION_TOOL,
     description=(
-        "Accept an invitation from your standings: you join the call as a participant of your own, under your name. "
-        "Pass the standing's place id as room, and the invitation's id and epoch."
+        "Accept an invitation from your standing: you join the call as a participant of your own, under your name. "
+        "Pass the standing's place and the invitation's id and epoch."
     ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "room": {"type": "string", "description": "The place id of the standing."},
-            "invitation": {"type": "string", "description": "The invitation's id."},
-            "epoch": {"type": "integer", "minimum": 0, "description": "The invitation's epoch."},
-        },
-        "required": ["room", "invitation", "epoch"],
-        "additionalProperties": False,
-    },
+    parameters=AcceptInvitationArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 _SAY_DECLARATION: Final = ToolDeclaration(
@@ -147,11 +140,6 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _epoch_of(arguments: JsonObject) -> int:
-    epoch = arguments.get("epoch")
-    return epoch if isinstance(epoch, int) and not isinstance(epoch, bool) else -1
-
-
 def participation_tools(participation: Callable[[], Participation]) -> tuple[CallerTool, ...]:
     """The tools on the participation the call's handler builds; `participation` is read at each call."""
 
@@ -160,9 +148,13 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Cal
         return _joined_or_refused(outcome)
 
     async def accept_invitation(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        outcome = await participation().accept(
-            caller.person, _text_of(arguments, "room"), _text_of(arguments, "invitation"), _epoch_of(arguments)
-        )
+        try:
+            accepted = AcceptInvitationArguments.model_validate(arguments)
+        except ValidationError:
+            return refused(AgentRefusal.STALE_INVITATION)
+        if accepted.place.kind != CALL_KIND:
+            return refused(AgentRefusal.STALE_INVITATION)
+        outcome = await participation().accept(caller.person, accepted.place.id, accepted.invitation, accepted.epoch)
         return _joined_or_refused(outcome)
 
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:

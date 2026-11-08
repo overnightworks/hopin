@@ -8,8 +8,10 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+from agent_runtime_client.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+from agent_runtime_client.member import STANDING_URI
 from fastapi.testclient import TestClient
+from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind
@@ -164,8 +166,24 @@ class DialedCall:
         )
 
     def call(self, token, tool, arguments, **headers):
-        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
-        return self._dialed(self.mcp("POST", token, extra_headers=headers, content=json.dumps(body)))
+        response = self.request(
+            token, "tools/call", {"name": tool, "arguments": arguments}, routing_name=tool, **headers
+        )
+        return self._dialed(response)
+
+    def request(self, token, method, params=None, *, routing_name=None, **headers):
+        """One 2026-07-28 request: the version and capabilities in `_meta`, the routing headers beside it."""
+        meta = {PROTOCOL_VERSION_META_KEY: PROTOCOL_VERSION, CLIENT_CAPABILITIES_META_KEY: {}}
+        body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": {**(params or {}), "_meta": meta}}
+        routing = {"mcp-method": method}
+        if routing_name is not None:
+            routing["mcp-name"] = routing_name
+        return self.mcp("POST", token, extra_headers={**routing, **headers}, content=json.dumps(body))
+
+    def standing(self, token):
+        """The `MemberStanding` the agent reads at `member://standing`, as its places in a list."""
+        response = self.request(token, "resources/read", {"uri": STANDING_URI}, routing_name=STANDING_URI)
+        return json.loads(response.json()["result"]["contents"][0]["text"])["standings"]
 
     def pass_time(self, seconds):
         """Move the app's clock on its own loop, running the timers that fall due."""
@@ -174,16 +192,16 @@ class DialedCall:
     def mcp(self, method, token, extra_headers=None, **options):
         extra_headers = extra_headers or {}
         authorization = {} if token is None else {"authorization": f"Bearer {token}"}
+        headers = {
+            "content-type": "application/json",
+            PROTOCOL_VERSION_HEADER: PROTOCOL_VERSION,
+            "accept": "application/json, text/event-stream",
+            **authorization,
+            **extra_headers,
+        }
+        # A header set to None is left off the request.
         return self.client.request(
-            method,
-            "/mcp",
-            headers={
-                "content-type": "application/json",
-                PROTOCOL_VERSION_HEADER: LATEST_PROTOCOL_VERSION,
-                **authorization,
-                **extra_headers,
-            },
-            **options,
+            method, "/mcp", headers={name: value for name, value in headers.items() if value is not None}, **options
         )
 
     @staticmethod
@@ -196,6 +214,12 @@ class DialedCall:
 
 def join_arguments(seat, name="Claude"):
     return {"room": seat.room_id, "name": name}
+
+
+def accept_arguments(standing):
+    """The shared arguments of accepting the invitation a read standing carries."""
+    invitation = standing["invitation"]
+    return {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
 
 
 def admin_groups():

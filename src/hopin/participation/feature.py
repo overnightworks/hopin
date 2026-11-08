@@ -264,6 +264,10 @@ class Participation:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
         return tuple(self._standing_in(room_id, place) for room_id, place in self._places.of_person(person))
 
+    def is_live_agent(self, person: Person) -> bool:
+        """Whether the person is an agent with an account of its own whose lease is registered."""
+        return person in self._live.by_person
+
     async def accept(self, person: Person, room_id: str, invitation_id: str, epoch: int) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names."""
         live = self._live.by_person.get(person)

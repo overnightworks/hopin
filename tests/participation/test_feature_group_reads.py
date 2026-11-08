@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-from agent_runtime_client.wait import LEASE_SECONDS
+from agent_runtime_client.member import LEASE_SECONDS
 
 from hopin.config.constants import SignalType
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
