@@ -37,7 +37,7 @@ class TestWhoIsLetIn:
 
         assert dialed.status == status
         assert ("resource_metadata" in dialed.response.headers.get("www-authenticate", "")) is challenged
-        assert dialed_call.call(dialed_call.token(account), LEAVE_CALL, {"agent_id": "none"}).outcome == {
+        assert dialed_call.call(dialed_call.token(account), LEAVE_CALL, {"room": "none"}).outcome == {
             "refused": AgentRefusal.GONE.value
         }
 
