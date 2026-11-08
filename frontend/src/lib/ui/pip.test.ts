@@ -11,6 +11,8 @@ interface Setup {
     stage: HTMLElement;
     tile: HTMLElement;
     capture: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+    heldCapture: { value: boolean };
     cleanup: () => void;
 }
 
@@ -21,11 +23,15 @@ function setUp({ count = "2", phone = true }: { count?: string; phone?: boolean 
     stage.getBoundingClientRect = () => ({ ...STAGE_RECT }) as DOMRect;
     const tile = document.createElement("div");
     const capture = vi.fn();
+    const release = vi.fn();
     tile.setPointerCapture = capture;
+    const heldCapture = { value: true };
+    tile.hasPointerCapture = () => heldCapture.value;
+    tile.releasePointerCapture = release;
     stage.append(tile);
     document.body.append(stage);
     vi.stubGlobal("matchMedia", () => ({ matches: phone }));
-    return { stage, tile, capture, cleanup: pictureInPicture(tile) };
+    return { stage, tile, capture, release, heldCapture, cleanup: pictureInPicture(tile) };
 }
 
 function firePointer(
@@ -148,6 +154,65 @@ describe("picture in picture", () => {
 
         expect(tile.classList.contains("dragging")).toBe(false);
         expect(tile.dataset.corner).toBeUndefined();
+    });
+
+    it("releases a held tile at once when the call is outgrown, without another pointer event", async () => {
+        const { stage, tile, release } = setUp();
+        firePointer(tile, "pointerdown");
+        firePointer(tile, "pointermove", { x: 30, y: 30 });
+
+        stage.dataset.count = "3";
+        await Promise.resolve();
+
+        expect(tile.style.translate).toBe("");
+        expect(tile.classList.contains("dragging")).toBe(false);
+        expect(release).toHaveBeenCalledWith(POINTER);
+        expect(tile.dataset.corner).toBeUndefined();
+    });
+
+    it("does not release the pointer capture of a tile that no longer holds it", async () => {
+        const { stage, tile, release, heldCapture } = setUp();
+        firePointer(tile, "pointerdown");
+        heldCapture.value = false;
+
+        stage.dataset.count = "3";
+        await Promise.resolve();
+
+        expect(release).not.toHaveBeenCalled();
+        expect(tile.classList.contains("dragging")).toBe(false);
+    });
+
+    it("changes nothing when the call is outgrown without a held drag", async () => {
+        const { stage, tile, release } = setUp();
+
+        stage.dataset.count = "3";
+        await Promise.resolve();
+
+        expect(release).not.toHaveBeenCalled();
+        expect(tile.classList.contains("dragging")).toBe(false);
+    });
+
+    it("keeps a held tile when the count changes within picture in picture", async () => {
+        const { stage, tile, release } = setUp();
+        firePointer(tile, "pointerdown");
+
+        stage.dataset.count = "2";
+        await Promise.resolve();
+
+        expect(tile.classList.contains("dragging")).toBe(true);
+        expect(release).not.toHaveBeenCalled();
+    });
+
+    it("does not release on a count change after the cleanup", async () => {
+        const { stage, tile, release, cleanup } = setUp();
+        firePointer(tile, "pointerdown");
+        cleanup();
+
+        stage.dataset.count = "3";
+        await Promise.resolve();
+
+        expect(release).not.toHaveBeenCalled();
+        expect(tile.classList.contains("dragging")).toBe(true);
     });
 
     it("listens to no pointerdown after the cleanup", () => {

@@ -69,11 +69,21 @@ export function pictureInPicture(ownTile: HTMLElement): () => void {
         releaseTile();
     }
 
+    function releaseHeldDragWhenPictureInPictureEnds(): void {
+        if (!drag || isPictureInPicture()) return;
+        if (ownTile.hasPointerCapture(drag.pointerId)) ownTile.releasePointerCapture(drag.pointerId);
+        releaseTile();
+    }
+
+    const countObserver = new MutationObserver(releaseHeldDragWhenPictureInPictureEnds);
+    countObserver.observe(stage, { attributes: true, attributeFilter: ["data-count"] });
+
     ownTile.addEventListener("pointerdown", startDrag);
     ownTile.addEventListener("pointermove", moveDrag);
     ownTile.addEventListener("pointerup", endDrag);
     ownTile.addEventListener("pointercancel", endDrag);
     return () => {
+        countObserver.disconnect();
         ownTile.removeEventListener("pointerdown", startDrag);
         ownTile.removeEventListener("pointermove", moveDrag);
         ownTile.removeEventListener("pointerup", endDrag);
