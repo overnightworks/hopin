@@ -393,7 +393,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "overnightworks-agent-runtime-client", extras = ["backend", "mcp-server"], git = "https://github.com/overnightworks/agent-runtime?rev=v0.25.0" },
-    { name = "overnightworks-speech-runtime-client", git = "https://github.com/overnightworks/speech-runtime?subdirectory=packages%2Fclient&rev=v0.4.0" },
+    { name = "overnightworks-speech-runtime-client", git = "https://github.com/overnightworks/speech-runtime?subdirectory=packages%2Fclient&rev=v0.5.0" },
     { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.33.0" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
@@ -625,8 +625,8 @@ mcp-server = [
 
 [[package]]
 name = "overnightworks-speech-runtime-client"
-version = "0.4.0"
-source = { git = "https://github.com/overnightworks/speech-runtime?subdirectory=packages%2Fclient&rev=v0.4.0#1f1b92361322c7892838af6c59d5778fc022574e" }
+version = "0.5.0"
+source = { git = "https://github.com/overnightworks/speech-runtime?subdirectory=packages%2Fclient&rev=v0.5.0#0333412ab706e99b1011313ee80317e0305605ed" }
 dependencies = [
     { name = "pydantic" },
 ]
