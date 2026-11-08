@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from agent_runtime_client.wait import LEASE_SECONDS
 
@@ -6,6 +8,7 @@ pytestmark = pytest.mark.integration
 WAIT = "wait"
 OWNER = "owner-subject"
 SHORT_WAIT = {"timeout_seconds": 1}
+PENDING_CHECK_SECONDS = 0.2
 
 
 def cursor_of(dialed):
@@ -20,12 +23,16 @@ def agent(dialed_call):
 
 
 class TestTheLease:
-    def test_an_expired_lease_answers_a_wait_at_once_with_a_new_cursor(self, dialed_call, agent):
+    def test_a_pending_wait_answers_with_a_new_cursor_when_the_lease_times_out(self, dialed_call, agent):
         token, cursor = agent
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(dialed_call.call, token, WAIT, {"after": cursor})
+            with pytest.raises(TimeoutError):
+                pending.result(timeout=PENDING_CHECK_SECONDS)
 
-        dialed_call.pass_time(LEASE_SECONDS)
+            dialed_call.pass_time(LEASE_SECONDS)
 
-        assert cursor_of(dialed_call.call(token, WAIT, {"after": cursor})) != cursor
+            assert cursor_of(pending.result()) != cursor
 
     def test_a_call_within_the_lease_renews_it_so_the_wait_stays_blocked_past_the_first_deadline(
         self, dialed_call, agent
