@@ -1,0 +1,8 @@
+claim_id = "732849b12444411297820d841874237e"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "5400b5538c09406a0b3dc93a373e77cd68310297"
+branch = "claude/issue-580-seat-changed"
+scope = ["docs/ARCHITECTURE.md", "src/hopin/game/table.py", "src/hopin/participation/feature.py", "src/hopin/signaling", "tests"]
+opened_commit = "ba746c879bedecbc946c44f9087d521c27e2efc3"
+whole_reason = "One call-core port and its two consumers: the port lands with participation's detach and the game's no-op, and the architecture's port paragraph names it."
