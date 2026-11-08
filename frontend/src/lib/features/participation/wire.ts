@@ -7,6 +7,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_REFUSED = "agent_refused",
     AGENT_OFFERS = "agent_offers",
     AGENT_ADD = "agent_add",
+    AGENT_LINE = "agent_line",
 }
 
 export enum AGENT_REFUSAL {
@@ -23,4 +24,6 @@ export enum AGENT_REFUSAL {
     ALREADY_THERE = "already_there",
     STALE_INVITATION = "stale_invitation",
     UNAVAILABLE = "unavailable",
+    BAD_LINE = "bad_line",
+    TOO_FAST = "too_fast",
 }

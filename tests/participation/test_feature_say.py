@@ -2,6 +2,7 @@
 
 import pytest
 
+from hopin.config.constants import SignalType
 from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, LEAVE_CALL, SAY, WAIT
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AgentRefusal, ParticipationSignal
 from tests.support.dialed_call import join_arguments, serving_dialed_call
@@ -50,6 +51,18 @@ def accept(call, token, owner):
 
 def lines_of(seat):
     return [frame for frame in seat.received if frame["type"] == LINE]
+
+
+def drained(host, *others):
+    """Wait until every seat has read what the server had sent before the host's lock, which reaches them all after."""
+    host.send({"type": SignalType.LOCK_ROOM.value})
+    for seat in (host, *others):
+        seat.frame_of_type(SignalType.ROOM_LOCKED.value)
+
+
+def nothing_read(host, *others):
+    drained(host, *others)
+    return not any(lines_of(seat) for seat in (host, *others))
 
 
 def said(dialed_call, token, seat, text):
@@ -101,9 +114,7 @@ class TestAnAgentWritesALine:
         dialed = said(dialed_call, token, seat, text)
 
         assert (dialed.is_error, dialed.outcome) == (True, refusal_of(AgentRefusal.BAD_LINE))
-        seat.settle()
-        other.settle()
-        assert (lines_of(seat), lines_of(other)) == ([], [])
+        assert nothing_read(seat, other)
 
     def test_a_line_of_the_longest_length_is_read(self, dialed_call, own_agent):
         token, seat, _ = own_agent
@@ -129,8 +140,7 @@ class TestTheRateOfLines:
         dialed = said(dialed_call, token, seat, "one too many")
 
         assert (dialed.is_error, dialed.outcome) == (True, refusal_of(AgentRefusal.TOO_FAST))
-        seat.settle()
-        other.settle()
+        drained(seat, other)
         assert [frame["text"] for frame in lines_of(other)] == [f"line {number}" for number in range(LINES_PER_WINDOW)]
 
     def test_a_line_after_the_window_has_passed_is_read(self, dialed_call, own_agent):
@@ -168,9 +178,7 @@ class TestAnAgentThatIsNotJoined:
         dialed = said(dialed_call, token, seat, "still here?")
 
         assert (dialed.is_error, dialed.outcome) == (True, refusal_of(AgentRefusal.GONE))
-        seat.settle()
-        other.settle()
-        assert (lines_of(seat), lines_of(other)) == ([], [])
+        assert nothing_read(seat, other)
 
     def test_an_agent_in_another_room_answers_gone(self, dialed_call, own_agent):
         token, seat, _ = own_agent
@@ -187,5 +195,4 @@ class TestAnAgentThatIsNotJoined:
             dialed = said(call, token, owner, "hello")
 
             assert dialed.outcome == refusal_of(AgentRefusal.GONE)
-            owner.settle()
-            assert lines_of(owner) == []
+            assert nothing_read(owner)
