@@ -1,8 +1,0 @@
-claim_id = "1e1f2539b642412c866c9df0c9bd0b9d"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "e24626500af17d867fb8ec77304250d4f440df4b"
-branch = "claude/issue-596-agent-say"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/AgentLine.svelte", "frontend/src/lib/features/participation/index.test.ts", "frontend/src/lib/features/participation/index.ts", "frontend/src/lib/features/participation/participation.css", "frontend/src/lib/features/participation/wire.ts", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "src/hopin/participation/line_rate.py", "src/hopin/participation/vocabulary.py", "tests/e2e/participation", "tests/e2e/support/dialed_agent.py", "tests/participation", "tests/support/dialed_call.py", "tests/web/test_routes.py"]
-opened_commit = "4ed74ced5426225f78e5b81dfe33ad5781682726"
-whole_reason = "The say tool, its frame and the line in the chat are one flow: a tool without its line shows nothing, and a line without the tool has no sender."
