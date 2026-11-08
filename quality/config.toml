@@ -12,8 +12,3 @@ reason = "the SvelteKit project is a toolchain of its own: its manifest, lockfil
 [[root.allow]]
 entry = "legal/"
 reason = "hal reads the app's part of the legal pages from its release at exactly legal/datenschutz.html and legal/nutzungsbedingungen.html"
-
-[[layout.allow]]
-path = "tests/participation/test_own_accounts_support.py"
-rule = "test-layout"
-reason = "tests the support helper let_reads_finish, which no module of src/hopin owns"
