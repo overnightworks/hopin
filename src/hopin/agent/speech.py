@@ -35,20 +35,20 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class SpeechVoice:
     """Speaks a line through the speech service, on the starter's access token and HopIn's own workload token."""
 
-    _service: SpeechService
-    _deadline_seconds: float
-    _cap_bytes: int
-    _relying_party: OidcRelyingParty
-    _starter_person: StarterPerson
+    service: SpeechService
+    deadline_seconds: float
+    cap_bytes: int
+    relying_party: OidcRelyingParty
+    starter_person: StarterPerson
 
     async def speak(self, starter: HTTPConnection, text: str) -> bytes | None:
         try:
-            person_token = await self._starter_person.access_token_of(starter)
+            person_token = await self.starter_person.access_token_of(starter)
         except StarterRefusedError:
             _log_failure("starter_token_refused")
             return None
         workload = await asyncio.to_thread(
-            self._relying_party.workload_access_token, scopes=(self._service.audience_scope,)
+            self.relying_party.workload_access_token, scopes=(self.service.audience_scope,)
         )
         if isinstance(workload, OidcRefusal):
             _log_failure("workload_token_refused", idp_error=issuer_error(workload))
@@ -57,14 +57,14 @@ class SpeechVoice:
             # A worker thread ends by its deadline, also when this call is cancelled.
             outcome = await asyncio.to_thread(
                 speak,
-                self._service.origin,
+                self.service.origin,
                 text,
-                self._service.voice,
+                self.service.voice,
                 response_format=ResponseFormat.WAV,
                 workload_token=workload.get_secret_value(),
                 person_token=person_token,
-                deadline_seconds=self._deadline_seconds,
-                cap_bytes=self._cap_bytes,
+                deadline_seconds=self.deadline_seconds,
+                cap_bytes=self.cap_bytes,
             )
         except ValidationError:
             _log_failure("input_refused")

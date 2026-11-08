@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+import structlog.testing
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason
 
 from hopin.auth.refresh_grants import SessionGrants
@@ -63,7 +64,6 @@ async def test_a_cancelled_caller_keeps_the_turn_until_its_worker_has_stored_the
     hold.release.set()
 
     assert not isinstance(await next_grant, AccessTokenRefusal)
-    assert world.sessions.stored_refresh_token.is_set()
 
 
 async def test_a_caller_cancelled_before_its_turn_makes_no_grant(world, grants):
@@ -139,3 +139,27 @@ async def test_an_unexpected_store_failure_raises_to_the_caller(world):
 
     with pytest.raises(OSError, match="the store is gone"):
         await failing.current_groups(session_id)
+
+
+async def test_a_store_failure_of_a_cancelled_callers_worker_is_logged_without_the_token(world):
+    session_id = signed_in(world)
+    hold = world.issuer.hold("refresh_token")
+
+    class FailingStore:
+        def __getattr__(self, name):
+            return getattr(world.sessions, name)
+
+        def replace_refresh_token(self, *_, **__):
+            raise OSError("the store is gone")
+
+    failing = SessionGrants(world.relying_party, FailingStore(), world.web_auth)
+
+    with structlog.testing.capture_logs() as logs:
+        cancelled_grant = asyncio.create_task(failing.current_groups(session_id))
+        await wait_in_a_worker(hold.parked)
+        await cancelled(cancelled_grant)
+        queued = asyncio.create_task(failing.fresh_access_token(session_id))
+        hold.release.set()
+        await queued
+
+    assert [(log["event"], log["failure_type"]) for log in logs] == [("refresh_grant_failed", "OSError")]

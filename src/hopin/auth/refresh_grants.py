@@ -5,6 +5,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import structlog
 from webauth.oidc_login import AccessTokenRefusal, current_groups, fresh_access_token
 
 if TYPE_CHECKING:
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @dataclass
@@ -72,9 +75,9 @@ class SessionGrants:
         turn.waiting -= 1
         if turn.waiting == 0:
             del self._turns[session_id]
-        if not finished.cancelled():
-            # The caller of a cancelled grant never reads its outcome.
-            finished.exception()
+        if not finished.cancelled() and (failure := finished.exception()) is not None:
+            # The caller of a cancelled grant never reads its outcome, so the failure is logged here.
+            logger.error("refresh_grant_failed", failure_type=type(failure).__name__)
 
     def _groups_grant(self, session_id: str) -> tuple[str, ...] | AccessTokenRefusal:
         return current_groups(
