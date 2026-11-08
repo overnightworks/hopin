@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, assert_never
 
 import structlog
@@ -30,22 +31,15 @@ if TYPE_CHECKING:
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
+@dataclass(frozen=True)
 class SpeechVoice:
     """Speaks a line through the speech service, on the starter's access token and HopIn's own workload token."""
 
-    def __init__(
-        self,
-        service: SpeechService,
-        deadline_seconds: float,
-        cap_bytes: int,
-        relying_party: OidcRelyingParty,
-        starter_person: StarterPerson,
-    ) -> None:
-        self._service = service
-        self._deadline_seconds = deadline_seconds
-        self._cap_bytes = cap_bytes
-        self._relying_party = relying_party
-        self._starter_person = starter_person
+    _service: SpeechService
+    _deadline_seconds: float
+    _cap_bytes: int
+    _relying_party: OidcRelyingParty
+    _starter_person: StarterPerson
 
     async def speak(self, starter: HTTPConnection, text: str) -> bytes | None:
         try:

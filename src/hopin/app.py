@@ -24,6 +24,7 @@ from hopin.auth.refresh_grants import SessionGrants
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
+    SignInConfigs,
     build_relying_party,
     build_sign_in_configs,
     install_sign_in,
@@ -209,6 +210,19 @@ def _include_feature_routes(app: FastAPI, built_features: list[BuiltCallFeature]
             install_resource_metadata(app, built.bearer_resource, issuer=issuer)
 
 
+def _install_sign_in_surface(
+    app: FastAPI,
+    sign_in_configs: SignInConfigs,
+    sign_in_stores: SignInStores,
+    relying_party: OidcRelyingParty,
+    page_build: PageBuild,
+    bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
+) -> None:
+    install_web_auth_config(app, sign_in_configs.web_auth)
+    install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
+    _install_web_auth(app, sign_in_stores.sessions, page_build, bearer)
+
+
 def create_app(
     settings: ServerSettings,
     *,
@@ -265,8 +279,13 @@ def create_app(
     app.include_router(create_account_router(settings.oidc_issuer))
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
-    install_web_auth_config(app, sign_in_configs.web_auth)
-    install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
-    _install_web_auth(app, sign_in_stores.sessions, page_build, (relying_party, resources[0]) if resources else None)
+    _install_sign_in_surface(
+        app,
+        sign_in_configs,
+        sign_in_stores,
+        relying_party,
+        page_build,
+        (relying_party, resources[0]) if resources else None,
+    )
 
     return app
