@@ -154,7 +154,7 @@ class Participation:
         await self._remove(agent)
         return None
 
-    def standings_of(self, person: Person) -> tuple[str, ...]:
+    async def standings_of(self, person: Person) -> tuple[str, ...]:
         """The rooms where the person holds a place of its own. An agent with an account of its own holds none yet."""
         del person
         return ()
