@@ -1,6 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
+from agent_runtime_client.mcp_server.wait import InMemoryMemberChanges
 from agent_runtime_client.wait import LEASE_SECONDS
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
@@ -11,7 +13,8 @@ pytestmark = pytest.mark.integration
 WAIT = "wait"
 OWNER = "owner-subject"
 SHORT_WAIT = {"timeout_seconds": 1}
-PENDING_CHECK_SECONDS = 0.2
+ARRIVAL_SECONDS = 10
+WOKEN_AT_ONCE_SECONDS = 10
 
 
 def cursor_of(dialed):
@@ -25,17 +28,33 @@ def agent(dialed_call):
     return token, cursor_of(dialed_call.call(token, WAIT, {}))
 
 
+@pytest.fixture
+def waiter_arrived(monkeypatch):
+    """Set once a wait has begun to block: the wait runs on without yielding from its entry to its first suspension,
+    so the app's loop cannot run anything else in between."""
+    arrived = Event()
+    wait = InMemoryMemberChanges.wait
+
+    async def announcing(self, recipient, after, seconds):
+        arrived.set()
+        return await wait(self, recipient, after, seconds)
+
+    monkeypatch.setattr(InMemoryMemberChanges, "wait", announcing)
+    return arrived
+
+
 class TestTheLease:
-    def test_a_pending_wait_answers_with_a_new_cursor_when_the_lease_times_out(self, dialed_call, agent):
+    def test_a_pending_wait_answers_with_a_new_cursor_when_the_lease_times_out(
+        self, dialed_call, agent, waiter_arrived
+    ):
         token, cursor = agent
         with ThreadPoolExecutor(max_workers=1) as executor:
             pending = executor.submit(dialed_call.call, token, WAIT, {"after": cursor})
-            with pytest.raises(TimeoutError):
-                pending.result(timeout=PENDING_CHECK_SECONDS)
+            assert waiter_arrived.wait(ARRIVAL_SECONDS)
 
             dialed_call.pass_time(LEASE_SECONDS)
 
-            assert cursor_of(pending.result()) != cursor
+            assert cursor_of(pending.result(timeout=WOKEN_AT_ONCE_SECONDS)) != cursor
 
     def test_a_call_within_the_lease_renews_it_so_the_wait_stays_blocked_past_the_first_deadline(
         self, dialed_call, agent
