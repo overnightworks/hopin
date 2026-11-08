@@ -275,6 +275,23 @@ class TestJoiningOneLiveSeat:
         assert agent_frames(guest, ParticipationSignal.AGENT_LEFT) == []
         assert await participation.leave(person_named("guest"), room_of(guest)) is AgentRefusal.GONE
 
+    async def test_call_48_a_room_that_ends_while_a_seats_cleanup_is_pending_sends_no_agent_left(
+        self, link, participation, scheduler
+    ):
+        """CALL-48: The room's end settles a departing seat's agents without a frame or an error."""
+        host, guest = await host_and_guest(link)
+        await dial(participation, guest)
+        guest.socket.account = None
+        closing = HeldClose(guest.socket)
+        ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+
+        await host.say({"type": SignalType.END_ROOM.value})
+        closing.release.set()
+        await ending
+
+        assert agent_frames(host, ParticipationSignal.AGENT_LEFT) == []
+
 
 @pytest.mark.asyncio
 class TestFramesOnlyTheServerSends:

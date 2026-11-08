@@ -201,8 +201,8 @@ class Participation:
         return in_room >= AGENTS_PER_ROOM or len(self._agents) >= AGENTS_PER_PROCESS
 
     def _in_call(self, agent: DialedAgent) -> bool:
-        """The agent is registered and its sponsor still sits in the agent's room."""
-        return agent.agent_id in self._agents and self._rooms.room_of(agent.sponsor) == agent.room_id
+        """The agent is registered, so its seat has not taken it away."""
+        return agent.agent_id in self._agents
 
     async def _remove(self, agent: DialedAgent) -> None:
         del self._agents[agent.agent_id]
