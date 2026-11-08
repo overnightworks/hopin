@@ -6,6 +6,7 @@ from agent_runtime_client.wait import LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.support.ports import unconfigured_ports
 from tests.signaling.support.browsers import Link
 from tests.support.signaling_fakes import SocketAccountResolver
 
@@ -16,7 +17,15 @@ def handler(room_manager, scheduler):
         room_manager,
         SocketAccountResolver(),
         scheduler,
-        [partial(Participation, scheduler=scheduler, lease_seconds=LEASE_SECONDS, on_changed=lambda person: None)],
+        [
+            partial(
+                Participation,
+                scheduler=scheduler,
+                lease_seconds=LEASE_SECONDS,
+                on_changed=lambda person: None,
+                **unconfigured_ports(),
+            )
+        ],
     )
 
 
