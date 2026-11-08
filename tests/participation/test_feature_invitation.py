@@ -56,15 +56,19 @@ class Invited:
         )
 
 
+async def add_the_offered_agent(member):
+    [offer] = offers_sent_to(member)
+    await member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
+    await let_reads_finish()
+
+
 @pytest_asyncio.fixture
 async def invited(link, participation):
     owner = await link.join(OWNER)
     member = await link.join("guest", owner.room_id)
     await agent_calls(participation)
     await let_reads_finish()
-    [offer] = offers_sent_to(member)
-    await member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
-    await let_reads_finish()
+    await add_the_offered_agent(member)
     return Invited(owner, member, participation)
 
 
@@ -190,9 +194,7 @@ class TestAnAgentInTheCall:
     async def test_an_agent_accepted_again_after_it_left_is_a_tile_under_another_id(self, invited):
         await invited.accept()
         await invited.participation.leave(AGENT, invited.owner.room_id)
-        [offer] = offers_sent_to(invited.member)
-        await invited.member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
-        await let_reads_finish()
+        await add_the_offered_agent(invited.member)
 
         await Invited(invited.owner, invited.member, invited.participation).accept()
 
