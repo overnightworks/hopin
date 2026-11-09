@@ -222,6 +222,11 @@ class ParticipationFeature:
         """None: an agent signs in at its own client, not through the page."""
         return ()
 
+    @property
+    def frame_sources(self) -> tuple[str, ...]:
+        """None: participation frames nothing."""
+        return ()
+
     def __call__(
         self,
         *,

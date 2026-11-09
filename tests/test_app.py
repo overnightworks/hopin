@@ -30,6 +30,7 @@ from hopin.config.secret_files import StartRefusedError
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_STYLESHEET, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
 
 pytestmark = pytest.mark.integration
@@ -73,6 +74,7 @@ class TestCreateApp:
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
         class BearerFeature:
             sign_in_scopes: tuple[str, ...] = ()
+            frame_sources: tuple[str, ...] = ()
 
             def __call__(self, **_: object) -> BearerFeature:
                 return self
@@ -177,6 +179,29 @@ class TestCreateApp:
         response = signed_in_client(sign_in_settings().settings).get("/health")
 
         assert f"script-src 'self' '{FIXTURE_SCRIPT_HASH}';" in response.headers["content-security-policy"]
+
+    @pytest.mark.parametrize(
+        ("frame_sources", "expected"),
+        [
+            ((), "frame-src 'none';"),
+            (("https://framed.example",), "frame-src https://framed.example;"),
+            (
+                ("https://framed.example", "https://other.example"),
+                "frame-src https://framed.example https://other.example;",
+            ),
+        ],
+    )
+    def test_the_policy_admits_exactly_the_origins_the_call_features_frame(
+        self, sign_in_settings, frame_sources, expected
+    ):
+        features = (WitnessFeatureBuilder(RecordingFeature, frame_sources=frame_sources),)
+        settings = sign_in_settings().settings
+
+        response = TestClient(
+            create_app(settings, page_build=fixture_page_build(), call_features=features), base_url=TEST_PUBLIC_ORIGIN
+        ).get("/health")
+
+        assert expected in response.headers["content-security-policy"]
 
     @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
     def test_generated_documentation_is_not_served(self, sign_in_settings, path):

@@ -9,6 +9,7 @@ from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
+from hopin.skat.feature import configured_skat_feature  # skat
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
 if TYPE_CHECKING:
@@ -51,6 +52,7 @@ def build_application(settings: ServerSettings) -> FastAPI:
         call_features=(
             configured_game_feature(),  # game
             ParticipationFeature(settings.public_origin, ParticipationSettings().agent_adders),
+            *configured_skat_feature(settings.public_origin),  # skat
         ),
     )
 

@@ -3,6 +3,7 @@ import { untrack } from "svelte";
 import { DEFAULT_AGENT_KEY, type AgentTile } from "#lib/call/feature-port.ts";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
+import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 
 // The starting values are what the layout's markup shows before the first call.
 export const ownPicture = $state<{
@@ -46,6 +47,13 @@ export const agentTiles = new SvelteMap<string, AgentTile>();
 export function showAgentTile(tile: AgentTile | null, key: string = DEFAULT_AGENT_KEY) {
     if (tile === null) agentTiles.delete(key);
     else agentTiles.set(key, tile);
+}
+
+// The one view a feature shows on the stage; while it is there the layout puts every tile into a strip.
+export const stageSurface = $state<{ view: FeatureView | null }>({ view: null });
+
+export function showStage(view: FeatureView | null) {
+    stageSurface.view = view;
 }
 
 /** The tiles the stage lays out: the own one, the people's and the agents'. */

@@ -32,7 +32,11 @@ export function pictureInPicture(ownTile: HTMLElement): () => void {
     let drag: Drag | null = null;
 
     function isPictureInPicture(): boolean {
-        return stage.dataset.count === PICTURE_IN_PICTURE_COUNT && matchMedia(PHONE_LAYOUT_QUERY).matches;
+        return (
+            stage.dataset.count === PICTURE_IN_PICTURE_COUNT &&
+            stage.dataset.surface === undefined &&
+            matchMedia(PHONE_LAYOUT_QUERY).matches
+        );
     }
 
     function startDrag(event: PointerEvent): void {
@@ -76,7 +80,7 @@ export function pictureInPicture(ownTile: HTMLElement): () => void {
     }
 
     const countObserver = new MutationObserver(releaseHeldDragWhenPictureInPictureEnds);
-    countObserver.observe(stage, { attributes: true, attributeFilter: ["data-count"] });
+    countObserver.observe(stage, { attributes: true, attributeFilter: ["data-count", "data-surface"] });
 
     ownTile.addEventListener("pointerdown", startDrag);
     ownTile.addEventListener("pointermove", moveDrag);

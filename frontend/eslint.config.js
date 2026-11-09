@@ -4,9 +4,9 @@ import svelte from "eslint-plugin-svelte";
 import globals from "globals";
 import ts from "typescript-eslint";
 
-const GAME_IMPORTS = {
-    group: ["#lib/features/game/**", "**/features/game/**"],
-    message: "The game is removable: the call's code never imports it; the page activates it by name.",
+const FEATURE_IMPORTS = {
+    group: ["#lib/features/**", "**/features/**"],
+    message: "A feature is removable: the call's code never imports it; the page activates it by name.",
 };
 
 export default ts.config(
@@ -48,9 +48,9 @@ export default ts.config(
         rules: { "@typescript-eslint/no-explicit-any": "error" },
     },
     {
-        // The call's code is bundled without the game, which loads only dynamically.
-        ignores: ["src/lib/features/game/**"],
-        rules: { "no-restricted-imports": ["error", { patterns: [GAME_IMPORTS] }] },
+        // The call's code is bundled without any feature, which loads only dynamically.
+        ignores: ["src/lib/features/**"],
+        rules: { "no-restricted-imports": ["error", { patterns: [FEATURE_IMPORTS] }] },
     },
     { ignores: ["build/", ".svelte-kit/", "coverage/", "../src/hopin/web/build/"] },
 );

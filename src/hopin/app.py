@@ -94,6 +94,10 @@ class CallFeatureBuilder(Protocol):
     def sign_in_scopes(self) -> tuple[str, ...]:
         """The scopes the feature needs the person's sign-in to ask for."""
 
+    @property
+    def frame_sources(self) -> tuple[str, ...]:
+        """The origins the page may frame for the feature; none keeps `frame-src 'none'`."""
+
     def __call__(
         self,
         *,
@@ -173,12 +177,15 @@ def _install_web_auth(
     sessions: InMemorySessions,
     page_build: PageBuild,
     bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
+    call_features: Sequence[CallFeatureBuilder],
 ) -> None:
+    frame_sources = tuple(source for builder in call_features for source in builder.frame_sources)
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(
-                page_build.script_hashes, added_sources={CspDirective.STYLE_SRC: ANNOUNCER_STYLE_SOURCES}
+                page_build.script_hashes,
+                added_sources={CspDirective.STYLE_SRC: ANNOUNCER_STYLE_SOURCES, CspDirective.FRAME_SRC: frame_sources},
             ),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
@@ -207,6 +214,15 @@ def _include_feature_routes(app: FastAPI, built_features: list[BuiltCallFeature]
         app.include_router(built.router)
         if built.bearer_resource is not None:
             install_resource_metadata(app, built.bearer_resource, issuer=issuer)
+
+
+def _bearer_of(
+    built_features: list[BuiltCallFeature], relying_party: OidcRelyingParty
+) -> tuple[OidcRelyingParty, ProtectedResource] | None:
+    resources = [built.bearer_resource for built in built_features if built.bearer_resource is not None]
+    if len(resources) > 1:
+        raise StartRefusedError("Only one call feature may serve a bearer-token resource")
+    return (relying_party, resources[0]) if resources else None
 
 
 def create_app(
@@ -240,9 +256,7 @@ def create_app(
         )
         for builder in call_features
     ]
-    resources = [built.bearer_resource for built in built_features if built.bearer_resource is not None]
-    if len(resources) > 1:
-        raise StartRefusedError("Only one call feature may serve a bearer-token resource")
+    bearer = _bearer_of(built_features, relying_party)
     signaling_handler = SignalingHandler(
         room_manager,
         SessionIdentityResolver(sign_in_stores.sessions),
@@ -265,6 +279,6 @@ def create_app(
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
-    _install_web_auth(app, sign_in_stores.sessions, page_build, (relying_party, resources[0]) if resources else None)
+    _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
 
     return app

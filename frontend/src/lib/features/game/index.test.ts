@@ -59,6 +59,8 @@ async function installedGame({ connected = true } = {}) {
         pinLastChatLine: (view) => void pinned.push(handedOver(view)),
         showChatCard: (view) => void cards.push(handedOver(view)),
         showAgentTile: (tile) => void agentTiles.push(tile),
+        showStage: () => undefined,
+        closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
     };
     await install(core);

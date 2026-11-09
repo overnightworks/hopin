@@ -258,14 +258,18 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  removal-drill:
-    name: Removal drill
+  removal-drill-leg:
+    name: Removal drill leg
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [game, skat]
     env:
-      COPY: ${{ github.workspace }}-without-the-game
+      COPY: ${{ github.workspace }}-without-${{ matrix.feature }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -277,13 +281,15 @@ jobs:
         with:
           python-version: "3.14"
 
-      # The AI game must stay removable: the script edits only this copy, and
-      # everything below runs there, so a core module that reaches the game
-      # fails here.
-      - name: Remove the game from a copy
+      # Each optional feature must stay removable: the script edits only this
+      # copy, and everything below runs there, so a core module that reaches
+      # the feature fails here.
+      - name: Remove the feature from a copy
+        env:
+          FEATURE: ${{ matrix.feature }}
         run: |
           cp -a "${GITHUB_WORKSPACE}" "${COPY}"
-          python3 scripts/remove_game.py "${COPY}"
+          python3 scripts/remove_feature.py "${FEATURE}" "${COPY}"
 
       - name: Install dependencies
         working-directory: ${{ env.COPY }}
@@ -292,7 +298,7 @@ jobs:
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       # The page the call runs in is built in the copy, so a core module that
-      # reaches the game fails the check or the build here too.
+      # reaches the feature fails the check or the build here too.
       - name: Install pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
         with:
@@ -346,6 +352,24 @@ jobs:
         working-directory: ${{ env.COPY }}
         timeout-minutes: 5
         run: pytest -q -m e2e tests/e2e/test_call.py --no-cov
+
+  # The quality gate counts a matrix leg by its own name, so the one name it requires is this job: green only when
+  # every leg is.
+  removal-drill:
+    name: Removal drill
+    needs: removal-drill-leg
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Require every leg to have passed
+        env:
+          LEGS: ${{ needs.removal-drill-leg.result }}
+        run: |
+          echo "removal drill legs: ${LEGS}"
+          [ "${LEGS}" = success ]
 
   frontend:
     name: Frontend
