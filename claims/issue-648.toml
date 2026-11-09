@@ -1,8 +1,0 @@
-claim_id = "a94bd4d2ca2f47ddba358fd5cb9709c2"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "8c71871c17aaa44b98bbb0223a25f7d985d1f0d2"
-branch = "claude/issue-648-forged-add-refused-the-same-way"
-scope = ["src/hopin/agent/session_groups.py", "tests/agent/test_session_groups.py", "tests/participation/test_feature_own_account.py", "tests/support/fake_issuer.py"]
-opened_commit = "902cdcb096395ed3b9cec7cec33b8269d359948b"
-whole_reason = "One fake and its proof: the issuer fake's refresh rule, the test that pins it, and the revert of the lock the first lane put beside it."
