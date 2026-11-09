@@ -258,8 +258,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  removal-drill:
-    name: Removal drill
+  removal-drill-leg:
+    name: Removal drill leg
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -352,6 +352,24 @@ jobs:
         working-directory: ${{ env.COPY }}
         timeout-minutes: 5
         run: pytest -q -m e2e tests/e2e/test_call.py --no-cov
+
+  # The quality gate counts a matrix leg by its own name, so the one name it requires is this job: green only when
+  # every leg is.
+  removal-drill:
+    name: Removal drill
+    needs: removal-drill-leg
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Require every leg to have passed
+        env:
+          LEGS: ${{ needs.removal-drill-leg.result }}
+        run: |
+          echo "removal drill legs: ${LEGS}"
+          [ "${LEGS}" = success ]
 
   frontend:
     name: Frontend

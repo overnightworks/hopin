@@ -13,6 +13,6 @@ The head's decisions, which carry the item's lines O1 A, O2 A and H10:
 - SK-07: Unset, there is no Skat: no item in More and `frame-src 'none'`. Set, the page may frame exactly that origin, and an origin equal to `HOPIN_PUBLIC_ORIGIN` as a browser compares origins refuses the start. Proven by `tests/skat/test_settings.py`, `tests/skat/test_feature_csp.py` and `tests/test_app.py`.
 - SK-08: Only a link to a table of the configured origin is accepted, and the frame loads `{origin}/t/{id}?mode=call` alone. Proven by `tests/skat/test_settings_links.py`.
 - SK-09: The frame cannot use the camera, the microphone or screen capture, sends no referrer, and cannot navigate the page, open a modal or submit a form. Proven by `tests/e2e/skat/test_skat_table.py` against a stand-in table page.
-- SK-10: Removing Skat from the code leaves the call and the other features, and removing the game leaves Skat. Proven by the CI job `Removal drill`, a matrix over the game and Skat.
+- SK-10: Removing Skat from the code leaves the call and the other features, and removing the game leaves Skat. Proven by the CI job `Removal drill`, whose legs run the game's and Skat's deletion.
 
 Deferred: the operator's ruling B, each player's video at that player's chair, belongs to the slice 2b of overnightworks/hopin#499; until then every video is in the strip.
