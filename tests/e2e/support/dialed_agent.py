@@ -20,7 +20,7 @@ from hopin.config.constants import LOGIN_GROUP
 from tests.e2e.support.people import PHONE
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from concurrent.futures import Future
 
     from tests.e2e.support.server import RunningServer
@@ -106,22 +106,14 @@ class Agent:
         self._request.dispose()
 
 
-class OwnAccountAgent:
-    """An agent with an account of its own, as a scripted client on the official SDK: it signs in with a
-    client-credentials shaped token and calls HopIn's MCP endpoint the way the runner does. The SDK runs on an event
-    loop of its own thread, so the browser keeps its owning thread; `close` ends the stream and joins the thread."""
+class SdkAgent:
+    """A scripted client on the official SDK that calls HopIn's MCP endpoint with a token as the runner does. The SDK
+    runs on an event loop of its own thread, so the browser keeps its owning thread; `close` ends the stream and joins
+    the thread."""
 
-    def __init__(self, server: RunningServer, owner_subject: str, name: str):
+    def __init__(self, server: RunningServer, token: str):
         self._url = f"{server.base_url}/mcp"
-        self.name = name
-        self._token = server.issuer.access_token(
-            f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
-            audience=self._url,
-            authorized_party="some-agent-client",
-            scope=MCP_SCOPE,
-            groups=(AGENT_GROUP, MCP_GROUP),
-            extra_claims={"agent_owner": owner_subject, "agent_name": name},
-        )
+        self._token = token
         self._loop = asyncio.new_event_loop()
         self._opened = threading.Event()
         self._acknowledged = threading.Event()
@@ -153,8 +145,8 @@ class OwnAccountAgent:
             self._opened.set()
             await self._stopping.wait()
 
-    async def _listen_for_wakes(self) -> None:
-        async with self._client.listen(resource_subscriptions=[STANDING_URI]) as stream:
+    async def _listen_for_wakes(self, uris: Sequence[str]) -> None:
+        async with self._client.listen(resource_subscriptions=list(uris)) as stream:
             self._acknowledged.set()
             async for _event in stream:
                 self._woken.set()
@@ -162,18 +154,53 @@ class OwnAccountAgent:
     def _run(self, coroutine: Any) -> Any:
         return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(REQUEST_SECONDS)
 
-    def listen(self) -> None:
-        """Open the stream on the standing and return once the server has acknowledged it."""
-        self._stream = asyncio.run_coroutine_threadsafe(self._listen_for_wakes(), self._loop)
+    def listen(self, uris: Sequence[str] = (STANDING_URI,)) -> None:
+        """Replace the stream with one on the resources and return once the server has acknowledged it."""
+        if self._stream is not None:
+            self._stream.cancel()
+        self._acknowledged.clear()
+        self._woken.clear()
+        self._stream = asyncio.run_coroutine_threadsafe(self._listen_for_wakes(uris), self._loop)
         assert self._acknowledged.wait(REQUEST_SECONDS)
 
-    def standings(self) -> list[dict[str, Any]]:
-        read = self._run(self._client.read_resource(STANDING_URI))
-        return json.loads(read.contents[0].text)["standings"]
+    def read(self, uri: str) -> dict[str, Any]:
+        return json.loads(self._run(self._client.read_resource(uri)).contents[0].text)
+
+    def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        return json.loads(self._run(self._client.call_tool(tool, arguments)).content[0].text)
 
     def woken_within(self, seconds: float) -> bool:
         """Whether the stream has woken the agent, waiting up to `seconds` for it."""
         return self._woken.wait(seconds)
+
+    def forget_wakes(self) -> None:
+        self._woken.clear()
+
+    def close(self) -> None:
+        if self._stream is not None:
+            self._stream.cancel()
+        self._loop.call_soon_threadsafe(self._stopping.set)
+        self._thread.join(REQUEST_SECONDS)
+        self._loop.close()
+
+
+class OwnAccountAgent(SdkAgent):
+    """An agent with an account of its own, signed in with a client-credentials shaped token."""
+
+    def __init__(self, server: RunningServer, owner_subject: str, name: str):
+        self.name = name
+        token = server.issuer.access_token(
+            f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
+            audience=f"{server.base_url}/mcp",
+            authorized_party="some-agent-client",
+            scope=MCP_SCOPE,
+            groups=(AGENT_GROUP, MCP_GROUP),
+            extra_claims={"agent_owner": owner_subject, "agent_name": name},
+        )
+        super().__init__(server, token)
+
+    def standings(self) -> list[dict[str, Any]]:
+        return self.read(STANDING_URI)["standings"]
 
     def invitation_within(self, seconds: int) -> dict[str, Any]:
         """The standing that holds an invitation, once the stream has woken the agent."""
@@ -184,15 +211,24 @@ class OwnAccountAgent:
     def accept(self, standing: dict[str, Any]) -> dict[str, Any]:
         invitation = standing["invitation"]
         arguments = {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
-        answer = self._run(self._client.call_tool(ACCEPT_INVITATION_TOOL, arguments))
-        return json.loads(answer.content[0].text)
+        return self.call(ACCEPT_INVITATION_TOOL, arguments)
 
-    def close(self) -> None:
-        if self._stream is not None:
-            self._stream.cancel()
-        self._loop.call_soon_threadsafe(self._stopping.set)
-        self._thread.join(REQUEST_SECONDS)
-        self._loop.close()
+
+class OwnAgent(SdkAgent):
+    """A person's own agent, signed in with the person's token as the client does that holds it."""
+
+    def __init__(self, server: RunningServer, account_id: str):
+        token = server.issuer.access_token(
+            account_id,
+            audience=f"{server.base_url}/mcp",
+            authorized_party=MCP_CLIENT_ID,
+            scope=MCP_SCOPE,
+            groups=(LOGIN_GROUP, MCP_GROUP),
+        )
+        super().__init__(server, token)
+
+    def dial_in(self, room: str, name: str) -> dict[str, Any]:
+        return self.call(JOIN_CALL, {"room": room, "name": name})
 
 
 def assert_tiles_clear_of_the_controls(person: Page, tiles: int, form_factor: dict[str, Any]) -> None:

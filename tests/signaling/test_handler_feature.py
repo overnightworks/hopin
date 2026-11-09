@@ -307,6 +307,48 @@ class TestSeatChanged:
         assert feature.changed == []
 
 
+@pytest.mark.asyncio
+class TestChatSaid:
+    async def test_a_relayed_line_is_heard_with_its_seat_and_room_before_the_relay_sends(self, link_with):
+        link = link_with({"handles": frozenset()})
+        host, guest = await host_and_guest(link)
+        feature = link.handler.features[0]
+        relaying = HeldWrite(guest.socket)
+
+        relayed = asyncio.create_task(host.say({"type": SignalType.CHAT.value, "message": "hello"}))
+        await relaying.reached()
+        heard_while_relaying = list(feature.said)
+        relaying.release.set()
+        await relayed
+
+        assert heard_while_relaying == [(host.peer_id, host.room_id, "hello")]
+
+    async def test_a_duplicate_frame_is_heard_once(self, link_with):
+        link = link_with({"handles": frozenset()})
+        host, _guest = await host_and_guest(link)
+
+        await say_twice(host, {"type": SignalType.CHAT.value, "message": "hello"})
+
+        assert link.handler.features[0].said == [(host.peer_id, host.room_id, "hello")]
+
+    async def test_an_empty_line_is_not_heard(self, link_with):
+        link = link_with({"handles": frozenset()})
+        host, _guest = await host_and_guest(link)
+
+        await host.say({"type": SignalType.CHAT.value, "message": ""})
+
+        assert link.handler.features[0].said == []
+
+    async def test_a_line_from_a_seat_in_no_room_is_not_heard(self, link_with):
+        link = link_with({"handles": frozenset()})
+        socket = await link.open(account_named("lonely"))
+
+        socket.push(text_frame({"type": SignalType.CHAT.value, "message": "hello"}))
+        await link.settle(socket)
+
+        assert link.handler.features[0].said == []
+
+
 class TestClashAtStart:
     @pytest.mark.parametrize(
         "signal_types",

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_NAME, OWNER_SUBJECT, OwnAccountAgent
+from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_NAME, OWNER_SUBJECT, OwnAccountAgent, OwnAgent
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 
 if TYPE_CHECKING:
@@ -44,3 +44,17 @@ def grant_adders(e2e_server: RunningServer) -> Callable[[str], None]:
         e2e_server.issuer.grant_groups(subject, (ADDERS_GROUP,))
 
     return grant
+
+
+@pytest.fixture
+def own_agent_of(e2e_server: RunningServer) -> Iterator[Callable[[str], OwnAgent]]:
+    """A person's own scripted agent by the person's account id; each ends with the test."""
+    agents: list[OwnAgent] = []
+
+    def make(account_id: str) -> OwnAgent:
+        agents.append(OwnAgent(e2e_server, account_id))
+        return agents[-1]
+
+    yield make
+    for agent in agents:
+        agent.close()

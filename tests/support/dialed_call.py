@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 import anyio
 from agent_runtime_client.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
-from agent_runtime_client.member import STANDING_URI
+from agent_runtime_client.member import STANDING_URI, PlaceRef, place_window_uri
 from fastapi.testclient import TestClient
 from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
 from webauth.admission import AppRole
@@ -19,6 +19,7 @@ from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind
 
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, ParticipationFeature
+from hopin.agent.tools import CALL_KIND
 from hopin.app import create_app
 from hopin.auth.stores import SignInStores
 from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
@@ -252,6 +253,15 @@ class DialedCall:
         response = self.request(token, "resources/read", {"uri": STANDING_URI}, routing_name=STANDING_URI)
         return json.loads(response.json()["result"]["contents"][0]["text"])["standings"]
 
+    def listed(self, token):
+        """The URIs `resources/list` answers the token's principal, in the order it answers them."""
+        return [resource["uri"] for resource in self.request(token, "resources/list").json()["result"]["resources"]]
+
+    def window(self, token, room_id):
+        """The JSON-RPC answer to reading the chat window of the call: its `result` or its `error`."""
+        uri = window_uri(room_id)
+        return self.request(token, "resources/read", {"uri": uri}, routing_name=uri).json()
+
     def pass_time(self, seconds):
         """Move the app's clock on its own loop, running the timers that fall due."""
         self.client.portal.call(self.scheduler.advance, seconds)
@@ -279,6 +289,10 @@ class DialedCall:
             return Dialed(response.status_code, None, None, response)
         result = response.json()["result"]
         return Dialed(200, json.loads(result["content"][0]["text"]), result["isError"], response)
+
+
+def window_uri(room_id):
+    return place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
 
 
 def join_arguments(seat, name="Claude"):

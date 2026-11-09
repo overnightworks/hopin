@@ -73,7 +73,14 @@ class _BuiltParticipation:
 
     def build(self, rooms: CallRooms) -> CallFeature:
         self.participation = Participation(
-            rooms, self.scheduler, LEASE_SECONDS, self._tell_changed, self._tell_window_changed, self.wall_clock, self.adders, self._groups_of
+            rooms,
+            self.scheduler,
+            LEASE_SECONDS,
+            self._tell_changed,
+            self._tell_window_changed,
+            self.wall_clock,
+            self.adders,
+            self._groups_of,
         )
         return self.participation
 
