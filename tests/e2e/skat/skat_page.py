@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from tests.e2e.skat.stub_skat import StubSkat
 
 FRAME = ".skat-frame"
+SURFACE = "#stage .surface"
 STRIP_TILES = "#videoGrid .tile"
 REMOVE_TABLE = "button.skat-remove"
 SHOW_ITEM = "#skatShowBtn"
