@@ -1,0 +1,7 @@
+claim_id = "f30721e14e304790927afe15d38bebff"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "815299568d2c0c43bd414f9494a59d660da60441"
+branch = "claude/issue-645-privacy-part-names-the-public-song"
+scope = ["legal/datenschutz.html"]
+opened_commit = "2f5652de468f0005eba1441e30db7f2f426588b2"
