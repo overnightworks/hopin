@@ -95,9 +95,7 @@ class _BuiltParticipation:
         self.changes.changed(Principal(iss=person.issuer, sub=person.subject), STANDING_URI)
 
     def _tell_window_changed(self, person: Person, room_id: str) -> None:
-        self.changes.changed(
-            Principal(iss=person.issuer, sub=person.subject), place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
-        )
+        self.changes.changed(Principal(iss=person.issuer, sub=person.subject), _call_window_uri(room_id))
 
     def current(self) -> Participation:
         return self.participation
@@ -110,6 +108,10 @@ class BuiltParticipationFeature:
     factory: FeatureFactory
     router: APIRouter
     bearer_resource: ProtectedResource
+
+
+def _call_window_uri(room_id: str) -> str:
+    return place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
 
 
 def _principal_of(issuer: str, scope: Scope) -> Principal:
@@ -190,10 +192,7 @@ class _MemberResources:
 
     async def current(self, principal: Principal) -> Collection[str]:  # NOSONAR(S7503) MemberResources is async
         person = Person(principal.iss, principal.sub)
-        windows = tuple(
-            place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
-            for room_id in self.participation().window_rooms_of(person)
-        )
+        windows = tuple(_call_window_uri(room_id) for room_id in self.participation().window_rooms_of(person))
         return (STANDING_URI, *windows) if self.participation().is_live_agent(person) else windows
 
     async def read(  # NOSONAR(S7503) MemberResources is async

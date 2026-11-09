@@ -92,7 +92,8 @@ class TestReadingAWindow:
         other = dialed_call.seat(dialed_call.member()[1], seat.room_id)
         other.send(chat(f"broken {LONE_SURROGATE}"))
         other.send(chat("fine"))
-        seat.frame_of_type(SignalType.CHAT.value)
+        while seat.frame_of_type(SignalType.CHAT.value)["message"] != "fine":
+            pass
 
         window = window_of(dialed_call.window(token, seat.room_id))
 
