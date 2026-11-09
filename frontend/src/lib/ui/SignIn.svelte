@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { SignInPage, type SignInState } from "overnightworks-appkit";
+    import { SignInPage, type SignInState } from "overnightworks-design";
     import { LEGAL_LINKS } from "#lib/legal.ts";
     import { AUTH_START_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
