@@ -1,7 +1,0 @@
-claim_id = "497555c2b4344ea3b609a8d124abb811"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "31beac08f57fe6dea28b81b69f9dbf581425607e"
-branch = "claude/issue-631-take-agent-runtime-client-v0-28-0"
-scope = ["pyproject.toml", "tests/game/test_quiz_agent_gateway.py", "uv.lock"]
-opened_commit = "50ab5ca24dbb4e0756258f3bfad09f533c07962e"
