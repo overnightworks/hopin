@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import Page
 
-    from tests.e2e.participation.conftest import Scene
     from tests.e2e.support.dialed_agent import OwnAgent
+    from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e

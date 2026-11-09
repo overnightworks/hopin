@@ -11,7 +11,7 @@ from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.e2e.participation.conftest import Scene
+    from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
