@@ -1,10 +1,14 @@
 import asyncio
+import threading
+from dataclasses import dataclass
 from functools import partial
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
 from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
+from fastapi import APIRouter
 
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import ParticipationSignal
@@ -13,7 +17,7 @@ from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupRe
 from tests.signaling.support.browsers import Link
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
-from tests.support.signaling_fakes import SocketAccountResolver
+from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
 
 
 class Change(NamedTuple):
@@ -106,11 +110,46 @@ OWNER_SUBJECT = "subject-owner"
 ADDERS = "/apps/hopin/agent-adders"
 
 
+@dataclass(eq=False)
+class SeatChangeWitness(RecordingFeature):
+    """A call feature that sets `announced` when the call core announces a seat's change; it sits before
+    participation, so a change is announced to it once the seat's park is visible."""
+
+    announced: threading.Event | None = None
+
+    def seat_changed(self, peer_id):
+        self.announced.set()
+
+
+@dataclass(frozen=True)
+class SeatChangeWitnessBuilder:
+    announced: threading.Event
+    sign_in_scopes: tuple[str, ...] = ()
+
+    def __call__(self, **_options):
+        return SimpleNamespace(
+            factory=lambda rooms: SeatChangeWitness(rooms, announced=self.announced),
+            router=APIRouter(),
+            bearer_resource=None,
+        )
+
+
 @pytest.fixture
-def adding_call(sign_in_settings):
+def seat_changes():
+    """Set whenever the call core announces a change of a seat; the test clears it before it causes one."""
+    return threading.Event()
+
+
+@pytest.fixture
+def adding_call(sign_in_settings, seat_changes):
     """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
     sign_in = sign_in_settings()
-    with serving_dialed_call(sign_in, FakeIssuer(sign_in), {OWNER_SUBJECT: ADDERS}) as call:
+    with serving_dialed_call(
+        sign_in,
+        FakeIssuer(sign_in),
+        {OWNER_SUBJECT: ADDERS},
+        more_call_features=(SeatChangeWitnessBuilder(seat_changes),),
+    ) as call:
         yield call
 
 
