@@ -69,7 +69,7 @@ def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_read
     say_in_chat(host, "before the join")
     member.click("#chatBtn")
     expect(member.locator(CHAT_LINE)).to_have_count(1)
-    member.click("#chatBtn")
+    member.click("#chatClose")
     open_more(member)
     offer = member.locator(OFFER, has_text=own_account_agent.name)
     offer.click()
