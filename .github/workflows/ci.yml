@@ -9,9 +9,10 @@ on:
 permissions:
   contents: read
 
-# A newer push to a pull request supersedes its running predecessor; a run on main always finishes.
+# A newer push to a pull request supersedes its running predecessor. Every other run has a group of its own: runs on
+# main share a ref, and GitHub drops a queued run from a shared group whatever cancel-in-progress says.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
