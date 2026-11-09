@@ -65,14 +65,16 @@ class Agent:
     """A person's own agent, calling HopIn's MCP endpoint with a token its client would hold."""
 
     def __init__(self, playwright: Playwright, server: RunningServer, person: Page, member_of: Callable[..., Any]):
-        self._agent = OwnAgent(server, member_of(person).account.id)
         self._room = room_of_link(person.url)
+        self._agent = OwnAgent(server, member_of(person).account.id)
 
     def dial_in(self, name: str) -> None:
-        self._agent.dial_in(self._room, name)
+        answer = self._agent.dial_in(self._room, name)
+        assert "refused" not in answer, answer
 
     def say(self, text: str) -> None:
-        self._agent.say(self._room, text)
+        answer = self._agent.say(self._room, text)
+        assert "refused" not in answer, answer
 
     def close(self) -> None:
         self._agent.close()
