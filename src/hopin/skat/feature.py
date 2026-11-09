@@ -126,7 +126,7 @@ class Skat:
         }
 
     async def _tell_room(self, room_id: str) -> None:
-        for member in list(self._rooms.members(room_id)):
+        for member in self._rooms.members(room_id):
             await self._rooms.send(member, self._table_frame(room_id))
 
 
@@ -170,8 +170,8 @@ class SkatFeature:
 
 def configured_skat_feature(public_origin: str) -> tuple[SkatFeature, ...]:
     """Skat as the environment configures it: one feature for a configured origin, none for an unset one."""
-    origin = SkatSettings().origin
-    if origin is None:
-        return ()
-    check_origin_differs(origin, public_origin)
-    return (SkatFeature(origin),)
+    configured = SkatSettings().origin
+    origins = () if configured is None else (configured,)
+    for origin in origins:
+        check_origin_differs(origin, public_origin)
+    return tuple(SkatFeature(origin) for origin in origins)
