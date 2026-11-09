@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from tests.e2e.skat.stub_skat import StubSkat
+    from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
@@ -127,14 +128,19 @@ def test_anyone_removes_the_table_once_its_opener_has_left(
 
 
 def test_a_seat_that_reloads_joins_afresh_and_sees_the_table(
-    open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    browser_coverage: BrowserCoverage,
 ) -> None:
     device = DESKTOP
-    host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, device)
+    host, guest, _invite_link = open_call(open_person, e2e_server.base_url, page_errors, device)
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(guest, stub_skat)
 
-    guest.goto(invite_link)
+    with browser_coverage.passing_through(guest):
+        guest.reload()
     press_through_the_prejoin(guest)
 
     expect_table_on_stage(guest, stub_skat)
