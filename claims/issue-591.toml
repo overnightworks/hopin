@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "31beac08f57fe6dea28b81b69f9dbf581425607e"
 branch = "claude/issue-591-skat-table-on-stage"
-scope = [".github/workflows/ci.yml", "README.md", "docs/ARCHITECTURE.md", "docs/skat.md", "frontend/eslint.config.js", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/skat", "frontend/src/lib/ui/pip.ts", "frontend/src/lib/ui/stage.svelte.ts", "frontend/src/routes/(call)", "pyproject.toml", "scripts", "src/hopin/agent/feature.py", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/main.py", "src/hopin/skat", "src/hopin/web/static/assets/css/hopin.css", "tests"]
+scope = [".github/workflows/ci.yml", "README.md", "docs/ARCHITECTURE.md", "docs/skat.md", "frontend/eslint.config.js", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/skat", "frontend/src/lib/ui/pip.ts", "frontend/src/lib/ui/stage.svelte.ts", "frontend/src/routes/(call)", "pyproject.toml", "quality/config.toml", "scripts", "src/hopin/agent/feature.py", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/main.py", "src/hopin/skat", "src/hopin/web/static/assets/css/hopin.css", "tests"]
 opened_commit = "2ea2bb9bab40226180f556582d7ea264b810b470"
 whole_reason = "One trust boundary and one flow: the stage slot, the sandboxed frame with its CSP, the strip and the server attachment have no caller or safe effect without each other."
