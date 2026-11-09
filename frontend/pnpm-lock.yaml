@@ -210,8 +210,8 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
       overnightworks-appkit:
-        specifier: https://github.com/overnightworks/appkit/releases/download/v0.16.0/overnightworks-appkit-0.16.0.tgz
-        version: https://github.com/overnightworks/appkit/releases/download/v0.16.0/overnightworks-appkit-0.16.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
+        specifier: https://github.com/overnightworks/appkit/releases/download/v0.17.0/overnightworks-appkit-0.17.0.tgz
+        version: https://github.com/overnightworks/appkit/releases/download/v0.17.0/overnightworks-appkit-0.17.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -1213,9 +1213,9 @@ packages:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
 
-  overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.16.0/overnightworks-appkit-0.16.0.tgz:
-    resolution: {integrity: sha512-EDWfUTEqfD3eakbCUBrHY7s4cyG0qh3TYDug0lVEGU6HXm5b9k1ZBnW9OTbx/2dssqv8y5vFS3RNtBsJ+1ruOg==, tarball: https://github.com/overnightworks/appkit/releases/download/v0.16.0/overnightworks-appkit-0.16.0.tgz}
-    version: 0.16.0
+  overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.17.0/overnightworks-appkit-0.17.0.tgz:
+    resolution: {integrity: sha512-aV2JHP7Blu+ST3GwrFva0zn1H4jpc2mRF3+Wax2AT7Map2wWYQJ/KJj1Up5xiWSIqoHX7ej5OtNDVCafKTaxXg==, tarball: https://github.com/overnightworks/appkit/releases/download/v0.17.0/overnightworks-appkit-0.17.0.tgz}
+    version: 0.17.0
     peerDependencies:
       svelte: ^5.20.0
 
@@ -2531,7 +2531,7 @@ snapshots:
       type-check: 0.4.0
       word-wrap: 1.2.5
 
-  overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.16.0/overnightworks-appkit-0.16.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
+  overnightworks-appkit@https://github.com/overnightworks/appkit/releases/download/v0.17.0/overnightworks-appkit-0.17.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.72.1)
 

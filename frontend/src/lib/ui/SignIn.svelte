@@ -3,7 +3,7 @@
     import { LEGAL_LINKS } from "#lib/legal.ts";
     import { AUTH_START_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
-    const { page }: { page: SignInState["page"] } = $props();
+    const { page }: { page: Exclude<SignInState["page"], "signing-in"> } = $props();
     const signInState = $derived.by((): SignInState => {
         if (page === "no-access") {
             return { page, logOutAction: LOGOUT_PATH };
