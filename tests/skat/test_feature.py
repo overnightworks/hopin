@@ -11,6 +11,8 @@ from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = pytest.mark.integration
 
+FIRST_ATTACHMENT = 1
+
 
 def tables(browser):
     """The state frames the browser was sent, without their sequence numbers, which are the seat's own."""
@@ -151,6 +153,21 @@ class TestDetach:
         [error] = opener.frames(SignalType.ERROR)
         assert error["reason"] == "invalid_message"
 
+    async def test_an_attach_still_being_sent_reaches_a_later_seat_as_the_state_of_the_moment_it_is_sent(self, link):
+        host, opener, guest = await host_opener_and_guest(link)
+        clear_sent(host, opener, guest)
+        held = HeldWrite(host.socket, first_only=True)
+
+        attaching = asyncio.create_task(attach(opener))
+        await held.reached()
+        await detach(host, FIRST_ATTACHMENT)
+        held.release.set()
+        await attaching
+
+        last = tables(guest)[-1]
+        assert last["attachment"] is None
+        assert last["revision"] == max(frame["revision"] for frame in tables(guest))
+
 
 @pytest.mark.asyncio
 class TestTheOpenerLeaves:
@@ -166,23 +183,6 @@ class TestTheOpenerLeaves:
         assert stays["revision"] > shown["revision"]
         await detach(guest, shown["attachment"])
         assert tables(host)[-1]["attachment"] is None
-
-    async def test_an_attach_still_being_sent_ends_on_the_newer_state_without_an_opener(self, link):
-        host, opener, guest = await host_opener_and_guest(link)
-        clear_sent(host, opener, guest)
-        held = HeldWrite(guest.socket, first_only=True)
-
-        attaching = asyncio.create_task(attach(opener))
-        await held.reached()
-        leaving = asyncio.create_task(opener.drop(1000))
-        await asyncio.sleep(0)  # the opener's close is read; the seat's change is applied before anything is awaited
-        held.release.set()
-        await asyncio.gather(attaching, leaving)
-
-        last = tables(guest)[-1]
-        assert (last["attachment"] is not None, last["opener_id"]) == (True, None)
-        revisions = [frame["revision"] for frame in tables(guest)]
-        assert last["revision"] == max(revisions)
 
 
 @pytest.mark.asyncio
@@ -241,3 +241,13 @@ class TestTheCallsEnd:
         await host.say({"type": SignalType.END_ROOM.value})
 
         assert (len(tables(opener)), bool(opener.frames(SignalType.ROOM_CLOSED))) == (shown_before, True)
+
+    async def test_a_seat_told_after_the_room_ended_is_sent_no_table(self, link, handler):
+        host, opener, _guest = await host_opener_and_guest(link)
+        await attach(opener)
+        [feature] = handler.features
+
+        feature.room_ended(host.room_id)
+        await feature.seat_joined(host.peer_id)
+
+        assert tables(host)[-1]["attachment"] is None

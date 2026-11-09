@@ -26,10 +26,6 @@ export class Table {
         this.#send = send;
     }
 
-    get isShown() {
-        return this.#attachment !== null;
-    }
-
     /** Whether this seat may remove the table: the host, the opener, or anyone once the opener has left. */
     get mayRemove() {
         return this.#isHost || this.#openerId === this.#seatId || this.#openerId === null;

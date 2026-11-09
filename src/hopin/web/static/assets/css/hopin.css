@@ -420,10 +420,11 @@ button, input, textarea { font-family: inherit; }
     -webkit-backdrop-filter: blur(12px);
 }
 .agent-remove:hover, .agent-remove:focus-visible { background: var(--glass); }
-/* The 32px button on a strip tile under 80px wide fills half of it or more, so a stray tap beside the agent's picture
-   would remove it from the call; the person removes the agent once the table is gone and its tile is whole again. */
+/* A strip tile under 80px wide has no room for the 32px button beside its picture, so the button shrinks to the
+   smallest tap target and sits in the tile's corner. */
 @container (max-width: 79.99px) {
-    .stage[data-surface] .agent-remove { display: none; }
+    .stage[data-surface] .agent-remove { top: 2px; right: 2px; width: 24px; height: 24px; }
+    .stage[data-surface] .agent-remove .icon { width: 14px; height: 14px; }
 }
 .tile.agent .av { color: var(--accent-stage); background: var(--stage-2); box-shadow: inset 0 0 0 2px var(--accent-stage); }
 .agent-activity { position: absolute; left: 50%; top: calc(50% + clamp(22px, 15cqmin, 56px) + 14px); display: flex; gap: 5px; transform: translateX(-50%); }
@@ -535,7 +536,10 @@ button, input, textarea { font-family: inherit; }
     aspect-ratio: auto;
     border-radius: 10px;
 }
-.stage[data-surface] .tile .name, .stage[data-surface] .tile .connection-quality { display: none; }
+.stage[data-surface] .tile .connection-quality { display: none; }
+@media (max-width: 600px) {
+    .stage[data-surface] .tile .name { display: none; }
+}
 .surface {
     position: absolute;
     inset: 116px 8px var(--stage-bottom) 8px;

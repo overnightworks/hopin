@@ -42,6 +42,8 @@ VIDEOS_ARE_THE_TAGGED_ONES = """() => {
     const now = [...document.querySelectorAll('#videoGrid video')];
     return now.length === window.taggedVideos.length && now.every((video) => window.taggedVideos.includes(video));
 }"""
+REMOVE_BUTTON_PHONE_PIXELS = 24
+REMOVE_BUTTON_DESKTOP_PIXELS = 32
 FIRST_REMOTE_TIME = "() => document.querySelector('#videoGrid .tile:not(.self) video').currentTime"
 
 
@@ -148,7 +150,7 @@ def test_a_seat_that_reloads_joins_afresh_and_sees_the_table(
     expect_table_on_stage(guest, stub_skat)
 
 
-def test_the_calls_end_takes_the_table_from_the_stage(
+def test_a_guest_who_leaves_takes_the_table_from_their_own_stage(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
@@ -244,28 +246,31 @@ def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is
     assert in_strip["width"] < box["width"]
 
 
-def test_an_agent_tile_in_a_phone_strip_has_no_remove_button_until_the_table_is_gone(
+def test_an_agent_tile_in_a_phone_strip_keeps_a_small_remove_button_that_removes_the_agent(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     stub_skat: StubSkat,
     page_errors: list[str],
     agent_of: Callable[[Page], Agent],
 ) -> None:
+    """CALL-49: The agent's sponsor removes it from its strip tile on a phone while a table shows."""
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, PHONE)
     agent_of(host).dial_in("Claude")
-    remove_agent = host.locator(AGENT_TILE + " " + REMOVE)
-    expect(remove_agent).to_be_visible()
-
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
-    expect(remove_agent).to_be_hidden()
 
-    host.locator(REMOVE_TABLE).click()
-    expect_no_table(host)
+    remove_agent = host.locator(AGENT_TILE + " " + REMOVE)
     expect(remove_agent).to_be_visible()
+    box = remove_agent.bounding_box()
+    assert box is not None
+    assert box["width"] <= REMOVE_BUTTON_PHONE_PIXELS
+    assert box["height"] <= REMOVE_BUTTON_PHONE_PIXELS
+    remove_agent.tap()
+
+    expect(host.locator(AGENT_TILE)).to_have_count(0)
 
 
-def test_an_agent_tile_in_a_desktop_strip_keeps_its_remove_button(
+def test_an_agent_tile_in_a_desktop_strip_keeps_its_full_remove_button(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     stub_skat: StubSkat,
@@ -278,4 +283,37 @@ def test_an_agent_tile_in_a_desktop_strip_keeps_its_remove_button(
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
 
-    expect(host.locator(AGENT_TILE + " " + REMOVE)).to_be_visible()
+    remove_agent = host.locator(AGENT_TILE + " " + REMOVE)
+    expect(remove_agent).to_be_visible()
+    box = remove_agent.bounding_box()
+    assert box is not None
+    assert box["width"] == REMOVE_BUTTON_DESKTOP_PIXELS
+
+
+@pytest.mark.parametrize(("form_factor", "shows_names"), [(DESKTOP, True), (PHONE, False)], ids=["desktop", "phone"])
+def test_a_strip_tile_shows_its_name_pill_on_desktop_and_none_on_a_phone(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    agent_of: Callable[[Page], Agent],
+    form_factor: dict[str, Any],
+    *,
+    shows_names: bool,
+) -> None:
+    """CALL-12, CALL-38, CALL-50, CALL-55: A strip tile keeps its name pill, AI badge and sponsor, except on a phone."""
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    agent_of(host).dial_in("Claude")
+    show_table(host, table_link(stub_skat))
+    expect_table_on_stage(host, stub_skat)
+
+    person_name = host.locator("#videoGrid .tile:not(.self):not(.agent) .name")
+    agent_name = host.locator(AGENT_TILE + " .name")
+    if shows_names:
+        expect(person_name).to_be_visible()
+        expect(agent_name).to_contain_text("Claude")
+        expect(agent_name.locator(".ai-badge")).to_be_visible()
+        expect(agent_name.locator(".sponsor")).to_be_visible()
+    else:
+        expect(person_name).to_be_hidden()
+        expect(agent_name).to_be_hidden()

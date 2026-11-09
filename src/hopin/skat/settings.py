@@ -1,3 +1,4 @@
+import re
 from urllib.parse import urlsplit
 
 from pydantic import field_validator
@@ -7,6 +8,7 @@ from hopin.config.secret_files import StartRefusedError
 from hopin.skat.vocabulary import CALL_MODE_QUERY, TABLE_PATH_PATTERN
 
 HTTPS_PORT = 443
+HOST_PATTERN = re.compile(r"[a-z0-9.-]+")
 DEFAULT_PORTS = {"https": HTTPS_PORT, "http": 80}
 
 type BrowserOrigin = tuple[str, str, int]
@@ -34,7 +36,10 @@ def _require_browser_origin_form(value: str) -> str:
     host = parts.hostname or ""
     netloc = host if parts.port is None else f"{host}:{parts.port}"
     written_as_an_origin = value == f"https://{netloc}" and parts.netloc == netloc
-    if not (written_as_an_origin and host and host.isascii() and not host.endswith(".") and parts.port != HTTPS_PORT):
+    is_a_host = (
+        HOST_PATTERN.fullmatch(host) is not None and not host.endswith(".") and canonical_origin(value) is not None
+    )
+    if not (written_as_an_origin and is_a_host and parts.port != HTTPS_PORT):
         raise ValueError("an https origin has a lowercase ASCII host and an optional port other than 443, no path")
     return value
 

@@ -35,7 +35,6 @@ describe("a table the server shows", () => {
         table.receive(stateOf(2, 1, null));
 
         expect(frames).toEqual(["https://skat.example/t/1?mode=call"]);
-        expect(table.isShown).toBe(true);
     });
 
     it("takes the table away when the state has none, and only if one was shown", () => {
@@ -46,7 +45,6 @@ describe("a table the server shows", () => {
         table.receive(stateOf(3, null));
 
         expect(frames).toEqual(["https://skat.example/t/2?mode=call", "hidden"]);
-        expect(table.isShown).toBe(false);
     });
 
     it("drops a state older than one it has seen", () => {
@@ -73,11 +71,11 @@ describe("a table the server shows", () => {
         ["the opener's leaving before the attach", [stateOf(2, 1, null), stateOf(1, 1), stateOf(3, null)]],
         ["a detach before the earlier states", [stateOf(3, null), stateOf(1, 1), stateOf(2, 1, null)]],
     ])("ends on the latest revision whatever the order of %s", (_name, states) => {
-        const { table } = seatedTable();
+        const { table, frames } = seatedTable();
 
         for (const state of states) table.receive(state);
 
-        expect(table.isShown).toBe(false);
+        expect(frames.at(-1) ?? "hidden").toBe("hidden");
     });
 
     it("ends on the table of the latest revision when frames arrive out of order", () => {
@@ -88,7 +86,6 @@ describe("a table the server shows", () => {
         table.receive(stateOf(1, 1));
 
         expect(frames).toEqual(["https://skat.example/t/3?mode=call"]);
-        expect(table.isShown).toBe(true);
     });
 
     it("clears a stale table when a fresh join says there is none", () => {
@@ -98,7 +95,6 @@ describe("a table the server shows", () => {
         table.receive(stateOf(9, null));
 
         expect(frames.at(-1)).toBe("hidden");
-        expect(table.isShown).toBe(false);
     });
 
     it("applies a state of the revision it already has, which a fresh join repeats", () => {

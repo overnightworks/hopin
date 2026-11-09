@@ -72,6 +72,8 @@ def test_another_port_is_another_origin(skat_origin):
         "https://skat.example?x=1",
         "https://skat.example#x",
         "https://skät.example",
+        "https://skat..example",
+        "https://sk'at.example",
         "https://",
         "https://:8443",
         "skat.example",

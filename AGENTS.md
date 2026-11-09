@@ -29,3 +29,4 @@
 - `docs/ARCHITECTURE.md`: read before changing parts, a call's flow or the trust model.
 - `docs/call.md`: read before changing a call's behaviour; it maps each rule to its test.
 - `docs/game-master.md`: read before changing the game master; it maps each rule to its test.
+- `docs/skat.md`: read before changing the Skat table on a call's stage.
