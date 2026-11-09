@@ -1,0 +1,7 @@
+claim_id = "d8ce98d60fba43ba8fb7575a354e6936"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "91fc87f002518ae069ab02fa2a6183dac6eb46a0"
+branch = "dependabot/uv/websockets-17.4"
+scope = ["uv.lock"]
+opened_commit = "08dc69fc254ff324468b7d017039c5c4a2bc0fbf"
