@@ -1,7 +1,7 @@
 import secrets
 
 import pytest
-from speech_runtime_client.wire import SPEECH_PATH, RefusalCode
+from speech_client.wire import SPEECH_PATH, RefusalCode
 
 from hopin.agent.settings import SpeechSettings
 from hopin.config.constants import AUTH_START_PATH, SignalType

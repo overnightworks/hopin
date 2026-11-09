@@ -30,7 +30,7 @@ GAME_FILES = (
 )
 MARKED_FILES = ("src/hopin/main.py", "tests/conftest.py", "scripts/generate_wire.py", "pyproject.toml")
 GAME_MARKER = "# game"
-GAME_ONLY_PACKAGES = ("overnightworks-speech-runtime-client",)
+GAME_ONLY_PACKAGES = ("overnightworks-speech-client",)
 # The client stays for the MCP connector; only the extra that carries its HTTP library to the gateway goes.
 CLIENT_EXTRAS = ("[backend,mcp-server]", "[mcp-server]")
 REPOSITORY = Path(__file__).resolve().parent.parent
