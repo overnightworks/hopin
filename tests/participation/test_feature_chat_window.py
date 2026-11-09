@@ -8,31 +8,13 @@ from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named, room_of
-from tests.signaling.support.browsers import Hold, host_and_guest
+from tests.signaling.support.browsers import HeldWrite, host_and_guest
 
 pytestmark = pytest.mark.integration
 
 AGENT_NAME = "Claude"
 OTHER_AGENT_NAME = "Mozart"
 MAX_FRAME_CHARACTERS = 65_536
-
-
-class HeldFirstWrite(Hold):
-    """Holds the first write to one socket before it is sent, until the test releases it; later writes pass."""
-
-    def __init__(self, socket):
-        super().__init__()
-        send_text = socket.send_text
-        held = False
-
-        async def hold_the_first_and_send(text):
-            nonlocal held
-            if not held:
-                held = True
-                await self.hold()
-            await send_text(text)
-
-        socket.send_text = hold_the_first_and_send
 
 
 def chat(message):
@@ -168,7 +150,7 @@ class TestALineHeldInTheRelay:
         """CALL-54: The audience of a person's line is that of the moment it was said."""
         host, guest = await host_and_guest(link)
         await dial(participation, guest)
-        relaying = HeldFirstWrite(guest.socket)
+        relaying = HeldWrite(guest.socket, first_only=True)
 
         relayed = asyncio.create_task(host.say(chat("held")))
         await relaying.reached()
@@ -183,7 +165,7 @@ class TestALineHeldInTheRelay:
         host, guest = await host_and_guest(link)
         await dial(participation, guest)
         await dial(participation, host, OTHER_AGENT_NAME)
-        sending = HeldFirstWrite(host.socket)
+        sending = HeldWrite(host.socket, first_only=True)
 
         sent = asyncio.create_task(participation.say(person_named("guest"), room_of(host), "held"))
         await sending.reached()
@@ -200,7 +182,7 @@ class TestALineHeldInTheRelay:
         """CALL-54: A line is held under the sender's name as of the moment it was said."""
         host, guest = await host_and_guest(link)
         await dial(participation, guest)
-        relaying = HeldFirstWrite(guest.socket)
+        relaying = HeldWrite(guest.socket, first_only=True)
 
         relayed = asyncio.create_task(host.say(chat("last words")))
         await relaying.reached()

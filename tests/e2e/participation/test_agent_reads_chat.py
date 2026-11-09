@@ -1,4 +1,3 @@
-import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -10,6 +9,7 @@ from tests.e2e.support.calls import (
     open_call,
     say_in_chat,
 )
+from tests.e2e.support.dialed_agent import room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 
@@ -28,12 +28,6 @@ WAKE_SECONDS = 20
 CHAT_LINE = "#chatMessages .chat-msg"
 
 
-def room_of(link: str) -> str:
-    found = re.search(r"/c/(\w+)", link)
-    assert found is not None
-    return found.group(1)
-
-
 def lines_read(agent: Any, room: str) -> list[tuple[Any, ...]]:
     window = agent.read(window_uri(room))
     return [(line["seq"], line["kind"], line["name"], line["text"], line["own"]) for line in window["entries"]]
@@ -48,7 +42,7 @@ def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_read
     """CALL-54: A joined agent is woken by a line said after its join and reads it in its window, its own marked."""
     scene = scene_of(form_factor)
     agent = scene.agent
-    room = room_of(scene.link)
+    room = room_of_link(scene.link)
     say_in_chat(scene.host, "before the join")
     scene.member.click("#chatBtn")
     expect(scene.member.locator(CHAT_LINE)).to_have_count(1)
@@ -78,7 +72,7 @@ def test_call_54_a_persons_own_agent_is_woken_by_a_line_and_reads_it(
 ) -> None:
     """CALL-54: A person's own agent listens to its window's URI, is woken by a line and reads it."""
     host, guest, link = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
-    room = room_of(link)
+    room = room_of_link(link)
     agent = own_agent_of(member_of(host).account.id)
     agent.dial_in(room, "Claude")
     agent.listen([window_uri(room)])

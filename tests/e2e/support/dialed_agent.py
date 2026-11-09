@@ -1,6 +1,6 @@
 import asyncio
+import contextlib
 import json
-import re
 import secrets
 import threading
 from contextlib import AsyncExitStack
@@ -17,11 +17,11 @@ from playwright.sync_api import Page, Playwright, expect
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
 from hopin.agent.tools import JOIN_CALL, SAY
 from hopin.config.constants import LOGIN_GROUP
+from tests.e2e.support.calls import INVITE_LINK_PATTERN
 from tests.e2e.support.people import PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-    from concurrent.futures import Future
 
     from tests.e2e.support.server import RunningServer
 
@@ -57,6 +57,12 @@ LABELS_ABOVE_THE_CONTROLS = """
 FULL_BLEED_TILES = 2
 
 
+def room_of_link(link: str) -> str:
+    found = INVITE_LINK_PATTERN.search(link)
+    assert found is not None
+    return found.group(0).removeprefix("/c/")
+
+
 class Agent:
     """A person's own agent, calling HopIn's MCP endpoint with a token its client would hold."""
 
@@ -64,7 +70,7 @@ class Agent:
         self._request = playwright.request.new_context(ignore_https_errors=True)
         self._server = server
         self._account = member_of(person).account
-        self._room = re.search(r"/c/(\w+)", person.url).group(1)
+        self._room = room_of_link(person.url)
 
     def dial_in(self, name: str) -> None:
         self._call(JOIN_CALL, {"room": self._room, "name": name})
@@ -120,7 +126,7 @@ class SdkAgent:
         self._woken = threading.Event()
         self._stopping = asyncio.Event()
         self._client: Client
-        self._stream: Future[None] | None = None
+        self._stream: asyncio.Task[None] | None = None
         self._thread = threading.Thread(target=self._loop.run_until_complete, args=(self._hold_the_client(),))
         self._thread.start()
         if not self._opened.wait(REQUEST_SECONDS):
@@ -151,16 +157,26 @@ class SdkAgent:
             async for _event in stream:
                 self._woken.set()
 
+    @staticmethod
+    async def _stop(stream: asyncio.Task[None]) -> None:
+        """Cancel the old stream and wait until its task has ended, so it can no longer wake the agent."""
+        stream.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await stream
+
+    async def _start(self, uris: Sequence[str]) -> asyncio.Task[None]:
+        return asyncio.create_task(self._listen_for_wakes(uris))
+
     def _run(self, coroutine: Any) -> Any:
         return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(REQUEST_SECONDS)
 
     def listen(self, uris: Sequence[str] = (STANDING_URI,)) -> None:
         """Replace the stream with one on the resources and return once the server has acknowledged it."""
         if self._stream is not None:
-            self._stream.cancel()
+            self._run(self._stop(self._stream))
         self._acknowledged.clear()
         self._woken.clear()
-        self._stream = asyncio.run_coroutine_threadsafe(self._listen_for_wakes(uris), self._loop)
+        self._stream = self._run(self._start(uris))
         assert self._acknowledged.wait(REQUEST_SECONDS)
 
     def read(self, uri: str) -> dict[str, Any]:
@@ -178,7 +194,7 @@ class SdkAgent:
 
     def close(self) -> None:
         if self._stream is not None:
-            self._stream.cancel()
+            self._loop.call_soon_threadsafe(self._stream.cancel)
         self._loop.call_soon_threadsafe(self._stopping.set)
         self._thread.join(REQUEST_SECONDS)
         self._loop.close()
