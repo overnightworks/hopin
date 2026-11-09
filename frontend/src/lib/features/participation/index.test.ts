@@ -29,6 +29,8 @@ async function installedParticipation() {
         isConnected: () => true,
         showToast: (text) => void toasts.push(text),
         toastKind: TOAST_KIND,
+        showStage: () => undefined,
+        closeMore: () => undefined,
         showAgentTile: (tile, key = "agent") => {
             if (tile === null) tiles.delete(key);
             else tiles.set(key, tile);

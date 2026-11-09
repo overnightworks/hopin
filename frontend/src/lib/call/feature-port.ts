@@ -37,6 +37,8 @@ export interface FeatureCore {
     showToast(text: string, kind: ToastKind, action: ToastAction | null): void;
     toastKind: typeof TOAST_KIND;
     addMoreItems(...items: Element[]): void;
+    /** Close the More menu, as after an action in one of its items that shows its effect elsewhere. */
+    closeMore(): void;
     /** Show a line no person wrote, counted as unread like a person's. */
     receiveChatLine(view: FeatureView): void;
     /** Keep a view below every later line until another view, or null, takes its place. */
@@ -45,6 +47,8 @@ export interface FeatureCore {
     showChatCard(view: FeatureView | null): void;
     /** Show an agent's tile on the stage under its key, beside the people's and taking none of the call's places, until null takes it away. */
     showAgentTile(tile: AgentTile | null, key?: string): void;
+    /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */
+    showStage(view: FeatureView | null): void;
     onCallEnded(hook: () => void): void;
 }
 

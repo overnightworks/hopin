@@ -41,7 +41,7 @@
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
     import { pictureInPicture } from "#lib/ui/pip.ts";
     import { ownPictureMedia } from "#lib/ui/stage-media.ts";
-    import { ownPicture, stageTileCount } from "#lib/ui/stage.svelte.ts";
+    import { ownPicture, stageSurface, stageTileCount } from "#lib/ui/stage.svelte.ts";
     import { ACCOUNT_CONSOLE_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
@@ -157,7 +157,7 @@
 
 <!-- prettier-ignore -->
 <main class="call" class:hidden={screens.current !== SCREEN.CALL} data-screen="call">
-    <div class="stage" id="stage" data-count={stageTileCount()}>
+    <div class="stage" id="stage" data-count={stageTileCount()} data-surface={stageSurface.view === null ? undefined : ""}>
         <div class="ctop">
             <div class="left">
                 <div id="status" class={"status status-" + statusLine.type}>{statusLine.text}</div>
@@ -175,6 +175,7 @@
                 <Tiles />
             </div>
         </div>
+        {#if stageSurface.view !== null}<div class="surface"><stageSurface.view /></div>{/if}
         <div id="waitingCard" class={["waiting", !invite.isWaitingCardShown && "hidden"]} data-share={invite.share}>
             <h3>Waiting for others</h3>
             <p>Invite people to join this call.</p>

@@ -94,6 +94,10 @@ class CallFeatureBuilder(Protocol):
     def sign_in_scopes(self) -> tuple[str, ...]:
         """The scopes the feature needs the person's sign-in to ask for."""
 
+    @property
+    def frame_sources(self) -> tuple[str, ...]:
+        """The origins the page may frame for the feature; none keeps `frame-src 'none'`."""
+
     def __call__(
         self,
         *,
@@ -173,12 +177,14 @@ def _install_web_auth(
     sessions: InMemorySessions,
     page_build: PageBuild,
     bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
+    frame_sources: tuple[str, ...],
 ) -> None:
     install_web_auth_middleware(
         app,
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(
-                page_build.script_hashes, added_sources={CspDirective.STYLE_SRC: ANNOUNCER_STYLE_SOURCES}
+                page_build.script_hashes,
+                added_sources={CspDirective.STYLE_SRC: ANNOUNCER_STYLE_SOURCES, CspDirective.FRAME_SRC: frame_sources},
             ),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
@@ -265,6 +271,12 @@ def create_app(
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
     install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
-    _install_web_auth(app, sign_in_stores.sessions, page_build, (relying_party, resources[0]) if resources else None)
+    _install_web_auth(
+        app,
+        sign_in_stores.sessions,
+        page_build,
+        (relying_party, resources[0]) if resources else None,
+        tuple(source for builder in call_features for source in builder.frame_sources),
+    )
 
     return app

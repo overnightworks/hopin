@@ -192,6 +192,7 @@ class WitnessFeatureBuilder:
 
     witness: Callable[[object], RecordingFeature]
     sign_in_scopes: tuple[str, ...] = ()
+    frame_sources: tuple[str, ...] = ()
 
     def __call__(self, **_options):
         return SimpleNamespace(factory=self.witness, router=APIRouter(), bearer_resource=None)

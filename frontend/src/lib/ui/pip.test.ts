@@ -170,6 +170,28 @@ describe("picture in picture", () => {
         expect(tile.dataset.corner).toBeUndefined();
     });
 
+    it("releases a held tile at once when a feature shows a view on the stage", async () => {
+        const { stage, tile, release } = setUp();
+        firePointer(tile, "pointerdown");
+        firePointer(tile, "pointermove", { x: 30, y: 30 });
+
+        stage.dataset.surface = "";
+        await Promise.resolve();
+
+        expect(tile.style.translate).toBe("");
+        expect(tile.classList.contains("dragging")).toBe(false);
+        expect(release).toHaveBeenCalledWith(POINTER);
+    });
+
+    it("starts no drag while a view is on the stage", () => {
+        const { stage, tile, capture } = setUp();
+        stage.dataset.surface = "";
+
+        firePointer(tile, "pointerdown");
+
+        expect(capture).not.toHaveBeenCalled();
+    });
+
     it("does not release the pointer capture of a tile that no longer holds it", async () => {
         const { stage, tile, release, heldCapture } = setUp();
         firePointer(tile, "pointerdown");

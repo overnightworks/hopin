@@ -8,6 +8,7 @@ import {
     showLockButton,
 } from "#lib/ui/controls.svelte.ts";
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
+import { closeOpenMenu } from "#lib/ui/menus.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "#lib/call/media.ts";
@@ -54,10 +55,12 @@ const FEATURE_CORE: FeatureCore = Object.freeze({
     showToast,
     toastKind: TOAST_KIND,
     addMoreItems,
+    closeMore: closeOpenMenu,
     receiveChatLine: receiveLine,
     pinLastChatLine: pinLast,
     showChatCard: showCard,
     showAgentTile: stageModule.showAgentTile,
+    showStage: stageModule.showStage,
     onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);
     },
@@ -113,6 +116,7 @@ function tearDownCall() {
     showLocalStream(null);
     clearToast();
     for (const hook of callEndedHooks) hook();
+    stageModule.showStage(null);
     hideWaitingCard();
     hideLockButton();
     hideParticipantCount();

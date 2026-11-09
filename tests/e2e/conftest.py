@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 import pytest
 from webauth.admission import AppRole
@@ -134,7 +135,12 @@ def open_person(
                 account = new_account(e2e_server.stores, e2e_server.config)
             refresh_token = e2e_server.issuer.refresh_token_for(account.id) if with_refresh_token else None
             member = seed_member(e2e_server.stores, e2e_server.config, account=account, refresh_token=refresh_token)
-            context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
+            context.add_cookies(
+                [
+                    _playwright_cookie(header, e2e_server.config, urlsplit(e2e_server.base_url).hostname)
+                    for header in member.set_cookie_headers
+                ]
+            )
             seeded_members[page] = member
         return page
 
