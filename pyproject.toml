@@ -243,7 +243,7 @@ allow_indirect_imports = true
 id = "speech-service-only-through-the-game"
 name = "Only the game reaches the speech service"
 type = "forbidden"
-# The speech client is the connector's alone; the former package name stays forbidden so it cannot return.
+# The speech client is the connector's alone, under either of its distribution names.
 source_modules = ["hopin.main", "hopin.app"]
 forbidden_modules = ["speech_client", "speech_runtime_client"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
