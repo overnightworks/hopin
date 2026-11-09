@@ -168,7 +168,7 @@ containers = ["hopin"]
 # Every top-level module of hopin stands in exactly one layer, so a new one is
 # placed by a decision rather than slipping in between. `main` starts the server
 # and `app` is the composition root: nothing imports `main`, and only `main`
-# imports `app`. The game and participation are optional: each plugs into signaling's
+# imports `app`. The game, participation and Skat are optional: each plugs into signaling's
 # feature port, `main` switches it in, and deleting the game needs no contract edit. The
 # agent connector stands above both: it composes the game on the client's backend and
 # serves participation over MCP, and neither knows it. The person export
@@ -176,7 +176,7 @@ containers = ["hopin"]
 # Sign-in sits above the web routes it guards, the routes above the signaling and
 # room services they are handed, and `config` is the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "(agent)", "(game) | (participation)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "(agent)", "(game) | (participation) | (skat)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"
@@ -214,6 +214,7 @@ source_modules = [
 forbidden_modules = [
     "hopin.game",
     "hopin.participation",
+    "hopin.skat",
     "hopin.agent",
     "agent_runtime_client",
     "speech_client",

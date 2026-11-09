@@ -52,6 +52,7 @@ from hopin.signaling.frames import (  # noqa: E402
     RoomUnlockedFrame,
 )
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
+from hopin.skat.vocabulary import BROWSER_ENUMS as SKAT_BROWSER_ENUMS  # noqa: E402  # skat
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -189,6 +190,7 @@ def outputs(root: Path) -> dict[Path, str]:
         root / CORE_OUTPUT: render_core(),
         root / "frontend/src/lib/features/game/wire.ts": _generated_file(_enums(BROWSER_ENUMS)),  # game
         root / "frontend/src/lib/features/participation/wire.ts": _generated_file(_enums(PARTICIPATION_BROWSER_ENUMS)),
+        root / "frontend/src/lib/features/skat/wire.ts": _generated_file(_enums(SKAT_BROWSER_ENUMS)),  # skat
     }
 
 

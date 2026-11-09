@@ -1,0 +1,47 @@
+.skat-table {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+}
+.skat-frame {
+    display: block;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    background: var(--stage-2);
+}
+.skat-remove {
+    flex: none;
+    align-self: flex-end;
+    background: var(--glass);
+    color: var(--on-stage);
+}
+.skat-remove:hover,
+.skat-remove:focus-visible {
+    background: var(--glass-hover);
+}
+.skat-form {
+    display: flex;
+    gap: 8px;
+    padding: 0 14px 6px 50px;
+}
+.skat-form[hidden] {
+    display: none;
+}
+.skat-form input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 16px;
+}
+.skat-form .button {
+    height: 44px;
+}

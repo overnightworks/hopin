@@ -420,6 +420,12 @@ button, input, textarea { font-family: inherit; }
     -webkit-backdrop-filter: blur(12px);
 }
 .agent-remove:hover, .agent-remove:focus-visible { background: var(--glass); }
+/* A strip tile under 80px wide has no room for the 32px button beside its picture, so the button shrinks to the
+   smallest tap target and sits in the tile's corner. */
+@container (max-width: 79.99px) {
+    .stage[data-surface] .agent-remove { top: 2px; right: 2px; width: 24px; height: 24px; }
+    .stage[data-surface] .agent-remove .icon { width: 14px; height: 14px; }
+}
 .tile.agent .av { color: var(--accent-stage); background: var(--stage-2); box-shadow: inset 0 0 0 2px var(--accent-stage); }
 .agent-activity { position: absolute; left: 50%; top: calc(50% + clamp(22px, 15cqmin, 56px) + 14px); display: flex; gap: 5px; transform: translateX(-50%); }
 .agent-activity i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); }
@@ -430,20 +436,20 @@ button, input, textarea { font-family: inherit; }
 .tile.agent.activity-speaking .agent-activity { display: none; }
 @keyframes speak { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (max-width: 600px) {
-    .stage[data-count="1"] .grid, .stage[data-count="2"] .grid { inset: 0; }
-    .stage[data-count="1"] .tile, .stage[data-count="2"] .tile:not(.self) {
+    .stage[data-count="1"]:not([data-surface]) .grid, .stage[data-count="2"]:not([data-surface]) .grid { inset: 0; }
+    .stage[data-count="1"]:not([data-surface]) .tile, .stage[data-count="2"]:not([data-surface]) .tile:not(.self) {
         position: absolute;
         inset: 0;
         border-radius: 0;
     }
-    .stage[data-count="1"] .tile .name, .stage[data-count="2"] .tile:not(.self) .name {
+    .stage[data-count="1"]:not([data-surface]) .tile .name, .stage[data-count="2"]:not([data-surface]) .tile:not(.self) .name {
         left: 16px;
         bottom: calc(var(--stage-bottom) + 12px);
         height: 32px;
         padding: 0 12px;
         font-size: 14.5px;
     }
-    .stage[data-count="2"] .tile.self {
+    .stage[data-count="2"]:not([data-surface]) .tile.self {
         position: absolute;
         width: 104px;
         height: 152px;
@@ -460,13 +466,13 @@ button, input, textarea { font-family: inherit; }
             top var(--motion-snap) cubic-bezier(.2, .8, .2, 1),
             translate var(--motion-snap) cubic-bezier(.2, .8, .2, 1);
     }
-    .stage[data-count="2"] .tile.self[data-corner="tl"] { left: 14px; top: 48px; }
-    .stage[data-count="2"] .tile.self[data-corner="tr"] { left: calc(100% - 118px); top: 48px; }
-    .stage[data-count="2"] .tile.self[data-corner="bl"] { left: 14px; top: calc(100% - var(--stage-bottom) - 158px); }
-    .stage[data-count="2"] .tile.self.dragging { transition: none; cursor: grabbing; }
-    .stage[data-count="2"] .tile.self .name, .stage[data-count="2"] .tile.self .connection-quality { display: none; }
-    .stage[data-count="2"] .tile:not(.self) .connection-quality { top: 50px; right: 16px; }
-    .stage[data-count="2"] .tile:not(.self).speaking::before { display: none; }
+    .stage[data-count="2"]:not([data-surface]) .tile.self[data-corner="tl"] { left: 14px; top: 48px; }
+    .stage[data-count="2"]:not([data-surface]) .tile.self[data-corner="tr"] { left: calc(100% - 118px); top: 48px; }
+    .stage[data-count="2"]:not([data-surface]) .tile.self[data-corner="bl"] { left: 14px; top: calc(100% - var(--stage-bottom) - 158px); }
+    .stage[data-count="2"]:not([data-surface]) .tile.self.dragging { transition: none; cursor: grabbing; }
+    .stage[data-count="2"]:not([data-surface]) .tile.self .name, .stage[data-count="2"]:not([data-surface]) .tile.self .connection-quality { display: none; }
+    .stage[data-count="2"]:not([data-surface]) .tile:not(.self) .connection-quality { top: 50px; right: 16px; }
+    .stage[data-count="2"]:not([data-surface]) .tile:not(.self).speaking::before { display: none; }
 }
 @media (min-width: 601px) {
     .chat-panel { grid-column: 2; grid-row: 1; }
@@ -490,20 +496,58 @@ button, input, textarea { font-family: inherit; }
         width: min(100cqw, calc((100cqh - (var(--r) - 1) * 10px) * 16 / 9 * var(--c) / var(--r)));
     }
     .tile { border-radius: 16px; aspect-ratio: 16 / 9; }
-    .stage[data-count="1"] .grid { inset: 0; }
-    .stage[data-count="1"] .tile {
+    .stage[data-count="1"]:not([data-surface]) .grid { inset: 0; }
+    .stage[data-count="1"]:not([data-surface]) .tile {
         position: absolute;
         inset: 0;
         aspect-ratio: auto;
         border-radius: 0;
     }
-    .stage[data-count="1"] .tile .name {
+    .stage[data-count="1"]:not([data-surface]) .tile .name {
         left: 16px;
         bottom: calc(var(--stage-bottom) + 32px);
         height: 32px;
         padding: 0 12px;
         font-size: 14.5px;
     }
+}
+
+/* While a feature shows a view on the stage, every tile sits in a strip at the top, right-aligned, and the view fills
+   the rest down to the call bar. */
+.stage[data-surface] .grid {
+    inset: 44px 8px auto 8px;
+    height: 64px;
+    display: block;
+}
+.stage[data-surface] .tiles {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 4px;
+}
+.stage[data-surface] .tile {
+    position: relative;
+    inset: auto;
+    flex: 0 1 56px;
+    min-width: 0;
+    aspect-ratio: auto;
+    border-radius: 10px;
+}
+.stage[data-surface] .tile .connection-quality { display: none; }
+.stage[data-surface] .tile .name { display: none; }
+.surface {
+    position: absolute;
+    inset: 116px 8px var(--stage-bottom) 8px;
+    z-index: 1;
+}
+@media (min-width: 601px) {
+    .stage[data-surface] .grid { inset: 62px 20px auto 20px; height: 88px; }
+    .stage[data-surface] .tiles { gap: 10px; }
+    .stage[data-surface] .tile { flex-basis: 140px; border-radius: 16px; }
+    .surface { inset: 158px 20px var(--stage-bottom) 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1038,7 +1082,7 @@ button, input, textarea { font-family: inherit; }
     align-items: center;
     gap: 6px;
 }
-.waiting.hidden, .stage:not([data-count="1"]) .waiting { display: none; }
+.waiting.hidden, .stage:not([data-count="1"]) .waiting, .stage[data-surface] .waiting { display: none; }
 .waiting h3 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
 .waiting p { margin-bottom: 12px; color: var(--on-stage-soft); font-size: 15px; }
 .waiting-link { display: none; margin-bottom: 12px; font-family: var(--mono); font-size: 13px; color: var(--on-stage-soft); }

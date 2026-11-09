@@ -24,7 +24,7 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Iterator, Mapping, Sequence
     from pathlib import Path
 
     from webauth.config import WebAuthConfig
@@ -39,16 +39,24 @@ READINESS_DEADLINE_SECONDS = 20
 SERVER_STOP_TIMEOUT_SECONDS = 10
 
 
-def _reserve_free_port() -> int:
+def reserve_free_port() -> int:
     with socket.socket() as probe:
         probe.bind((LOOPBACK_HOST, 0))
         return int(probe.getsockname()[1])
 
 
-def _write_self_signed_certificate(directory: Path) -> tuple[Path, Path]:
-    """A certificate for the loopback address, so the page is served over https like HopIn's public origin."""
+def _alternative_name(host: str) -> x509.GeneralName:
+    try:
+        return x509.IPAddress(IPv4Address(host))
+    except ValueError:
+        return x509.DNSName(host)
+
+
+def write_self_signed_certificate(directory: Path, hosts: Sequence[str] = (LOOPBACK_HOST,)) -> tuple[Path, Path]:
+    """A certificate for the loopback address or the named hosts, so the page is served over https like HopIn's public
+    origin."""
     key = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, LOOPBACK_HOST)])
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hosts[0])])
     now = datetime.datetime.now(datetime.UTC)
     certificate = (
         x509.CertificateBuilder()
@@ -58,7 +66,7 @@ def _write_self_signed_certificate(directory: Path) -> tuple[Path, Path]:
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - datetime.timedelta(minutes=1))
         .not_valid_after(now + datetime.timedelta(days=1))
-        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(IPv4Address(LOOPBACK_HOST))]), critical=False)
+        .add_extension(x509.SubjectAlternativeName(list(map(_alternative_name, hosts))), critical=False)
         .sign(key, hashes.SHA256())
     )
     key_file, certificate_file = directory / "key.pem", directory / "certificate.pem"
@@ -70,7 +78,7 @@ def _write_self_signed_certificate(directory: Path) -> tuple[Path, Path]:
 
 
 @contextmanager
-def _serving(server: uvicorn.Server) -> Iterator[None]:
+def serving(server: uvicorn.Server) -> Iterator[None]:
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     deadline = time.monotonic() + READINESS_DEADLINE_SECONDS
@@ -101,21 +109,24 @@ class LoopbackSignIn:
     """The sign-in of a HopIn on a free loopback port, its issuer a fake."""
 
     port: int
+    host: str
     sign_in: SignInSettings
     stores: SignInStores
     issuer: FakeIssuer
 
 
-def loopback_sign_in(directory: Path) -> LoopbackSignIn:
-    port = _reserve_free_port()
+def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> LoopbackSignIn:
+    """The sign-in of a HopIn that listens on a free loopback port and is reached as `public_host`, which must
+    resolve to the loopback address."""
+    port = reserve_free_port()
     sign_in = build_sign_in_settings(
         directory,
         host=LOOPBACK_HOST,
         port=port,
-        public_origin=f"https://{LOOPBACK_HOST}:{port}",
+        public_origin=f"https://{public_host}:{port}",
         trusted_proxies=LOOPBACK_HOST,
     )
-    return LoopbackSignIn(port, sign_in, SignInStores.in_memory(), FakeIssuer(sign_in))
+    return LoopbackSignIn(port, public_host, sign_in, SignInStores.in_memory(), FakeIssuer(sign_in))
 
 
 @contextmanager
@@ -127,11 +138,15 @@ def running_hopin(
     *,
     participation: bool = False,
     agent_adders: Mapping[str, str] | None = None,
+    certificate: tuple[Path, Path] | None = None,
+    more_call_features: Sequence[CallFeatureBuilder] = (),
 ) -> Iterator[RunningServer]:
     """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for;
-    `agent_adders` maps an owner's subject to the group whose members may add that owner's agent.
+    `agent_adders` maps an owner's subject to the group whose members may add that owner's agent, and
+    `more_call_features` wires further features beside `call_feature`.
 
-    The page comes from `page_build_directory`, so a test can serve a copy it changes.
+    The page comes from `page_build_directory`, so a test can serve a copy it changes, and over `certificate` (key
+    file, certificate file) when one is given.
     """
     app = create_app(
         loopback.sign_in.settings,
@@ -140,6 +155,7 @@ def running_hopin(
         issuer_transports=loopback.issuer.transports,
         call_features=(
             *(() if call_feature is None else (call_feature,)),
+            *more_call_features,
             *(
                 (ParticipationFeature(loopback.sign_in.settings.public_origin, agent_adders or {}),)
                 if participation
@@ -147,7 +163,7 @@ def running_hopin(
             ),
         ),
     )
-    key_file, certificate_file = _write_self_signed_certificate(tls_directory)
+    key_file, certificate_file = certificate or write_self_signed_certificate(tls_directory)
     server = uvicorn.Server(
         uvicorn.Config(
             app,
@@ -156,7 +172,7 @@ def running_hopin(
             ssl_certfile=str(certificate_file),
         )
     )
-    with _serving(server):
+    with serving(server):
         yield RunningServer(
-            f"https://{LOOPBACK_HOST}:{loopback.port}", installed_web_auth_config(app), loopback.stores, loopback.issuer
+            f"https://{loopback.host}:{loopback.port}", installed_web_auth_config(app), loopback.stores, loopback.issuer
         )

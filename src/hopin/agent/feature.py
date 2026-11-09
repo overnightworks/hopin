@@ -50,6 +50,11 @@ class GameFeature:
         service = self.speech.service
         return () if service is None else (service.audience_scope,)
 
+    @property
+    def frame_sources(self) -> tuple[str, ...]:
+        """None: the game frames nothing."""
+        return ()
+
     def __call__(
         self,
         *,

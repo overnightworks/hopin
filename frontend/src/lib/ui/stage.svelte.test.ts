@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
+import type { FeatureView } from "#lib/ui/chat.svelte.ts";
+
 // The modules hold their state, so each case loads fresh copies.
 async function freshStage() {
     vi.resetModules();
@@ -359,5 +361,18 @@ describe("agent tiles", () => {
         showAgentTile({ ...dialed, name: "Renamed" }, "agent-one");
 
         expect([...agentTiles.values()].map((shown) => shown.name)).toEqual(["Renamed"]);
+    });
+});
+
+describe("feature view on the stage", () => {
+    it("holds the view a feature shows until null clears it", async () => {
+        const { showStage, stageSurface } = await freshStage();
+        const view = (() => undefined) as unknown as FeatureView;
+
+        showStage(view);
+        const shown = stageSurface.view;
+        showStage(null);
+
+        expect([shown, stageSurface.view]).toEqual([view, null]);
     });
 });

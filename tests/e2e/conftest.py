@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 import pytest
 from webauth.admission import AppRole
@@ -14,7 +15,7 @@ from tests.e2e.support.camera_less_call import (
 from tests.e2e.support.dialed_agent import Agent
 from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
-from tests.e2e.support.people import DESKTOP, PERSON_ADDRESS_BASE, _playwright_cookie, person_address_offsets
+from tests.e2e.support.people import DESKTOP, PERSON_ADDRESS_BASE, person_address_offsets, playwright_cookie
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.signed_in import SeededMember, new_account, seed_member
 
@@ -134,7 +135,12 @@ def open_person(
                 account = new_account(e2e_server.stores, e2e_server.config)
             refresh_token = e2e_server.issuer.refresh_token_for(account.id) if with_refresh_token else None
             member = seed_member(e2e_server.stores, e2e_server.config, account=account, refresh_token=refresh_token)
-            context.add_cookies([_playwright_cookie(header, e2e_server.config) for header in member.set_cookie_headers])
+            context.add_cookies(
+                [
+                    playwright_cookie(header, e2e_server.config, urlsplit(e2e_server.base_url).hostname)
+                    for header in member.set_cookie_headers
+                ]
+            )
             seeded_members[page] = member
         return page
 
