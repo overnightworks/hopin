@@ -266,7 +266,7 @@ class Participation:
 
     def window_rooms_of(self, person: Person) -> tuple[str, ...]:
         """The rooms where the person holds a joined agent, whose chat windows it may read."""
-        return tuple(room_id for room_id, place in self._places.of_person(person) if isinstance(place, DialedAgent))
+        return self._places.window_rooms_of(person)
 
     def read_window(self, person: Person, room_id: str) -> WindowRead | None:
         """The chat window of the person's joined agent in the room, or nothing when it holds none there."""

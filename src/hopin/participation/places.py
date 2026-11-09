@@ -91,6 +91,10 @@ class Places:
     def window_of(self, person: Person, room_id: str) -> ChatWindow | None:
         return self._windows.get((person, room_id))
 
+    def window_rooms_of(self, person: Person) -> tuple[str, ...]:
+        """The rooms where the person holds a window."""
+        return tuple(room_id for (holder, room_id) in self._windows if holder == person)
+
     def windows_in(self, room_id: str) -> dict[Person, ChatWindow]:
         """The window of every agent joined in the room, by the person whose agent it is."""
         return {person: window for (person, held_room), window in self._windows.items() if held_room == room_id}
