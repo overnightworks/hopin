@@ -1,0 +1,1885 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HopIn Agent mit Figur</title>
+<script type="importmap">
+{
+ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.js"
+ },
+ "integrity": {
+  "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js": "sha384-T/E3B9AvPtLn5PKD7aTSFqizQcA4kHDfU0lub7u0fvM4w9BMGcSb3yI7r5LqMAMn",
+  "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.core.js": "sha384-drH6BueSlcvoXCwAqWkNJvXwu2Ax3mnGOmZnIXaomedIw+uXSP9Bf/XIUINgLUW+",
+  "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/loaders/GLTFLoader.js": "sha384-WH6tljjFikpYMGa2JMqlbJlM1lEMkd/Y6Sqnuog1rX87eShphltUQI5NKByEo4CP",
+  "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/utils/BufferGeometryUtils.js": "sha384-NArny884Zj3HwjLRjeY1kbfLZnAHIElzho3N71FW0eMGxxBT+QuLEiSnSgpSaBXh",
+  "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/utils/SkeletonUtils.js": "sha384-Pozn8j5+YFr3ak8Pm90ayqDrGYn/DV7vVs/YIIqzJhzeJT0LQksoS1fZQ5lfsYlw",
+  "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.js": "sha384-Kf4hNsd+NwczRpFXB0RBdN6nMRyjoYpz/H9a3tWD9SH1423U+JgwLA9QSXvz7f4g"
+ }
+}
+</script>
+<style>
+:root {
+	--bg: #f4f4f6;
+	--bg-deep: #e8e8ec;
+	--surface: #ffffff;
+	--surface-hover: #ebebed;
+	--border: #d0d0d4;
+	--text: #1a1a1e;
+	--text-muted: #555;
+	--card-bg: rgba(255, 255, 255, 0.9);
+	--header-bg: #f0f0f2;
+	--ok: #1e7a1e;
+	--ok-soft: #e0f5e0;
+	--busy: #9a6200;
+	--busy-soft: #fef3e0;
+	--fail: #c02020;
+	--fail-soft: #fde8e8;
+	color-scheme: light;
+	--font-display: "Oswald", Impact, sans-serif;
+	--font-body: "Open Sans", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0d0d0d;
+		--bg-deep: #050508;
+		--surface: #111;
+		--surface-hover: #1a1a1a;
+		--border: #333;
+		--text: #e0e0e0;
+		--text-muted: #888;
+		--card-bg: rgba(13, 13, 13, 0.85);
+		--header-bg: #0a0a0a;
+		--ok: #44aa44;
+		--ok-soft: #1a3a1a;
+		--busy: #f0a030;
+		--busy-soft: #2a1f10;
+		--fail: #ff4444;
+		--fail-soft: #3a1a1a;
+		color-scheme: dark;
+	}
+}
+.legal a:hover {
+	color: var(--text);
+	border-bottom-color: currentColor;
+}
+:root {
+	--mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+	--motion-snap: 0.28s;
+	--motion-fade: 0.2s;
+	--motion-quick: 0.15s;
+	--motion-press: 0.1s;
+	--motion-ring: 1.8s;
+	--motion-wave: 0.9s;
+	--motion-think: 1.1s;
+	--accent: #1d5bbf;
+	--primary: var(--accent);
+	--accent-hover: #174a9c;
+	--accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+	--on-accent: #ffffff;
+	--shadow-lg:
+		0 2px 6px rgba(20, 24, 29, 0.06), 0 28px 64px -28px rgba(20, 24, 29, 0.42);
+	--shadow-sm:
+		0 1px 2px rgba(20, 24, 29, 0.06), 0 2px 8px -4px rgba(20, 24, 29, 0.14);
+	--scrim: rgba(14, 18, 22, 0.36);
+	--toast-bg: #1c2128;
+	--toast-ink: #f4f6f8;
+	--toast-act: #7aa7f0;
+	--stage: #0d1013;
+	--stage-2: #171b20;
+	--stage-3: #252b32;
+	--on-stage: #f4f6f8;
+	--on-stage-soft: rgba(244, 246, 248, 0.72);
+	--glass: rgba(255, 255, 255, 0.15);
+	--glass-hover: rgba(255, 255, 255, 0.24);
+	--glass-dark: rgba(12, 14, 17, 0.55);
+	--vignette: rgba(6, 8, 10, 0.42);
+	--busy-stage: #edb656;
+	--accent-stage: #7aa7f0;
+	--stage-fade: rgba(13, 16, 19, 0.92);
+	--leave: #e5484d;
+	--leave-hover: #cf3a3f;
+	--on-leave: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--accent: #7aa7f0;
+		--accent-hover: #a3c2f5;
+		--accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
+		--on-accent: #111111;
+		--shadow-lg:
+			0 2px 6px rgba(0, 0, 0, 0.4), 0 28px 64px -28px rgba(0, 0, 0, 0.9);
+		--shadow-sm:
+			0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px -4px rgba(0, 0, 0, 0.6);
+		--scrim: rgba(0, 0, 0, 0.55);
+		--toast-bg: #e8ecf0;
+		--toast-ink: #14181d;
+		--toast-act: #1d5bbf;
+	}
+}
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+html,
+body {
+	height: 100%;
+	overflow: hidden;
+}
+body {
+	font-family: var(--font-body);
+	background: var(--bg);
+	color: var(--text);
+	display: flex;
+	flex-direction: column;
+}
+button,
+input,
+textarea {
+	font-family: inherit;
+}
+.connection-quality {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 5;
+	height: 24px;
+	padding: 0 8px 7px;
+	border-radius: 999px;
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	background: var(--glass-dark);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+.quality-bar {
+	width: 3px;
+	border-radius: 1px;
+	background: var(--on-stage);
+	opacity: 0.3;
+}
+.quality-bar:nth-child(1) {
+	height: 4px;
+}
+.quality-bar:nth-child(2) {
+	height: 7px;
+}
+.quality-bar:nth-child(3) {
+	height: 10px;
+}
+.connection-quality[data-quality="good"] .quality-bar {
+	opacity: 1;
+}
+.btn-primary:hover,
+.btn-danger:hover,
+.btn-secondary:hover,
+.chat-close:hover {
+	opacity: 0.85;
+}
+.status {
+	padding: 0.3rem 0.6rem;
+	border-radius: 6px;
+	font-size: 0.8rem;
+}
+.status-connected {
+	background: #064e3b;
+	color: #6ee7b7;
+}
+.chat-close:hover {
+	color: #fff;
+}
+.call {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	grid-template-rows: minmax(0, 1fr);
+	background: var(--stage);
+	color: var(--on-stage);
+	font-family: var(--font-body);
+}
+.stage {
+	--stage-bottom: 112px;
+	--c: 1;
+	--r: 1;
+	position: relative;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	background: var(--stage);
+}
+.ctop {
+	position: absolute;
+	top: 4px;
+	left: 16px;
+	right: 16px;
+	z-index: 30;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+.ctop .left {
+	display: flex;
+	gap: 8px;
+}
+.tag-glass {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 12px;
+	border-radius: 999px;
+	background: var(--glass-dark);
+	color: var(--on-stage);
+	font-size: 13px;
+	font-weight: 600;
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+}
+.num {
+	font-variant-numeric: tabular-nums;
+}
+.grid {
+	position: absolute;
+	inset: 44px 8px var(--stage-bottom) 8px;
+}
+.tiles {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	grid-template-columns: repeat(var(--c), 1fr);
+	grid-template-rows: repeat(var(--r), 1fr);
+	gap: 6px;
+}
+.stage[data-count="3"] {
+	--c: 1;
+	--r: 3;
+}
+.stage[data-count="9"] {
+	--c: 2;
+	--r: 5;
+}
+.tile {
+	position: relative;
+	min-height: 0;
+	overflow: hidden;
+	border-radius: 18px;
+	background: var(--stage-2);
+	container-type: size;
+}
+.tile::after,
+.preview::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+	background: linear-gradient(to top, var(--vignette), transparent 42%);
+}
+.vid {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	z-index: 2;
+}
+.vid.off {
+	background: var(--stage-3);
+}
+.av {
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	background: linear-gradient(
+		150deg,
+		var(--c1, var(--accent)),
+		var(--c2, var(--accent-hover))
+	);
+	color: var(--on-accent);
+	font-weight: 650;
+	letter-spacing: 0.01em;
+}
+.av svg {
+	width: 56%;
+	height: 56%;
+}
+.vid.off .av {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: clamp(44px, 30cqmin, 112px);
+	height: clamp(44px, 30cqmin, 112px);
+}
+.tile .name {
+	position: absolute;
+	left: 10px;
+	bottom: 10px;
+	z-index: 5;
+	max-width: calc(100% - 20px);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 28px;
+	padding: 0 10px;
+	border-radius: 999px;
+	background: var(--glass-dark);
+	color: var(--on-stage);
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+.name .wave:not(.hidden) {
+	display: inline-flex;
+	gap: 2px;
+	align-items: center;
+	height: 12px;
+	color: var(--accent-stage);
+}
+.wave i {
+	width: 2.5px;
+	height: 12px;
+	border-radius: 2px;
+	background: currentColor;
+	transform: scaleY(0.4);
+	animation: wave var(--motion-wave) ease-in-out infinite;
+}
+.wave i:nth-child(2) {
+	animation-delay: -0.3s;
+}
+.wave i:nth-child(3) {
+	animation-delay: -0.55s;
+}
+@keyframes wave {
+	0%,
+	100% {
+		transform: scaleY(0.25);
+	}
+	50% {
+		transform: scaleY(0.95);
+	}
+}
+.tile.speaking::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	z-index: 6;
+	pointer-events: none;
+	box-shadow: inset 0 0 0 3px var(--accent-stage);
+	animation: speak var(--motion-ring) ease-in-out infinite;
+}
+.tile.agent .ai-badge {
+	border: 1.5px solid var(--accent-stage);
+	border-radius: 999px;
+	padding: 0 5px;
+	font-size: 0.6rem;
+	line-height: 13px;
+	font-weight: 750;
+	letter-spacing: 0.04em;
+}
+.tile.agent .sponsor {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 500;
+	opacity: 0.8;
+}
+.tile.agent .sponsor::before {
+	content: "\00b7\00a0";
+}
+.agent-remove {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 7;
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: var(--glass-dark);
+	color: var(--on-stage);
+	cursor: pointer;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+.agent-remove:hover,
+.agent-remove:focus-visible {
+	background: var(--glass);
+}
+.tile.agent .av {
+	color: var(--accent-stage);
+	background: var(--stage-2);
+	box-shadow: inset 0 0 0 2px var(--accent-stage);
+}
+.agent-activity {
+	position: absolute;
+	left: 50%;
+	top: calc(50% + clamp(22px, 15cqmin, 56px) + 14px);
+	display: flex;
+	gap: 5px;
+	transform: translateX(-50%);
+}
+.agent-activity i {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--accent-stage);
+}
+.tile.agent.activity-thinking .agent-activity i {
+	background: var(--busy-stage);
+	animation: speak var(--motion-think) ease-in-out infinite;
+}
+.tile.agent.activity-thinking .agent-activity i:nth-child(2) {
+	animation-delay: -0.3s;
+}
+.tile.agent.activity-thinking .agent-activity i:nth-child(3) {
+	animation-delay: -0.6s;
+}
+.tile.agent.activity-speaking .agent-activity {
+	display: none;
+}
+@keyframes speak {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.45;
+	}
+}
+@media (min-width: 601px) {
+	.stage {
+		--stage-bottom: 92px;
+	}
+	.stage[data-count="3"] {
+		--c: 3;
+		--r: 1;
+	}
+	.stage[data-count="7"],
+	.stage[data-count="8"],
+	.stage[data-count="9"] {
+		--c: 3;
+		--r: 3;
+	}
+	.ctop {
+		top: 16px;
+		left: 20px;
+		right: 20px;
+	}
+	.grid {
+		inset: 62px 20px var(--stage-bottom) 20px;
+		container-type: size;
+		display: grid;
+		place-items: center;
+	}
+	.tiles {
+		position: static;
+		display: grid;
+		grid-template-rows: none;
+		gap: 10px;
+		width: min(
+			100cqw,
+			calc((100cqh - (var(--r) - 1) * 10px) * 16 / 9 * var(--c) / var(--r))
+		);
+	}
+	.tile {
+		border-radius: 16px;
+		aspect-ratio: 16 / 9;
+	}
+}
+.icon {
+	display: block;
+	flex: none;
+}
+.button:active {
+	transform: scale(0.985);
+}
+.button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+.button-primary:hover {
+	background: var(--accent-hover);
+}
+.button-primary:disabled {
+	background: var(--accent);
+}
+.button-text:hover {
+	background: var(--surface-hover);
+}
+.iconbtn:hover {
+	background: var(--border);
+}
+.iconbtn.ghost:hover {
+	background: var(--surface-hover);
+}
+.cb {
+	position: relative;
+	width: 52px;
+	height: 52px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	background: var(--glass);
+	color: var(--on-stage);
+	cursor: pointer;
+	backdrop-filter: blur(14px);
+	-webkit-backdrop-filter: blur(14px);
+	transition: background var(--motion-quick);
+}
+.cb:hover:not(:disabled, .off, .active, .leave) {
+	background: var(--glass-hover);
+}
+.cb.leave {
+	background: var(--leave);
+	color: var(--on-leave);
+}
+.cb.leave:hover:not(:disabled) {
+	background: var(--leave-hover);
+}
+.cb:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+.cbar {
+	position: absolute;
+	z-index: 40;
+	display: flex;
+	align-items: center;
+	border: 0;
+	margin: 0;
+	min-inline-size: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 26px 14px 36px;
+	justify-content: space-between;
+	background: linear-gradient(to top, var(--stage-fade) 55%, transparent);
+}
+.cbar .gap {
+	display: none;
+	width: 14px;
+}
+.cbar #screenBtn {
+	display: none;
+}
+@media (min-width: 601px) {
+	.cbar {
+		left: 50%;
+		right: auto;
+		bottom: 20px;
+		padding: 0;
+		gap: 10px;
+		transform: translateX(-50%);
+		background: none;
+	}
+	.cbar .gap {
+		display: block;
+	}
+	.cbar #screenBtn {
+		display: grid;
+	}
+	.cb.leave {
+		width: 72px;
+		border-radius: 26px;
+	}
+}
+.mi:hover {
+	background: var(--surface-hover);
+}
+.mi:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+.mi:disabled:hover {
+	background: transparent;
+}
+@keyframes overlay-fade {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes overlay-sheet {
+	from {
+		transform: translateY(40px);
+		opacity: 0;
+	}
+}
+@keyframes overlay-pop {
+	from {
+		opacity: 0;
+		transform: translateY(6px) scale(0.98);
+	}
+}
+.invite .button:focus-visible {
+	outline: 2.5px solid var(--accent);
+	outline-offset: 2px;
+}
+.invite[data-share="available"] #inviteCopyLinkBtn:hover {
+	background: var(--border);
+}
+.av-btn:hover {
+	box-shadow: 0 0 0 4px var(--surface-hover);
+}
+.hidden {
+	display: none;
+}
+@media (max-width: 600px) {
+	.waiting[data-share="available"] #waitingCopyBtn:hover {
+		background: var(--glass-hover);
+	}
+}
+.toast-act:hover {
+	text-decoration: underline;
+}
+.toast-act:focus-visible {
+	outline: 2px solid var(--toast-act);
+	outline-offset: 1px;
+}
+@keyframes toast-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+}
+@keyframes toast-out {
+	to {
+		opacity: 0;
+	}
+}
+html,
+body {
+	height: auto;
+	overflow: auto;
+}
+body {
+	display: block;
+	padding: 20px;
+}
+.view {
+	max-width: 1280px;
+	margin: 0 auto 28px;
+}
+.view .call {
+	height: 600px;
+	border-radius: 18px;
+	overflow: hidden;
+	display: block;
+	position: relative;
+}
+.view .stage {
+	height: 100%;
+}
+@media (max-width: 600px) {
+	body {
+		padding: 12px 0;
+	}
+	.view .call {
+		height: 780px;
+		border-radius: 0;
+	}
+	.stage .tiles {
+		grid-template-rows: 1fr 1fr 1.7fr;
+	}
+}
+.tile.self {
+	cursor: default;
+}
+.ear-mark {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	z-index: 7;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	background: var(--glass-dark);
+	color: var(--accent-stage);
+	box-shadow: inset 0 0 0 1.5px var(--accent-stage);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+.ear-mark[hidden] {
+	display: none;
+}
+.hear-set {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	z-index: 7;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	max-width: calc(100% - 64px);
+}
+.hear-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	max-width: 100%;
+	height: 28px;
+	padding: 0 5px 0 10px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--glass-dark);
+	color: var(--on-stage);
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+.hear-chip:hover {
+	background: var(--glass);
+}
+.hear-chip:focus-visible {
+	outline: 2.5px solid var(--accent-stage);
+	outline-offset: 2px;
+}
+.hear-icon {
+	display: inline-flex;
+	color: var(--on-stage-soft);
+}
+.hear-chip[aria-checked="true"] .hear-icon {
+	color: var(--accent-stage);
+}
+.hear-chip[aria-checked="true"] .when-off,
+.hear-chip[aria-checked="false"] .when-on {
+	display: none;
+}
+.hear-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.hear-chip[aria-checked="false"] .hear-label {
+	color: var(--on-stage-soft);
+}
+.hear-switch {
+	position: relative;
+	flex: none;
+	width: 34px;
+	height: 20px;
+	border-radius: 999px;
+	background: var(--glass);
+	transition: background var(--motion-fade);
+}
+.hear-switch::after {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--on-stage);
+	transition: transform var(--motion-fade);
+}
+.hear-chip[aria-checked="true"] .hear-switch {
+	background: var(--accent-stage);
+}
+.hear-chip[aria-checked="true"] .hear-switch::after {
+	transform: translateX(14px);
+	background: var(--stage);
+}
+.hidden {
+	display: none;
+}
+html[data-reduce] {
+	--motion-snap: 0s;
+	--motion-fade: 0s;
+	--motion-quick: 0s;
+	--motion-press: 0s;
+	--motion-ring: 0s;
+	--motion-wave: 0s;
+	--motion-think: 0s;
+}
+body {
+	display: block;
+	padding: 16px 20px 40px;
+	height: auto;
+	overflow: auto;
+}
+html,
+body {
+	height: auto;
+	overflow: auto;
+}
+.top {
+	max-width: 1280px;
+	margin: 0 auto 12px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	align-items: center;
+	justify-content: space-between;
+}
+.top h1 {
+	font-size: 18px;
+	font-weight: 750;
+	letter-spacing: -0.01em;
+}
+.panel {
+	max-width: 1280px;
+	margin: 0 auto 12px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 18px;
+	align-items: flex-end;
+	padding: 12px 14px;
+	border-radius: 16px;
+	background: var(--surface);
+	box-shadow: var(--shadow-sm);
+}
+.grp {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+.gl {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+.seg {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+.seg button,
+.tabs button {
+	height: 34px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--surface-hover);
+	color: var(--text);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+.seg button:hover,
+.tabs button:hover {
+	background: var(--border);
+}
+.seg button[aria-pressed="true"],
+.tabs button[aria-pressed="true"] {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+.seg button:focus-visible,
+.tabs button:focus-visible {
+	outline: 2.5px solid var(--accent);
+	outline-offset: 2px;
+}
+.tabs {
+	display: flex;
+	gap: 4px;
+}
+.read {
+	flex-basis: 100%;
+	font-family: var(--mono);
+	font-size: 11.5px;
+	color: var(--text-muted);
+}
+.view[hidden],
+section[hidden] {
+	display: none;
+}
+.pairgrid {
+	max-width: 1280px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 12px;
+}
+.pairgrid .view {
+	max-width: none;
+	margin: 0;
+}
+@media (min-width: 901px) {
+	.pairgrid {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+.view[data-count="9"] .call {
+	height: 940px;
+}
+@media (max-width: 600px) {
+	body {
+		padding: 12px 0 32px;
+	}
+	.top,
+	.panel {
+		margin-left: 12px;
+		margin-right: 12px;
+	}
+	.view[data-count="9"] .call {
+		height: 1180px;
+	}
+	.stage[data-count="9"] .tiles {
+		grid-template-rows: 1fr 2.4fr 1fr 1fr 1fr 2.4fr;
+	}
+	.stage[data-count="9"] .tile.agent {
+		grid-column: 1 / -1;
+	}
+	.stage[data-count="9"] .tile.agent[data-id="Clara"] {
+		order: 1;
+	}
+	.stage.pair .tiles {
+		grid-template-rows: 1fr 1fr 1.7fr;
+	}
+}
+@media (min-width: 601px) {
+	.stage[data-count="9"] .grid {
+		inset: 62px 20px var(--stage-bottom) 20px;
+	}
+	.stage.pair .grid {
+		display: block;
+		container-type: normal;
+	}
+	.stage.pair .tiles {
+		position: absolute;
+		inset: 0;
+		width: auto;
+		grid-template-columns: 1fr 1fr;
+		grid-template-rows: 1.9fr 1fr;
+		gap: 8px;
+	}
+	.stage.pair .tile {
+		aspect-ratio: auto;
+	}
+	.stage.pair .tile.agent {
+		grid-column: 1 / -1;
+		grid-row: 1;
+	}
+	.stage.pair .tile.self {
+		grid-row: 2;
+		grid-column: 1;
+	}
+	.stage.pair .tile:not(.self):not(.agent) {
+		grid-row: 2;
+		grid-column: 2;
+	}
+	.view:has(.pair) .call {
+		height: 660px;
+	}
+}
+.pair-label {
+	font-size: 13px;
+	font-weight: 700;
+	padding: 0 4px 8px;
+	display: flex;
+	gap: 8px;
+	align-items: baseline;
+	flex-wrap: wrap;
+}
+.pair-label small {
+	font-weight: 500;
+	color: var(--text-muted);
+	font-size: 12.5px;
+}
+.vid.char {
+	background: radial-gradient(
+		ellipse 70% 80% at 50% 38%,
+		var(--stage-3),
+		var(--stage-2) 75%
+	);
+}
+.char-canvas {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+.vid.char .av {
+	display: none;
+}
+.tile.agent.has-char.activity-present .agent-activity {
+	display: none;
+}
+.tile.agent.has-char .agent-activity {
+	left: calc(50% + 17cqmin);
+	top: calc(10% + 6px);
+	align-items: flex-end;
+	transform: none;
+}
+.tile.agent.has-char .agent-activity i:nth-child(1) {
+	width: 5px;
+	height: 5px;
+}
+.tile.agent.has-char .agent-activity i:nth-child(2) {
+	width: 7px;
+	height: 7px;
+	margin-bottom: 5px;
+}
+.tile.agent.has-char .agent-activity i:nth-child(3) {
+	width: 9px;
+	height: 9px;
+	margin-bottom: 11px;
+}
+.tile.agent[data-char="loading"] .av::after {
+	content: "";
+	position: absolute;
+	inset: -9px;
+	border-radius: 50%;
+	border: 2.5px solid transparent;
+	border-top-color: var(--accent-stage);
+	animation: spin var(--motion-ring) linear infinite;
+}
+.tile.agent .av {
+	position: absolute;
+}
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+.licence {
+	max-width: 1280px;
+	margin: 0 auto 12px;
+	font-size: 12.5px;
+	color: var(--text-muted);
+}
+.licence a {
+	color: inherit;
+}
+#pick {
+	font-size: 12.5px;
+	max-width: 230px;
+	color: var(--text);
+}
+
+</style></head>
+<body>
+<div class="top"><h1>Agent-Kachel mit 3D-Figur</h1>
+<nav class="tabs"><button type="button" data-tab="stage" aria-pressed="true">Bühne</button><button type="button" data-tab="gaze" aria-pressed="false">Blick</button></nav></div>
+<p class="licence">Die Bilder zeigen pixivs Beispielmodell <code>VRM1_Constraint_Twist_Sample</code>, © 2022 pixiv Inc., unter <a href="https://vrm.dev/licenses/1.0/">https://vrm.dev/licenses/1.0/</a>, als Stellvertreter-Gesicht.</p>
+<section id="stageView">
+<div class="panel">
+<div class="grp"><span class="gl">Kacheln</span><div class="seg" id="grpLayout"><button type="button" data-act="layout" data-v="3" aria-pressed="true">3</button><button type="button" data-act="layout" data-v="9" aria-pressed="false">9</button></div></div>
+<div class="grp"><span class="gl">Zustand</span><div class="seg" id="grpState"><button type="button" data-act="state" data-v="idle" aria-pressed="true">idle</button><button type="button" data-act="state" data-v="listening" aria-pressed="false">listening</button><button type="button" data-act="state" data-v="thinking" aria-pressed="false">thinking</button><button type="button" data-act="state" data-v="speaking" aria-pressed="false">speaking</button></div></div>
+<div class="grp"><span class="gl">Spricht</span><div class="seg" id="who"></div></div>
+<div class="grp"><span class="gl">Blick</span><div class="seg" id="grpPolicy"><button type="button" data-act="policy" data-v="A" aria-pressed="false">A</button><button type="button" data-act="policy" data-v="B" aria-pressed="true">B</button></div></div>
+<div class="grp"><span class="gl">Stimmung</span><div class="seg" id="grpMood"><button type="button" data-act="mood" data-v="happy" aria-pressed="false">happy</button><button type="button" data-act="mood" data-v="angry" aria-pressed="false">angry</button><button type="button" data-act="mood" data-v="sad" aria-pressed="false">sad</button><button type="button" data-act="mood" data-v="relaxed" aria-pressed="false">relaxed</button><button type="button" data-act="mood" data-v="surprised" aria-pressed="false">surprised</button></div></div>
+<div class="grp"><span class="gl">Ausfall</span><div class="seg" id="grpFail"><button type="button" data-act="fail" data-v="loading" aria-pressed="false">loading</button><button type="button" data-act="fail" data-v="nowebgl" aria-pressed="false">no WebGL</button><button type="button" data-act="fail" data-v="lost" aria-pressed="false">lost</button><button type="button" data-act="fail" data-v="slow" aria-pressed="false">slow</button><button type="button" data-act="fail" data-v="ok" aria-pressed="true">ok</button></div></div>
+<div class="grp"><span class="gl">Dazu</span><div class="seg"><button type="button" data-act="muted" aria-pressed="false">muted for me</button><button type="button" data-act="reduce" aria-pressed="false">reduced motion</button></div></div>
+<div class="grp"><span class="gl">Modell (.vrm)</span><input type="file" id="pick" accept=".vrm,model/gltf-binary"></div>
+<div class="read" id="read"></div>
+</div>
+<div class="view" data-count="3"><div class="call" id="mainCall"></div></div>
+</section>
+<section id="gazeView" hidden>
+<div class="panel">
+<div class="grp"><span class="gl">Spricht</span><div class="seg" id="grpGazeWho"><button type="button" data-act="gazeWho" data-v="Anna" aria-pressed="true">Anna (hört nicht)</button><button type="button" data-act="gazeWho" data-v="You" aria-pressed="false">ich (hört)</button><button type="button" data-act="gazeWho" data-v="" aria-pressed="false">niemand</button></div></div>
+<div class="read" id="readGaze"></div>
+</div>
+<div class="pairgrid">
+<div class="view"><div class="pair-label">A<small>schaut immer auf wen spricht</small></div><div class="call" id="callA"></div></div>
+<div class="view"><div class="pair-label">B<small>schaut nur auf wen er hört</small></div><div class="call" id="callB"></div></div>
+</div>
+</section>
+<script type="module">
+import {TextureLoader,WebGLRenderer,Scene,DirectionalLight,AmbientLight,PerspectiveCamera,Vector3,MathUtils} from "three";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {VRMLoaderPlugin} from "@pixiv/three-vrm";
+var lr = {"ctop":"<div class=\"ctop\"><div class=\"left\"><div class=\"status status-connected\">connected<\/div><\/div>\n<span class=\"tag-glass\"><svg class=\"icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M15.8 4.7a3.5 3.5 0 0 1 0 6.6M18 14.6c2 .7 3.2 2.4 3.5 4.9\"/><\/svg><span class=\"num\">3<\/span><\/span><\/div>\n","selfTile":"<div class=\"tile self\" data-own-tile>\n<div class=\"vid off\"><span class=\"av\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2\"/><\/svg><\/span><\/div>\n<span class=\"ear-mark\" data-ear  role=\"img\" aria-label=\"Agent hört dich\"><svg class=\"icon\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 10a6 6 0 1 1 12 0c0 3.2-3 4-3 7a3 3 0 0 1-6 0\"/><path d=\"M9.5 10a2.5 2.5 0 0 1 5 0\"/><\/svg><\/span>\n<span class=\"name\">You<\/span>\n<div class=\"connection-quality\" data-quality=\"good\"><div class=\"quality-bar\"><\/div><div class=\"quality-bar\"><\/div><div class=\"quality-bar\"><\/div><\/div>\n<\/div>","personTile":"<div class=\"tile\" >\n<div class=\"vid off\"><span class=\"av\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2\"/><\/svg><\/span><\/div>\n<span class=\"ear-mark\" data-ear hidden role=\"img\" aria-label=\"Agent hört Anna\"><svg class=\"icon\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 10a6 6 0 1 1 12 0c0 3.2-3 4-3 7a3 3 0 0 1-6 0\"/><path d=\"M9.5 10a2.5 2.5 0 0 1 5 0\"/><\/svg><\/span>\n<span class=\"name\">Anna<\/span>\n<div class=\"connection-quality\" data-quality=\"good\"><div class=\"quality-bar\"><\/div><div class=\"quality-bar\"><\/div><div class=\"quality-bar\"><\/div><\/div>\n<\/div>","agentTile":"<div class=\"tile agent activity-present\" role=\"status\" aria-label=\"Mozart, AI, in the call\">\n<div class=\"vid off\"><span class=\"av\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.5 4l1.9 5.6 5.6 1.9-5.6 1.9-1.9 5.6-1.9-5.6L3 11.5l5.6-1.9z\"/><path d=\"M18.5 3v4M16.5 5h4\"/><\/svg><\/span><span class=\"agent-activity\" aria-hidden=\"true\"><i><\/i><i><\/i><i><\/i><\/span><\/div>\n<div class=\"hear-set\">\n<button class=\"hear-chip\" type=\"button\" role=\"switch\" data-switch=\"hear\" aria-checked=\"true\">\n<span class=\"hear-icon\"><span class=\"when-on\"><svg class=\"icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 10a6 6 0 1 1 12 0c0 3.2-3 4-3 7a3 3 0 0 1-6 0\"/><path d=\"M9.5 10a2.5 2.5 0 0 1 5 0\"/><\/svg><\/span><span class=\"when-off\"><svg class=\"icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 10a6 6 0 1 1 12 0c0 3.2-3 4-3 7a3 3 0 0 1-6 0\"/><path d=\"M9.5 10a2.5 2.5 0 0 1 5 0\"/><path d=\"M4 4l16 16\"/><\/svg><\/span><\/span>\n<span class=\"hear-label\">Agent darf mich hören<\/span><span class=\"hear-switch\" aria-hidden=\"true\"><\/span><\/button>\n<button class=\"hear-chip\" type=\"button\" role=\"switch\" data-switch=\"listen\" aria-checked=\"true\">\n<span class=\"hear-icon\"><span class=\"when-on\"><svg class=\"icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.5h3l4.5-3.7v12.4L7 14.5H4z\"/><path d=\"M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11\"/><\/svg><\/span><span class=\"when-off\"><svg class=\"icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.5h3l4.5-3.7v12.4L7 14.5H4z\"/><path d=\"M15.5 9.5l5 5M20.5 9.5l-5 5\"/><\/svg><\/span><\/span>\n<span class=\"hear-label\">Ich will den Agenten hören<\/span><span class=\"hear-switch\" aria-hidden=\"true\"><\/span><\/button>\n<\/div>\n<button class=\"agent-remove\" type=\"button\" aria-label=\"Remove\"><svg class=\"icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 6l12 12M18 6L6 18\"/><\/svg><\/button>\n<span class=\"name\"><span class=\"wave hidden\" aria-hidden=\"true\"><i><\/i><i><\/i><i><\/i><\/span>Mozart<span class=\"ai-badge\">AI<\/span><span class=\"sponsor\">Felix<\/span><\/span>\n<\/div>","cbar":"<fieldset class=\"cbar\" aria-label=\"Call controls\">\n<button class=\"cb\" type=\"button\" aria-label=\"Mute\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11.5\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/><\/svg><\/button>\n<button class=\"cb\" type=\"button\" aria-label=\"Camera off\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"2.5\" y=\"6.5\" width=\"13\" height=\"11\" rx=\"2.8\"/><path d=\"M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6\"/><\/svg><\/button>\n<button class=\"cb\" id=\"screenBtn\" type=\"button\" aria-label=\"Share screen\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"2.5\" y=\"4\" width=\"19\" height=\"13\" rx=\"2.5\"/><path d=\"M8 21h8M12 17v4M12 13.5V8M9.4 10.4L12 7.8l2.6 2.6\"/><\/svg><\/button>\n<span class=\"gap\"><\/span>\n<button class=\"cb\" type=\"button\" aria-label=\"Invite\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9.5\" cy=\"8\" r=\"3.6\"/><path d=\"M3 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2M19 8v6M16 11h6\"/><\/svg><\/button>\n<button class=\"cb\" type=\"button\" aria-label=\"Chat\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20.5 11.6a8.1 8.1 0 0 1-11.9 7.1L3.5 20l1.4-4.6A8.1 8.1 0 1 1 20.5 11.6z\"/><\/svg><\/button>\n<button class=\"cb\" type=\"button\" aria-label=\"More\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"5.5\" cy=\"12\" r=\"1.7\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"12\" r=\"1.7\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"18.5\" cy=\"12\" r=\"1.7\" fill=\"currentColor\" stroke=\"none\"/><\/svg><\/button>\n<span class=\"gap\"><\/span>\n<button class=\"cb leave\" type=\"button\" aria-label=\"Leave\"><svg class=\"icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path fill=\"currentColor\" stroke=\"none\" d=\"M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z\"/><\/svg><\/button>\n<\/fieldset>"},
+  oh = new URLSearchParams(location.search),
+  eS = oh.get("guard") !== "0",
+  tS = oh.get("plugin") !== "0",
+  ar = (i, e, t) => Math.min(t, Math.max(e, i)),
+  Up = (i, e, t, n) => i + (e - i) * (1 - Math.exp(-t * n)),
+  $n = (i, e) => i + Math.random() * (e - i),
+  ao = ["happy", "angry", "sad", "relaxed", "surprised"],
+  Tl = ["aa", "ih", "ou", "ee", "oh"],
+  nS = matchMedia("(prefers-reduced-motion: reduce)"),
+  iS = () => nS.matches || document.documentElement.hasAttribute("data-reduce");
+var rS = null,
+  oS = () => rS,
+  th = class {
+    constructor(e) {
+      ((this.name = "HOPIN_texture_loader"), (e.textureLoader = new TextureLoader(e.options.manager)));
+    }
+  };
+async function aS(i) {
+  let e = new GLTFLoader();
+  (tS && e.register((s) => new th(s)), e.register((s) => new VRMLoaderPlugin(s)));
+  let n = (await e.parseAsync(i.slice(0), "")).userData.vrm;
+  return (
+    n.scene.traverse((s) => {
+      s.frustumCulled = !1;
+    }),
+    n
+  );
+}
+function lS(i) {
+  let e = new Set(),
+    t = 0,
+    n = 0,
+    s = new Set();
+  i.traverse((o) => {
+    if (o.geometry && !s.has(o.geometry)) {
+      s.add(o.geometry);
+      let l = o.geometry;
+      for (let c of Object.values(l.attributes)) t += c.array.byteLength;
+      for (let c of Object.values(l.morphAttributes)) for (let u of c) t += u.array.byteLength;
+      l.index && ((t += l.index.array.byteLength), (n += l.index.count / 3));
+    }
+    let a = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (let l of a) {
+      for (let c of Object.values(l)) c && c.isTexture && e.add(c);
+      if (l.uniforms) for (let c of Object.values(l.uniforms)) c && c.value && c.value.isTexture && e.add(c.value);
+    }
+  });
+  let r = 0;
+  for (let o of e) {
+    let a = o.image;
+    a && (r += (a.width || 0) * (a.height || 0));
+  }
+  return { textures: e.size, texels: r, textureBytes: Math.round(r * 4 * 1.333), geometryBytes: t, triangles: Math.round(n) };
+}
+var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee: [500, 1850, 2700], oh: [500, 950, 2500] },
+  Op = [
+    ["ou", "ee", "aa", "ih", "oh", "aa", "ee", "ou", "ih", "oh", "aa", "ee", "oh", "ou"],
+    ["aa", "oh", "ee", "ih", "ou", "aa", "ih", "ee", "oh", "aa", "ou", "ee", "ih", "aa"],
+  ],
+  cS = { happy: 158, angry: 118, sad: 100, relaxed: 112, surprised: 172, none: 126 },
+  nh = class {
+    constructor() {
+      ((this.ctx = null), (this.sentence = null));
+    }
+    ensure() {
+      if (!this.ctx) {
+        let e = (this.ctx = new (window.AudioContext || window.webkitAudioContext)());
+        ((this.filters = eh.aa.map((t, n) => {
+          let s = e.createBiquadFilter();
+          ((s.type = "bandpass"), (s.frequency.value = t), (s.Q.value = [5, 8, 8][n]));
+          let r = e.createGain();
+          return ((r.gain.value = [1, 0.8, 0.3][n]), s.connect(r), { bp: s, g: r });
+        })),
+          (this.mix = e.createGain()),
+          (this.mix.gain.value = 1),
+          (this.env = e.createGain()),
+          (this.env.gain.value = 0),
+          (this.out = e.createGain()),
+          (this.out.gain.value = 0.22),
+          (this.an = e.createAnalyser()),
+          (this.an.fftSize = 2048),
+          (this.an.smoothingTimeConstant = 0.2),
+          this.filters.forEach((t) => t.g.connect(this.mix)),
+          this.mix.connect(this.env),
+          this.env.connect(this.an),
+          this.env.connect(this.out),
+          this.out.connect(e.destination),
+          (this.td = new Float32Array(this.an.fftSize)),
+          (this.fd = new Float32Array(this.an.frequencyBinCount)));
+      }
+      this.ctx.state === "suspended" && this.ctx.resume();
+    }
+    setAudible(e) {
+      this.out && this.out.gain.setTargetAtTime(e ? 0.22 : 0, this.ctx.currentTime, 0.02);
+    }
+    speak(e, t) {
+      (this.ensure(), this.setAudible(t));
+      let n = this.ctx,
+        s = cS[e || "none"],
+        r = n.createOscillator();
+      ((r.type = "sawtooth"), (r.frequency.value = s));
+      let o = n.createOscillator();
+      o.frequency.value = 5.2;
+      let a = n.createGain();
+      ((a.gain.value = s * 0.025), o.connect(a), a.connect(r.frequency), this.filters.forEach((d) => r.connect(d.bp)));
+      let l = Op[Math.floor(Math.random() * Op.length)],
+        c = n.currentTime + 0.05,
+        u = c;
+      this.expected = [];
+      for (let d of l) {
+        let f = $n(0.15, 0.24),
+          [g, x, p] = eh[d],
+          m = this.filters;
+        (m[0].bp.frequency.setTargetAtTime(g, c, 0.02),
+          m[1].bp.frequency.setTargetAtTime(x, c, 0.02),
+          m[2].bp.frequency.setTargetAtTime(p, c, 0.02),
+          r.frequency.setTargetAtTime(s * $n(0.92, 1.12), c, 0.04),
+          this.env.gain.setTargetAtTime(1, c, 0.015),
+          this.env.gain.setTargetAtTime(0.05, c + f - 0.02, 0.012),
+          this.expected.push({ at: c - u, v: d }),
+          (c += f + 0.03));
+      }
+      (this.env.gain.setTargetAtTime(0, c, 0.03), r.start(u), o.start(u), r.stop(c + 0.2), o.stop(c + 0.2));
+      let h = c - u + 0.1;
+      return (
+        (this.sentence = { startedAt: performance.now(), duration: h * 1e3 }),
+        new Promise((d) => {
+          r.onended = () => {
+            ((this.sentence = null), d());
+          };
+        })
+      );
+    }
+    mouth() {
+      let e = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0, level: 0 };
+      if (!this.ctx || !this.sentence) return e;
+      this.an.getFloatTimeDomainData(this.td);
+      let t = 0;
+      for (let x = 0; x < this.td.length; x++) t += this.td[x] * this.td[x];
+      let n = Math.sqrt(t / this.td.length);
+      if (n < 0.01) return e;
+      this.an.getFloatFrequencyData(this.fd);
+      let s = this.ctx.sampleRate / this.an.fftSize,
+        r = (x) => this.fd[x] + 6 * Math.log2(Math.max(x * s, 100) / 500),
+        o = (x, p) => {
+          let m = -1,
+            M = -1 / 0;
+          for (let b = Math.ceil(x / s); b <= Math.floor(p / s); b++) {
+            let S = r(b);
+            S > M && ((M = S), (m = b));
+          }
+          return m * s;
+        },
+        a = o(200, 900),
+        l = o(Math.max(a + 280, 600), 2800);
+      this.lastFormants = [a, l];
+      let c = Tl.map((x) => {
+          let [p, m] = eh[x],
+            M = ((a - p) / 170) ** 2 + ((l - m) / 330) ** 2;
+          return Math.exp(-M);
+        }),
+        u = c.reduce((x, p) => x + p, 0) || 1,
+        h = c.map((x) => (x / u) ** 1.6),
+        d = h.reduce((x, p) => x + p, 0) || 1,
+        f = ar(n / 0.1, 0, 1) ** 0.6,
+        g = { level: f };
+      return (
+        Tl.forEach((x, p) => {
+          g[x] = (h[p] / d) * f;
+        }),
+        g
+      );
+    }
+  },
+  El = new nh(),
+  uS = ["head", "neck", "spine", "chest", "upperChest", "leftShoulder", "rightShoulder", "leftUpperArm", "rightUpperArm", "leftLowerArm", "rightLowerArm", "leftHand", "rightHand"],
+  Fp = { happy: 0.9, angry: 0.85, sad: 0.9, relaxed: 0.9, surprised: 0.95 },
+  hS = {
+    happy: { headX: -0.05, headZ: 0.04, chestX: -0.02, shoulder: 0.03 },
+    angry: { headX: 0.1, headZ: 0, chestX: 0.05, shoulder: 0.05 },
+    sad: { headX: 0.17, headZ: 0.07, chestX: 0.05, shoulder: -0.07 },
+    relaxed: { headX: 0, headZ: -0.07, chestX: 0, shoulder: -0.04 },
+    surprised: { headX: -0.1, headZ: 0, chestX: -0.07, shoulder: 0.07 },
+  },
+  Hp = { ua: [-0.6, 0.5, 0.6], la: [0, 2.4, 0], h: [0, 0, 0] },
+  Tt = { characters: new Set(), started: !1, cpu: 0, fps: 0, last: 0, burnMs: 0 },
+  ih = class {
+    constructor(e, t = {}) {
+      ((this.tile = e),
+        (this.host = e.querySelector(".vid")),
+        (this.hue = t.hue ?? 0),
+        (this.noWebGL = !1),
+        (this.holdLoad = !1),
+        (this.status = "loading"),
+        (this.input = { state: "idle", gaze: null, mouth: null, mood: null }),
+        (this.t = Math.random() * 10),
+        (this.p = {
+          yaw: 0,
+          pitch: 0,
+          roll: 0,
+          lean: 0,
+          think: 0,
+          blink: 0,
+          nod: 0,
+          level: 0,
+          breath: 0,
+          mouth: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 },
+          mood: Object.fromEntries(ao.map((n) => [n, 0])),
+          moodPose: { headX: 0, headZ: 0, chestX: 0, shoulder: 0 },
+        }),
+        (this.glance = { yaw: 0, pitch: 0, until: 0, next: $n(2, 5) }),
+        (this.blinkState = { next: $n(1.5, 4), phase: -1, double: !1 }),
+        (this.frames = []),
+        (this.visible = !0),
+        (this.token = 0));
+    }
+    setStatus(e) {
+      ((this.status = e),
+        (this.tile.dataset.char = e),
+        this.host.classList.toggle("char", e === "ready"),
+        this.tile.classList.toggle("has-char", e === "ready"),
+        this.tile.setAttribute("aria-busy", e === "loading" ? "true" : "false"));
+    }
+    async start() {
+      let e = ++this.token;
+      if ((this.teardownGl(), (this.frames = []), !oS())) {
+        this.setStatus("nomodel");
+        return;
+      }
+      this.setStatus("loading");
+      let t = document.createElement("canvas");
+      t.className = "char-canvas";
+      let n = null;
+      if (!this.noWebGL)
+        try {
+          n = t.getContext("webgl2", { antialias: !0, alpha: !0, premultipliedAlpha: !0, powerPreference: "low-power" });
+        } catch {
+          n = null;
+        }
+      if (!n) {
+        this.setStatus("nowebgl");
+        return;
+      }
+      ((this.onLost = (a) => {
+        (a.preventDefault(), this.fail("lost"));
+      }),
+        t.addEventListener("webglcontextlost", this.onLost),
+        (this.canvas = t),
+        (this.gl = n),
+        (this.renderer = new WebGLRenderer({ canvas: t, context: n, alpha: !0 })),
+        this.renderer.setClearColor(0, 0),
+        (this.scene = new Scene()));
+      let s = new DirectionalLight(16777215, Math.PI);
+      (s.position.set(0.7, 1, 1.3),
+        this.scene.add(s, new AmbientLight(16777215, 0.55)),
+        (this.camera = new PerspectiveCamera(22, 1, 0.05, 20)),
+        this.host.insertBefore(t, this.host.firstChild),
+        (t.style.filter = this.hue ? `hue-rotate(${this.hue}deg)` : ""));
+      let r;
+      try {
+        for (; this.holdLoad;) await new Promise((a) => setTimeout(a, 100));
+        r = await aS(oS());
+      } catch (a) {
+        (console.error("character load failed", a), e === this.token && this.fail("failed"));
+        return;
+      }
+      if (e !== this.token) {
+        this.disposeVrm(r);
+        return;
+      }
+      ((this.vrm = r), this.scene.add(r.scene), (this.nodes = Object.fromEntries(uS.map((a) => [a, r.humanoid.getNormalizedBoneNode(a)]))), r.scene.updateMatrixWorld(!0));
+      let o = r.humanoid.getRawBoneNode("leftEye") ?? r.humanoid.getRawBoneNode("head");
+      ((this.headPos = o.getWorldPosition(new Vector3())),
+        (this.headPos.x = 0),
+        (this.memory = lS(r.scene)),
+        this.renderer.render(this.scene, this.camera),
+        (this.memory.uploaded = this.renderer.info.memory.textures),
+        this.resize(),
+        this.observe(),
+        this.applyPose(0, !0),
+        r.update(0),
+        Tt.characters.add(this),
+        dS(),
+        this.setStatus("ready"));
+    }
+    observe() {
+      (this.ro?.disconnect(),
+        (this.ro = new ResizeObserver(() => this.resize())),
+        this.ro.observe(this.host),
+        this.io?.disconnect(),
+        (this.io = new IntersectionObserver((e) => {
+          this.visible = e[e.length - 1].isIntersecting;
+        })),
+        this.io.observe(this.host));
+    }
+    resize() {
+      if (!this.renderer) return;
+      let e = Math.max(2, this.host.clientWidth),
+        t = Math.max(2, this.host.clientHeight),
+        n = Math.min(devicePixelRatio || 1, 2, Math.sqrt(9e5 / (e * t)));
+      (this.renderer.setPixelRatio(Math.max(1, n)), this.renderer.setSize(e, t, !1), (this.camera.aspect = e / t));
+      let s = Math.tan(MathUtils.degToRad(this.camera.fov / 2)),
+        r = 0.25,
+        o = 0.4,
+        a = 0.31,
+        l = (r + o) / 2,
+        c = this.headPos.y + (r - o) / 2,
+        u = Math.max(l / s, a / (s * this.camera.aspect));
+      (this.camera.position.set(this.headPos.x, c, this.headPos.z + u), this.camera.lookAt(this.headPos.x, c, this.headPos.z), this.camera.updateProjectionMatrix());
+    }
+    fail(e) {
+      (this.token++, Tt.characters.delete(this), this.teardownGl(), this.setStatus(e));
+    }
+    teardownGl() {
+      if (
+        (Tt.characters.delete(this),
+        this.ro?.disconnect(),
+        this.io?.disconnect(),
+        this.vrm && this.disposeVrm(this.vrm),
+        (this.vrm = null),
+        this.canvas?.removeEventListener("webglcontextlost", this.onLost),
+        this.renderer)
+      )
+        try {
+          (this.renderer.dispose(), this.renderer.forceContextLoss());
+        } catch {}
+      (this.canvas?.removeEventListener("webglcontextlost", this.onLost), this.canvas?.remove(), (this.renderer = this.canvas = this.gl = this.scene = null));
+    }
+    disposeVrm(e) {
+      e.scene.traverse((t) => {
+        t.geometry?.dispose();
+        let n = Array.isArray(t.material) ? t.material : t.material ? [t.material] : [];
+        for (let s of n) {
+          for (let r of Object.values(s)) r && r.isTexture && r.dispose();
+          if (s.uniforms) for (let r of Object.values(s.uniforms)) r?.value?.isTexture && r.value.dispose();
+          s.dispose();
+        }
+      });
+    }
+    dispose() {
+      (this.token++, this.teardownGl());
+    }
+    applyPose(e, t = !1) {
+      let n = this.nodes,
+        s = this.p,
+        r = this.input,
+        o = iS(),
+        a = (O) => (t || o ? 1 : 1 - Math.exp(-O * e));
+      this.t += e;
+      let l = this.t,
+        c = 0,
+        u = 0,
+        h = r.state;
+      h === "listening" && r.gaze
+        ? ((c = r.gaze.yaw), (u = r.gaze.pitch))
+        : h === "thinking"
+          ? ((c = -18), (u = 13))
+          : o ||
+            (l > this.glance.next && (this.glance = { yaw: $n(-14, 14), pitch: $n(-6, 7), until: l + $n(0.6, 1.5), next: l + $n(3, 8) }),
+            l < this.glance.until && ((c = this.glance.yaw), (u = this.glance.pitch)));
+      let d = h === "listening" ? 0.75 : 0.5;
+      ((s.yaw += (c - s.yaw) * a(h === "listening" ? 5 : 7)),
+        (s.pitch += (u - s.pitch) * a(6)),
+        (s.think += ((h === "thinking" ? 1 : 0) - s.think) * a(4)),
+        (s.lean += ((h === "listening" ? 1 : 0) - s.lean) * a(3)));
+      for (let O of ao) s.mood[O] += ((r.mood === O ? Fp[O] : 0) - s.mood[O]) * a(r.mood === O ? 9 : 4);
+      let f = { headX: 0, headZ: 0, chestX: 0, shoulder: 0 };
+      for (let O of ao) {
+        let Q = s.mood[O] / Fp[O];
+        for (let G of Object.keys(f)) f[G] += hS[O][G] * Q;
+      }
+      let g = r.mouth,
+        x = 0;
+      for (let O of Tl) {
+        let Q = g ? g[O] : 0,
+          G = Q > s.mouth[O] ? 38 : 22;
+        ((s.mouth[O] += (Q - s.mouth[O]) * (t ? 1 : 1 - Math.exp(-G * e))), (x += s.mouth[O]));
+      }
+      s.level += (x - s.level) * a(12);
+      let m = ao.some((O) => s.mood[O] > 0.05) ? 0.72 : 1,
+        M = this.blinkState;
+      !t && l > M.next && M.phase < 0 && ((M.phase = 0), (M.double = Math.random() < 0.18));
+      let b = 0;
+      if (M.phase >= 0) {
+        M.phase += e;
+        let O = o ? 0.28 : 0.17;
+        ((b = M.phase < O ? Math.sin((M.phase / O) * Math.PI) : 0), M.phase >= O && (M.double ? ((M.double = !1), (M.phase = 0)) : ((M.phase = -1), (M.next = l + $n(2, 6)))));
+      }
+      h === "thinking" && (b *= 0.8);
+      let S = o ? 0 : Math.sin(l * ((Math.PI * 2) / 4.6)),
+        A = o ? 0 : 1,
+        E = Math.min(1, s.level) * (o ? 0 : 1),
+        _ = s.think,
+        T = MathUtils.degToRad(s.yaw) * d + _ * -0.2 + A * 0.035 * Math.sin(l * 0.37),
+        U = -MathUtils.degToRad(s.pitch) * 0.55 * 1 + f.headX * 1 + s.lean * 0.04 + _ * -0.1 + E * 0.045 * Math.sin(l * 5.1) + A * 0.02 * Math.sin(l * 0.53),
+        P = f.headZ + _ * 0.16 + A * 0.02 * Math.sin(l * 0.29);
+      h === "listening" && !o && l > (this.nodNext ?? 0) && ((this.nodAt = l), (this.nodNext = l + $n(2.5, 5)));
+      let N = l - (this.nodAt ?? -9),
+        F = !o && h === "listening" && N >= 0 && N < 0.9 ? Math.sin((N / 0.9) * Math.PI) * 0.09 : 0;
+      (n.neck.rotation.set(U * 0.4 + F * 0.4, T * 0.4, P * 0.4),
+        n.head.rotation.set(U * 0.6 + F * 0.6, T * 0.6, P * 0.6),
+        n.spine.rotation.set(0.008 * S + f.chestX * 0.4 + s.lean * 0.02, -T * 0.1, 0),
+        n.chest.rotation.set(0.014 * S + f.chestX * 0.6 + s.lean * 0.02, T * 0.15, 0),
+        n.upperChest && n.upperChest.rotation.set(0.006 * S, 0, 0));
+      let X = 0.012 * S + f.shoulder * 0.5;
+      (n.leftShoulder.rotation.set(0, 0, X), n.rightShoulder.rotation.set(0, 0, -X));
+      let I = 1.38;
+      (n.leftUpperArm.rotation.set(0.05 * S * 0.2, 0, -I), n.leftLowerArm.rotation.set(0, 0, 0), n.leftHand.rotation.set(0, 0, 0));
+      let k = Hp;
+      (n.rightUpperArm.rotation.set(_ * k.ua[0], _ * k.ua[1], I + _ * (k.ua[2] - I)),
+        n.rightLowerArm.rotation.set(_ * k.la[0], _ * k.la[1], _ * k.la[2]),
+        n.rightHand.rotation.set(_ * k.h[0], _ * k.h[1], _ * k.h[2]));
+      let q = this.vrm.expressionManager;
+      for (let O of Tl) q.setValue(O, ar(s.mouth[O] * m, 0, 1));
+      for (let O of ao) q.setValue(O, s.mood[O]);
+      (q.setValue("blink", b), this.vrm.lookAt && ((this.vrm.lookAt.yaw = ar(s.yaw * 2.4, -90, 90)), (this.vrm.lookAt.pitch = ar(s.pitch * 2.4, -90, 90))));
+    }
+    frame(e) {
+      if (!(!this.vrm || !this.renderer)) {
+        if ((this.applyPose(e), this.vrm.update(e), Tt.burnMs)) {
+          let t = performance.now() + Tt.burnMs;
+          for (; performance.now() < t;);
+        }
+        this.visible && this.renderer.render(this.scene, this.camera);
+      }
+    }
+  };
+function dS() {
+  if (Tt.started) return;
+  ((Tt.started = !0), (Tt.last = performance.now()));
+  let i = (e) => {
+    requestAnimationFrame(i);
+    let t = e - Tt.last;
+    if (((Tt.last = e), document.hidden)) return;
+    let n = Math.min(t / 1e3, 0.1),
+      s = performance.now();
+    for (let o of [...Tt.characters])
+      (o.frame(n), o.frames.push(t), o.frames.length > 40 && o.frames.shift(), eS && o.frames.length >= 40 && [...o.frames].sort((l, c) => l - c)[20] > 55 && ((Tt.burnMs = 0), o.fail("slow")));
+    let r = performance.now() - s;
+    ((Tt.cpu = Up(Tt.cpu, r, 4, n || 0.016)), (Tt.fps = Up(Tt.fps, 1e3 / Math.max(t, 1), 3, n || 0.016)));
+  };
+  requestAnimationFrame(i);
+}
+var wA = lr.ctop,
+  Ml = ["Anna", "Ben", "Dora", "Emil", "Fritz", "Gina"];
+function fS() {
+  return lr.selfTile;
+}
+function pS(i, e) {
+  let t = lr.personTile.replaceAll("Anna", i);
+  return (e && (t = t.replace("data-ear hidden", "data-ear ")), t);
+}
+function Bp(i, e) {
+  return lr.agentTile.replaceAll("Mozart", i).replace('<span class="sponsor">Felix</span>', `<span class="sponsor">${e}</span>`);
+}
+function mS(i) {
+  let e = i.querySelector(".name");
+  e && !e.querySelector(".wave") && e.insertAdjacentHTML("afterbegin", '<span class="wave hidden" aria-hidden="true"><i></i><i></i><i></i></span>');
+}
+var sh = class {
+    constructor(e, t, n, s) {
+      ((this.stage = e),
+        (this.tile = t),
+        (this.label = n),
+        (this.character = new ih(t, s)),
+        (this.base = "idle"),
+        (this.speaker = null),
+        (this.mood = null),
+        (this.speaking = !1),
+        (this.token = 0),
+        (this.activity = "present"),
+        (this.listenChip = t.querySelector('[data-switch="listen"]')),
+        (this.hearChip = t.querySelector('[data-switch="hear"]')));
+    }
+    get mutedForMe() {
+      return this.listenChip.getAttribute("aria-checked") !== "true";
+    }
+    async say(e) {
+      let t = ++this.token;
+      ((this.speaking = !0),
+        (this.mood = e),
+        (this.base = "idle"),
+        (this.speaker = null),
+        this.stage.syncSpeakers(),
+        await El.speak(e, !this.mutedForMe),
+        t === this.token && ((this.speaking = !1), (this.mood = null)));
+    }
+    stopSpeaking() {
+      (this.token++, (this.speaking = !1), (this.mood = null));
+    }
+    derive() {
+      return this.speaking ? "speaking" : this.base === "thinking" ? "thinking" : this.speaker && this.stage.mayLookAt(this.speaker) ? "listening" : "idle";
+    }
+    tick() {
+      let e = this.derive(),
+        t = this.tile;
+      (t.classList.toggle("speaking", e === "speaking"), t.querySelector(".name .wave")?.classList.toggle("hidden", e !== "speaking"));
+      for (let s of ["present", "thinking", "speaking"]) t.classList.toggle("activity-" + s, s === e || (s === "present" && (e === "idle" || e === "listening")));
+      t.classList.toggle("muted-for-me", this.mutedForMe);
+      let n = this.character;
+      ((n.input.state = e === "speaking" ? "idle" : e),
+        (n.input.mood = this.mood),
+        this.holdVowel ? (n.input.mouth = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0, [this.holdVowel]: 0.95 }) : e === "speaking" && !this.mutedForMe ? (n.input.mouth = El.mouth()) : (n.input.mouth = null),
+        (n.input.gaze = e === "listening" ? this.stage.gazeFrom(this.tile, this.speaker) : null));
+    }
+  },
+  co = class {
+    constructor(e, { count: t = 3, policy: n = "B", pair: s = !1, hearOn: r = !0, annaHeard: o = !0, agents: a = ["Mozart"] } = {}) {
+      ((this.root = e),
+        (this.count = t),
+        (this.policy = n),
+        (this.pair = s),
+        (this.hearOn = r),
+        (this.annaHeard = o),
+        (this.agentNames = a),
+        (this.agents = []),
+        (this.people = new Map()),
+        (this.speakerId = null));
+    }
+    build() {
+      let e = this.count === 9 ? ["You", ...Ml.slice(0, 1), "Mozart", Ml[1], "Clara", ...Ml.slice(2)] : ["You", "Anna", "Mozart"],
+        t = e
+          .map((r) => {
+            if (r === "You") return fS();
+            if (r === "Mozart") return Bp("Mozart", "Felix");
+            if (r === "Clara") return Bp("Clara", "Anna");
+            let o = !(this.pair && r === "Anna" && !this.annaHeard);
+            return pS(r, o);
+          })
+          .join(""),
+        n = lr.ctop.replace(/<span class="num">\d+<\/span>/, `<span class="num">${e.length}</span>`);
+      return (
+        (this.root.innerHTML = `<div class="stage${this.pair ? " pair" : ""}" data-count="${e.length}">${n}<div class="grid"><div class="tiles">${t}</div></div>${lr.cbar}</div>`),
+        (this.el = this.root.querySelector(".stage")),
+        [...this.el.querySelectorAll(".tile")].forEach((r, o) => {
+          if (((r.dataset.id = e[o]), mS(r), r.classList.contains("self"))) {
+            let a = r.querySelector("[data-ear]");
+            ((a.hidden = !this.hearOn), this.people.set("You", { el: r, heard: () => this.hearOn }));
+          } else if (r.classList.contains("agent")) {
+            let a = new sh(this, r, e[o], { hue: e[o] === "Clara" ? 150 : 0 });
+            this.agents.push(a);
+          } else this.people.set(e[o], { el: r, heard: () => !(e[o] === "Anna" && this.pair && !this.annaHeard) });
+        }),
+        this.el.querySelectorAll(".hear-chip").forEach((r) => {
+          r.addEventListener("click", () => {
+            let o = r.getAttribute("aria-checked") !== "true";
+            (r.setAttribute("aria-checked", String(o)),
+              r.dataset.switch === "hear"
+                ? ((this.hearOn = o), (this.el.querySelector("[data-own-tile] [data-ear]").hidden = !o))
+                : (r.closest(".tile").classList.toggle("muted-for-me", !o), this.agents.find((l) => l.tile === r.closest(".tile")) && El.setAudible(o)));
+          });
+        }),
+        this.agents.forEach((r) => r.character.start()),
+        (this.mozart = this.agents[0]),
+        this
+      );
+    }
+    mayLookAt(e) {
+      let t = this.people.get(e);
+      return t ? (this.policy === "A" ? !0 : t.heard()) : !1;
+    }
+    gazeFrom(e, t) {
+      let n = this.people.get(t);
+      if (!n) return null;
+      let s = this.el.getBoundingClientRect(),
+        r = e.getBoundingClientRect(),
+        o = n.el.getBoundingClientRect(),
+        a = (o.left + o.width / 2 - (r.left + r.width / 2)) / (s.width / 2),
+        l = (o.top + o.height / 2 - (r.top + r.height / 2)) / (s.height / 2);
+      return { yaw: ar(a, -1, 1) * 40, pitch: ar(-l, -1, 1) * 18 };
+    }
+    setSpeaker(e) {
+      ((this.speakerId = e), (this.mozart.speaker = e), e && ((this.mozart.base = this.mozart.base === "thinking" ? "idle" : this.mozart.base), this.mozart.stopSpeaking()), this.syncSpeakers());
+    }
+    syncSpeakers() {
+      for (let [e, t] of this.people) {
+        let n = e === this.speakerId;
+        (t.el.classList.toggle("speaking", n), t.el.querySelector(".name .wave")?.classList.toggle("hidden", !n));
+      }
+    }
+    tick() {
+      for (let e of this.agents) e.tick();
+    }
+    dispose() {
+      for (let e of this.agents) e.character.dispose();
+      this.root.innerHTML = "";
+    }
+  },
+  lt = { stage: null, count: 3, policy: "B" },
+  Dt = { a: null, b: null, speaker: "Anna" },
+  Vp = "stage",
+  Rt = (i, e = document) => e.querySelector(i),
+  ah = (i, e = document) => [...e.querySelectorAll(i)];
+function Di(i, e) {
+  ah("button", i).forEach((t) => t.setAttribute("aria-pressed", String(t.dataset.v === e)));
+}
+function Sl() {
+  let i = Rt("#who"),
+    e = ["", "You", ...(lt.count === 9 ? Ml : ["Anna"])];
+  i.innerHTML = e
+    .map((t) => `<button type="button" data-act="who" data-v="${t}" aria-pressed="${(lt.stage?.speakerId ?? "") === t}">${t === "" ? "niemand" : t === "You" ? "ich" : t}</button>`)
+    .join("");
+}
+function kp() {
+  (lt.stage?.dispose(),
+    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy }).build()),
+    (Rt("#mainCall").closest(".view").dataset.count = lt.count),
+    Sl(),
+    Di(Rt("#grpLayout"), String(lt.count)),
+    Di(Rt("#grpPolicy"), lt.policy));
+}
+function gS() {
+  (Dt.a?.dispose(), Dt.b?.dispose());
+  let i = { count: 3, pair: !0, annaHeard: !1 };
+  ((Dt.a = new co(Rt("#callA"), { ...i, policy: "A" }).build()), (Dt.b = new co(Rt("#callB"), { ...i, policy: "B" }).build()), lh(Dt.speaker));
+}
+function lh(i) {
+  ((Dt.speaker = i), Di(Rt("#grpGazeWho"), i || ""));
+  for (let e of [Dt.a, Dt.b]) e?.setSpeaker(i || null);
+}
+function ch(i) {
+  ((Vp = i),
+    ah("[data-tab]").forEach((e) => e.setAttribute("aria-pressed", String(e.dataset.tab === i))),
+    (Rt("#stageView").hidden = i !== "stage"),
+    (Rt("#gazeView").hidden = i !== "gaze"),
+    i === "stage" ? (Dt.a?.dispose(), Dt.b?.dispose(), (Dt.a = Dt.b = null), lt.stage || kp()) : (lt.stage?.dispose(), (lt.stage = null), gS()));
+}
+var lo = {
+  layout(i) {
+    ((lt.count = Number(i)), kp());
+  },
+  policy(i) {
+    ((lt.policy = i), lt.stage && (lt.stage.policy = i), Di(Rt("#grpPolicy"), i));
+  },
+  state(i) {
+    let e = lt.stage,
+      t = e.mozart;
+    (i === "idle"
+      ? (e.setSpeaker(null), (t.base = "idle"), t.stopSpeaking())
+      : i === "listening"
+        ? (t.stopSpeaking(), (t.base = "idle"), e.setSpeaker(e.speakerId ?? "Anna"))
+        : i === "thinking"
+          ? (e.setSpeaker(null), t.stopSpeaking(), (t.base = "thinking"))
+          : i === "speaking" && (e.setSpeaker(null), t.say(null)),
+      Sl());
+  },
+  who(i) {
+    (lt.stage.setSpeaker(i || null), Sl());
+  },
+  mood(i) {
+    let e = lt.stage;
+    (e.setSpeaker(null), e.mozart.say(i), Sl());
+  },
+  fail(i) {
+    let e = lt.stage.mozart.character;
+    if (i === "ok") {
+      ((e.holdLoad = !1), (e.noWebGL = !1), (Tt.burnMs = 0), e.start());
+      return;
+    }
+    if (i === "loading") {
+      ((e.holdLoad = !0),
+        e.start(),
+        setTimeout(() => {
+          e.holdLoad = !1;
+        }, 4e3));
+      return;
+    }
+    if (i === "nowebgl") {
+      ((e.noWebGL = !0), e.start());
+      return;
+    }
+    if (i === "lost") {
+      e.gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      return;
+    }
+    i === "slow" && (Tt.burnMs = 70);
+  },
+  muted() {
+    (lt.stage.mozart.listenChip.click(), zp());
+  },
+  reduce() {
+    let i = !document.documentElement.hasAttribute("data-reduce");
+    (document.documentElement.toggleAttribute("data-reduce", i), Rt('[data-act="reduce"]').setAttribute("aria-pressed", String(i)));
+  },
+  tab(i) {
+    ch(i);
+  },
+  gazeWho(i) {
+    lh(i || null);
+  },
+};
+function zp() {
+  let i = lt.stage?.mozart;
+  Rt('[data-act="muted"]').setAttribute("aria-pressed", String(!!i && i.mutedForMe));
+}
+document.addEventListener("click", (i) => {
+  let e = i.target.closest("[data-act],[data-tab]");
+  if (!e || e.closest(".tile")) return;
+  let t = e.dataset.act ?? "tab",
+    n = e.dataset.v ?? e.dataset.tab;
+  (lo[t]?.(n), t === "state" && _S(n));
+});
+function _S(i) {
+  Di(Rt("#grpState"), i);
+}
+function xS() {
+  let i = [],
+    t = (Vp === "stage" ? (lt.stage?.agents ?? []) : [...(Dt.a?.agents ?? []), ...(Dt.b?.agents ?? [])]).filter((s) => s.character.memory),
+    n = t[0]?.character.memory;
+  (i.push(`Bild ${Tt.cpu.toFixed(1)} ms`),
+    i.push(`${Math.round(Tt.fps)} fps`),
+    n &&
+      i.push(
+        `${t.length} Figur${t.length > 1 ? "en" : ""} \xB7 ${n.textures} Texturen ${(n.textureBytes / 1048576).toFixed(0)} MB \xB7 Geometrie ${(n.geometryBytes / 1048576).toFixed(1)} MB \xB7 ${(n.triangles / 1e3).toFixed(0)} k Dreiecke`,
+      ),
+    (Rt("#read").textContent = i.join(" \xB7 ")),
+    (Rt("#readGaze").textContent = i.join(" \xB7 ")));
+}
+function vS() {
+  let i = lt.stage;
+  if (!i) return;
+  let e = i.mozart,
+    t = e.speaking ? "speaking" : e.base === "thinking" ? "thinking" : i.speakerId && i.mayLookAt(i.speakerId) ? "listening" : "idle";
+  (Di(Rt("#grpState"), t), Di(Rt("#grpMood"), e.speaking && e.mood ? e.mood : ""));
+  let n = e.character,
+    s = n.status === "ready" || n.status === "failed" ? "ok" : n.status;
+  (ah("#grpFail button").forEach((r) => r.setAttribute("aria-pressed", String(r.dataset.v === s))), zp(), Di(Rt("#who"), i.speakerId ?? ""));
+}
+setInterval(() => {
+  (lt.stage?.tick(), Dt.a?.tick(), Dt.b?.tick());
+}, 1e3 / 30);
+setInterval(() => {
+  (xS(), vS());
+}, 400);
+window.addEventListener("DOMContentLoaded", () => {});
+window.proto = {
+  THINK_POSE: Hp,
+  holdVowel(i) {
+    lt.stage.mozart.holdVowel = i;
+  },
+  ACTIONS: lo,
+  VOICE: El,
+  LOOP: Tt,
+  showView: ch,
+  get main() {
+    return lt;
+  },
+  get gaze() {
+    return Dt;
+  },
+  setCount(i) {
+    lo.layout(String(i));
+  },
+  setPolicy(i) {
+    lo.policy(i);
+  },
+  setGazeSpeaker: lh,
+  reduce(i) {
+    (document.documentElement.toggleAttribute("data-reduce", i), Rt('[data-act="reduce"]').setAttribute("aria-pressed", String(i)));
+  },
+  characters() {
+    return [...(lt.stage?.agents ?? []), ...(Dt.a?.agents ?? []), ...(Dt.b?.agents ?? [])].map((i) => i.character);
+  },
+  async ready() {
+    for (; this.characters().some((i) => i.status === "loading");) await new Promise((i) => setTimeout(i, 50));
+  },
+};
+var rh = oh;
+ch(rh.get("view") === "gaze" ? "gaze" : "stage");
+rh.get("count") && lo.layout(rh.get("count"));
+Rt("#pick").addEventListener("change", async (i) => {
+  let e = i.target.files[0];
+  if (!e) return;
+  rS = await e.arrayBuffer();
+  for (let t of window.proto.characters()) t.start();
+});
+
+</script>
+</body></html>
