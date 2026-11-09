@@ -4,7 +4,10 @@ from webauth.config import installed_web_auth_config
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason
 
 from hopin.agent.session_groups import SessionGroups
-from tests.game.support.world import build_world
+from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
+from hopin.auth.stores import SignInStores
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.signed_in import cookie_header, new_account, seed_member
 
 pytestmark = pytest.mark.asyncio
 
@@ -19,12 +22,19 @@ async def test_a_connection_without_a_session_is_a_sign_in_to_repeat(dialed_call
 
 
 async def test_a_session_whose_refresh_token_was_already_used_still_reads_its_groups(sign_in_settings):
-    world = build_world(sign_in_settings())
-    connection, member = world.starter()
-    world.issuer.grant_groups(member.account.id, ("/scenario/one",))
-    groups = SessionGroups(world.relying_party, world.sessions, world.web_auth)
-    used = world.stores.sessions.load(member.session.id).refresh_token
+    sign_in = sign_in_settings()
+    issuer = FakeIssuer(sign_in)
+    configs = build_sign_in_configs(sign_in.settings, ())
+    stores = SignInStores.in_memory()
+    groups = SessionGroups(build_relying_party(configs, issuer.transports), stores.sessions, configs.web_auth)
+    account = new_account(stores, configs.web_auth)
+    issuer.grant_groups(account.id, ("/scenario/one",))
+    member = seed_member(stores, configs.web_auth, account=account, refresh_token=issuer.refresh_token_for(account.id))
+    connection = HTTPConnection(
+        {"type": "websocket", "headers": [(b"cookie", cookie_header(member.set_cookie_headers).encode())]}
+    )
+    used = stores.sessions.load(member.session.id).refresh_token
     await groups.of_connection(connection)
-    world.stores.sessions.replace_refresh_token(member.session.id, refresh_token=used)
+    stores.sessions.replace_refresh_token(member.session.id, refresh_token=used)
 
     assert await groups.of_connection(connection) == frozenset({"/scenario/one"})
