@@ -83,7 +83,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: [0, 1, 2]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: frontend
     timeout-minutes: 15
     permissions:
@@ -131,23 +131,11 @@ jobs:
           uv sync --locked --no-install-project --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
-      # apt on the runner can stall on a slow mirror; each attempt is bounded so
-      # a stall costs one retry instead of the test budget.
+      # The image is pinned because the libraries Chromium needs come with it; installing them through apt stalls now
+      # and then, so --with-deps is not used.
       - name: Install Chromium
-        id: install-chromium
-        continue-on-error: true
-        timeout-minutes: 6
-        run: playwright install --with-deps chromium
-
-      - name: Install Chromium again
-        if: steps.install-chromium.outcome == 'failure'
-        timeout-minutes: 6
-        run: |
-          # The timed-out attempt leaves its apt-get running and holding the dpkg lock.
-          sudo pkill -x apt-get || true
-          sudo pkill -x apt || true
-          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
-          playwright install --with-deps chromium
+        timeout-minutes: 3
+        run: playwright install chromium
 
       - name: Run the end-to-end tests
         timeout-minutes: 10
@@ -334,7 +322,7 @@ jobs:
 
   removal-drill-leg:
     name: Removal drill leg
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -402,25 +390,10 @@ jobs:
         working-directory: ${{ env.COPY }}
         run: pytest -q -n auto -m "not e2e" --no-cov
 
-      # Same bounded retry as the End-to-end job: a stalled apt must not turn
-      # the mandatory drill red at random.
       - name: Install Chromium
-        id: install-chromium
         working-directory: ${{ env.COPY }}
-        continue-on-error: true
-        timeout-minutes: 6
-        run: playwright install --with-deps chromium
-
-      - name: Install Chromium again
-        if: steps.install-chromium.outcome == 'failure'
-        working-directory: ${{ env.COPY }}
-        timeout-minutes: 6
-        run: |
-          # The timed-out attempt leaves its apt-get running and holding the dpkg lock.
-          sudo pkill -x apt-get || true
-          sudo pkill -x apt || true
-          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
-          playwright install --with-deps chromium
+        timeout-minutes: 3
+        run: playwright install chromium
 
       - name: Run a call end to end
         working-directory: ${{ env.COPY }}
