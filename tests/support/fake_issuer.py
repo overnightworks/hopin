@@ -102,7 +102,7 @@ class FakeIssuer:
         return f"code={code}&state={parameters['state'][0]}"
 
     def refresh_token_for(self, subject: str) -> str:
-        """A refresh token the issuer honours once, for the subject's next grant."""
+        """A refresh token the issuer honours for the subject's grants, also after its use."""
         refresh_token = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
         with self._guard:
             self._subjects_of_refresh_tokens[refresh_token] = subject
