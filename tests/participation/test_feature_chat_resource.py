@@ -8,11 +8,14 @@ from mcp_types import INVALID_PARAMS
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY
 from hopin.config.constants import SignalType
+from hopin.participation.vocabulary import ParticipationSignal
 from tests.support.dialed_call import join_arguments, window_uri
 
 pytestmark = pytest.mark.integration
 
 LONE_SURROGATE = "\ud800"
+OFFERS = ParticipationSignal.AGENT_OFFERS.value
+OFFER_UPDATES = 3  # the agent joined, left and invited: the offers a member is sent are told again each time
 
 
 def chat(message):
@@ -130,7 +133,10 @@ class TestWhatIsNotReadable:
         own_token = scene.call.token(account)
         scene.call.call(own_token, JOIN_CALL, join_arguments(scene.owner))
         scene.call.call(own_token, LEAVE_CALL, {"room": scene.owner.room_id})
-        scene.invite()
+        scene.add(scene.key_of_offer())
+        for _ in range(OFFER_UPDATES):
+            if any(offer["pending"] for offer in scene.member.frame_of_type(OFFERS)["offers"]):
+                break
         scene.accept(scene.standings()[0])
 
         answers = [scene.call.window(token, scene.owner.room_id) for token in (own_token, scene.token)]
