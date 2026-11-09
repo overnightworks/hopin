@@ -206,3 +206,26 @@ def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referre
     assert not any(path.startswith("/submitted") for path in stub_skat.paths)
     assert host.url.startswith(e2e_server.base_url)
     assert guest.url == guest_url
+
+
+def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is_off(
+    open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, PHONE)
+    own_tile = guest.locator("#localContainer")
+    box = own_tile.bounding_box()
+    assert box is not None
+    guest.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    guest.mouse.down()
+    expect(own_tile).to_have_class("tile self mirror dragging")
+
+    show_table(host, table_link(stub_skat))
+    expect_table_on_stage(guest, stub_skat)
+
+    expect(own_tile).not_to_have_class("tile self mirror dragging")
+    guest.mouse.move(box["x"] - 40, box["y"] + 200)
+    guest.mouse.up()
+    in_strip = own_tile.bounding_box()
+    assert in_strip is not None
+    assert in_strip["y"] < STRIP_BOTTOM_LIMIT_PIXELS
+    assert in_strip["width"] < box["width"]
