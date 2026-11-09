@@ -1,0 +1,8 @@
+claim_id = "e987320635e84099b055962653849ccc"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "69a34f673572219ec6f58c41e6df46f8e4a71cb8"
+branch = "claude/issue-636-take-design-v0-18-0"
+scope = ["docs/ARCHITECTURE.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/ui/SignIn.svelte", "frontend/src/routes/(call)/+layout.svelte", "frontend/src/routes/+layout.svelte", "src/hopin/web/static/assets/css/hopin.css"]
+opened_commit = "752ae79554b4e96dc887324377c33ac45939725b"
+whole_reason = "One package name across its pin, lockfile, imports and stylesheet import, which cannot build half renamed."
