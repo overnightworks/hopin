@@ -1,0 +1,7 @@
+claim_id = "e0c6a753f87a45258fd966f786dd9b45"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "31beac08f57fe6dea28b81b69f9dbf581425607e"
+branch = "claude/issue-633-take-appkit-v0-17-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/ui/SignIn.svelte"]
+opened_commit = "8037453281ffad9e96f9c067b72108847bbb79f0"
