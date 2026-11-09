@@ -1,5 +1,4 @@
 import pytest
-from agent_runtime_client.mcp_server import listen
 from agent_runtime_client.member import LEASE_SECONDS, STANDING_URI
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
@@ -13,16 +12,8 @@ ANOTHER_OWNER = "another-owner-subject"
 RENEWING_REQUESTS = {
     "a_read": lambda call, token: call.standing(token),
     "a_list": lambda call, token: call.request(token, "resources/list"),
-    "a_listen": lambda call, token: call.request(
-        token, "subscriptions/listen", {"notifications": {"resourceSubscriptions": [STANDING_URI]}}
-    ),
+    "a_listen": lambda call, token: call.listen(token, [STANDING_URI]),
 }
-
-
-@pytest.fixture(autouse=True)
-def short_listens(monkeypatch):
-    """A listen ends at once, so the request that opens it returns."""
-    monkeypatch.setattr(listen, "LISTEN_BOUND_SECONDS", 0)
 
 
 @pytest.fixture
