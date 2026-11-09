@@ -217,6 +217,7 @@ forbidden_modules = [
     "hopin.agent",
     "agent_runtime_client",
     "speech_client",
+    "speech_runtime_client",
     "httpx2",
 ]
 
@@ -226,7 +227,7 @@ name = "Participation names no agent runtime"
 type = "forbidden"
 # Participation holds who is in a call, with no AI in it; the connector adapts it to the runtime's tools.
 source_modules = ["hopin.participation"]
-forbidden_modules = ["agent_runtime_client", "speech_client", "httpx2"]
+forbidden_modules = ["agent_runtime_client", "speech_client", "speech_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"
@@ -242,9 +243,9 @@ allow_indirect_imports = true
 id = "speech-service-only-through-the-game"
 name = "Only the game reaches the speech service"
 type = "forbidden"
-# The speech client is the connector's alone.
+# The speech client is the connector's alone; the former package name stays forbidden so it cannot return.
 source_modules = ["hopin.main", "hopin.app"]
-forbidden_modules = ["speech_client"]
+forbidden_modules = ["speech_client", "speech_runtime_client"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
 allow_indirect_imports = true
 

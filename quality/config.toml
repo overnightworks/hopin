@@ -12,21 +12,3 @@ reason = "the SvelteKit project is a toolchain of its own: its manifest, lockfil
 [[root.allow]]
 entry = "legal/"
 reason = "hal reads the app's part of the legal pages from its release at exactly legal/datenschutz.html and legal/nutzungsbedingungen.html"
-
-[[gate.loosened]]
-what = 'import contract "Only the game reaches the speech service" changes forbidden_modules'
-item = "overnightworks/hopin#640"
-date = 2026-11-09
-reason = "The speech client package is renamed (overnightworks/speech#225, ruled A on 09.11.2026); the contract forbids the new name speech_client as it forbade speech_runtime_client."
-
-[[gate.loosened]]
-what = 'import contract "Participation names no agent runtime" changes forbidden_modules'
-item = "overnightworks/hopin#640"
-date = 2026-11-09
-reason = "The speech client package is renamed (overnightworks/speech#225, ruled A on 09.11.2026); the contract forbids the new name speech_client as it forbade speech_runtime_client."
-
-[[gate.loosened]]
-what = 'import contract "The call core knows no game" changes forbidden_modules'
-item = "overnightworks/hopin#640"
-date = 2026-11-09
-reason = "The speech client package is renamed (overnightworks/speech#225, ruled A on 09.11.2026); the contract forbids the new name speech_client as it forbade speech_runtime_client."
