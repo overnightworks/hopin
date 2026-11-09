@@ -537,9 +537,7 @@ button, input, textarea { font-family: inherit; }
     border-radius: 10px;
 }
 .stage[data-surface] .tile .connection-quality { display: none; }
-@media (max-width: 600px) {
-    .stage[data-surface] .tile .name { display: none; }
-}
+.stage[data-surface] .tile .name { display: none; }
 .surface {
     position: absolute;
     inset: 116px 8px var(--stage-bottom) 8px;

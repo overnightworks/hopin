@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from hopin.config.constants import SignalType
+from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.signaling.frames import ForeignFrame
 from hopin.skat.vocabulary import SkatRefusal, SkatSignal
 from tests.signaling.support.browsers import HeldWrite, clear_sent
@@ -183,6 +183,25 @@ class TestTheOpenerLeaves:
         assert stays["revision"] > shown["revision"]
         await detach(guest, shown["attachment"])
         assert tables(host)[-1]["attachment"] is None
+
+    async def test_an_opener_ending_during_its_attach_fan_out_leaves_every_seat_the_table_without_an_opener(
+        self, link, scheduler
+    ):
+        host, opener, guest = await host_opener_and_guest(link)
+        clear_sent(host, opener, guest)
+        held = HeldWrite(host.socket, first_only=True)
+
+        attaching = asyncio.create_task(attach(opener))
+        await held.reached()
+        opener.socket.account = None
+        await scheduler.advance(SESSION_RECHECK_SECONDS)
+        held.release.set()
+        await attaching
+
+        for seat in (guest, host):
+            newest = max(tables(seat), key=lambda frame: frame["revision"])
+            assert (newest["attachment"], newest["opener_id"]) == (FIRST_ATTACHMENT, None)
+        assert tables(guest)[-1]["revision"] == max(frame["revision"] for frame in tables(guest))
 
 
 @pytest.mark.asyncio

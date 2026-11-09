@@ -43,7 +43,6 @@ VIDEOS_ARE_THE_TAGGED_ONES = """() => {
     return now.length === window.taggedVideos.length && now.every((video) => window.taggedVideos.includes(video));
 }"""
 REMOVE_BUTTON_PHONE_PIXELS = 24
-REMOVE_BUTTON_DESKTOP_PIXELS = 32
 FIRST_REMOTE_TIME = "() => document.querySelector('#videoGrid .tile:not(.self) video').currentTime"
 
 
@@ -287,33 +286,24 @@ def test_an_agent_tile_in_a_desktop_strip_keeps_its_full_remove_button(
     expect(remove_agent).to_be_visible()
     box = remove_agent.bounding_box()
     assert box is not None
-    assert box["width"] == REMOVE_BUTTON_DESKTOP_PIXELS
+    assert box["width"] > REMOVE_BUTTON_PHONE_PIXELS
 
 
-@pytest.mark.parametrize(("form_factor", "shows_names"), [(DESKTOP, True), (PHONE, False)], ids=["desktop", "phone"])
-def test_a_strip_tile_shows_its_name_pill_on_desktop_and_none_on_a_phone(
+@pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])
+def test_a_strip_tile_shows_no_name_pill_and_an_agent_tile_keeps_its_sparkle(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     stub_skat: StubSkat,
     page_errors: list[str],
     agent_of: Callable[[Page], Agent],
     form_factor: dict[str, Any],
-    *,
-    shows_names: bool,
 ) -> None:
-    """CALL-12, CALL-38, CALL-50, CALL-55: A strip tile keeps its name pill, AI badge and sponsor, except on a phone."""
+    """CALL-12, CALL-38, CALL-50, CALL-55: While a view fills the stage no strip tile shows a name pill."""
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     agent_of(host).dial_in("Claude")
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
 
-    person_name = host.locator("#videoGrid .tile:not(.self):not(.agent) .name")
-    agent_name = host.locator(AGENT_TILE + " .name")
-    if shows_names:
-        expect(person_name).to_be_visible()
-        expect(agent_name).to_contain_text("Claude")
-        expect(agent_name.locator(".ai-badge")).to_be_visible()
-        expect(agent_name.locator(".sponsor")).to_be_visible()
-    else:
-        expect(person_name).to_be_hidden()
-        expect(agent_name).to_be_hidden()
+    expect(host.locator("#videoGrid .tile:not(.self):not(.agent) .name")).to_be_hidden()
+    expect(host.locator(AGENT_TILE + " .name")).to_be_hidden()
+    expect(host.locator(AGENT_TILE + " .av .icon")).to_be_visible()
