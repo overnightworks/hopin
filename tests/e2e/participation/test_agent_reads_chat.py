@@ -69,6 +69,7 @@ def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_read
     say_in_chat(host, "before the join")
     member.click("#chatBtn")
     expect(member.locator(CHAT_LINE)).to_have_count(1)
+    member.click("#chatBtn")
     open_more(member)
     offer = member.locator(OFFER, has_text=own_account_agent.name)
     offer.click()
@@ -78,7 +79,7 @@ def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_read
     say_in_chat(host, "hello agent")
 
     assert own_account_agent.woken_within(WAKE_SECONDS)
-    host_name = member_of(host).account.name
+    host_name = member_of(host).account.username
     assert lines_read(own_account_agent, room) == [(1, "person", host_name, "hello agent", False)]
     own_account_agent.forget_wakes()
     own_account_agent.call(SAY, {"room": room, "text": "hello people"})
@@ -105,4 +106,4 @@ def test_call_54_a_persons_own_agent_is_woken_by_a_line_and_reads_it(
     say_in_chat(guest, "hello agent")
 
     assert agent.woken_within(WAKE_SECONDS)
-    assert lines_read(agent, room) == [(1, "person", member_of(guest).account.name, "hello agent", False)]
+    assert lines_read(agent, room) == [(1, "person", member_of(guest).account.username, "hello agent", False)]
