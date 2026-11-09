@@ -103,7 +103,7 @@ def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_tur
     _, body = first_post_of(gateway)
     agent = load_agent(QUIZ_AGENT_FILE, [])
     [system, turn] = body["messages"]
-    assert sorted(body) == ["messages", "model", "user"]
+    assert sorted(body) == ["messages", "model", "stream", "user"]
     assert body["model"] == agent.model
     assert system == {"role": "system", "content": agent.prompt}
     assert turn["role"] == "user"
