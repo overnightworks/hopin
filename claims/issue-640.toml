@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "bbdd0fc150de558f0d9ac3f149f97e04861d56ab"
 branch = "claude/issue-640-take-speech-client-0-6-0"
-scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "quality/config.toml", "scripts/remove_game.py", "src/hopin/agent/speech.py", "tests/e2e/game/test_game_voice.py", "tests/game/support/speech_origin.py", "tests/game/test_quiz_agent_connector_imports.py", "tests/game/test_voice_call.py", "tests/game/test_voice_speech.py", "uv.lock"]
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "scripts/remove_game.py", "src/hopin/agent/speech.py", "tests/e2e/game/test_game_voice.py", "tests/game/support/speech_origin.py", "tests/game/test_quiz_agent_connector_imports.py", "tests/game/test_voice_call.py", "tests/game/test_voice_speech.py", "uv.lock"]
 opened_commit = "de07e93f838927e1cc7021535e77efafc6c4b2cf"
 whole_reason = "One package name across its pin, lockfile, imports, import contracts and the removal script, which cannot build half renamed."
