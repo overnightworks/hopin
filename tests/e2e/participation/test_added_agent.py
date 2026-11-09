@@ -2,83 +2,22 @@ import secrets
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Page, expect
 
-from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
+from tests.e2e.support.calls import join_by_link, open_more, record_page_errors
 from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, OWNER_USERNAME, REMOVE, OwnAccountAgent
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from tests.e2e.participation.conftest import Scene
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 
-OFFER = "#agentOffers button"
 LEAVE = "#leaveBtn"
-INVITATION_WAKE_SECONDS = 20
 BYSTANDER_QUIET_SECONDS = 2
-
-
-class Scene:
-    """The host, the agent's owner and a member of the adders group in one call, and the owner's scripted agent. The
-    agent has called once, so it is registered; it holds no place yet."""
-
-    def __init__(
-        self,
-        open_person: Callable[..., Page],
-        member_of: Callable[[Page], Any],
-        server: RunningServer,
-        page_errors: list[str],
-        form_factor: dict[str, Any],
-        grant_adders: Callable[[str], None],
-        agent: OwnAccountAgent,
-    ):
-        self.agent = agent
-        self.host = record_page_errors(open_person(**form_factor), page_errors)
-        press_start_call(self.host, server.base_url)
-        self.link = call_link_of(self.host)
-        self.owner = record_page_errors(open_person(username=OWNER_USERNAME, **form_factor), page_errors)
-        join_by_link(self.owner, self.link)
-        self.member = record_page_errors(open_person(**form_factor), page_errors)
-        grant_adders(member_of(self.member).account.id)
-        join_by_link(self.member, self.link)
-        self.everyone = (self.host, self.owner, self.member)
-
-    def offer_of_agent(self, page: Page) -> Locator:
-        return page.locator(OFFER, has_text=self.agent.name)
-
-    def agent_listens(self) -> None:
-        """The agent opens its stream, which registers it, so a member's seat is offered it; it holds no place yet."""
-        self.agent.listen()
-        assert self.agent.standings() == []
-
-    def member_adds_and_the_agent_accepts(self) -> None:
-        self.agent_listens()
-        open_more(self.member)
-        offer = self.offer_of_agent(self.member)
-        expect(offer).to_have_text(f"Add {self.agent.name}")
-        offer.click()
-        expect(offer).to_have_text(f"Inviting {self.agent.name}…")
-        expect(offer).to_be_disabled()
-        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS))
-        assert accepted["name"] == self.agent.name
-
-
-@pytest.fixture
-def scene_of(
-    open_person: Callable[..., Page],
-    member_of: Callable[[Page], Any],
-    e2e_server: RunningServer,
-    page_errors: list[str],
-    grant_adders: Callable[[str], None],
-    own_account_agent: OwnAccountAgent,
-) -> Callable[[dict[str, Any]], Scene]:
-    def build(form_factor: dict[str, Any]) -> Scene:
-        return Scene(open_person, member_of, e2e_server, page_errors, form_factor, grant_adders, own_account_agent)
-
-    return build
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -149,4 +88,4 @@ def test_a_member_outside_the_adders_group_is_offered_no_add(
     open_more(scene.member)
     expect(scene.offer_of_agent(scene.member)).to_have_count(1)
     open_more(outsider)
-    expect(outsider.locator(OFFER)).to_have_count(0)
+    expect(scene.offers_on(outsider)).to_have_count(0)

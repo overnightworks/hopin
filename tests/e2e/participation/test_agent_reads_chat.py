@@ -7,15 +7,9 @@ from playwright.sync_api import expect
 
 from hopin.agent.tools import SAY
 from tests.e2e.support.calls import (
-    call_link_of,
-    join_by_link,
     open_call,
-    open_more,
-    press_start_call,
-    record_page_errors,
     say_in_chat,
 )
-from tests.e2e.support.dialed_agent import OWNER_USERNAME
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 
@@ -24,12 +18,12 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import Page
 
-    from tests.e2e.support.dialed_agent import OwnAccountAgent, OwnAgent
+    from tests.e2e.participation.conftest import Scene
+    from tests.e2e.support.dialed_agent import OwnAgent
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 
-OFFER = "#agentOffers button"
 WAKE_SECONDS = 20
 CHAT_LINE = "#chatMessages .chat-msg"
 
@@ -47,44 +41,30 @@ def lines_read(agent: Any, room: str) -> list[tuple[Any, ...]]:
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_reads_it_with_its_own_marked(
-    open_person: Callable[..., Page],
+    scene_of: Callable[[dict[str, Any]], Scene],
     member_of: Callable[[Page], Any],
-    e2e_server: RunningServer,
-    page_errors: list[str],
-    grant_adders: Callable[[str], None],
-    own_account_agent: OwnAccountAgent,
     form_factor: dict[str, Any],
 ) -> None:
     """CALL-54: A joined agent is woken by a line said after its join and reads it in its window, its own marked."""
-    host = record_page_errors(open_person(**form_factor), page_errors)
-    press_start_call(host, e2e_server.base_url)
-    link = call_link_of(host)
-    room = room_of(link)
-    owner = record_page_errors(open_person(username=OWNER_USERNAME, **form_factor), page_errors)
-    join_by_link(owner, link)
-    member = record_page_errors(open_person(**form_factor), page_errors)
-    grant_adders(member_of(member).account.id)
-    join_by_link(member, link)
-    own_account_agent.listen()
-    say_in_chat(host, "before the join")
-    member.click("#chatBtn")
-    expect(member.locator(CHAT_LINE)).to_have_count(1)
-    member.click("#chatClose")
-    open_more(member)
-    offer = member.locator(OFFER, has_text=own_account_agent.name)
-    offer.click()
-    own_account_agent.accept(own_account_agent.invitation_within(WAKE_SECONDS))
-    own_account_agent.listen([STANDING_URI, window_uri(room)])
+    scene = scene_of(form_factor)
+    agent = scene.agent
+    room = room_of(scene.link)
+    say_in_chat(scene.host, "before the join")
+    scene.member.click("#chatBtn")
+    expect(scene.member.locator(CHAT_LINE)).to_have_count(1)
+    scene.member.click("#chatClose")
+    scene.member_adds_and_the_agent_accepts()
+    agent.listen([STANDING_URI, window_uri(room)])
 
-    say_in_chat(host, "hello agent")
+    say_in_chat(scene.host, "hello agent")
 
-    assert own_account_agent.woken_within(WAKE_SECONDS)
-    host_name = member_of(host).account.username
-    assert lines_read(own_account_agent, room) == [(1, "person", host_name, "hello agent", False)]
-    own_account_agent.forget_wakes()
-    own_account_agent.call(SAY, {"room": room, "text": "hello people"})
-    assert own_account_agent.woken_within(WAKE_SECONDS)
-    assert lines_read(own_account_agent, room)[1:] == [(2, "agent", own_account_agent.name, "hello people", True)]
+    assert agent.woken_within(WAKE_SECONDS)
+    host_name = member_of(scene.host).account.username
+    assert lines_read(agent, room) == [(1, "person", host_name, "hello agent", False)]
+    agent.forget_wakes()
+    agent.call(SAY, {"room": room, "text": "hello people"})
+    assert agent.woken_within(WAKE_SECONDS)
+    assert lines_read(agent, room)[1:] == [(2, "agent", agent.name, "hello people", True)]
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
