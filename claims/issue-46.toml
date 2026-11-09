@@ -1,8 +1,0 @@
-claim_id = "e9adf9f0f8e34610aca801ec8a86b964"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "c5925b986f2b67b395db21095ffe20d7cd011021"
-branch = "claude/issue-46-texts-name-the-agents"
-scope = ["legal/datenschutz.html", "legal/nutzungsbedingungen.html", "quality/config.toml"]
-opened_commit = "d71a64ad1a05aaa9febee888833c04a541ee4029"
-whole_reason = "One legal text change: the privacy and terms parts, the architecture's trust note and the quality gate's legal path move together for one approval."
