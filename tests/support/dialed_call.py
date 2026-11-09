@@ -7,9 +7,13 @@ import time
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
-from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+import anyio
+from agent_runtime_client.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+from agent_runtime_client.member import STANDING_URI
 from fastapi.testclient import TestClient
+from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind
@@ -30,6 +34,7 @@ if TYPE_CHECKING:
     from tests.support.fake_issuer import FakeIssuer
     from tests.support.sign_in_settings import SignInSettings
 
+LISTEN_TIMEOUT_SECONDS = 10
 METADATA_PATH = "/.well-known/oauth-protected-resource/mcp"
 
 
@@ -63,6 +68,10 @@ class Seat:
         self._sent += 1
         self._socket.send_json({"type": SignalType.UNLOCK_ROOM.value, "seq": self._sent})
         assert self.next_frame()["type"] == SignalType.ROOM_UNLOCKED.value
+
+    def drop(self, code=1006):
+        """Close the socket abnormally, so the seat parks."""
+        self._socket.close(code=code)
 
     def send(self, frame):
         self._sent += 1
@@ -164,27 +173,105 @@ class DialedCall:
         )
 
     def call(self, token, tool, arguments, **headers):
-        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
-        return self._dialed(self.mcp("POST", token, extra_headers=headers, content=json.dumps(body)))
+        response = self.request(
+            token, "tools/call", {"name": tool, "arguments": arguments}, routing_name=tool, **headers
+        )
+        return self._dialed(response)
+
+    def request(self, token, method, params=None, *, routing_name=None, **headers):
+        """One 2026-07-28 request: the version and capabilities in `_meta`, the routing headers beside it."""
+        return self.mcp(
+            "POST",
+            token,
+            extra_headers={**self._routing(method, routing_name), **headers},
+            content=self._request_body(method, params),
+        )
+
+    def listen(self, token, uris):
+        """Open `subscriptions/listen` on the app's ASGI interface, wait for its acknowledgement and disconnect, as a
+        client does that closes its stream. A TestClient returns only once the response is complete, which a stream
+        never is."""
+        method = "subscriptions/listen"
+        body = self._request_body(method, {"notifications": {"resourceSubscriptions": list(uris)}})
+        headers = {
+            **self._mcp_headers(token, self._routing(method, None)),
+            "host": urlsplit(str(self.client.base_url)).netloc,
+        }
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "path": "/mcp",
+            "raw_path": b"/mcp",
+            "root_path": "",
+            "scheme": urlsplit(str(self.client.base_url)).scheme,
+            "query_string": b"",
+            "headers": [(name.lower().encode(), value.encode()) for name, value in headers.items()],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 443),
+            "state": self.client.app_state.copy(),
+        }
+        self.client.portal.call(self._listen_until_acknowledged, scope, body.encode())
+
+    async def _listen_until_acknowledged(self, scope, body):
+        acknowledged, disconnected = anyio.Event(), anyio.Event()
+        requested = False
+
+        async def receive():
+            nonlocal requested
+            if not requested:
+                requested = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            await disconnected.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            if b"subscriptions/acknowledged" in message.get("body", b""):
+                acknowledged.set()
+
+        with anyio.fail_after(LISTEN_TIMEOUT_SECONDS):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(self.client.app, scope, receive, send)
+                await acknowledged.wait()
+                disconnected.set()
+
+    @staticmethod
+    def _routing(method, routing_name):
+        routing = {"mcp-method": method}
+        if routing_name is not None:
+            routing["mcp-name"] = routing_name
+        return routing
+
+    @staticmethod
+    def _request_body(method, params):
+        meta = {PROTOCOL_VERSION_META_KEY: PROTOCOL_VERSION, CLIENT_CAPABILITIES_META_KEY: {}}
+        return json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": {**(params or {}), "_meta": meta}})
+
+    def standing(self, token):
+        """The `MemberStanding` the agent reads at `member://standing`, as its places in a list."""
+        response = self.request(token, "resources/read", {"uri": STANDING_URI}, routing_name=STANDING_URI)
+        return json.loads(response.json()["result"]["contents"][0]["text"])["standings"]
 
     def pass_time(self, seconds):
         """Move the app's clock on its own loop, running the timers that fall due."""
         self.client.portal.call(self.scheduler.advance, seconds)
 
     def mcp(self, method, token, extra_headers=None, **options):
+        # A header set to None is left off the request.
+        return self.client.request(method, "/mcp", headers=self._mcp_headers(token, extra_headers), **options)
+
+    @staticmethod
+    def _mcp_headers(token, extra_headers=None):
         extra_headers = extra_headers or {}
         authorization = {} if token is None else {"authorization": f"Bearer {token}"}
-        return self.client.request(
-            method,
-            "/mcp",
-            headers={
-                "content-type": "application/json",
-                PROTOCOL_VERSION_HEADER: LATEST_PROTOCOL_VERSION,
-                **authorization,
-                **extra_headers,
-            },
-            **options,
-        )
+        headers = {
+            "content-type": "application/json",
+            PROTOCOL_VERSION_HEADER: PROTOCOL_VERSION,
+            "accept": "application/json, text/event-stream",
+            **authorization,
+            **extra_headers,
+        }
+        return {name: value for name, value in headers.items() if value is not None}
 
     @staticmethod
     def _dialed(response):
@@ -198,13 +285,23 @@ def join_arguments(seat, name="Claude"):
     return {"room": seat.room_id, "name": name}
 
 
+def accept_arguments(standing):
+    """The shared arguments of accepting the invitation a read standing carries."""
+    invitation = standing["invitation"]
+    return {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
+
+
 def admin_groups():
     return (LOGIN_GROUP, ADMIN_GROUP, MCP_GROUP)
 
 
 @contextmanager
 def serving_dialed_call(
-    sign_in: SignInSettings, issuer: FakeIssuer, agent_adders: Mapping[str, str] | None = None
+    sign_in: SignInSettings,
+    issuer: FakeIssuer,
+    agent_adders: Mapping[str, str] | None = None,
+    *,
+    more_call_features=(),
 ) -> Iterator[DialedCall]:
     stores = SignInStores.in_memory()
     scheduler = ManualScheduler()
@@ -214,7 +311,7 @@ def serving_dialed_call(
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,
-        call_features=(ParticipationFeature(sign_in.settings.public_origin, agent_adders or {}),),
+        call_features=(*more_call_features, ParticipationFeature(sign_in.settings.public_origin, agent_adders or {})),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]

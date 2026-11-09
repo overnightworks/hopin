@@ -1,23 +1,24 @@
+import secrets
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_USERNAME, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, OWNER_USERNAME, REMOVE, OwnAccountAgent
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 
 OFFER = "#agentOffers button"
 LEAVE = "#leaveBtn"
-INVITATION_WAIT_SECONDS = 20
+INVITATION_WAKE_SECONDS = 20
+BYSTANDER_QUIET_SECONDS = 2
 
 
 class Scene:
@@ -48,19 +49,20 @@ class Scene:
     def offer_of_agent(self, page: Page) -> Locator:
         return page.locator(OFFER, has_text=self.agent.name)
 
-    def agent_waits(self) -> None:
-        """The agent's first call registers it, so a member's seat is offered it."""
+    def agent_listens(self) -> None:
+        """The agent opens its stream, which registers it, so a member's seat is offered it; it holds no place yet."""
+        self.agent.listen()
         assert self.agent.standings() == []
 
     def member_adds_and_the_agent_accepts(self) -> None:
-        self.agent_waits()
+        self.agent_listens()
         open_more(self.member)
         offer = self.offer_of_agent(self.member)
         expect(offer).to_have_text(f"Add {self.agent.name}")
         offer.click()
         expect(offer).to_have_text(f"Inviting {self.agent.name}…")
         expect(offer).to_be_disabled()
-        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAIT_SECONDS))
+        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS))
         assert accepted["name"] == self.agent.name
 
 
@@ -105,6 +107,22 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
     assert scene.agent.standings() == []
 
 
+def test_another_agents_stream_is_not_woken_by_this_agents_invitation(
+    scene_of: Callable[[dict[str, Any]], Scene], e2e_server: RunningServer
+) -> None:
+    """The stream of an agent of another owner stays asleep while this agent's invitation wakes this agent."""
+    scene = scene_of(DESKTOP)
+    bystander = OwnAccountAgent(e2e_server, "subject-another-owner", f"{AGENT_NAME}-{secrets.token_hex(3)}")
+    try:
+        bystander.listen()
+
+        scene.member_adds_and_the_agent_accepts()
+
+        assert not bystander.woken_within(BYSTANDER_QUIET_SECONDS)
+    finally:
+        bystander.close()
+
+
 def test_the_agent_leaves_when_its_owner_leaves_for_good(scene_of: Callable[[dict[str, Any]], Scene]) -> None:
     """CALL-51: The agent leaves with its owner's seat."""
     scene = scene_of(DESKTOP)
@@ -126,7 +144,7 @@ def test_a_member_outside_the_adders_group_is_offered_no_add(
     outsider = record_page_errors(open_person(**DESKTOP), page_errors)
     join_by_link(outsider, scene.link)
 
-    scene.agent_waits()
+    scene.agent_listens()
 
     open_more(scene.member)
     expect(scene.offer_of_agent(scene.member)).to_have_count(1)

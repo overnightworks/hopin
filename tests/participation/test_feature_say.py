@@ -1,11 +1,12 @@
 """An agent's line in the call, at HopIn's real `/mcp` and `/ws`."""
 
 import pytest
+from agent_runtime_client.member import ACCEPT_INVITATION_TOOL
 
-from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, LEAVE_CALL, SAY, WAIT
+from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY
 from hopin.config.constants import SignalType
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AgentRefusal, ParticipationSignal
-from tests.support.dialed_call import join_arguments, serving_dialed_call
+from tests.support.dialed_call import accept_arguments, join_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 
 pytestmark = pytest.mark.integration
@@ -35,18 +36,16 @@ def invited(call, agent_name):
     _, adder_login = call.member(groups=(ADDERS,))
     adder = call.seat(adder_login, owner.room_id)
     token = call.agent_token(owner=OWNER_SUBJECT, agent_name=agent_name)
-    call.call(token, WAIT, {})
+    call.standing(token)
     [offer] = adder.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
     adder.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
-    call.call(token, WAIT, {})
+    call.standing(token)
     return owner, adder, token
 
 
 def accept(call, token, owner):
-    [standing] = call.call(token, WAIT, {}).outcome["standings"]
-    invitation = standing["invitation"]
-    arguments = {"room": owner.room_id, "invitation": invitation["id"], "epoch": invitation["epoch"]}
-    call.call(token, ACCEPT_INVITATION, arguments)
+    [standing] = call.standing(token)
+    call.call(token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
 
 
 def lines_of(seat):

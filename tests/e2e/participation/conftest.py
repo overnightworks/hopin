@@ -9,8 +9,6 @@ from tests.e2e.support.server import RunningServer, loopback_sign_in, running_ho
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    from playwright.sync_api import Playwright
-
 
 @pytest.fixture(scope="session")
 def participation_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
@@ -31,9 +29,9 @@ def e2e_server(participation_server: RunningServer) -> RunningServer:
 
 
 @pytest.fixture
-def own_account_agent(playwright: Playwright, e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
+def own_account_agent(e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
     """The scripted agent of `OWNER_SUBJECT`, named apart from the agents earlier tests left registered."""
-    agent = OwnAccountAgent(playwright, e2e_server, OWNER_SUBJECT, f"{AGENT_NAME}-{secrets.token_hex(3)}")
+    agent = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{AGENT_NAME}-{secrets.token_hex(3)}")
     yield agent
     agent.close()
 

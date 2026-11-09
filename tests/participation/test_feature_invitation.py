@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 import pytest_asyncio
-from agent_runtime_client.wait import LEASE_SECONDS
+from agent_runtime_client.member import LEASE_SECONDS
 
 from hopin.config.constants import SignalType
 from hopin.participation.feature import DialedAgent
@@ -40,6 +40,7 @@ class Invited:
 
     def __init__(self, owner, member, participation):
         self.owner, self.member, self.participation = owner, member, participation
+        self.agent = None
         [self.standing] = participation.standings_of(AGENT)
 
     @property
@@ -80,7 +81,7 @@ class TestAnInvitation:
     async def test_it_stands_for_the_agent_with_an_epoch_and_the_time_it_ends(self, invited, changes):
         assert invited.standing.state is PlaceState.INVITED
         assert (invited.invitation.epoch, invited.invitation.expires_at) == (0, WALL_CLOCK_SECONDS + INVITATION_SECONDS)
-        assert changes[-1:] == [AGENT]
+        assert changes[-1:] == [(AGENT, (PlaceState.INVITED,))]
 
     async def test_accepting_it_puts_the_agent_in_the_call_under_its_name_and_everyone_sees_the_tile(self, invited):
         """CALL-52: The agent accepts the invitation and shows as a tile under its own name."""
@@ -117,7 +118,7 @@ class TestAnInvitation:
     ):
         """CALL-52: The invitation lasts 120 seconds."""
         await scheduler.advance(INVITATION_SECONDS - 1)
-        await agent_calls(participation)  # the agent still waits, so its lease holds
+        await agent_calls(participation)  # the agent keeps calling, so its lease holds
         told = len(changes)
         await scheduler.advance(1)
 
@@ -164,7 +165,7 @@ class TestAnInvitation:
 
         assert await invited.accept() is AgentRefusal.BUSY
 
-    async def test_it_stays_invited_while_its_owners_seat_parks_and_resumes_and_its_waiter_is_told_of_both(
+    async def test_it_stays_invited_while_its_owners_seat_parks_and_resumes_and_its_standing_signals_both(
         self, invited, changes
     ):
         told = len(changes)
@@ -227,7 +228,7 @@ class TestAnAgentInTheCall:
             (),
         )
 
-    async def test_it_leaves_with_its_owners_seat_for_good_and_its_waiters_are_told(self, invited, changes):
+    async def test_it_leaves_with_its_owners_seat_for_good_and_its_standing_signals(self, invited, changes):
         await invited.accept()
         told = len(changes)
 
@@ -280,3 +281,90 @@ class TestAnAgentInTheCall:
         await removal
 
         assert bystander.frames(ParticipationSignal.AGENT_LEFT) == []
+
+
+class Transitions:
+    """The changes of a standing, each as an action on an invited agent; `prepare` runs first and is not judged."""
+
+    @staticmethod
+    async def accepted(invited, scheduler):
+        invited.agent = await invited.accept()
+
+    @staticmethod
+    async def parked(invited, scheduler):
+        await Transitions.accepted(invited, scheduler)
+        await invited.owner.drop()
+
+    @staticmethod
+    async def accept(invited, scheduler):
+        await invited.accept()
+
+    @staticmethod
+    async def withdrawal(invited, scheduler):
+        await invited.owner.drop(code=1000)
+
+    @staticmethod
+    async def expiry(invited, scheduler):
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls(invited.participation)  # the agent keeps calling, so its lease holds
+        await scheduler.advance(1)
+
+    @staticmethod
+    async def parking(invited, scheduler):
+        await invited.owner.drop()
+
+    @staticmethod
+    async def resuming(invited, scheduler):
+        await invited.owner.resume()
+
+    @staticmethod
+    async def leaving(invited, scheduler):
+        await invited.participation.leave(AGENT, invited.owner.room_id)
+
+    @staticmethod
+    async def host_removal(invited, scheduler):
+        await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": invited.agent.agent_id})
+
+    @staticmethod
+    async def room_end(invited, scheduler):
+        await invited.owner.say({"type": SignalType.END_ROOM.value})
+
+    @staticmethod
+    async def lease_end(invited, scheduler):
+        await scheduler.advance(LEASE_SECONDS)
+
+    @staticmethod
+    async def another_owner(invited, scheduler):
+        await agent_calls(invited.participation, owner="another-owner")
+
+
+T = Transitions
+SIGNALLING_TRANSITIONS = {
+    "accept": (None, T.accept, (PlaceState.ACTIVE,)),
+    "withdrawal": (None, T.withdrawal, ()),
+    "expiry": (None, T.expiry, ()),
+    "parking": (T.accepted, T.parking, (PlaceState.PAUSED,)),
+    "resuming": (T.parked, T.resuming, (PlaceState.ACTIVE,)),
+    "leaving": (T.accepted, T.leaving, ()),
+    "host_removal": (T.accepted, T.host_removal, ()),
+    "room_end": (T.accepted, T.room_end, ()),
+    "lease_end": (T.accepted, T.lease_end, ()),
+    "another_owner": (T.accepted, T.another_owner, ()),
+}
+
+
+class TestTheStandingSignal:
+    @pytest.mark.parametrize(
+        ("prepare", "act", "states"), SIGNALLING_TRANSITIONS.values(), ids=SIGNALLING_TRANSITIONS.keys()
+    )
+    async def test_each_transition_signals_with_the_new_standing_already_readable(
+        self, invited, scheduler, changes, prepare, act, states
+    ):
+        if prepare is not None:
+            await prepare(invited, scheduler)
+        told = len(changes)
+
+        await act(invited, scheduler)
+
+        assert [change.person for change in changes[told:]][-1:] == [AGENT]
+        assert changes[-1].states == states

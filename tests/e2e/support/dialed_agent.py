@@ -1,18 +1,27 @@
+import asyncio
 import json
 import re
 import secrets
+import threading
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
-from agent_runtime_client.mcp_wire import LATEST_PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+import httpx2
+from agent_runtime_client.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI
+from mcp import Client
+from mcp.client.streamable_http import streamable_http_client
+from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
 from playwright.sync_api import Page, Playwright, expect
 
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
-from hopin.agent.tools import ACCEPT_INVITATION, JOIN_CALL, SAY, WAIT
+from hopin.agent.tools import JOIN_CALL, SAY
 from hopin.config.constants import LOGIN_GROUP
 from tests.e2e.support.people import PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from concurrent.futures import Future
 
     from tests.e2e.support.server import RunningServer
 
@@ -23,6 +32,7 @@ AGENT_NAME = "Mozart"
 AGENT_TILE = '#stage [id^="container-agent-"]'
 REMOVE = ".agent-remove"
 COUNT = "#participantCount .num"
+REQUEST_SECONDS = 30
 TOLERANCE_PIXELS = 1
 TILES_ABOVE_THE_CONTROLS = """
 () => {
@@ -70,14 +80,23 @@ class Agent:
             scope=MCP_SCOPE,
             groups=(LOGIN_GROUP, MCP_GROUP),
         )
-        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
+        meta = {PROTOCOL_VERSION_META_KEY: PROTOCOL_VERSION, CLIENT_CAPABILITIES_META_KEY: {}}
+        body = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments, "_meta": meta},
+        }
         response = self._request.post(
             f"{self._server.base_url}/mcp",
             data=json.dumps(body),
             headers={
                 "authorization": f"Bearer {token}",
                 "content-type": "application/json",
-                PROTOCOL_VERSION_HEADER: LATEST_PROTOCOL_VERSION,
+                "accept": "application/json, text/event-stream",
+                PROTOCOL_VERSION_HEADER: PROTOCOL_VERSION,
+                "mcp-method": "tools/call",
+                "mcp-name": tool,
             },
         )
         result = response.json()["result"]
@@ -88,57 +107,92 @@ class Agent:
 
 
 class OwnAccountAgent:
-    """An agent with an account of its own, as a scripted client: it signs in with a client-credentials shaped token
-    and calls HopIn's MCP endpoint the way the runner does."""
+    """An agent with an account of its own, as a scripted client on the official SDK: it signs in with a
+    client-credentials shaped token and calls HopIn's MCP endpoint the way the runner does. The SDK runs on an event
+    loop of its own thread, so the browser keeps its owning thread; `close` ends the stream and joins the thread."""
 
-    def __init__(self, playwright: Playwright, server: RunningServer, owner_subject: str, name: str):
-        self._request = playwright.request.new_context(ignore_https_errors=True)
-        self._server = server
+    def __init__(self, server: RunningServer, owner_subject: str, name: str):
+        self._url = f"{server.base_url}/mcp"
         self.name = name
         self._token = server.issuer.access_token(
             f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
-            audience=f"{server.base_url}/mcp",
+            audience=self._url,
             authorized_party="some-agent-client",
             scope=MCP_SCOPE,
             groups=(AGENT_GROUP, MCP_GROUP),
             extra_claims={"agent_owner": owner_subject, "agent_name": name},
         )
+        self._loop = asyncio.new_event_loop()
+        self._opened = threading.Event()
+        self._acknowledged = threading.Event()
+        self._woken = threading.Event()
+        self._stopping = asyncio.Event()
+        self._client: Client
+        self._stream: Future[None] | None = None
+        self._thread = threading.Thread(target=self._loop.run_until_complete, args=(self._hold_the_client(),))
+        self._thread.start()
+        if not self._opened.wait(REQUEST_SECONDS):
+            self.close()
+            message = "the SDK client did not open"
+            raise TimeoutError(message)
 
-    def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
-        response = self._request.post(
-            f"{self._server.base_url}/mcp",
-            data=json.dumps(body),
-            headers={
-                "authorization": f"Bearer {self._token}",
-                "content-type": "application/json",
-                PROTOCOL_VERSION_HEADER: LATEST_PROTOCOL_VERSION,
-            },
+    async def _hold_the_client(self) -> None:
+        http = httpx2.AsyncClient(
+            headers={"authorization": f"Bearer {self._token}"},
+            timeout=httpx2.Timeout(REQUEST_SECONDS, read=None),
+            verify=False,  # the loopback certificate is self-signed
+            trust_env=False,
         )
-        return json.loads(response.json()["result"]["content"][0]["text"])
+        async with AsyncExitStack() as held:
+            # An opening that never finishes ends the thread, which `close` joins.
+            async with asyncio.timeout(REQUEST_SECONDS):
+                await held.enter_async_context(http)
+                self._client = await held.enter_async_context(
+                    Client(streamable_http_client(self._url, http_client=http))
+                )
+            self._opened.set()
+            await self._stopping.wait()
+
+    async def _listen_for_wakes(self) -> None:
+        async with self._client.listen(resource_subscriptions=[STANDING_URI]) as stream:
+            self._acknowledged.set()
+            async for _event in stream:
+                self._woken.set()
+
+    def _run(self, coroutine: Any) -> Any:
+        return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(REQUEST_SECONDS)
+
+    def listen(self) -> None:
+        """Open the stream on the standing and return once the server has acknowledged it."""
+        self._stream = asyncio.run_coroutine_threadsafe(self._listen_for_wakes(), self._loop)
+        assert self._acknowledged.wait(REQUEST_SECONDS)
 
     def standings(self) -> list[dict[str, Any]]:
-        return self.call(WAIT, {})["standings"]
+        read = self._run(self._client.read_resource(STANDING_URI))
+        return json.loads(read.contents[0].text)["standings"]
+
+    def woken_within(self, seconds: float) -> bool:
+        """Whether the stream has woken the agent, waiting up to `seconds` for it."""
+        return self._woken.wait(seconds)
 
     def invitation_within(self, seconds: int) -> dict[str, Any]:
-        """The standing that holds an invitation, waiting up to `seconds` for it."""
-        answer = self.call(WAIT, {})
-        for _ in range(seconds):
-            invited = [standing for standing in answer["standings"] if standing["state"] == "invited"]
-            if invited:
-                return invited[0]
-            answer = self.call(WAIT, {"after": answer["cursor"], "timeout_seconds": 1})
-        raise AssertionError("the agent was not invited")
+        """The standing that holds an invitation, once the stream has woken the agent."""
+        assert self.woken_within(seconds), "the stream never woke the agent"
+        [invited] = [standing for standing in self.standings() if standing["state"] == "invited"]
+        return invited
 
     def accept(self, standing: dict[str, Any]) -> dict[str, Any]:
         invitation = standing["invitation"]
-        return self.call(
-            ACCEPT_INVITATION,
-            {"room": standing["place"]["id"], "invitation": invitation["id"], "epoch": invitation["epoch"]},
-        )
+        arguments = {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
+        answer = self._run(self._client.call_tool(ACCEPT_INVITATION_TOOL, arguments))
+        return json.loads(answer.content[0].text)
 
     def close(self) -> None:
-        self._request.dispose()
+        if self._stream is not None:
+            self._stream.cancel()
+        self._loop.call_soon_threadsafe(self._stopping.set)
+        self._thread.join(REQUEST_SECONDS)
+        self._loop.close()
 
 
 def assert_tiles_clear_of_the_controls(person: Page, tiles: int, form_factor: dict[str, Any]) -> None:

@@ -3,89 +3,38 @@
 import json
 
 import pytest
+from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
-from hopin.agent.tools import ACCEPT_INVITATION, WAIT
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
-from tests.support.dialed_call import serving_dialed_call
-from tests.support.fake_issuer import FakeIssuer
+from tests.support.dialed_call import accept_arguments
 
 pytestmark = pytest.mark.integration
 
-OWNER_SUBJECT = "subject-owner"
-ADDERS = "/apps/hopin/agent-adders"
-AGENT_NAME = "Mozart"
-AGENT_USERNAME = "agent-subject-username"
-AGENT_SUBJECT = "agent-subject"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 JOINED = ParticipationSignal.AGENT_JOINED.value
 REFUSED = ParticipationSignal.AGENT_REFUSED.value
 
 
-@pytest.fixture
-def adding_call(sign_in_settings):
-    """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
-    sign_in = sign_in_settings()
-    with serving_dialed_call(sign_in, FakeIssuer(sign_in), {OWNER_SUBJECT: ADDERS}) as call:
-        yield call
-
-
-class Scene:
-    """The owner in a call, a member of the adders group in it, and the owner's agent that has called once."""
-
-    def __init__(self, call, *, member_groups=(ADDERS,)):
-        self.call = call
-        self.owner_account, owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS,))
-        self.owner = call.seat(owner_login)
-        self.member_account, self.member_login = call.member(groups=member_groups)
-        self.member = call.seat(self.member_login, self.owner.room_id)
-        self.token = call.agent_token(
-            owner=OWNER_SUBJECT, subject=AGENT_SUBJECT, agent_name=AGENT_NAME, preferred_username=AGENT_USERNAME
-        )
-        call.call(self.token, WAIT, {})  # the first call registers the agent
-
-    def key_of_offer(self):
-        [offer] = self.member.frame_of_type(OFFERS)["offers"]
-        return offer["agent_key"]
-
-    def add(self, key):
-        self.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
-
-    def standings(self):
-        return self.call.call(self.token, WAIT, {}).outcome["standings"]
-
-    def accept(self, standing):
-        invitation = standing["invitation"]
-        arguments = {"room": standing["place"]["id"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
-        return self.call.call(self.token, ACCEPT_INVITATION, arguments)
-
-
-@pytest.fixture
-def scene(adding_call):
-    return Scene(adding_call)
-
-
 class TestAddingTheAgent:
     def test_a_member_adds_the_agent_it_accepts_and_every_seat_sees_its_tile_under_its_name(self, scene):
-        scene.add(scene.key_of_offer())
-        scene.member.frame_of_type(OFFERS)  # the offer, now pending: the invitation is open
+        scene.invite()
 
         [standing] = scene.standings()
         accepted = scene.accept(standing)
 
         assert (standing["state"], standing["place"]["id"]) == ("invited", scene.owner.room_id)
-        assert accepted.outcome == {"room": scene.owner.room_id, "name": AGENT_NAME}
+        assert accepted.outcome == {"room": scene.owner.room_id, "name": scene.agent_name}
         joined = scene.owner.frame_of_type(JOINED)
-        assert (joined["name"], joined["sponsor_id"]) == (AGENT_NAME, scene.owner.participant_id)
+        assert (joined["name"], joined["sponsor_id"]) == (scene.agent_name, scene.owner.participant_id)
         assert [item["state"] for item in scene.standings()] == ["active"]
 
     def test_no_frame_a_seat_receives_carries_the_agents_username(self, scene):
-        scene.add(scene.key_of_offer())
-        scene.member.frame_of_type(OFFERS)
+        scene.invite()
         scene.accept(scene.standings()[0])
 
         scene.member.frame_of_type(JOINED)
 
-        assert AGENT_USERNAME not in json.dumps(scene.member.received)
+        assert scene.agent_username not in json.dumps(scene.member.received)
 
     def test_an_add_of_a_member_the_issuer_no_longer_holds_in_the_group_is_not_adder(self, scene):
         key = scene.key_of_offer()
@@ -104,8 +53,8 @@ class TestAddingTheAgent:
 
         assert scene.member.frame_of_type(REFUSED)["reason"] == AgentRefusal.UNAVAILABLE.value
 
-    def test_a_seat_outside_the_group_is_offered_nothing_and_its_forged_add_is_refused(self, adding_call):
-        scene = Scene(adding_call, member_groups=("/apps/hopin",))
+    def test_a_seat_outside_the_group_is_offered_nothing_and_its_forged_add_is_refused(self, scene_of):
+        scene = scene_of(member_groups=("/apps/hopin",))
         key = scene.owner.frame_of_type(OFFERS)["offers"][0]["agent_key"]
 
         scene.add(key)
@@ -114,9 +63,72 @@ class TestAddingTheAgent:
         assert OFFERS not in [frame["type"] for frame in scene.member.received]
         assert scene.standings() == []
 
-    def test_a_persons_own_agent_cannot_accept_an_invitation(self, scene):
-        dialed = scene.call.call(
-            scene.call.token(scene.member_account), ACCEPT_INVITATION, {"room": "x", "invitation": "y", "epoch": 0}
-        )
+    def test_a_persons_own_agent_is_refused_own_account_only_whatever_it_sends(self, scene):
+        dialed = scene.call.call(scene.call.token(scene.member_account), ACCEPT_INVITATION_TOOL, {})
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.OWN_ACCOUNT_ONLY.value})
+
+
+STALE_ARGUMENTS = {
+    "another_place_kind": lambda valid: {**valid, "place": {**valid["place"], "kind": "quiz"}},
+    "a_missing_field": lambda valid: {key: value for key, value in valid.items() if key != "invitation"},
+    "an_extra_field": lambda valid: {**valid, "room": valid["place"]["id"]},
+    "a_bool_epoch": lambda valid: {**valid, "epoch": True},
+    "a_negative_epoch": lambda valid: {**valid, "epoch": -1},
+    "another_invitation_id": lambda valid: {**valid, "invitation": "another"},
+    "another_epoch": lambda valid: {**valid, "epoch": valid["epoch"] + 1},
+}
+
+
+class TestAcceptingInTheSharedShape:
+    @pytest.mark.parametrize("stale", STALE_ARGUMENTS.values(), ids=STALE_ARGUMENTS.keys())
+    def test_arguments_that_do_not_match_the_invitation_answer_stale_invitation_and_leave_it_open(self, scene, stale):
+        scene.invite()
+        [standing] = scene.standings()
+
+        dialed = scene.call.call(scene.token, ACCEPT_INVITATION_TOOL, stale(accept_arguments(standing)))
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
+        assert [item["state"] for item in scene.standings()] == ["invited"]
+
+
+FOREIGN_URIS = {
+    "a_place_window": place_window_uri(PlaceRef(kind="call", id="room")),
+    "a_foreign_uri": "member://elsewhere",
+    "a_non_canonical_spelling": f"{STANDING_URI}/",
+}
+
+
+class TestTheStandingResource:
+    def test_the_agent_lists_exactly_the_standing_and_reads_its_invited_place(self, scene):
+        scene.invite()
+
+        listed = scene.call.request(scene.token, "resources/list").json()["result"]["resources"]
+
+        assert [resource["uri"] for resource in listed] == [STANDING_URI]
+        [standing] = scene.standings()
+        assert (standing["state"], standing["place"]) == ("invited", {"kind": "call", "id": scene.owner.room_id})
+
+    def test_the_standing_of_an_agent_whose_owners_seat_is_parked_reads_as_paused(self, scene, seat_changes):
+        scene.invite()
+        [standing] = scene.standings()
+        scene.accept(standing)
+        seat_changes.clear()
+
+        scene.owner.drop()
+        assert seat_changes.wait(timeout=10)
+
+        assert [item["state"] for item in scene.standings()] == ["paused"]
+
+    def test_another_agents_read_shows_none_of_its_places(self, scene):
+        scene.invite()
+        other = scene.call.agent_token(owner="another-owner", subject="another-agent")
+
+        assert scene.call.standing(other) == []
+
+    @pytest.mark.parametrize("uri", FOREIGN_URIS.values(), ids=FOREIGN_URIS.keys())
+    def test_any_other_uri_answers_the_unknown_resource_error_and_echoes_nothing(self, scene, uri):
+        answer = scene.call.request(scene.token, "resources/read", {"uri": uri}, routing_name=uri)
+
+        error = answer.json()["error"]
+        assert (error["message"], uri in answer.text) == ("Unknown resource", False)
