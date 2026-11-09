@@ -1,7 +1,0 @@
-claim_id = "d7a54f33f9e6466eb9cec8a2dcfe22d6"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "8c71871c17aaa44b98bbb0223a25f7d985d1f0d2"
-branch = "claude/issue-649-ci-under-15-minutes"
-scope = [".github/workflows/ci.yml", "tests/e2e/conftest.py", "tests/e2e/support/shards.py"]
-opened_commit = "fd5409273dad5ae05ad8e5097bb37a9709c5979d"
