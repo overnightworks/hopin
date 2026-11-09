@@ -14,14 +14,13 @@
 
 - A `wire.ts` under `frontend/src/lib` is generated; change the Python wire owner and run `make wire`, never edit the file.
 - A setting added to or changed in `src/hopin/config/settings.py` updates README's Configuration table in the same change.
-- `quality/config.toml` has no `legacy` key, so legacy findings only report; `quality/baseline.toml` is the size ratchet's baseline.
 - The scanner marker traps are in the `sonar-distributor` skill, section "Marker grammar".
 
 ## Owners
 
 - The `Release` workflow runs only on the operator's own word, given for that release.
-- The platform deploys hopin; the image ref reaches production in a platform pull request the operator merges.
-- overnightworks/quality's README owns the gate's semantics; the required check is `quality / verdict`.
+- The platform repository owns hopin's deployment.
+- overnightworks/quality's README owns the quality gate's semantics.
 
 ## Documents
 
