@@ -6,7 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
     "overnightworks-agent-runtime-client[backend,mcp-server] @ git+https://github.com/overnightworks/agent-runtime@v0.28.0",
-    "overnightworks-speech-runtime-client @ git+https://github.com/overnightworks/speech-runtime@v0.5.0#subdirectory=packages/client",
+    "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.6.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.34.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
@@ -28,7 +28,7 @@ build-backend = "hatchling.build"
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
     "overnightworks-agent-runtime-client",
-    "overnightworks-speech-runtime-client",  # game
+    "overnightworks-speech-client",  # game
     "overnightworks-webauth",
 ]
 # Their build backends run with these exact tools, as hatchling is pinned above.
@@ -217,6 +217,7 @@ forbidden_modules = [
     "hopin.skat",
     "hopin.agent",
     "agent_runtime_client",
+    "speech_client",
     "speech_runtime_client",
     "httpx2",
 ]
@@ -227,7 +228,7 @@ name = "Participation names no agent runtime"
 type = "forbidden"
 # Participation holds who is in a call, with no AI in it; the connector adapts it to the runtime's tools.
 source_modules = ["hopin.participation"]
-forbidden_modules = ["agent_runtime_client", "speech_runtime_client", "httpx2"]
+forbidden_modules = ["agent_runtime_client", "speech_client", "speech_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"
@@ -243,9 +244,9 @@ allow_indirect_imports = true
 id = "speech-service-only-through-the-game"
 name = "Only the game reaches the speech service"
 type = "forbidden"
-# The speech client is the connector's alone.
+# The speech client is the connector's alone, under either of its distribution names.
 source_modules = ["hopin.main", "hopin.app"]
-forbidden_modules = ["speech_runtime_client"]
+forbidden_modules = ["speech_client", "speech_runtime_client"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
 allow_indirect_imports = true
 

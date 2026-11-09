@@ -2,7 +2,7 @@ import secrets
 
 import pytest
 import structlog.testing
-from speech_runtime_client.wire import (
+from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
     WORKLOAD_TOKEN_HEADER,

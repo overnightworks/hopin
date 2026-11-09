@@ -59,7 +59,7 @@ SKAT = Removal(
     marked_files=("src/hopin/main.py", "scripts/generate_wire.py"),
 )
 REMOVALS = {"game": GAME, "skat": SKAT}
-GAME_ONLY_PACKAGES = ("overnightworks-speech-runtime-client",)
+GAME_ONLY_PACKAGES = ("overnightworks-speech-client",)
 # The client stays for the MCP connector; only the extra that carries its HTTP library to the gateway goes.
 CLIENT_EXTRAS = ("[backend,mcp-server]", "[mcp-server]")
 REPOSITORY = Path(__file__).resolve().parent.parent

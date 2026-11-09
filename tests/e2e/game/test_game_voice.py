@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Page, expect
-from speech_runtime_client.wire import SPEECH_PATH, RefusalCode
+from speech_client.wire import SPEECH_PATH, RefusalCode
 
 from hopin.agent.feature import GameFeature
 from hopin.agent.settings import SpeechSettings
