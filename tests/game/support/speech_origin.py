@@ -4,7 +4,7 @@ import io
 import wave
 from http import HTTPStatus
 
-from speech_runtime_client.wire import SPEECH_PATH, ResponseFormat, SpeechRequest, refusal
+from speech_client.wire import SPEECH_PATH, ResponseFormat, SpeechRequest, refusal
 
 from tests.support.loopback_origin import Origin, http_response
 

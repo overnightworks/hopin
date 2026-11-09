@@ -20,7 +20,7 @@ CLIENT_PARTS_OF = {
         f"{CLIENT}.tools",
     },
 }
-SPEECH_CLIENT = "speech_runtime_client"
+SPEECH_CLIENT = "speech_client"
 SPEECH_MODULE = SOURCE / "agent" / "speech.py"
 
 

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, assert_never
 
 import structlog
 from pydantic import ValidationError
-from speech_runtime_client.speak import (
+from speech_client.speak import (
     Busy,
     Cut,
     Malformed,
@@ -15,7 +15,7 @@ from speech_runtime_client.speak import (
     Unreachable,
     speak,
 )
-from speech_runtime_client.wire import ResponseFormat
+from speech_client.wire import ResponseFormat
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.backend import StarterRefusedError, issuer_error
