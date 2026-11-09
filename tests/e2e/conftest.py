@@ -21,7 +21,7 @@ from tests.support.signed_in import SeededMember, new_account, seed_member
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Request
+    from playwright.sync_api import Browser, BrowserContext, Page, Request
 
 PAGE_NAVIGATED_AWAY = "net::ERR_ABORTED"
 
@@ -68,13 +68,11 @@ def member_of(seeded_members: dict[Page, SeededMember]) -> Callable[[Page], Seed
 
 
 @pytest.fixture
-def agent_of(
-    playwright: Playwright, e2e_server: RunningServer, member_of: Callable[..., Any]
-) -> Callable[[Page], Agent]:
+def agent_of(e2e_server: RunningServer, member_of: Callable[..., Any]) -> Callable[[Page], Agent]:
     agents: list[Agent] = []
 
     def make(person: Page) -> Agent:
-        agents.append(Agent(playwright, e2e_server, person, member_of))
+        agents.append(Agent(e2e_server, person, member_of))
         return agents[-1]
 
     yield make

@@ -10,7 +10,7 @@ import httpx2
 from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
-from playwright.sync_api import Page, Playwright, expect
+from playwright.sync_api import Page, expect
 
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
 from hopin.agent.tools import JOIN_CALL, SAY
@@ -64,17 +64,15 @@ def room_of_link(link: str) -> str:
 class Agent:
     """A person's own agent, calling HopIn's MCP endpoint with a token its client would hold."""
 
-    def __init__(self, playwright: Playwright, server: RunningServer, person: Page, member_of: Callable[..., Any]):
+    def __init__(self, server: RunningServer, person: Page, member_of: Callable[..., Any]):
         self._room = room_of_link(person.url)
         self._agent = OwnAgent(server, member_of(person).account.id)
 
     def dial_in(self, name: str) -> None:
-        answer = self._agent.dial_in(self._room, name)
-        assert "refused" not in answer, answer
+        self._agent.dial_in(self._room, name)
 
     def say(self, text: str) -> None:
-        answer = self._agent.say(self._room, text)
-        assert "refused" not in answer, answer
+        self._agent.say(self._room, text)
 
     def close(self) -> None:
         self._agent.close()
@@ -151,7 +149,10 @@ class SdkAgent:
         return json.loads(self._run(self._client.read_resource(uri)).contents[0].text)
 
     def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        return json.loads(self._run(self._client.call_tool(tool, arguments)).content[0].text)
+        result = self._run(self._client.call_tool(tool, arguments))
+        text = result.content[0].text
+        assert not result.is_error, text
+        return json.loads(text)
 
     def woken_within(self, seconds: float) -> bool:
         """Whether the stream has woken the agent, waiting up to `seconds` for it."""
