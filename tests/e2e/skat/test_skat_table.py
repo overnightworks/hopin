@@ -104,6 +104,8 @@ def test_the_remove_button_lies_below_the_frame_and_both_lie_inside_the_surface(
     assert frame["y"] + frame["height"] <= button["y"], "the button covers the frame"
     assert frame["y"] == pytest.approx(surface["y"], abs=1)
     assert button["y"] + button["height"] == pytest.approx(surface["y"] + surface["height"], abs=1)
+    assert frame["x"] == pytest.approx(surface["x"], abs=1)
+    assert frame["x"] + frame["width"] == pytest.approx(surface["x"] + surface["width"], abs=1)
     assert surface["x"] <= button["x"]
     assert button["x"] + button["width"] <= surface["x"] + surface["width"]
 
@@ -132,6 +134,8 @@ def test_the_frame_fills_the_surface_for_a_guest_who_sees_no_button(
     assert frame is not None
     assert frame["y"] == pytest.approx(surface["y"], abs=1)
     assert frame["y"] + frame["height"] == pytest.approx(surface["y"] + surface["height"], abs=1)
+    assert frame["x"] == pytest.approx(surface["x"], abs=1)
+    assert frame["x"] + frame["width"] == pytest.approx(surface["x"] + surface["width"], abs=1)
 
 
 def test_the_opener_removes_the_table_and_the_videos_stay_the_same_elements_playing(
