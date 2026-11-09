@@ -198,22 +198,29 @@ answers() { # answers <host:port> <path>: the HTTP status over HTTPS, trusting o
     curl --silent --output /dev/null --write-out '%{http_code}' --cacert "${drive_ca}" \
         --resolve "$1:127.0.0.1" "https://$1$2"
 }
-wait_for "the issuer" test "$(answers "auth.drive.localhost:${issuer_port}" /realms/drive/protocol/openid-connect/certs)" = 200
-wait_for "Skat behind its terminator" test "$(answers "skat.drive.localhost:${skat_tls_port}" /)" != 000
+answers_with() { # answers_with <host:port> <path> <status>: the status is exactly the one given
+    [ "$(answers "$1" "$2")" = "$3" ]
+}
+wait_for "the issuer" answers_with "auth.drive.localhost:${issuer_port}" /realms/drive/protocol/openid-connect/certs 200
+wait_for "Skat behind its terminator" answers_with "skat.drive.localhost:${skat_tls_port}" /health 200
 session=$("${hopin_python}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["people"]["ada"][0]["value"])' "${scratch}/hopin-people.json")
 page_status=$(curl --silent --output "${scratch}/hopin-page.html" --write-out '%{http_code}' --cacert "${drive_ca}" \
     --resolve "hopin.drive.localhost:${hopin_origin##*:}:127.0.0.1" --cookie "__Host-session_id=${session}" "${hopin_origin}/")
+
+approve_page=$(curl --silent --cacert "${drive_ca}" --resolve "auth.drive.localhost:${issuer_port}:127.0.0.1" \
+    "https://auth.drive.localhost:${issuer_port}/realms/drive/protocol/openid-connect/auth?client_id=skat")
 
 cat >"${scratch}/ready.json" <<JSON
 {"hopin": "${hopin_origin}", "skat": "${skat_origin}", "issuer": "${issuer_url}", "people": "${scratch}/hopin-people.json"}
 JSON
 echo "hosts: $(hosts)"
 echo "issuer certs: $(answers "auth.drive.localhost:${issuer_port}" /realms/drive/protocol/openid-connect/certs)"
-echo "skat: $(answers "skat.drive.localhost:${skat_tls_port}" /)"
+echo "skat health: $(answers "skat.drive.localhost:${skat_tls_port}" /health), table page: $(answers "skat.drive.localhost:${skat_tls_port}" /t/00000000000000000000000000000000)"
+echo "issuer /auth: $(grep -o '<title>[^<]*' <<<"${approve_page}" | head -n 1) approve buttons: $(grep -o 'id="approve-' <<<"${approve_page}" | wc -l)"
 echo "hopin page: ${page_status} $(grep -o '<title>[^<]*' "${scratch}/hopin-page.html" | head -n 1)"
 echo "ready: ${scratch}/ready.json"
 if [ "${smoke}" -eq 1 ]; then
-    [ "${page_status}" = 200 ]
+    [ "${page_status}" = 200 ] && grep -q 'id="approve-member"' <<<"${approve_page}"
     exit 0
 fi
 sleep infinity # until the cap or a signal stops the stack

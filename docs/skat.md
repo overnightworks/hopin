@@ -15,4 +15,4 @@ Ruled by the operator:
 - SK-09: The frame cannot use the camera, the microphone or screen capture, sends no referrer, and cannot navigate the page, open a modal or submit a form. Proven by `tests/e2e/skat/test_skat_table.py` against a stand-in table page.
 - SK-10: Removing Skat from the code leaves the call and the other features, and removing the game leaves Skat. Proven by the CI job `Removal drill`.
 
-Not yet proven: each player's video at that player's chair (ruled for the slice that places the players; until then every video is in the strip).
+Not yet proven: each player's video at that player's chair (every video is in the strip).

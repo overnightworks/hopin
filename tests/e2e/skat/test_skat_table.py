@@ -1,4 +1,5 @@
 import json
+import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 STRIP_BOTTOM_LIMIT_PIXELS = 170
+DRAGGING = re.compile(r"\bdragging\b")
+OWN_TILE_IS_STILL = "() => document.getElementById('localContainer').getAnimations().length === 0"
 VIDEO_PLAYING = "(video) => video.videoWidth > 0 && !video.paused"
 TAG_VIDEOS = "() => { window.taggedVideos = [...document.querySelectorAll('#videoGrid video')]; }"
 VIDEOS_ARE_THE_TAGGED_ONES = """() => {
@@ -213,16 +216,17 @@ def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is
 ) -> None:
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, PHONE)
     own_tile = guest.locator("#localContainer")
+    guest.wait_for_function(OWN_TILE_IS_STILL)
     box = own_tile.bounding_box()
     assert box is not None
     guest.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     guest.mouse.down()
-    expect(own_tile).to_have_class("tile self mirror dragging")
+    expect(own_tile).to_have_class(DRAGGING)
 
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(guest, stub_skat)
 
-    expect(own_tile).not_to_have_class("tile self mirror dragging")
+    expect(own_tile).not_to_have_class(DRAGGING)
     guest.mouse.move(box["x"] - 40, box["y"] + 200)
     guest.mouse.up()
     in_strip = own_tile.bounding_box()
