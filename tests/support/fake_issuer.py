@@ -208,7 +208,8 @@ class FakeIssuer:
 
     def _renewal(self, refresh_token: str) -> TokenEndpointAnswer:
         with self._guard:
-            subject = self._subjects_of_refresh_tokens.pop(refresh_token, None)
+            # Keycloak keeps a used refresh token valid unless the realm sets revokeRefreshToken; ours do not.
+            subject = self._subjects_of_refresh_tokens.get(refresh_token)
             if subject is None or self.refuses_refresh_grants:
                 return self._refusal(HTTPStatus.BAD_REQUEST, self.refresh_refusal_error)
             rotated = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
