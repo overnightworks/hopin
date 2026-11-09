@@ -75,6 +75,7 @@ class TestReadingAWindow:
         _, token, seat = own_agent
         other = dialed_call.seat(dialed_call.member()[1], seat.room_id)
         other.send(chat("hello"))
+        seat.frame_of_type(SignalType.CHAT.value)
         dialed_call.call(token, SAY, {"room": seat.room_id, "text": "hi back"})
 
         window = window_of(dialed_call.window(token, seat.room_id))
@@ -91,6 +92,7 @@ class TestReadingAWindow:
         other = dialed_call.seat(dialed_call.member()[1], seat.room_id)
         other.send(chat(f"broken {LONE_SURROGATE}"))
         other.send(chat("fine"))
+        seat.frame_of_type(SignalType.CHAT.value)
 
         window = window_of(dialed_call.window(token, seat.room_id))
 
