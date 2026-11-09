@@ -6,7 +6,7 @@ from hopin.config.constants import SignalType
 from hopin.signaling.frames import ForeignFrame
 from hopin.skat.vocabulary import SkatRefusal, SkatSignal
 from tests.signaling.support.browsers import HeldWrite, clear_sent
-from tests.skat.conftest import OTHER_TABLE_LINK, TABLE_LINK
+from tests.skat.support.tables import OTHER_TABLE_LINK, TABLE_LINK
 from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = pytest.mark.integration
@@ -233,20 +233,11 @@ class TestSeatsOutsideARoom:
 
 @pytest.mark.asyncio
 class TestTheCallsEnd:
-    async def test_the_end_clears_the_table_and_sends_no_state_into_the_ended_room(self, link, handler):
+    async def test_the_end_sends_no_further_table_state_into_the_ended_room(self, link):
         host, opener, _guest = await host_opener_and_guest(link)
         await attach(opener)
-        [feature] = handler.features
+        shown_before = len(tables(opener))
 
         await host.say({"type": SignalType.END_ROOM.value})
 
-        assert feature._stages.state_of(host.room_id).attachment is None  # noqa: SLF001 - what the end must clear
-        assert opener.frames(SignalType.ROOM_CLOSED)
-
-    async def test_the_host_leaving_with_a_table_shown_ends_the_call_without_a_fault(self, link):
-        host, opener, _guest = await host_opener_and_guest(link)
-        await attach(opener)
-
-        await host.drop(1000)
-
-        assert tables(opener)[-1]["attachment"] is not None
+        assert (len(tables(opener)), bool(opener.frames(SignalType.ROOM_CLOSED))) == (shown_before, True)

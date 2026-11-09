@@ -189,6 +189,7 @@ def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referre
     dialogs: list[str] = []
     host.on("dialog", lambda dialog: dialogs.append(dialog.message))
     guest_url = guest.url
+    requests_before = len(stub_skat.paths), len(stub_skat.referers)
 
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
@@ -205,8 +206,8 @@ def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referre
     assert answers["topNavigation"] == "SecurityError"
     assert answers["alert"] == "returned"
     assert dialogs == []
-    assert set(stub_skat.referers) == {None}
-    assert not any(path.startswith("/submitted") for path in stub_skat.paths)
+    assert set(stub_skat.referers[requests_before[1] :]) == {None}
+    assert not any(path.startswith("/submitted") for path in stub_skat.paths[requests_before[0] :])
     assert host.url.startswith(e2e_server.base_url)
     assert guest.url == guest_url
 

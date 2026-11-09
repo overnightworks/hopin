@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start the joint drive of HopIn and Skat on one machine, behind HTTPS, and keep it up until it is stopped:
 #
-#   scripts/skat-joint-stack.sh [--smoke] <skat checkout> <scratch directory>
+#   scripts/skat_joint_stack.sh [--smoke] <skat checkout> <scratch directory>
 #
 # Three hosts resolve to loopback and share the site drive.localhost: hopin.drive.localhost (this checkout's
 # harness, signed-in people seeded), skat.drive.localhost (the checkout's real `skat serve` behind a TLS terminator,
@@ -125,50 +125,8 @@ docker run --quiet --detach --name "${container}" \
 wait_for "Postgres" docker exec "${container}" pg_isready --username postgres
 postgres_port=$(docker port "${container}" 5432/tcp | head -n 1 | sed 's/.*://')
 
-cat >"${scratch}/run_hopin.py" <<'PY'
-"""HopIn on hopin.drive.localhost with signed-in people seeded; writes their cookies and its URL, then serves."""
-
-import json
-import signal
-import sys
-from pathlib import Path
-
-from webauth.admission import AppRole
-from webauth.ports import AccountKind
-
-from hopin.agent.feature import GameFeature
-from hopin.skat.feature import SkatFeature
-from tests.e2e.support.people import _playwright_cookie
-from tests.e2e.support.server import loopback_sign_in, running_hopin
-from tests.game.support.fake_agent_backend import FakeAgentBackend
-from tests.support.signed_in import seed_member
-
-HOST = "hopin.drive.localhost"
-PEOPLE = ("ada", "ben", "cleo", "dora", "emil", "fina")
-directory, skat_origin = Path(sys.argv[1]), sys.argv[2]
-sign_in_directory = directory / "hopin-sign-in"
-sign_in_directory.mkdir(exist_ok=True)
-signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-with running_hopin(
-    loopback_sign_in(sign_in_directory, HOST),
-    directory,
-    GameFeature(FakeAgentBackend()),
-    participation=True,
-    certificate=(directory / "drive-key.pem", directory / "drive-ca.pem"),
-    more_call_features=(SkatFeature(skat_origin),),
-) as server:
-    cookies = {}
-    for name in PEOPLE:
-        account = server.stores.accounts.create_for_subject(
-            f"subject-{name}", name, role=AppRole.USER, kind=AccountKind.PERSON
-        )
-        member = seed_member(server.stores, server.config, account=account)
-        cookies[name] = [_playwright_cookie(header, server.config, HOST) for header in member.set_cookie_headers]
-    (directory / "hopin-people.json").write_text(json.dumps({"baseUrl": server.base_url, "people": cookies}))
-    signal.pause()
-PY
 rm -f "${scratch}/hopin-people.json"
-start hopin env PYTHONPATH="${hopin}" "${hopin_python}" "${scratch}/run_hopin.py" "${scratch}" "${skat_origin}"
+start hopin env PYTHONPATH="${hopin}" "${hopin_python}" -m tests.e2e.support.drive_hopin "${scratch}" "${skat_origin}"
 wait_for "HopIn" test -s "${scratch}/hopin-people.json"
 hopin_origin=$("${hopin_python}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["baseUrl"])' "${scratch}/hopin-people.json")
 
@@ -220,7 +178,9 @@ echo "issuer /auth: $(grep -o '<title>[^<]*' <<<"${approve_page}" | head -n 1) a
 echo "hopin page: ${page_status} $(grep -o '<title>[^<]*' "${scratch}/hopin-page.html" | head -n 1)"
 echo "ready: ${scratch}/ready.json"
 if [ "${smoke}" -eq 1 ]; then
-    [ "${page_status}" = 200 ] && grep -q 'id="approve-member"' <<<"${approve_page}"
+    if [ "${page_status}" != 200 ] || ! grep -q 'id="approve-member"' <<<"${approve_page}"; then
+        exit 1
+    fi
     exit 0
 fi
 sleep infinity # until the cap or a signal stops the stack

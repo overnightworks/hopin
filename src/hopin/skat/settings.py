@@ -34,7 +34,7 @@ def _require_browser_origin_form(value: str) -> str:
     host = parts.hostname or ""
     netloc = host if parts.port is None else f"{host}:{parts.port}"
     written_as_an_origin = value == f"https://{netloc}" and parts.netloc == netloc
-    if not (written_as_an_origin and host.isascii() and not host.endswith(".") and parts.port != HTTPS_PORT):
+    if not (written_as_an_origin and host and host.isascii() and not host.endswith(".") and parts.port != HTTPS_PORT):
         raise ValueError("an https origin has a lowercase ASCII host and an optional port other than 443, no path")
     return value
 

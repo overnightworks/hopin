@@ -38,6 +38,7 @@ class Skat:
         self._rooms = rooms
         self._origin = origin
         self._stages = Stages()
+        self._handlers = {SkatSignal.SKAT_ATTACH.value: self._on_attach, SkatSignal.SKAT_DETACH.value: self._on_detach}
 
     @property
     def name(self) -> str:
@@ -48,13 +49,10 @@ class Skat:
         return SIGNAL_TYPES
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        match frame.signal_type:
-            case SkatSignal.SKAT_ATTACH:
-                await self._on_attach(peer_id, frame)
-            case SkatSignal.SKAT_DETACH:
-                await self._on_detach(peer_id, frame)
-            case _:
-                return False
+        handle = self._handlers.get(frame.signal_type)
+        if handle is None:
+            return False
+        await handle(peer_id, frame)
         return True
 
     async def seat_joined(self, peer_id: PeerId) -> None:

@@ -6,12 +6,8 @@ import pytest_asyncio
 from hopin.signaling.handler import SignalingHandler
 from hopin.skat.feature import Skat
 from tests.signaling.support.browsers import Link
+from tests.skat.support.tables import ORIGIN
 from tests.support.signaling_fakes import SocketAccountResolver
-
-ORIGIN = "https://skat.example"
-TABLE_ID = "0123456789abcdef0123456789abcdef"
-TABLE_LINK = f"{ORIGIN}/t/{TABLE_ID}"
-OTHER_TABLE_LINK = f"{ORIGIN}/t/{TABLE_ID[::-1]}"
 
 
 @pytest.fixture
