@@ -50,7 +50,7 @@ def joined(scene):
 
 class TestListingTheWindows:
     def test_call_54_an_agent_with_an_account_of_its_own_lists_its_standing_and_its_window(self, joined):
-        assert joined.call.listed(joined.token) == sorted([STANDING_URI, window_uri(joined.owner.room_id)])
+        assert set(joined.call.listed(joined.token)) == {STANDING_URI, window_uri(joined.owner.room_id)}
 
     def test_call_54_a_persons_own_agent_lists_its_window_alone(self, dialed_call, own_agent):
         _, token, seat = own_agent

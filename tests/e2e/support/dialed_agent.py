@@ -7,11 +7,9 @@ from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
-from agent_runtime_client.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
 from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
-from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
 from playwright.sync_api import Page, Playwright, expect
 
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
@@ -67,49 +65,17 @@ class Agent:
     """A person's own agent, calling HopIn's MCP endpoint with a token its client would hold."""
 
     def __init__(self, playwright: Playwright, server: RunningServer, person: Page, member_of: Callable[..., Any]):
-        self._request = playwright.request.new_context(ignore_https_errors=True)
-        self._server = server
-        self._account = member_of(person).account
+        self._agent = OwnAgent(server, member_of(person).account.id)
         self._room = room_of_link(person.url)
 
     def dial_in(self, name: str) -> None:
-        self._call(JOIN_CALL, {"room": self._room, "name": name})
+        self._agent.dial_in(self._room, name)
 
     def say(self, text: str) -> None:
-        self._call(SAY, {"room": self._room, "text": text})
-
-    def _call(self, tool: str, arguments: dict[str, Any]) -> None:
-        token = self._server.issuer.access_token(
-            self._account.id,
-            audience=f"{self._server.base_url}/mcp",
-            authorized_party=MCP_CLIENT_ID,
-            scope=MCP_SCOPE,
-            groups=(LOGIN_GROUP, MCP_GROUP),
-        )
-        meta = {PROTOCOL_VERSION_META_KEY: PROTOCOL_VERSION, CLIENT_CAPABILITIES_META_KEY: {}}
-        body = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": tool, "arguments": arguments, "_meta": meta},
-        }
-        response = self._request.post(
-            f"{self._server.base_url}/mcp",
-            data=json.dumps(body),
-            headers={
-                "authorization": f"Bearer {token}",
-                "content-type": "application/json",
-                "accept": "application/json, text/event-stream",
-                PROTOCOL_VERSION_HEADER: PROTOCOL_VERSION,
-                "mcp-method": "tools/call",
-                "mcp-name": tool,
-            },
-        )
-        result = response.json()["result"]
-        assert not result["isError"], result
+        self._agent.say(self._room, text)
 
     def close(self) -> None:
-        self._request.dispose()
+        self._agent.close()
 
 
 class SdkAgent:
@@ -245,6 +211,9 @@ class OwnAgent(SdkAgent):
 
     def dial_in(self, room: str, name: str) -> dict[str, Any]:
         return self.call(JOIN_CALL, {"room": room, "name": name})
+
+    def say(self, room: str, text: str) -> dict[str, Any]:
+        return self.call(SAY, {"room": room, "text": text})
 
 
 def assert_tiles_clear_of_the_controls(person: Page, tiles: int, form_factor: dict[str, Any]) -> None:
