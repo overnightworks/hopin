@@ -12,11 +12,11 @@ from pathlib import Path
 from webauth.admission import AppRole
 from webauth.ports import AccountKind
 
-from hopin.agent.feature import GameFeature
+from hopin.agent.feature import GameFeature  # game
 from hopin.skat.feature import SkatFeature
 from tests.e2e.support.people import playwright_cookie
 from tests.e2e.support.server import loopback_sign_in, running_hopin
-from tests.game.support.fake_agent_backend import FakeAgentBackend
+from tests.game.support.fake_agent_backend import FakeAgentBackend  # game
 from tests.support.signed_in import seed_member
 
 HOST = "hopin.drive.localhost"
@@ -30,7 +30,7 @@ def serve(directory: Path, skat_origin: str) -> None:
     with running_hopin(
         loopback_sign_in(sign_in_directory, HOST),
         directory,
-        GameFeature(FakeAgentBackend()),
+        GameFeature(FakeAgentBackend()),  # game
         participation=True,
         certificate=(directory / "drive-key.pem", directory / "drive-ca.pem"),
         more_call_features=(SkatFeature(skat_origin),),

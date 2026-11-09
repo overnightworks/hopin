@@ -44,11 +44,17 @@ GAME = Removal(
         "src/hopin/agent/speech.py",
     ),
     marker="# game",
-    marked_files=("src/hopin/main.py", "tests/conftest.py", "scripts/generate_wire.py", "pyproject.toml"),
+    marked_files=(
+        "src/hopin/main.py",
+        "tests/conftest.py",
+        "scripts/generate_wire.py",
+        "pyproject.toml",
+        "tests/e2e/support/drive_hopin.py",
+    ),
 )
 SKAT = Removal(
     directories=("src/hopin/skat", "frontend/src/lib/features/skat", "tests/skat", "tests/e2e/skat"),
-    files=(),
+    files=("tests/e2e/support/drive_hopin.py", "scripts/skat_joint_stack.sh"),
     marker="# skat",
     marked_files=("src/hopin/main.py", "scripts/generate_wire.py"),
 )

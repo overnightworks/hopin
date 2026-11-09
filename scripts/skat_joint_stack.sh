@@ -143,6 +143,7 @@ skat_environment=(
     SKAT_CALL_ORIGIN="${hopin_origin}"
     SKAT_SESSION_SECRET_FILE="${scratch}/skat-session-secret"
     SKAT_HOST=127.0.0.1
+    SKAT_TRUSTED_PROXIES=127.0.0.1 # the loopback terminator is the only client, so a driver's X-Forwarded-For tells people apart
     SKAT_PORT="${skat_port}"
     SSL_CERT_FILE="${drive_ca}"
 )

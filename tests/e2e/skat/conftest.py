@@ -18,11 +18,12 @@ def stub_skat(tmp_path_factory: pytest.TempPathFactory) -> Iterator[StubSkat]:
 
 @pytest.fixture(scope="session")
 def skat_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
-    """HopIn with Skat wired into its calls, whose tables the stub serves."""
+    """HopIn with Skat and participation wired into its calls, so a call may hold an agent; the stub serves tables."""
     with running_hopin(
         loopback_sign_in(tmp_path_factory.mktemp("skat-sign-in")),
         tmp_path_factory.mktemp("skat-tls"),
         SkatFeature(stub_skat.origin),
+        participation=True,
     ) as server:
         yield server
 

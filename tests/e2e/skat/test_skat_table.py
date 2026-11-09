@@ -19,6 +19,7 @@ from tests.e2e.skat.skat_page import (
     table_link,
 )
 from tests.e2e.support.calls import join, open_call, open_more, press_through_the_prejoin
+from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
 
     from tests.e2e.skat.stub_skat import StubSkat
     from tests.e2e.support.browser_coverage import BrowserCoverage
+    from tests.e2e.support.dialed_agent import Agent
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
@@ -240,3 +242,40 @@ def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is
     assert in_strip is not None
     assert in_strip["y"] < STRIP_BOTTOM_LIMIT_PIXELS
     assert in_strip["width"] < box["width"]
+
+
+def test_an_agent_tile_in_a_phone_strip_has_no_remove_button_until_the_table_is_gone(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    agent_of: Callable[[Page], Agent],
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, PHONE)
+    agent_of(host).dial_in("Claude")
+    remove_agent = host.locator(AGENT_TILE + " " + REMOVE)
+    expect(remove_agent).to_be_visible()
+
+    show_table(host, table_link(stub_skat))
+    expect_table_on_stage(host, stub_skat)
+    expect(remove_agent).to_be_hidden()
+
+    host.locator(REMOVE_TABLE).click()
+    expect_no_table(host)
+    expect(remove_agent).to_be_visible()
+
+
+def test_an_agent_tile_in_a_desktop_strip_keeps_its_remove_button(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    agent_of: Callable[[Page], Agent],
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    agent_of(host).dial_in("Claude")
+
+    show_table(host, table_link(stub_skat))
+    expect_table_on_stage(host, stub_skat)
+
+    expect(host.locator(AGENT_TILE + " " + REMOVE)).to_be_visible()
