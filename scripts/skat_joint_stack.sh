@@ -184,4 +184,6 @@ if [ "${smoke}" -eq 1 ]; then
     fi
     exit 0
 fi
-sleep infinity # until the cap or a signal stops the stack
+sleep infinity & # until the cap or a signal stops the stack
+echo "$!" >>"${pids_file}"
+wait "$!" # a foreground sleep would hold the TERM trap back until it ends
