@@ -102,17 +102,36 @@ def test_the_remove_button_lies_below_the_frame_and_both_lie_inside_the_surface(
     assert frame is not None
     assert button is not None
     assert frame["y"] + frame["height"] <= button["y"], "the button covers the frame"
-    for box in (frame, button):
-        assert surface["x"] <= box["x"]
-        assert surface["y"] <= box["y"]
-        assert box["x"] + box["width"] <= surface["x"] + surface["width"]
-        assert box["y"] + box["height"] <= surface["y"] + surface["height"]
+    assert frame["y"] == pytest.approx(surface["y"], abs=1)
+    assert button["y"] + button["height"] == pytest.approx(surface["y"] + surface["height"], abs=1)
+    assert surface["x"] <= button["x"]
+    assert button["x"] + button["width"] <= surface["x"] + surface["width"]
 
     if form_factor.get("has_touch"):
         host.locator(REMOVE_TABLE).tap()
     else:
         host.locator(REMOVE_TABLE).click()
     expect_no_table(host)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_frame_fills_the_surface_for_a_guest_who_sees_no_button(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    form_factor: dict[str, Any],
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+    show_table(host, table_link(stub_skat))
+    expect_table_on_stage(guest, stub_skat)
+
+    surface = guest.locator(SURFACE).bounding_box()
+    frame = guest.locator(FRAME).bounding_box()
+    assert surface is not None
+    assert frame is not None
+    assert frame["y"] == pytest.approx(surface["y"], abs=1)
+    assert frame["y"] + frame["height"] == pytest.approx(surface["y"] + surface["height"], abs=1)
 
 
 def test_the_opener_removes_the_table_and_the_videos_stay_the_same_elements_playing(

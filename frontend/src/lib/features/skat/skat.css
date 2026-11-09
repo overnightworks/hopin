@@ -16,10 +16,12 @@
 .skat-remove {
     flex: none;
     align-self: flex-end;
-    background: var(--glass-dark);
+    background: var(--glass);
     color: var(--on-stage);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+}
+.skat-remove:hover,
+.skat-remove:focus-visible {
+    background: var(--glass-hover);
 }
 .skat-form {
     display: flex;
