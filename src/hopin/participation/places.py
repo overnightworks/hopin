@@ -1,5 +1,7 @@
 """The places agents hold in calls: an open invitation or a joined tile, one per agent and room.
 
+A joined agent's place holds its chat window, which goes with the place.
+
 The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal, a
 withdrawal or an expiry raises the epoch of its (agent, room), so an invitation made before it is stale.
 """
@@ -7,6 +9,8 @@ withdrawal or an expiry raises the epoch of its (agent, room), so an invitation 
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
+
+from hopin.participation.chat_window import ChatWindow
 
 if TYPE_CHECKING:
     from hopin.participation.feature import DialedAgent, Person
@@ -53,6 +57,7 @@ class Places:
     def __init__(self) -> None:
         self._places: dict[PlaceKey, Place] = {}
         self._epochs: dict[PlaceKey, int] = {}
+        self._windows: dict[PlaceKey, ChatWindow] = {}
 
     def get(self, person: Person, room_id: str) -> Place | None:
         return self._places.get((person, room_id))
@@ -61,21 +66,34 @@ class Places:
         return self._epochs.get((person, room_id), 0)
 
     def put(self, person: Person, room_id: str, place: Place) -> None:
+        """Hold the place; a joined agent's place starts an empty window named by the agent's id."""
         self._places[(person, room_id)] = place
+        if not isinstance(place, Invited):
+            self._windows[(person, room_id)] = ChatWindow(place.agent_id)
 
     def remove(self, person: Person, room_id: str) -> None:
         """Take the place, which must exist, away and raise its epoch."""
         del self._places[(person, room_id)]
+        self._windows.pop((person, room_id), None)
         self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
 
     def drop_room(self, room_id: str) -> None:
         for key in [key for key in {*self._places, *self._epochs} if key[1] == room_id]:
             self._places.pop(key, None)
             self._epochs.pop(key, None)
+            self._windows.pop(key, None)
 
     def clear(self) -> None:
         self._places.clear()
         self._epochs.clear()
+        self._windows.clear()
+
+    def window_of(self, person: Person, room_id: str) -> ChatWindow | None:
+        return self._windows.get((person, room_id))
+
+    def windows_in(self, room_id: str) -> dict[Person, ChatWindow]:
+        """The window of every agent joined in the room, by the person whose agent it is."""
+        return {person: window for (person, held_room), window in self._windows.items() if held_room == room_id}
 
     def entries(self) -> list[tuple[Person, str, Place]]:
         return [(person, room_id, place) for (person, room_id), place in self._places.items()]

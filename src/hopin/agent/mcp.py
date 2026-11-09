@@ -15,10 +15,13 @@ from agent_runtime_client.member import (
     STANDING_URI,
     Invitation,
     MemberStanding,
+    PlaceEntry,
     PlaceRef,
     PlaceWindow,
     Standing,
     StandingState,
+    place_ref_from_window_uri,
+    place_window_uri,
 )
 from agent_runtime_client.tools import JsonObject, Principal, ToolOutcome
 from fastapi import APIRouter
@@ -41,6 +44,7 @@ if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore, SignInTransaction
 
+    from hopin.participation.chat_window import WindowRead
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
     from hopin.signaling.scheduler import Scheduler
@@ -69,7 +73,7 @@ class _BuiltParticipation:
 
     def build(self, rooms: CallRooms) -> CallFeature:
         self.participation = Participation(
-            rooms, self.scheduler, LEASE_SECONDS, self._tell_changed, self.wall_clock, self.adders, self._groups_of
+            rooms, self.scheduler, LEASE_SECONDS, self._tell_changed, self._tell_window_changed, self.wall_clock, self.adders, self._groups_of
         )
         return self.participation
 
@@ -82,6 +86,11 @@ class _BuiltParticipation:
 
     def _tell_changed(self, person: Person) -> None:
         self.changes.changed(Principal(iss=person.issuer, sub=person.subject), STANDING_URI)
+
+    def _tell_window_changed(self, person: Person, room_id: str) -> None:
+        self.changes.changed(
+            Principal(iss=person.issuer, sub=person.subject), place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
+        )
 
     def current(self) -> Participation:
         return self.participation
@@ -154,25 +163,45 @@ def _standing_of(standing: PlaceStanding) -> Standing:
     )
 
 
+def _window_of(window: WindowRead) -> PlaceWindow:
+    return PlaceWindow(
+        generation=window.generation,
+        starts_at=window.starts_at,
+        entries=tuple(
+            PlaceEntry(seq=line.seq, kind=line.kind.value, name=line.name, text=line.text, own=line.own)
+            for line in window.lines
+        ),
+    )
+
+
 @dataclass(frozen=True)
-class _StandingResources:
-    """The one resource an agent with an account of its own reads: its standing in every place it holds."""
+class _MemberResources:
+    """What a principal reads: the standing of an agent with an account of its own, and the chat window of every call
+    where the principal holds a joined agent."""
 
     participation: Callable[[], Participation]
 
     async def current(self, principal: Principal) -> Collection[str]:  # NOSONAR(S7503) MemberResources is async
-        return (STANDING_URI,) if self._is_live(principal) else ()
+        person = Person(principal.iss, principal.sub)
+        windows = tuple(
+            place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
+            for room_id in self.participation().window_rooms_of(person)
+        )
+        return (STANDING_URI, *windows) if self.participation().is_live_agent(person) else windows
 
     async def read(  # NOSONAR(S7503) MemberResources is async
         self, principal: Principal, uri: str
     ) -> MemberStanding | PlaceWindow | None:
-        if uri != STANDING_URI or not self._is_live(principal):
-            return None
         person = Person(principal.iss, principal.sub)
-        return MemberStanding(standings=tuple(map(_standing_of, self.participation().standings_of(person))))
-
-    def _is_live(self, principal: Principal) -> bool:
-        return self.participation().is_live_agent(Person(principal.iss, principal.sub))
+        if uri == STANDING_URI:
+            if not self.participation().is_live_agent(person):
+                return None
+            return MemberStanding(standings=tuple(map(_standing_of, self.participation().standings_of(person))))
+        place = place_ref_from_window_uri(uri)
+        if place is None or place.kind != CALL_KIND:
+            return None
+        window = self.participation().read_window(person, place.id)
+        return None if window is None else _window_of(window)
 
 
 @dataclass(frozen=True)
@@ -214,7 +243,7 @@ class ParticipationFeature:
         front = McpPersonFront(
             [_as_person_tool(tool) for tool in participation_tools(built.current)],
             resolve_person=partial(_principal_of, relying_party.issuer),
-            resources=_StandingResources(built.current),
+            resources=_MemberResources(built.current),
             changes=built.changes,
         )
 

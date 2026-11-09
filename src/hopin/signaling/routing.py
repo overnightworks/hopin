@@ -64,12 +64,14 @@ class RoomRouting:
         on_room_ended: Callable[[str], None],
         on_seat_left: Callable[[Departure], Awaitable[None]],
         on_seat_changed: Callable[[PeerId], None],
+        on_chat_said: Callable[[PeerId, str, str], None],
     ) -> None:
         self._room_manager = room_manager
         self._scheduler = scheduler
         self._on_room_ended = on_room_ended
         self._on_seat_left = on_seat_left
         self._on_seat_changed = on_seat_changed
+        self._on_chat_said = on_chat_said
         self._graces: dict[str, HostGrace] = {}
         self._seats = Seats(scheduler, on_seat_lost=self.handle_disconnect, on_seat_changed=on_seat_changed)
         self._peer_rooms: dict[str, str] = {}
@@ -160,6 +162,7 @@ class RoomRouting:
             return
         room = self._room_manager.get_room(room_id)
         others = [pid for pid in room.participant_ids if pid != peer_id]
+        self._on_chat_said(peer_id, room_id, message)
         await self._seats.send_all(others, ChatBroadcastFrame(message=message, from_=peer_id).to_json())
 
     async def handle_media_state(self, peer_id: PeerId, frame: MediaStateFrame) -> None:

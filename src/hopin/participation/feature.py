@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final
 import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
+from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.line_rate import admitted
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
@@ -182,6 +183,7 @@ class Participation:
         scheduler: Scheduler,
         lease_seconds: float,
         on_changed: Callable[[Person], None],
+        on_window_changed: Callable[[Person, str], None],
         wall_clock: Callable[[], float],
         adders: Mapping[str, str],
         groups_of: GroupsOf,
@@ -190,6 +192,7 @@ class Participation:
         self._scheduler = scheduler
         self._lease_seconds = lease_seconds
         self._on_changed = on_changed
+        self._on_window_changed = on_window_changed
         self._wall_clock = wall_clock
         self._adders = adders
         self._groups_of = groups_of
@@ -257,8 +260,18 @@ class Participation:
         if window is None:
             return AgentRefusal.TOO_FAST
         self._line_windows[agent.agent_id] = window
+        self._append_to_windows(room_id, LineKind.AGENT, agent.name, line, sayer=person)
         await self._tell(room_id, self._recipients(room_id), _line_frame(agent, line))
         return None
+
+    def window_rooms_of(self, person: Person) -> tuple[str, ...]:
+        """The rooms where the person holds a joined agent, whose chat windows it may read."""
+        return tuple(room_id for room_id, place in self._places.of_person(person) if isinstance(place, DialedAgent))
+
+    def read_window(self, person: Person, room_id: str) -> WindowRead | None:
+        """The chat window of the person's joined agent in the room, or nothing when it holds none there."""
+        window = self._places.window_of(person, room_id)
+        return None if window is None else window.read()
 
     def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
@@ -333,6 +346,10 @@ class Participation:
             if self._in_call(agent):
                 await self._announce_joined(agent, [peer_id], self._rooms.name_of(agent.sponsor))
         await self._update_offers(room_id)
+
+    def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
+        """Add a person's line to the window of every agent joined in its room, under the name the call shows."""
+        self._append_to_windows(room_id, LineKind.PERSON, self._rooms.name_of(peer_id), message, sayer=None)
 
     def seat_changed(self, peer_id: PeerId) -> None:
         """A seat that left its room takes its places out of the state at once and holds its agents for `seat_left`;
@@ -512,6 +529,13 @@ class Participation:
             return PlaceStanding(room_id, PlaceState.INVITED, place)
         state = PlaceState.PAUSED if self._rooms.is_parked(place.sponsor) else PlaceState.ACTIVE
         return PlaceStanding(room_id, state)
+
+    def _append_to_windows(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
+        """Add the line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
+        agent said it, whose window marks it own."""
+        for person, window in self._places.windows_in(room_id).items():
+            if window.append(kind, name, text, own=person == sayer):
+                self._on_window_changed(person, room_id)
 
     def _sole_seat(self, room_id: str, owner_subject: str) -> PeerId | AgentRefusal:
         seats = self._rooms.seats_in(room_id, owner_subject)

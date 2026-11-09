@@ -1,12 +1,18 @@
 import asyncio
 import json
 from dataclasses import dataclass, field
+from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
+from fastapi import APIRouter
 from starlette.websockets import WebSocketState
 
 from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT
 from hopin.rooms.models import Account
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 ROOM_LIMIT = 5
 ARRIVAL_CAP_SECONDS = 5
@@ -152,6 +158,7 @@ class RecordingFeature:
     joined: list = field(default_factory=list)
     left: list = field(default_factory=list)
     changed: list = field(default_factory=list)
+    said: list = field(default_factory=list)
 
     async def on_frame(self, peer_id, frame):
         self.offered.append((peer_id, frame))
@@ -168,8 +175,23 @@ class RecordingFeature:
         in_room = self.rooms.room_of(peer_id) is not None
         self.changed.append((peer_id, in_room, in_room and self.rooms.is_parked(peer_id)))
 
+    def chat_said(self, peer_id, room_id, message):
+        self.said.append((peer_id, room_id, message))
+
     def room_ended(self, room_id):
         pass
 
     async def shut_down(self):
         pass
+
+
+@dataclass(frozen=True)
+class WitnessFeatureBuilder:
+    """A call feature in the shape the app builds from a feature: `witness` makes the call feature from the call's
+    rooms, and the feature adds no route and no bearer resource."""
+
+    witness: Callable[[object], RecordingFeature]
+    sign_in_scopes: tuple[str, ...] = ()
+
+    def __call__(self, **_options):
+        return SimpleNamespace(factory=self.witness, router=APIRouter(), bearer_resource=None)
