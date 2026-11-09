@@ -2,13 +2,11 @@ import asyncio
 import threading
 from dataclasses import dataclass
 from functools import partial
-from types import SimpleNamespace
 from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
 from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
-from fastapi import APIRouter
 
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import ParticipationSignal
@@ -17,7 +15,7 @@ from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupRe
 from tests.signaling.support.browsers import Link
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
-from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver
+from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
 
 
 class Change(NamedTuple):
@@ -44,6 +42,12 @@ def changes():
 
 
 @pytest.fixture
+def window_changes():
+    """The (person, room) each `on_window_changed` call named, in order."""
+    return []
+
+
+@pytest.fixture
 def adders():
     """The owner's subject mapped to the group that may add the owner's agent; a module that adds overrides it."""
     return {}
@@ -63,7 +67,7 @@ def group_reads(groups_of_seat):
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, changes, adders, groups_of_seat, group_reads):
+def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads):
     async def groups_of(connection):
         group_reads.append(connection.account.name)
         groups = groups_of_seat.get(connection.account.name, frozenset())
@@ -82,6 +86,7 @@ def handler(room_manager, scheduler, changes, adders, groups_of_seat, group_read
                 scheduler=scheduler,
                 lease_seconds=LEASE_SECONDS,
                 on_changed=changes,
+                on_window_changed=lambda person, room_id: window_changes.append((person, room_id)),
                 wall_clock=lambda: WALL_CLOCK_SECONDS,
                 adders=adders,
                 groups_of=groups_of,
@@ -112,26 +117,12 @@ ADDERS = "/apps/hopin/agent-adders"
 
 @dataclass(eq=False)
 class SeatChangeWitness(RecordingFeature):
-    """A call feature that sets `announced` when the call core announces a seat's change; it sits before
-    participation, so a change is announced to it once the seat's park is visible."""
+    """A call feature that sets `announced` when the call core announces a seat's change."""
 
     announced: threading.Event | None = None
 
     def seat_changed(self, peer_id):
         self.announced.set()
-
-
-@dataclass(frozen=True)
-class SeatChangeWitnessBuilder:
-    announced: threading.Event
-    sign_in_scopes: tuple[str, ...] = ()
-
-    def __call__(self, **_options):
-        return SimpleNamespace(
-            factory=lambda rooms: SeatChangeWitness(rooms, announced=self.announced),
-            router=APIRouter(),
-            bearer_resource=None,
-        )
 
 
 @pytest.fixture
@@ -148,7 +139,7 @@ def adding_call(sign_in_settings, seat_changes):
         sign_in,
         FakeIssuer(sign_in),
         {OWNER_SUBJECT: ADDERS},
-        more_call_features=(SeatChangeWitnessBuilder(seat_changes),),
+        more_call_features=(WitnessFeatureBuilder(lambda rooms: SeatChangeWitness(rooms, announced=seat_changes)),),
     ) as call:
         yield call
 

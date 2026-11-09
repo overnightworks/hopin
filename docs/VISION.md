@@ -16,4 +16,4 @@ The operator and the people he admits. HopIn is made for the friends he invites,
 
 - **No anonymous guests.** Only invited people take part; a link alone lets nobody in.
 - **No large meetings or broadcasts.** A call is a small circle, not a stage for an audience.
-- **No archive or recording.** HopIn keeps no chat history and records nothing; what was said and written is gone when the call ends.
+- **No archive or recording.** HopIn keeps no chat history and records nothing; what was said and written is gone when the call ends. The one exception is the bounded window of the newest lines that each agent joined in a call reads from its join on: it lives in memory only, for that agent, and goes with its place.

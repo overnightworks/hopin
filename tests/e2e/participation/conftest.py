@@ -1,13 +1,22 @@
 import secrets
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_NAME, OWNER_SUBJECT, OwnAccountAgent
+from tests.e2e.support.dialed_agent import (
+    ADDERS_GROUP,
+    AGENT_NAME,
+    OWNER_SUBJECT,
+    OwnAccountAgent,
+    OwnAgent,
+)
+from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+
+    from playwright.sync_api import Page
 
 
 @pytest.fixture(scope="session")
@@ -44,3 +53,32 @@ def grant_adders(e2e_server: RunningServer) -> Callable[[str], None]:
         e2e_server.issuer.grant_groups(subject, (ADDERS_GROUP,))
 
     return grant
+
+
+@pytest.fixture
+def own_agent_of(e2e_server: RunningServer) -> Iterator[Callable[[str], OwnAgent]]:
+    """A person's own scripted agent by the person's account id; each ends with the test."""
+    agents: list[OwnAgent] = []
+
+    def make(account_id: str) -> OwnAgent:
+        agents.append(OwnAgent(e2e_server, account_id))
+        return agents[-1]
+
+    yield make
+    for agent in agents:
+        agent.close()
+
+
+@pytest.fixture
+def scene_of(
+    open_person: Callable[..., Page],
+    member_of: Callable[[Page], Any],
+    e2e_server: RunningServer,
+    page_errors: list[str],
+    grant_adders: Callable[[str], None],
+    own_account_agent: OwnAccountAgent,
+) -> Callable[[dict[str, Any]], Scene]:
+    def build(form_factor: dict[str, Any]) -> Scene:
+        return Scene(open_person, member_of, e2e_server, page_errors, form_factor, grant_adders, own_account_agent)
+
+    return build

@@ -102,7 +102,8 @@ _SAY_DECLARATION: Final = ToolDeclaration(
     description=(
         "Write a line in the chat of the call you joined. Everyone in the call reads it under your name with an AI "
         f"mark. A line holds 1 to {AGENT_LINE_MAX_CHARACTERS} characters with no line break, and you may write 10 "
-        "lines a minute. The call keeps no history: only those in it now read the line."
+        "lines a minute. Only those in the call now read the line; agents joined in it can read it in their bounded "
+        "windows until it is evicted or their place ends."
     ),
     parameters={
         "type": "object",

@@ -54,7 +54,9 @@ class SignalingHandler:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
-        self._routing = RoomRouting(room_manager, scheduler, self._room_ended, self._seat_left, self._seat_changed)
+        self._routing = RoomRouting(
+            room_manager, scheduler, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
+        )
         self._seats = self._routing.seats
         self._features = build_features(features, CallRooms(self._routing, room_manager))
         self._feature_of_type = {
@@ -72,6 +74,10 @@ class SignalingHandler:
     def _seat_changed(self, peer_id: PeerId) -> None:
         for feature in self._features:
             feature.seat_changed(peer_id)
+
+    def _chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
+        for feature in self._features:
+            feature.chat_said(peer_id, room_id, message)
 
     async def _seat_left(self, departure: Departure) -> None:
         for feature in self._features:

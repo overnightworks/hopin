@@ -87,6 +87,11 @@ class CallFeature(Protocol):
         """A seat parked, a resume took it over, or it left its room; called at once after the change and before
         the call core awaits anything."""
 
+    def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
+        """A seat's chat line is about to be relayed to the others in its room; called once per line the call core
+        admits, before the core awaits anything, so the room's seats and the sender's name are those of the moment
+        it was said."""
+
     def room_ended(self, room_id: str) -> None:
         """The room is gone; called before the call core awaits anything or tells a seat."""
 

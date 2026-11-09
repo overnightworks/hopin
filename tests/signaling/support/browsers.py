@@ -139,14 +139,18 @@ class HeldClose(Hold):
 
 
 class HeldWrite(Hold):
-    """Holds each write to one socket before it is sent, until the test releases it."""
+    """Holds each write to one socket (only the first with `first_only`) until the test releases it."""
 
-    def __init__(self, socket):
+    def __init__(self, socket, *, first_only=False):
         super().__init__()
         send_text = socket.send_text
+        held = False
 
         async def hold_and_send(text):
-            await self.hold()
+            nonlocal held
+            if not (first_only and held):
+                held = True
+                await self.hold()
             await send_text(text)
 
         socket.send_text = hold_and_send

@@ -338,6 +338,9 @@ class Game:
     def seat_changed(self, peer_id: PeerId) -> None:
         """A seat's standing changes nothing at the table."""
 
+    def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
+        """The game never reads the call's chat."""
+
     def room_ended(self, room_id: str) -> None:
         """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
         self._quizzes.pop(room_id, None)
