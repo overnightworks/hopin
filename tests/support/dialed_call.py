@@ -311,7 +311,7 @@ def serving_dialed_call(
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,
-        call_features=(ParticipationFeature(sign_in.settings.public_origin, agent_adders or {}), *more_call_features),
+        call_features=(*more_call_features, ParticipationFeature(sign_in.settings.public_origin, agent_adders or {})),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
