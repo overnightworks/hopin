@@ -1,0 +1,8 @@
+claim_id = "7ff25e43f98443e3a4a58e9a93688783"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "69a34f673572219ec6f58c41e6df46f8e4a71cb8"
+branch = "docs/figure-tile-picture"
+scope = ["docs/mockups/agent-tile-figure"]
+opened_commit = "ec64eeafdd5033ca713d667074e06abaa6824e09"
+whole_reason = "One frozen picture: its screenshots and the page that shows it live belong together."
