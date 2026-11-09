@@ -1,0 +1,7 @@
+claim_id = "7ec3964cda3840c1a2ce2fb6dcca6ab0"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b209adbd0df61cea23ab05de00fed4caff639bbd"
+branch = "docs/agent-tile-mockup"
+scope = ["docs/mockups/agent-tile-hearing.html", "sonar-project.properties"]
+opened_commit = "8456e39177a6508d6c548a6ffa7637eab94fe951"
