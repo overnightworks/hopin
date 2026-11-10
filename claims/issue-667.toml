@@ -1,0 +1,8 @@
+claim_id = "272e4cb7a5ec4338bf1d8eb23e2a03cd"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "c6d55e1e374eb53d5757b48b23fe8cc6ed76c4c0"
+branch = "claude/issue-667-skat-call-greeting"
+scope = ["docs/ARCHITECTURE.md", "docs/skat.md", "frontend/src/lib/features/skat", "src/hopin/skat", "tests/e2e/skat", "tests/skat"]
+opened_commit = "f6500e6eba6dcc0aa59401b357a93e5f74792bd5"
+whole_reason = "The listener, its checks and the hello are one handshake with no caller apart, on both the server frame and the browser feature."
