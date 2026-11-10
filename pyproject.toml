@@ -121,6 +121,8 @@ addopts = [
     "--cov",
     "--cov-report=term-missing",
 ]
+# The slowest test takes under 1 s, so a test still running after 120 s is stuck and dumps every thread's stack.
+faulthandler_timeout = 120
 markers = [
     "integration: integration tests",
     "e2e: browser end-to-end tests",
