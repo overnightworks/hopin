@@ -1,7 +1,0 @@
-claim_id = "de36cc6002304b079fdc7dc97bac35a0"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "c6d55e1e374eb53d5757b48b23fe8cc6ed76c4c0"
-branch = "claude/issue-668-sponsor-away-test-race"
-scope = ["tests/participation/conftest.py", "tests/participation/test_feature_own_account.py"]
-opened_commit = "67133fa2ba581089fba1419d5513e6829631870c"
