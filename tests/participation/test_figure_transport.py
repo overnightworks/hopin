@@ -1,6 +1,7 @@
 """The urllib3 adapter of the figure transport against a loopback TLS origin: one streamed GET, no redirect followed,
 certificate and name checked."""
 
+import gzip
 import secrets
 import socket
 import time
@@ -92,6 +93,12 @@ class TestOneGet:
         origin.serve("/second", http_response("200 OK", BODY))
 
         assert (answer_of(url), origin.paths_requested()) == ((302, "/second", 0, b""), [path])
+
+    def test_a_body_with_a_content_encoding_comes_back_as_sent_not_decoded(self, origin):
+        encoded = gzip.compress(BODY)
+        url = origin.serve(unique_path(), http_response("200 OK", encoded, extra_header=b"Content-Encoding: gzip\r\n"))
+
+        assert answer_of(url) == (200, None, len(encoded), encoded)
 
     def test_a_body_sent_without_a_length_comes_back_without_one(self, origin):
         head = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n"

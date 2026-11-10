@@ -1,4 +1,5 @@
 import traceback
+from urllib.parse import urlunsplit
 
 import pytest
 from pydantic import ValidationError
@@ -71,9 +72,8 @@ class TestTheFigureSourcesSetting:
     )
     def test_a_well_formed_prefix_is_kept_with_its_host_and_path(self, monkeypatch, prefix):
         [source] = sources_with(monkeypatch, f'["{prefix}"]')
-        kept = f"https://{source.host}{source.path}"
 
-        assert kept == prefix
+        assert urlunsplit(("https", source.host, source.path, "", "")) == prefix
 
     @pytest.mark.parametrize(
         "prefix",

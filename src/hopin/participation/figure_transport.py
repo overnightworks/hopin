@@ -92,7 +92,8 @@ def _response(connection: HTTPSConnection, request_uri: str, deadline: _Deadline
         connection.connect()
         deadline.watch(connection.sock)
         deadline.raise_if_passed()
-        connection.request("GET", request_uri, preload_content=False, decode_content=False)
+        # The default would read the whole body into memory before the size cap can stop it.
+        connection.request("GET", request_uri, preload_content=False)  # NOSONAR(S930) urllib3's request takes it
         response = connection.getresponse()
     except FETCH_ERRORS as error:
         raise _fetch_error(error, deadline) from None
