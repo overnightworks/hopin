@@ -1,0 +1,7 @@
+claim_id = "2d5439837ca74bd7af25400c0c656979"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "c6d55e1e374eb53d5757b48b23fe8cc6ed76c4c0"
+branch = "claude/issue-665-take-design-v0-20-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/ui/SignIn.svelte"]
+opened_commit = "db53a7d2927158a6b264768ad319cdcd605f4d90"
