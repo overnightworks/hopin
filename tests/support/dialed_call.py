@@ -291,6 +291,10 @@ class DialedCall:
         return Dialed(200, json.loads(result["content"][0]["text"]), result["isError"], response)
 
 
+def _no_figure_source(url, timeout_seconds):
+    raise AssertionError("this call has no figure source")
+
+
 def window_uri(room_id):
     return place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
 
@@ -316,7 +320,11 @@ def serving_dialed_call(
     agent_adders: Mapping[str, str] | None = None,
     *,
     more_call_features=(),
+    figure_sources=(),
+    figure_transport=None,
 ) -> Iterator[DialedCall]:
+    """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
+    test."""
     stores = SignInStores.in_memory()
     scheduler = ManualScheduler()
     app = create_app(
@@ -325,7 +333,15 @@ def serving_dialed_call(
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,
-        call_features=(*more_call_features, ParticipationFeature(sign_in.settings.public_origin, agent_adders or {})),
+        call_features=(
+            *more_call_features,
+            ParticipationFeature(
+                sign_in.settings.public_origin,
+                agent_adders or {},
+                figure_sources,
+                figure_transport or _no_figure_source,
+            ),
+        ),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]

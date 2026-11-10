@@ -46,12 +46,13 @@ def command_line_parser() -> argparse.ArgumentParser:
 
 
 def build_application(settings: ServerSettings) -> FastAPI:
+    participation = ParticipationSettings()
     return create_app(
         settings,
         page_build=PageBuild.load(BUILD_DIRECTORY),
         call_features=(
             configured_game_feature(),  # game
-            ParticipationFeature(settings.public_origin, ParticipationSettings().agent_adders),
+            ParticipationFeature(settings.public_origin, participation.agent_adders, participation.figure_sources),
             *configured_skat_feature(settings.public_origin),  # skat
         ),
     )

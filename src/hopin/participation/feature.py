@@ -10,6 +10,7 @@ import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
+from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_path, figure_refusal
 from hopin.participation.line_rate import admitted
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
@@ -80,6 +81,7 @@ class DialedAgent:
     person: Person
     sponsor: PeerId
     room_id: str
+    figure: Figure | None = None
 
 
 GROUPS_READ_TASK_NAME = "participation-groups-read"
@@ -145,12 +147,14 @@ def _frame(signal: ParticipationSignal, **fields: JsonValue) -> JsonObject:
 
 
 def _joined_frame(agent: DialedAgent, sponsor_name: str) -> JsonObject:
+    figure: dict[str, JsonValue] = {} if agent.figure is None else {"figure": figure_path(agent.figure.sha256)}
     return _frame(
         ParticipationSignal.AGENT_JOINED,
         agent_id=agent.agent_id,
         name=agent.name,
         sponsor=sponsor_name,
         sponsor_id=agent.sponsor,
+        **figure,
     )
 
 
@@ -187,6 +191,7 @@ class Participation:
         wall_clock: Callable[[], float],
         adders: Mapping[str, str],
         groups_of: GroupsOf,
+        figure_sources: Collection[FigureSource] = (),
     ) -> None:
         self._rooms = rooms
         self._scheduler = scheduler
@@ -196,6 +201,7 @@ class Participation:
         self._wall_clock = wall_clock
         self._adders = adders
         self._groups_of = groups_of
+        self._figure_sources = figure_sources
         self._live = LiveAgents()
         self._places = Places()
         self._line_windows: dict[str, tuple[float, ...]] = {}
@@ -281,8 +287,19 @@ class Participation:
         """Whether the person is an agent with an account of its own whose lease is registered."""
         return person in self._live.by_person
 
-    async def accept(self, person: Person, room_id: str, invitation_id: str, epoch: int) -> DialOutcome:
-        """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names."""
+    def figures_named(self, sha256: str) -> tuple[NamedFigure, ...]:
+        """The URLs the joined agents name for the digest, in the order they joined."""
+        return tuple(
+            NamedFigure(agent.room_id, agent.figure.url)
+            for agent in self._places.joined()
+            if agent.figure is not None and agent.figure.sha256 == sha256
+        )
+
+    async def accept(
+        self, person: Person, room_id: str, invitation_id: str, epoch: int, figure: Figure | None = None
+    ) -> DialOutcome:
+        """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
+        shows the figure only when an allowed source holds it."""
         live = self._live.by_person.get(person)
         invitation = self._places.get(person, room_id)
         if (
@@ -299,10 +316,20 @@ class Participation:
             return AgentRefusal.SPONSOR_AWAY
         if self._is_busy(room_id, invitation.sponsor):
             return AgentRefusal.BUSY
-        agent = DialedAgent(secrets.token_hex(AGENT_ID_BYTES), live.name, person, invitation.sponsor, room_id)
+        refusal = None if figure is None else figure_refusal(self._figure_sources, figure.url)
+        agent = DialedAgent(
+            secrets.token_hex(AGENT_ID_BYTES),
+            live.name,
+            person,
+            invitation.sponsor,
+            room_id,
+            figure if refusal is None else None,
+        )
         self._places.put(person, room_id, agent)
         self._on_changed(person)
         await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="accepted")
+        if refusal is not None:
+            await logger.ainfo("agent_figure_refused", room_id=room_id, reason=refusal.value)
         await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(invitation.sponsor))
         await self._update_offers(room_id)
         return agent

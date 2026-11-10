@@ -1,6 +1,7 @@
 """HopIn's MCP surface: the person front a person's own agent calls with a bearer token, and participation built to
 serve it."""
 
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -24,7 +25,7 @@ from agents.member import (
     place_window_uri,
 )
 from agents.tools import JsonObject, Principal, ToolOutcome
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Response
 from starlette.requests import HTTPConnection
 from starlette.routing import Route
 from webauth.middleware import ProtectedResource, resource_person
@@ -33,10 +34,14 @@ from webauth.policies import AuthorizedParties
 
 from hopin.agent.session_groups import SessionGroups
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
+from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
+from hopin.participation.figure_transport import get_figure_over_https
+from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
+from hopin.participation.vocabulary import FIGURE_PATH
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable, Collection, Mapping
+    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 
     from fastapi import FastAPI
     from starlette.types import ASGIApp, Receive, Scope, Send
@@ -58,6 +63,7 @@ MCP_SCOPE: Final = "mcp-hopin"
 MCP_GROUP: Final = "/apps/hopin/mcp"
 AGENT_GROUP: Final = "/agents"
 MCP_CLIENT_ID: Final = "agents"
+GLB_MEDIA_TYPE: Final = "model/gltf-binary"
 
 
 @dataclass
@@ -69,6 +75,7 @@ class _BuiltParticipation:
     wall_clock: Callable[[], float]
     adders: Mapping[str, str]
     groups: SessionGroups
+    figure_sources: tuple[FigureSource, ...]
     participation: Participation = field(init=False)
 
     def build(self, rooms: CallRooms) -> CallFeature:
@@ -81,6 +88,7 @@ class _BuiltParticipation:
             self.wall_clock,
             self.adders,
             self._groups_of,
+            self.figure_sources,
         )
         return self.participation
 
@@ -210,12 +218,36 @@ class _MemberResources:
         return None if window is None else _window_of(window)
 
 
+def _figure_endpoint(
+    store: FigureStore, participation: Callable[[], Participation]
+) -> Callable[[str], Awaitable[Response]]:
+    """The route of a figure: any signed-in member reads the verified file of a digest a joined agent names, since the
+    file is a public release asset."""
+
+    async def figure(sha256: str) -> Response:
+        named = participation().figures_named(sha256)
+        if not named:
+            raise HTTPException(status_code=404)
+        body = await store.bytes_of(sha256, named)
+        if body is None:
+            raise HTTPException(status_code=502)
+        return Response(
+            body,
+            media_type=GLB_MEDIA_TYPE,
+            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": IMMUTABLE_ASSET_CACHE_CONTROL},
+        )
+
+    return figure
+
+
 @dataclass(frozen=True)
 class ParticipationFeature:
     """Participation for the app: agents dial in through HopIn's MCP endpoint at the app's public origin."""
 
     public_origin: str
     agent_adders: Mapping[str, str] = field(default_factory=dict)
+    figure_sources: tuple[FigureSource, ...] = ()
+    figure_transport: FigureTransport = get_figure_over_https
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -250,7 +282,9 @@ class ParticipationFeature:
             auth_config.wall_clock,
             self.agent_adders,
             SessionGroups(relying_party, sessions, auth_config),
+            self.figure_sources,
         )
+        store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         front = McpPersonFront(
             [_as_person_tool(tool) for tool in participation_tools(built.current)],
             resolve_person=partial(_principal_of, relying_party.issuer),
@@ -260,12 +294,16 @@ class ParticipationFeature:
 
         @asynccontextmanager
         async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-            async with front.running():
-                yield
+            try:
+                async with front.running():
+                    yield
+            finally:
+                store.shut_down()
 
         router = APIRouter(lifespan=lifespan)
         # No methods named, so every method reaches the front, which refuses all but POST itself.
         router.routes.append(
             Route(MCP_ENDPOINT_PATH, endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current))
         )
+        router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
         return BuiltParticipationFeature(built.build, router, resource)

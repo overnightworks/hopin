@@ -66,7 +66,9 @@ class Places:
         return self._epochs.get((person, room_id), 0)
 
     def put(self, person: Person, room_id: str, place: Place) -> None:
-        """Hold the place; a joined agent's place starts an empty window named by the agent's id."""
+        """Hold the place, after every place held before it; a joined agent's place starts an empty window named by
+        the agent's id."""
+        self._places.pop((person, room_id), None)
         self._places[(person, room_id)] = place
         if not isinstance(place, Invited):
             self._windows[(person, room_id)] = ChatWindow(place.agent_id)

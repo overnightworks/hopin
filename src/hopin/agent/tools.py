@@ -15,6 +15,7 @@ from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
 from hopin.participation.feature import Caller, DialedAgent
+from hopin.participation.figures import Figure
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME_MAX_CHARACTERS, AgentRefusal
 
 if TYPE_CHECKING:
@@ -164,7 +165,10 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Cal
             return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
         if accepted.place.kind != CALL_KIND:
             return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
-        outcome = await participation().accept(caller.person, accepted.place.id, accepted.invitation, accepted.epoch)
+        figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
+        outcome = await participation().accept(
+            caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure
+        )
         if isinstance(outcome, AgentRefusal):
             return _accept_refused(AcceptInvitationRefusal(outcome.value))
         return _joined_or_refused(outcome)

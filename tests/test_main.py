@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
@@ -67,6 +68,29 @@ class TestMain:
             main(["serve"])
 
         mock_run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("sources", "starts"),
+        [
+            pytest.param('["https://figures.example.test/personas/"]', True, id="an allowed prefix starts"),
+            pytest.param('["https://figures.example.test/personas"]', False, id="a malformed prefix refuses"),
+        ],
+    )
+    @patch("hopin.main.uvicorn.run")
+    def test_starts_only_with_well_formed_figure_sources(
+        self, mock_run, sources, starts, sign_in_settings, monkeypatch
+    ):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("HOPIN_FIGURE_SOURCES", sources)
+
+        if starts:
+            main(["serve"])
+        else:
+            with pytest.raises(ValidationError, match="figure_sources"):
+                main(["serve"])
+
+        assert mock_run.called is starts
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     @patch("hopin.main.uvicorn.run")
