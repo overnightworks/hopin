@@ -1,8 +1,0 @@
-claim_id = "1edac38e064d4f1588ca6cec4e764085"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "c6d55e1e374eb53d5757b48b23fe8cc6ed76c4c0"
-branch = "claude/issue-663-serve-agent-figure"
-scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/main.py", "src/hopin/participation", "src/hopin/web/turn_relay.py", "tests"]
-opened_commit = "e5e09ebfde870916f37921e1f0d24ae70bf099d1"
-whole_reason = "The allowlist at accept and the fetch's redirect rule are one boundary against fetching what an agent chooses, and the stored reference has no reader but the route, so a split would review half a boundary and land a store nothing reads."
