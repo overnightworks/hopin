@@ -28,6 +28,8 @@ DRIP_SECONDS = 0.02
 # Generous beside the time left, so a loaded machine does not flake, and far below a drip's full length.
 RETURN_BOUND_SECONDS = 3
 DRIPPED = bytes(1000)
+# How late the timer may fire on a loaded machine before the connect-after-the-time-left test could pass for want of it.
+LATE_TIMER_MARGIN_SECONDS = 1
 
 
 @pytest.fixture
@@ -43,6 +45,14 @@ def origin(served_name, tmp_path, monkeypatch):
     loopback = Origin(tls=context)
     yield loopback
     loopback.close()
+
+
+@pytest.fixture
+def stalled_origin():
+    """An origin whose handshake record starts and never ends, a byte every drip, so no read of the client times out."""
+    stalled = Origin(stalls_handshake_every=DRIP_SECONDS)
+    yield stalled
+    stalled.close()
 
 
 def unique_path():
@@ -130,14 +140,12 @@ class TestTheCertificate:
         assert failure_of(url) is FigureRefusal.UNREACHABLE
         assert origin.requests == []
 
-    def test_an_origin_that_never_completes_the_handshake_is_ended_at_the_time_left(self):
-        silent = Origin()
+    def test_an_origin_that_never_completes_the_handshake_is_ended_at_the_time_left(self, stalled_origin):
         started = time.monotonic()
 
         refusal = failure_of(
-            f"https://{LOCALHOST_NAME}:{silent.port}{unique_path()}", timeout_seconds=TIME_LEFT_SECONDS
+            f"https://{LOCALHOST_NAME}:{stalled_origin.port}{unique_path()}", timeout_seconds=TIME_LEFT_SECONDS
         )
-        silent.close()
 
         assert (refusal, time.monotonic() - started < RETURN_BOUND_SECONDS) == (FigureRefusal.PAST_DEADLINE, True)
 
@@ -163,8 +171,9 @@ class TestTheDeadline:
         connect = HTTPSConnection.connect
 
         def connect_after_the_time_left(connection):
-            # No socket exists yet for the deadline to end, so only the check after the connect can.
-            time.sleep(TIME_LEFT_SECONDS * 2)
+            # A real wait: no socket exists yet for the deadline's timer to end, so only the check after the connect
+            # can, and only once the timer has had time to fire.
+            time.sleep(TIME_LEFT_SECONDS + LATE_TIMER_MARGIN_SECONDS)
             connect(connection)
 
         monkeypatch.setattr(HTTPSConnection, "connect", connect_after_the_time_left)

@@ -116,11 +116,14 @@ def path_refusal(path: str) -> FigureRefusal | None:
 
 def figure_refusal(sources: Collection[FigureSource], url: str) -> FigureRefusal | None:
     """Why the figure's URL is outside every allowed source, or nothing when one allows it: not https, a query, a
-    fragment, a port, an upper-case host, a host or path no source allows, and a string that parsing changes (it strips
-    whitespace and control characters) are all refused here."""
+    fragment, a port, an upper-case host, a host or path no source allows, a string that parsing changes (it strips
+    whitespace and control characters) and one that parsing rejects are all refused here."""
     if not sources:
         return FigureRefusal.NO_SOURCE
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return FigureRefusal.MALFORMED_URL
     if parts.geturl() != url:
         return FigureRefusal.ALTERED_BY_PARSING
     if parts.scheme != HTTPS_SCHEME:

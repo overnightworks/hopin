@@ -173,6 +173,9 @@ class TestTheFigureAtAccept:
             pytest.param(figure_url().replace("https:", "https:\t"), FigureRefusal.ALTERED_BY_PARSING, id="a tab"),
             pytest.param(f" {figure_url()}", FigureRefusal.ALTERED_BY_PARSING, id="a leading space"),
             pytest.param(f"{figure_url()}\n", FigureRefusal.ALTERED_BY_PARSING, id="a trailing newline"),
+            pytest.param("https://[allowed.example]/p/a.glb", FigureRefusal.MALFORMED_URL, id="a bracketed host"),
+            pytest.param("https://allowed.example]/p/a.glb", FigureRefusal.MALFORMED_URL, id="a lone closing bracket"),
+            pytest.param("https://allowed.example\uff0f/p/a.glb", FigureRefusal.MALFORMED_URL, id="a fullwidth slash"),
         ],
     )
     def test_the_allowlist_check_alone_refuses_a_url_the_accept_record_refuses_before_it(

@@ -1,5 +1,5 @@
 """A loopback origin for transport tests, over HTTP or TLS: real sockets, answers from a script, held until released or
-dripped."""
+dripped, or stalled in the TLS handshake."""
 
 import datetime
 import socket
@@ -20,6 +20,11 @@ LOCALHOST = "127.0.0.1"
 LOCALHOST_NAME = "localhost"
 ARRIVAL_CAP_SECONDS = 10
 CERTIFICATE_DAYS = 1
+# The start of a TLS handshake record that declares the longest body TLS allows, and a body one byte short of it: the
+# client reads on, and the record never completes.
+HANDSHAKE_RECORD_BYTES = 0x4000
+HANDSHAKE_RECORD_START = bytes([0x16, 0x03, 0x03]) + HANDSHAKE_RECORD_BYTES.to_bytes(2)
+HANDSHAKE_FILLER = bytes(HANDSHAKE_RECORD_BYTES - 1)
 
 
 def http_response(
@@ -60,9 +65,11 @@ def tls_context_for(name: str, directory: Path) -> tuple[ssl.SSLContext, Path]:
 @dataclass
 class Origin:
     """A loopback origin, over HTTP or, with a `tls` context, over HTTPS at `localhost`: it answers each path from a
-    script and can hold an answer until released."""
+    script and can hold an answer until released. With `stalls_handshake_every` it answers no request: it drips the
+    start of a TLS record, a byte that often, so each read of a client succeeds and its handshake never completes."""
 
     tls: ssl.SSLContext | None = None
+    stalls_handshake_every: float | None = None
 
     requests: list[tuple[str, str, dict[str, str], bytes]] = field(default_factory=list)
     received: dict[str, threading.Event] = field(default_factory=dict)
@@ -121,12 +128,24 @@ class Origin:
 
     def _answer(self, accepted: socket.socket) -> None:
         with accepted:
+            if self.stalls_handshake_every is not None:
+                self._stall_handshake(accepted, self.stalls_handshake_every)
+                return
             try:
                 connection = accepted if self.tls is None else self.tls.wrap_socket(accepted, server_side=True)
             except OSError:
                 return
             with connection:
                 self._respond(connection)
+
+    def _stall_handshake(self, accepted: socket.socket, every: float) -> None:
+        try:
+            for byte in HANDSHAKE_RECORD_START + HANDSHAKE_FILLER:
+                accepted.sendall(bytes([byte]))
+                if self.stopped.wait(every):
+                    return
+        except OSError:
+            return
 
     def _respond(self, connection: socket.socket) -> None:
         try:
