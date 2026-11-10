@@ -204,10 +204,12 @@ class TestSeatsOfAnErasedPerson:
         assert client.get(f"{CALL_PATH}/{room_id}", headers=ben_cookies).status_code == NOT_FOUND
 
     def test_a_parked_seat_of_the_erased_person_cannot_be_resumed_and_expires_with_the_park(
-        self, client, members, sockets, erase, advance
+        self, client, members, sockets, scheduler, erase, advance
     ):
         host, guest, _ = a_call_with_a_guest(sockets, "ben", "anna")
         guest.close(code=ABNORMAL_CLOSE_CODE)
+        # The close reaches the server's loop on its own; the park's timer shows the seat parked before the clock moves.
+        assert scheduler.wait_for_timer(RESUME_WINDOW_SECONDS)
         erase("anna")
 
         with (
