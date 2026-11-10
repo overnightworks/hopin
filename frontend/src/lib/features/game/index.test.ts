@@ -332,20 +332,13 @@ describe("refusals", () => {
         [GAME_REFUSAL.ANSWER_CLOSED, "This question is already closed.", "LOCKED"],
         [GAME_REFUSAL.ANSWER_TOO_LONG, "Your answer is too long. Shorten it and send again.", "WARNING"],
         [GAME_REFUSAL.UNAVAILABLE, "The game master is unavailable right now.", "WARNING"],
+        ["from_the_future", "The game master is unavailable right now.", "WARNING"],
     ] as const)("tells the person about %s", async (reason, text, kind) => {
         const game = await installedGame();
 
         game.emit(GAME_SIGNAL.GAME_REFUSED, { reason });
 
         expect(game.toasts).toMatchObject([{ text, kind: TOAST_KIND[kind] }]);
-    });
-
-    it("falls back to unavailable for a reason it does not know", async () => {
-        const game = await installedGame();
-
-        game.emit(GAME_SIGNAL.GAME_REFUSED, { reason: "from_the_future" });
-
-        expect(game.toasts).toMatchObject([{ text: "The game master is unavailable right now." }]);
     });
 
     it("names the wait when the game master is busy", async () => {
