@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "b41fab446d54ca0ea8602af8de8660238fddd341"
 branch = "claude/issue-642-take-agents-v0-29-0"
-scope = ["docs/game-master.md", "frontend/src/lib/features/game", "pyproject.toml", "src", "tests", "uv.lock"]
+scope = ["docs/ARCHITECTURE.md", "docs/game-master.md", "frontend/src/lib/features/game", "pyproject.toml", "src", "tests", "uv.lock"]
 opened_commit = "75b103372551fb55b9bfb5b99b80ff2af5a4abc9"
 whole_reason = "The pin, the import rename it forces and the two refusal changes the type checker and the shared codes demand are one bump; split, either the lock, the imports or the type check fail."
