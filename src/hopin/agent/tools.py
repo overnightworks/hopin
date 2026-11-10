@@ -5,8 +5,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, AcceptInvitationArguments
-from agent_runtime_client.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
+from agents.member import (
+    ACCEPT_INVITATION_TOOL,
+    AcceptInvitationArguments,
+    AcceptInvitationRefusal,
+    AcceptInvitationRefused,
+)
+from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
 from hopin.participation.feature import Caller, DialedAgent
@@ -130,6 +135,10 @@ def refused(refusal: AgentRefusal) -> ToolOutcome:
     return ToolOutcome(json.dumps({"refused": refusal.value}), is_error=True)
 
 
+def _accept_refused(refusal: AcceptInvitationRefusal) -> ToolOutcome:
+    return ToolOutcome(AcceptInvitationRefused(refused=refusal).model_dump_json(), is_error=True)
+
+
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
     if isinstance(outcome, DialedAgent):
         return ToolOutcome(json.dumps({"room": outcome.room_id, "name": outcome.name}), is_error=False)
@@ -152,10 +161,12 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Cal
         try:
             accepted = AcceptInvitationArguments.model_validate(arguments)
         except ValidationError:
-            return refused(AgentRefusal.STALE_INVITATION)
+            return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
         if accepted.place.kind != CALL_KIND:
-            return refused(AgentRefusal.STALE_INVITATION)
+            return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
         outcome = await participation().accept(caller.person, accepted.place.id, accepted.invitation, accepted.epoch)
+        if isinstance(outcome, AgentRefusal):
+            return _accept_refused(AcceptInvitationRefusal(outcome.value))
         return _joined_or_refused(outcome)
 
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:

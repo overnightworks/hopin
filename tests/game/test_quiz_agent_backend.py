@@ -3,9 +3,9 @@ import secrets
 
 import pytest
 import structlog.testing
-from agent_runtime_client.agents import load_agent
-from agent_runtime_client.backend import TurnStopKind
-from agent_runtime_client.turn import FailureCode, Principal, RejectionCode, RunFile
+from agents.agent_file import load_agent
+from agents.backend import TurnStopKind
+from agents.turn import FailureCode, Principal, RejectionCode, RunFile
 from webauth.admission import AppRole
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
@@ -229,6 +229,17 @@ class TestEndings:
         world.backend.answer_next(Rejects(code))
 
         assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.NO_ACCESS)
+
+    async def test_a_turn_refused_for_a_spent_budget_is_budget_spent_and_logs_its_code(self, world):
+        """GM-13: A spent budget is its own refusal for the starter, never an outage."""
+        starter, _ = world.starter()
+        world.backend.answer_next(Rejects(RejectionCode.BUDGET_SPENT))
+
+        with structlog.testing.capture_logs() as logs:
+            outcome = await world.game_master.ask(starter, OPENING)
+
+        assert outcome == Refused(GameRefusal.BUDGET_SPENT)
+        assert [log["code"] for log in logs if log["event"] == TURN_REFUSED] == [RejectionCode.BUDGET_SPENT.value]
 
     @pytest.mark.parametrize(("retry_after_s", "expected_wait"), [(17, 17), (None, 30), (0, 1), (600, 600)], ids=str)
     async def test_a_busy_turn_waits_as_told_with_a_fallback_and_a_floor(self, world, retry_after_s, expected_wait):

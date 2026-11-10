@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 SOURCE = Path(__file__).resolve().parents[2] / "src" / "hopin"
-CLIENT = "agent_runtime_client"
+CLIENT = "agents"
 HTTP_LIBRARY = "httpx2"
 BACKEND_MODULE = SOURCE / "agent" / "backend.py"
 SETTINGS_MODULE = SOURCE / "agent" / "settings.py"

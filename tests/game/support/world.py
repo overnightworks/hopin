@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
-from agent_runtime_client.config import AgentConfig, BackendKind, ChatGateway
+from agents.config import AgentConfig, BackendKind, ChatGateway
 from starlette.requests import HTTPConnection
 from webauth.admission import AppRole
 from webauth.ports import AccountKind

@@ -1,8 +1,8 @@
 import secrets
 
 import pytest
-from agent_runtime_client.agents import load_agent
-from agent_runtime_client.config import BackendKind
+from agents.agent_file import load_agent
+from agents.config import BackendKind
 from pydantic import ValidationError
 
 from hopin.agent.backend import QUIZ_AGENT_FILE

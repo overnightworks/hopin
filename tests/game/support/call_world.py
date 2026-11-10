@@ -25,7 +25,7 @@ from tests.support.signed_in import cookie_header, handshake_headers, seed_membe
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from agent_runtime_client.backend import AgentBackend
+    from agents.backend import AgentBackend
 
     from hopin.agent.settings import SpeechSettings
     from tests.support.fake_issuer import FakeIssuer

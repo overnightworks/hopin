@@ -4,8 +4,8 @@ import secrets
 from typing import TYPE_CHECKING
 
 import pytest
-from agent_runtime_client.backend.fake_gateway import FakeGateway, completion
-from agent_runtime_client.backend.gateway import GatewayBackend
+from agents.backend.fake_gateway import FakeGateway, completion
+from agents.backend.gateway import GatewayBackend
 from playwright.sync_api import Page, expect
 
 from hopin.agent.feature import GameFeature

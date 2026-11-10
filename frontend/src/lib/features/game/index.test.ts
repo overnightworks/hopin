@@ -324,6 +324,7 @@ describe("refusals", () => {
         [GAME_REFUSAL.NO_ACCESS, "Your account has no AI access.", "LOCKED"],
         [GAME_REFUSAL.SIGN_IN_AGAIN, "Sign in again to use the game master.", "WARNING"],
         [GAME_REFUSAL.BUSY, "The game master is busy.", "WAIT"],
+        [GAME_REFUSAL.BUDGET_SPENT, "Your AI budget is used up for now.", "LOCKED"],
         [GAME_REFUSAL.ALREADY_ANSWERING, "The game master is already answering.", "WAIT"],
         [GAME_REFUSAL.QUIZ_RUNNING, "A quiz is already running.", "WAIT"],
         [GAME_REFUSAL.NOT_STARTER, "Only the person who started the quiz can reveal.", "LOCKED"],
@@ -331,20 +332,13 @@ describe("refusals", () => {
         [GAME_REFUSAL.ANSWER_CLOSED, "This question is already closed.", "LOCKED"],
         [GAME_REFUSAL.ANSWER_TOO_LONG, "Your answer is too long. Shorten it and send again.", "WARNING"],
         [GAME_REFUSAL.UNAVAILABLE, "The game master is unavailable right now.", "WARNING"],
+        ["from_the_future", "The game master is unavailable right now.", "WARNING"],
     ] as const)("tells the person about %s", async (reason, text, kind) => {
         const game = await installedGame();
 
         game.emit(GAME_SIGNAL.GAME_REFUSED, { reason });
 
         expect(game.toasts).toMatchObject([{ text, kind: TOAST_KIND[kind] }]);
-    });
-
-    it("falls back to unavailable for a reason it does not know", async () => {
-        const game = await installedGame();
-
-        game.emit(GAME_SIGNAL.GAME_REFUSED, { reason: "from_the_future" });
-
-        expect(game.toasts).toMatchObject([{ text: "The game master is unavailable right now." }]);
     });
 
     it("names the wait when the game master is busy", async () => {

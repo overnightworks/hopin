@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agent-runtime-client[backend,mcp-server] @ git+https://github.com/overnightworks/agent-runtime@v0.28.0",
+    "overnightworks-agents[backend,mcp-server] @ git+https://github.com/overnightworks/agents@v0.29.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.6.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.34.0",
     "pydantic>=2.10",
@@ -27,7 +27,7 @@ build-backend = "hatchling.build"
 # The two overnightworks libraries are built from their git tags; a named package
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
-    "overnightworks-agent-runtime-client",
+    "overnightworks-agents",
     "overnightworks-speech-client",  # game
     "overnightworks-webauth",
 ]
@@ -218,7 +218,8 @@ forbidden_modules = [
     "hopin.participation",
     "hopin.skat",
     "hopin.agent",
-    "agent_runtime_client",
+    "agents",
+    "agent_runtime_client",  # stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening
     "speech_client",
     "speech_runtime_client",
     "httpx2",
@@ -230,15 +231,17 @@ name = "Participation names no agent runtime"
 type = "forbidden"
 # Participation holds who is in a call, with no AI in it; the connector adapts it to the runtime's tools.
 source_modules = ["hopin.participation"]
-forbidden_modules = ["agent_runtime_client", "speech_client", "speech_runtime_client", "httpx2"]
+# agent_runtime_client stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening.
+forbidden_modules = ["agents", "agent_runtime_client", "speech_client", "speech_runtime_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"
 name = "Only the game reaches the agent service"
 type = "forbidden"
-# The client of the agent runtime and its HTTP library are the connector's alone.
+# The agents library and its HTTP library are the connector's alone.
+# agent_runtime_client stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening.
 source_modules = ["hopin.main", "hopin.app"]
-forbidden_modules = ["agent_runtime_client", "httpx2"]
+forbidden_modules = ["agents", "agent_runtime_client", "httpx2"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
 allow_indirect_imports = true
 

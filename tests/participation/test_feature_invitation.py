@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 import pytest_asyncio
-from agent_runtime_client.member import LEASE_SECONDS
+from agents.member import LEASE_SECONDS
 
 from hopin.config.constants import SignalType
 from hopin.participation.feature import DialedAgent

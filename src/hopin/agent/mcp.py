@@ -8,9 +8,9 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
-from agent_runtime_client.mcp_server import McpPersonFront, PersonRequest, PersonTool, ResourceChanges
-from agent_runtime_client.mcp_wire import MCP_ENDPOINT_PATH
-from agent_runtime_client.member import (
+from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, ResourceChanges
+from agents.mcp_wire import MCP_ENDPOINT_PATH
+from agents.member import (
     LEASE_SECONDS,
     STANDING_URI,
     Invitation,
@@ -23,7 +23,7 @@ from agent_runtime_client.member import (
     place_ref_from_window_uri,
     place_window_uri,
 )
-from agent_runtime_client.tools import JsonObject, Principal, ToolOutcome
+from agents.tools import JsonObject, Principal, ToolOutcome
 from fastapi import APIRouter
 from starlette.requests import HTTPConnection
 from starlette.routing import Route

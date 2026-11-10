@@ -1,6 +1,6 @@
 import pytest
-from agent_runtime_client.mcp_wire import PROTOCOL_VERSION_HEADER
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI
+from agents.mcp_wire import PROTOCOL_VERSION_HEADER
+from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI
 from mcp_types import UNSUPPORTED_PROTOCOL_VERSION
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY

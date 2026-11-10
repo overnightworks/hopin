@@ -1,5 +1,5 @@
 import pytest
-from agent_runtime_client.member import LEASE_SECONDS, STANDING_URI
+from agents.member import LEASE_SECONDS, STANDING_URI
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from tests.participation.support.own_accounts import AGENT, agent_calls

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import pytest
 import structlog.testing
-from agent_runtime_client.turn import RejectionCode
+from agents.turn import RejectionCode
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind

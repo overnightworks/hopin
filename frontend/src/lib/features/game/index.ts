@@ -66,6 +66,7 @@ const REFUSAL_TOASTS: Partial<Record<GAME_REFUSAL, RefusalToast>> = {
         { label: "Sign in", onAct: signInAgain },
     ],
     [GAME_REFUSAL.BUSY]: (frame, kind) => [busyText(frame), kind.WAIT, null],
+    [GAME_REFUSAL.BUDGET_SPENT]: (_frame, kind) => ["Your AI budget is used up for now.", kind.LOCKED, null],
     [GAME_REFUSAL.ALREADY_ANSWERING]: (_frame, kind) => ["The game master is already answering.", kind.WAIT, null],
     [GAME_REFUSAL.QUIZ_RUNNING]: (_frame, kind) => ["A quiz is already running.", kind.WAIT, null],
     [GAME_REFUSAL.NOT_STARTER]: (_frame, kind) => [

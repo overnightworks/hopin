@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
+from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import ParticipationSignal
@@ -149,11 +149,12 @@ class Scene:
 
     agent_name = "Mozart"
     agent_username = "agent-subject-username"
+    owner_subject = OWNER_SUBJECT
 
     def __init__(self, call, *, member_groups=(ADDERS,)):
         self.call = call
-        self.owner_account, owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS,))
-        self.owner = call.seat(owner_login)
+        self.owner_account, self.owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS,))
+        self.owner = call.seat(self.owner_login)
         self.member_account, self.member_login = call.member(groups=member_groups)
         self.member = call.seat(self.member_login, self.owner.room_id)
         self.token = call.agent_token(
@@ -167,6 +168,10 @@ class Scene:
     def key_of_offer(self):
         [offer] = self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
         return offer["agent_key"]
+
+    def key_of_offer_named(self, name):
+        offers = self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+        return next(offer["agent_key"] for offer in offers if offer["name"] == name)
 
     def add(self, key):
         self.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})

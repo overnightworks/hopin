@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from agent_runtime_client.member import LEASE_SECONDS, STANDING_URI
+from agents.member import LEASE_SECONDS, STANDING_URI
 from mcp_types import INVALID_PARAMS
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from agent_runtime_client.config import AgentConfig  # noqa: TC002 - pydantic resolves the annotation at runtime
+from agents.config import AgentConfig  # noqa: TC002 - pydantic resolves the annotation at runtime
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

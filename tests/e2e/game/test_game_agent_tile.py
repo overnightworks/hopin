@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 import pytest
-from agent_runtime_client.turn import RejectionCode
+from agents.turn import RejectionCode
 from playwright.sync_api import Page, expect
 
 from hopin.config.constants import SignalType

@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
+from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.support.dialed_call import accept_arguments
@@ -90,6 +90,50 @@ class TestAcceptingInTheSharedShape:
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
         assert [item["state"] for item in scene.standings()] == ["invited"]
+
+
+def _another_epoch(scene, arguments):
+    return {**arguments, "epoch": arguments["epoch"] + 1}
+
+
+def _owner_on_two_seats(scene, arguments):
+    scene.call.seat(scene.owner_login, scene.owner.room_id)
+    return arguments
+
+
+def _owner_away(scene, arguments):
+    scene.owner.drop()
+    return arguments
+
+
+def _owner_sponsoring_another_agent(scene, arguments):
+    other = scene.call.agent_token(owner=scene.owner_subject, subject="other-agent", agent_name="Codex")
+    scene.call.standing(other)
+    scene.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": scene.key_of_offer_named("Codex")})
+    scene.member.frame_of_type(OFFERS)
+    [invitation] = scene.call.standing(other)
+    assert not scene.call.call(other, ACCEPT_INVITATION_TOOL, accept_arguments(invitation)).is_error
+    return arguments
+
+
+ACCEPT_REFUSALS = {
+    "stale_invitation": _another_epoch,
+    "two_seats": _owner_on_two_seats,
+    "sponsor_away": _owner_away,
+    "busy": _owner_sponsoring_another_agent,
+}
+
+
+class TestRefusingTheAcceptance:
+    @pytest.mark.parametrize("code", ACCEPT_REFUSALS.keys())
+    def test_an_acceptance_the_call_refuses_answers_the_refusal_of_the_wire(self, scene, code):
+        scene.invite()
+        [standing] = scene.standings()
+        arguments = ACCEPT_REFUSALS[code](scene, accept_arguments(standing))
+
+        dialed = scene.call.call(scene.token, ACCEPT_INVITATION_TOOL, arguments)
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": code})
 
 
 FOREIGN_URIS = {

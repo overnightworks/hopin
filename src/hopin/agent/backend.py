@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
-from agent_runtime_client.agents import load_agent
-from agent_runtime_client.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopped
-from agent_runtime_client.backend.gateway import GatewayBackend
-from agent_runtime_client.turn import AgentRole, FailureCode, Principal, RejectionCode, TurnMessage, TurnRole
-from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
+from agents.agent_file import load_agent
+from agents.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopped
+from agents.backend.gateway import GatewayBackend
+from agents.turn import AgentRole, Principal, StopOutcome, TurnMessage, TurnRole
+from agents.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
 from webauth.admission import AppRole
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, fresh_access_token
 
@@ -173,17 +173,19 @@ def _outcome_of_event(event: TurnEvent) -> GameOutcome | None:
 
 
 def _refusal_of_stop(stopped: TurnStopped) -> Refused:
-    code = stopped.code
-    _log_refusal(kind=stopped.kind.value, code=code.value, detail=stopped.detail)
-    match code:
-        case RejectionCode.NOT_ENABLED | RejectionCode.FORBIDDEN:
+    _log_refusal(kind=stopped.kind.value, code=stopped.code.value, detail=stopped.detail)
+    outcome = stopped.outcome
+    match outcome:
+        case StopOutcome.NOT_ENABLED:
             return Refused(GameRefusal.NO_ACCESS)
-        case RejectionCode.BUSY:
+        case StopOutcome.BUSY:
             return Refused(GameRefusal.BUSY, retry_after_seconds=_busy_wait(stopped.retry_after_s))
-        case FailureCode():
+        case StopOutcome.BUDGET_SPENT:
+            return Refused(GameRefusal.BUDGET_SPENT)
+        case StopOutcome.UNAVAILABLE:
             return UNAVAILABLE
         case _:  # pragma: no cover - the type checker proves the match exhaustive
-            assert_never(code)
+            assert_never(outcome)
 
 
 def _busy_wait(retry_after_seconds: int | None) -> int:

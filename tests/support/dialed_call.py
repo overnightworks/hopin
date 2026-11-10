@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import anyio
-from agent_runtime_client.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
-from agent_runtime_client.member import STANDING_URI, PlaceRef, place_window_uri
+from agents.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+from agents.member import STANDING_URI, PlaceRef, place_window_uri
 from fastapi.testclient import TestClient
 from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
 from webauth.admission import AppRole

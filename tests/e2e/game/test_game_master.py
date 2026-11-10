@@ -2,7 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agent_runtime_client.turn import RejectionCode
+from agents.turn import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
