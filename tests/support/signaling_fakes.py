@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -32,14 +33,26 @@ class ManualScheduler:
     def __init__(self):
         self._now = 0.0
         self._timers = []
+        self._timer_set = threading.Condition()
 
     def now(self):
         return self._now
 
     def call_later(self, delay_seconds, callback):
-        timer = ManualTimer(self._now + delay_seconds, callback)
-        self._timers.append(timer)
+        timer = ManualTimer(self._now + delay_seconds, callback, delay_seconds)
+        with self._timer_set:
+            self._timers.append(timer)
+            self._timer_set.notify_all()
         return timer
+
+    def wait_for_timer(self, delay_seconds):
+        """Waits, on the test's thread, until a timer of this delay is pending; the server sets its timers on its own
+        loop, so a test that moves the clock after an effect it caused waits for that timer here first."""
+        with self._timer_set:
+            return self._timer_set.wait_for(
+                lambda: any(timer.pending and timer.delay == delay_seconds for timer in self._timers),
+                timeout=ARRIVAL_CAP_SECONDS,
+            )
 
     def pending_timers(self):
         return [timer for timer in self._timers if timer.pending]
@@ -62,9 +75,10 @@ class ManualScheduler:
 
 
 class ManualTimer:
-    def __init__(self, deadline, callback):
+    def __init__(self, deadline, callback, delay):
         self.deadline = deadline
         self.callback = callback
+        self.delay = delay
         self.pending = True
 
     def cancel(self):
