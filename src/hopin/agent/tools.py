@@ -135,15 +135,6 @@ def refused(refusal: AgentRefusal) -> ToolOutcome:
     return ToolOutcome(json.dumps({"refused": refusal.value}), is_error=True)
 
 
-# The participation core words its refusals in its own vocabulary; the accept tool answers in the library's.
-_ACCEPT_REFUSALS: Final = {
-    AgentRefusal.STALE_INVITATION: AcceptInvitationRefusal.STALE_INVITATION,
-    AgentRefusal.TWO_SEATS: AcceptInvitationRefusal.TWO_SEATS,
-    AgentRefusal.SPONSOR_AWAY: AcceptInvitationRefusal.SPONSOR_AWAY,
-    AgentRefusal.BUSY: AcceptInvitationRefusal.BUSY,
-}
-
-
 def _accept_refused(refusal: AcceptInvitationRefusal) -> ToolOutcome:
     return ToolOutcome(AcceptInvitationRefused(refused=refusal).model_dump_json(), is_error=True)
 
@@ -175,7 +166,7 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Cal
             return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
         outcome = await participation().accept(caller.person, accepted.place.id, accepted.invitation, accepted.epoch)
         if isinstance(outcome, AgentRefusal):
-            return _accept_refused(_ACCEPT_REFUSALS[outcome])
+            return _accept_refused(AcceptInvitationRefusal(outcome.value))
         return _joined_or_refused(outcome)
 
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:

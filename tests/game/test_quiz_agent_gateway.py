@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 
 @dataclass(frozen=True)
 class QuizScenario:
-    """One turn's values; the issuer, subject and fingerprint are the vector agent-runtime's wire.md gives."""
+    """One turn's values; the issuer, subject and fingerprint are the vector the agents repository's wire.md gives."""
 
     issuer: str = "https://issuer.example"
     subject: str = "subject-1"
