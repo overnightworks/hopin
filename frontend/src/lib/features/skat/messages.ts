@@ -23,10 +23,12 @@ export interface CurrentTable {
     table: string;
 }
 
-/** A message event as far as the check reads it: where it came from, and whether from the frame's own window. */
+/** A message event as far as the check reads it: where it came from, its sender's window, the frame's own window
+ * (absent while the frame is detached) and its payload. */
 export interface Received {
     origin: string;
-    fromFrame: boolean;
+    source: unknown;
+    frameWindow: unknown;
     data: unknown;
 }
 
@@ -42,7 +44,8 @@ function isReadyFor(data: unknown, table: string): boolean {
 /** The `hello` a message earns, or null when it is to be ignored: it counts only from the frame's origin and window,
  * as a plain `ready` for the table that is attached now. */
 export function greetingFor(received: Received, frameOrigin: string, current: CurrentTable | null): Greeting | null {
-    if (current === null || !received.fromFrame || received.origin !== frameOrigin) return null;
+    const fromFrame = received.source !== null && received.source === received.frameWindow;
+    if (current === null || !fromFrame || received.origin !== frameOrigin) return null;
     if (!isReadyFor(received.data, current.table)) return null;
     return {
         hello: { v: PROTOCOL_VERSION, type: HELLO, attachment: current.attachment, attempt: null },

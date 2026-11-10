@@ -6,8 +6,10 @@ const TABLE = "0123456789abcdef0123456789abcdef";
 const CURRENT: CurrentTable = { attachment: 7, table: TABLE };
 const READY = { v: 1, type: "ready", table: TABLE };
 
-function received(overrides: { origin?: string; fromFrame?: boolean; data?: unknown } = {}) {
-    return { origin: FRAME_ORIGIN, fromFrame: true, data: READY, ...overrides };
+const FRAME_WINDOW = {};
+
+function received(overrides: { origin?: string; source?: unknown; frameWindow?: unknown; data?: unknown } = {}) {
+    return { origin: FRAME_ORIGIN, source: FRAME_WINDOW, frameWindow: FRAME_WINDOW, data: READY, ...overrides };
 }
 
 describe("a message from the frame", () => {
@@ -20,7 +22,8 @@ describe("a message from the frame", () => {
 
     it.each<[string, Parameters<typeof received>[0]]>([
         ["another origin", { origin: "https://other.example" }],
-        ["another window", { fromFrame: false }],
+        ["another window", { source: {} }],
+        ["no sender window while the frame is detached", { source: null, frameWindow: null }],
         ["a version other than 1", { data: { ...READY, v: 2 } }],
         ["a version that is the text 1", { data: { ...READY, v: "1" } }],
         ["another type", { data: { ...READY, type: "hello" } }],

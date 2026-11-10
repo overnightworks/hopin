@@ -59,7 +59,7 @@ window.addEventListener("message", (event) => {
     document.getElementById("hellos").textContent = JSON.stringify(hellos);
   } else if (event.data === "posted") {
     document.body.dataset.posted = "yes";
-  } else if (event.data === "heard") {
+  } else if (event.data?.heard !== undefined) {
     hellos.push(event.data);
     document.getElementById("hellos").textContent = JSON.stringify(hellos);
   }
@@ -72,7 +72,7 @@ const intrude = (sandbox) => {
   const nested = document.createElement("iframe");
   if (sandbox) nested.setAttribute("sandbox", "allow-scripts");
   const greeting = `parent.parent.postMessage(${JSON.stringify(ready("__ID__"))}, ${JSON.stringify(callOrigin)});`;
-  const forward = `addEventListener("message", () => parent.postMessage("heard", "*"));`;
+  const forward = `addEventListener("message", (event) => parent.postMessage({ heard: event.data }, "*"));`;
   nested.srcdoc = `<script>${forward} ${greeting} parent.postMessage("posted", "*");<\\/script>`;
   document.body.append(nested);
 };

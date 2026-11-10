@@ -6,8 +6,8 @@ SOURCE = f"https://skat.example/t/{TABLE}"
 
 def test_the_calls_end_clears_its_table_and_nothing_of_another_call():
     stages = Stages()
-    stages.attach("ended", SOURCE, TABLE, "opener")
-    stages.attach("other", SOURCE, TABLE, "opener")
+    stages.attach("ended", table=TABLE, source=SOURCE, opener="opener")
+    stages.attach("other", table=TABLE, source=SOURCE, opener="opener")
 
     stages.end("ended")
 
@@ -17,8 +17,8 @@ def test_the_calls_end_clears_its_table_and_nothing_of_another_call():
 def test_every_change_of_any_room_is_given_a_higher_revision():
     stages = Stages()
 
-    stages.attach("one", SOURCE, TABLE, "opener")
-    stages.attach("two", SOURCE, TABLE, "opener")
+    stages.attach("one", table=TABLE, source=SOURCE, opener="opener")
+    stages.attach("two", table=TABLE, source=SOURCE, opener="opener")
     stages.detach("one")
     stages.forget_opener("opener")
 

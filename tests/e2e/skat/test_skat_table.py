@@ -13,6 +13,7 @@ from tests.e2e.skat.skat_page import (
     STRIP_TILES,
     SURFACE,
     TOASTS,
+    answer_every_ready_with_a_barrier,
     expect_no_table,
     expect_table_on_stage,
     hellos_of,
@@ -280,7 +281,8 @@ def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referre
 
 
 HELLO = r'\{"v":1,"type":"hello","attachment":\d+,"attempt":null\}'
-HELLOS_AFTER_ONE_MORE_READY = re.compile(rf"\[{HELLO},{HELLO}\]")
+BARRIER = r'"barrier"'
+HEARD_BARRIER = r'\{"heard":"barrier"\}'
 
 
 def test_the_call_answers_the_ready_of_the_frame_with_one_hello(
@@ -306,12 +308,16 @@ def test_a_ready_from_another_window_gets_no_hello(
     show_table(host, table_link(stub_skat))
     expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
+    answer_every_ready_with_a_barrier(host)
+
     host.frame_locator(FRAME).locator(intruder).click()
     expect(host.frame_locator(FRAME).locator("body")).to_have_attribute("data-posted", "yes")
     host.frame_locator(FRAME).locator("#again").click()
 
-    # The valid ready sent after the intruder's is answered after any answer to the intruder, so two hellos are all.
-    expect(hellos_of(host)).to_have_text(HELLOS_AFTER_ONE_MORE_READY)
+    # Each barrier follows the call's answer to its ready, so a hello to the intruder would stand before its barrier.
+    expect(hellos_of(host)).to_have_text(
+        re.compile(rf"^\[{HELLO},{HEARD_BARRIER},{HELLO},{BARRIER}\]$"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def test_a_ready_for_another_table_gets_no_hello(
@@ -321,10 +327,15 @@ def test_a_ready_for_another_table_gets_no_hello(
     show_table(host, table_link(stub_skat))
     expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
+    answer_every_ready_with_a_barrier(host)
+
     host.frame_locator(FRAME).locator("#wrong-table").click()
     host.frame_locator(FRAME).locator("#again").click()
 
-    expect(hellos_of(host)).to_have_text(HELLOS_AFTER_ONE_MORE_READY)
+    # Each barrier follows the call's answer to its ready, so a hello to the wrong table would stand before its barrier.
+    expect(hellos_of(host)).to_have_text(
+        re.compile(rf"^\[{HELLO},{BARRIER},{HELLO},{BARRIER}\]$"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def test_a_reloaded_frame_document_is_greeted_again(

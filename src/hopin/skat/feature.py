@@ -92,7 +92,7 @@ class Skat:
         address = table_source(self._origin, link)
         if address is None:
             await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BAD_LINK))
-        elif not self._stages.attach(room_id, address.table, address.source, peer_id):
+        elif not self._stages.attach(room_id, table=address.table, source=address.source, opener=peer_id):
             await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BUSY))
         else:
             await logger.ainfo("skat_attached", room_id=room_id, attachment=self._stages.state_of(room_id).revision)

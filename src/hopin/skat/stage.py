@@ -1,5 +1,5 @@
 import itertools
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,6 +12,7 @@ class Attachment:
     seat that brought it, or nothing once that seat has left for good."""
 
     number: int
+    _: KW_ONLY
     table: str
     source: str
     opener: PeerId | None
@@ -37,13 +38,13 @@ class Stages:
     def state_of(self, room_id: str) -> RoomState:
         return RoomState(self._revisions.get(room_id, 0), self._attachments.get(room_id))
 
-    def attach(self, room_id: str, table: str, source: str, opener: PeerId) -> bool:
+    def attach(self, room_id: str, *, table: str, source: str, opener: PeerId) -> bool:
         """Show the table unless the room shows one; of two attaches, the first call wins."""
         if room_id in self._attachments:
             return False
         revision = next(self._counter)
         self._revisions[room_id] = revision
-        self._attachments[room_id] = Attachment(revision, table, source, opener)
+        self._attachments[room_id] = Attachment(revision, table=table, source=source, opener=opener)
         return True
 
     def detach(self, room_id: str) -> None:
@@ -54,7 +55,7 @@ class Stages:
         """Clear the seat as the opener of every table it opened."""
         for room_id, held in [*self._attachments.items()]:
             if held.opener == peer_id:
-                self._attachments[room_id] = Attachment(held.number, held.table, held.source, None)
+                self._attachments[room_id] = Attachment(held.number, table=held.table, source=held.source, opener=None)
                 self._revisions[room_id] = next(self._counter)
 
     def end(self, room_id: str) -> None:

@@ -10,7 +10,7 @@
     $effect(() => {
         const answer = (event: MessageEvent) => {
             const greeting = greetingFor(
-                { origin: event.origin, fromFrame: event.source === frame?.contentWindow, data: event.data },
+                { origin: event.origin, source: event.source, frameWindow: frame?.contentWindow, data: event.data },
                 frameOrigin,
                 table.current,
             );
