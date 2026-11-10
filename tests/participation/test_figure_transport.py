@@ -7,6 +7,7 @@ import socket
 import time
 
 import pytest
+import urllib3.util.connection
 from urllib3.connection import HTTPSConnection
 
 from hopin.participation.figure_transport import get_figure_over_https
@@ -29,7 +30,11 @@ DRIP_SECONDS = 0.02
 # Generous beside the time left, so a loaded machine does not flake, and far below a drip's full length.
 RETURN_BOUND_SECONDS = 3
 DRIPPED = bytes(1000)
-# How late the timer may fire on a loaded machine before the connect-after-the-time-left test could pass for want of it.
+# A handshake that outlasts the time left by more than this was given a timeout of its own, not the time still left; the
+# connect times of the test leave more than this between the one and the other.
+HANDSHAKE_TIME_LEFT_SECONDS = 1.0
+HANDSHAKE_MARGIN_SECONDS = 0.4
+# How late the timer may fire on a loaded machine before the test of the connect's own check could pass for want of it.
 LATE_TIMER_MARGIN_SECONDS = 1
 
 
@@ -147,15 +152,6 @@ class TestTheCertificate:
         assert failure_of(url) is FigureRefusal.UNREACHABLE
         assert origin.requests == []
 
-    def test_an_origin_that_never_completes_the_handshake_is_ended_at_the_time_left(self, stalled_origin):
-        started = time.monotonic()
-
-        refusal = failure_of(
-            f"https://{LOCALHOST_NAME}:{stalled_origin.port}{unique_path()}", timeout_seconds=TIME_LEFT_SECONDS
-        )
-
-        assert (refusal, time.monotonic() - started < RETURN_BOUND_SECONDS) == (FigureRefusal.PAST_DEADLINE, True)
-
 
 class TestTheDeadline:
     @pytest.mark.parametrize(
@@ -174,17 +170,45 @@ class TestTheDeadline:
 
         assert (refusal, time.monotonic() - started < RETURN_BOUND_SECONDS) == (FigureRefusal.PAST_DEADLINE, True)
 
-    def test_a_connection_that_is_made_only_after_the_time_left_is_ended(self, origin, monkeypatch):
+    def test_a_connection_whose_time_left_runs_out_as_it_is_made_is_ended_before_its_request(self, origin, monkeypatch):
         connect = HTTPSConnection.connect
 
-        def connect_after_the_time_left(connection):
-            # A real wait: no socket exists yet for the deadline's timer to end, so only the check after the connect
-            # can, and only once the timer has had time to fire.
-            time.sleep(TIME_LEFT_SECONDS + LATE_TIMER_MARGIN_SECONDS)
+        def connect_and_wait_out_the_time_left(connection):
             connect(connection)
+            # A real wait: the timer ends no socket yet, so only the check that follows the connect can end the fetch,
+            # and only once the timer has had time to fire.
+            time.sleep(TIME_LEFT_SECONDS + LATE_TIMER_MARGIN_SECONDS)
 
-        monkeypatch.setattr(HTTPSConnection, "connect", connect_after_the_time_left)
+        monkeypatch.setattr(HTTPSConnection, "connect", connect_and_wait_out_the_time_left)
         url = origin.serve(unique_path(), http_response("200 OK", BODY))
 
         assert failure_of(url, timeout_seconds=TIME_LEFT_SECONDS) is FigureRefusal.PAST_DEADLINE
         assert origin.requests == []
+
+    @pytest.mark.parametrize(
+        "connect_seconds",
+        [
+            pytest.param(HANDSHAKE_TIME_LEFT_SECONDS * 0.8, id="a connect that leaves time for a handshake"),
+            pytest.param(HANDSHAKE_TIME_LEFT_SECONDS * 1.2, id="a connect that leaves none"),
+        ],
+    )
+    def test_an_origin_that_never_completes_the_handshake_is_ended_at_the_time_left_of_the_whole_fetch(
+        self, stalled_origin, monkeypatch, connect_seconds
+    ):
+        create_connection = urllib3.util.connection.create_connection
+
+        def create_connection_after_the_connect_time(*arguments, **options):
+            # A real wait: the name lookup and the TCP connect run before any timer of ours can end them.
+            time.sleep(connect_seconds)
+            return create_connection(*arguments, **options)
+
+        monkeypatch.setattr(urllib3.util.connection, "create_connection", create_connection_after_the_connect_time)
+        started = time.monotonic()
+
+        refusal = failure_of(
+            f"https://{LOCALHOST_NAME}:{stalled_origin.port}{unique_path()}",
+            timeout_seconds=HANDSHAKE_TIME_LEFT_SECONDS,
+        )
+
+        ended_within = max(connect_seconds, HANDSHAKE_TIME_LEFT_SECONDS) + HANDSHAKE_MARGIN_SECONDS
+        assert (refusal, time.monotonic() - started < ended_within) == (FigureRefusal.PAST_DEADLINE, True)

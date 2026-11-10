@@ -4,6 +4,7 @@ when the time left runs out."""
 import http.client
 import socket
 import threading
+import time
 from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING, Final
 
@@ -23,11 +24,14 @@ FETCH_ERRORS: Final = (urllib3.exceptions.HTTPError, http.client.HTTPException, 
 
 
 class _Deadline:
-    """Ends the connection when the time left runs out: urllib3's timeouts bound each socket operation, not the whole
-    answer, so an origin dripping its headers or body would outrun them."""
+    """The time left for one fetch. A phase is bound as follows: urllib3's timeout bounds the TCP connect; the
+    connection hands the TLS handshake the time still left; the timer ends the sockets of the request and the answer,
+    since urllib3's timeouts bound each socket operation, not the whole answer, and an origin dripping its headers or
+    body would outrun them."""
 
-    def __init__(self, connection: HTTPSConnection, seconds: float) -> None:
-        self._connection = connection
+    def __init__(self, seconds: float) -> None:
+        self.seconds = seconds
+        self._ends_at = time.monotonic() + seconds
         self._sock: socket.socket | None = None
         self._passed = threading.Event()
         self._timer = threading.Timer(seconds, self._end)
@@ -36,6 +40,9 @@ class _Deadline:
     @property
     def passed(self) -> bool:
         return self._passed.is_set()
+
+    def seconds_left(self) -> float:
+        return self._ends_at - time.monotonic()
 
     def watch(self, sock: socket.socket | None) -> None:
         """End this socket at the deadline too, the connected one the response reads from."""
@@ -52,13 +59,29 @@ class _Deadline:
 
     def _end(self) -> None:
         self._passed.set()
-        # The connection holds its plain socket while the TLS handshake runs, and lets go of it once a response that
-        # closes the connection takes it over.
-        for sock in filter(None, (self._connection.sock, self._sock)):
-            # The plain socket's shutdown wakes a read blocked in another thread, TLS or not; a socket the origin
-            # already ended has nothing left to end.
+        if self._sock is not None:
+            # A shutdown wakes a read blocked in another thread, TLS or not; a socket the origin already ended has
+            # nothing left to end.
             with suppress(OSError):
-                socket.socket.shutdown(sock, socket.SHUT_RDWR)
+                socket.socket.shutdown(self._sock, socket.SHUT_RDWR)
+
+
+class _DeadlineConnection(HTTPSConnection):
+    """A connection whose TLS handshake gets the time still left when the TCP connect is made, not a timeout of its
+    own: the handshake runs on a socket the timer cannot reach."""
+
+    def __init__(self, host: str, port: int | None, deadline: _Deadline) -> None:
+        super().__init__(host, port, timeout=deadline.seconds)
+        self._deadline = deadline
+
+    def _new_conn(self) -> socket.socket:
+        sock = super()._new_conn()
+        seconds_left = self._deadline.seconds_left()
+        if seconds_left <= 0:
+            sock.close()
+            raise FigureFetchError(FigureRefusal.PAST_DEADLINE)
+        sock.settimeout(seconds_left)
+        return sock
 
 
 @contextmanager
@@ -69,10 +92,10 @@ def get_figure_over_https(url: str, timeout_seconds: float) -> Iterator[FigureAn
         raise FigureFetchError(FigureRefusal.MALFORMED_URL) from None
     if parts.scheme != HTTPS_SCHEME:
         raise FigureFetchError(FigureRefusal.MALFORMED_URL)
-    connection = HTTPSConnection(str(parts.host), parts.port, timeout=timeout_seconds)
     # urllib3 logs the request's path; inside this block its loggers drop every record of this thread.
     with urllib3_unlogged():
-        deadline = _Deadline(connection, timeout_seconds)
+        deadline = _Deadline(timeout_seconds)
+        connection = _DeadlineConnection(str(parts.host), parts.port, deadline)
         try:
             response = _response(connection, parts.request_uri, deadline)
             yield FigureAnswer(
