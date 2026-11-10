@@ -121,7 +121,7 @@ addopts = [
     "--cov",
     "--cov-report=term-missing",
 ]
-# The slowest test takes under 1 s, so a test still running after 120 s is stuck and dumps every thread's stack.
+# The slowest unit test takes under 1 s, so one still running after 120 s is stuck; any test past it dumps every thread's stack.
 faulthandler_timeout = 120
 markers = [
     "integration: integration tests",
