@@ -86,26 +86,31 @@ class TestOneFetchPerDigest:
 
         assert (await store.bytes_of(digest(1), named(url)), fetches.fetched) == (first, [url])
 
-    async def test_the_urls_are_tried_in_order_until_one_verifies_so_a_failing_one_denies_nothing(self, store, fetches):
+    @pytest.mark.parametrize(
+        "failing_first", [pytest.param(True, id="failing first"), pytest.param(False, id="good first")]
+    )
+    async def test_of_two_urls_for_one_digest_a_failing_one_denies_nothing(self, store, fetches, failing_first):
         failing, good = figure_url("failing.glb"), figure_url("good.glb")
         fetches.outcomes[failing] = FigureRefusal.MISMATCH
 
-        with structlog.testing.capture_logs() as logs:
-            served = await store.bytes_of(digest(1), named(failing, good))
+        served = await store.bytes_of(digest(1), named(*((failing, good) if failing_first else (good, failing))))
 
-        assert (served, fetches.fetched) == (f"bytes of {good}".encode(), [failing, good])
-        assert logs == [
-            {"event": "agent_figure_fetch_failed", "room_id": ROOM, "reason": "mismatch", "log_level": "info"}
-        ]
+        assert served == f"bytes of {good}".encode()
 
-    async def test_a_failed_fetch_is_answered_with_nothing_and_tried_again_on_the_next_read(self, store, fetches):
+    async def test_a_failed_fetch_is_logged_answered_with_nothing_and_tried_again_on_the_next_read(
+        self, store, fetches
+    ):
         url = figure_url()
         fetches.outcomes[url] = FigureRefusal.UNREACHABLE
 
-        first = await store.bytes_of(digest(1), named(url))
+        with structlog.testing.capture_logs() as logs:
+            first = await store.bytes_of(digest(1), named(url))
         second = await store.bytes_of(digest(1), named(url))
 
         assert (first, second, fetches.fetched) == (None, None, [url, url])
+        assert logs == [
+            {"event": "agent_figure_fetch_failed", "room_id": ROOM, "reason": "unreachable", "log_level": "info"}
+        ]
 
 
 class TestTheCache:

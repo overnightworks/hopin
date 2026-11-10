@@ -2,6 +2,7 @@
 
 import secrets
 import socket
+import time
 
 import pytest
 
@@ -13,6 +14,11 @@ from tests.support.loopback_origin import ARRIVAL_CAP_SECONDS, LOCALHOST, Origin
 pytestmark = pytest.mark.integration
 
 BODY = b"glTF" + bytes(64)
+TIME_LEFT_SECONDS = 0.3
+DRIP_SECONDS = 0.02
+# Generous beside the time left, so a loaded machine does not flake, and far below a drip's full length.
+RETURN_BOUND_SECONDS = 3
+DRIPPED = bytes(1000)
 
 
 @pytest.fixture
@@ -73,6 +79,9 @@ class TestOneGet:
 
         assert failure_of(f"http://{LOCALHOST}:{port}/mozart.glb") is FigureRefusal.UNREACHABLE
 
+    def test_an_address_urllib3_cannot_parse_is_malformed(self):
+        assert failure_of(f"http://{LOCALHOST} x/mozart.glb") is FigureRefusal.MALFORMED_URL
+
     def test_an_origin_that_does_not_answer_within_the_time_left_is_past_the_deadline(self, origin):
         url = origin.serve(unique_path(), http_response("200 OK", BODY), held=True)
 
@@ -82,3 +91,21 @@ class TestOneGet:
         url = origin.serve(unique_path(), http_response("200 OK", b"short", declared_length=100))
 
         assert failure_of(url) is FigureRefusal.UNREACHABLE
+
+
+class TestTheDeadline:
+    @pytest.mark.parametrize(
+        ("answer", "dripped"),
+        [
+            pytest.param(b"HTTP/1.1 200 OK\r\n", b"X-Padding: " + b"a" * len(DRIPPED), id="headers"),
+            pytest.param(http_response("200 OK", b"", declared_length=len(DRIPPED)), DRIPPED, id="body with a length"),
+            pytest.param(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", DRIPPED, id="body without a length"),
+        ],
+    )
+    def test_an_origin_that_drips_its_answer_is_ended_at_the_time_left(self, origin, answer, dripped):
+        url = origin.serve(unique_path(), answer, dripped=dripped, every=DRIP_SECONDS)
+        started = time.monotonic()
+
+        refusal = failure_of(url, timeout_seconds=TIME_LEFT_SECONDS)
+
+        assert (refusal, time.monotonic() - started < RETURN_BOUND_SECONDS) == (FigureRefusal.PAST_DEADLINE, True)

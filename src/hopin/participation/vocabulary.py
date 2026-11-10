@@ -68,6 +68,7 @@ class FigureRefusal(StrEnum):
     NOT_OK = "not_ok"
     SECOND_REDIRECT = "second_redirect"
     REDIRECT_NOT_HTTPS = "redirect_not_https"
+    MALFORMED_URL = "malformed_url"
     PAST_DEADLINE = "past_deadline"
     TOO_LARGE = "too_large"
     MISMATCH = "mismatch"

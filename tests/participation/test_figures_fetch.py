@@ -152,10 +152,19 @@ class TestAFetchThatIsRefused:
 
         assert (fetched(origin, clock), origin.requested) == (FigureRefusal.SECOND_REDIRECT, [figure_url(), MIRROR])
 
-    def test_a_redirect_to_http_is_refused_and_not_followed(self, origin, clock):
-        origin.serve(figure_url(), redirect("http://figures.example.test/mozart.glb"))
+    @pytest.mark.parametrize(
+        ("location", "refusal"),
+        [
+            pytest.param("http://figures.example.test/mozart.glb", FigureRefusal.REDIRECT_NOT_HTTPS, id="to http"),
+            pytest.param("https://[bad/mozart.glb", FigureRefusal.MALFORMED_URL, id="to a malformed address"),
+        ],
+    )
+    def test_a_redirect_to_an_address_that_is_not_https_or_malformed_is_refused_with_its_code_and_not_followed(
+        self, origin, clock, location, refusal
+    ):
+        origin.serve(figure_url(), redirect(location))
 
-        assert (fetched(origin, clock), origin.requested) == (FigureRefusal.REDIRECT_NOT_HTTPS, [figure_url()])
+        assert (fetched(origin, clock), origin.requested) == (refusal, [figure_url()])
 
     @pytest.mark.parametrize(
         "answer",

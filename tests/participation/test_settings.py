@@ -71,8 +71,9 @@ class TestTheFigureSourcesSetting:
     )
     def test_a_well_formed_prefix_is_kept_with_its_host_and_path(self, monkeypatch, prefix):
         [source] = sources_with(monkeypatch, f'["{prefix}"]')
+        kept = f"https://{source.host}{source.path}"
 
-        assert f"https://{source.host}{source.path}" == prefix
+        assert kept == prefix
 
     @pytest.mark.parametrize(
         "prefix",
@@ -91,6 +92,10 @@ class TestTheFigureSourcesSetting:
             pytest.param("https://figures.example.test/person+as/", id="a disallowed character"),
             pytest.param("https://figures.example.test", id="no path"),
             pytest.param("figures.example.test/personas/", id="no scheme"),
+            pytest.param(" https://figures.example.test/personas/", id="a leading space"),
+            pytest.param("https://figures.example.test/personas/\\t", id="a trailing tab"),
+            pytest.param("https://figures.example.test/pers\\nonas/", id="a newline inside"),
+            pytest.param("https://figures.example.test/personas/\\u0007", id="a non-printable character"),
         ],
     )
     def test_a_malformed_prefix_stops_the_start_naming_only_the_setting(self, monkeypatch, prefix):

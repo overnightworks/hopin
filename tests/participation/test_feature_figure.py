@@ -268,18 +268,20 @@ class TestTheRoute:
 
         assert (read_figure(scene, path).content, figure_origin.requested) == (FILE, [figure_url()] * 2)
 
-    def test_two_agents_naming_one_digest_under_different_urls_are_tried_in_join_order_so_neither_denies(
-        self, scene, figure_origin
+    @pytest.mark.parametrize(
+        "failing_first", [pytest.param(True, id="failing first"), pytest.param(False, id="good first")]
+    )
+    def test_two_agents_naming_one_digest_under_different_urls_one_failing_the_other_is_served(
+        self, scene, figure_origin, failing_first
     ):
         failing = figure_origin.serve(figure_url("failing.glb"), ok(glb(b"another file")))
         good = figure_origin.serve(figure_url("good.glb"), ok(FILE))
-        path = joined_with(scene, failing)
+        first, second_url = (failing, good) if failing_first else (good, failing)
+        path = joined_with(scene, first)
         _, second_owner_login = scene.call.member(subject=SECOND_OWNER, groups=(ADDERS,))
         scene.call.seat(second_owner_login, scene.owner.room_id)
         second = scene.call.agent_token(owner=SECOND_OWNER, subject="second-agent", agent_name="Haydn")
         scene.call.standing(second)
-        assert not accept_with(scene, figure_of(good), token=second, name="Haydn").is_error
+        assert not accept_with(scene, figure_of(second_url), token=second, name="Haydn").is_error
 
-        served = read_figure(scene, path)
-
-        assert (served.content, figure_origin.requested) == (FILE, [failing, good])
+        assert read_figure(scene, path).content == FILE

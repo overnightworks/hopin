@@ -90,6 +90,7 @@ def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_
                 wall_clock=lambda: WALL_CLOCK_SECONDS,
                 adders=adders,
                 groups_of=groups_of,
+                figure_sources=(),
             )
         ],
     )

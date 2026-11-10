@@ -156,7 +156,10 @@ def fetch_figure(
             return outcome
         if redirects == FIGURE_REDIRECTS:
             return FigureRefusal.SECOND_REDIRECT
-        url, redirects = urljoin(url, outcome.location), redirects + 1
+        try:
+            url, redirects = urljoin(url, outcome.location), redirects + 1
+        except ValueError:
+            return FigureRefusal.MALFORMED_URL
         if urlsplit(url).scheme != "https":
             return FigureRefusal.REDIRECT_NOT_HTTPS
 
@@ -209,8 +212,8 @@ class FigureStore:
         self._fetches: dict[str, asyncio.Task[bytes | None]] = {}
 
     async def bytes_of(self, sha256: str, named: Sequence[NamedFigure]) -> bytes | None:
-        """The verified bytes of the digest, fetched from the named URLs in order until one verifies; nothing when none
-        does, and the next read fetches again."""
+        """The verified bytes of the digest, fetched from the named URLs one after another until one verifies; nothing
+        when none does, and the next read fetches again."""
         cached = self._cache.get(sha256)
         if cached is not None:
             self._cache.move_to_end(sha256)

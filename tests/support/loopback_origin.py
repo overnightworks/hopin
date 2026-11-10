@@ -1,4 +1,4 @@
-"""A loopback HTTP origin for transport tests: real sockets, answers from a script, held until released."""
+"""A loopback HTTP origin for transport tests: real sockets, answers from a script, held until released or dripped."""
 
 import socket
 import threading
@@ -24,6 +24,8 @@ class Origin:
     received: dict[str, threading.Event] = field(default_factory=dict)
     release: dict[str, threading.Event] = field(default_factory=dict)
     scripts: dict[str, bytes] = field(default_factory=dict)
+    drips: dict[str, tuple[bytes, float]] = field(default_factory=dict)
+    stopped: threading.Event = field(default_factory=threading.Event)
     listener: socket.socket = field(default_factory=socket.socket)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -35,8 +37,10 @@ class Origin:
         self._accepting = threading.Thread(target=self._accept)
         self._accepting.start()
 
-    def serve(self, path: str, answer: bytes, *, held: bool = False) -> str:
+    def serve(self, path: str, answer: bytes, *, held: bool = False, dripped: bytes = b"", every: float = 0.0) -> str:
+        """Answer the path with `answer`, then with `dripped` one byte at a time, a byte `every` seconds."""
         self.scripts[path] = answer
+        self.drips[path] = (dripped, every)
         self.received[path] = threading.Event()
         self.release[path] = threading.Event()
         if not held:
@@ -47,6 +51,7 @@ class Origin:
         return [path for _, path, _, _ in self.requests]
 
     def close(self) -> None:
+        self.stopped.set()
         for release in self.release.values():
             release.set()
         self.listener.shutdown(socket.SHUT_RDWR)
@@ -80,8 +85,13 @@ class Origin:
                 return
             self.received[path].set()
             self.release[path].wait(ARRIVAL_CAP_SECONDS)
+            dripped, every = self.drips[path]
             try:
                 connection.sendall(self.scripts[path])
+                for byte in dripped:
+                    if self.stopped.wait(every):
+                        return
+                    connection.sendall(bytes([byte]))
             except OSError:
                 return
 

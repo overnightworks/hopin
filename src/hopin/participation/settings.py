@@ -28,9 +28,13 @@ type GroupPath = Annotated[str, AfterValidator(_full_group_path)]
 
 def _figure_source(prefix: object) -> FigureSource:
     """The source an allowed prefix names: https, a lowercase host with no port or user, no query or fragment, and a
-    path that starts and ends with `/` and follows the figure's path rule."""
+    path that starts and ends with `/` and follows the figure's path rule; no whitespace or non-printable character
+    anywhere."""
     message = "a figure source is an https prefix with a lowercase host and a path that ends with /"
-    if not isinstance(prefix, str) or "?" in prefix or "#" in prefix:
+    # `urlsplit` drops surrounding space, tabs and newlines, so they are refused before it reads the prefix.
+    if not isinstance(prefix, str) or not prefix.isprintable() or any(map(str.isspace, prefix)):
+        raise ValueError(message)
+    if "?" in prefix or "#" in prefix:
         raise ValueError(message)
     parts = urlsplit(prefix)
     host, path = parts.netloc, parts.path

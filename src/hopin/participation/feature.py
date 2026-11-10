@@ -191,7 +191,7 @@ class Participation:
         wall_clock: Callable[[], float],
         adders: Mapping[str, str],
         groups_of: GroupsOf,
-        figure_sources: Collection[FigureSource] = (),
+        figure_sources: Collection[FigureSource],
     ) -> None:
         self._rooms = rooms
         self._scheduler = scheduler
@@ -288,7 +288,7 @@ class Participation:
         return person in self._live.by_person
 
     def figures_named(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest, in the order they joined."""
+        """The URLs the joined agents name for the digest."""
         return tuple(
             NamedFigure(agent.room_id, agent.figure.url)
             for agent in self._places.joined()
@@ -296,7 +296,7 @@ class Participation:
         )
 
     async def accept(
-        self, person: Person, room_id: str, invitation_id: str, epoch: int, figure: Figure | None = None
+        self, person: Person, room_id: str, invitation_id: str, epoch: int, figure: Figure | None
     ) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it."""
