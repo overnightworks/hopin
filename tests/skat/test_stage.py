@@ -1,12 +1,13 @@
 from hopin.skat.stage import Stages
 
-SOURCE = "https://skat.example/t/" + "a" * 32
+TABLE = "a" * 32
+SOURCE = f"https://skat.example/t/{TABLE}"
 
 
 def test_the_calls_end_clears_its_table_and_nothing_of_another_call():
     stages = Stages()
-    stages.attach("ended", SOURCE, "opener")
-    stages.attach("other", SOURCE, "opener")
+    stages.attach("ended", SOURCE, TABLE, "opener")
+    stages.attach("other", SOURCE, TABLE, "opener")
 
     stages.end("ended")
 
@@ -16,8 +17,8 @@ def test_the_calls_end_clears_its_table_and_nothing_of_another_call():
 def test_every_change_of_any_room_is_given_a_higher_revision():
     stages = Stages()
 
-    stages.attach("one", SOURCE, "opener")
-    stages.attach("two", SOURCE, "opener")
+    stages.attach("one", SOURCE, TABLE, "opener")
+    stages.attach("two", SOURCE, TABLE, "opener")
     stages.detach("one")
     stages.forget_opener("opener")
 

@@ -1,11 +1,12 @@
 import re
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.secret_files import StartRefusedError
-from hopin.skat.vocabulary import CALL_MODE_QUERY, TABLE_PATH_PATTERN
+from hopin.skat.vocabulary import CALL_MODE_QUERY, TABLE_PATH_PATTERN, TABLE_PATH_PREFIX
 
 HTTPS_PORT = 443
 HOST_PATTERN = re.compile(r"[a-z0-9.-]+")
@@ -64,9 +65,17 @@ def check_origin_differs(skat_origin: str, public_origin: str) -> None:
         raise StartRefusedError("HOPIN_SKAT_ORIGIN must be another origin than HOPIN_PUBLIC_ORIGIN")
 
 
-def table_source(origin: str, link: str) -> str | None:
-    """The address the frame loads for a pasted link to a table of the origin, or nothing when the link is none: the
-    origin must equal the configured one, carry no userinfo and the path must be exactly a table's."""
+@dataclass(frozen=True)
+class TableAddress:
+    """A table of the origin: its id and the address its frame loads."""
+
+    table: str
+    source: str
+
+
+def table_source(origin: str, link: str) -> TableAddress | None:
+    """The table a pasted link names and the address its frame loads, or nothing when the link is none: the origin must
+    equal the configured one, carry no userinfo and the path must be exactly a table's."""
     try:
         parts = urlsplit(link)
     except ValueError:
@@ -77,4 +86,4 @@ def table_source(origin: str, link: str) -> str | None:
         or canonical_origin(link) != canonical_origin(origin)
     ):
         return None
-    return f"{origin}{parts.path}?{CALL_MODE_QUERY}"
+    return TableAddress(parts.path.removeprefix(TABLE_PATH_PREFIX), f"{origin}{parts.path}?{CALL_MODE_QUERY}")

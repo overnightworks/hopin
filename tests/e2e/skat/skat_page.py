@@ -38,5 +38,10 @@ def expect_no_table(person: Page) -> None:
     expect(person.locator(FRAME)).to_have_count(0)
 
 
+def hellos_of(person: Page) -> Locator:
+    """The stub table's list of the `hello` messages that reached it from the call."""
+    return person.frame_locator(FRAME).locator("#hellos")
+
+
 def report_of(person: Page) -> Locator:
     return person.frame_locator(FRAME).locator("#report")

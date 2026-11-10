@@ -15,6 +15,7 @@ from tests.e2e.skat.skat_page import (
     TOASTS,
     expect_no_table,
     expect_table_on_stage,
+    hellos_of,
     report_of,
     show_table,
     table_link,
@@ -276,6 +277,68 @@ def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referre
     assert not any(path.startswith("/submitted") for path in stub_skat.paths[requests_before[0] :])
     assert host.url.startswith(e2e_server.base_url)
     assert guest.url == guest_url
+
+
+HELLO = r'\{"v":1,"type":"hello","attachment":\d+,"attempt":null\}'
+HELLOS_AFTER_ONE_MORE_READY = re.compile(rf"\[{HELLO},{HELLO}\]")
+
+
+def test_the_call_answers_the_ready_of_the_frame_with_one_hello(
+    open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
+) -> None:
+    host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+
+    show_table(host, table_link(stub_skat))
+
+    for person in (host, guest):
+        expect(hellos_of(person)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+
+@pytest.mark.parametrize("intruder", ["#stranger", "#sandboxed-stranger"])
+def test_a_ready_from_another_window_gets_no_hello(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    intruder: str,
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    show_table(host, table_link(stub_skat))
+    expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    host.frame_locator(FRAME).locator(intruder).click()
+    expect(host.frame_locator(FRAME).locator("body")).to_have_attribute("data-posted", "yes")
+    host.frame_locator(FRAME).locator("#again").click()
+
+    # The valid ready sent after the intruder's is answered after any answer to the intruder, so two hellos are all.
+    expect(hellos_of(host)).to_have_text(HELLOS_AFTER_ONE_MORE_READY)
+
+
+def test_a_ready_for_another_table_gets_no_hello(
+    open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    show_table(host, table_link(stub_skat))
+    expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    host.frame_locator(FRAME).locator("#wrong-table").click()
+    host.frame_locator(FRAME).locator("#again").click()
+
+    expect(hellos_of(host)).to_have_text(HELLOS_AFTER_ONE_MORE_READY)
+
+
+def test_a_reloaded_frame_document_is_greeted_again(
+    open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    show_table(host, table_link(stub_skat))
+    expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    host.frame_locator(FRAME).locator("body").evaluate("(body) => { body.dataset.firstDocument = 'yes'; }")
+
+    host.frame_locator(FRAME).locator("#reload").click()
+
+    expect(host.frame_locator(FRAME).locator("body")).not_to_have_attribute("data-first-document", "yes")
+    expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"))
 
 
 def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is_off(

@@ -1,8 +1,9 @@
 import type { OutgoingFrame } from "#lib/call/feature-port.ts";
+import type { CurrentTable } from "./messages.ts";
 import { SKAT_SIGNAL } from "./wire.ts";
 
 export type TableFrame = { revision: number; opener_id: string | null } & (
-    { attachment: number; src: string } | { attachment: null; src: null }
+    { attachment: number; table: string; src: string } | { attachment: null; table: null; src: null }
 );
 
 export interface TableStage {
@@ -20,6 +21,7 @@ export class Table {
     #isHost = $state(false);
     #openerId = $state<string | null>(null);
     #attachment = $state<number | null>(null);
+    #tableId = $state<string | null>(null);
 
     constructor(stage: TableStage, send: (frame: OutgoingFrame) => void) {
         this.#stage = stage;
@@ -29,6 +31,11 @@ export class Table {
     /** Whether this seat may remove the table: the host, the opener, or anyone once the opener has left. */
     get mayRemove() {
         return this.#isHost || this.#openerId === this.#seatId || this.#openerId === null;
+    }
+
+    /** The table attached now, or null while none is. */
+    get current(): CurrentTable | null {
+        return this.#attachment === null ? null : { attachment: this.#attachment, table: this.#tableId as string };
     }
 
     seated(seatId: string, isHost: boolean) {
@@ -43,10 +50,12 @@ export class Table {
         if (frame.attachment === null) {
             if (this.#attachment !== null) this.#stage.hide();
             this.#attachment = null;
+            this.#tableId = null;
             return;
         }
         if (frame.attachment === this.#attachment) return;
         this.#attachment = frame.attachment;
+        this.#tableId = frame.table;
         this.#stage.show(frame.src, this);
     }
 
@@ -57,6 +66,7 @@ export class Table {
     reset() {
         if (this.#attachment !== null) this.#stage.hide();
         this.#attachment = null;
+        this.#tableId = null;
         this.#openerId = null;
         this.#highestRevision = -1;
     }

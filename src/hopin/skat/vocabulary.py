@@ -2,7 +2,8 @@ import re
 from enum import StrEnum
 
 FEATURE_NAME = "skat"
-TABLE_PATH_PATTERN = re.compile(r"/t/[0-9a-f]{32}")
+TABLE_PATH_PREFIX = "/t/"
+TABLE_PATH_PATTERN = re.compile(re.escape(TABLE_PATH_PREFIX) + "[0-9a-f]{32}")
 CALL_MODE_QUERY = "mode=call"
 
 
