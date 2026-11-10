@@ -1,18 +1,14 @@
 """An agent's line in the call, at HopIn's real `/mcp` and `/ws`."""
 
 import pytest
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY
 from hopin.config.constants import SignalType
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AgentRefusal, ParticipationSignal
-from tests.support.dialed_call import accept_arguments, join_arguments, serving_dialed_call
-from tests.support.fake_issuer import FakeIssuer
+from tests.support.dialed_call import join_arguments
 
 pytestmark = pytest.mark.integration
 
-OWNER_SUBJECT = "subject-owner"
-ADDERS = "/apps/hopin/agent-adders"
 NAME = "Claude"
 LINE = ParticipationSignal.AGENT_LINE.value
 WINDOW_SECONDS = 60
@@ -27,25 +23,6 @@ def own_agent(dialed_call):
     token = dialed_call.token(account)
     dialed_call.call(token, JOIN_CALL, join_arguments(seat, NAME))
     return token, seat, other
-
-
-def invited(call, agent_name):
-    """The owner in a call, an adder in it, and the owner's agent with an account of its own, invited by the adder."""
-    _, owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS,))
-    owner = call.seat(owner_login)
-    _, adder_login = call.member(groups=(ADDERS,))
-    adder = call.seat(adder_login, owner.room_id)
-    token = call.agent_token(owner=OWNER_SUBJECT, agent_name=agent_name)
-    call.standing(token)
-    [offer] = adder.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
-    adder.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
-    call.standing(token)
-    return owner, adder, token
-
-
-def accept(call, token, owner):
-    [standing] = call.standing(token)
-    call.call(token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
 
 
 def lines_of(seat):
@@ -84,18 +61,17 @@ class TestAnAgentWritesALine:
             assert (frame["name"], frame["text"]) == (NAME, "Hello all")
             assert frame["agent_id"]
 
-    def test_an_agent_with_an_account_of_its_own_writes_a_line_every_seat_reads(self, sign_in_settings):
-        sign_in = sign_in_settings()
-        with serving_dialed_call(sign_in, FakeIssuer(sign_in), {OWNER_SUBJECT: ADDERS}) as call:
-            owner, adder, token = invited(call, "Mozart")
-            accept(call, token, owner)
+    def test_an_agent_with_an_account_of_its_own_writes_a_line_every_seat_reads(self, scene):
+        scene.invite()
+        [standing] = scene.standings()
+        scene.accept(standing)
 
-            dialed = said(call, token, owner, "Good evening")
+        dialed = said(scene.call, scene.token, scene.owner, "Good evening")
 
-            assert (dialed.is_error, dialed.outcome) == (False, {})
-            for reader in (owner, adder):
-                frame = reader.frame_of_type(LINE)
-                assert (frame["name"], frame["text"]) == ("Mozart", "Good evening")
+        assert (dialed.is_error, dialed.outcome) == (False, {})
+        for reader in (scene.owner, scene.member):
+            frame = reader.frame_of_type(LINE)
+            assert (frame["name"], frame["text"]) == (scene.agent_name, "Good evening")
 
     @pytest.mark.parametrize(
         "text",
@@ -186,12 +162,10 @@ class TestAnAgentThatIsNotJoined:
 
         assert dialed.outcome == refusal_of(AgentRefusal.GONE)
 
-    def test_an_agent_that_is_only_invited_answers_gone(self, sign_in_settings):
-        sign_in = sign_in_settings()
-        with serving_dialed_call(sign_in, FakeIssuer(sign_in), {OWNER_SUBJECT: ADDERS}) as call:
-            owner, _, token = invited(call, "Claude")
+    def test_an_agent_that_is_only_invited_answers_gone(self, scene):
+        scene.invite()
 
-            dialed = said(call, token, owner, "hello")
+        dialed = said(scene.call, scene.token, scene.owner, "hello")
 
-            assert dialed.outcome == refusal_of(AgentRefusal.GONE)
-            assert nothing_read(owner)
+        assert dialed.outcome == refusal_of(AgentRefusal.GONE)
+        assert nothing_read(scene.owner)
