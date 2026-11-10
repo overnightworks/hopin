@@ -226,8 +226,8 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-id = "participation-knows-no-agents-library"
-name = "Participation names no agents library"
+id = "participation-knows-no-agent-runtime"
+name = "Participation names no agent runtime"
 type = "forbidden"
 # Participation holds who is in a call, with no AI in it; the connector adapts it to the runtime's tools.
 source_modules = ["hopin.participation"]
