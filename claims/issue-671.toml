@@ -1,8 +1,0 @@
-claim_id = "782c33b5d33048598b45790cc8d0d9e7"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "8f4e714a023745749e55662117714b1f8872e7e5"
-branch = "claude/issue-671-parked-seat-erasure-test-hang"
-scope = ["tests/auth", "tests/support"]
-opened_commit = "25ea466b581c3ae84d72d68c9918bbdd253388e2"
-whole_reason = "The wait may belong in a shared test helper beside the module, so the scope names the two test directories."
