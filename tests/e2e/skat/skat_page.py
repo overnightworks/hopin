@@ -38,5 +38,20 @@ def expect_no_table(person: Page) -> None:
     expect(person.locator(FRAME)).to_have_count(0)
 
 
+def hellos_of(person: Page) -> Locator:
+    """The stub table's list of the `hello` messages that reached it from the call."""
+    return person.frame_locator(FRAME).locator("#hellos")
+
+
+def answer_every_ready_with_a_barrier(person: Page) -> None:
+    """After the call's own answer to a `ready` (if it gives one), send the sender a `barrier`; messages from the
+    call to one window arrive in order, so the barrier marks that nothing else is coming for that `ready`."""
+    person.evaluate(
+        """() => window.addEventListener("message", (event) => {
+            if (event.data?.type === "ready") event.source.postMessage("barrier", "*");
+        })"""
+    )
+
+
 def report_of(person: Page) -> Locator:
     return person.frame_locator(FRAME).locator("#report")

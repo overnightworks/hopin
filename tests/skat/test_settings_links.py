@@ -16,8 +16,10 @@ TABLE_ID = "0123456789abcdef0123456789abcdef"
         f"https://skat.example./t/{TABLE_ID}",
     ],
 )
-def test_a_link_to_a_table_of_the_origin_becomes_the_call_mode_address(link):
-    assert table_source(ORIGIN, link) == f"{ORIGIN}/t/{TABLE_ID}?mode=call"
+def test_a_link_to_a_table_of_the_origin_becomes_its_id_and_the_call_mode_address(link):
+    address = table_source(ORIGIN, link)
+
+    assert (address.table, address.source) == (TABLE_ID, f"{ORIGIN}/t/{TABLE_ID}?mode=call")
 
 
 @pytest.mark.parametrize(

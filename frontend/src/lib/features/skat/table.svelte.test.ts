@@ -5,10 +5,17 @@ import { SKAT_SIGNAL } from "./wire.ts";
 
 const ME = "me";
 const SOMEONE = "someone";
+const TABLE = "0123456789abcdef0123456789abcdef";
 
 function stateOf(revision: number, attachment: number | null, openerId: string | null = SOMEONE): TableFrame {
-    if (attachment === null) return { revision, attachment, src: null, opener_id: null };
-    return { revision, attachment, src: `https://skat.example/t/${String(attachment)}?mode=call`, opener_id: openerId };
+    if (attachment === null) return { revision, attachment, table: null, src: null, opener_id: null };
+    return {
+        revision,
+        attachment,
+        table: TABLE,
+        src: `https://skat.example/t/${String(attachment)}?mode=call`,
+        opener_id: openerId,
+    };
 }
 
 // A table on a page seated as `ME`; `frames` collects what the stage was told, in order, and `sent` what went out.
@@ -122,6 +129,21 @@ describe("a table the server shows", () => {
         table.receive(stateOf(1, 2));
 
         expect(frames).toEqual(["https://skat.example/t/1?mode=call", "hidden", "https://skat.example/t/2?mode=call"]);
+    });
+});
+
+describe("the table attached now", () => {
+    it("is the attachment and the id the server named, and none once the table is gone or the call ended", () => {
+        const { table } = seatedTable();
+
+        table.receive(stateOf(1, 4));
+        const attached = table.current;
+        table.receive(stateOf(2, null));
+        const gone = table.current;
+        table.receive(stateOf(3, 5));
+        table.reset();
+
+        expect([attached, gone, table.current]).toEqual([{ attachment: 4, table: TABLE }, null, null]);
     });
 });
 

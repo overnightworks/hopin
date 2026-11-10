@@ -89,10 +89,10 @@ class Skat:
         room_id = self._rooms.room_of(peer_id)
         if room_id is None:
             return
-        source = table_source(self._origin, link)
-        if source is None:
+        address = table_source(self._origin, link)
+        if address is None:
             await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BAD_LINK))
-        elif not self._stages.attach(room_id, source, peer_id):
+        elif not self._stages.attach(room_id, table=address.table, source=address.source, opener=peer_id):
             await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BUSY))
         else:
             await logger.ainfo("skat_attached", room_id=room_id, attachment=self._stages.state_of(room_id).revision)
@@ -121,6 +121,7 @@ class Skat:
             TYPE_KEY: SkatSignal.SKAT_TABLE.value,
             "revision": state.revision,
             "attachment": None if held is None else held.number,
+            "table": None if held is None else held.table,
             "src": None if held is None else held.source,
             "opener_id": None if held is None else held.opener,
         }

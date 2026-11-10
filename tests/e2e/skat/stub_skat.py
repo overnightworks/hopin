@@ -1,5 +1,6 @@
 """A stand-in for Skat's table page on its own https loopback port: it answers `/t/<id>` with a page that reports what
-the sandboxed frame is allowed to do, and records the requests it receives. It needs no sign-in."""
+the sandboxed frame is allowed to do, greets the call with `ready` and lists the `hello` messages it receives, and
+records the requests it receives. It needs no sign-in."""
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -24,7 +25,13 @@ TABLE_PAGE = """<!doctype html>
 <button id="capture" type="button">Capture</button>
 <form id="form" action="/submitted" method="get">
 <input name="marker" value="sent"><button id="submit" type="submit">Send</button></form>
+<button id="again" type="button">Ready again</button>
+<button id="wrong-table" type="button">Ready for another table</button>
+<button id="stranger" type="button">Ready from a nested page</button>
+<button id="sandboxed-stranger" type="button">Ready from a nested page of no origin</button>
+<button id="reload" type="button">Reload</button>
 <pre id="report">{}</pre>
+<pre id="hellos">[]</pre>
 <script>
 const report = {};
 const publish = () => { document.getElementById("report").textContent = JSON.stringify(report); };
@@ -43,6 +50,36 @@ document.getElementById("capture").addEventListener("click", () => {
     .finally(publish);
 });
 publish();
+const callOrigin = location.ancestorOrigins[0];
+const ready = (table) => ({ v: 1, type: "ready", table });
+const hellos = [];
+window.addEventListener("message", (event) => {
+  if (event.source === parent && event.origin === callOrigin) {
+    hellos.push(event.data);
+    document.getElementById("hellos").textContent = JSON.stringify(hellos);
+  } else if (event.data === "posted") {
+    document.body.dataset.posted = "yes";
+  } else if (event.data?.heard !== undefined) {
+    hellos.push(event.data);
+    document.getElementById("hellos").textContent = JSON.stringify(hellos);
+  }
+});
+document.getElementById("again").addEventListener("click", () => parent.postMessage(ready("__ID__"), callOrigin));
+document.getElementById("wrong-table").addEventListener("click", () => {
+  parent.postMessage(ready("f".repeat(32)), callOrigin);
+});
+const intrude = (sandbox) => {
+  const nested = document.createElement("iframe");
+  if (sandbox) nested.setAttribute("sandbox", "allow-scripts");
+  const greeting = `parent.parent.postMessage(${JSON.stringify(ready("__ID__"))}, ${JSON.stringify(callOrigin)});`;
+  const forward = `addEventListener("message", (event) => parent.postMessage({ heard: event.data }, "*"));`;
+  nested.srcdoc = `<script>${forward} ${greeting} parent.postMessage("posted", "*");<\\/script>`;
+  document.body.append(nested);
+};
+document.getElementById("stranger").addEventListener("click", () => intrude(false));
+document.getElementById("sandboxed-stranger").addEventListener("click", () => intrude(true));
+document.getElementById("reload").addEventListener("click", () => location.reload());
+parent.postMessage(ready("__ID__"), callOrigin);
 </script></body></html>"""
 
 

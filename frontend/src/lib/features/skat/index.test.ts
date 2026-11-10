@@ -74,8 +74,14 @@ async function installedSkat() {
     };
 }
 
-const SHOWN = { revision: 2, attachment: 2, src: "https://skat.example/t/a?mode=call", opener_id: "me" };
-const NONE = { revision: 3, attachment: null, src: null, opener_id: null };
+const SHOWN = {
+    revision: 2,
+    attachment: 2,
+    table: "a".repeat(32),
+    src: "https://skat.example/t/a?mode=call",
+    opener_id: "me",
+};
+const NONE = { revision: 3, attachment: null, table: null, src: null, opener_id: null };
 
 describe("the Show Skat table item in More", () => {
     it("opens a link field on a tap, and a second tap closes it", async () => {

@@ -6,7 +6,7 @@ from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.signaling.frames import ForeignFrame
 from hopin.skat.vocabulary import SkatRefusal, SkatSignal
 from tests.signaling.support.browsers import HeldWrite, clear_sent
-from tests.skat.support.tables import OTHER_TABLE_LINK, TABLE_LINK
+from tests.skat.support.tables import OTHER_TABLE_LINK, TABLE_ID, TABLE_LINK
 from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = pytest.mark.integration
@@ -51,6 +51,16 @@ class TestAttach:
         assert (shown["attachment"], shown["opener_id"]) == (shown["revision"], opener.peer_id)
         assert shown["src"].endswith("?mode=call")
         assert tables(host)[-1] == tables(opener)[-1] == shown
+
+    async def test_the_table_frame_carries_the_attached_tables_id_and_none_without_a_table(self, link):
+        host, opener, _guest = await host_opener_and_guest(link)
+        assert tables(host)[-1]["table"] is None
+
+        await attach(opener)
+        assert tables(host)[-1]["table"] == TABLE_ID
+
+        await detach(opener, tables(host)[-1]["attachment"])
+        assert tables(host)[-1]["table"] is None
 
     async def test_a_link_that_is_no_table_of_the_origin_is_refused_to_the_sender_alone(self, link):
         host, opener, _guest = await host_opener_and_guest(link)
