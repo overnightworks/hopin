@@ -92,21 +92,23 @@ class TestAcceptingInTheSharedShape:
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
 
-def _another_epoch(scene, arguments):
+def _another_epoch(scene, arguments, seat_changes):
     return {**arguments, "epoch": arguments["epoch"] + 1}
 
 
-def _owner_on_two_seats(scene, arguments):
+def _owner_on_two_seats(scene, arguments, seat_changes):
     scene.call.seat(scene.owner_login, scene.owner.room_id)
     return arguments
 
 
-def _owner_away(scene, arguments):
+def _owner_away(scene, arguments, seat_changes):
+    seat_changes.clear()
     scene.owner.drop()
+    assert seat_changes.wait(timeout=10)
     return arguments
 
 
-def _owner_sponsoring_another_agent(scene, arguments):
+def _owner_sponsoring_another_agent(scene, arguments, seat_changes):
     other = scene.call.agent_token(owner=scene.owner_subject, subject="other-agent", agent_name="Codex")
     scene.call.standing(other)
     scene.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": scene.key_of_offer_named("Codex")})
@@ -126,10 +128,10 @@ ACCEPT_REFUSALS = {
 
 class TestRefusingTheAcceptance:
     @pytest.mark.parametrize("code", ACCEPT_REFUSALS.keys())
-    def test_an_acceptance_the_call_refuses_answers_the_refusal_of_the_wire(self, scene, code):
+    def test_an_acceptance_the_call_refuses_answers_the_refusal_of_the_wire(self, scene, seat_changes, code):
         scene.invite()
         [standing] = scene.standings()
-        arguments = ACCEPT_REFUSALS[code](scene, accept_arguments(standing))
+        arguments = ACCEPT_REFUSALS[code](scene, accept_arguments(standing), seat_changes)
 
         dialed = scene.call.call(scene.token, ACCEPT_INVITATION_TOOL, arguments)
 
