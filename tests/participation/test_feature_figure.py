@@ -6,6 +6,7 @@ import structlog.testing
 from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
 
 from hopin.agent.tools import LEAVE_CALL
+from hopin.participation.figures import figure_refusal
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import FIGURE_PATH, AgentRefusal, FigureRefusal, ParticipationSignal
 from tests.participation.support.figures import (
@@ -159,6 +160,25 @@ class TestTheFigureAtAccept:
             {"event": REFUSED_EVENT, "room_id": scene.owner.room_id, "reason": code.value, "log_level": "info"}
         ]
         assert figure_origin.requested == []
+
+    @pytest.mark.parametrize(
+        ("url", "code"),
+        [
+            pytest.param(figure_url().replace("https:", "http:"), FigureRefusal.NOT_HTTPS, id="http"),
+            pytest.param(figure_url().replace("https:", "ftp:"), FigureRefusal.NOT_HTTPS, id="ftp"),
+            pytest.param(figure_url().replace("https:", ""), FigureRefusal.NOT_HTTPS, id="no scheme"),
+            pytest.param(f"{figure_url()}?v=1", FigureRefusal.QUERY, id="a query"),
+            pytest.param(f"{figure_url()}#top", FigureRefusal.FRAGMENT, id="a fragment"),
+            pytest.param(f"{figure_url()}?", FigureRefusal.ALTERED_BY_PARSING, id="an empty query"),
+            pytest.param(figure_url().replace("https:", "https:\t"), FigureRefusal.ALTERED_BY_PARSING, id="a tab"),
+            pytest.param(f" {figure_url()}", FigureRefusal.ALTERED_BY_PARSING, id="a leading space"),
+            pytest.param(f"{figure_url()}\n", FigureRefusal.ALTERED_BY_PARSING, id="a trailing newline"),
+        ],
+    )
+    def test_the_allowlist_check_alone_refuses_a_url_the_accept_record_refuses_before_it(
+        self, figure_sources, url, code
+    ):
+        assert figure_refusal(figure_sources, url) is code
 
     @pytest.mark.parametrize(
         "figure",

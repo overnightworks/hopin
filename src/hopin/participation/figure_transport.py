@@ -8,9 +8,9 @@ from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING, Final
 
 import urllib3
-from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.connection import HTTPSConnection
 
-from hopin.participation.figures import FigureAnswer, FigureFetchError
+from hopin.participation.figures import HTTPS_SCHEME, FigureAnswer, FigureFetchError
 from hopin.participation.vocabulary import FigureRefusal
 from hopin.web.turn_relay import urllib3_unlogged
 
@@ -18,10 +18,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 CHUNK_BYTES: Final = 64 * 1024
-CONNECTIONS_BY_SCHEME: Final[dict[str | None, type[HTTPConnection]]] = {
-    "http": HTTPConnection,
-    "https": HTTPSConnection,
-}
 # A connection used directly raises below urllib3's own wrapping.
 FETCH_ERRORS: Final = (urllib3.exceptions.HTTPError, http.client.HTTPException, OSError)
 
@@ -30,7 +26,7 @@ class _Deadline:
     """Ends the connection when the time left runs out: urllib3's timeouts bound each socket operation, not the whole
     answer, so an origin dripping its headers or body would outrun them."""
 
-    def __init__(self, connection: HTTPConnection, seconds: float) -> None:
+    def __init__(self, connection: HTTPSConnection, seconds: float) -> None:
         self._connection = connection
         self._sock: socket.socket | None = None
         self._passed = threading.Event()
@@ -71,7 +67,9 @@ def get_figure_over_https(url: str, timeout_seconds: float) -> Iterator[FigureAn
         parts = urllib3.util.parse_url(url)
     except urllib3.exceptions.LocationParseError:
         raise FigureFetchError(FigureRefusal.MALFORMED_URL) from None
-    connection = CONNECTIONS_BY_SCHEME[parts.scheme](str(parts.host), parts.port, timeout=timeout_seconds)
+    if parts.scheme != HTTPS_SCHEME:
+        raise FigureFetchError(FigureRefusal.MALFORMED_URL)
+    connection = HTTPSConnection(str(parts.host), parts.port, timeout=timeout_seconds)
     # urllib3 logs the request's path; inside this block its loggers drop every record of this thread.
     with urllib3_unlogged():
         deadline = _Deadline(connection, timeout_seconds)
@@ -88,7 +86,7 @@ def get_figure_over_https(url: str, timeout_seconds: float) -> Iterator[FigureAn
             connection.close()
 
 
-def _response(connection: HTTPConnection, request_uri: str, deadline: _Deadline) -> urllib3.BaseHTTPResponse:
+def _response(connection: HTTPSConnection, request_uri: str, deadline: _Deadline) -> urllib3.BaseHTTPResponse:
     try:
         # Watched before the check, so a time left that runs out on either side of it ends the fetch.
         connection.connect()

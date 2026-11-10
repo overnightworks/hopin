@@ -1,15 +1,24 @@
-"""The urllib3 adapter of the figure transport against a loopback origin: one streamed GET, no redirect followed."""
+"""The urllib3 adapter of the figure transport against a loopback TLS origin: one streamed GET, no redirect followed,
+certificate and name checked."""
 
 import secrets
 import socket
 import time
 
 import pytest
+from urllib3.connection import HTTPSConnection
 
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureFetchError
 from hopin.participation.vocabulary import FigureRefusal
-from tests.support.loopback_origin import ARRIVAL_CAP_SECONDS, LOCALHOST, Origin, http_response
+from tests.support.loopback_origin import (
+    ARRIVAL_CAP_SECONDS,
+    LOCALHOST,
+    LOCALHOST_NAME,
+    Origin,
+    http_response,
+    tls_context_for,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -22,8 +31,16 @@ DRIPPED = bytes(1000)
 
 
 @pytest.fixture
-def origin():
-    loopback = Origin()
+def served_name():
+    return LOCALHOST_NAME
+
+
+@pytest.fixture
+def origin(served_name, tmp_path, monkeypatch):
+    """A TLS origin whose certificate for `served_name` is the one trusted certificate of the client."""
+    context, certificate = tls_context_for(served_name, tmp_path)
+    monkeypatch.setenv("SSL_CERT_FILE", str(certificate))
+    loopback = Origin(tls=context)
     yield loopback
     loopback.close()
 
@@ -72,15 +89,19 @@ class TestOneGet:
 
         assert answer_of(url) == (200, None, None, BODY)
 
+    @pytest.mark.parametrize("url", [f"http://{LOCALHOST_NAME}:1/mozart.glb", f"//{LOCALHOST_NAME}:1/mozart.glb"])
+    def test_an_address_that_is_not_https_is_malformed(self, url):
+        assert failure_of(url) is FigureRefusal.MALFORMED_URL
+
     def test_nothing_listening_is_unreachable(self):
         with socket.socket() as unused:
             unused.bind((LOCALHOST, 0))
             port = unused.getsockname()[1]
 
-        assert failure_of(f"http://{LOCALHOST}:{port}/mozart.glb") is FigureRefusal.UNREACHABLE
+        assert failure_of(f"https://{LOCALHOST_NAME}:{port}/mozart.glb") is FigureRefusal.UNREACHABLE
 
     def test_an_address_urllib3_cannot_parse_is_malformed(self):
-        assert failure_of(f"http://{LOCALHOST} x/mozart.glb") is FigureRefusal.MALFORMED_URL
+        assert failure_of(f"https://{LOCALHOST_NAME} x/mozart.glb") is FigureRefusal.MALFORMED_URL
 
     def test_an_origin_that_does_not_answer_within_the_time_left_is_past_the_deadline(self, origin):
         url = origin.serve(unique_path(), http_response("200 OK", BODY), held=True)
@@ -91,6 +112,34 @@ class TestOneGet:
         url = origin.serve(unique_path(), http_response("200 OK", b"short", declared_length=100))
 
         assert failure_of(url) is FigureRefusal.UNREACHABLE
+
+
+class TestTheCertificate:
+    def test_a_certificate_nobody_trusts_is_unreachable(self, origin, monkeypatch, tmp_path):
+        (tmp_path / "other").mkdir()
+        other_certificate = tls_context_for(LOCALHOST_NAME, tmp_path / "other")[1]
+        monkeypatch.setenv("SSL_CERT_FILE", str(other_certificate))
+
+        assert failure_of(origin.serve(unique_path(), http_response("200 OK", BODY))) is FigureRefusal.UNREACHABLE
+        assert origin.requests == []
+
+    @pytest.mark.parametrize("served_name", ["other.example.test"])
+    def test_a_certificate_for_another_name_is_unreachable(self, origin):
+        url = origin.serve(unique_path(), http_response("200 OK", BODY))
+
+        assert failure_of(url) is FigureRefusal.UNREACHABLE
+        assert origin.requests == []
+
+    def test_an_origin_that_never_completes_the_handshake_is_ended_at_the_time_left(self):
+        silent = Origin()
+        started = time.monotonic()
+
+        refusal = failure_of(
+            f"https://{LOCALHOST_NAME}:{silent.port}{unique_path()}", timeout_seconds=TIME_LEFT_SECONDS
+        )
+        silent.close()
+
+        assert (refusal, time.monotonic() - started < RETURN_BOUND_SECONDS) == (FigureRefusal.PAST_DEADLINE, True)
 
 
 class TestTheDeadline:
@@ -109,3 +158,17 @@ class TestTheDeadline:
         refusal = failure_of(url, timeout_seconds=TIME_LEFT_SECONDS)
 
         assert (refusal, time.monotonic() - started < RETURN_BOUND_SECONDS) == (FigureRefusal.PAST_DEADLINE, True)
+
+    def test_a_connection_that_is_made_only_after_the_time_left_is_ended(self, origin, monkeypatch):
+        connect = HTTPSConnection.connect
+
+        def connect_after_the_time_left(connection):
+            # No socket exists yet for the deadline to end, so only the check after the connect can.
+            time.sleep(TIME_LEFT_SECONDS * 2)
+            connect(connection)
+
+        monkeypatch.setattr(HTTPSConnection, "connect", connect_after_the_time_left)
+        url = origin.serve(unique_path(), http_response("200 OK", BODY))
+
+        assert failure_of(url, timeout_seconds=TIME_LEFT_SECONDS) is FigureRefusal.PAST_DEADLINE
+        assert origin.requests == []

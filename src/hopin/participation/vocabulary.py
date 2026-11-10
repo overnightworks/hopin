@@ -54,6 +54,10 @@ class FigureRefusal(StrEnum):
     """Why an agent's figure is not kept at its accept or not fetched from its source; logged, never told a seat."""
 
     NO_SOURCE = "no_source"
+    ALTERED_BY_PARSING = "altered_by_parsing"
+    NOT_HTTPS = "not_https"
+    QUERY = "query"
+    FRAGMENT = "fragment"
     PORT = "port"
     UPPERCASE_HOST = "uppercase_host"
     OTHER_HOST = "other_host"

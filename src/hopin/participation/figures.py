@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
+HTTPS_SCHEME: Final = "https"
 PATH_CHARACTERS: Final = frozenset(string.ascii_letters + string.digits + "-._~/")
 REDIRECT_STATUSES: Final = frozenset({301, 302, 303, 307, 308})
 GLB_HEADER: Final = struct.Struct("<4sII")
@@ -114,11 +115,20 @@ def path_refusal(path: str) -> FigureRefusal | None:
 
 
 def figure_refusal(sources: Collection[FigureSource], url: str) -> FigureRefusal | None:
-    """Why the figure's URL is outside every allowed source, or nothing when one allows it. The URL has the accept
-    record's form: https, a host, no user part, query or fragment."""
+    """Why the figure's URL is outside every allowed source, or nothing when one allows it: not https, a query, a
+    fragment, a port, an upper-case host, a host or path no source allows, and a string that parsing changes (it strips
+    whitespace and control characters) are all refused here."""
     if not sources:
         return FigureRefusal.NO_SOURCE
     parts = urlsplit(url)
+    if parts.geturl() != url:
+        return FigureRefusal.ALTERED_BY_PARSING
+    if parts.scheme != HTTPS_SCHEME:
+        return FigureRefusal.NOT_HTTPS
+    if parts.query:
+        return FigureRefusal.QUERY
+    if parts.fragment:
+        return FigureRefusal.FRAGMENT
     # The netloc, not `hostname`, which lowercases the host and drops an empty port.
     if ":" in parts.netloc:
         return FigureRefusal.PORT
@@ -160,7 +170,7 @@ def fetch_figure(
             url, redirects = urljoin(url, outcome.location), redirects + 1
         except ValueError:
             return FigureRefusal.MALFORMED_URL
-        if urlsplit(url).scheme != "https":
+        if urlsplit(url).scheme != HTTPS_SCHEME:
             return FigureRefusal.REDIRECT_NOT_HTTPS
 
 

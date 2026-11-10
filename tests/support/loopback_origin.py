@@ -1,11 +1,25 @@
-"""A loopback HTTP origin for transport tests: real sockets, answers from a script, held until released or dripped."""
+"""A loopback origin for transport tests, over HTTP or TLS: real sockets, answers from a script, held until released or
+dripped."""
 
+import datetime
 import socket
+import ssl
 import threading
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 LOCALHOST = "127.0.0.1"
+LOCALHOST_NAME = "localhost"
 ARRIVAL_CAP_SECONDS = 10
+CERTIFICATE_DAYS = 1
 
 
 def http_response(
@@ -16,9 +30,39 @@ def http_response(
     return head + extra_header + b"\r\n" + body
 
 
+def tls_context_for(name: str, directory: Path) -> tuple[ssl.SSLContext, Path]:
+    """A server context with a fresh self-signed certificate for `name`, and the path of that certificate in
+    `directory`, the file a client trusts to accept it."""
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+    now = datetime.datetime.now(datetime.UTC)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(days=CERTIFICATE_DAYS))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    certificate_path, key_path = directory / f"{name}.pem", directory / f"{name}.key"
+    certificate_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(
+        key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    )
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certificate_path, key_path)
+    return context, certificate_path
+
+
 @dataclass
 class Origin:
-    """A loopback HTTP origin: it answers each path from a script and can hold an answer until released."""
+    """A loopback origin, over HTTP or, with a `tls` context, over HTTPS at `localhost`: it answers each path from a
+    script and can hold an answer until released."""
+
+    tls: ssl.SSLContext | None = None
 
     requests: list[tuple[str, str, dict[str, str], bytes]] = field(default_factory=list)
     received: dict[str, threading.Event] = field(default_factory=dict)
@@ -33,7 +77,9 @@ class Origin:
         self.listener.bind((LOCALHOST, 0))
         self.listener.listen()
         self.port = self.listener.getsockname()[1]
-        self.base_url = f"http://{LOCALHOST}:{self.port}"
+        self.base_url = (
+            f"http://{LOCALHOST}:{self.port}" if self.tls is None else f"https://{LOCALHOST_NAME}:{self.port}"
+        )
         self._accepting = threading.Thread(target=self._accept)
         self._accepting.start()
 
@@ -73,27 +119,38 @@ class Origin:
         self.threads.append(thread)
         thread.start()
 
-    def _answer(self, connection: socket.socket) -> None:
-        with connection:
-            request = _read_request(connection)
-            if request is None:
-                return
-            self.requests.append(request)
-            _, path, _, _ = request
-            if path not in self.scripts:
-                connection.sendall(http_response("404 Not Found", b""))
-                return
-            self.received[path].set()
-            self.release[path].wait(ARRIVAL_CAP_SECONDS)
-            dripped, every = self.drips[path]
+    def _answer(self, accepted: socket.socket) -> None:
+        with accepted:
             try:
-                connection.sendall(self.scripts[path])
-                for byte in dripped:
-                    if self.stopped.wait(every):
-                        return
-                    connection.sendall(bytes([byte]))
+                connection = accepted if self.tls is None else self.tls.wrap_socket(accepted, server_side=True)
             except OSError:
                 return
+            with connection:
+                self._respond(connection)
+
+    def _respond(self, connection: socket.socket) -> None:
+        try:
+            request = _read_request(connection)
+        except OSError:
+            return
+        if request is None:
+            return
+        self.requests.append(request)
+        _, path, _, _ = request
+        if path not in self.scripts:
+            connection.sendall(http_response("404 Not Found", b""))
+            return
+        self.received[path].set()
+        self.release[path].wait(ARRIVAL_CAP_SECONDS)
+        dripped, every = self.drips[path]
+        try:
+            connection.sendall(self.scripts[path])
+            for byte in dripped:
+                if self.stopped.wait(every):
+                    return
+                connection.sendall(bytes([byte]))
+        except OSError:
+            return
 
 
 def _read_request(connection: socket.socket) -> tuple[str, str, dict[str, str], bytes] | None:
