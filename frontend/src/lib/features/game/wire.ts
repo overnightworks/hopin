@@ -23,6 +23,7 @@ export enum GAME_REFUSAL {
     NO_ACCESS = "no_access",
     SIGN_IN_AGAIN = "sign_in_again",
     BUSY = "busy",
+    BUDGET_SPENT = "budget_spent",
     ALREADY_ANSWERING = "already_answering",
     QUIZ_RUNNING = "quiz_running",
     NOT_STARTER = "not_starter",

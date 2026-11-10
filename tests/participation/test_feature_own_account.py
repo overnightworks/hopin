@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
+from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.support.dialed_call import accept_arguments

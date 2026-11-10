@@ -14,7 +14,7 @@ Ruled by the operator:
 - GM-10: While the game master runs, everyone sees "Game master is thinking…"; a second start is refused to the person who tapped it alone.
 - GM-11: Start quiz is visible to everyone; without AI access, a tap tells only that person "Your account has no AI access."
 - GM-12: Without a refresh token, the person sees "Sign in again to use the game master." and the call goes on.
-- GM-13: When the game master is busy the starter sees "Try again in N s", on any other failure "The game master is unavailable right now."; only the starter sees it, and Start quiz is free again.
+- GM-13: When the game master is busy the starter sees "Try again in N s", when the person's or the app's AI budget is spent "Your AI budget is used up for now.", on any other failure "The game master is unavailable right now."; only the starter sees it, and Start quiz is free again.
 - GM-14: A drop of up to 30 seconds does not end the quiz.
 - GM-15: When the person who started the quiz leaves the call, the quiz ends for everyone with "Quiz ended: <name> left."
 - GM-16: People who join during a quiz play from the next question.

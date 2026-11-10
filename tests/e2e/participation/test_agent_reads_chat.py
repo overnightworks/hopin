@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agent_runtime_client.member import STANDING_URI
+from agents.member import STANDING_URI
 from playwright.sync_api import expect
 
 from hopin.agent.tools import SAY

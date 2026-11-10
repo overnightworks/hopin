@@ -8,9 +8,9 @@ from dataclasses import dataclass
 
 import pytest
 import structlog.testing
-from agent_runtime_client.agents import load_agent
-from agent_runtime_client.backend.fake_gateway import FakeGateway, Reply, completion
-from agent_runtime_client.backend.gateway import GatewayBackend, GatewayDetail
+from agents.agent_file import load_agent
+from agents.backend.fake_gateway import FakeGateway, Reply, completion
+from agents.backend.gateway import GatewayBackend, GatewayDetail
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
 from hopin.game.quiz import QUIZ_TOPICS, question_request

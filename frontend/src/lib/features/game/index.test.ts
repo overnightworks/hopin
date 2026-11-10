@@ -324,6 +324,7 @@ describe("refusals", () => {
         [GAME_REFUSAL.NO_ACCESS, "Your account has no AI access.", "LOCKED"],
         [GAME_REFUSAL.SIGN_IN_AGAIN, "Sign in again to use the game master.", "WARNING"],
         [GAME_REFUSAL.BUSY, "The game master is busy.", "WAIT"],
+        [GAME_REFUSAL.BUDGET_SPENT, "Your AI budget is used up for now.", "LOCKED"],
         [GAME_REFUSAL.ALREADY_ANSWERING, "The game master is already answering.", "WAIT"],
         [GAME_REFUSAL.QUIZ_RUNNING, "A quiz is already running.", "WAIT"],
         [GAME_REFUSAL.NOT_STARTER, "Only the person who started the quiz can reveal.", "LOCKED"],

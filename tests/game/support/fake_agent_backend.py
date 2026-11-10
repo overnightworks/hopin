@@ -11,16 +11,16 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from agent_runtime_client.backend import AgentBackend, TurnStopKind, TurnStopped
-from agent_runtime_client.turn import FailureCode, RejectionCode, RunFile
-from agent_runtime_client.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent
+from agents.backend import AgentBackend, TurnStopKind, TurnStopped
+from agents.turn import FailureCode, RejectionCode, RunFile
+from agents.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from agent_runtime_client.agents import TurnRequest
-    from agent_runtime_client.backend import TurnEvent, TurnPerson
-    from agent_runtime_client.turn import AgentRole, Principal
+    from agents.agent_file import TurnRequest
+    from agents.backend import TurnEvent, TurnPerson
+    from agents.turn import AgentRole, Principal
 
 DEFAULT_QUESTION = "Welcher Fluss fließt durch Lissabon?"
 SIGNAL_CAP_SECONDS = 10

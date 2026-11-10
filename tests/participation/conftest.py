@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
+from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import ParticipationSignal

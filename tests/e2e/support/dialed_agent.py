@@ -7,7 +7,7 @@ from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
-from agent_runtime_client.member import ACCEPT_INVITATION_TOOL, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from playwright.sync_api import Page, expect
