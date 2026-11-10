@@ -1,7 +1,0 @@
-claim_id = "ccb913454c5344ea990241de4f099d28"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "04c6e6f31937868e7cd5632ed8d9bd61168174ca"
-branch = "claude/issue-654-parallel-unit-suite-never-hangs"
-scope = ["pyproject.toml", "tests/participation/test_feature_say.py", "tests/support/dialed_call.py"]
-opened_commit = "d253fde220e226a24dfd1d450c742a270d18c6af"
