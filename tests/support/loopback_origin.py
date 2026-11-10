@@ -1,11 +1,30 @@
-"""A loopback HTTP origin for transport tests: real sockets, answers from a script, held until released."""
+"""A loopback origin for transport tests, over HTTP or TLS: real sockets, answers from a script, held until released or
+dripped, or stalled in the TLS handshake."""
 
+import datetime
 import socket
+import ssl
 import threading
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 LOCALHOST = "127.0.0.1"
+LOCALHOST_NAME = "localhost"
 ARRIVAL_CAP_SECONDS = 10
+CERTIFICATE_DAYS = 1
+# The start of a TLS handshake record that declares the longest body TLS allows, and a body one byte short of it: the
+# client reads on, and the record never completes.
+HANDSHAKE_RECORD_BYTES = 0x4000
+HANDSHAKE_RECORD_START = bytes([0x16, 0x03, 0x03]) + HANDSHAKE_RECORD_BYTES.to_bytes(2)
+HANDSHAKE_FILLER = bytes(HANDSHAKE_RECORD_BYTES - 1)
 
 
 def http_response(
@@ -16,14 +35,48 @@ def http_response(
     return head + extra_header + b"\r\n" + body
 
 
+def tls_context_for(name: str, directory: Path) -> tuple[ssl.SSLContext, Path]:
+    """A server context with a fresh self-signed certificate for `name`, and the path of that certificate in
+    `directory`, the file a client trusts to accept it."""
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+    now = datetime.datetime.now(datetime.UTC)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(days=CERTIFICATE_DAYS))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    certificate_path, key_path = directory / f"{name}.pem", directory / f"{name}.key"
+    certificate_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(
+        key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    )
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certificate_path, key_path)
+    return context, certificate_path
+
+
 @dataclass
 class Origin:
-    """A loopback HTTP origin: it answers each path from a script and can hold an answer until released."""
+    """A loopback origin, over HTTP or, with a `tls` context, over HTTPS at `localhost`: it answers each path from a
+    script and can hold an answer until released. With `stalls_handshake_every` it answers no request: it drips the
+    start of a TLS record, a byte that often, so each read of a client succeeds and its handshake never completes."""
+
+    tls: ssl.SSLContext | None = None
+    stalls_handshake_every: float | None = None
 
     requests: list[tuple[str, str, dict[str, str], bytes]] = field(default_factory=list)
     received: dict[str, threading.Event] = field(default_factory=dict)
     release: dict[str, threading.Event] = field(default_factory=dict)
     scripts: dict[str, bytes] = field(default_factory=dict)
+    drips: dict[str, tuple[bytes, float]] = field(default_factory=dict)
+    stopped: threading.Event = field(default_factory=threading.Event)
     listener: socket.socket = field(default_factory=socket.socket)
     threads: list[threading.Thread] = field(default_factory=list)
 
@@ -31,12 +84,16 @@ class Origin:
         self.listener.bind((LOCALHOST, 0))
         self.listener.listen()
         self.port = self.listener.getsockname()[1]
-        self.base_url = f"http://{LOCALHOST}:{self.port}"
+        self.base_url = (
+            f"http://{LOCALHOST}:{self.port}" if self.tls is None else f"https://{LOCALHOST_NAME}:{self.port}"
+        )
         self._accepting = threading.Thread(target=self._accept)
         self._accepting.start()
 
-    def serve(self, path: str, answer: bytes, *, held: bool = False) -> str:
+    def serve(self, path: str, answer: bytes, *, held: bool = False, dripped: bytes = b"", every: float = 0.0) -> str:
+        """Answer the path with `answer`, then with `dripped` one byte at a time, a byte `every` seconds."""
         self.scripts[path] = answer
+        self.drips[path] = (dripped, every)
         self.received[path] = threading.Event()
         self.release[path] = threading.Event()
         if not held:
@@ -47,6 +104,7 @@ class Origin:
         return [path for _, path, _, _ in self.requests]
 
     def close(self) -> None:
+        self.stopped.set()
         for release in self.release.values():
             release.set()
         self.listener.shutdown(socket.SHUT_RDWR)
@@ -68,22 +126,50 @@ class Origin:
         self.threads.append(thread)
         thread.start()
 
-    def _answer(self, connection: socket.socket) -> None:
-        with connection:
-            request = _read_request(connection)
-            if request is None:
+    def _answer(self, accepted: socket.socket) -> None:
+        with accepted:
+            if self.stalls_handshake_every is not None:
+                self._stall_handshake(accepted, self.stalls_handshake_every)
                 return
-            self.requests.append(request)
-            _, path, _, _ = request
-            if path not in self.scripts:
-                connection.sendall(http_response("404 Not Found", b""))
-                return
-            self.received[path].set()
-            self.release[path].wait(ARRIVAL_CAP_SECONDS)
             try:
-                connection.sendall(self.scripts[path])
+                connection = accepted if self.tls is None else self.tls.wrap_socket(accepted, server_side=True)
             except OSError:
                 return
+            with connection:
+                self._respond(connection)
+
+    def _stall_handshake(self, accepted: socket.socket, every: float) -> None:
+        try:
+            for byte in HANDSHAKE_RECORD_START + HANDSHAKE_FILLER:
+                accepted.sendall(bytes([byte]))
+                if self.stopped.wait(every):
+                    return
+        except OSError:
+            return
+
+    def _respond(self, connection: socket.socket) -> None:
+        try:
+            request = _read_request(connection)
+        except OSError:
+            return
+        if request is None:
+            return
+        self.requests.append(request)
+        _, path, _, _ = request
+        if path not in self.scripts:
+            connection.sendall(http_response("404 Not Found", b""))
+            return
+        self.received[path].set()
+        self.release[path].wait(ARRIVAL_CAP_SECONDS)
+        dripped, every = self.drips[path]
+        try:
+            connection.sendall(self.scripts[path])
+            for byte in dripped:
+                if self.stopped.wait(every):
+                    return
+                connection.sendall(bytes([byte]))
+        except OSError:
+            return
 
 
 def _read_request(connection: socket.socket) -> tuple[str, str, dict[str, str], bytes] | None:

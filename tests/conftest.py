@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -17,7 +18,7 @@ from tests.support.sign_in_settings import SignInSettings, build_sign_in_setting
 from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 
@@ -58,3 +59,25 @@ def dialed_call(sign_in_settings: Callable[..., SignInSettings]):
     sign_in = sign_in_settings()
     with serving_dialed_call(sign_in, FakeIssuer(sign_in)) as call:
         yield call
+
+
+class _RenderedRecords(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(logging.NOTSET)
+        self.rendered: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.rendered.append(logging.Formatter().format(record))
+
+
+@pytest.fixture
+def urllib3_records() -> Iterator[list[str]]:
+    """Every record urllib3's loggers let through while the test runs, at any level, as rendered."""
+    handler = _RenderedRecords()
+    urllib3_logger = logging.getLogger("urllib3")
+    previous_level = urllib3_logger.level
+    logging.getLogger().addHandler(handler)
+    urllib3_logger.setLevel(logging.DEBUG)
+    yield handler.rendered
+    urllib3_logger.setLevel(previous_level)
+    logging.getLogger().removeHandler(handler)

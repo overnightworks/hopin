@@ -39,27 +39,6 @@ def origin() -> Iterator[Origin]:
     loopback.close()
 
 
-class ListHandler(logging.Handler):
-    def __init__(self) -> None:
-        super().__init__(logging.NOTSET)
-        self.rendered: list[str] = []
-
-    def emit(self, record: logging.LogRecord) -> None:
-        self.rendered.append(logging.Formatter().format(record))
-
-
-@pytest.fixture
-def urllib3_records() -> Iterator[list[str]]:
-    handler = ListHandler()
-    urllib3_logger = logging.getLogger("urllib3")
-    previous_level = urllib3_logger.level
-    logging.getLogger().addHandler(handler)
-    urllib3_logger.setLevel(logging.DEBUG)
-    yield handler.rendered
-    urllib3_logger.setLevel(previous_level)
-    logging.getLogger().removeHandler(handler)
-
-
 def unique_key_path() -> tuple[str, str]:
     key_id = secrets.token_hex(16)
     return key_id, KEY_PATH.format(key_id=key_id)

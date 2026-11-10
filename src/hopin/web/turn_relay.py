@@ -45,7 +45,9 @@ _unlogged: ContextVar[bool] = ContextVar("hopin_turn_unlogged", default=False)
 
 
 @contextlib.contextmanager
-def _urllib3_unlogged() -> Iterator[None]:
+def urllib3_unlogged() -> Iterator[None]:
+    """Inside this block urllib3's loggers drop every record of this thread, since they log request paths and header
+    text."""
     token = _unlogged.set(True)
     try:
         yield
@@ -75,7 +77,7 @@ for _module_name in _urllib3_module_names():
 
 def post_over_https(url: str, *, headers: Mapping[str, str], body: bytes, timeout: urllib3.Timeout) -> TurnAnswer:
     try:
-        with _urllib3_unlogged(), urllib3.PoolManager() as pool:
+        with urllib3_unlogged(), urllib3.PoolManager() as pool:
             response = pool.request(
                 "POST", url, body=body, headers=dict(headers), timeout=timeout, retries=False, redirect=False
             )

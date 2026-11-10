@@ -9,6 +9,14 @@ AGENT_ID_BYTES = 16
 AGENTS_PER_ROOM = 2
 AGENTS_PER_PROCESS = 32
 INVITATION_SECONDS = 120
+FIGURE_PATH = "/api/participation/figures"
+FIGURE_FETCH_SECONDS = 30
+# A server bound at least as large as the figure profile's file budget (12 MiB in figure v0.1.0), so every figure
+# the profile admits fits.
+FIGURE_MAX_BYTES = 12 * 1024 * 1024
+FIGURE_CACHE_BYTES = 48 * 1024 * 1024
+FIGURE_FETCH_WORKERS = 2
+FIGURE_REDIRECTS = 1
 
 
 class ParticipationSignal(StrEnum):
@@ -40,6 +48,35 @@ class AgentRefusal(StrEnum):
     UNAVAILABLE = "unavailable"
     BAD_LINE = "bad_line"
     TOO_FAST = "too_fast"
+
+
+class FigureRefusal(StrEnum):
+    """Why an agent's figure is not kept at its accept or not fetched from its source; logged, never told a seat."""
+
+    NO_SOURCE = "no_source"
+    ALTERED_BY_PARSING = "altered_by_parsing"
+    NOT_HTTPS = "not_https"
+    QUERY = "query"
+    FRAGMENT = "fragment"
+    PORT = "port"
+    UPPERCASE_HOST = "uppercase_host"
+    OTHER_HOST = "other_host"
+    PERCENT = "percent"
+    NON_ASCII = "non_ascii"
+    DISALLOWED_CHARACTER = "disallowed_character"
+    EMPTY_SEGMENT = "empty_segment"
+    DOT_SEGMENT = "dot_segment"
+    DOT_DOT_SEGMENT = "dot_dot_segment"
+    OUTSIDE_PREFIX = "outside_prefix"
+    UNREACHABLE = "unreachable"
+    NOT_OK = "not_ok"
+    SECOND_REDIRECT = "second_redirect"
+    REDIRECT_NOT_HTTPS = "redirect_not_https"
+    MALFORMED_URL = "malformed_url"
+    PAST_DEADLINE = "past_deadline"
+    TOO_LARGE = "too_large"
+    MISMATCH = "mismatch"
+    BAD_HEADER = "bad_header"
 
 
 def _members(vocabulary: type[StrEnum]) -> dict[str, str]:

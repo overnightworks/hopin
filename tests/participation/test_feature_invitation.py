@@ -54,6 +54,7 @@ class Invited:
             self.owner.room_id,
             invitation.invitation_id if invitation_id is None else invitation_id,
             invitation.epoch if epoch is None else epoch,
+            None,
         )
 
 
@@ -147,7 +148,7 @@ class TestAnInvitation:
 
         assert invited.participation.standings_of(AGENT) == ()
         assert len(changes) > told
-        refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch)
+        refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch, None)
         assert refusal is AgentRefusal.STALE_INVITATION
 
     async def test_accepting_it_with_the_owner_away_is_sponsor_away(self, invited):
@@ -210,7 +211,7 @@ class TestAnAgentInTheCall:
         await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
 
         assert invited.participation.standings_of(AGENT) == ()
-        refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch)
+        refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch, None)
         assert refusal is AgentRefusal.STALE_INVITATION
 
     async def test_the_host_removes_it_but_another_guest_is_refused(self, invited, link):

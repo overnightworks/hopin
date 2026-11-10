@@ -90,6 +90,7 @@ def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_
                 wall_clock=lambda: WALL_CLOCK_SECONDS,
                 adders=adders,
                 groups_of=groups_of,
+                figure_sources=(),
             )
         ],
     )
@@ -132,14 +133,34 @@ def seat_changes():
 
 
 @pytest.fixture
-def adding_call(sign_in_settings, seat_changes):
+def adding_call_adders():
+    """The owners of the adding call mapped to their adders group; a module that adds another owner extends it."""
+    return {OWNER_SUBJECT: ADDERS}
+
+
+@pytest.fixture
+def figure_sources():
+    """The figure sources the adding call allows; a module about figures names its own."""
+    return ()
+
+
+@pytest.fixture
+def figure_transport():
+    """The figures' source behind the transport port; a module about figures brings its own."""
+    return
+
+
+@pytest.fixture
+def adding_call(sign_in_settings, seat_changes, adding_call_adders, figure_sources, figure_transport):
     """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
     sign_in = sign_in_settings()
     with serving_dialed_call(
         sign_in,
         FakeIssuer(sign_in),
-        {OWNER_SUBJECT: ADDERS},
+        adding_call_adders,
         more_call_features=(WitnessFeatureBuilder(lambda rooms: SeatChangeWitness(rooms, announced=seat_changes)),),
+        figure_sources=figure_sources,
+        figure_transport=figure_transport,
     ) as call:
         yield call
 
