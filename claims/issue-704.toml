@@ -1,0 +1,7 @@
+claim_id = "f0fe2600c31544ef9336f9f6e1db9e01"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b2f2ef7b516290489edd0c9b7b9bb663ba83df2d"
+branch = "claude/issue-704-hopin-takes-webauth-v0-37-0"
+scope = ["pyproject.toml", "src/hopin/auth/sign_in.py", "uv.lock"]
+opened_commit = "0874091304db23f025974c29c7ef1567b90b3245"
