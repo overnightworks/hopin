@@ -160,6 +160,7 @@ def install_sign_in(
         keeps_id_token=True,
         max_sessions=None,
         logout_page_text=lambda _request: LogoutPageText(language="en", button_label=LOGOUT_LABEL),
+        ui_language=lambda _request: None,
     )
     app.include_router(_create_pages_router(page_build))
 
