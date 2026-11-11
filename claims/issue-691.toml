@@ -1,7 +1,0 @@
-claim_id = "f661c51875704aeda3d9daf5a12cfe59"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "997bca21c6a3b717a2809813d22748e3b32c83f9"
-branch = "claude/issue-691-take-design-v0-21-0"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml"]
-opened_commit = "d5348a172ceba2647839fcf2def1153d26cd1c7f"
