@@ -5,7 +5,7 @@ from playwright.sync_api import expect
 
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import FIGURE_MODULE
-from tests.e2e.game.build_files import urls_of_the_chunks_of
+from tests.e2e.support.client_manifest import urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT
 from tests.e2e.support.people import DESKTOP
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
