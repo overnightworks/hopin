@@ -45,6 +45,7 @@ from tests.e2e.support.page_assertions import (
     expect_no_legal_footer,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -425,7 +426,7 @@ def expect_the_desktop_texts(prejoin: Locator, texts: KindTexts, account_name: s
         expect(prejoin.locator(".prejoin-sub")).to_be_hidden()
     else:
         expect(prejoin.get_by_text(texts.sub_line)).to_be_visible()
-    expect(prejoin.get_by_role("button", name="Back")).to_be_hidden()
+    expect(prejoin.get_by_role("button", name=text("de", "prejoin.backButton"))).to_be_hidden()
     expect(prejoin.get_by_text(texts.phone_title)).to_be_hidden()
     expect_no_legal_footer(prejoin)
     expect_both_legal_links_in_the_profile_menu(prejoin.page)
@@ -433,7 +434,7 @@ def expect_the_desktop_texts(prejoin: Locator, texts: KindTexts, account_name: s
 
 def expect_the_phone_texts(prejoin: Locator, texts: KindTexts, account_name: str) -> None:
     expect(prejoin.get_by_text(texts.phone_title)).to_be_visible()
-    expect(prejoin.get_by_role("button", name="Back")).to_be_visible()
+    expect(prejoin.get_by_role("button", name=text("de", "prejoin.backButton"))).to_be_visible()
     expect(prejoin.locator(".self-row .av svg")).to_be_visible()
     expect(prejoin.locator(".self-row")).to_have_text(account_name)
     expect(prejoin.get_by_role("heading", name=texts.heading)).to_be_hidden()
@@ -486,7 +487,10 @@ def test_prejoin_legal_link_opens_a_new_tab_while_the_camera_keeps_playing(
 @pytest.mark.parametrize("kind", KINDS)
 @pytest.mark.parametrize(
     ("form_factor", "way_home"),
-    [pytest.param(DESKTOP, "HopIn", id="desktop-brand"), pytest.param(PHONE, "Back", id="phone-back")],
+    [
+        pytest.param(DESKTOP, "HopIn", id="desktop-brand"),
+        pytest.param(PHONE, text("de", "prejoin.backButton"), id="phone-back"),
+    ],
 )
 def test_prejoin_brand_or_back_opens_the_start_page_as_a_new_document(
     open_recorded: Callable[..., Person],
@@ -588,7 +592,7 @@ def test_guest_who_left_with_the_camera_off_gets_a_fresh_prejoin_with_both_on_at
     guest.page.click("#leaveBtn")
     guest.ice_server_requests.clear()
 
-    guest.page.get_by_role("button", name="Rejoin").click()
+    guest.page.get_by_role("button", name=text("de", "end.rejoinButton")).click()
     wait_until_the_prejoin_media_answered(guest.page)
 
     expect_the_prejoin_alone(guest.page)
@@ -643,19 +647,21 @@ def test_prejoin_buttons_name_their_action_and_tell_whether_the_device_is_off(
     person = open_recorded()
     open_answered_prejoin(person, base_url)
     prejoin = person.page.locator(PREJOIN_SCREEN)
+    mute = text("de", "prejoin.muteButton")
+    camera_off = text("de", "prejoin.cameraOffButton")
 
     def button(name: str, *, off: bool) -> Locator:
         return prejoin.get_by_role("button", name=name, exact=True, pressed=off)
 
-    expect(button("Mute", off=False)).to_be_visible()
-    expect(button("Camera off", off=False)).to_be_visible()
+    expect(button(mute, off=False)).to_be_visible()
+    expect(button(camera_off, off=False)).to_be_visible()
 
-    button("Mute", off=False).click()
-    button("Camera off", off=False).click()
-    expect(button("Mute", off=True)).to_be_visible()
-    expect(button("Camera off", off=True)).to_be_visible()
+    button(mute, off=False).click()
+    button(camera_off, off=False).click()
+    expect(button(mute, off=True)).to_be_visible()
+    expect(button(camera_off, off=True)).to_be_visible()
 
-    button("Mute", off=True).click()
-    button("Camera off", off=True).click()
-    expect(button("Mute", off=False)).to_be_visible()
-    expect(button("Camera off", off=False)).to_be_visible()
+    button(mute, off=True).click()
+    button(camera_off, off=True).click()
+    expect(button(mute, off=False)).to_be_visible()
+    expect(button(camera_off, off=False)).to_be_visible()

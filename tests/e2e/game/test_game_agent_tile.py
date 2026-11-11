@@ -17,6 +17,7 @@ from tests.e2e.support.calls import join, open_call, press_through_the_prejoin
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector, wait_for_status
 from tests.e2e.support.people import DESKTOP
 from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -223,7 +224,7 @@ def test_a_new_call_after_the_end_of_one_with_a_running_quiz_shows_no_tile(
     relays[0].send({"type": SignalType.END_ROOM})
     expect(guest.locator("[data-screen=end]")).to_be_visible()
     expect(guest.locator(AGENT_TILE)).to_have_count(0)
-    guest.get_by_role("button", name="Back to start").click()
+    guest.get_by_role("button", name=text("de", "end.homeButton")).click()
     expect(guest).to_have_url(f"{e2e_server.base_url}/")
     expect(guest.locator("[data-screen=home]")).to_be_visible()
     guest.click("#homeStartBtn")

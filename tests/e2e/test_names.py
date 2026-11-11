@@ -10,6 +10,7 @@ from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_cha
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -60,7 +61,7 @@ def test_home_greets_the_member_by_their_username(
 
     person.goto(f"{base_url}/")
 
-    expect(person.locator(HOME_HEADING)).to_have_text("Hi, felix")
+    expect(person.locator(HOME_HEADING)).to_have_text(text("de", "home.greetingNamed", name="felix"))
 
 
 @BOTH_FORM_FACTORS
@@ -132,7 +133,7 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
 ) -> None:
     host = record_page_errors(open_person(username=MARKUP_NAME, **DESKTOP), page_errors)
     host.goto(f"{base_url}/")
-    expect(host.locator(HOME_HEADING)).to_have_text(f"Hi, {MARKUP_NAME}")
+    expect(host.locator(HOME_HEADING)).to_have_text(text("de", "home.greetingNamed", name=MARKUP_NAME))
     with browser_coverage.passing_through(host):
         invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **DESKTOP), page_errors)
@@ -144,7 +145,7 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
     assert guest.locator("#videoGrid .name b, #chatMessages b").count() == 0
 
 
-def test_home_keeps_hi_there_when_the_account_answer_fails(
+def test_home_keeps_the_unnamed_greeting_when_the_account_answer_fails(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     person = record_page_errors(open_person(**DESKTOP), page_errors)
@@ -153,7 +154,7 @@ def test_home_keeps_hi_there_when_the_account_answer_fails(
     person.goto(f"{base_url}/")
 
     expect(person.locator(HOME_HEADING)).not_to_have_attribute("aria-busy", re.compile(".*"))
-    expect(person.locator(HOME_HEADING)).to_have_text("Hi there")
+    expect(person.locator(HOME_HEADING)).to_have_text(text("de", "home.greetingUnnamed"))
 
 
 def test_home_whose_session_ended_goes_through_the_sign_in_when_the_account_answers_401(
