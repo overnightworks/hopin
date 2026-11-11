@@ -82,6 +82,7 @@ def seed_member(
         expires_at=now + lifetime,
         refresh_token=None if refresh_token is None else SecretStr(refresh_token),
         id_token=new_id_token(),
+        account_language=None,
     )
     response = Response()
     issue_session_cookies(response, session.id, config)

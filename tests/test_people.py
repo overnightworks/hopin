@@ -121,6 +121,7 @@ def scene(client, stores, person):
         expires_at=anna.session.expires_at - timedelta(hours=2),
         refresh_token=SecretStr(refresh_token),
         id_token=older_id_token,
+        account_language=None,
     )
     chat_text = secrets.token_urlsafe()
     ben_chat_text = secrets.token_urlsafe()
@@ -200,7 +201,12 @@ class TestExportOfAPerson:
     def test_counts_only_the_sessions_that_hold_an_id_token(self, client, stores, admin, person):
         anna = person("anna")
         stores.sessions.create(
-            "anna", now=anna.session.created_at, expires_at=anna.session.expires_at, refresh_token=None, id_token=None
+            "anna",
+            now=anna.session.created_at,
+            expires_at=anna.session.expires_at,
+            refresh_token=None,
+            id_token=None,
+            account_language=None,
         )
 
         _, export = read_archive(ask(client, "anna", admin).content)
