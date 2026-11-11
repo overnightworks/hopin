@@ -109,12 +109,13 @@ class TestWhoIsOfferedTheAgent:
         assert [control_shown_to(seat) for seat in (owner, member, stranger)] == [True, True, None]
         assert [offers_sent_to(seat) for seat in (owner, member)] == [[], []]
 
-    async def test_nobody_is_shown_the_control_when_no_group_is_configured(self, link, adders):
+    async def test_the_host_is_shown_the_control_when_no_group_is_configured(self, link, adders):
+        """CALL-51: The call's host is shown the control even when no group may add an agent."""
         adders.clear()
         owner = await link.join("host")
         await let_reads_finish()
 
-        assert control_shown_to(owner) is None
+        assert control_shown_to(owner) is True
 
     @pytest.mark.usefixtures("members")
     async def test_a_group_read_that_fails_offers_nothing_and_asks_again_at_the_next_offer_trigger(

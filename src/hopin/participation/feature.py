@@ -654,14 +654,13 @@ class Participation:
                 await self._tell(room_id, [peer_id], _offers_frame(offers, shown=shown))
 
     def _control_shown_to(self, peer_id: PeerId, room_id: str, offers: Sequence[Offer]) -> bool:
-        """The control shows to a seat with an offer and, while some group may add an agent, to the call's host and to
-        a member of such a group, even with no agent to list; it never waits on a fresh read."""
+        """The control shows to a seat with an offer, to the call's host and to a member of an adders group, even with
+        no agent to list; it never waits on a fresh read."""
         if offers:
             return True
         memberships = self._view_of(peer_id, room_id).memberships
-        return bool(self._adders) and (
-            self._rooms.is_host(peer_id)
-            or any(memberships.get(group) is Membership.MEMBER for group in self._adders.values())
+        return self._rooms.is_host(peer_id) or any(
+            memberships.get(group) is Membership.MEMBER for group in self._adders.values()
         )
 
     def _offers_for(self, peer_id: PeerId, room_id: str) -> tuple[Offer, ...]:
