@@ -1,8 +1,0 @@
-claim_id = "09bf05c80db0496bb4802f09a8ac360f"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "df400fd2e827d8bdf3bedebd60b5d2f1187c59da"
-branch = "claude/issue-684-announcer-hash-from-build"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/web/page_build.py", "tests/auth/test_gate.py", "tests/skat/test_feature_csp.py", "tests/support/page_build.py", "tests/support/page_build_fixture", "tests/web/test_page_build.py"]
-opened_commit = "af30b04ae40e65a9a1b17ec2bbb46c64be24a1d8"
-whole_reason = "The reader, its one caller, the deleted literal and the fixture every header test reads change together, or the header tests have no build to read the hash from."
