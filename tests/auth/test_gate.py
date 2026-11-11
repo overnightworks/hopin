@@ -38,14 +38,13 @@ from hopin.config.constants import (
 from hopin.config.web_policy import SIGN_IN_PATHS
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import (
-    FIXTURE_ANNOUNCER_STYLE,
+    FIXTURE_ANNOUNCER_HASH,
     FIXTURE_DIRECTORY,
     FIXTURE_SCRIPT_HASH,
     IMMUTABLE_FILE,
     SIGN_IN_FONT,
     SIGN_IN_STYLESHEET,
     VERSION_FILE,
-    announcer_style_sources,
     fixture_page_build,
 )
 from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
@@ -96,7 +95,7 @@ CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
 EXPECTED_CONTENT_SECURITY_POLICY = (
     "default-src 'none'; base-uri 'self'; "
     f"script-src 'self' '{FIXTURE_SCRIPT_HASH}'; "
-    f"style-src 'self' {' '.join(announcer_style_sources(FIXTURE_ANNOUNCER_STYLE))}; "
+    f"style-src 'self' 'unsafe-hashes' '{FIXTURE_ANNOUNCER_HASH}'; "
     "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; "
     "manifest-src 'self'; worker-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'"
 )

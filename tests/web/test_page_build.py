@@ -5,10 +5,10 @@ import pytest
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.page_build import PageBuild, _css_asset_urls
 from tests.support.page_build import (
+    FIXTURE_ANNOUNCER_HASH,
     FIXTURE_ANNOUNCER_STYLE,
     FIXTURE_DIRECTORY,
     FIXTURE_SCRIPT_HASH,
-    announcer_style_sources,
 )
 
 if TYPE_CHECKING:
@@ -52,8 +52,9 @@ class TestLoad:
         assert page_build.script_hashes == (FIXTURE_SCRIPT_HASH,)
 
     def test_the_announcer_sources_admit_the_one_style_the_committed_build_writes(self):
-        assert PageBuild.load(FIXTURE_DIRECTORY).announcer_style_sources == announcer_style_sources(
-            FIXTURE_ANNOUNCER_STYLE
+        assert PageBuild.load(FIXTURE_DIRECTORY).announcer_style_sources == (
+            "'unsafe-hashes'",
+            f"'{FIXTURE_ANNOUNCER_HASH}'",
         )
 
     def test_the_same_announcer_style_in_two_chunks_is_one_source(self, tmp_path):
@@ -63,7 +64,7 @@ class TestLoad:
         }
         root = build_with_shell(tmp_path, "<html></html>", immutable_chunks=chunks)
 
-        assert PageBuild.load(root).announcer_style_sources == announcer_style_sources(FIXTURE_ANNOUNCER_STYLE)
+        assert PageBuild.load(root).announcer_style_sources == ("'unsafe-hashes'", f"'{FIXTURE_ANNOUNCER_HASH}'")
 
     @pytest.mark.parametrize(
         "chunks",
