@@ -13,7 +13,6 @@ from webauth.policies import (
     CspDirective,
     CsrfPolicy,
     RateLimitPolicy,
-    RateLimitRule,
     SecurityHeadersPolicy,
     default_content_security_policy,
 )
@@ -41,7 +40,6 @@ from hopin.config.web_policy import (
     PEOPLE_PATH_RULES,
     RATE_LIMIT_EXEMPT_PATH_RULES,
     SIGN_IN_PATHS,
-    SIGN_IN_RATE_LIMIT_BUDGET,
 )
 from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
@@ -182,6 +180,7 @@ def _install_web_auth(
     frame_sources = tuple(source for builder in call_features for source in builder.frame_sources)
     install_web_auth_middleware(
         app,
+        sign_in_paths=SIGN_IN_PATHS,
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(
                 page_build.script_hashes,
@@ -189,19 +188,14 @@ def _install_web_auth(
             ),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(
-                SIGN_IN_PATHS.cache_control_rule,
                 CacheControlRule(paths=PEOPLE_PATH_RULES, value="no-store"),
                 CacheControlRule(paths=NO_CACHE_PATH_RULES, value="no-cache"),
             ),
         ),
-        csrf_origin=CsrfPolicy(exempt=SIGN_IN_PATHS.backchannel),
-        body_size=BodySizePolicy(
-            default_max_bytes=DEFAULT_REQUEST_BODY_MAX_BYTES,
-            rules=(SIGN_IN_PATHS.backchannel_body_size_rule,),
-        ),
+        csrf_origin=CsrfPolicy(),
+        body_size=BodySizePolicy(default_max_bytes=DEFAULT_REQUEST_BODY_MAX_BYTES),
         rate_limit=RateLimitPolicy(
             default=DEFAULT_RATE_LIMIT_BUDGET,
-            rules=(RateLimitRule(paths=SIGN_IN_PATHS.browser_paths, budget=SIGN_IN_RATE_LIMIT_BUDGET),),
             exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
         ),
         bearer_gate=None if bearer is None else bearer_gate(*bearer),

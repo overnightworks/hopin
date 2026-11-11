@@ -26,11 +26,9 @@ SIGN_IN_PATHS = SignInPaths(
     start=AUTH_START_PATH, callback=AUTH_CALLBACK_PATH, logout=LOGOUT_PATH, backchannel_logout=BACKCHANNEL_LOGOUT_PATH
 )
 RETURN_TO_QUERY_PARAMETER = SIGN_IN_PATHS.login_redirect.redirect_query_param
-# A complete sign-in is two requests, so 40 requests in ten minutes admit 20 sign-ins from one address.
-SIGN_IN_RATE_LIMIT_BUDGET = RateLimitBudget(name="sign-in", max_requests=40, window_seconds=10 * 60)
 DEFAULT_RATE_LIMIT_BUDGET = RateLimitBudget(name="requests", max_requests=600, window_seconds=60)
-# The health check is the edge's readiness probe; the back-channel logout comes from Keycloak's shared addresses.
-RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=SIGN_IN_PATHS.backchannel.exact | {HEALTH_PATH})
+# The health check is the edge's readiness probe.
+RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=frozenset({HEALTH_PATH}))
 
 PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
 

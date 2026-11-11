@@ -40,7 +40,6 @@ def session_gate(
         login_redirect=SIGN_IN_PATHS.login_redirect,
         public=(
             PublicRule(PathRules(exact=PUBLIC_PATHS | sign_in_assets)),
-            *SIGN_IN_PATHS.public_rules,
             *(() if resource is None else (resource.public_rule,)),
         ),
     )

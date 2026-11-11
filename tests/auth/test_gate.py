@@ -36,6 +36,7 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
+from hopin.config.web_policy import SIGN_IN_PATHS
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import (
     FIXTURE_DIRECTORY,
@@ -520,6 +521,7 @@ class TestPageBuildAssets:
 def install_gate(app: FastAPI, stores: SignInStores) -> None:
     install_web_auth_middleware(
         app,
+        sign_in_paths=SIGN_IN_PATHS,
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
         ),
