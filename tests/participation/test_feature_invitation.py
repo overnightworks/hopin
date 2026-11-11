@@ -117,7 +117,7 @@ class TestAnInvitation:
     async def test_it_ends_after_its_lifetime_and_the_adder_may_add_again(
         self, invited, scheduler, participation, changes
     ):
-        """CALL-52: The invitation lasts 120 seconds."""
+        """CALL-52: The invitation lasts the library's INVITATION_SECONDS."""
         await scheduler.advance(INVITATION_SECONDS - 1)
         await agent_calls(participation)  # the agent keeps calling, so its lease holds
         told = len(changes)
