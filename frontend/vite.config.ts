@@ -15,8 +15,8 @@ export default defineConfig(({ mode }) => ({
         coverage: {
             provider: "v8",
             include: ["src/lib/**/*.ts"],
-            // wire.ts is generated.
-            exclude: ["src/lib/**/wire.ts", "**/*.test.ts"],
+            // wire.ts and the words modules are generated.
+            exclude: ["src/lib/**/wire.ts", "src/lib/words/**", "**/*.test.ts"],
             reporter: [
                 ["text", { skipFull: false }],
                 ["lcov", { projectRoot: ".." }],

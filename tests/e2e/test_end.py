@@ -48,6 +48,7 @@ from tests.e2e.support.media import (
 from tests.e2e.support.page_assertions import expect_both_legal_links_in_the_profile_menu, expect_no_legal_footer
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.e2e.support.signaling import RECONNECT_DELAYS_MS, FrameInjector
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -471,8 +472,7 @@ def test_guest_whose_request_the_server_answers_with_an_error_that_is_no_refusal
 
     server_sentence = str(NotHostError(hosted_call.invite_link.rsplit("/", 1)[-1]))
     expect(guest.locator("#status")).to_have_class(re.compile(r"\bstatus-error\b"))
-    expect(guest.locator("#status")).not_to_be_empty()
-    expect(guest.locator("#status")).not_to_have_text(re.compile(r"^Error:"))
+    expect(guest.locator("#status")).to_have_text(text("de", "call.unexpectedError"))
     expect(guest.locator("#status")).not_to_contain_text(server_sentence)
     expect(end_screen(guest)).to_be_hidden()
     expect(hosted_call.host.locator(OTHER_TILE)).to_have_count(1)

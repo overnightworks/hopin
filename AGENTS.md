@@ -5,8 +5,9 @@
 `make` has no lister; the targets are in `Makefile`.
 
 - `make check`: every local check (lint, unit and integration tests, dead code, frontend checks).
-- `make lint`: ruff, mypy and `wire-check`.
+- `make lint`: ruff, mypy, `wire-check` and `design-catalogs --check`.
 - `make wire`: regenerates the generated `wire.ts` files from the Python wire owners.
+- `make catalogs`: regenerates the two generated words modules from the catalog; `make lint` fails when they are stale.
 - `make e2e`: the browser tests. Builds the page first and needs Playwright's Chromium installed once (the `End-to-end` job in `.github/workflows/ci.yml` shows how). Run it under the global contract's `flock` rule.
 - `make run`: builds the page, then `hopin serve`. The server refuses to start without that build.
 
@@ -15,7 +16,7 @@
 - A `wire.ts` under `frontend/src/lib` is generated; change the Python wire owner and run `make wire`, never edit the file.
 - A setting added to or changed in `src/hopin/config/settings.py` updates README's Configuration table in the same change.
 - The scanner marker traps are in the `sonar-distributor` skill, section "Marker grammar".
-- A new page text goes into `frontend/src/lib/texts.ts` until the catalog exists.
+- A page text lives in the catalog: change `frontend/src/lib/catalogs/de.po` and run `make catalogs`, never edit a generated module.
 
 ## Owners
 
