@@ -1,8 +1,11 @@
+import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
+import AgentOffers from "./AgentOffers.svelte";
+import { createAgentOffers, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 interface SeatFrame {
@@ -22,13 +25,8 @@ interface AgentLeftFrame {
     agent_id: string;
 }
 
-interface Offer {
-    agent_key: string;
-    name: string;
-    pending: boolean;
-}
-
 interface AgentOffersFrame {
+    shown: boolean;
     offers: Offer[];
 }
 
@@ -38,41 +36,13 @@ interface AgentLineFrame {
 }
 
 interface AgentRefusedFrame {
-    reason: string;
+    reason: AGENT_REFUSAL;
 }
 
-const NOT_ADDED_TEXT = "The agent could not be added.";
-const REFUSED_TEXT: Partial<Record<string, string>> = {
-    [AGENT_REFUSAL.NOT_SPONSOR_OR_HOST]: "Only the person who brought the agent or the host can remove it.",
-    [AGENT_REFUSAL.NOT_ADDER]: "You may not add this agent.",
-    [AGENT_REFUSAL.NO_SEAT]: "The agent's owner is not in this call.",
-    [AGENT_REFUSAL.TWO_SEATS]: "The agent's owner is in this call twice, so the agent cannot join.",
-    [AGENT_REFUSAL.SPONSOR_AWAY]: "The agent's owner is away. Try again when they are back.",
-    [AGENT_REFUSAL.ALREADY_THERE]: "The agent is already invited or in the call.",
-    [AGENT_REFUSAL.BUSY]: "The call has no room for another agent.",
-    [AGENT_REFUSAL.GONE]: "The agent is not available any more.",
-    [AGENT_REFUSAL.UNAVAILABLE]: "Your access could not be checked. Try again.",
-};
+const NOT_REMOVED_TEXT = "Only the person who brought the agent or the host can remove it.";
 
 function tileKey(agentId: string) {
     return `agent-${agentId}`;
-}
-
-function offerButton(offer: Offer, add: () => void) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "mi agent-offer";
-    const label = document.createElement("span");
-    label.className = "grow";
-    label.textContent = offer.pending ? `Inviting ${offer.name}…` : `Add ${offer.name}`;
-    button.append(label);
-    if (offer.pending) {
-        button.disabled = true;
-        button.setAttribute("aria-busy", "true");
-    } else {
-        button.addEventListener("click", add);
-    }
-    return button;
 }
 
 export function install(core: FeatureCore): Promise<void> {
@@ -104,16 +74,33 @@ export function install(core: FeatureCore): Promise<void> {
 
     const offers = document.createElement("div");
     offers.id = "agentOffers";
+    offers.tabIndex = -1;
+    const offersView = createAgentOffers();
+    mount(AgentOffers, {
+        target: offers,
+        props: {
+            view: offersView,
+            onCall: (agentKey: string) => {
+                offersView.refusal = undefined;
+                core.send({ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: agentKey });
+            },
+        },
+    });
     core.addMoreItems(offers);
 
+    function clearOffers() {
+        offersView.shown = false;
+        offersView.rows = [];
+        offersView.refusal = undefined;
+    }
+
+    // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
     function showOffers(frame: AgentOffersFrame) {
-        offers.replaceChildren(
-            ...frame.offers.map((offer) =>
-                offerButton(offer, () => {
-                    core.send({ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: offer.agent_key });
-                }),
-            ),
-        );
+        const hadFocus = offers.contains(document.activeElement);
+        offersView.shown = frame.shown;
+        offersView.rows = rowsOf(frame.offers);
+        flushSync();
+        if (hadFocus && !offers.contains(document.activeElement)) offers.focus();
     }
 
     function hide(agentId: string) {
@@ -126,7 +113,7 @@ export function install(core: FeatureCore): Promise<void> {
         isHost = frame.is_host;
         // The server announces every agent still in the room to a new seat; one it does not announce has left.
         for (const agentId of shown) hide(agentId);
-        offers.replaceChildren();
+        clearOffers();
     };
     core.on(SIGNAL_TYPE.ROOM_CREATED, seated);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, seated);
@@ -139,11 +126,15 @@ export function install(core: FeatureCore): Promise<void> {
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame: AgentRefusedFrame) => {
-        core.showToast(REFUSED_TEXT[frame.reason] ?? NOT_ADDED_TEXT, core.toastKind.LOCKED, null);
+        if (frame.reason === AGENT_REFUSAL.NOT_SPONSOR_OR_HOST) {
+            core.showToast(NOT_REMOVED_TEXT, core.toastKind.LOCKED, null);
+        } else {
+            offersView.refusal = refusalOf(frame.reason);
+        }
     });
     core.onCallEnded(() => {
         for (const agentId of shown) hide(agentId);
-        offers.replaceChildren();
+        clearOffers();
     });
     return Promise.resolve();
 }
