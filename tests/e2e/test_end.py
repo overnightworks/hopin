@@ -7,6 +7,7 @@ import pytest
 from playwright.sync_api import Error, Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import (
+    CALL_PATH,
     HOST_GRACE_SECONDS,
     ICE_SERVERS_PATH,
     MAX_LIVE_SEATS_PER_ACCOUNT,
@@ -401,6 +402,17 @@ def test_guest_waiting_on_the_prejoin_of_an_ended_call_finds_the_link_expired_at
     press_through_the_prejoin(guest)
 
     expect_end_screen(guest, EXPIRED)
+
+
+def test_person_who_opens_an_address_that_never_had_a_call_and_joins_finds_the_link_expired(
+    open_person: Callable[..., Page], base_url: str, form_factor: dict[str, Any], page_errors: list[str]
+) -> None:
+    """CALL-14: An address that never had a call finds the link expired at join."""
+    person = record_page_errors(open_recording_person(open_person, form_factor), page_errors)
+
+    join_by_link(person, f"{base_url}{CALL_PATH}/no-such-call")
+
+    expect_end_screen(person, EXPIRED)
 
 
 def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(

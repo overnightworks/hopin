@@ -559,7 +559,7 @@ class TestSecurityHeaders:
             ("GET", CALL_FEATURES_PATH, True, FETCH_ACCEPT, 200),
             ("GET", IMMUTABLE_FILE, True, FETCH_ACCEPT, 200),
             ("GET", "/c/{room}", True, BROWSER_ACCEPT, 200),
-            ("GET", "/c/unknown", True, BROWSER_ACCEPT, 404),
+            ("GET", "/c/unknown", True, BROWSER_ACCEPT, 200),
         ],
     )
     def test_every_answer_carries_the_headers(self, application, method, path, signed_in, headers, status):
