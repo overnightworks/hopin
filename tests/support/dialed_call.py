@@ -21,17 +21,18 @@ from webauth.ports import AccountKind
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, ParticipationFeature
 from hopin.agent.tools import CALL_KIND
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
-    from hopin.auth.stores import StoredAccount
+    from webauth.single_process_stores import SingleProcessStores, StoredAccount
+
     from tests.support.fake_issuer import FakeIssuer
     from tests.support.sign_in_settings import SignInSettings
 
@@ -106,7 +107,7 @@ class DialedCall:
     """A HopIn instance whose issuer is a fake, with the means to seat people and to call its MCP endpoint."""
 
     issuer: FakeIssuer
-    stores: SignInStores
+    stores: SingleProcessStores
     client: TestClient
     sockets: ExitStack
     audience: str
@@ -325,7 +326,7 @@ def serving_dialed_call(
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test."""
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     scheduler = ManualScheduler()
     app = create_app(
         sign_in.settings,

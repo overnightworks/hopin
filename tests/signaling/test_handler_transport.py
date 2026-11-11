@@ -11,11 +11,11 @@ import websockets
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
 from hopin.signaling.frames import SEQUENCE_KEY
 from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -69,7 +69,7 @@ async def call(sign_in_settings) -> AsyncIterator[Call]:
     listening.bind((LOCALHOST, 0))
     listening.listen()
     port = listening.getsockname()[1]
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), stores=stores)
     web_auth = installed_web_auth_config(app)
     host_member = seed_member(stores, web_auth)

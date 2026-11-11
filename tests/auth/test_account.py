@@ -3,18 +3,18 @@ from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
 def stores():
-    return SignInStores.in_memory()
+    return single_process_stores()
 
 
 @pytest.fixture

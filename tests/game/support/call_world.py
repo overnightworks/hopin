@@ -12,7 +12,6 @@ from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GamePhase, GameSignal
@@ -21,11 +20,13 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from agents.backend import AgentBackend
+    from webauth.single_process_stores import SingleProcessStores
 
     from hopin.agent.settings import SpeechSettings
     from tests.support.fake_issuer import FakeIssuer
@@ -77,7 +78,7 @@ class Call:
 
     issuer: FakeIssuer
     backend: AgentBackend
-    stores: SignInStores
+    stores: SingleProcessStores
     client: TestClient
     sockets: ExitStack
 
@@ -124,7 +125,7 @@ class Call:
 def serving_call(
     sign_in: SignInSettings, issuer: FakeIssuer, backend: AgentBackend, speech: SpeechSettings | None = None
 ) -> Iterator[Call]:
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),

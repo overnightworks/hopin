@@ -38,7 +38,7 @@ from hopin.web.page_build import built_page_response
 if TYPE_CHECKING:
     from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
-    from webauth.ports import SignInTransaction
+    from webauth.ports import AccountEvent, SignInTransaction
 
     from hopin.config.settings import ServerSettings
     from hopin.web.page_build import PageBuild
@@ -47,6 +47,13 @@ OPENID_CONNECT_PATH = "/protocol/openid-connect"
 LOGOUT_LABEL = "Log out"
 
 logger = structlog.get_logger()
+
+
+class LoggingAuditSink:
+    """Logs each account event by its kind, the issuer's subject and the role, never a username."""
+
+    def account_event(self, event: AccountEvent) -> None:
+        logger.info("account_event", kind=event.kind.value, subject_id=event.subject_id, role=event.role)
 
 
 class SignInConfigurationError(StartRefusedError):

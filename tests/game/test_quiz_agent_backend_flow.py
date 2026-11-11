@@ -14,7 +14,6 @@ from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefusal, GameSignal
@@ -27,6 +26,7 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -285,7 +285,7 @@ class OneLoopServer:
         self.issuer = FakeIssuer(sign_in)
         self.backend = FakeAgentBackend()
         self.scheduler = ManualScheduler()
-        self._stores = SignInStores.in_memory()
+        self._stores = single_process_stores()
         self.app = create_app(
             sign_in.settings,
             page_build=fixture_page_build(),

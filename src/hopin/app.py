@@ -16,17 +16,18 @@ from webauth.policies import (
     SecurityHeadersPolicy,
     default_content_security_policy,
 )
+from webauth.single_process_stores import SingleProcessStores
 
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import bearer_gate, session_gate
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
+    LoggingAuditSink,
     build_relying_party,
     build_sign_in_configs,
     install_sign_in,
 )
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ANNOUNCER_STYLE_SOURCES,
     DEFAULT_REQUEST_BODY_MAX_BYTES,
@@ -59,8 +60,8 @@ if TYPE_CHECKING:
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore, SignInTransaction
+    from webauth.single_process_stores import SingleProcessSessionStore
 
-    from hopin.auth.stores import InMemorySessions
     from hopin.config.settings import ServerSettings
     from hopin.signaling.features import FeatureFactory
     from hopin.web.page_build import PageBuild
@@ -111,7 +112,9 @@ class CallFeatureBuilder(Protocol):
 class _ExpiredSessionSweep:
     """Removes expired sessions every SESSION_SWEEP_SECONDS from start to stop."""
 
-    def __init__(self, sessions: InMemorySessions, wall_clock: Callable[[], float], scheduler: Scheduler) -> None:
+    def __init__(
+        self, sessions: SingleProcessSessionStore, wall_clock: Callable[[], float], scheduler: Scheduler
+    ) -> None:
         self._sessions = sessions
         self._wall_clock = wall_clock
         self._scheduler = scheduler
@@ -142,7 +145,7 @@ class _ExpiredSessionSweep:
 
 
 def _lifespan(
-    sessions: InMemorySessions,
+    sessions: SingleProcessSessionStore,
     wall_clock: Callable[[], float],
     scheduler: Scheduler,
     signaling_handler: SignalingHandler,
@@ -172,7 +175,7 @@ def _configure_logging() -> None:
 
 def _install_web_auth(
     app: FastAPI,
-    sessions: InMemorySessions,
+    sessions: SingleProcessSessionStore,
     page_build: PageBuild,
     bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
     call_features: Sequence[CallFeatureBuilder],
@@ -224,7 +227,7 @@ def create_app(
     *,
     page_build: PageBuild,
     issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
-    stores: SignInStores | None = None,
+    stores: SingleProcessStores | None = None,
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_features: Sequence[CallFeatureBuilder] = (),
@@ -236,7 +239,7 @@ def create_app(
 
     _configure_logging()
 
-    sign_in_stores = stores if stores is not None else SignInStores.in_memory()
+    sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
