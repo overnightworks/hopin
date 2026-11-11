@@ -28,7 +28,6 @@ from hopin.auth.sign_in import (
     install_sign_in,
 )
 from hopin.config.constants import (
-    ANNOUNCER_STYLE_SOURCES,
     PERMISSIONS_POLICY,
     SESSION_SWEEP_SECONDS,
 )
@@ -184,7 +183,10 @@ def _install_web_auth(
         security_headers=SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(
                 page_build.script_hashes,
-                added_sources={CspDirective.STYLE_SRC: ANNOUNCER_STYLE_SOURCES, CspDirective.FRAME_SRC: frame_sources},
+                added_sources={
+                    CspDirective.STYLE_SRC: page_build.announcer_style_sources,
+                    CspDirective.FRAME_SRC: frame_sources,
+                },
             ),
             permissions_policy=PERMISSIONS_POLICY,
             cache_control_rules=(

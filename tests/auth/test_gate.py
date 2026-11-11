@@ -38,6 +38,7 @@ from hopin.config.constants import (
 from hopin.config.web_policy import SIGN_IN_PATHS
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import (
+    FIXTURE_ANNOUNCER_HASH,
     FIXTURE_DIRECTORY,
     FIXTURE_SCRIPT_HASH,
     IMMUTABLE_FILE,
@@ -91,12 +92,10 @@ FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 JSON_POST = {"content-type": "application/json"}
 CROSS_SITE_FORM_POST = {**FORM_POST, "origin": "https://evil.example"}
-# The ruled text (Card A, 29.10.2026): kit 3.1.0's announcer style is the one inline style admitted, by its hash.
-ANNOUNCER_STYLE_SOURCES = "'unsafe-hashes' 'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo='"
 EXPECTED_CONTENT_SECURITY_POLICY = (
     "default-src 'none'; base-uri 'self'; "
     f"script-src 'self' '{FIXTURE_SCRIPT_HASH}'; "
-    f"style-src 'self' {ANNOUNCER_STYLE_SOURCES}; "
+    f"style-src 'self' 'unsafe-hashes' '{FIXTURE_ANNOUNCER_HASH}'; "
     "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; "
     "manifest-src 'self'; worker-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'"
 )
