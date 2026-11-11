@@ -60,6 +60,7 @@ async function installedGame({ connected = true } = {}) {
         showChatCard: (view) => void cards.push(handedOver(view)),
         showAgentTile: (tile) => void agentTiles.push(tile),
         showStage: () => undefined,
+        drawAgentFigures: () => undefined,
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
     };

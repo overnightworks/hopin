@@ -1,7 +1,7 @@
 <script lang="ts">
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
-    import { agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
+    import { agentFigure, agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
         [AGENT_ACTIVITY.THINKING]: "thinking",
@@ -54,7 +54,7 @@
         role="status"
         aria-label={tileLabel}
     >
-        <div class="vid off">
+        <div class="vid off" use:agentFigure={agent.figure}>
             <span class="av"
                 ><svg
                     class="icon"

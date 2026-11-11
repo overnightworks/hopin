@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
+import { AGENT_FIGURE, type AgentFigure } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 
 // The modules hold their state, so each case loads fresh copies.
@@ -374,5 +375,109 @@ describe("feature view on the stage", () => {
         showStage(null);
 
         expect([shown, stageSurface.view]).toEqual([view, null]);
+    });
+});
+
+describe("an agent tile's figure", () => {
+    const PATH = "/api/participation/figures/abc";
+
+    function drawerOf() {
+        const started: {
+            host: HTMLElement;
+            path: string;
+            show: (figure: AgentFigure) => void;
+            stop: ReturnType<typeof vi.fn>;
+        }[] = [];
+        const drawer = (host: HTMLElement, path: string, show: (figure: AgentFigure) => void) => {
+            const stop = vi.fn();
+            started.push({ host, path, show, stop });
+            return stop;
+        };
+        return { drawer, started };
+    }
+
+    it("CALL-56: shows the symbol with a ring while the drawer loads, and hides the symbol only when it is drawn", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const host = document.createElement("div");
+
+        agentFigure(host, PATH);
+        const loading = host.dataset.figure;
+        started[0]?.show(AGENT_FIGURE.DRAWN);
+
+        expect([loading, host.dataset.figure, started[0]?.host, started[0]?.path]).toEqual([
+            AGENT_FIGURE.LOADING,
+            AGENT_FIGURE.DRAWN,
+            host,
+            PATH,
+        ]);
+    });
+
+    it("CALL-56: brings the symbol back when the drawer ends the figure", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const host = document.createElement("div");
+        agentFigure(host, PATH);
+
+        started[0]?.show(AGENT_FIGURE.ENDED);
+
+        expect(host.dataset.figure).toBe(AGENT_FIGURE.ENDED);
+    });
+
+    it.each([
+        ["no drawer", PATH, false],
+        ["no path", undefined, true],
+    ])("CALL-56: leaves the tile as it was with %s", async (_name, path, hasDrawer) => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        if (hasDrawer) drawAgentFigures(drawer);
+        const host = document.createElement("div");
+
+        agentFigure(host, path).destroy();
+
+        expect([host.dataset.figure, started.length]).toEqual([undefined, 0]);
+    });
+
+    it("CALL-56: stops the figure once when the tile goes", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const action = agentFigure(document.createElement("div"), PATH);
+
+        action.destroy();
+        action.destroy();
+
+        expect(started[0]?.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it("CALL-56: stops the old figure and starts the new path afresh when the path changes", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const host = document.createElement("div");
+        const action = agentFigure(host, PATH);
+        started[0]?.show(AGENT_FIGURE.ENDED);
+
+        action.update("/api/participation/figures/def");
+
+        expect([started[0]?.stop.mock.calls.length, started[1]?.path, host.dataset.figure]).toEqual([
+            1,
+            "/api/participation/figures/def",
+            AGENT_FIGURE.LOADING,
+        ]);
+    });
+
+    it("CALL-56: takes the figure away when the path goes", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const host = document.createElement("div");
+        const action = agentFigure(host, PATH);
+
+        action.update(undefined);
+
+        expect([started[0]?.stop.mock.calls.length, started.length, host.dataset.figure]).toEqual([1, 1, undefined]);
     });
 });

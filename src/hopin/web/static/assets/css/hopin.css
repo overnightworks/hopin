@@ -435,6 +435,20 @@ button, input, textarea { font-family: inherit; }
 .tile.agent.activity-waiting .agent-activity i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent-stage); }
 .tile.agent.activity-speaking .agent-activity { display: none; }
 @keyframes speak { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.figure-canvas { position: absolute; inset: 0; display: block; }
+.vid.off[data-figure="drawn"] { background: radial-gradient(ellipse 70% 80% at 50% 38%, var(--stage-3), var(--stage-2) 75%); }
+.vid[data-figure="drawn"] .av { display: none; }
+.tile.agent.activity-present .vid[data-figure="drawn"] .agent-activity { display: none; }
+.vid[data-figure="loading"] .av::after {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 2.5px solid transparent;
+    border-top-color: var(--accent-stage);
+    animation: figure-ring var(--motion-ring) linear infinite;
+}
+@keyframes figure-ring { to { transform: rotate(360deg); } }
 @media (max-width: 600px) {
     .stage[data-count="1"]:not([data-surface]) .grid, .stage[data-count="2"]:not([data-surface]) .grid { inset: 0; }
     .stage[data-count="1"]:not([data-surface]) .tile, .stage[data-count="2"]:not([data-surface]) .tile:not(.self) {
