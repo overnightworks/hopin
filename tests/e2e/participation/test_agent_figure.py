@@ -1,13 +1,11 @@
-import subprocess
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import expect
 
-from hopin.config.constants import APP_ASSET_PATH, IMMUTABLE_ASSET_DIRECTORY
 from hopin.participation.settings import ParticipationSettings
-from hopin.web.page_build import BUILD_DIRECTORY
+from hopin.participation.vocabulary import FIGURE_MODULE
+from tests.e2e.game.build_files import urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT
 from tests.e2e.support.people import DESKTOP
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
@@ -20,7 +18,6 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-FRONTEND_DIRECTORY = Path(__file__).parents[3] / "frontend"
 LOADED_FILES = "() => performance.getEntriesByType('resource').map((entry) => entry.name)"
 UNDRAWABLE = glb(b"mozart" * 8)
 UNDRAWABLE_URL = figure_url("undrawable.glb")
@@ -61,32 +58,9 @@ def e2e_server(figures_on: bool, figure_server: RunningServer, participation_ser
     return figure_server if figures_on else participation_server
 
 
-def a_refusal_code_of_the_package() -> str:
-    """A code the package exports; the page's chunk that holds the package's code holds it too."""
-    script = (
-        "import { refusalDescriptions } from 'overnightworks-figure/codes';"
-        " console.log(Object.keys(refusalDescriptions)[0])"
-    )
-    code = subprocess.run(  # noqa: S603 - a fixed command in the repository's own frontend
-        ["node", "--input-type=module", "-e", script],  # noqa: S607 - the CI job and a developer's shell have node
-        cwd=FRONTEND_DIRECTORY,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    assert code
-    return code
-
-
-def chunks_with_the_figure_code(base_url: str) -> set[str]:
-    """The URLs of the page build's scripts that hold the package's code."""
-    code = a_refusal_code_of_the_package()
-    immutable = BUILD_DIRECTORY / APP_ASSET_PATH.removeprefix("/") / IMMUTABLE_ASSET_DIRECTORY
-    return {
-        f"{base_url}{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/{script.relative_to(immutable).as_posix()}"
-        for script in immutable.rglob("*.js")
-        if code in script.read_text(encoding="utf-8")
-    }
+def figure_chunk_urls(base_url: str) -> set[str]:
+    """The URLs of the page build's files that hold the figure code: the feature's chunk and the package's."""
+    return {f"{base_url}{url}" for url in urls_of_the_chunks_of(FIGURE_MODULE)}
 
 
 def figure_of(url: str, body: bytes) -> dict[str, str]:
@@ -113,7 +87,7 @@ def test_a_failed_figure_leaves_the_symbol_and_no_canvas(
         expect(tile.locator(".vid")).to_have_attribute("data-figure", "ended")
         expect(tile.locator(".av")).to_be_visible()
         expect(tile.locator("canvas")).to_have_count(0)
-        assert chunks_with_the_figure_code(e2e_server.base_url) <= set(person.evaluate(LOADED_FILES))
+        assert figure_chunk_urls(e2e_server.base_url) <= set(person.evaluate(LOADED_FILES))
 
 
 @pytest.mark.parametrize("figures_on", [False])
@@ -125,7 +99,7 @@ def test_with_figures_off_no_file_that_holds_the_figure_code_is_requested(
 
     scene.member_adds_and_the_agent_accepts(figure_of(UNDRAWABLE_URL, UNDRAWABLE))
 
-    figure_chunks = chunks_with_the_figure_code(e2e_server.base_url)
+    figure_chunks = figure_chunk_urls(e2e_server.base_url)
     assert figure_chunks
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(1)
