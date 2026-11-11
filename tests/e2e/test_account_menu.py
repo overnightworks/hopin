@@ -163,7 +163,9 @@ def test_end_screen_has_the_avatar_beside_its_own_buttons(
     leave_the_call(host)
 
     expect(host.locator(AVATAR)).to_be_visible()
-    expect(host.locator("[data-screen=end] .end-actions").get_by_role("button")).to_have_text([text("de", "end.homeButton")])
+    expect(host.locator("[data-screen=end] .end-actions").get_by_role("button")).to_have_text(
+        [text("de", "end.homeButton")]
+    )
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
