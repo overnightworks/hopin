@@ -502,7 +502,12 @@ class TestBackchannelLogout:
         account = harness.accounts.create_for_subject("anna", USERNAME, role="user", kind=AccountKind.PERSON)
         now = datetime.now(UTC)
         session = harness.sessions.create(
-            account.id, now=now, expires_at=now + timedelta(hours=1), refresh_token=None, id_token=new_id_token()
+            account.id,
+            now=now,
+            expires_at=now + timedelta(hours=1),
+            refresh_token=None,
+            id_token=new_id_token(),
+            account_language=None,
         )
         harness.issuer.key_set_is_down = True
 
