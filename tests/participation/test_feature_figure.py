@@ -118,6 +118,7 @@ class TestTheFigureModule:
         ],
     )
     def test_the_page_installs_the_figure_module_only_when_a_figure_source_is_allowed(self, scene, modules):
+        """CALL-56: Only a call with an allowed figure source lists the figure module the page installs."""
         listed = read_figure(scene, CALL_FEATURES_PATH).json()["features"]
 
         assert [module for module in listed if module in {FEATURE_NAME, FIGURE_MODULE}] == modules
