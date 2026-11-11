@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "d810fb230a971c8387dd83a3a41b632c8d969ad1"
 branch = "claude/issue-689-agent-tile-draws-figure"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib", "frontend/src/routes/(call)/start-up.ts", "src/hopin/game/table.py", "src/hopin/participation", "src/hopin/signaling/features.py", "src/hopin/skat/feature.py", "src/hopin/web/call_features.py", "src/hopin/web/static/assets/css/hopin.css", "tests"]
+scope = [".github/workflows/ci.yml", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib", "frontend/src/routes/(call)/start-up.ts", "src/hopin/game/table.py", "src/hopin/participation", "src/hopin/signaling/features.py", "src/hopin/skat/feature.py", "src/hopin/web/call_features.py", "src/hopin/web/static/assets/css/hopin.css", "tests"]
 opened_commit = "63a06b93669ca227165ba224ca2062f2f2dab198"
 whole_reason = "The call-feature list entry and the browser module it names are one contract, so the server port, the page's port, the figure module and their tests land together."
