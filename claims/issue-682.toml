@@ -1,8 +1,0 @@
-claim_id = "a6d52a70ec9046e287fa5e3387c854e3"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "8bd3b6bfa20cdaf60ff7e7ff9a770ddd3aea283e"
-branch = "claude/issue-682-drop-restated-webauth-limits"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/config/web_policy.py"]
-opened_commit = "5c05200ab1af84fa1e39bc88fc2518d4abb507ea"
-whole_reason = "Two constants, their one caller and the paragraph that names them leave together."
