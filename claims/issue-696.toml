@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "96dac214b42f6f0d4a5380722c3912c6edaaf74c"
 branch = "claude/issue-696-an-unmapped-refusal-shows-the-page-s-own"
-scope = ["AGENTS.md", "frontend/src/lib/texts.ts", "frontend/src/routes/(call)/start-up.ts", "tests/e2e/test_end.py"]
+scope = ["AGENTS.md", "frontend/src/lib/texts.test.ts", "frontend/src/lib/texts.ts", "frontend/src/routes/(call)/start-up.ts", "tests/e2e/test_end.py"]
 opened_commit = "30a96f88dcaf0186cc789e9c0778f3fae6500958"
 whole_reason = "The sentence's owner, its one use, the test and the rule that names the owner are one small change."
