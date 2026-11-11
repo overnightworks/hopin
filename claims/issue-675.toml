@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "d1042fe16a1e1ceb3f5b87f05349ec7794d5eb78"
 branch = "claude/issue-675-an-agent-is-called-through-the-shared-co"
-scope = ["docs/call.md", "frontend/src/lib/features/participation", "src/hopin/agent/mcp.py", "src/hopin/participation", "src/hopin/web/static/assets/css/hopin.css", "tests"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation", "src/hopin/agent/mcp.py", "src/hopin/participation", "src/hopin/web/static/assets/css/hopin.css", "tests"]
 opened_commit = "64c9b3b50418081144355c3c7e5fc207414f0527"
 whole_reason = "The control, the reason mapping and the library's seconds are one predecessor exit: the add sentences and the constant leave together with the button that used them."
