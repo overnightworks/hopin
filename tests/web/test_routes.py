@@ -33,9 +33,9 @@ def signaling_handler(room_manager):
 
 
 @pytest.fixture
-def app(signaling_handler, room_manager):
+def app(signaling_handler):
     application = FastAPI()
-    application.include_router(create_router(signaling_handler, room_manager, fixture_page_build()))
+    application.include_router(create_router(signaling_handler, fixture_page_build()))
     return application
 
 
@@ -45,8 +45,8 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_four_routes_and_the_static_and_app_mounts(self, signaling_handler, room_manager):
-        router = create_router(signaling_handler, room_manager, fixture_page_build())
+    def test_returns_four_routes_and_the_static_and_app_mounts(self, signaling_handler):
+        router = create_router(signaling_handler, fixture_page_build())
         assert len(router.routes) == 6
 
     def test_static_dir_points_to_web_static(self):

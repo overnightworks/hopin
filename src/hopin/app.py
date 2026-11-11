@@ -262,7 +262,7 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
-    app.include_router(create_router(signaling_handler, room_manager, page_build))
+    app.include_router(create_router(signaling_handler, page_build))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))
     _include_feature_routes(app, built_features, settings.oidc_issuer)

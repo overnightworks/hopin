@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
     from starlette.types import Scope
 
-    from hopin.rooms.manager import RoomManager
     from hopin.signaling.handler import SignalingHandler
     from hopin.web.page_build import PageBuild
 
@@ -47,7 +46,7 @@ class _PageBuildFiles(StaticFiles):
         return response
 
 
-def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager, page_build: PageBuild) -> APIRouter:
+def create_router(signaling_handler: SignalingHandler, page_build: PageBuild) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
