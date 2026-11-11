@@ -305,6 +305,16 @@ describe("calling an agent that has an account of its own", () => {
         expect(page.alert()).toBeTruthy();
     });
 
+    it("CALL-51: shows a refusal that comes with the frame taking the control away", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+
+        expect(page.alert()).toBeTruthy();
+    });
+
     it("takes the refusal away when the person calls again", async () => {
         const page = await installedParticipation();
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });

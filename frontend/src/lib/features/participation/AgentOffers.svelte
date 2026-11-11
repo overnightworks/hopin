@@ -5,6 +5,7 @@
     let { view, onCall }: { view: AgentOffersView; onCall: (key: string) => void } = $props();
 </script>
 
-{#if view.shown}
+<!-- A refusal stays readable when the frame that refused also takes the control away. -->
+{#if view.shown || view.refusal}
     <AgentControl rows={view.rows} {onCall} refusal={view.refusal} />
 {/if}
