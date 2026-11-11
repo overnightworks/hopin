@@ -32,7 +32,7 @@ Ruled by the operator:
 - CALL-11: For a host whose connection drops, the 60 seconds count from the drop.
 - CALL-12: People in a call see each other's Keycloak username on the tiles and in chat (not on a strip tile, CALL-55).
 - CALL-13: The same account in one call twice (phone and laptop) joins as two people, and stays host while any of its connections is in the call.
-- CALL-14: A call link whose call has ended shows "This link has expired" when someone joins; HopIn keeps no store of ended calls.
+- CALL-14: A call link whose call has ended, or an address that never had a call, shows "This link has expired" when someone joins; HopIn keeps no store of ended calls, so both are the same case.
 - CALL-15: The start page is `/` and a call is `/c/{id}`; the old addresses `/call` and `/join/{id}` answer not found.
 - CALL-16: Back to start opens the start page as a new page; the browser's back button then returns to the call link, which shows the call as it is now.
 - CALL-17: When the host ends the call, everyone else sees "Call ended" and that the host, by name, ended the call for everyone.

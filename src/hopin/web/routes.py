@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from hopin.config.constants import (
@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
     from starlette.types import Scope
 
-    from hopin.rooms.manager import RoomManager
     from hopin.signaling.handler import SignalingHandler
     from hopin.web.page_build import PageBuild
 
@@ -47,7 +46,7 @@ class _PageBuildFiles(StaticFiles):
         return response
 
 
-def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager, page_build: PageBuild) -> APIRouter:
+def create_router(signaling_handler: SignalingHandler, page_build: PageBuild) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
@@ -61,10 +60,9 @@ def create_router(signaling_handler: SignalingHandler, room_manager: RoomManager
     def home_page() -> Response:
         return shell()
 
+    # Every call address answers the page; whether the call exists is decided when someone joins.
     @router.api_route(f"{CALL_PATH}/{{room_id}}", methods=READ_METHODS)
-    def call_page(room_id: str) -> Response:
-        if not room_manager.has_room(room_id):
-            return PlainTextResponse("Room not found", status_code=404)
+    def call_page() -> Response:
         return shell()
 
     router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
