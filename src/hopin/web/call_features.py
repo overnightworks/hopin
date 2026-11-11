@@ -17,10 +17,10 @@ class CallFeatureList(BaseModel):
 
 def create_call_features_router(features: Sequence[CallFeature]) -> APIRouter:
     router = APIRouter()
-    names = [feature.name for feature in features]
+    modules = [module for feature in features for module in feature.browser_modules]
 
     @router.api_route(CALL_FEATURES_PATH, methods=READ_METHODS)
     def call_features() -> CallFeatureList:
-        return CallFeatureList(features=names)
+        return CallFeatureList(features=modules)
 
     return router

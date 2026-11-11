@@ -21,6 +21,7 @@ from hopin.participation.vocabulary import (
     AGENTS_PER_PROCESS,
     AGENTS_PER_ROOM,
     FEATURE_NAME,
+    FIGURE_MODULE,
     INVITATION_SECONDS,
     SIGNAL_TYPES,
     AgentRefusal,
@@ -212,6 +213,10 @@ class Participation:
     @property
     def name(self) -> str:
         return FEATURE_NAME
+
+    @property
+    def browser_modules(self) -> tuple[str, ...]:
+        return (FEATURE_NAME, FIGURE_MODULE) if self._figure_sources else (FEATURE_NAME,)
 
     @property
     def signal_types(self) -> Mapping[str, str]:

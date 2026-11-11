@@ -101,7 +101,7 @@ jobs:
           name: page-build
           path: src/hopin/web/build
 
-      # The game's tests find its hashed chunk and stylesheet through the build's own manifest.
+      # The game's and the participation figure's tests find their hashed chunks through the build's own manifest.
       - name: Fetch the client manifest
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:

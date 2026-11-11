@@ -1,6 +1,6 @@
 import { SvelteMap } from "svelte/reactivity";
 import { untrack } from "svelte";
-import { DEFAULT_AGENT_KEY, type AgentTile } from "#lib/call/feature-port.ts";
+import { AGENT_FIGURE, DEFAULT_AGENT_KEY, type AgentFigureDrawer, type AgentTile } from "#lib/call/feature-port.ts";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
@@ -47,6 +47,46 @@ export const agentTiles = new SvelteMap<string, AgentTile>();
 export function showAgentTile(tile: AgentTile | null, key: string = DEFAULT_AGENT_KEY) {
     if (tile === null) agentTiles.delete(key);
     else agentTiles.set(key, tile);
+}
+
+// The call core draws no figure itself: the feature that does hands over its drawer, and a tile without one or without a path stays as it is.
+let figureDrawer: AgentFigureDrawer | null = null;
+
+export function drawAgentFigures(drawer: AgentFigureDrawer) {
+    figureDrawer = drawer;
+}
+
+/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, and a new path draws afresh. */
+export function agentFigure(host: HTMLElement, path: string | undefined) {
+    let stop: (() => void) | null = null;
+    let drawnPath = path;
+
+    function draw(figure: string | undefined) {
+        stop?.();
+        stop = null;
+        if (figureDrawer === null || figure === undefined) {
+            delete host.dataset.figure;
+            return;
+        }
+        host.dataset.figure = AGENT_FIGURE.LOADING;
+        stop = figureDrawer(host, figure, (state) => {
+            host.dataset.figure = state;
+        });
+    }
+
+    draw(path);
+    return {
+        // Svelte calls update with the unchanged path whenever the tile's entry re-renders; only a new path draws afresh.
+        update(figure: string | undefined) {
+            if (figure === drawnPath) return;
+            drawnPath = figure;
+            draw(figure);
+        },
+        destroy() {
+            stop?.();
+            stop = null;
+        },
+    };
 }
 
 // The one view a feature shows on the stage; while it is there the layout puts every tile into a strip.

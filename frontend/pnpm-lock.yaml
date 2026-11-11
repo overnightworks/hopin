@@ -210,8 +210,11 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
       overnightworks-design:
-        specifier: https://github.com/overnightworks/design/releases/download/v0.20.0/overnightworks-design-0.20.0.tgz
-        version: https://github.com/overnightworks/design/releases/download/v0.20.0/overnightworks-design-0.20.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
+        specifier: https://github.com/overnightworks/design/releases/download/v0.21.0/overnightworks-design-0.21.0.tgz
+        version: https://github.com/overnightworks/design/releases/download/v0.21.0/overnightworks-design-0.21.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
+      overnightworks-figure:
+        specifier: https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz
+        version: https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -412,6 +415,62 @@ packages:
 
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
+
+  '@pixiv/three-vrm-core@3.5.5':
+    resolution: {integrity: sha512-jjaXZbMVRsk2HAGVxqDLmSJyGOJqbMcJpuTHR1TY/TN1FxiKdAzSqdr/ZUcczYipNf8IL9vDT9NX2XmWj+ybRQ==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/three-vrm-materials-hdr-emissive-multiplier@3.5.5':
+    resolution: {integrity: sha512-XnHEqpY4ctYMucpeRcptdphOe0RrW7V5fUvojasD8Ja4MTjjrjCNFxsAvp3+HBkPZbkTM2sDCjJBJNzxN1scrA==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/three-vrm-materials-mtoon@3.5.5':
+    resolution: {integrity: sha512-7lThHf4OKBOsVenD+R6L6HffNUlKO3Twnhr3+z77MnUsSzsOanjVKJtjSIly9QJ6hgl8YJmI6RnxCKqXcpplog==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/three-vrm-materials-v0compat@3.5.5':
+    resolution: {integrity: sha512-NjsTK4P4qdcr+RoL2gEUNgF2CY/aplNvyHHxI99N7D6CxDZ2H93FQ9aIuLCABj5b+4CIvldWMCcnS7YuLIr3Lw==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/three-vrm-node-constraint@3.5.5':
+    resolution: {integrity: sha512-+ShEXioZ5Ctf0EZ5ZViZ4n0jhV/qtJRH0Juw8nRnMNODZXDSr+B3An2lrfRoMhowCzG63GiUG4lXWV9noMXosA==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/three-vrm-springbone@3.5.5':
+    resolution: {integrity: sha512-GWAWrIegGH/u1ZA+Es03Qzc2yafrQOrhtal9jzUIAgU8Wm2DYuqAABOY+du/9RpBRK8D4T8DBPvRGQqvfrQ/uA==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/three-vrm@3.5.5':
+    resolution: {integrity: sha512-RPXy7jYAXs704NIpZlosB0U2ENu21G9DrqGWdQgRe8dShaCo1ugpj+6BVPRCy91nt+MPMA96j5rbsSzEl0HlQA==}
+    peerDependencies:
+      three: '>=0.137'
+
+  '@pixiv/types-vrm-0.0@3.5.5':
+    resolution: {integrity: sha512-2S/0jswMjJTwL9ky8YzDR0CIaP6ZmE+HFuyW/0h+SA+awELf+J7WGgC8lTLM1MXzokO7Z2YVljU2F0fEhlKDIQ==}
+
+  '@pixiv/types-vrmc-materials-hdr-emissive-multiplier-1.0@3.5.5':
+    resolution: {integrity: sha512-IuHw9ehXt2bymqfdFV+f2cCXo8kvJUfh0Zuut8qmKXoEb7HVyLGIQyS4TcQHG5yY22UTWHI1Axo5tQv35lPTgQ==}
+
+  '@pixiv/types-vrmc-materials-mtoon-1.0@3.5.5':
+    resolution: {integrity: sha512-GFVuksAJVhrWTXYmI/ucNsE611/d8N6BoZrzhUAAINndt98loyzapW2+DJu+GsUBO5yxd+vLsL0FB16XD9+TGg==}
+
+  '@pixiv/types-vrmc-node-constraint-1.0@3.5.5':
+    resolution: {integrity: sha512-8EbJ1uzkn9yJQarCChmpG12+mc2c7PimHvQ8H6/tMh/hqp5NtJND0z2lR2KeVxw9A3M+TpF+xgImhLBxGjqwzQ==}
+
+  '@pixiv/types-vrmc-springbone-1.0@3.5.5':
+    resolution: {integrity: sha512-gRQ5Y7PaGiMefvOrJ3hvoSPqpA67jiwyhwh8ItjsPi3yri/Hn3CeXplW3Cbx3ZPbfu+C3Q2MCRa2TqAUOjeMRA==}
+
+  '@pixiv/types-vrmc-springbone-extended-collider-1.0@3.5.5':
+    resolution: {integrity: sha512-+6RxLaAvVguP7upjS/OT4viNPWvac1HBRQY1nmdvfYNQuCMdrMsCZqvy2af0Fcjnda4V9JbKFIpZDC0lrw1+uQ==}
+
+  '@pixiv/types-vrmc-vrm-1.0@3.5.5':
+    resolution: {integrity: sha512-WnemHHo2375BcBdumEhvrupZzsMSzTfdWlokmV9sUX2oC+OAQqJFfBjLF8ppkOhzHpl4MAPJqEfuhBJtNPm9ww==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -1213,11 +1272,16 @@ packages:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
 
-  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.20.0/overnightworks-design-0.20.0.tgz:
-    resolution: {integrity: sha512-Kp3srd86Jm585m1EpNf8DOrRpxFubkgWGwqeRDk8m+LB3H4DDJzw8iB0VFB4hQKapXo8crRR+nIg8bJl4lfnsQ==, tarball: https://github.com/overnightworks/design/releases/download/v0.20.0/overnightworks-design-0.20.0.tgz}
-    version: 0.20.0
+  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.21.0/overnightworks-design-0.21.0.tgz:
+    resolution: {integrity: sha512-T90Ex30PVj83R/94RtRpb407xPj/FuLBwaenjPBcbLOE94igAXADTajOJjM5N+1hMkyTouFk8CV/bKduL+uCBw==, tarball: https://github.com/overnightworks/design/releases/download/v0.21.0/overnightworks-design-0.21.0.tgz}
+    version: 0.21.0
     peerDependencies:
       svelte: ^5.20.0
+
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz:
+    resolution: {integrity: sha512-4YGqA8NQbEEl6+Q3x8uj3p8ZHDW4mpUlxiEhnkux9upt8ESPh9cY7jFqNXYcTHmyqvAy80vFrhqf5Z13LYr9ug==, tarball: https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz}
+    version: 0.2.0
+    hasBin: true
 
   p-limit@3.1.0:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
@@ -1390,6 +1454,9 @@ packages:
   svelte@5.57.3:
     resolution: {integrity: sha512-5mAftM3SoDV9X0zdF386F9p2pv8iKOwi/KfBS1XnBAkVCKFzVOLHUoa8iGWAt4buoicLmyWVRpuuD5wplXOQsg==}
     engines: {node: '>=18'}
+
+  three@0.187.0:
+    resolution: {integrity: sha512-Qiu7R+Cmh8CstZsY1uJOSWnVlfo7ZtNLV7mF8Jltk3LB3AtDu9cRZlcnRKkAk8Y4z6KKw35z7Y7Urd7jWY8etA==}
 
   tinybench@6.2.2:
     resolution: {integrity: sha512-nIZ2N2dFpjBsg2hgitKu7mA+FvsIJuGJOwysRngmVRRmWgR/UyPjwJj8c/fT/dhm8EkHnF5EOogRf+0Z2qrimA==}
@@ -1780,6 +1847,65 @@ snapshots:
   '@keyv/serialize@1.1.1': {}
 
   '@oxc-project/types@0.156.0': {}
+
+  '@pixiv/three-vrm-core@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/types-vrm-0.0': 3.5.5
+      '@pixiv/types-vrmc-vrm-1.0': 3.5.5
+      three: 0.187.0
+
+  '@pixiv/three-vrm-materials-hdr-emissive-multiplier@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/types-vrmc-materials-hdr-emissive-multiplier-1.0': 3.5.5
+      three: 0.187.0
+
+  '@pixiv/three-vrm-materials-mtoon@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/types-vrm-0.0': 3.5.5
+      '@pixiv/types-vrmc-materials-mtoon-1.0': 3.5.5
+      three: 0.187.0
+
+  '@pixiv/three-vrm-materials-v0compat@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/types-vrm-0.0': 3.5.5
+      '@pixiv/types-vrmc-materials-mtoon-1.0': 3.5.5
+      three: 0.187.0
+
+  '@pixiv/three-vrm-node-constraint@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/types-vrmc-node-constraint-1.0': 3.5.5
+      three: 0.187.0
+
+  '@pixiv/three-vrm-springbone@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/types-vrm-0.0': 3.5.5
+      '@pixiv/types-vrmc-springbone-1.0': 3.5.5
+      '@pixiv/types-vrmc-springbone-extended-collider-1.0': 3.5.5
+      three: 0.187.0
+
+  '@pixiv/three-vrm@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/three-vrm-core': 3.5.5(three@0.187.0)
+      '@pixiv/three-vrm-materials-hdr-emissive-multiplier': 3.5.5(three@0.187.0)
+      '@pixiv/three-vrm-materials-mtoon': 3.5.5(three@0.187.0)
+      '@pixiv/three-vrm-materials-v0compat': 3.5.5(three@0.187.0)
+      '@pixiv/three-vrm-node-constraint': 3.5.5(three@0.187.0)
+      '@pixiv/three-vrm-springbone': 3.5.5(three@0.187.0)
+      three: 0.187.0
+
+  '@pixiv/types-vrm-0.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-materials-hdr-emissive-multiplier-1.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-materials-mtoon-1.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-node-constraint-1.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-springbone-1.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-springbone-extended-collider-1.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-vrm-1.0@3.5.5': {}
 
   '@polka/url@1.0.0-next.29': {}
 
@@ -2531,9 +2657,14 @@ snapshots:
       type-check: 0.4.0
       word-wrap: 1.2.5
 
-  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.20.0/overnightworks-design-0.20.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
+  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.21.0/overnightworks-design-0.21.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.72.1)
+
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz:
+    dependencies:
+      '@pixiv/three-vrm': 3.5.5(three@0.187.0)
+      three: 0.187.0
 
   p-limit@3.1.0:
     dependencies:
@@ -2707,6 +2838,8 @@ snapshots:
       zimmerframe: 1.1.5
     transitivePeerDependencies:
       - '@typescript-eslint/types'
+
+  three@0.187.0: {}
 
   tinybench@6.2.2: {}
 

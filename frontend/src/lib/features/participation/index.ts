@@ -15,6 +15,7 @@ interface AgentJoinedFrame {
     name: string;
     sponsor: string;
     sponsor_id: string;
+    figure?: string;
 }
 
 interface AgentLeftFrame {
@@ -90,6 +91,7 @@ export function install(core: FeatureCore): Promise<void> {
                 name: frame.name,
                 activity: AGENT_ACTIVITY.PRESENT,
                 sponsor: frame.sponsor,
+                figure: frame.figure,
                 onRemove: mayRemove(frame)
                     ? () => {
                           core.send({ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: frame.agent_id });

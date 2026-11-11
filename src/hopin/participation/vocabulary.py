@@ -1,6 +1,8 @@
 from enum import StrEnum
 
 FEATURE_NAME = "participation"
+# The page installs this browser module beside the feature's own when agents may show figures.
+FIGURE_MODULE = "figure"
 AGENT_NAME_MAX_CHARACTERS = 32
 AGENT_LINE_MAX_CHARACTERS = 600
 LINES_PER_WINDOW = 10

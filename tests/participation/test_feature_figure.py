@@ -6,9 +6,17 @@ import structlog.testing
 from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
 
 from hopin.agent.tools import LEAVE_CALL
+from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
 from hopin.participation.settings import ParticipationSettings
-from hopin.participation.vocabulary import FIGURE_PATH, AgentRefusal, FigureRefusal, ParticipationSignal
+from hopin.participation.vocabulary import (
+    FEATURE_NAME,
+    FIGURE_MODULE,
+    FIGURE_PATH,
+    AgentRefusal,
+    FigureRefusal,
+    ParticipationSignal,
+)
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
     Answer,
@@ -99,6 +107,21 @@ def refusals_in(logs):
 
 def is_active(scene):
     return [item["state"] for item in scene.standings()] == ["active"]
+
+
+class TestTheFigureModule:
+    @pytest.mark.parametrize(
+        ("sources", "modules"),
+        [
+            pytest.param([SOURCE_PREFIX], [FEATURE_NAME, FIGURE_MODULE], id="a source allowed"),
+            pytest.param([], [FEATURE_NAME], id="no source allowed"),
+        ],
+    )
+    def test_the_page_installs_the_figure_module_only_when_a_figure_source_is_allowed(self, scene, modules):
+        """CALL-56: Only a call with an allowed figure source lists the figure module the page installs."""
+        listed = read_figure(scene, CALL_FEATURES_PATH).json()["features"]
+
+        assert [module for module in listed if module in {FEATURE_NAME, FIGURE_MODULE}] == modules
 
 
 class TestTheFigureAtAccept:
