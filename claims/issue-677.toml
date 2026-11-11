@@ -1,8 +1,0 @@
-claim_id = "c813ecb79ef0423ab1a1512d6e3ce5a6"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "ab7febf9f51eeb59a802416fc4c150cf0668ff19"
-branch = "claude/issue-677-webauth-session-groups"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/agent/backend.py", "src/hopin/agent/mcp.py", "src/hopin/agent/session_groups.py", "tests/agent/test_session_groups.py"]
-opened_commit = "fd7ce04e4544279c06135ab6b0a58c5e7b8fa9d0"
-whole_reason = "The two callers and the deletion of the copy are one predecessor exit: a half-switched tree would run two readers."
