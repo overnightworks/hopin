@@ -245,10 +245,20 @@ class TestExpiredSessionSweep:
         now = datetime.now(UTC)
         created_at = now - timedelta(hours=2)
         expired = stores.sessions.create(
-            account.id, now=created_at, expires_at=now - timedelta(hours=1), refresh_token=None, id_token=new_id_token()
+            account.id,
+            now=created_at,
+            expires_at=now - timedelta(hours=1),
+            refresh_token=None,
+            id_token=new_id_token(),
+            account_language=None,
         )
         live = stores.sessions.create(
-            account.id, now=created_at, expires_at=now + timedelta(hours=1), refresh_token=None, id_token=new_id_token()
+            account.id,
+            now=created_at,
+            expires_at=now + timedelta(hours=1),
+            refresh_token=None,
+            id_token=new_id_token(),
+            account_language=None,
         )
         return app, stores.sessions, expired, live
 
@@ -269,6 +279,7 @@ class TestExpiredSessionSweep:
                 expires_at=now - timedelta(hours=1),
                 refresh_token=None,
                 id_token=new_id_token(),
+                account_language=None,
             )
             asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
             assert sessions.load(later.id) is None
@@ -317,6 +328,7 @@ class TestExpiredSessionSweep:
             expires_at=now - timedelta(hours=1),
             refresh_token=None,
             id_token=new_id_token(),
+            account_language=None,
         )
 
         async def shut_down_with_the_sweep_queued():
