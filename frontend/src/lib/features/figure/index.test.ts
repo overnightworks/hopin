@@ -30,6 +30,11 @@ function fakeMount(canvas: HTMLCanvasElement, bytes: Uint8Array, options: { onSi
     });
 }
 
+interface UnhandledRejectionSource {
+    on: (event: "unhandledRejection", listener: (reason: unknown) => void) => void;
+    off: (event: "unhandledRejection", listener: (reason: unknown) => void) => void;
+}
+
 const FIGURE_PATH = "/api/participation/figures/abc";
 const BYTES = new Uint8Array([1, 2, 3]);
 
@@ -72,6 +77,9 @@ function draw(drawer: AgentFigureDrawer) {
     const stop = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure));
     return { host, shown, stop };
 }
+
+// The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
+const runtime = (globalThis as unknown as { process: UnhandledRejectionSource }).process;
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -244,9 +252,17 @@ describe("a figure on an agent's tile", () => {
     });
 
     it("CALL-56: a chunk that fails to load is no unhandled rejection before any figure awaits it", async () => {
-        // Vitest fails the run on a rejection nothing handles.
-        await installedDrawer(true);
-        await settled();
-        await settled();
+        const unhandled: unknown[] = [];
+        const record = (reason: unknown) => void unhandled.push(reason);
+        runtime.on("unhandledRejection", record);
+        try {
+            await installedDrawer(true);
+            await settled();
+            await settled();
+        } finally {
+            runtime.off("unhandledRejection", record);
+        }
+
+        expect(unhandled).toEqual([]);
     });
 });
