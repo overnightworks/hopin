@@ -1,8 +1,0 @@
-claim_id = "9c727c95cfa14e6c905023b1a30a81a8"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "17386298ba7c0ae1c9ad387d253ec1489378d59c"
-branch = "claude/issue-702-the-catalog-is-wired-in-and-carries-the"
-scope = ["AGENTS.md", "Makefile", "docs/ARCHITECTURE.md", "frontend/src/lib/catalogs", "frontend/src/lib/texts.test.ts", "frontend/src/lib/texts.ts", "frontend/src/lib/words", "frontend/src/routes/(call)/start-up.ts", "frontend/vite.config.ts", "pyproject.toml", "tests/e2e/test_end.py", "tests/support/words.py", "uv.lock"]
-opened_commit = "5daddf4b89f157df12f0b70216400964397ac201"
-whole_reason = "The declaration, the pinned generator, its check, the first catalog entry with both generated modules and the one reader are the thinnest end-to-end proof of the standard; the lock and the generated files are mechanical."
