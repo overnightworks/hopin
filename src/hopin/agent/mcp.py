@@ -2,7 +2,7 @@
 serve it."""
 
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
@@ -31,8 +31,8 @@ from starlette.routing import Route
 from webauth.middleware import ProtectedResource, resource_person
 from webauth.oidc_login import AccessTokenRefusal
 from webauth.policies import AuthorizedParties
+from webauth.session_groups import SessionGroups
 
-from hopin.agent.session_groups import SessionGroups
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
@@ -281,7 +281,7 @@ class ParticipationFeature:
             ResourceChanges(),
             auth_config.wall_clock,
             self.agent_adders,
-            SessionGroups(relying_party, sessions, auth_config),
+            SessionGroups(relying_party, lambda: nullcontext(sessions), auth_config),
             self.figure_sources,
         )
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
