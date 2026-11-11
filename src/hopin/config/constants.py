@@ -25,7 +25,6 @@ NO_ACCESS_PATH = "/no-access"
 LOGOUT_PATH = "/logout"
 BACKCHANNEL_LOGOUT_PATH = "/auth/backchannel-logout"
 READ_METHODS = ["GET", "HEAD"]
-DEFAULT_REQUEST_BODY_MAX_BYTES = 4 * 1024
 # Private, because the assets sit behind the sign-in and a shared cache would hand them out past it (RFC 9111 5.2.2.9).
 IMMUTABLE_ASSET_CACHE_CONTROL = "private, max-age=31536000, immutable"
 

@@ -8,7 +8,6 @@ from fastapi import FastAPI
 from webauth.config import install_web_auth_config
 from webauth.middleware import install_resource_metadata, install_web_auth_middleware
 from webauth.policies import (
-    BodySizePolicy,
     CacheControlRule,
     CspDirective,
     CsrfPolicy,
@@ -30,13 +29,11 @@ from hopin.auth.sign_in import (
 )
 from hopin.config.constants import (
     ANNOUNCER_STYLE_SOURCES,
-    DEFAULT_REQUEST_BODY_MAX_BYTES,
     PERMISSIONS_POLICY,
     SESSION_SWEEP_SECONDS,
 )
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.web_policy import (
-    DEFAULT_RATE_LIMIT_BUDGET,
     NO_CACHE_PATH_RULES,
     PEOPLE_PATH_RULES,
     RATE_LIMIT_EXEMPT_PATH_RULES,
@@ -196,11 +193,7 @@ def _install_web_auth(
             ),
         ),
         csrf_origin=CsrfPolicy(),
-        body_size=BodySizePolicy(default_max_bytes=DEFAULT_REQUEST_BODY_MAX_BYTES),
-        rate_limit=RateLimitPolicy(
-            default=DEFAULT_RATE_LIMIT_BUDGET,
-            exempt=RATE_LIMIT_EXEMPT_PATH_RULES,
-        ),
+        rate_limit=RateLimitPolicy(exempt=RATE_LIMIT_EXEMPT_PATH_RULES),
         bearer_gate=None if bearer is None else bearer_gate(*bearer),
         session_gate=session_gate(sessions, page_build.sign_in_assets, None if bearer is None else bearer[1]),
     )

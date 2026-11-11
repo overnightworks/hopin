@@ -2,7 +2,7 @@
 
 import re
 
-from webauth.policies import PathRules, RateLimitBudget
+from webauth.policies import PathRules
 from webauth.sign_in_routes import SignInPaths
 
 from hopin.config.constants import (
@@ -26,7 +26,6 @@ SIGN_IN_PATHS = SignInPaths(
     start=AUTH_START_PATH, callback=AUTH_CALLBACK_PATH, logout=LOGOUT_PATH, backchannel_logout=BACKCHANNEL_LOGOUT_PATH
 )
 RETURN_TO_QUERY_PARAMETER = SIGN_IN_PATHS.login_redirect.redirect_query_param
-DEFAULT_RATE_LIMIT_BUDGET = RateLimitBudget(name="requests", max_requests=600, window_seconds=60)
 # The health check is the edge's readiness probe.
 RATE_LIMIT_EXEMPT_PATH_RULES = PathRules(exact=frozenset({HEALTH_PATH}))
 
