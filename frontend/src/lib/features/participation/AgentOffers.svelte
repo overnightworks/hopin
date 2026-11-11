@@ -6,5 +6,5 @@
 </script>
 
 {#if view.shown}
-    <AgentControl rows={view.rows} {onCall} onSendAway={() => undefined} refusal={view.refusal} />
+    <AgentControl rows={view.rows} {onCall} refusal={view.refusal} />
 {/if}
