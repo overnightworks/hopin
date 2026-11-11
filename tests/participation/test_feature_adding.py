@@ -101,6 +101,7 @@ class TestWhoIsOfferedTheAgent:
 
     @pytest.mark.usefixtures("members")
     async def test_a_member_of_the_adders_group_and_the_host_are_shown_the_control_while_no_agent_is_listed(self, link):
+        """CALL-51: A member of the adders group and the call's host are shown the control with no agent listed."""
         owner = await link.join("host")
         member = await link.join("guest", owner.room_id)
         stranger = await link.join("stranger", owner.room_id)

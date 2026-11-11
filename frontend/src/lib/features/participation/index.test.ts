@@ -6,6 +6,7 @@ import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { install } from "./index.ts";
+import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
@@ -281,32 +282,27 @@ describe("calling an agent that has an account of its own", () => {
         expect(page.focused()?.id).toBe("agentOffers");
     });
 
-    it("CALL-51: shows what a refused add comes to in the kit's words, one for each reason the kit knows", async () => {
-        const reasons = [
-            [AGENT_REFUSAL.NOT_ADDER],
-            [AGENT_REFUSAL.NO_SEAT, AGENT_REFUSAL.SPONSOR_AWAY],
-            [AGENT_REFUSAL.BUSY],
-            [AGENT_REFUSAL.ALREADY_THERE, AGENT_REFUSAL.GONE, AGENT_REFUSAL.TWO_SEATS],
-            [AGENT_REFUSAL.UNAVAILABLE, "another_reason"],
-        ];
-        const alerts: string[][] = [];
-        for (const group of reasons) {
-            const sentences: string[] = [];
-            for (const reason of group) {
-                const page = await installedParticipation();
-                page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
-                page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason });
-                sentences.push(page.alert() ?? "");
-                document.body.replaceChildren();
-            }
-            alerts.push(sentences);
-        }
+    it.each([
+        [AGENT_REFUSAL.NOT_ADDER, "not-allowed"],
+        [AGENT_REFUSAL.NO_SEAT, "owner-absent"],
+        [AGENT_REFUSAL.SPONSOR_AWAY, "owner-absent"],
+        [AGENT_REFUSAL.BUSY, "place-full"],
+        [AGENT_REFUSAL.ALREADY_THERE, "agent-unavailable"],
+        [AGENT_REFUSAL.GONE, "agent-unavailable"],
+        [AGENT_REFUSAL.TWO_SEATS, "agent-unavailable"],
+        [AGENT_REFUSAL.UNAVAILABLE, "try-again"],
+        ["another_reason", "try-again"],
+    ])("CALL-51: maps the refused add %s to the kit's %s reason", (reason, kitReason) => {
+        expect(refusalOf(reason)).toBe(kitReason);
+    });
 
-        expect([
-            alerts.map((sentences) => new Set(sentences).size),
-            new Set(alerts.map((sentences) => sentences[0])).size,
-            alerts.every(([sentence]) => sentence !== ""),
-        ]).toEqual([[1, 1, 1, 1, 1], 5, true]);
+    it("CALL-51: shows a refused add as one of the kit's sentences", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.BUSY });
+
+        expect(page.alert()).toBeTruthy();
     });
 
     it("takes the refusal away when the person calls again", async () => {
