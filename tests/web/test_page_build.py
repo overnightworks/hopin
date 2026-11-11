@@ -4,7 +4,12 @@ import pytest
 
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.page_build import PageBuild, _css_asset_urls
-from tests.support.page_build import FIXTURE_DIRECTORY, FIXTURE_SCRIPT_HASH
+from tests.support.page_build import (
+    FIXTURE_ANNOUNCER_STYLE,
+    FIXTURE_DIRECTORY,
+    FIXTURE_SCRIPT_HASH,
+    announcer_style_sources,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -13,11 +18,29 @@ if TYPE_CHECKING:
 SIGN_IN_PAGES = ("login.html", "login-failed.html", "no-access.html")
 
 
-def build_with_shell(root: Path, shell: str, sign_in_page: str = "<html></html>") -> Path:
+def announcer_template(style: str) -> str:
+    return f'i(`<div id="svelte-announcer" aria-live="assertive" aria-atomic="true" style="{style}"><!></div>`)'
+
+
+def write_immutable_chunks(root: Path, chunks: dict[str, str]) -> None:
+    (root / "_app" / "immutable").mkdir(parents=True, exist_ok=True)
+    for name, text in chunks.items():
+        (root / "_app" / "immutable" / name).write_text(text, encoding="utf-8")
+
+
+def build_with_shell(
+    root: Path,
+    shell: str,
+    sign_in_page: str = "<html></html>",
+    immutable_chunks: dict[str, str] | None = None,
+) -> Path:
     (root / "_app").mkdir(parents=True)
     (root / "index.html").write_text(shell, encoding="utf-8")
     for name in SIGN_IN_PAGES:
         (root / name).write_text(sign_in_page, encoding="utf-8")
+    if immutable_chunks is None:
+        immutable_chunks = {"announcer.js": announcer_template(FIXTURE_ANNOUNCER_STYLE)}
+    write_immutable_chunks(root, immutable_chunks)
     return root
 
 
@@ -27,6 +50,41 @@ class TestLoad:
 
         assert page_build.directory == FIXTURE_DIRECTORY
         assert page_build.script_hashes == (FIXTURE_SCRIPT_HASH,)
+
+    def test_the_announcer_sources_admit_the_one_style_the_committed_build_writes(self):
+        assert PageBuild.load(FIXTURE_DIRECTORY).announcer_style_sources == announcer_style_sources(
+            FIXTURE_ANNOUNCER_STYLE
+        )
+
+    def test_the_same_announcer_style_in_two_chunks_is_one_source(self, tmp_path):
+        chunks = {
+            "a.js": announcer_template(FIXTURE_ANNOUNCER_STYLE),
+            "b.js": announcer_template(FIXTURE_ANNOUNCER_STYLE),
+        }
+        root = build_with_shell(tmp_path, "<html></html>", immutable_chunks=chunks)
+
+        assert PageBuild.load(root).announcer_style_sources == announcer_style_sources(FIXTURE_ANNOUNCER_STYLE)
+
+    @pytest.mark.parametrize(
+        "chunks",
+        [
+            pytest.param({}, id="no-javascript"),
+            pytest.param({"chunk.js": "export const other = 1;"}, id="no-announcer-template"),
+            pytest.param({"chunk.js.map": announcer_template(FIXTURE_ANNOUNCER_STYLE)}, id="only-a-source-map"),
+        ],
+    )
+    def test_a_build_without_the_announcer_style_refuses_the_start_and_names_the_announcer(self, tmp_path, chunks):
+        root = build_with_shell(tmp_path, "<html></html>", immutable_chunks=chunks)
+
+        with pytest.raises(StartRefusedError, match="announcer"):
+            PageBuild.load(root)
+
+    def test_two_different_announcer_styles_refuse_the_start_and_name_the_announcer(self, tmp_path):
+        chunks = {"a.js": announcer_template(FIXTURE_ANNOUNCER_STYLE), "b.js": announcer_template("width: 2px")}
+        root = build_with_shell(tmp_path, "<html></html>", immutable_chunks=chunks)
+
+        with pytest.raises(StartRefusedError, match="announcer"):
+            PageBuild.load(root)
 
     @pytest.mark.parametrize(
         ("shell", "hashes"),
