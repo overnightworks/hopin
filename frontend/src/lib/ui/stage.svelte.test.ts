@@ -469,6 +469,23 @@ describe("an agent tile's figure", () => {
         ]);
     });
 
+    it("CALL-56: keeps the drawn figure when the same path arrives again", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const host = document.createElement("div");
+        const action = agentFigure(host, PATH);
+        started[0]?.show(AGENT_FIGURE.DRAWN);
+
+        action.update(PATH);
+
+        expect([started.length, started[0]?.stop.mock.calls.length, host.dataset.figure]).toEqual([
+            1,
+            0,
+            AGENT_FIGURE.DRAWN,
+        ]);
+    });
+
     it("CALL-56: takes the figure away when the path goes", async () => {
         const { agentFigure, drawAgentFigures } = await freshStage();
         const { drawer, started } = drawerOf();

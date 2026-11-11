@@ -59,6 +59,7 @@ export function drawAgentFigures(drawer: AgentFigureDrawer) {
 /** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, and a new path draws afresh. */
 export function agentFigure(host: HTMLElement, path: string | undefined) {
     let stop: (() => void) | null = null;
+    let drawnPath = path;
 
     function draw(figure: string | undefined) {
         stop?.();
@@ -75,7 +76,12 @@ export function agentFigure(host: HTMLElement, path: string | undefined) {
 
     draw(path);
     return {
-        update: draw,
+        // Svelte calls update with the unchanged path whenever the tile's entry re-renders; only a new path draws afresh.
+        update(figure: string | undefined) {
+            if (figure === drawnPath) return;
+            drawnPath = figure;
+            draw(figure);
+        },
         destroy() {
             stop?.();
             stop = null;
