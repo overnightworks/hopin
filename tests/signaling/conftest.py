@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     WEBSOCKET_PATH,
 )
@@ -15,6 +14,7 @@ from tests.signaling.support.flow import number_frames_after_the_first
 from tests.signaling.support.served_sessions import ServedSessions
 from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def stores():
-    return SignInStores.in_memory()
+    return single_process_stores()
 
 
 @pytest.fixture

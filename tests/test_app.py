@@ -15,7 +15,6 @@ from webauth.dependencies import session_id_from_request
 from webauth.ports import AccountKind
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
@@ -32,6 +31,7 @@ from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_STYLESHEET, fi
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -42,7 +42,7 @@ SESSION_COOKIE = "__Host-session_id"
 
 
 def signed_in_client(settings: ServerSettings) -> TestClient:
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     app = create_app(settings, page_build=fixture_page_build(), stores=stores)
     member = seed_member(stores, installed_web_auth_config(app))
     headers = {"cookie": cookie_header(member.set_cookie_headers)}
@@ -118,7 +118,7 @@ class TestCreateApp:
     def test_signs_members_in_to_the_stores_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        stores = SignInStores.in_memory()
+        stores = single_process_stores()
         app = create_app(
             sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports, stores=stores
         )
@@ -237,7 +237,7 @@ class QueuingScheduler:
 class TestExpiredSessionSweep:
     @pytest.fixture
     def swept(self, sign_in_settings, scheduler):
-        stores = SignInStores.in_memory()
+        stores = single_process_stores()
         app = create_app(
             sign_in_settings().settings, page_build=fixture_page_build(), stores=stores, scheduler=scheduler
         )
@@ -304,7 +304,7 @@ class TestExpiredSessionSweep:
         assert (len(scans), timer_pending_after_the_scan, scheduler.has_pending_timer()) == (1, False, False)
 
     def test_a_sweep_queued_before_shutdown_removes_nothing_once_the_lifespan_has_stopped(self, sign_in_settings):
-        stores = SignInStores.in_memory()
+        stores = single_process_stores()
         scheduler = QueuingScheduler()
         app = create_app(
             sign_in_settings().settings, page_build=fixture_page_build(), stores=stores, scheduler=scheduler

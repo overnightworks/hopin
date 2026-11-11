@@ -17,17 +17,18 @@ from webauth.config import installed_web_auth_config
 
 from hopin.agent.mcp import ParticipationFeature
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.main import uvicorn_options
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
     from pathlib import Path
 
     from webauth.config import WebAuthConfig
+    from webauth.single_process_stores import SingleProcessStores
 
     from hopin.app import CallFeatureBuilder
     from tests.support.sign_in_settings import SignInSettings
@@ -100,7 +101,7 @@ def serving(server: uvicorn.Server) -> Iterator[None]:
 class RunningServer:
     base_url: str
     config: WebAuthConfig
-    stores: SignInStores
+    stores: SingleProcessStores
     issuer: FakeIssuer
 
 
@@ -111,7 +112,7 @@ class LoopbackSignIn:
     port: int
     host: str
     sign_in: SignInSettings
-    stores: SignInStores
+    stores: SingleProcessStores
     issuer: FakeIssuer
 
 
@@ -126,7 +127,7 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
         public_origin=f"https://{public_host}:{port}",
         trusted_proxies=LOOPBACK_HOST,
     )
-    return LoopbackSignIn(port, public_host, sign_in, SignInStores.in_memory(), FakeIssuer(sign_in))
+    return LoopbackSignIn(port, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in))
 
 
 @contextmanager

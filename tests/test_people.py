@@ -16,7 +16,6 @@ from webauth.config import install_web_auth_config, installed_web_auth_config
 from webauth.ports import AccountKind
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
@@ -34,6 +33,7 @@ from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, export_path, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -46,7 +46,7 @@ ZERO_WITHHELD = [
 
 @pytest.fixture
 def stores():
-    return SignInStores.in_memory()
+    return single_process_stores()
 
 
 @pytest.fixture
@@ -90,7 +90,7 @@ def stored_state_of_anna(stores, scene):
         stored = stores.sessions.load(session_id)
         refresh_token = None if stored.refresh_token is None else stored.refresh_token.get_secret_value()
         sessions.append((stored.id, stored.user, stored.created_at, stored.expires_at, refresh_token))
-    return stores.accounts.get("anna"), stores.sessions.person_records("anna"), sessions
+    return stores.accounts.get("anna"), stores.sessions.records_of("anna"), sessions
 
 
 @dataclass

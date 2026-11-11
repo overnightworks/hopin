@@ -12,7 +12,6 @@ from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import (
     ACCOUNT_PATH,
     BACKCHANNEL_LOGOUT_PATH,
@@ -33,6 +32,7 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 ABNORMAL_CLOSE_CODE = 4999
 FOUND_ELSEWHERE = 302
@@ -44,7 +44,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def stores():
-    return SignInStores.in_memory()
+    return single_process_stores()
 
 
 @pytest.fixture

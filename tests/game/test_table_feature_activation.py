@@ -6,12 +6,12 @@ from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.game.vocabulary import FEATURE_NAME
 from hopin.main import main
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -22,7 +22,7 @@ def test_the_app_main_starts_offers_a_member_the_game_as_the_calls_feature(
 ):
     for name, value in sign_in_settings().environment.items():
         monkeypatch.setenv(name, value)
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     with patch("hopin.main.create_app", partial(create_app, stores=stores)):
         main(["serve"])
     served_app = mock_run.call_args[0][0]

@@ -9,7 +9,6 @@ from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.vocabulary import GameSignal
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Succeeds
@@ -18,13 +17,14 @@ from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
 def stores():
-    return SignInStores.in_memory()
+    return single_process_stores()
 
 
 @pytest.fixture

@@ -16,10 +16,10 @@ import websockets
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.main import main
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator
@@ -67,7 +67,7 @@ async def started_server(
 ) -> AsyncIterator[Output]:
     for name, value in sign_in_settings(host=LOCALHOST).environment.items():
         monkeypatch.setenv(name, value)
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     with patch("hopin.main.uvicorn.run") as run, patch("hopin.main.create_app", partial(create_app, stores=stores)):
         main(["serve"])
     app = run.call_args.args[0]

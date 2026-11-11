@@ -16,8 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from webauth.config import WebAuthConfig
-
-    from hopin.auth.stores import SignInStores, StoredAccount, StoredSession
+    from webauth.single_process_stores import SingleProcessStores, StoredAccount, StoredSession
 
 SUBJECT_BYTES = 12
 
@@ -51,7 +50,7 @@ def handshake_headers(member: SeededMember | None, origin: str | None = TEST_PUB
     return headers
 
 
-def new_account(stores: SignInStores, config: WebAuthConfig) -> StoredAccount:
+def new_account(stores: SingleProcessStores, config: WebAuthConfig) -> StoredAccount:
     """A member's account under a fresh subject."""
     suffix = secrets.token_hex(SUBJECT_BYTES)
     return stores.accounts.create_for_subject(
@@ -60,7 +59,7 @@ def new_account(stores: SignInStores, config: WebAuthConfig) -> StoredAccount:
 
 
 def seed_member(
-    stores: SignInStores,
+    stores: SingleProcessStores,
     config: WebAuthConfig,
     *,
     account: StoredAccount | None = None,

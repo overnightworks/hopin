@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.auth.stores import SignInStores
 from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.ice_servers import TurnRelayFailure, TurnRelayUnavailableError
@@ -18,6 +17,7 @@ from hopin.web.turn_relay import TurnAnswer, build_turn_relay
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -88,7 +88,7 @@ def turn_settings(sign_in_settings, tmp_path):
 
 
 def member_client(settings, transport, *, signed_in: bool = True) -> TestClient:
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     app = create_app(settings, page_build=fixture_page_build(), stores=stores, turn_transport=transport)
     headers = dict(FETCH_ACCEPT)
     if signed_in:

@@ -14,14 +14,16 @@ from webauth.ports import AccountKind
 from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
-from hopin.auth.stores import InMemorySessions, SignInStores
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
 from tests.game.support.fake_agent_backend import FakeAgentBackend
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.signed_in import cookie_header, seed_member
+from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from webauth.single_process_stores import SingleProcessSessionStore, SingleProcessStores
 
     from tests.support.sign_in_settings import SignInSettings
 
@@ -34,7 +36,7 @@ OPENING = (Turn(Speaker.HOPIN, question_request(QUIZ_TOPICS[0])),)
 class StoreSpy:
     """The session store, signalling each stored refresh token, so a test can wait for a worker's write."""
 
-    def __init__(self, sessions: InMemorySessions) -> None:
+    def __init__(self, sessions: SingleProcessSessionStore) -> None:
         self._sessions = sessions
         self.stored_refresh_token = threading.Event()
 
@@ -51,7 +53,7 @@ class StoreSpy:
 class World:
     issuer: FakeIssuer
     backend: FakeAgentBackend
-    stores: SignInStores
+    stores: SingleProcessStores
     sessions: StoreSpy
     relying_party: object
     web_auth: object
@@ -81,7 +83,7 @@ def connection_with(cookie):
 def build_world(sign_in: SignInSettings) -> World:
     issuer = FakeIssuer(sign_in)
     configs = build_sign_in_configs(sign_in.settings, ())
-    stores = SignInStores.in_memory()
+    stores = single_process_stores()
     sessions = StoreSpy(stores.sessions)
     relying_party = build_relying_party(configs, issuer.transports)
     return World(issuer, FakeAgentBackend(), stores, sessions, relying_party, configs.web_auth)
