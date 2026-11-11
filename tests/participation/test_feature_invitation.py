@@ -2,12 +2,12 @@ import asyncio
 
 import pytest
 import pytest_asyncio
-from agents.member import LEASE_SECONDS
+from agents.member import INVITATION_SECONDS, LEASE_SECONDS
 
 from hopin.config.constants import SignalType
 from hopin.participation.feature import DialedAgent
 from hopin.participation.places import PlaceState
-from hopin.participation.vocabulary import INVITATION_SECONDS, AgentRefusal, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
@@ -117,7 +117,7 @@ class TestAnInvitation:
     async def test_it_ends_after_its_lifetime_and_the_adder_may_add_again(
         self, invited, scheduler, participation, changes
     ):
-        """CALL-52: The invitation lasts 120 seconds."""
+        """CALL-52: The invitation lasts the library's INVITATION_SECONDS."""
         await scheduler.advance(INVITATION_SECONDS - 1)
         await agent_calls(participation)  # the agent keeps calling, so its lease holds
         told = len(changes)

@@ -30,8 +30,8 @@ class TestAGroupReadThatIsStillRunning:
         self, link, participation, groups_of_seat, group_reads
     ):
         owner = await link.join(OWNER)
-        member = await link.join("guest", owner.room_id)
         groups_of_seat["guest"] = release = asyncio.Event()
+        member = await link.join("guest", owner.room_id)
         await agent_calls(participation)
         await let_reads_start(group_reads, 1)
 
@@ -45,8 +45,8 @@ class TestAGroupReadThatIsStillRunning:
         self, link, participation, groups_of_seat, group_reads
     ):
         owner = await link.join(OWNER)
-        member = await link.join("guest", owner.room_id)
         groups_of_seat["guest"] = release = asyncio.Event()
+        member = await link.join("guest", owner.room_id)
         await agent_calls(participation)
         await let_reads_start(group_reads, 1)
 
@@ -60,8 +60,8 @@ class TestAGroupReadThatIsStillRunning:
 class TestAnAddWhoseFreshReadIsStillRunning:
     async def add_with_a_held_read(self, link, participation, groups_of_seat, group_reads):
         owner = await link.join(OWNER)
-        member = await link.join("guest", owner.room_id)
         groups_of_seat["guest"] = frozenset({ADDERS})
+        member = await link.join("guest", owner.room_id)
         await agent_calls(participation)
         await let_reads_finish()
         [offer] = offers_sent_to(member)

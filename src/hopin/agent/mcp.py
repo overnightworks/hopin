@@ -12,6 +12,7 @@ import structlog
 from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, ResourceChanges
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
+    INVITATION_SECONDS,
     LEASE_SECONDS,
     STANDING_URI,
     Invitation,
@@ -83,6 +84,7 @@ class _BuiltParticipation:
             rooms,
             self.scheduler,
             LEASE_SECONDS,
+            INVITATION_SECONDS,
             self._tell_changed,
             self._tell_window_changed,
             self.wall_clock,
