@@ -18,6 +18,7 @@ from webauth.config import installed_web_auth_config
 from hopin.agent.mcp import ParticipationFeature
 from hopin.app import create_app
 from hopin.main import uvicorn_options
+from hopin.participation.figure_transport import get_figure_over_https
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from webauth.single_process_stores import SingleProcessStores
 
     from hopin.app import CallFeatureBuilder
+    from hopin.participation.figures import FigureSource, FigureTransport
     from tests.support.sign_in_settings import SignInSettings
 
 LOOPBACK_HOST = "127.0.0.1"
@@ -141,9 +143,12 @@ def running_hopin(
     agent_adders: Mapping[str, str] | None = None,
     certificate: tuple[Path, Path] | None = None,
     more_call_features: Sequence[CallFeatureBuilder] = (),
+    figure_sources: tuple[FigureSource, ...] = (),
+    figure_transport: FigureTransport = get_figure_over_https,
 ) -> Iterator[RunningServer]:
     """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for;
-    `agent_adders` maps an owner's subject to the group whose members may add that owner's agent, and
+    `agent_adders` maps an owner's subject to the group whose members may add that owner's agent,
+    `figure_sources` are where participation may fetch an agent's figure from, through `figure_transport`, and
     `more_call_features` wires further features beside `call_feature`.
 
     The page comes from `page_build_directory`, so a test can serve a copy it changes, and over `certificate` (key
@@ -158,7 +163,11 @@ def running_hopin(
             *(() if call_feature is None else (call_feature,)),
             *more_call_features,
             *(
-                (ParticipationFeature(loopback.sign_in.settings.public_origin, agent_adders or {}),)
+                (
+                    ParticipationFeature(
+                        loopback.sign_in.settings.public_origin, agent_adders or {}, figure_sources, figure_transport
+                    ),
+                )
                 if participation
                 else ()
             ),
