@@ -1,0 +1,8 @@
+claim_id = "110e4fe3f98a452f80138ab7413ccdb1"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b2f2ef7b516290489edd0c9b7b9bb663ba83df2d"
+branch = "claude/issue-699-a-call-address-with-no-call-shows-the-ex"
+scope = ["docs/call.md", "src/hopin/web/routes.py", "tests/e2e/test_end.py", "tests/e2e/test_shell.py", "tests/web/test_routes.py"]
+opened_commit = "6f84fdb994a8882b9e3cd391212737d3b5bacc9d"
+whole_reason = "The route, its two tests and the rule's sentence change together."
