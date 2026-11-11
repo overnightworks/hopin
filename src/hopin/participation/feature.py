@@ -22,7 +22,6 @@ from hopin.participation.vocabulary import (
     AGENTS_PER_ROOM,
     FEATURE_NAME,
     FIGURE_MODULE,
-    INVITATION_SECONDS,
     SIGNAL_TYPES,
     AgentRefusal,
     ParticipationSignal,
@@ -112,6 +111,7 @@ class _SeatView:
     room_id: str
     memberships: dict[str, Membership] = field(default_factory=dict)
     offered: tuple[Offer, ...] = ()
+    shown: bool = False
 
 
 def _membership_in(groups: Collection[str] | None, group: str) -> Membership:
@@ -167,9 +167,10 @@ def _left_frame(agent: DialedAgent) -> JsonObject:
     return _frame(ParticipationSignal.AGENT_LEFT, agent_id=agent.agent_id)
 
 
-def _offers_frame(offers: Sequence[Offer]) -> JsonObject:
+def _offers_frame(offers: Sequence[Offer], *, shown: bool) -> JsonObject:
     return _frame(
         ParticipationSignal.AGENT_OFFERS,
+        shown=shown,
         offers=[{"agent_key": offer.agent_key, "name": offer.name, "pending": offer.pending} for offer in offers],
     )
 
@@ -187,6 +188,7 @@ class Participation:
         rooms: CallRooms,
         scheduler: Scheduler,
         lease_seconds: float,
+        invitation_seconds: float,
         on_changed: Callable[[Person], None],
         on_window_changed: Callable[[Person, str], None],
         wall_clock: Callable[[], float],
@@ -197,6 +199,7 @@ class Participation:
         self._rooms = rooms
         self._scheduler = scheduler
         self._lease_seconds = lease_seconds
+        self._invitation_seconds = invitation_seconds
         self._on_changed = on_changed
         self._on_window_changed = on_window_changed
         self._wall_clock = wall_clock
@@ -512,14 +515,14 @@ class Participation:
         invitation = Invited(
             invitation_id=secrets.token_hex(AGENT_ID_BYTES),
             epoch=self._places.epoch_of(live.person, room_id),
-            expires_at=self._wall_clock() + INVITATION_SECONDS,
-            deadline=self._scheduler.now() + INVITATION_SECONDS,
+            expires_at=self._wall_clock() + self._invitation_seconds,
+            deadline=self._scheduler.now() + self._invitation_seconds,
             sponsor=sponsor,
             adder=adder,
         )
         self._places.put(live.person, room_id, invitation)
         self._scheduler.call_later(
-            INVITATION_SECONDS, partial(self._invitation_timer, live.person, room_id, invitation.invitation_id)
+            self._invitation_seconds, partial(self._invitation_timer, live.person, room_id, invitation.invitation_id)
         )
         self._on_changed(live.person)
         await logger.ainfo(AGENT_ADDED_EVENT, room_id=room_id)
@@ -635,18 +638,31 @@ class Participation:
             await self._update_offers(room_id)
 
     async def _update_offers(self, room_id: str, *, read: bool = True) -> None:
-        """Send each seat of the room the agents it may add, when they differ from what it was last sent. `read` starts
-        the reads of memberships still unknown or failed; the read that just ended asks for none, so a failure
-        retries at the next trigger."""
+        """Send each seat of the room the agents it may add and whether its control shows, when they differ from what it
+        was last sent. `read` starts the reads of memberships still unknown or failed; the read that just ended asks
+        for none, so a failure retries at the next trigger."""
         seats = self._recipients(room_id)
         if read:
             self._start_reads(room_id, seats)
         for peer_id in seats:
             view = self._view_of(peer_id, room_id)
             offers = self._offers_for(peer_id, room_id)
-            if offers != view.offered:
+            shown = self._control_shown_to(peer_id, room_id, offers)
+            if (offers, shown) != (view.offered, view.shown):
                 view.offered = offers
-                await self._tell(room_id, [peer_id], _offers_frame(offers))
+                view.shown = shown
+                await self._tell(room_id, [peer_id], _offers_frame(offers, shown=shown))
+
+    def _control_shown_to(self, peer_id: PeerId, room_id: str, offers: Sequence[Offer]) -> bool:
+        """The control shows to a seat with an offer and, while some group may add an agent, to the call's host and to
+        a member of such a group, even with no agent to list; it never waits on a fresh read."""
+        if offers:
+            return True
+        memberships = self._view_of(peer_id, room_id).memberships
+        return bool(self._adders) and (
+            self._rooms.is_host(peer_id)
+            or any(memberships.get(group) is Membership.MEMBER for group in self._adders.values())
+        )
 
     def _offers_for(self, peer_id: PeerId, room_id: str) -> tuple[Offer, ...]:
         memberships = self._view_of(peer_id, room_id).memberships
@@ -664,13 +680,8 @@ class Participation:
         return tuple(offers)
 
     def _start_reads(self, room_id: str, seats: Sequence[PeerId]) -> None:
-        """Read the groups of each seat that could see an offer and whose membership is unknown or failed to read."""
-        groups = {
-            group
-            for live in self._live.by_person.values()
-            if (group := self._adders.get(live.owner_subject)) is not None
-            and not isinstance(self._sole_seat(room_id, live.owner_subject), AgentRefusal)
-        }
+        """Read the groups of each seat whose membership in an adders group is unknown or failed to read."""
+        groups = set(self._adders.values())
         for peer_id in seats:
             memberships = self._view_of(peer_id, room_id).memberships
             if any(memberships.get(group, Membership.FAILED) is Membership.FAILED for group in groups):

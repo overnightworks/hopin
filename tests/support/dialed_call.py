@@ -62,14 +62,14 @@ class Seat:
 
     def settle(self):
         """Wait until the server has finished handling the join: it handles a seat's frames one after another, so
-        the answer to a later frame comes after everything the join does. Only the host of a call may lock it; the call
-        is left unlocked."""
+        the answer to a later frame comes after everything the join does, the offers it sends included. Only the host
+        of a call may lock it; the call is left unlocked."""
         self._sent += 1
         self._socket.send_json({"type": SignalType.LOCK_ROOM.value, "seq": self._sent})
-        assert self.next_frame()["type"] == SignalType.ROOM_LOCKED.value
+        self.frame_of_type(SignalType.ROOM_LOCKED.value)
         self._sent += 1
         self._socket.send_json({"type": SignalType.UNLOCK_ROOM.value, "seq": self._sent})
-        assert self.next_frame()["type"] == SignalType.ROOM_UNLOCKED.value
+        self.frame_of_type(SignalType.ROOM_UNLOCKED.value)
 
     def drop(self, code=1006):
         """Close the socket abnormally, so the seat parks."""

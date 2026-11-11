@@ -2,12 +2,12 @@ import asyncio
 
 import pytest
 import pytest_asyncio
-from agents.member import LEASE_SECONDS
+from agents.member import INVITATION_SECONDS, LEASE_SECONDS
 
 from hopin.config.constants import SignalType
 from hopin.participation.feature import DialedAgent
 from hopin.participation.places import PlaceState
-from hopin.participation.vocabulary import INVITATION_SECONDS, AgentRefusal, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
