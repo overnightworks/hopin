@@ -193,10 +193,11 @@ class OwnAccountAgent(SdkAgent):
         [invited] = [standing for standing in self.standings() if standing["state"] == "invited"]
         return invited
 
-    def accept(self, standing: dict[str, Any]) -> dict[str, Any]:
+    def accept(self, standing: dict[str, Any], figure: dict[str, str] | None = None) -> dict[str, Any]:
+        """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one."""
         invitation = standing["invitation"]
         arguments = {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
-        return self.call(ACCEPT_INVITATION_TOOL, arguments)
+        return self.call(ACCEPT_INVITATION_TOOL, arguments | ({} if figure is None else {"figure": figure}))
 
 
 class OwnAgent(SdkAgent):

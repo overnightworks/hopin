@@ -45,6 +45,10 @@ class Skat:
         return FEATURE_NAME
 
     @property
+    def browser_modules(self) -> tuple[str, ...]:
+        return (FEATURE_NAME,)
+
+    @property
     def signal_types(self) -> Mapping[str, str]:
         return SIGNAL_TYPES
 

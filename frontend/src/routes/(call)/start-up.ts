@@ -60,6 +60,7 @@ const FEATURE_CORE: FeatureCore = Object.freeze({
     pinLastChatLine: pinLast,
     showChatCard: showCard,
     showAgentTile: stageModule.showAgentTile,
+    drawAgentFigures: stageModule.drawAgentFigures,
     showStage: stageModule.showStage,
     onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);

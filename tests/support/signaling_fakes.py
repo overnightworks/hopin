@@ -167,6 +167,7 @@ class RecordingFeature:
     rooms: object
     handles: frozenset[str] = frozenset()
     name: str = "recording"
+    browser_modules: tuple[str, ...] = ()
     signal_types: dict[str, str] = field(default_factory=dict)
     offered: list = field(default_factory=list)
     joined: list = field(default_factory=list)

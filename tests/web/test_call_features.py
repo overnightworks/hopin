@@ -19,10 +19,14 @@ def test_the_route_answers_no_features_when_the_call_carries_none():
     assert client_for().get(CALL_FEATURES_PATH).json() == {"features": []}
 
 
-def test_the_route_answers_the_name_of_each_of_the_calls_features_in_order():
-    features = [RecordingFeature(rooms=None, name=name) for name in ("sample", "other")]
+def test_the_route_answers_the_browser_modules_of_each_of_the_calls_features_in_order():
+    features = [
+        RecordingFeature(rooms=None, name="sample", browser_modules=("sample", "extra")),
+        RecordingFeature(rooms=None, name="other", browser_modules=("other",)),
+        RecordingFeature(rooms=None, name="server-only"),
+    ]
 
-    assert client_for(*features).get(CALL_FEATURES_PATH).json() == {"features": ["sample", "other"]}
+    assert client_for(*features).get(CALL_FEATURES_PATH).json() == {"features": ["sample", "extra", "other"]}
 
 
 @pytest.mark.parametrize("method", ["get", "head"])

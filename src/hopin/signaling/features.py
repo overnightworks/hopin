@@ -64,8 +64,12 @@ class CallFeature(Protocol):
 
     @property
     def name(self) -> str:
-        """Its name, which equals its directory under `frontend/src/lib/features/`, whose `install(core)` the page
-        awaits before signaling connects."""
+        """Its unique name."""
+
+    @property
+    def browser_modules(self) -> tuple[str, ...]:
+        """The directories under `frontend/src/lib/features/` whose `install(core)` the page awaits before signaling
+        connects; none for a feature the page does not know."""
 
     @property
     def signal_types(self) -> Mapping[str, str]:

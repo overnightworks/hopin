@@ -29,6 +29,7 @@ async function installedSkat() {
         toastKind: TOAST_KIND,
         showAgentTile: () => undefined,
         showStage: (view) => void stage.push(view),
+        drawAgentFigures: () => undefined,
         closeMore: () => void closed.push(true),
         addMoreItems: (...items) => void moreItems.push(...items),
         receiveChatLine: () => undefined,

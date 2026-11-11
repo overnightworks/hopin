@@ -53,7 +53,7 @@ class Scene:
         self.agent.listen()
         assert self.agent.standings() == []
 
-    def member_adds_and_the_agent_accepts(self) -> None:
+    def member_adds_and_the_agent_accepts(self, figure: dict[str, str] | None = None) -> None:
         self.agent_listens()
         open_more(self.member)
         offer = self.offer_of_agent(self.member)
@@ -61,5 +61,5 @@ class Scene:
         offer.click()
         expect(offer).to_have_text(f"Inviting {self.agent.name}…")
         expect(offer).to_be_disabled()
-        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS))
+        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS), figure)
         assert accepted["name"] == self.agent.name
