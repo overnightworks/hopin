@@ -24,6 +24,9 @@ async function installedParticipation() {
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
+    const more = document.createElement("dialog");
+    more.open = true;
+    document.body.append(more);
     const core: FeatureCore = {
         on: (type, handler) => void handlers.set(type, handler),
         send: (frame) => void sent.push(frame),
@@ -39,7 +42,7 @@ async function installedParticipation() {
         },
         addMoreItems: (...items) => {
             moreItems.push(...items);
-            document.body.append(...items);
+            more.append(...items);
         },
         receiveChatLine: (view: FeatureView) => void lines.push(view),
         pinLastChatLine: () => undefined,
@@ -71,6 +74,9 @@ async function installedParticipation() {
                 .at(0)?.textContent,
         shown: () => onThePage().some((item) => item.textContent !== ""),
         focused: () => moreItems.find((item) => item.contains(document.activeElement)),
+        personClosesMore: () => {
+            more.dispatchEvent(new Event("close"));
+        },
         endCall: () => {
             callEndedHooks.forEach((hook) => {
                 hook();
@@ -313,6 +319,17 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
 
         expect(page.alert()).toBeTruthy();
+    });
+
+    it("CALL-51: takes a refusal away when the person closes More, with the control that only held it", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+
+        page.personClosesMore();
+
+        expect([page.shown(), page.alert()]).toEqual([false, undefined]);
     });
 
     it("takes the refusal away when the person calls again", async () => {

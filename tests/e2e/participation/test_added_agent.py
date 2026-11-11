@@ -89,3 +89,23 @@ def test_a_member_outside_the_adders_group_is_offered_no_add(
     expect(scene.offer_of_agent(scene.member)).to_have_count(1)
     open_more(outsider)
     expect(scene.offers_on(outsider)).to_have_count(0)
+
+
+def test_a_refusal_after_the_adders_right_was_revoked_leaves_when_more_is_closed(
+    scene_of: Callable[[dict[str, Any]], Scene],
+    e2e_server: RunningServer,
+    member_of: Callable[[Page], Any],
+) -> None:
+    """CALL-51: A refused add shows as one of the control's reasons and leaves when the person closes More."""
+    scene = scene_of(DESKTOP)
+    scene.agent_listens()
+    open_more(scene.member)
+    e2e_server.issuer.grant_groups(member_of(scene.member).account.id, ())
+
+    scene.offer_of_agent(scene.member).get_by_role("button").click()
+
+    expect(scene.member.get_by_role("alert")).to_be_visible()
+
+    scene.member.keyboard.press("Escape")
+    open_more(scene.member)
+    expect(scene.member.get_by_role("alert")).to_have_count(0)

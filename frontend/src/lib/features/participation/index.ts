@@ -87,6 +87,10 @@ export function install(core: FeatureCore): Promise<void> {
         },
     });
     core.addMoreItems(offers);
+    // A refusal is read in More; the server sends no frame that takes it away when the person only lost the right.
+    offers.closest("dialog")?.addEventListener("close", () => {
+        offersView.refusal = undefined;
+    });
 
     function clearOffers() {
         offersView.shown = false;
