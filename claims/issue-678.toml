@@ -1,8 +1,0 @@
-claim_id = "09840aae1855442da69f553ce4ec2f79"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "27445a922c4d0f2f0d3162e08a34857559f515d7"
-branch = "claude/issue-678-hopin-pins-webauth-0-36-0-and-installs-i"
-scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/config/web_policy.py", "tests/auth/test_gate.py", "uv.lock"]
-opened_commit = "184b6133cd5c8766360c10a5f9f400acde517690"
-whole_reason = "The pin and the installer's changed call are one step: the tree does not start under the new pin until the removed properties are gone."
