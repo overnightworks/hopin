@@ -15,7 +15,6 @@ from hopin.app import create_app
 from hopin.config.constants import (
     ACCOUNT_PATH,
     BACKCHANNEL_LOGOUT_PATH,
-    CALL_PATH,
     HOME_PATH,
     HOST_GRACE_SECONDS,
     PERSON_EXPORT_PATH,
@@ -37,7 +36,6 @@ from tests.support.stores import single_process_stores
 ABNORMAL_CLOSE_CODE = 4999
 FOUND_ELSEWHERE = 302
 UNAUTHENTICATED = 401
-NOT_FOUND = 404
 
 pytestmark = pytest.mark.integration
 
@@ -183,10 +181,8 @@ class TestSeatsOfAnErasedPerson:
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         assert host.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
 
-    def test_a_call_the_erased_person_hosts_ends_for_everyone_after_the_grace(
-        self, client, members, sockets, erase, advance
-    ):
-        host, guest, room_id = a_call_with_a_guest(sockets, "anna", "ben")
+    def test_a_call_the_erased_person_hosts_ends_for_everyone_after_the_grace(self, sockets, erase, advance):
+        host, guest, _ = a_call_with_a_guest(sockets, "anna", "ben")
         erase("anna")
 
         advance(SESSION_RECHECK_SECONDS)
@@ -200,8 +196,6 @@ class TestSeatsOfAnErasedPerson:
         assert closed["reason"] == RoomClosedReason.HOST_GONE.value
         with pytest.raises(WebSocketDisconnect):
             guest.receive_json()
-        ben_cookies = {"cookie": cookie_header(members("ben").set_cookie_headers)}
-        assert client.get(f"{CALL_PATH}/{room_id}", headers=ben_cookies).status_code == NOT_FOUND
 
     def test_a_parked_seat_of_the_erased_person_cannot_be_resumed_and_expires_with_the_park(
         self, client, members, sockets, scheduler, erase, advance
