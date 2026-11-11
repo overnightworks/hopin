@@ -1,8 +1,0 @@
-claim_id = "1607702b64b34fefa6b59a72fd667ba4"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "81e37bae9f8d7754d17170ea32ee78f2535b0cf3"
-branch = "claude/issue-652-hopin-takes-webauth-s-single-process-sto"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/auth/stores.py", "src/hopin/people.py", "tests/agent/test_session_groups.py", "tests/auth/test_account.py", "tests/auth/test_gate.py", "tests/auth/test_sign_in_backchannel_erasure.py", "tests/auth/test_sign_in_routes.py", "tests/auth/test_stores.py", "tests/e2e/support/server.py", "tests/game/support/call_world.py", "tests/game/support/world.py", "tests/game/test_quiz_agent_backend_flow.py", "tests/game/test_table_export.py", "tests/game/test_table_feature_activation.py", "tests/signaling/conftest.py", "tests/signaling/test_handler_transport.py", "tests/signaling/test_identity.py", "tests/support/dialed_call.py", "tests/support/signed_in.py", "tests/support/stores.py", "tests/test_app.py", "tests/test_main_logging.py", "tests/test_people.py", "tests/web/test_turn_relay.py"]
-opened_commit = "89d9ed0c997151c8aa4ce0592df722af565a14f0"
-whole_reason = "Deleting the fork is one predecessor exit: a half-swapped tree would run two store implementations, and the bulk is the same import change in 22 test files."
