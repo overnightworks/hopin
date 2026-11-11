@@ -16,6 +16,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
+from hopin.errors import NotHostError
 from tests.e2e.support.calls import (
     add_init_scripts,
     call_link_of,
@@ -456,8 +457,11 @@ def test_guest_whose_request_the_server_answers_with_an_error_that_is_no_refusal
 
     guest_frames.send({"type": SignalType.END_ROOM})
 
-    expect(guest.locator("#status")).to_have_text(re.compile(r"^Error: .+"))
+    server_sentence = str(NotHostError(hosted_call.invite_link.rsplit("/", 1)[-1]))
     expect(guest.locator("#status")).to_have_class(re.compile(r"\bstatus-error\b"))
+    expect(guest.locator("#status")).not_to_be_empty()
+    expect(guest.locator("#status")).not_to_have_text(re.compile(r"^Error:"))
+    expect(guest.locator("#status")).not_to_contain_text(server_sentence)
     expect(end_screen(guest)).to_be_hidden()
     expect(hosted_call.host.locator(OTHER_TILE)).to_have_count(1)
 

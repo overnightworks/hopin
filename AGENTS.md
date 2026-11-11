@@ -15,6 +15,7 @@
 - A `wire.ts` under `frontend/src/lib` is generated; change the Python wire owner and run `make wire`, never edit the file.
 - A setting added to or changed in `src/hopin/config/settings.py` updates README's Configuration table in the same change.
 - The scanner marker traps are in the `sonar-distributor` skill, section "Marker grammar".
+- A new page text goes into `frontend/src/lib/texts.ts` until the catalog exists.
 
 ## Owners
 

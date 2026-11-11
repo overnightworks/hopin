@@ -45,6 +45,7 @@ import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.svelte.ts";
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
+import { UNEXPECTED_ERROR_TEXT } from "#lib/texts.ts";
 
 const callEndedHooks: (() => void)[] = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
@@ -191,7 +192,8 @@ function registerSessionHandlers() {
     on(SIGNAL_TYPE.ERROR, (frame) => {
         const refusal = endKindOfRefusal(frame.reason);
         if (refusal === null) {
-            setStatus(`Error: ${frame.message}`, "error");
+            console.error("Call error", frame.reason, frame.message);
+            setStatus(UNEXPECTED_ERROR_TEXT, "error");
             return;
         }
         tearDownCall();
