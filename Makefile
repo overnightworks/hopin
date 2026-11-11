@@ -1,4 +1,4 @@
-.PHONY: install lint wire wire-check format test dead check run e2e frontend frontend-check
+.PHONY: install lint wire wire-check catalogs format test dead check run e2e frontend frontend-check
 
 install:
 	uv sync --all-extras
@@ -8,12 +8,16 @@ lint:
 	uv run ruff format --check src tests
 	uv run mypy src
 	$(MAKE) wire-check
+	uv run design-catalogs --check
 
 wire:
 	uv run python scripts/generate_wire.py
 
 wire-check:
 	uv run python scripts/generate_wire.py --check
+
+catalogs:
+	uv run design-catalogs
 
 format:
 	uv run ruff check --fix .
