@@ -1,0 +1,8 @@
+claim_id = "509af117ab1e456fb09551bcf1a72ae4"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "2411c2ebfce242e388b93318844127f45e420979"
+branch = "claude/issue-710-the-end-home-and-pre-join-views-speak-ge"
+scope = ["docs/call.md", "frontend/src/lib/catalogs", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e", "tests/support/words.py"]
+opened_commit = "0046d0092ff5a5f832336dc7d1acbb4658460461"
+whole_reason = "The catalog entries, the generated modules, the markup that reads them and the tests that pinned the old sentences change together; the generated files and the test edits are mechanical."
