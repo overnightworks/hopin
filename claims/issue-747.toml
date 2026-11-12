@@ -1,0 +1,8 @@
+claim_id = "1441462bb56e474085792e4c48825d2b"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "2f4608e72b2ded07e2b727de311d47ddc5b6ee8a"
+branch = "claude/issue-747-hopin-pins-the-agents-library-at-v0-33-0"
+scope = ["pyproject.toml", "src/hopin/agent", "tests/game", "tests/participation", "uv.lock"]
+opened_commit = "eeecf6fdb8869e0a2ecae418d41cbf195855721c"
+whole_reason = "The pin, the lock and whatever the new field asks of the connector and its tests change together."
