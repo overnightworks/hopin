@@ -421,7 +421,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
-    { name = "overnightworks-agents", extras = ["backend", "mcp-server"], git = "https://github.com/overnightworks/agents?rev=v0.31.0" },
+    { name = "overnightworks-agents", extras = ["backend", "mcp-server"], git = "https://github.com/overnightworks/agents?rev=v0.32.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.10.0" },
     { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.37.0" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -704,8 +704,8 @@ wheels = [
 
 [[package]]
 name = "overnightworks-agents"
-version = "0.31.0"
-source = { git = "https://github.com/overnightworks/agents?rev=v0.31.0#3e0183a82a5f92f52ce3dfb8c192fd3bda4fbe83" }
+version = "0.32.0"
+source = { git = "https://github.com/overnightworks/agents?rev=v0.32.0#c91b7a85add69702aa04c1ffaba82752259c7f56" }
 dependencies = [
     { name = "pydantic" },
     { name = "ruamel-yaml" },
