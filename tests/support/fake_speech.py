@@ -38,6 +38,7 @@ ITEM = "item_one"
 _QUIET = logging.getLogger("fake_speech")
 _QUIET.setLevel(logging.CRITICAL)
 AUDIO_APPEND_TYPE = "input_audio_buffer.append"
+DROPPED = -1
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ class Session:
     headers: dict[str, str]
     client_messages: list[str] = field(default_factory=list)
     closed: threading.Event = field(default_factory=threading.Event)
-    _outgoing: queue.Queue[str | None] = field(default_factory=queue.Queue)
+    _outgoing: queue.Queue[str | int | None] = field(default_factory=queue.Queue)
     _arrived: threading.Condition = field(default_factory=threading.Condition)
 
     def say(self, event: ServerEvent) -> None:
@@ -66,6 +67,10 @@ class Session:
     def hang_up(self) -> None:
         """End the connection from the service's side, in order."""
         self._outgoing.put(None)
+
+    def drop(self) -> None:
+        """End the connection from the service's side with no close handshake, as a reset does."""
+        self._outgoing.put(DROPPED)
 
     def audio_appends(self) -> int:
         with self._arrived:
@@ -177,6 +182,9 @@ class FakeSpeech:
                     break
                 if outgoing is None:
                     connection.close()
+                    return
+                if outgoing == DROPPED:
+                    connection.socket.close()
                     return
                 connection.send(outgoing)
             try:

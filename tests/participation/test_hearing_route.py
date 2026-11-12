@@ -4,6 +4,7 @@ issuer, and the agent's window read through the real `/mcp`."""
 import base64
 import json
 import logging
+import threading
 from http import HTTPStatus
 
 import pytest
@@ -28,7 +29,7 @@ from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HEARING_PATH, HearingClose, HearingRefusal, ParticipationSignal
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
-from tests.support.fake_speech import FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
+from tests.support.fake_speech import WAIT_SECONDS, FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.signed_in import handshake_headers
 
 pytestmark = pytest.mark.integration
@@ -599,6 +600,35 @@ class TestHearingOff:
             [],
             [],
         )
+
+
+class TestHowAHopEndsInTheLog:
+    @pytest.mark.parametrize("ending", ["the_service_drops", "the_browser_leaves"])
+    def test_call_58_a_hop_the_service_drops_or_the_browser_leaves_is_logged_with_that_ending(
+        self, sponsored, fake_speech, ending
+    ):
+        endings = []
+        logged = threading.Event()
+
+        def note_the_ending(_logger, _method, event):
+            if event["event"] == "agent_hearing_ended":
+                endings.append(event["outcome"])
+                logged.set()
+            return event
+
+        with structlog.testing.capture_logs(processors=[note_the_ending]):
+            with hop(sponsored) as socket:
+                socket.send_bytes(SOUND)
+                session = fake_speech.next_session()
+                session.wait_for_audio(1)
+                if ending == "the_service_drops":
+                    session.drop()
+                    closed_with(socket)
+                else:
+                    socket.close()
+                assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
+
+        assert endings == ["cut" if ending == "the_service_drops" else "browser_left"]
 
 
 class TestNothingIsLogged:
