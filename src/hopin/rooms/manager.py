@@ -60,6 +60,3 @@ class RoomManager:
 
     def remove_room(self, room_id: str) -> None:
         self._rooms.pop(room_id, None)
-
-    def has_room(self, room_id: str) -> bool:
-        return room_id in self._rooms

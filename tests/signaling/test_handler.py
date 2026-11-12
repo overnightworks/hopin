@@ -14,6 +14,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
+from hopin.errors import RoomNotFoundError
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from tests.signaling.support.browsers import (
@@ -315,13 +316,13 @@ class TestDisconnect:
         assert sent_frames(browsers["host1"]) == [
             {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": browsers["p1"].peer_id}
         ]
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
 
     async def test_last_guest_leaving_keeps_the_room(self, link, room_manager):
         room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
         await browsers["p1"].drop(1000)
         await browsers["host1"].drop(1000)
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
 
     async def test_disconnect_without_room_is_safe(self, link, handler):
         browser = await connect(link, "c1")
@@ -407,7 +408,7 @@ class TestHandleWebsocket:
 
         [error_log] = [log for log in logs if log["event"] == "websocket_error"]
         assert error_log["code"] == 1006
-        assert room_manager.has_room(socket.sent[0]["room_id"]) is True
+        assert_room_exists(room_manager, socket.sent[0]["room_id"])
 
     @pytest.mark.parametrize("code", [1000, 1001])
     async def test_normal_disconnect_is_not_logged_as_error(self, handler, code):
@@ -426,7 +427,7 @@ class TestHandleWebsocket:
             ]
         )
         await handler.handle_websocket(socket)
-        assert room_manager.has_room(socket.sent[0]["room_id"]) is True
+        assert_room_exists(room_manager, socket.sent[0]["room_id"])
 
     async def test_refused_handshake_closes_with_policy_violation_without_accepting(self, room_manager):
         refusing_handler = SignalingHandler(room_manager, SocketAccountResolver(), ManualScheduler())
@@ -577,6 +578,15 @@ class TestSendToGonePeer:
         assert [log["event"] for log in logs if log["event"] == "send_to_gone_peer"] == ["send_to_gone_peer"]
 
 
+def assert_room_exists(room_manager, room_id):
+    assert room_manager.get_room(room_id).room_id == room_id
+
+
+def assert_room_removed(room_manager, room_id):
+    with pytest.raises(RoomNotFoundError):
+        room_manager.get_room(room_id)
+
+
 def join_message(room_id=None):
     return {"type": SignalType.JOIN.value, "room_id": room_id}
 
@@ -602,7 +612,7 @@ class TestHostGrace:
             {"type": SignalType.HOST_AWAY.value, "seconds_left": 60, "participant_id": host_id},
             {"type": SignalType.PARTICIPANT_LEFT.value, "participant_id": host_id},
         ]
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
 
     async def test_room_survives_until_the_grace_runs_out_then_closes_for_every_peer_as_host_gone(
         self, link, room_manager, scheduler
@@ -611,7 +621,7 @@ class TestHostGrace:
         room, browsers = await drop_host(link, room_manager, "p1", "p2")
 
         await scheduler.advance(59)
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
         await scheduler.advance(1)
 
         closed = {
@@ -622,7 +632,7 @@ class TestHostGrace:
         }
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == [closed]
         assert frames_of_type(browsers["p2"], SignalType.ROOM_CLOSED) == [closed]
-        assert not room_manager.has_room(room.room_id)
+        assert_room_removed(room_manager, room.room_id)
 
     async def test_former_member_of_a_closed_room_cannot_lock_or_chat(self, link, room_manager, scheduler):
         _room, browsers = await drop_host(link, room_manager, "p1", "p2")
@@ -637,10 +647,10 @@ class TestHostGrace:
     async def test_room_of_a_host_who_was_alone_closes_when_the_grace_runs_out(self, link, room_manager, scheduler):
         room, _browsers = await drop_host(link, room_manager)
 
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
         await scheduler.advance(60)
 
-        assert not room_manager.has_room(room.room_id)
+        assert_room_removed(room_manager, room.room_id)
 
     async def test_host_account_rejoining_within_the_grace_is_host_again_and_the_room_stays(
         self, link, room_manager, scheduler
@@ -659,7 +669,7 @@ class TestHostGrace:
             {"type": SignalType.HOST_BACK.value, "participant_id": returning.peer_id},
         ]
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == []
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
 
     async def test_host_who_was_alone_finds_the_room_on_reload(self, link, room_manager, scheduler):
         room, _browsers = await drop_host(link, room_manager)
@@ -668,7 +678,7 @@ class TestHostGrace:
         await scheduler.advance(60)
 
         assert frames_of_type(returning, SignalType.EXISTING_PARTICIPANTS)[0]["is_host"] is True
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
 
     async def test_host_account_is_admitted_past_the_lock_during_the_grace(self, link, room_manager):
         room, browsers = await drop_host(link, room_manager, "p1")
@@ -743,7 +753,7 @@ class TestEndRoom:
         }
         assert frames_of_type(browsers["host1"], SignalType.ROOM_CLOSED) == [closed]
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == [closed]
-        assert not room_manager.has_room(room.room_id)
+        assert_room_removed(room_manager, room.room_id)
 
 
 class TestExpiryRace:
@@ -757,4 +767,4 @@ class TestExpiryRace:
         await grace_timer.callback()
 
         assert frames_of_type(browsers["p1"], SignalType.ROOM_CLOSED) == []
-        assert room_manager.has_room(room.room_id)
+        assert_room_exists(room_manager, room.room_id)
