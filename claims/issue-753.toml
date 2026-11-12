@@ -1,0 +1,8 @@
+claim_id = "b9d5c0d603ca41438f66c730a597414b"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "5e7b2b9249c9749c32ab1bb911b9554130750260"
+branch = "claude/issue-753-hopin-runs-webauth-v0-38-0-with-the-clie"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/agent/mcp.py", "tests", "uv.lock"]
+opened_commit = "15ebe658d0806933dc0487cc0ec8d01460c5e315"
+whole_reason = "The pin, the one flag, its proof and the two documents that state the admitted audiences change together."
