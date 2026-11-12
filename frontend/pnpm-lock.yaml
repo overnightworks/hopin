@@ -213,8 +213,8 @@ importers:
         specifier: https://github.com/overnightworks/design/releases/download/v0.24.0/overnightworks-design-0.24.0.tgz
         version: https://github.com/overnightworks/design/releases/download/v0.24.0/overnightworks-design-0.24.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       overnightworks-figure:
-        specifier: https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz
-        version: https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz
+        specifier: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz
+        version: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -1278,9 +1278,9 @@ packages:
     peerDependencies:
       svelte: ^5.20.0
 
-  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz:
-    resolution: {integrity: sha512-4YGqA8NQbEEl6+Q3x8uj3p8ZHDW4mpUlxiEhnkux9upt8ESPh9cY7jFqNXYcTHmyqvAy80vFrhqf5Z13LYr9ug==, tarball: https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz}
-    version: 0.2.0
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz:
+    resolution: {integrity: sha512-1eTIGs9vI8wTxu0/ccogZxJqJRgim4fYt+5I9XIYtv4VOu1XVoHH/4lDP6OY/juh8Jb7bAgxkslfJ0FcQn6UKw==, tarball: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz}
+    version: 0.3.0
     hasBin: true
 
   p-limit@3.1.0:
@@ -2661,7 +2661,7 @@ snapshots:
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.72.1)
 
-  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.2.0/overnightworks-figure-0.2.0.tgz:
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz:
     dependencies:
       '@pixiv/three-vrm': 3.5.5(three@0.187.0)
       three: 0.187.0
