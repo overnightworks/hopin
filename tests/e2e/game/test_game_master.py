@@ -39,6 +39,7 @@ from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES,
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -158,7 +159,7 @@ def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for
     open_more(host)
     menu = open_more(guest)
 
-    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", "Start quiz", *LEGAL_LINKS]
+    assert host.evaluate(VISIBLE_MORE_ENTRIES) == [text("de", "more.lockSwitch"), "Start quiz", *LEGAL_LINKS]
     assert guest.evaluate(VISIBLE_MORE_ENTRIES) == ["Start quiz", *LEGAL_LINKS]
     expect(menu.locator(START_QUIZ)).to_be_focused()
 

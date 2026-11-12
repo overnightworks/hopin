@@ -14,6 +14,7 @@ from tests.e2e.support.media import (
 )
 from tests.e2e.support.page_assertions import CLIPBOARD_ALLOWED
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,9 +25,21 @@ BAR = "#stage .cbar"
 VISIBLE_BAR_BUTTONS = f"{BAR} button:visible"
 ROUND_BUTTON_PIXELS = 52
 LEAVE_PILL_PIXELS = {"desktop": 72, "phone": 52}
+MUTE, CAMERA_OFF, SHARE_SCREEN, INVITE, CHAT, MORE, LEAVE = (
+    text("de", key)
+    for key in (
+        "call.muteButton",
+        "call.cameraOffButton",
+        "call.shareScreenButton",
+        "call.inviteButton",
+        "call.chatButton",
+        "call.moreButton",
+        "call.leaveButton",
+    )
+)
 BAR_NAMES = {
-    "desktop": ["Mute", "Camera off", "Share screen", "Invite", "Chat", "More", "Leave"],
-    "phone": ["Mute", "Camera off", "Invite", "Chat", "More", "Leave"],
+    "desktop": [MUTE, CAMERA_OFF, SHARE_SCREEN, INVITE, CHAT, MORE, LEAVE],
+    "phone": [MUTE, CAMERA_OFF, INVITE, CHAT, MORE, LEAVE],
 }
 OTHER_MUTE_MARK = ".tile:not(.self) .name .muted"
 OWN_PICTURE_AND_ICON = "#localVideo", "#localPlaceholder"
@@ -113,7 +126,7 @@ def test_host_bar_shows_round_buttons_in_order_inside_the_stage_and_no_old_strip
         assert box["right"] <= stage["right"]
         assert box["bottom"] <= stage["bottom"]
         assert box["bottom"] - box["top"] == ROUND_BUTTON_PIXELS
-    leave = button_named(host, "Leave").bounding_box()
+    leave = button_named(host, LEAVE).bounding_box()
     assert leave is not None
     assert leave["width"] == LEAVE_PILL_PIXELS[name]
     expect(host.locator(".controls")).to_have_count(0)
@@ -127,7 +140,7 @@ def test_guest_bar_has_more_and_no_lock_and_no_button_carries_a_title(
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
 
     for person in (host, guest):
-        expect(button_named(person, "More")).to_be_visible()
+        expect(button_named(person, MORE)).to_be_visible()
         expect(person.locator(f"{BAR} #lockBtn")).to_have_count(0)
         expect(person.locator(f"{BAR} [title]")).to_have_count(0)
     assert bar_names(guest) == bar_names(host)
@@ -138,7 +151,7 @@ def test_mute_keeps_its_name_and_is_pressed_exactly_while_the_microphone_is_off(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
-    mute = button_named(host, "Mute")
+    mute = button_named(host, MUTE)
 
     mute.click()
 
@@ -158,7 +171,7 @@ def test_camera_off_keeps_its_name_and_is_pressed_exactly_while_the_own_tile_sho
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
     host, _, _ = open_call(open_person, base_url, page_errors, form_factor)
-    camera = button_named(host, "Camera off")
+    camera = button_named(host, CAMERA_OFF)
     picture, icon = (host.locator(selector) for selector in OWN_PICTURE_AND_ICON)
 
     camera.click()
@@ -178,7 +191,7 @@ def test_share_screen_is_pressed_and_active_exactly_while_sharing(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     host, _, _ = open_call(open_person, base_url, page_errors, DESKTOP, SHARE_THE_SCREEN_FROM_A_CANVAS)
-    share = button_named(host, "Share screen")
+    share = button_named(host, SHARE_SCREEN)
 
     share_the_screen(host)
 
@@ -195,7 +208,7 @@ def test_chat_button_shows_the_unread_count_and_clears_it_when_the_panel_opens(
 ) -> None:
     """CALL-37: Chat button shows the unread count and clears it when the panel opens."""
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
-    chat = button_named(host, "Chat")
+    chat = button_named(host, CHAT)
     badge = host.locator("#chatBadge")
 
     guest.click("#chatBtn")
@@ -227,11 +240,11 @@ def test_failed_start_draws_the_device_buttons_off_and_disabled_and_leave_still_
     expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
     for selector in ("#muteBtn", "#videoBtn", "#screenBtn"):
         expect(host.locator(selector)).to_be_disabled()
-    pressed(button_named(host, "Mute"), value=True)
-    pressed(button_named(host, "Camera off"), value=True)
-    button_named(host, "Mute").dispatch_event("click")
-    pressed(button_named(host, "Mute"), value=True)
-    button_named(host, "Leave").click()
+    pressed(button_named(host, MUTE), value=True)
+    pressed(button_named(host, CAMERA_OFF), value=True)
+    button_named(host, MUTE).dispatch_event("click")
+    pressed(button_named(host, MUTE), value=True)
+    button_named(host, LEAVE).click()
     expect(host.locator("[data-screen=call]")).to_be_hidden()
 
 
@@ -280,4 +293,4 @@ def test_tab_walks_the_bar_in_visual_order_and_space_toggles_mute(
         expect(button_named(host, name)).to_be_focused()
     host.keyboard.press("Space")
 
-    pressed(button_named(host, "Mute"), value=True)
+    pressed(button_named(host, MUTE), value=True)

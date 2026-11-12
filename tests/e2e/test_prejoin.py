@@ -491,7 +491,7 @@ def test_prejoin_legal_link_opens_a_new_tab_while_the_camera_keeps_playing(
 @pytest.mark.parametrize(
     ("form_factor", "way_home"),
     [
-        pytest.param(DESKTOP, text("de", "prejoin.unopenedHeading"), id="desktop-brand"),
+        pytest.param(DESKTOP, text("de", "call.brandName"), id="desktop-brand"),
         pytest.param(PHONE, text("de", "prejoin.backButton"), id="phone-back"),
     ],
 )

@@ -7,6 +7,86 @@ msgctxt "call.unexpectedError"
 msgid "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
 msgstr ""
 
+msgctxt "call.pageTitle"
+msgid "HopIn - Videoanruf"
+msgstr ""
+
+msgctxt "call.brandName"
+msgid "HopIn"
+msgstr ""
+
+msgctxt "call.leaveQuestion"
+msgid "Diesen Anruf verlassen?"
+msgstr ""
+
+msgctxt "call.leaveCancelButton"
+msgid "Abbrechen"
+msgstr ""
+
+msgctxt "call.leaveConfirmButton"
+msgid "Verlassen"
+msgstr ""
+
+msgctxt "call.lockedTag"
+msgid "Gesperrt"
+msgstr ""
+
+msgctxt "call.participantCountLabel"
+msgid "Teilnehmende"
+msgstr ""
+
+msgctxt "call.ownTileName"
+msgid "Du"
+msgstr ""
+
+msgctxt "call.waitingTitle"
+msgid "Warten auf andere"
+msgstr ""
+
+msgctxt "call.waitingText"
+msgid "Lade Leute ein, diesem Anruf beizutreten."
+msgstr ""
+
+msgctxt "call.waitingCopyLinkButton"
+msgid "Link kopieren"
+msgstr ""
+
+msgctxt "call.waitingShareButton"
+msgid "Teilen"
+msgstr ""
+
+msgctxt "call.controlBarLabel"
+msgid "Anrufsteuerung"
+msgstr ""
+
+msgctxt "call.muteButton"
+msgid "Stummschalten"
+msgstr ""
+
+msgctxt "call.cameraOffButton"
+msgid "Kamera ausschalten"
+msgstr ""
+
+msgctxt "call.shareScreenButton"
+msgid "Bildschirm teilen"
+msgstr ""
+
+msgctxt "call.inviteButton"
+msgid "Einladen"
+msgstr ""
+
+msgctxt "call.chatButton"
+msgid "Chat"
+msgstr ""
+
+msgctxt "call.moreButton"
+msgid "Mehr"
+msgstr ""
+
+msgctxt "call.leaveButton"
+msgid "Verlassen"
+msgstr ""
+
 msgctxt "end.accountButton"
 msgid "Konto"
 msgstr ""
@@ -181,4 +261,84 @@ msgstr ""
 
 msgctxt "prejoin.mediaRefused"
 msgid "Weder Kamera noch Mikrofon verfügbar ({errorName}). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal."
+msgstr ""
+
+msgctxt "more.menuLabel"
+msgid "Mehr"
+msgstr ""
+
+msgctxt "more.lockSwitch"
+msgid "Anruf sperren"
+msgstr ""
+
+msgctxt "invite.menuLabel"
+msgid "Leute einladen"
+msgstr ""
+
+msgctxt "invite.heading"
+msgid "Leute einladen"
+msgstr ""
+
+msgctxt "invite.closeButton"
+msgid "Schließen"
+msgstr ""
+
+msgctxt "invite.copyButton"
+msgid "Kopieren"
+msgstr ""
+
+msgctxt "invite.membersNote"
+msgid "Nur HopIn-Mitglieder können beitreten."
+msgstr ""
+
+msgctxt "invite.copyLinkButton"
+msgid "Link kopieren"
+msgstr ""
+
+msgctxt "invite.shareButton"
+msgid "Teilen"
+msgstr ""
+
+msgctxt "chat.header"
+msgid "Chat"
+msgstr ""
+
+msgctxt "chat.inputPlaceholder"
+msgid "Schreib eine Nachricht …"
+msgstr ""
+
+msgctxt "chat.inputLabel"
+msgid "Chatnachricht"
+msgstr ""
+
+msgctxt "chat.sendButton"
+msgid "Senden"
+msgstr ""
+
+msgctxt "account.menuLabel"
+msgid "Konto"
+msgstr ""
+
+msgctxt "tile.removeButton"
+msgid "Entfernen"
+msgstr ""
+
+msgctxt "tile.aiBadge"
+msgid "KI"
+msgstr ""
+
+msgctxt "tile.agentThinkingLabel"
+msgid "{name}, KI, denkt nach"
+msgstr ""
+
+msgctxt "tile.agentWaitingLabel"
+msgid "{name}, KI, wartet auf Antworten"
+msgstr ""
+
+msgctxt "tile.agentSpeakingLabel"
+msgid "{name}, KI, spricht"
+msgstr ""
+
+msgctxt "tile.agentPresentLabel"
+msgid "{name}, KI, ist im Anruf"
 msgstr ""

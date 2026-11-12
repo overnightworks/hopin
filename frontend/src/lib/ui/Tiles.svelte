@@ -1,13 +1,14 @@
 <script lang="ts">
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
+    import { words } from "#lib/words/de.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
     import { agentFigure, agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
-        [AGENT_ACTIVITY.THINKING]: "thinking",
-        [AGENT_ACTIVITY.WAITING]: "waiting for answers",
-        [AGENT_ACTIVITY.SPEAKING]: "speaking",
-        [AGENT_ACTIVITY.PRESENT]: "in the call",
+        [AGENT_ACTIVITY.THINKING]: words["tile.agentThinkingLabel"],
+        [AGENT_ACTIVITY.WAITING]: words["tile.agentWaitingLabel"],
+        [AGENT_ACTIVITY.SPEAKING]: words["tile.agentSpeakingLabel"],
+        [AGENT_ACTIVITY.PRESENT]: words["tile.agentPresentLabel"],
     };
 </script>
 
@@ -46,7 +47,7 @@
 {#each [...agentTiles] as [key, agent] (key)}
     {@const tileClass = "tile agent activity-" + agent.activity}
     {@const tileId = "container-" + key}
-    {@const tileLabel = agent.name + ", AI, " + ACTIVITY_LABEL[agent.activity]}
+    {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
     <div
         class={tileClass}
         class:speaking={agent.activity === AGENT_ACTIVITY.SPEAKING}
@@ -73,7 +74,7 @@
             <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
         {#if agent.onRemove !== undefined}
-            <button class="agent-remove" type="button" aria-label="Remove" onclick={agent.onRemove}>
+            <button class="agent-remove" type="button" aria-label={words["tile.removeButton"]} onclick={agent.onRemove}>
                 <svg
                     class="icon"
                     width="16"
@@ -90,7 +91,7 @@
         <span class="name"
             ><span class="wave" class:hidden={agent.activity !== AGENT_ACTIVITY.SPEAKING} aria-hidden="true"
                 ><i></i><i></i><i></i></span
-            >{agent.name}<span class="ai-badge">AI</span>{#if agent.sponsor !== undefined}<span class="sponsor"
+            >{agent.name}<span class="ai-badge">{words["tile.aiBadge"]}</span>{#if agent.sponsor !== undefined}<span class="sponsor"
                     >{agent.sponsor}</span
                 >{/if}</span
         >
