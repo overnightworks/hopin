@@ -1,14 +1,21 @@
 """An agent with an account of its own, added by a member of the adders group, at HopIn's real `/mcp` and `/ws`."""
 
+import asyncio
 import json
 
 import pytest
+import structlog.testing
 from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
+from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME
+from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
+from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 from tests.support.dialed_call import accept_arguments
 
 pytestmark = pytest.mark.integration
+
+RECOMPUTE_FAILED_EVENT = "agent_offers_recompute_failed"
 
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 JOINED = ParticipationSignal.AGENT_JOINED.value
@@ -179,3 +186,30 @@ class TestTheStandingResource:
 
         error = answer.json()["error"]
         assert (error["message"], uri in answer.text) == ("Unknown resource", False)
+
+
+def _running_recomputes():
+    return [task for task in asyncio.all_tasks() if task.get_name() == OFFERS_RECOMPUTE_TASK_NAME]
+
+
+async def let_recomputes_end():
+    """Wait until every recompute that a listen change started has ended. A failed one returns its error here, and
+    hopin has logged it by then: its done callback runs before the gather resumes."""
+    async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+        while recomputes := _running_recomputes():
+            await asyncio.gather(*recomputes, return_exceptions=True)
+
+
+class TestTheOffersAfterAListenChange:
+    def test_a_recompute_that_fails_after_a_listen_change_is_logged_by_hopin_once_it_ends(self, scene, monkeypatch):
+        async def fail(_participation):
+            raise RuntimeError("the offers cannot be computed")
+
+        other = scene.call.agent_token(owner=scene.owner_subject, subject="other-agent", agent_name="Codex")
+        scene.call.standing(other)
+        monkeypatch.setattr(Participation, "listening_changed", fail)
+        with structlog.testing.capture_logs() as logs:
+            scene.call.listen(other, [STANDING_URI])
+            scene.call.client.portal.call(let_recomputes_end)
+
+        assert RECOMPUTE_FAILED_EVENT in [entry["event"] for entry in logs]
