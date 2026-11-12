@@ -1,0 +1,7 @@
+claim_id = "a3d4ecf82fa04caeb1117b9b0f8cb233"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "fb3b7c57ca345a2010fabf4eacaae2e8b8dedca3"
+branch = "claude/issue-743-hopin-pins-figure-v0-3-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml"]
+opened_commit = "d5629cdb8a9aa065a3a05192cb5b9061f2addab3"
