@@ -69,7 +69,7 @@ SOURCE_LANGUAGE: Final[Language] = 'de'
 LANGUAGES: Final[tuple[Language, ...]] = (
     'de',
 )
-WORDS: Final[Mapping[Language, Mapping[Key, str | Mapping[Category, str]]]] = {
+WORDS: Mapping[Language, Mapping[Key, str | Mapping[Category, str]]] = {
     'de': {
         'call.unexpectedError': 'Etwas ist schiefgegangen. Bitte versuch es noch einmal.',
         'end.accountButton': 'Konto',
@@ -130,6 +130,13 @@ def plural_category(language: Language, count: int) -> Category:
 
 
 def text(language: Language, key: Key, /, *, count: int | None = None, **gaps: str) -> str:
+    if language not in WORDS:
+        raise KeyError(f'unknown language {language!r}; the languages are {list(WORDS)}')
+    if key not in WORDS[language]:
+        family = key.rpartition('.')[0]
+        is_family = any(name == family and not isinstance(entry, str) for name, entry in WORDS[language].items())
+        hint = f'; a plural family is named by its family key {family!r}' if is_family else ''
+        raise KeyError(f'unknown key {key!r}{hint}')
     words = WORDS[language][key]
     if isinstance(words, str):
         sentence, counted = words, False
