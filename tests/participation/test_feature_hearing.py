@@ -505,3 +505,14 @@ class TestTheSettingOff:
         assert participation.open_hearing(GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
         participation.heard(guest.peer_id, "hello", began_at=0.0)
         assert (lines_of(participation, GUEST, room_of(host)), window_changes) == ((), [])
+
+    async def test_call_57_a_switch_turned_on_by_any_caller_records_nothing(
+        self, link, participation, hearing, member_hearing
+    ):
+        """CALL-57: With the setting off no switch is ever turned on, whoever asks for it."""
+        host, guest = await host_and_guest(link)
+        agent = await dial(participation, guest)
+
+        hearing.switch(agent, on=True)
+
+        assert hearers(member_hearing, room_of(host), guest.peer_id) == set()

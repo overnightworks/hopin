@@ -64,11 +64,16 @@ class Hearing:
         if self.enabled:
             self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=brought_by_sponsor)
 
-    def is_on(self, agent: DialedAgent) -> bool:
+    def switch_of(self, agent: DialedAgent) -> bool | None:
+        """The agent's switch as the record holds it; none while the setting is off, when no agent has one."""
+        if not self.enabled:
+            return None
         return agent.person in self._record.sensing(agent.room_id, agent.sponsor)
 
     def switch(self, agent: DialedAgent, *, on: bool) -> None:
-        """Set the sponsor's switch for the agent, which must be joined."""
+        """Set the sponsor's switch for the agent, which must be joined; nothing while the setting is off."""
+        if not self.enabled:
+            return
         self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=on)
         self._end_handle_unless_heard(agent.room_id, agent.sponsor)
 

@@ -701,8 +701,9 @@ class Participation:
     async def _tell_hearing(self, agent: DialedAgent) -> None:
         """Tell the agent's sponsor the server's record of the agent's switch, while the agent is in the call and the
         call lets agents hear."""
-        if self._hearing.enabled and self._in_call(agent):
-            await self._tell(agent.room_id, [agent.sponsor], _hearing_frame(agent, on=self._hearing.is_on(agent)))
+        on = self._hearing.switch_of(agent)
+        if on is not None and self._in_call(agent):
+            await self._tell(agent.room_id, [agent.sponsor], _hearing_frame(agent, on=on))
 
     async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: JsonObject) -> None:
         """Send to each seat that still sits in the room: a room that has ended gets nothing more."""
