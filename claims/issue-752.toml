@@ -1,7 +1,0 @@
-claim_id = "778d068b0ba84585b3af4881e76763bc"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "5e7b2b9249c9749c32ab1bb911b9554130750260"
-branch = "claude/issue-752-the-long-name-tile-test-waits-for-the-se"
-scope = ["tests/e2e/test_names.py"]
-opened_commit = "45a7a22e494da93c50cba9fdac3fe3da049c4066"
