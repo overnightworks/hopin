@@ -1,5 +1,6 @@
 import re
 
+from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.media import MEDIA_PERMISSIONS
@@ -85,7 +86,7 @@ def expect_both_legal_links(screen: Locator) -> None:
 
 
 def expect_no_legal_footer(screen: Locator) -> None:
-    expect(screen.get_by_role("navigation", name="Legal")).to_have_count(0)
+    expect(screen.get_by_role("navigation", name=kit_text("de", "legalLinks.name"))).to_have_count(0)
 
 
 def expect_both_legal_links_in_the_profile_menu(person: Page) -> None:

@@ -1,6 +1,7 @@
 import re
 from typing import TYPE_CHECKING, Any
 
+from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.media import (
@@ -121,7 +122,7 @@ def open_more(person: Page) -> Locator:
 
 def more_legal_links(person: Page) -> Locator:
     """More's legal links at its foot; the note under Quiz starten links the privacy notice too."""
-    return open_more(person).get_by_role("navigation", name="Legal")
+    return open_more(person).get_by_role("navigation", name=kit_text("de", "legalLinks.name"))
 
 
 def say_in_chat(person: Page, text: str) -> None:
