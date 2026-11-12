@@ -57,6 +57,19 @@ from tests.support.signaling_fakes import ROOM_LIMIT, SocketAccountResolver, acc
 pytestmark = pytest.mark.asyncio
 
 
+class TestARefusalAndItsWait:
+    @pytest.mark.parametrize(
+        ("reason", "seconds"),
+        [
+            pytest.param(GameRefusal.BUSY, None, id="busy-without-seconds"),
+            pytest.param(GameRefusal.UNAVAILABLE, 5, id="other-with-seconds"),
+        ],
+    )
+    async def test_a_refusal_cannot_be_built_with_a_wait_unless_it_is_busy_and_with_one_if_it_is(self, reason, seconds):
+        with pytest.raises(ValueError, match=reason.value):
+            Refused(reason, retry_after_seconds=seconds)
+
+
 class TestOneRun:
     async def test_every_seat_sees_thinking_then_the_question_then_answering_with_round_and_starter(self, link):
         call = await call_of(link, "host", "guest")

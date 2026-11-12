@@ -1,4 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
+import { words } from "#lib/words/de.ts";
 import { AGENT_ACTIVITY, type AgentTile, type OutgoingFrame } from "#lib/call/feature-port.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
 
@@ -36,8 +37,6 @@ export type QuestionCardProps = {
     reveal: () => void;
     answer: (text: string) => void;
 };
-
-const GAME_MASTER_NAME = "Game master";
 
 interface QuizRound {
     round: number;
@@ -98,9 +97,7 @@ export class Quiz {
     }
 
     get progress() {
-        return this.#quizRound === null
-            ? ""
-            : `Question ${String(this.#quizRound.round)} of ${String(this.#quizRound.rounds)}`;
+        return this.#quizRound === null ? "" : this.#questionProgress(this.#quizRound);
     }
 
     /** The open round's card props, a new object per round and changed in place after that. */
@@ -115,9 +112,9 @@ export class Quiz {
     get agentTile(): AgentTile | null {
         const speaking = this.#voicesPlaying.size > 0;
         if (this.#phase === GAME_PHASE.IDLE && !this.#voiceFrameDue && this.#voicesOutstanding.size === 0) return null;
-        if (speaking) return { name: GAME_MASTER_NAME, activity: AGENT_ACTIVITY.SPEAKING };
+        if (speaking) return { name: words["game.masterName"], activity: AGENT_ACTIVITY.SPEAKING };
         const activity = this.isThinking ? AGENT_ACTIVITY.THINKING : AGENT_ACTIVITY.WAITING;
-        return { name: GAME_MASTER_NAME, activity };
+        return { name: words["game.masterName"], activity };
     }
 
     /** Whether a voiced line of this quiz played or plays, for as long as the quiz master's tile shows. */
@@ -255,10 +252,14 @@ export class Quiz {
         this.#onChange();
     }
 
+    #questionProgress(quizRound: QuizRound) {
+        return words["game.questionProgress"]({ round: String(quizRound.round), rounds: String(quizRound.rounds) });
+    }
+
     #answerStatus() {
         if (this.#answerCount === null) return "";
-        const count = `${String(this.#answerCount.answered)} of ${String(this.#answerCount.players)} answered`;
-        return this.#answerSent ? `Answer sent · ${count}` : count;
+        const counts = { answered: String(this.#answerCount.answered), players: String(this.#answerCount.players) };
+        return this.#answerSent ? words["game.answerSentCountStatus"](counts) : words["game.answerCountStatus"](counts);
     }
 
     #openCard(quizRound: QuizRound, question: { text: string }): QuestionCardProps {
@@ -266,7 +267,7 @@ export class Quiz {
         this.#answerSent = false;
         this.#answerSentBeforeLastSend = false;
         const card = $state<QuestionCardProps>({
-            tag: `Question ${String(quizRound.round)} of ${String(quizRound.rounds)}`,
+            tag: this.#questionProgress(quizRound),
             question: question.text,
             canReveal: quizRound.starter === this.#ownParticipantId,
             revealDisabled: true,

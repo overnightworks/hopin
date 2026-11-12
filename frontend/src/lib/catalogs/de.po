@@ -430,3 +430,131 @@ msgstr ""
 msgctxt "tile.agentPresentLabel"
 msgid "{name}, KI, ist im Anruf"
 msgstr ""
+
+msgctxt "game.masterName"
+msgid "Quizmaster"
+msgstr ""
+
+msgctxt "game.startButton"
+msgid "Quiz starten"
+msgstr ""
+
+msgctxt "game.startHint"
+msgid "{name} fragt die Runde"
+msgstr ""
+
+msgctxt "game.runningLabel"
+msgid "Quiz läuft"
+msgstr ""
+
+msgctxt "game.endButton"
+msgid "Quiz beenden"
+msgstr ""
+
+msgctxt "game.thinkingButton"
+msgid "{name} denkt nach …"
+msgstr ""
+
+msgctxt "game.thinkingLabel"
+msgid "{name} denkt nach"
+msgstr ""
+
+msgctxt "game.voiceLabel"
+msgid "{name}-Stimme"
+msgstr ""
+
+msgctxt "game.voiceOn"
+msgid "An"
+msgstr ""
+
+msgctxt "game.voiceOff"
+msgid "Aus"
+msgstr ""
+
+msgctxt "game.questionCardLabel"
+msgid "Quizfrage"
+msgstr ""
+
+msgctxt "game.revealButton"
+msgid "Auflösen"
+msgstr ""
+
+msgctxt "game.answerLabel"
+msgid "Deine Antwort"
+msgstr ""
+
+msgctxt "game.sendButton"
+msgid "Senden"
+msgstr ""
+
+msgctxt "game.questionProgress"
+msgid "Frage {round} von {rounds}"
+msgstr ""
+
+msgctxt "game.answerCountStatus"
+msgid "{answered} von {players} haben geantwortet"
+msgstr ""
+
+msgctxt "game.answerSentCountStatus"
+msgid "Antwort gesendet · {answered} von {players} haben geantwortet"
+msgstr ""
+
+msgctxt "game.busyRetryToast.one"
+msgid "{name} ist gerade beschäftigt. Versuch es in {count} Sekunde noch einmal."
+msgstr ""
+
+msgctxt "game.busyRetryToast.other"
+msgid "{name} ist gerade beschäftigt. Versuch es in {count} Sekunden noch einmal."
+msgstr ""
+
+msgctxt "game.unavailableToast"
+msgid "{name} ist gerade nicht erreichbar."
+msgstr ""
+
+msgctxt "game.noAccessToast"
+msgid "Dein Konto hat keinen KI-Zugang."
+msgstr ""
+
+msgctxt "game.signInAgainToast"
+msgid "Melde dich noch einmal an, um {name} zu nutzen."
+msgstr ""
+
+msgctxt "game.signInButton"
+msgid "Anmelden"
+msgstr ""
+
+msgctxt "game.budgetSpentToast"
+msgid "Dein KI-Budget ist vorerst aufgebraucht."
+msgstr ""
+
+msgctxt "game.alreadyAnsweringToast"
+msgid "{name} antwortet schon."
+msgstr ""
+
+msgctxt "game.quizRunningToast"
+msgid "Es läuft schon ein Quiz."
+msgstr ""
+
+msgctxt "game.notStarterToast"
+msgid "Nur wer das Quiz gestartet hat, kann auflösen."
+msgstr ""
+
+msgctxt "game.notStarterOrHostToast"
+msgid "Nur wer das Quiz gestartet hat oder der Host kann es beenden."
+msgstr ""
+
+msgctxt "game.answerClosedToast"
+msgid "Diese Frage ist schon abgeschlossen."
+msgstr ""
+
+msgctxt "game.answerTooLongToast"
+msgid "Deine Antwort ist zu lang. Kürz sie und schick sie noch einmal."
+msgstr ""
+
+msgctxt "game.endedToast"
+msgid "Quiz beendet."
+msgstr ""
+
+msgctxt "game.endedByLeaverToast"
+msgid "Quiz beendet: {leaver} ist gegangen."
+msgstr ""
