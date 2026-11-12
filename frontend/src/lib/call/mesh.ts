@@ -17,13 +17,22 @@ let rtcConfiguration: RTCConfiguration = { iceServers: [] };
 
 export class SignedOutError extends Error {}
 
+export class IceServersUnavailableError extends Error {
+    readonly status: number;
+
+    constructor(status: number) {
+        super(`ICE servers answered ${String(status)}`);
+        this.status = status;
+    }
+}
+
 export async function loadIceServers(): Promise<void> {
     const response = await fetch(ICE_SERVERS_PATH);
     if (response.status === 401) {
         throw new SignedOutError("Signed out");
     }
     if (!response.ok) {
-        throw new Error(`Could not load ICE servers (${String(response.status)})`);
+        throw new IceServersUnavailableError(response.status);
     }
     const { iceServers } = (await response.json()) as { iceServers: RTCIceServer[] };
     rtcConfiguration = { iceServers };

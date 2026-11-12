@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SIGNAL_TYPE } from "#lib/wire.ts";
+import { words } from "#lib/words/de.ts";
 
 const media = vi.hoisted(() => {
     class CameraError extends Error {
@@ -140,10 +141,13 @@ describe("camera", () => {
         media.addCamera.mockRejectedValue(Object.assign(new Error("denied"), { name: "NotAllowedError" }));
 
         await cameraClicked();
-        expect(statusLine).toEqual({ text: "No camera found (NotAllowedError)", type: "error" });
+        expect(statusLine).toEqual({
+            text: words["call.statusCameraMissing"]({ errorName: "NotAllowedError" }),
+            type: "error",
+        });
 
         vi.advanceTimersByTime(2000);
-        expect(statusLine).toEqual({ text: "In call", type: "connected" });
+        expect(statusLine).toEqual({ text: words["call.statusInCall"], type: "connected" });
     });
 
     it("keeps the camera error when the call ended before the reset", async () => {
@@ -190,17 +194,20 @@ describe("screen share", () => {
 
         await screenClicked();
 
-        expect(statusLine.text).toBe("No camera found (NotFoundError)");
+        expect(statusLine.text).toBe(words["call.statusCameraMissing"]({ errorName: "NotFoundError" }));
     });
 
-    it("reports any other failure with its message", async () => {
+    it("reports any other failure with its name, never the browser's message", async () => {
         const { screenClicked, state, statusLine } = await freshControls();
         state.localStream = aStream();
-        media.toggleScreenShare.mockRejectedValue(new Error("picker closed"));
+        media.toggleScreenShare.mockRejectedValue(new DOMException("picker closed", "AbortError"));
 
         await screenClicked();
 
-        expect(statusLine).toEqual({ text: "Screen share failed: picker closed", type: "error" });
+        expect(statusLine).toEqual({
+            text: words["call.statusScreenShareFailed"]({ errorName: "AbortError" }),
+            type: "error",
+        });
     });
 
     it("ends the share and redraws when the browser ends it", async () => {
@@ -267,8 +274,8 @@ describe("lock switch view", () => {
     });
 
     it.each([
-        { isLocked: true, line: "No one new can join" },
-        { isLocked: false, line: "New people can join" },
+        { isLocked: true, line: words["more.lockLineLocked"] },
+        { isLocked: false, line: words["more.lockLineUnlocked"] },
     ])("shows the switch with the line $line", async ({ isLocked, line }) => {
         const { lockSwitch, showLockButton } = await freshControls();
 
@@ -283,14 +290,14 @@ describe("lock switch view", () => {
 
         hideLockButton();
 
-        expect(lockSwitch).toEqual({ isShown: false, isLocked: true, line: "No one new can join" });
+        expect(lockSwitch).toEqual({ isShown: false, isLocked: true, line: words["more.lockLineLocked"] });
     });
 });
 
 describe("lock change toast", () => {
     it.each([
-        { isLocked: true, text: "Call locked" },
-        { isLocked: false, text: "Call unlocked" },
+        { isLocked: true, text: words["more.lockedToast"] },
+        { isLocked: false, text: words["more.unlockedToast"] },
     ])("tells the host $text", async ({ isLocked, text }) => {
         const { confirmLockChange, state, toastState } = await freshControls();
         state.isHost = true;

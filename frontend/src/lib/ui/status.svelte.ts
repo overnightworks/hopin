@@ -1,7 +1,9 @@
+import { words } from "#lib/words/de.ts";
+
 export type StatusType = "connecting" | "connected" | "error" | "disconnected";
 
 export const statusLine: { text: string; type: StatusType } = $state({
-    text: "Not connected",
+    text: words["call.statusNotConnected"],
     type: "disconnected",
 });
 export const lockTag = $state({ isShown: false });

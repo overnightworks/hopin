@@ -87,6 +87,54 @@ msgctxt "call.leaveButton"
 msgid "Verlassen"
 msgstr ""
 
+msgctxt "call.statusNotConnected"
+msgid "Nicht verbunden"
+msgstr ""
+
+msgctxt "call.statusJoining"
+msgid "Verbunden, Beitritt läuft …"
+msgstr ""
+
+msgctxt "call.statusInCall"
+msgid "Im Anruf"
+msgstr ""
+
+msgctxt "call.statusReconnecting.one"
+msgid "Neu verbinden in {count} Sekunde …"
+msgstr ""
+
+msgctxt "call.statusReconnecting.other"
+msgid "Neu verbinden in {count} Sekunden …"
+msgstr ""
+
+msgctxt "call.statusConnectionLost"
+msgid "Verbindung verloren"
+msgstr ""
+
+msgctxt "call.statusDisconnected"
+msgid "Getrennt"
+msgstr ""
+
+msgctxt "call.statusConnectionError"
+msgid "Verbindungsfehler"
+msgstr ""
+
+msgctxt "call.statusCameraMissing"
+msgid "Keine Kamera gefunden ({errorName})"
+msgstr ""
+
+msgctxt "call.statusScreenShareFailed"
+msgid "Bildschirmfreigabe fehlgeschlagen ({errorName})"
+msgstr ""
+
+msgctxt "call.statusIceServersFailed"
+msgid "Die Server für die Verbindung konnten nicht geladen werden ({status})."
+msgstr ""
+
+msgctxt "call.addOnLoadFailedToast"
+msgid "Ein Zusatzmodul konnte nicht geladen werden."
+msgstr ""
+
 msgctxt "end.accountButton"
 msgid "Konto"
 msgstr ""
@@ -271,6 +319,22 @@ msgctxt "more.lockSwitch"
 msgid "Anruf sperren"
 msgstr ""
 
+msgctxt "more.lockLineLocked"
+msgid "Niemand Neues kann beitreten"
+msgstr ""
+
+msgctxt "more.lockLineUnlocked"
+msgid "Neue Leute können beitreten"
+msgstr ""
+
+msgctxt "more.lockedToast"
+msgid "Anruf gesperrt"
+msgstr ""
+
+msgctxt "more.unlockedToast"
+msgid "Anruf entsperrt"
+msgstr ""
+
 msgctxt "invite.menuLabel"
 msgid "Leute einladen"
 msgstr ""
@@ -299,6 +363,18 @@ msgctxt "invite.shareButton"
 msgid "Teilen"
 msgstr ""
 
+msgctxt "invite.linkCopiedToast"
+msgid "Link kopiert"
+msgstr ""
+
+msgctxt "invite.copyFailedToast"
+msgid "Der Link konnte nicht kopiert werden"
+msgstr ""
+
+msgctxt "invite.shareFailedToast"
+msgid "Der Link konnte nicht geteilt werden"
+msgstr ""
+
 msgctxt "chat.header"
 msgid "Chat"
 msgstr ""
@@ -315,8 +391,20 @@ msgctxt "chat.sendButton"
 msgid "Senden"
 msgstr ""
 
+msgctxt "chat.closeButton"
+msgid "Chat schließen"
+msgstr ""
+
 msgctxt "account.menuLabel"
 msgid "Konto"
+msgstr ""
+
+msgctxt "account.unnamedMenuName"
+msgid "Konto"
+msgstr ""
+
+msgctxt "account.unnamedRowName"
+msgid "Du"
 msgstr ""
 
 msgctxt "tile.removeButton"
