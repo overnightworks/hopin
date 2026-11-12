@@ -463,7 +463,7 @@ class TestTheEnds:
     async def test_call_57_a_seat_leaving_for_good_after_its_agent_ended_still_reports_its_end(
         self, participation, recorded, dialed, agent_end
     ):
-        """CALL-57: The seat's permanent leaving reports `speaker_ended` even when no joined agent is left to sponsor."""
+        """CALL-57: The seat's permanent leaving reports `speaker_ended` though no joined agent is left to sponsor."""
         host, guest, agent = dialed
         await agent_end(participation, host, guest, agent)
 
