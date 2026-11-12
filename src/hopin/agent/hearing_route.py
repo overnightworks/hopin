@@ -25,7 +25,7 @@ from hopin.participation.vocabulary import HearingClose, HearingRefusal
 from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from pydantic import SecretStr
     from webauth.oidc import OidcRelyingParty
@@ -164,8 +164,9 @@ class HearingRoute:
             return
         clock = _AudioClock(self._scheduler.now())
 
-        async def on_utterance(utterance: Utterance) -> None:
+        def on_utterance(utterance: Utterance) -> Awaitable[None]:
             self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance))
+            return asyncio.sleep(0)  # the client awaits its callback; hearing is synchronous
 
         outcome = await hear_utterances(
             websocket,
