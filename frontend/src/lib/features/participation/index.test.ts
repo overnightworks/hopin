@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { mount, unmount } from "svelte";
+import { flushSync, mount, unmount } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { install } from "./index.ts";
+import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
@@ -23,6 +24,9 @@ async function installedParticipation() {
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
+    const more = document.createElement("dialog");
+    more.open = true;
+    document.body.append(more);
     const core: FeatureCore = {
         on: (type, handler) => void handlers.set(type, handler),
         send: (frame) => void sent.push(frame),
@@ -36,13 +40,21 @@ async function installedParticipation() {
             if (tile === null) tiles.delete(key);
             else tiles.set(key, tile);
         },
-        addMoreItems: (...items) => void moreItems.push(...items),
+        addMoreItems: (...items) => {
+            moreItems.push(...items);
+            more.append(...items);
+        },
         receiveChatLine: (view: FeatureView) => void lines.push(view),
         pinLastChatLine: () => undefined,
         showChatCard: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
     };
     await install(core);
+    // What the page draws follows its state at the next flush.
+    const onThePage = () => {
+        flushSync();
+        return moreItems;
+    };
     const emit = (type: string, frame: object) => {
         const handler = handlers.get(type);
         if (handler === undefined) throw new Error(`no handler for ${type}`);
@@ -54,7 +66,17 @@ async function installedParticipation() {
         tiles,
         toasts,
         lines,
-        buttons: () => [...moreItems.flatMap((item) => [...item.querySelectorAll("button")])],
+        offers: () => onThePage().flatMap((item) => [...item.querySelectorAll("li")]),
+        buttons: () => onThePage().flatMap((item) => [...item.querySelectorAll("button")]),
+        alert: () =>
+            onThePage()
+                .flatMap((item) => [...item.querySelectorAll("[role=alert]")])
+                .at(0)?.textContent,
+        shown: () => onThePage().some((item) => item.textContent !== ""),
+        focused: () => moreItems.find((item) => item.contains(document.activeElement)),
+        personClosesMore: () => {
+            more.dispatchEvent(new Event("close"));
+        },
         endCall: () => {
             callEndedHooks.forEach((hook) => {
                 hook();
@@ -123,26 +145,12 @@ describe("dialed-in agents", () => {
         expect(page.tiles.get("agent-a1")?.onRemove).toBeUndefined();
     });
 
-    it.each([
-        {
-            reason: AGENT_REFUSAL.NOT_SPONSOR_OR_HOST,
-            text: "Only the person who brought the agent or the host can remove it.",
-        },
-        { reason: AGENT_REFUSAL.NOT_ADDER, text: "You may not add this agent." },
-        { reason: AGENT_REFUSAL.NO_SEAT, text: "The agent's owner is not in this call." },
-        { reason: AGENT_REFUSAL.TWO_SEATS, text: "The agent's owner is in this call twice, so the agent cannot join." },
-        { reason: AGENT_REFUSAL.SPONSOR_AWAY, text: "The agent's owner is away. Try again when they are back." },
-        { reason: AGENT_REFUSAL.ALREADY_THERE, text: "The agent is already invited or in the call." },
-        { reason: AGENT_REFUSAL.BUSY, text: "The call has no room for another agent." },
-        { reason: AGENT_REFUSAL.GONE, text: "The agent is not available any more." },
-        { reason: AGENT_REFUSAL.UNAVAILABLE, text: "Your access could not be checked. Try again." },
-        { reason: "another_reason", text: "The agent could not be added." },
-    ])("CALL-49: tells a person whose agent request was refused as $reason what to do", async ({ reason, text }) => {
+    it("CALL-49: tells a person whose removal was refused that only the sponsor or the host removes the agent", async () => {
         const page = await installedParticipation();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_SPONSOR_OR_HOST });
 
-        expect(page.toasts).toEqual([text]);
+        expect([page.toasts.length, page.alert()]).toEqual([1, undefined]);
     });
 
     it("shows an agent's line in the chat under its name", async () => {
@@ -213,50 +221,125 @@ describe("dialed-in agents", () => {
     });
 });
 
-describe("adding an agent that has an account of its own", () => {
+describe("calling an agent that has an account of its own", () => {
     const offered = (name: string, pending = false, key = "k1") => ({ agent_key: key, name, pending });
+    const names = (page: Awaited<ReturnType<typeof installedParticipation>>) =>
+        page.offers().map((row) => row.querySelector(".name")?.textContent);
 
-    it("shows an Add item per offer, and tapping it asks the server to add that agent", async () => {
+    it("CALL-51: lists an offered agent per row, and calling one asks the server to add that agent", async () => {
         const page = await installedParticipation();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart"), offered("Bach", false, "k2")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, {
+            shown: true,
+            offers: [offered("Mozart"), offered("Bach", false, "k2")],
+        });
         page.buttons()[1]?.click();
 
-        expect([page.buttons().map((button) => button.textContent), page.sent]).toEqual([
-            ["Add Mozart", "Add Bach"],
+        expect([names(page), page.sent]).toEqual([
+            ["Mozart", "Bach"],
             [{ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: "k2" }],
         ]);
     });
 
-    it("shows a disabled Inviting item while the invitation is pending, and tapping it sends nothing", async () => {
+    it("CALL-51: shows an open invitation as a row with no button, so it cannot be called again", async () => {
         const page = await installedParticipation();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart", true)] });
-        const [button] = page.buttons();
-        button?.click();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
 
-        expect([button?.textContent, button?.disabled, page.sent]).toEqual(["Inviting Mozart…", true, []]);
+        expect([names(page), page.buttons()]).toEqual([["Mozart"], []]);
     });
 
-    it("follows each frame exactly: the items of the last frame are all there is", async () => {
+    it("follows each frame exactly: the rows of the last frame are all there is", async () => {
         const page = await installedParticipation();
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart", true)] });
-        const pending = page.buttons().map((button) => button.textContent);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
+        const pending = page.buttons().length;
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
 
-        expect([pending, page.buttons()]).toEqual([["Inviting Mozart…"], []]);
+        expect([pending, names(page)]).toEqual([0, []]);
+    });
+
+    it("CALL-51: keeps the control with its one sentence while no agent is listed, and shows none when it is not shown", async () => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+        const whileEmpty = page.shown();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+
+        expect([whileEmpty, page.shown()]).toEqual([true, false]);
     });
 
     it("keeps the agent's name as text, never as markup", async () => {
         const page = await installedParticipation();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("<b>Mozart</b>")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("<b>Mozart</b>")] });
 
-        expect(page.buttons().map((button) => [button.textContent, button.querySelector("b")])).toEqual([
-            ["Add <b>Mozart</b>", null],
-        ]);
+        expect([names(page), page.offers()[0]?.querySelector("b")]).toEqual([["<b>Mozart</b>"], null]);
+    });
+
+    it("moves focus to the control when the row whose button had focus turns inviting", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.buttons()[0]?.focus();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
+
+        expect(page.focused()?.id).toBe("agentOffers");
+    });
+
+    it.each([
+        [AGENT_REFUSAL.NOT_ADDER, "not-allowed"],
+        [AGENT_REFUSAL.NO_SEAT, "owner-absent"],
+        [AGENT_REFUSAL.SPONSOR_AWAY, "owner-absent"],
+        [AGENT_REFUSAL.BUSY, "place-full"],
+        [AGENT_REFUSAL.ALREADY_THERE, "agent-unavailable"],
+        [AGENT_REFUSAL.GONE, "agent-unavailable"],
+        [AGENT_REFUSAL.TWO_SEATS, "agent-unavailable"],
+        [AGENT_REFUSAL.UNAVAILABLE, "try-again"],
+        ["another_reason", "try-again"],
+    ])("CALL-51: maps the refused add %s to the kit's %s reason", (reason, kitReason) => {
+        expect(refusalOf(reason)).toBe(kitReason);
+    });
+
+    it("CALL-51: shows a refused add as one of the kit's sentences", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.BUSY });
+
+        expect(page.alert()).toBeTruthy();
+    });
+
+    it("CALL-51: shows a refusal that comes with the frame taking the control away", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+
+        expect(page.alert()).toBeTruthy();
+    });
+
+    it("CALL-51: takes a refusal away when the person closes More, with the control that only held it", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+
+        page.personClosesMore();
+
+        expect([page.shown(), page.alert()]).toEqual([false, undefined]);
+    });
+
+    it("takes the refusal away when the person calls again", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.BUSY });
+
+        page.buttons()[0]?.click();
+
+        expect(page.alert()).toBeUndefined();
     });
 
     it.each([
@@ -272,12 +355,13 @@ describe("adding an agent that has an account of its own", () => {
                 page.endCall();
             },
         },
-    ])("takes the items away at $when", async ({ end }) => {
+    ])("takes the control and its refusal away at $when", async ({ end }) => {
         const page = await installedParticipation();
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.BUSY });
 
         end(page);
 
-        expect(page.buttons()).toEqual([]);
+        expect([page.shown(), page.alert()]).toEqual([false, undefined]);
     });
 });

@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
-from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
+from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECONDS
 
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import ParticipationSignal
@@ -85,6 +85,7 @@ def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_
                 Participation,
                 scheduler=scheduler,
                 lease_seconds=LEASE_SECONDS,
+                invitation_seconds=INVITATION_SECONDS,
                 on_changed=changes,
                 on_window_changed=lambda person, room_id: window_changes.append((person, room_id)),
                 wall_clock=lambda: WALL_CLOCK_SECONDS,
@@ -186,13 +187,19 @@ class Scene:
         )
         call.standing(self.token)  # the first call registers the agent
 
+    def offered(self):
+        """The offers of the next `agent_offers` frame that lists any; the frames that show the control with none pass
+        over."""
+        while not (offers := self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]):
+            pass
+        return offers
+
     def key_of_offer(self):
-        [offer] = self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+        [offer] = self.offered()
         return offer["agent_key"]
 
     def key_of_offer_named(self, name):
-        offers = self.member.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
-        return next(offer["agent_key"] for offer in offers if offer["name"] == name)
+        return next(offer["agent_key"] for offer in self.offered() if offer["name"] == name)
 
     def add(self, key):
         self.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})

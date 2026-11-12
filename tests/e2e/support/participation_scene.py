@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.server import RunningServer
 
-OFFER = "#agentOffers button"
+OFFER = "#agentOffers li"
 INVITATION_WAKE_SECONDS = 20
 
 
@@ -57,9 +57,9 @@ class Scene:
         self.agent_listens()
         open_more(self.member)
         offer = self.offer_of_agent(self.member)
-        expect(offer).to_have_text(f"Add {self.agent.name}")
-        offer.click()
-        expect(offer).to_have_text(f"Inviting {self.agent.name}…")
-        expect(offer).to_be_disabled()
+        expect(offer).to_have_count(1)
+        offer.get_by_role("button").click()
+        expect(offer.get_by_role("status")).to_be_visible()
+        expect(offer.get_by_role("button")).to_have_count(0)
         accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS), figure)
         assert accepted["name"] == self.agent.name

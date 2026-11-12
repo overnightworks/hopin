@@ -8,6 +8,7 @@ from tests.participation.support.own_accounts import (
     NAME,
     OWNER,
     agent_calls,
+    control_shown_to,
     let_reads_finish,
     offers_sent_to,
 )
@@ -74,7 +75,7 @@ class TestWhoIsOfferedTheAgent:
         await agent_calls(participation)
         await let_reads_finish()
 
-        assert offers_sent_to(elsewhere) is None
+        assert offers_sent_to(elsewhere) == []
 
     @pytest.mark.usefixtures("members")
     async def test_the_offer_goes_when_the_owner_leaves_the_call(self, link, participation):
@@ -99,18 +100,37 @@ class TestWhoIsOfferedTheAgent:
         assert (offers_sent_to(member), group_reads) == (None, [])
 
     @pytest.mark.usefixtures("members")
+    async def test_a_member_of_the_adders_group_and_the_host_are_shown_the_control_while_no_agent_is_listed(self, link):
+        """CALL-51: A member of the adders group and the call's host are shown the control with no agent listed."""
+        owner = await link.join("host")
+        member = await link.join("guest", owner.room_id)
+        stranger = await link.join("stranger", owner.room_id)
+        await let_reads_finish()
+
+        assert [control_shown_to(seat) for seat in (owner, member, stranger)] == [True, True, None]
+        assert [offers_sent_to(seat) for seat in (owner, member)] == [[], []]
+
+    async def test_the_host_is_shown_the_control_when_no_group_is_configured(self, link, adders):
+        """CALL-51: The call's host is shown the control even when no group may add an agent."""
+        adders.clear()
+        owner = await link.join("host")
+        await let_reads_finish()
+
+        assert control_shown_to(owner) is True
+
+    @pytest.mark.usefixtures("members")
     async def test_a_group_read_that_fails_offers_nothing_and_asks_again_at_the_next_offer_trigger(
         self, link, participation, groups_of_seat, group_reads
     ):
-        owner, member = await owner_and_member(link)
+        owner = await link.join(OWNER)
         groups_of_seat["guest"] = None
-        await agent_calls(participation)
+        member = await link.join("guest", owner.room_id)
         await let_reads_finish()
         reads_before = group_reads.count("guest")
         offers_before = offers_sent_to(member)
 
         groups_of_seat["guest"] = frozenset({ADDERS})
-        await link.join("late", owner.room_id)
+        await agent_calls(participation)
         await let_reads_finish()
 
         assert (reads_before, offers_before, offers_sent_to(member)[0]["name"]) == (1, None, NAME)
