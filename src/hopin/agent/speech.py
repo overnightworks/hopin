@@ -18,7 +18,8 @@ from speech_client.speak import (
 from speech_client.wire import ResponseFormat
 from webauth.oidc import OidcRefusal
 
-from hopin.agent.backend import StarterRefusedError, issuer_error
+from hopin.agent.backend import StarterRefusedError
+from hopin.agent.issuer_error import issuer_error
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection

@@ -9,7 +9,7 @@ from agents.member import LEASE_SECONDS
 from webauth.middleware import exchanged_access_token
 from webauth.oidc import OidcRefusal
 
-from hopin.agent.backend import issuer_error
+from hopin.agent.issuer_error import issuer_error
 
 if TYPE_CHECKING:
     from collections.abc import Callable
