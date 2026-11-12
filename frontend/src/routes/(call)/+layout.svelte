@@ -60,6 +60,7 @@
     let accountMenu: HTMLDialogElement;
 
     onMount(() => {
+        document.title = words["call.pageTitle"];
         const removeMenus = initMenus();
         registerMenu({
             button: moreButton,
@@ -80,8 +81,6 @@
         return removeMenus;
     });
 </script>
-
-<svelte:head><title>{words["call.pageTitle"]}</title></svelte:head>
 
 <!-- prettier-ignore -->
 <div id="leaveConfirm" class={["confirm-overlay", !leaveDialog.isOpen && "hidden"]}>
