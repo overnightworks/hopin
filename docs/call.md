@@ -34,10 +34,10 @@ Ruled by the operator:
 - CALL-13: The same account in one call twice (phone and laptop) joins as two people, and stays host while any of its connections is in the call.
 - CALL-14: A call link whose call has ended, or an address that never had a call, shows "This link has expired" when someone joins; HopIn keeps no store of ended calls, so both are the same case.
 - CALL-15: The start page is `/` and a call is `/c/{id}`; the old addresses `/call` and `/join/{id}` answer not found.
-- CALL-16: Back to start opens the start page as a new page; the browser's back button then returns to the call link, which shows the call as it is now.
+- CALL-16: "Zurück zum Start" opens the start page as a new page; the browser's back button then returns to the call link, which shows the call as it is now.
 - CALL-17: When the host ends the call, everyone else sees "Call ended" and that the host, by name, ended the call for everyone.
-- CALL-18: A host who leaves sees "You left the call" with only "Back to start"; the call goes on for the others for up to 60 seconds.
-- CALL-19: Rejoin and Retry open the call link again, as tapping it in a message does; if the call is over, the person sees "This link has expired".
+- CALL-18: A host who leaves sees "You left the call" with only "Zurück zum Start"; the call goes on for the others for up to 60 seconds.
+- CALL-19: "Wieder beitreten" and "Erneut versuchen" open the call link again, as tapping it in a message does; if the call is over, the person sees "This link has expired".
 - CALL-20: When a call ends for me, or HopIn refuses to let me in, my camera and microphone turn off at once.
 - CALL-21: A person with the camera off shows as a neutral person icon, the same for everyone.
 - CALL-22: On a phone, the small own picture can be dragged to any corner; it snaps to the nearest one and stays there for the rest of the call, also when people join or leave.

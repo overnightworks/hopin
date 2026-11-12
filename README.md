@@ -26,7 +26,7 @@ Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so ope
 
 Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
 
-Press "Start a call" and share the generated link.
+Press "Anruf starten" and share the generated link.
 
 ## Run in a Container
 

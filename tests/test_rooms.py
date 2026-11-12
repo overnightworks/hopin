@@ -111,13 +111,6 @@ class TestRoomManager:
         with pytest.raises(RoomNotFoundError):
             manager.get_room("nonexistent")
 
-    def test_has_room_returns_true_for_existing(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
-        assert manager.has_room(room.room_id) is True
-
-    def test_has_room_returns_false_for_missing(self, manager):
-        assert manager.has_room("nonexistent") is False
-
     def test_add_participant_adds_to_room(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         updated = manager.add_participant(room.room_id, "p1", account_named("p1"))
@@ -210,12 +203,13 @@ class TestRoomManager:
     def test_remove_room_deletes_it(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         manager.remove_room(room.room_id)
-        assert manager.has_room(room.room_id) is False
+        with pytest.raises(RoomNotFoundError):
+            manager.get_room(room.room_id)
 
     def test_remove_room_ignores_unknown(self, manager):
         room = manager.create_room("h1", account_named("h1"))
         manager.remove_room("nonexistent")
-        assert manager.has_room(room.room_id) is True
+        assert manager.get_room(room.room_id).room_id == room.room_id
 
     def test_unique_room_ids(self, manager):
         rooms = [manager.create_room(f"h{i}", account_named(f"h{i}")) for i in range(20)]
