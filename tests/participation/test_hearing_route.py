@@ -616,17 +616,16 @@ class TestHowAHopEndsInTheLog:
                 logged.set()
             return event
 
-        with structlog.testing.capture_logs(processors=[note_the_ending]):
-            with hop(sponsored) as socket:
-                socket.send_bytes(SOUND)
-                session = fake_speech.next_session()
-                session.wait_for_audio(1)
-                if ending == "the_service_drops":
-                    session.drop()
-                    closed_with(socket)
-                else:
-                    socket.close()
-                assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
+        with structlog.testing.capture_logs(processors=[note_the_ending]), hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            session = fake_speech.next_session()
+            session.wait_for_audio(1)
+            if ending == "the_service_drops":
+                session.drop()
+                closed_with(socket)
+            else:
+                socket.close()
+            assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
 
         assert endings == ["cut" if ending == "the_service_drops" else "browser_left"]
 
