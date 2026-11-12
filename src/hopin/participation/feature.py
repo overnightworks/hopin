@@ -480,11 +480,12 @@ class Participation:
             refusal = AgentRefusal.UNAVAILABLE
         else:
             refusal = self._refusal_of_add_now(peer_id, room_id, live, sponsor)
-        if refusal is not None:
-            await self._rooms.send(peer_id, _refusal_frame(refusal))
-        else:
+        if refusal is None:
             await self._invite(peer_id, room_id, live, sponsor)
         await self._update_offers(room_id)
+        if refusal is not None:
+            # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
+            await self._rooms.send(peer_id, _refusal_frame(refusal))
 
     def _refusal_of_add_now(
         self, peer_id: PeerId, room_id: str, live: LiveAgent, sponsor: PeerId

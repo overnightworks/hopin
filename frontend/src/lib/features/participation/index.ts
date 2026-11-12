@@ -81,26 +81,30 @@ export function install(core: FeatureCore): Promise<void> {
         props: {
             view: offersView,
             onCall: (agentKey: string) => {
-                offersView.refusal = undefined;
+                clearRefusal();
                 core.send({ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: agentKey });
             },
         },
     });
     core.addMoreItems(offers);
-    // A refusal is read in More; the server sends no frame that takes it away when the person only lost the right.
-    offers.closest("dialog")?.addEventListener("close", () => {
+    // A refusal leaves with the next offers frame (the server sends an add's own offers frame before its refusal) and
+    // when the person closes More, for the server sends no frame when the person only lost the right.
+    offers.closest("dialog")?.addEventListener("close", clearRefusal);
+
+    function clearRefusal() {
         offersView.refusal = undefined;
-    });
+    }
 
     function clearOffers() {
         offersView.shown = false;
         offersView.rows = [];
-        offersView.refusal = undefined;
+        clearRefusal();
     }
 
     // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
     function showOffers(frame: AgentOffersFrame) {
         const hadFocus = offers.contains(document.activeElement);
+        clearRefusal();
         offersView.shown = frame.shown;
         offersView.rows = rowsOf(frame.offers);
         flushSync();
