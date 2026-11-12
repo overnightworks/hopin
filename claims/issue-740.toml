@@ -1,8 +1,0 @@
-claim_id = "c2b58308347046a4a36f03dab62dbcde"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "f82a0f3dfd7ce29b601f5f44f3fb7e0b2dbc7024"
-branch = "claude/issue-740-participation-records-whom-an-agent-may"
-scope = [".aco/ahead-of-caller.toml", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/wire.ts", "pyproject.toml", "src/hopin/agent", "src/hopin/participation", "tests", "uv.lock"]
-opened_commit = "9fb4a0418ae198c3ea3eb75d5f9fa5ef95e34e3d"
-whole_reason = "One rule: the pin, the record's port and adapter, the frame, the window line and the ends in the feature's exit paths cannot land apart."
