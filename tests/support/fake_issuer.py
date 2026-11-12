@@ -77,6 +77,11 @@ class FakeIssuer:
         self._holds: dict[str, GrantHold] = {}
 
     @property
+    def client_id(self) -> str:
+        """The relying party's own client id, the one a token may name as a second audience."""
+        return self._client_id
+
+    @property
     def transports(self) -> IssuerTransports:
         return IssuerTransports(post_token_request=self.post_token_request, fetch_key_set=self.fetch_key_set)
 
@@ -144,7 +149,7 @@ class FakeIssuer:
         self,
         subject: str,
         *,
-        audience: str,
+        audience: str | list[str],
         authorized_party: str,
         scope: str,
         groups: tuple[str, ...],
