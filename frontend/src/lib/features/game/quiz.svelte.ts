@@ -21,10 +21,9 @@ export interface AnswerCountFrame {
     players: number;
 }
 
-export interface RefusedFrame {
-    reason: GAME_REFUSAL;
-    retry_after_seconds?: number;
-}
+/** A busy refusal always carries its wait; no other refusal does. */
+export type RefusedFrame =
+    { reason: GAME_REFUSAL.BUSY; retry_after_seconds: number } | { reason: Exclude<GAME_REFUSAL, GAME_REFUSAL.BUSY> };
 
 export type QuestionCardProps = {
     tag: string;
