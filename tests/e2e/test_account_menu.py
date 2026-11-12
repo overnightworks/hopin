@@ -10,6 +10,7 @@ from tests.e2e.support.calls import open_prejoin, record_page_errors, start_call
 from tests.e2e.support.page_assertions import ACCOUNT_AVATAR, ACCOUNT_MENU, expect_both_legal_links
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -124,7 +125,7 @@ def test_avatar_shows_the_initials_of_the_username(
 ) -> None:
     person = open_home(open_person, base_url, page_errors, username=username, **form_factor)
 
-    expect(person.get_by_role("button", name="Account")).to_have_text(initials)
+    expect(person.get_by_role("button", name=text("de", "home.accountButton"))).to_have_text(initials)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -149,7 +150,7 @@ def test_prejoin_has_the_avatar_on_desktop_and_phone_and_the_phone_keeps_back_to
 
     expect(desktop.locator(AVATAR)).to_be_visible()
     expect(phone.locator(AVATAR)).to_be_visible()
-    expect(phone.get_by_role("button", name="Back")).to_be_visible()
+    expect(phone.get_by_role("button", name=text("de", "prejoin.backButton"))).to_be_visible()
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -162,7 +163,9 @@ def test_end_screen_has_the_avatar_beside_its_own_buttons(
     leave_the_call(host)
 
     expect(host.locator(AVATAR)).to_be_visible()
-    expect(host.locator("[data-screen=end] .end-actions").get_by_role("button")).to_have_text(["Back to start"])
+    expect(host.locator("[data-screen=end] .end-actions").get_by_role("button")).to_have_text(
+        [text("de", "end.homeButton")]
+    )
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -261,7 +264,7 @@ def test_log_out_from_the_end_screen_menu_ends_the_session_the_same_way(
     assert e2e_server.stores.sessions.load(member_of(host).session.id) is None
 
 
-def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_menu_named_account_and_hi_there(
+def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_menu_named_account_and_the_unnamed_greeting(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     load_errors: list[str] = []
@@ -275,7 +278,7 @@ def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_menu_named_acco
     expect(person.locator(AVATAR)).to_have_text("")
     expect(person.locator(MENU_NAME)).to_have_text("Account")
     expect(person.locator(MENU).get_by_role("button")).to_have_text(["Log out"])
-    expect(person.locator("#homeGreeting")).to_have_text("Hi there")
+    expect(person.locator("#homeGreeting")).to_have_text(text("de", "home.greetingUnnamed"))
     assert len(load_errors) == 1
 
 

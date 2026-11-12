@@ -2,6 +2,7 @@
     import { AccountMenu, LegalLinks } from "overnightworks-design";
     import { onMount, type Snippet } from "svelte";
     import { LEGAL_LINKS } from "#lib/legal.ts";
+    import { words } from "#lib/words/de.ts";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
@@ -97,7 +98,7 @@
 <main class="end page" class:hidden={screens.current !== SCREEN.END} data-screen="end">
     <div class="topbar">
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
-        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
+        <button type="button" class="av av-btn account-button" aria-label={words["end.accountButton"]} aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <span id="endIcon" class={["end-icon", shownEnd.isWarning && "warn"]}>
         <svg class={["icon", shownEnd.icon !== END_ICON.ENDED && "hidden"]} data-end-icon="ended" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 8.6c-3.9 0-7.4 1.3-9.2 3.3-.6.7-.7 1.6-.3 2.4l.8 1.5c.4.7 1.2 1 2 .8l2.7-.8c.7-.2 1.1-.8 1.1-1.5v-1.5c.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4v1.5c0 .7.4 1.3 1.1 1.5l2.7.8c.8.2 1.6-.1 2-.8l.8-1.5c.4-.8.3-1.7-.3-2.4-1.8-2-5.3-3.3-9.2-3.3z"/></svg>
@@ -109,9 +110,9 @@
     <span id="endPill" class={["count-pill", shownEnd.pill === null && "hidden"]}>{shownEnd.pill}</span>
     <p id="endText">{shownEnd.text}</p>
     <div class="end-actions">
-        <button id="endRetryBtn" class={actionClasses(END_ACTION.RETRY)} onclick={rejoinCall}>Retry</button>
-        <button id="endHomeBtn" class={actionClasses(END_ACTION.HOME)} onclick={goHome}>Back to start</button>
-        <button id="endRejoinBtn" class={actionClasses(END_ACTION.REJOIN)} onclick={rejoinCall}>Rejoin</button>
+        <button id="endRetryBtn" class={actionClasses(END_ACTION.RETRY)} onclick={rejoinCall}>{words["end.retryButton"]}</button>
+        <button id="endHomeBtn" class={actionClasses(END_ACTION.HOME)} onclick={goHome}>{words["end.homeButton"]}</button>
+        <button id="endRejoinBtn" class={actionClasses(END_ACTION.REJOIN)} onclick={rejoinCall}>{words["end.rejoinButton"]}</button>
     </div>
 </main>
 
@@ -119,22 +120,22 @@
 <main class="home page" class:hidden={screens.current !== SCREEN.HOME} data-screen="home">
     <div class="topbar">
         <div class="brand"><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</div>
-        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
+        <button type="button" class="av av-btn account-button" aria-label={words["home.accountButton"]} aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <div class="halo"></div>
     <span class="brand-mark brand-mark-xl"><svg class="icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>
-    <h2 id="homeGreeting" aria-busy={greeting.isBusy || undefined}>{greeting.name === null ? "Hi there" : `Hi, ${greeting.name}`}</h2>
-    <p>Start a call, then send the link to the people you want.</p>
-    <button id="homeStartBtn" class="button button-primary button-lg" onclick={requestStart}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>Start a call</button>
+    <h2 id="homeGreeting" aria-busy={greeting.isBusy || undefined}>{greeting.name === null ? words["home.greetingUnnamed"] : words["home.greetingNamed"]({ name: greeting.name })}</h2>
+    <p>{words["home.invitation"]}</p>
+    <button id="homeStartBtn" class="button button-primary button-lg" onclick={requestStart}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>{words["home.startButton"]}</button>
 </main>
 
 <!-- prettier-ignore -->
 <main class="prejoin page" class:hidden={screens.current !== SCREEN.PREJOIN} data-screen="prejoin">
     <div class="topbar">
         <button id="prejoinHomeBtn" class="brand brand-button" type="button" onclick={goHome}><span class="brand-mark"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>HopIn</button>
-        <button id="prejoinBackBtn" class="iconbtn ghost" type="button" onclick={goHome} aria-label="Back"><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <button id="prejoinBackBtn" class="iconbtn ghost" type="button" onclick={goHome} aria-label={words["prejoin.backButton"]}><svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span id="prejoinTitle" class="topbar-title">{prejoinTexts().title}</span>
-        <button type="button" class="av av-btn account-button" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
+        <button type="button" class="av av-btn account-button" aria-label={words["prejoin.accountButton"]} aria-expanded="false" aria-controls="accountMenu">{#if avatarInitials() === ""}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>{:else}{avatarInitials()}{/if}</button>
     </div>
     <div class="prejoin-main">
         <div class="preview">
@@ -142,8 +143,8 @@
             <div id="prejoinPlaceholder" class="vid off" class:hidden={ownPicture.showsVideo}><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
             <p id="prejoinMessage" class="preview-msg" class:hidden={prejoin.failureMessage === ""}>{prejoin.failureMessage}</p>
             <div class="preview-ctl">
-                <button id="prejoinMicBtn" class="cb" class:off={!prejoin.isMicrophoneOn} type="button" aria-label="Mute" aria-pressed={!prejoin.isMicrophoneOn} disabled={isPrejoinInert()} onclick={prejoinMicrophoneClicked}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
-                <button id="prejoinCamBtn" class="cb" class:off={!prejoin.isCameraOn} type="button" aria-label="Camera off" aria-pressed={!prejoin.isCameraOn} disabled={isPrejoinInert()} onclick={() => void prejoinCameraClicked()}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
+                <button id="prejoinMicBtn" class="cb" class:off={!prejoin.isMicrophoneOn} type="button" aria-label={words["prejoin.muteButton"]} aria-pressed={!prejoin.isMicrophoneOn} disabled={isPrejoinInert()} onclick={prejoinMicrophoneClicked}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></button>
+                <button id="prejoinCamBtn" class="cb" class:off={!prejoin.isCameraOn} type="button" aria-label={words["prejoin.cameraOffButton"]} aria-pressed={!prejoin.isCameraOn} disabled={isPrejoinInert()} onclick={() => void prejoinCameraClicked()}><svg class="icon shows-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg><svg class="icon shows-off" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6.5h4.7a2.8 2.8 0 0 1 2.8 2.8v3.2M15.5 15.2a2.8 2.8 0 0 1-2.8 2.3H5.3a2.8 2.8 0 0 1-2.8-2.8V9.3a2.8 2.8 0 0 1 2-2.7M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-.5.8M3 3l18 18"/></svg></button>
             </div>
         </div>
         <div class="self-row"><span class="av av-28"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span><b>{ownRowName()}</b></div>

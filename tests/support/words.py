@@ -8,6 +8,19 @@ if TYPE_CHECKING:
 
 type Key = Literal[
     'call.unexpectedError',
+    'end.accountButton',
+    'end.retryButton',
+    'end.homeButton',
+    'end.rejoinButton',
+    'home.accountButton',
+    'home.greetingUnnamed',
+    'home.greetingNamed',
+    'home.invitation',
+    'home.startButton',
+    'prejoin.accountButton',
+    'prejoin.backButton',
+    'prejoin.muteButton',
+    'prejoin.cameraOffButton',
 ]
 type Language = Literal[
     'de',
@@ -28,6 +41,19 @@ LANGUAGES: Final[tuple[Language, ...]] = (
 WORDS: Mapping[Language, Mapping[Key, str | Mapping[Category, str]]] = {
     'de': {
         'call.unexpectedError': 'Etwas ist schiefgegangen. Bitte versuch es noch einmal.',
+        'end.accountButton': 'Konto',
+        'end.retryButton': 'Erneut versuchen',
+        'end.homeButton': 'Zurück zum Start',
+        'end.rejoinButton': 'Wieder beitreten',
+        'home.accountButton': 'Konto',
+        'home.greetingUnnamed': 'Hallo',
+        'home.greetingNamed': 'Hallo, {name}',
+        'home.invitation': 'Starte einen Anruf und schick den Link dann an die Leute, die du dabeihaben möchtest.',
+        'home.startButton': 'Anruf starten',
+        'prejoin.accountButton': 'Konto',
+        'prejoin.backButton': 'Zurück',
+        'prejoin.muteButton': 'Stummschalten',
+        'prejoin.cameraOffButton': 'Kamera ausschalten',
     },
 }
 

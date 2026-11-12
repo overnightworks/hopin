@@ -76,6 +76,9 @@ ICE_SERVERS_WERE_READ = "() => window.iceServersRead"
 PRESS_LEAVE = "document.getElementById('leaveBtn').click()"
 LEFTOVERS = f"() => ({{ liveTracks: ({LIVE_TRACK_COUNT})(), socketsOpened: window.socketsOpened }})"
 NOTHING_LEFT = {"liveTracks": 0, "socketsOpened": 0}
+BACK_TO_START = text("de", "end.homeButton")
+REJOIN = text("de", "end.rejoinButton")
+RETRY = text("de", "end.retryButton")
 
 
 @dataclass(frozen=True)
@@ -86,21 +89,21 @@ class EndScreenText:
     pill: str | None = None
 
 
-LEFT_BY_GUEST = EndScreenText("You left the call", "The others are still talking.", ("Back to start", "Rejoin"))
-LEFT_BY_HOST = EndScreenText("You left the call", "The others are still talking.", ("Back to start",))
-EXPIRED = EndScreenText("This link has expired", "The call is over. Ask for a new link.", ("Back to start",))
+LEFT_BY_GUEST = EndScreenText("You left the call", "The others are still talking.", (BACK_TO_START, REJOIN))
+LEFT_BY_HOST = EndScreenText("You left the call", "The others are still talking.", (BACK_TO_START,))
+EXPIRED = EndScreenText("This link has expired", "The call is over. Ask for a new link.", (BACK_TO_START,))
 LOCKED = EndScreenText(
     "Call is locked",
     "The host isn't letting anyone new in right now. Try again in a moment.",
-    ("Retry", "Back to start"),
+    (RETRY, BACK_TO_START),
 )
 FULL = EndScreenText(
-    "Call is full", f"A call has room for {CAPACITY} people.", ("Back to start",), pill=f"{CAPACITY}/{CAPACITY}"
+    "Call is full", f"A call has room for {CAPACITY} people.", (BACK_TO_START,), pill=f"{CAPACITY}/{CAPACITY}"
 )
 TOO_MANY_CALLS = EndScreenText(
     "Too many calls open",
     f"Your account is in {MAX_LIVE_SEATS_PER_ACCOUNT} calls. Leave one to join this one.",
-    ("Back to start",),
+    (BACK_TO_START,),
 )
 OPEN_SOCKETS_AND_WAIT = f"""async (count) => {{
     const url = location.origin.replace("http", "ws") + {json.dumps(WEBSOCKET_PATH)};
@@ -157,14 +160,14 @@ def call(hosted_call: HostedCall, open_person: Callable[..., Page], form_factor:
 
 
 def ended_by_host(host_name: str) -> EndScreenText:
-    return EndScreenText("Call ended", f"{host_name} ended the call for everyone.", ("Back to start",))
+    return EndScreenText("Call ended", f"{host_name} ended the call for everyone.", (BACK_TO_START,))
 
 
 def host_gone(host_name: str) -> EndScreenText:
     return EndScreenText(
         "Call ended",
         f"{host_name} didn't come back within {HOST_GRACE_SECONDS} seconds, so the call ended for everyone.",
-        ("Back to start",),
+        (BACK_TO_START,),
     )
 
 
@@ -320,7 +323,7 @@ def test_guest_who_rejoins_is_back_in_the_call(call: Call) -> None:
     """CALL-19: Guest who rejoins is back in the call."""
     guest_leaves(call)
 
-    end_screen(call.guest).get_by_role("button", name="Rejoin").click()
+    end_screen(call.guest).get_by_role("button", name=REJOIN).click()
     press_through_the_prejoin(call.guest)
 
     expect(call.guest.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
@@ -333,7 +336,7 @@ def test_guest_who_goes_back_to_start_lands_on_the_home_and_back_returns_to_the_
     """CALL-16: Guest who goes back to start lands on the home and back returns to the call link."""
     guest_leaves(call)
 
-    end_screen(call.guest).get_by_role("button", name="Back to start").click()
+    end_screen(call.guest).get_by_role("button", name=BACK_TO_START).click()
 
     expect(call.guest).to_have_url(re.compile(rf"^{re.escape(call.base_url)}/$"))
     expect(call.guest.locator("[data-screen=home]")).to_be_visible()
@@ -429,7 +432,7 @@ def test_guest_who_finds_the_call_locked_can_retry_once_the_host_unlocks(
 
     toggle_the_lock(call.host)
     expect(call.host.locator("#lockIndicator")).to_be_hidden()
-    end_screen(call.guest).get_by_role("button", name="Retry").click()
+    end_screen(call.guest).get_by_role("button", name=RETRY).click()
     expect(call.guest.locator("[data-screen=prejoin]")).to_be_visible()
     press_through_the_prejoin(call.guest)
 

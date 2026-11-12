@@ -6,3 +6,55 @@ msgstr ""
 msgctxt "call.unexpectedError"
 msgid "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
 msgstr ""
+
+msgctxt "end.accountButton"
+msgid "Konto"
+msgstr ""
+
+msgctxt "end.retryButton"
+msgid "Erneut versuchen"
+msgstr ""
+
+msgctxt "end.homeButton"
+msgid "Zurück zum Start"
+msgstr ""
+
+msgctxt "end.rejoinButton"
+msgid "Wieder beitreten"
+msgstr ""
+
+msgctxt "home.accountButton"
+msgid "Konto"
+msgstr ""
+
+msgctxt "home.greetingUnnamed"
+msgid "Hallo"
+msgstr ""
+
+msgctxt "home.greetingNamed"
+msgid "Hallo, {name}"
+msgstr ""
+
+msgctxt "home.invitation"
+msgid "Starte einen Anruf und schick den Link dann an die Leute, die du dabeihaben möchtest."
+msgstr ""
+
+msgctxt "home.startButton"
+msgid "Anruf starten"
+msgstr ""
+
+msgctxt "prejoin.accountButton"
+msgid "Konto"
+msgstr ""
+
+msgctxt "prejoin.backButton"
+msgid "Zurück"
+msgstr ""
+
+msgctxt "prejoin.muteButton"
+msgid "Stummschalten"
+msgstr ""
+
+msgctxt "prejoin.cameraOffButton"
+msgid "Kamera ausschalten"
+msgstr ""

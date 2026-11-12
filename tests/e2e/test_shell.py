@@ -16,6 +16,7 @@ from tests.e2e.support.page_assertions import (
     expect_no_legal_footer,
 )
 from tests.e2e.support.people import DESKTOP, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -34,7 +35,7 @@ def test_home_shows_start_a_call_and_reaches_both_legal_links_through_the_profil
     page.goto(f"{base_url}/")
 
     home = page.locator("[data-screen=home]")
-    expect(home.get_by_role("button", name="Start a call")).to_be_visible()
+    expect(home.get_by_role("button", name=text("de", "home.startButton"))).to_be_visible()
     expect_no_legal_footer(home)
     expect_both_legal_links_in_the_profile_menu(page)
     expect(page.locator("[data-screen=call]")).to_be_hidden()
