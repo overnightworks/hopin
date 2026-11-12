@@ -142,11 +142,13 @@ describe.each([
 describe("a refused media request", () => {
     it("shows the message and leaves every control disabled", async () => {
         const { isPrejoinInert, openPrejoin, prejoin } = await freshPrejoin();
-        media.acquireMedia.mockRejectedValue(new Error("Camera and microphone are blocked"));
+        media.acquireMedia.mockRejectedValue(
+            new Error("device refused", { cause: new DOMException("blocked", "NotAllowedError") }),
+        );
 
         openPrejoin("host");
         await vi.waitFor(() => {
-            expect(prejoin.failureMessage).toBe("Camera and microphone are blocked");
+            expect(prejoin.failureMessage).toBe(words["prejoin.mediaRefused"]({ errorName: "NotAllowedError" }));
         });
 
         expect(isPrejoinInert()).toBe(true);

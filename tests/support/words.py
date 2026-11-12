@@ -51,6 +51,7 @@ type Key = Literal[
     'prejoin.guestJoinCameraOnly',
     'prejoin.guestJoinMicrophoneOnly',
     'prejoin.guestJoinWithoutDevices',
+    'prejoin.mediaRefused',
 ]
 type Language = Literal[
     'de',
@@ -114,6 +115,7 @@ WORDS: Final[Mapping[Language, Mapping[Key, str | Mapping[Category, str]]]] = {
         'prejoin.guestJoinCameraOnly': 'Nur mit Kamera beitreten',
         'prejoin.guestJoinMicrophoneOnly': 'Nur mit Mikrofon beitreten',
         'prejoin.guestJoinWithoutDevices': 'Ohne Kamera und Mikrofon beitreten',
+        'prejoin.mediaRefused': 'Weder Kamera noch Mikrofon verfügbar ({errorName}). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal.',
     },
 }
 

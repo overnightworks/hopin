@@ -178,3 +178,7 @@ msgstr ""
 msgctxt "prejoin.guestJoinWithoutDevices"
 msgid "Ohne Kamera und Mikrofon beitreten"
 msgstr ""
+
+msgctxt "prejoin.mediaRefused"
+msgid "Weder Kamera noch Mikrofon verfügbar ({errorName}). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal."
+msgstr ""

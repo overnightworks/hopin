@@ -47,6 +47,7 @@ export type Words = {
     readonly "prejoin.guestJoinCameraOnly": string;
     readonly "prejoin.guestJoinMicrophoneOnly": string;
     readonly "prejoin.guestJoinWithoutDevices": string;
+    readonly "prejoin.mediaRefused": (gaps: { readonly errorName: string }) => string;
 };
 // prettier-ignore
 export const words: Words = {
@@ -94,5 +95,6 @@ export const words: Words = {
     "prejoin.guestJoinCameraOnly": "Nur mit Kamera beitreten",
     "prejoin.guestJoinMicrophoneOnly": "Nur mit Mikrofon beitreten",
     "prejoin.guestJoinWithoutDevices": "Ohne Kamera und Mikrofon beitreten",
+    "prejoin.mediaRefused": (gaps: { readonly errorName: string }) => "Weder Kamera noch Mikrofon verfügbar (" + gaps.errorName + "). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal.",
 };
 export type Key = keyof Words;

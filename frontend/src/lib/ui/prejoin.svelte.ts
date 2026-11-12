@@ -115,8 +115,13 @@ async function openMedia() {
 }
 
 function showMediaFailure(failure: Error) {
-    prejoin.failureMessage = failure.message;
+    prejoin.failureMessage = words["prejoin.mediaRefused"]({ errorName: refusedDeviceName(failure) });
     flushSync();
+}
+
+// The browser's refusal (NotAllowedError, NotFoundError) travels as the failure's cause.
+function refusedDeviceName(failure: Error): string {
+    return failure.cause instanceof DOMException ? failure.cause.name : failure.name;
 }
 
 export function microphoneClicked() {

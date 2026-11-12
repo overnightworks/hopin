@@ -71,9 +71,7 @@ PREVIEW_VIDEO = "#prejoinVideo"
 PREVIEW_ICON = "#prejoinPlaceholder"
 OWN_MUTE_MARK = "#localContainer .name .muted"
 OTHER_MUTE_MARK = f"{OTHER_TILE} .name .muted"
-MEDIA_REFUSED = (
-    "No camera or microphone available (NotAllowedError). Please connect a device or grant permission and try again."
-)
+MEDIA_REFUSED = text("de", "prejoin.mediaRefused", errorName="NotAllowedError")
 REFUSE_ALL_MEDIA = """
 navigator.mediaDevices.getUserMedia = async () => {
     throw new DOMException("permission denied", "NotAllowedError");
