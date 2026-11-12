@@ -1,6 +1,7 @@
 """HopIn's MCP surface: the person front a person's own agent calls with a bearer token, and participation built to
 serve it."""
 
+import asyncio
 import time
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
@@ -69,15 +70,20 @@ GLB_MEDIA_TYPE: Final = "model/gltf-binary"
 
 @dataclass
 class _BuiltParticipation:
-    """The participation the call's handler builds, which the tools reach once it exists."""
+    """The participation the call's handler builds, which the tools reach once it exists. Its resource changes tell
+    the participation when an agent starts or stops listening on its standing."""
 
     scheduler: Scheduler
-    changes: ResourceChanges
     wall_clock: Callable[[], float]
     adders: Mapping[str, str]
     groups: SessionGroups
     figure_sources: tuple[FigureSource, ...]
+    changes: ResourceChanges = field(init=False)
     participation: Participation = field(init=False)
+    _recomputes: set[asyncio.Task[None]] = field(init=False, default_factory=set)
+
+    def __post_init__(self) -> None:
+        self.changes = ResourceChanges(listening_changed=self._listening_changed)
 
     def build(self, rooms: CallRooms) -> CallFeature:
         self.participation = Participation(
@@ -90,6 +96,7 @@ class _BuiltParticipation:
             self.wall_clock,
             self.adders,
             self._groups_of,
+            self._listens_to_standing,
             self.figure_sources,
         )
         return self.participation
@@ -101,11 +108,23 @@ class _BuiltParticipation:
             return None
         return groups
 
+    def _listens_to_standing(self, person: Person) -> bool:
+        return self.changes.listens_to(_principal_of_person(person), STANDING_URI)
+
+    def _listening_changed(self, _principal: Principal, uri: str, _listens: bool) -> None:
+        """Only a change on the standing reaches the offers. The callable never blocks: the recompute runs as a task of
+        its own, which the set keeps until it ends."""
+        if uri != STANDING_URI:
+            return
+        recompute = asyncio.create_task(self.current().listening_changed())
+        self._recomputes.add(recompute)
+        recompute.add_done_callback(self._recomputes.discard)
+
     def _tell_changed(self, person: Person) -> None:
-        self.changes.changed(Principal(iss=person.issuer, sub=person.subject), STANDING_URI)
+        self.changes.changed(_principal_of_person(person), STANDING_URI)
 
     def _tell_window_changed(self, person: Person, room_id: str) -> None:
-        self.changes.changed(Principal(iss=person.issuer, sub=person.subject), _call_window_uri(room_id))
+        self.changes.changed(_principal_of_person(person), _call_window_uri(room_id))
 
     def current(self) -> Participation:
         return self.participation
@@ -122,6 +141,10 @@ class BuiltParticipationFeature:
 
 def _call_window_uri(room_id: str) -> str:
     return place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
+
+
+def _principal_of_person(person: Person) -> Principal:
+    return Principal(iss=person.issuer, sub=person.subject)
 
 
 def _principal_of(issuer: str, scope: Scope) -> Principal:
@@ -280,7 +303,6 @@ class ParticipationFeature:
         )
         built = _BuiltParticipation(
             scheduler,
-            ResourceChanges(),
             auth_config.wall_clock,
             self.agent_adders,
             SessionGroups(relying_party, lambda: nullcontext(sessions), auth_config),

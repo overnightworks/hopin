@@ -9,7 +9,7 @@ from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
     OWNER,
-    agent_calls,
+    agent_calls_and_listens,
     let_reads_finish,
     let_reads_start,
     offers_sent_to,
@@ -27,12 +27,12 @@ def adders():
 
 class TestAGroupReadThatIsStillRunning:
     async def test_it_shows_nothing_to_a_seat_that_left_meanwhile(
-        self, link, participation, groups_of_seat, group_reads
+        self, link, participation, groups_of_seat, group_reads, listeners
     ):
         owner = await link.join(OWNER)
         groups_of_seat["guest"] = release = asyncio.Event()
         member = await link.join("guest", owner.room_id)
-        await agent_calls(participation)
+        await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
 
         await member.drop(code=1000)
@@ -42,12 +42,12 @@ class TestAGroupReadThatIsStillRunning:
         assert offers_sent_to(member) is None
 
     async def test_it_is_cancelled_with_the_participation_that_shuts_down(
-        self, link, participation, groups_of_seat, group_reads
+        self, link, participation, groups_of_seat, group_reads, listeners
     ):
         owner = await link.join(OWNER)
         groups_of_seat["guest"] = release = asyncio.Event()
         member = await link.join("guest", owner.room_id)
-        await agent_calls(participation)
+        await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
 
         await participation.shut_down()
@@ -58,11 +58,11 @@ class TestAGroupReadThatIsStillRunning:
 
 
 class TestAnAddWhoseFreshReadIsStillRunning:
-    async def add_with_a_held_read(self, link, participation, groups_of_seat, group_reads):
+    async def add_with_a_held_read(self, link, participation, groups_of_seat, group_reads, listeners):
         owner = await link.join(OWNER)
         groups_of_seat["guest"] = frozenset({ADDERS})
         member = await link.join("guest", owner.room_id)
-        await agent_calls(participation)
+        await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
         [offer] = offers_sent_to(member)
         groups_of_seat["guest"] = release = asyncio.Event()
@@ -74,9 +74,11 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         return owner, member, release
 
     async def test_it_opens_no_invitation_when_the_call_ends_meanwhile(
-        self, link, participation, groups_of_seat, group_reads
+        self, link, participation, groups_of_seat, group_reads, listeners
     ):
-        owner, member, release = await self.add_with_a_held_read(link, participation, groups_of_seat, group_reads)
+        owner, member, release = await self.add_with_a_held_read(
+            link, participation, groups_of_seat, group_reads, listeners
+        )
 
         await owner.say({"type": SignalType.END_ROOM.value})
         release.set()
@@ -92,9 +94,11 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         )
 
     async def test_it_is_refused_when_the_owners_seat_was_replaced_meanwhile(
-        self, link, participation, groups_of_seat, group_reads
+        self, link, participation, groups_of_seat, group_reads, listeners
     ):
-        owner, member, release = await self.add_with_a_held_read(link, participation, groups_of_seat, group_reads)
+        owner, member, release = await self.add_with_a_held_read(
+            link, participation, groups_of_seat, group_reads, listeners
+        )
 
         await owner.drop(code=1000)
         await link.join(OWNER, owner.room_id)
@@ -108,9 +112,11 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         ) == ((), [AgentRefusal.NO_SEAT.value])
 
     async def test_it_is_refused_when_the_agents_lease_ran_out_meanwhile(
-        self, link, participation, groups_of_seat, scheduler, group_reads
+        self, link, participation, groups_of_seat, scheduler, group_reads, listeners
     ):
-        _owner, member, release = await self.add_with_a_held_read(link, participation, groups_of_seat, group_reads)
+        _owner, member, release = await self.add_with_a_held_read(
+            link, participation, groups_of_seat, group_reads, listeners
+        )
 
         await scheduler.advance(LEASE_SECONDS)
         release.set()
@@ -123,12 +129,12 @@ class TestAnAddWhoseFreshReadIsStillRunning:
 
 class TestReadsThatAreAlreadyRunning:
     async def test_a_seat_whose_groups_are_being_read_is_not_read_again_by_the_next_trigger(
-        self, link, participation, groups_of_seat, group_reads
+        self, link, participation, groups_of_seat, group_reads, listeners
     ):
         owner = await link.join(OWNER)
         await link.join("guest", owner.room_id)
         groups_of_seat["guest"] = release = asyncio.Event()
-        await agent_calls(participation)
+        await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
 
         await link.join("late", owner.room_id)

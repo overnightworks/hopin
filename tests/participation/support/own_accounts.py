@@ -18,6 +18,24 @@ async def agent_calls(participation, *, owner=OWNER, name=NAME):
     await participation.agent_called(AGENT, OwnAccount(owner, name))
 
 
+async def agent_calls_and_listens(participation, listeners, **options):
+    """An agent that calls and opens its stream on its standing, as an agent that is up does."""
+    await agent_calls(participation, **options)
+    await agent_listens(participation, listeners)
+
+
+async def agent_listens(participation, listeners):
+    """The agent opens a stream on its standing; the connector tells the participation, which offers its seats."""
+    listeners.add(AGENT)
+    await participation.listening_changed()
+
+
+async def agent_stops_listening(participation, listeners):
+    """The agent's last stream ends and its allowance lapses, which the connector tells the participation."""
+    listeners.discard(AGENT)
+    await participation.listening_changed()
+
+
 def _running_reads():
     return [task for task in asyncio.all_tasks() if task.get_name() == GROUPS_READ_TASK_NAME]
 

@@ -19,7 +19,7 @@ INVITATION_WAKE_SECONDS = 20
 
 class Scene:
     """The host, the agent's owner and a member of the adders group in one call, and the owner's scripted agent. The
-    agent has called once, so it is registered; it holds no place yet."""
+    agent registers with its first call (`agent_listens` or `standings`); it holds no place yet."""
 
     def __init__(
         self,

@@ -3,7 +3,7 @@ told, and the route that serves the verified file while a joined agent names it.
 
 import pytest
 import structlog.testing
-from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS
+from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
 
 from hopin.agent.tools import LEAVE_CALL
 from hopin.config.constants import CALL_FEATURES_PATH
@@ -328,6 +328,7 @@ class TestTheRoute:
         scene.call.seat(second_owner_login, scene.owner.room_id)
         second = scene.call.agent_token(owner=SECOND_OWNER, subject="second-agent", agent_name="Haydn")
         scene.call.standing(second)
+        scene.call.listen(second, [STANDING_URI])
         assert not accept_with(scene, figure_of(second_url), token=second, name="Haydn").is_error
 
         assert read_figure(scene, path).content == FILE

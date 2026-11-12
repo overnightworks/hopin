@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
-from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECONDS
+from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECONDS, STANDING_URI
 
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import ParticipationSignal
@@ -54,6 +54,12 @@ def adders():
 
 
 @pytest.fixture
+def listeners():
+    """The persons whose agents hold an open listen on their standing; a test lets an agent listen by adding it."""
+    return set()
+
+
+@pytest.fixture
 def groups_of_seat():
     """The groups the issuer holds for the seat of each name; `None` is a read that fails and an `asyncio.Event` a
     read that waits for it and then finds the adders group. A seat never named holds none."""
@@ -67,7 +73,7 @@ def group_reads(groups_of_seat):
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads):
+def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads, listeners):
     async def groups_of(connection):
         group_reads.append(connection.account.name)
         groups = groups_of_seat.get(connection.account.name, frozenset())
@@ -92,6 +98,7 @@ def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_
                 adders=adders,
                 groups_of=groups_of,
                 figure_sources=(),
+                listens_to_standing=lambda person: person in listeners,
             )
         ],
     )
@@ -167,7 +174,8 @@ def adding_call(sign_in_settings, seat_changes, adding_call_adders, figure_sourc
 
 
 class Scene:
-    """The owner in a call, a member of the adders group in it, and the owner's agent that has called once."""
+    """The owner in a call, a member of the adders group in it, and the owner's agent that has called and listened on
+    its standing once."""
 
     agent_name = "Mozart"
     agent_username = "agent-subject-username"
@@ -186,6 +194,7 @@ class Scene:
             preferred_username=self.agent_username,
         )
         call.standing(self.token)  # the first call registers the agent
+        call.listen(self.token, [STANDING_URI])  # its listen on the standing is what offers it
 
     def offered(self):
         """The offers of the next `agent_offers` frame that lists any; the frames that show the control with none pass

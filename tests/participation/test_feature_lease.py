@@ -2,7 +2,7 @@ import pytest
 from agents.member import LEASE_SECONDS, STANDING_URI
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
-from tests.participation.support.own_accounts import AGENT, agent_calls
+from tests.participation.support.own_accounts import AGENT, agent_calls_and_listens
 from tests.support.dialed_call import join_arguments
 
 pytestmark = pytest.mark.integration
@@ -67,9 +67,11 @@ class TestTheLease:
 
 @pytest.mark.asyncio
 class TestWhoIsLive:
-    async def test_an_agent_is_live_from_its_first_call_until_its_lease_runs_out(self, participation, scheduler):
+    async def test_an_agent_is_live_from_its_first_call_until_its_lease_runs_out(
+        self, participation, scheduler, listeners
+    ):
         before = participation.is_live_agent(AGENT)
-        await agent_calls(participation)
+        await agent_calls_and_listens(participation, listeners)
         during = participation.is_live_agent(AGENT)
 
         await scheduler.advance(LEASE_SECONDS)

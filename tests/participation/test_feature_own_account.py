@@ -111,6 +111,7 @@ def _owner_away(scene, arguments, seat_changes):
 def _owner_sponsoring_another_agent(scene, arguments, seat_changes):
     other = scene.call.agent_token(owner=scene.owner_subject, subject="other-agent", agent_name="Codex")
     scene.call.standing(other)
+    scene.call.listen(other, [STANDING_URI])
     scene.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": scene.key_of_offer_named("Codex")})
     scene.member.frame_of_type(OFFERS)
     [invitation] = scene.call.standing(other)

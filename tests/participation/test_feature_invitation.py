@@ -15,6 +15,8 @@ from tests.participation.support.own_accounts import (
     OWNER,
     WALL_CLOCK_SECONDS,
     agent_calls,
+    agent_calls_and_listens,
+    agent_stops_listening,
     let_reads_finish,
     offers_sent_to,
 )
@@ -65,10 +67,10 @@ async def add_the_offered_agent(member):
 
 
 @pytest_asyncio.fixture
-async def invited(link, participation):
+async def invited(link, participation, listeners):
     owner = await link.join(OWNER)
     member = await link.join("guest", owner.room_id)
-    await agent_calls(participation)
+    await agent_calls_and_listens(participation, listeners)
     await let_reads_finish()
     await add_the_offered_agent(member)
     return Invited(owner, member, participation)
@@ -100,6 +102,16 @@ class TestAnInvitation:
 
         assert offers_sent_to(invited.member) == []
 
+    async def test_an_agent_whose_listen_has_ended_still_accepts_and_is_joined(self, invited, listeners):
+        """CALL-51: An accept checks the agent's lease, not its listen."""
+        await agent_stops_listening(invited.participation, listeners)
+        await let_reads_finish()
+
+        agent = await invited.accept()
+
+        assert isinstance(agent, DialedAgent)
+        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
+
     async def test_it_cannot_be_accepted_twice(self, invited):
         await invited.accept()
 
@@ -115,11 +127,11 @@ class TestAnInvitation:
         assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
     async def test_it_ends_after_its_lifetime_and_the_adder_may_add_again(
-        self, invited, scheduler, participation, changes
+        self, invited, scheduler, participation, changes, listeners
     ):
         """CALL-52: The invitation lasts the library's INVITATION_SECONDS."""
         await scheduler.advance(INVITATION_SECONDS - 1)
-        await agent_calls(participation)  # the agent keeps calling, so its lease holds
+        await agent_calls_and_listens(participation, listeners)  # the agent keeps calling, so its lease holds
         told = len(changes)
         await scheduler.advance(1)
 
