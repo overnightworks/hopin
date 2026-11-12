@@ -1,0 +1,8 @@
+claim_id = "d6caffe056b9495d810ca2687746d768"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b0e36a7eebac55853a49bfb4ce8d2a1065045ae4"
+branch = "claude/issue-708-the-room-manager-s-has-room-has-a-produc"
+scope = ["src/hopin/rooms/manager.py", "tests/signaling/test_handler.py", "tests/signaling/test_handler_resume.py", "tests/test_rooms.py"]
+opened_commit = "a94f541549d6de74bf8d366f518327c235bdde08"
+whole_reason = "The method and the three test modules that call it change together."
