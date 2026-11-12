@@ -1,0 +1,8 @@
+claim_id = "4ac0f70e48654c1188d156955fb58d89"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "57ed4f9dbbc2b7f80aacb234f53642febb7ac485"
+branch = "claude/issue-761-the-hearing-route-sends-a-sponsor-s-micr"
+scope = [".aco/ahead-of-caller.toml", "README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/wire.ts", "pyproject.toml", "src/hopin/agent", "src/hopin/main.py", "src/hopin/participation/vocabulary.py", "tests/participation", "tests/support", "uv.lock"]
+opened_commit = "1a6a06947234f107493abd9621a8c4705ad87b3f"
+whole_reason = "The route, its setting, its composition, its wire owner and generated wire, the pin it needs, the adapter fix on its first call, the call spec and the fakes that prove it change together; a route without its setting or its proof would be live sound handling nobody tested."
