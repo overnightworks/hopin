@@ -22,6 +22,7 @@ from tests.e2e.support.page_assertions import (
     expect_toast,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -56,7 +57,7 @@ A_TOAST_OTHER_THAN = """
 def expect_the_members_line_after_the_link_box(menu: Locator) -> None:
     members_line = menu.locator(MEMBERS_LINE_AFTER_THE_LINK_BOX)
     expect(members_line).to_be_visible()
-    expect(members_line).to_have_text("Only HopIn members can join.")
+    expect(members_line).to_have_text(text("de", "invite.membersNote"))
     expect(members_line.locator(f"svg {LOCK_SHACKLE}")).to_be_visible()
 
 
@@ -92,7 +93,7 @@ def test_every_bar_has_an_enabled_invite_without_a_tooltip_in_the_call(
     host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
 
     for person in (host, guest):
-        expect(person.get_by_role("button", name="Invite", exact=True)).to_be_enabled()
+        expect(person.get_by_role("button", name=text("de", "call.inviteButton"), exact=True)).to_be_enabled()
         expect(person.locator(INVITE_BUTTON)).not_to_have_attribute("title", re.compile(".*"))
 
 
@@ -108,11 +109,11 @@ def test_host_opens_invite_as_a_sheet_on_a_phone_with_the_link_copy_link_and_sha
     assert box["left"] == stage["left"] + SHEET_MARGIN_PIXELS
     assert box["right"] == stage["right"] - SHEET_MARGIN_PIXELS
     assert box["bottom"] == stage["bottom"] - SHEET_MARGIN_PIXELS
-    expect(host.get_by_role("dialog", name="Invite people")).to_be_visible()
-    expect(menu.get_by_role("heading", name="Invite people")).to_be_visible()
+    expect(host.get_by_role("dialog", name=text("de", "invite.menuLabel"))).to_be_visible()
+    expect(menu.get_by_role("heading", name=text("de", "invite.heading"))).to_be_visible()
     expect(host.locator(INVITE_LINK)).to_have_text(host.url)
-    copy_box = menu.get_by_role("button", name="Copy link").bounding_box()
-    share_box = menu.get_by_role("button", name="Share").bounding_box()
+    copy_box = menu.get_by_role("button", name=text("de", "invite.copyLinkButton")).bounding_box()
+    share_box = menu.get_by_role("button", name=text("de", "invite.shareButton")).bounding_box()
     assert copy_box is not None
     assert share_box is not None
     assert copy_box["x"] < share_box["x"]
@@ -136,8 +137,8 @@ def test_host_opens_invite_as_a_popover_on_a_desktop_with_the_link_and_copy_and_
     assert box["bottom"] == stage["bottom"] - POPOVER_BOTTOM_GAP_PIXELS
     assert abs((box["left"] + box["right"]) / 2 - (invite["left"] + invite["right"]) / 2) <= CENTRE_TOLERANCE_PIXELS
     expect(host.locator(INVITE_LINK)).to_have_text(host.url)
-    expect(menu.get_by_role("button", name="Copy", exact=True)).to_be_visible()
-    expect(menu.get_by_role("button", name="Share")).to_be_hidden()
+    expect(menu.get_by_role("button", name=text("de", "invite.copyButton"), exact=True)).to_be_visible()
+    expect(menu.get_by_role("button", name=text("de", "invite.shareButton"))).to_be_hidden()
     expect(host.locator(INVITE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(INVITE_BUTTON)).to_have_class("cb active")
     expect_the_members_line_after_the_link_box(menu)
@@ -150,8 +151,8 @@ def test_a_phone_without_web_share_offers_copy_link_alone(
 
     menu = open_invite(host)
 
-    expect(menu.get_by_role("button", name="Copy link")).to_be_visible()
-    expect(menu.get_by_role("button", name="Share")).to_be_hidden()
+    expect(menu.get_by_role("button", name=text("de", "invite.copyLinkButton"))).to_be_visible()
+    expect(menu.get_by_role("button", name=text("de", "invite.shareButton"))).to_be_hidden()
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

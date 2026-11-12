@@ -36,6 +36,7 @@ from tests.e2e.support.media import (
     wait_for_video_tracks,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -147,7 +148,7 @@ def test_camera_off_in_a_call_releases_the_camera_and_sends_no_picture(
 
     turn_the_camera_off(presser)
 
-    assert presser.get_by_role("button", name="Camera off", exact=True).is_visible()
+    assert presser.get_by_role("button", name=text("de", "call.cameraOffButton"), exact=True).is_visible()
     wait_for_the_light_to_go_out(presser)
     wait_for_video_tracks(presser, own=[], senders=[None])
     expect_the_icon(watcher)

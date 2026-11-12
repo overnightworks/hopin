@@ -103,8 +103,8 @@ def test_host_opens_more_as_a_sheet_on_a_phone_and_a_popover_on_a_desktop(
         assert abs((menu["left"] + menu["right"]) / 2 - (more["left"] + more["right"]) / 2) <= CENTRE_TOLERANCE_PIXELS
     expect(host.locator(MORE_BUTTON)).to_have_attribute("aria-expanded", "true")
     expect(host.locator(MORE_BUTTON)).to_have_class("cb active")
-    assert host.evaluate(VISIBLE_MORE_ENTRIES) == ["Lock call", *LEGAL_LINKS]
-    expect(host.get_by_role("dialog", name="More")).to_be_visible()
+    assert host.evaluate(VISIBLE_MORE_ENTRIES) == [text("de", "more.lockSwitch"), *LEGAL_LINKS]
+    expect(host.get_by_role("dialog", name=text("de", "more.menuLabel"))).to_be_visible()
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
@@ -145,7 +145,7 @@ def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_ta
 ) -> None:
     """CALL-02, CALL-40: Lock call switch locks and unlocks with a toast for the host and the tag for everyone."""
     host, guest, invite_link = open_call(open_person, base_url, page_errors, form_factor)
-    switch = host.get_by_role("switch", name="Lock call")
+    switch = host.get_by_role("switch", name=text("de", "more.lockSwitch"))
 
     toggle_the_lock(host)
 
@@ -162,7 +162,7 @@ def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_ta
         tag = person.locator(THE_TAG_AT_THE_TOP)
         expect(tag).to_be_visible()
         expect(tag).to_have_class("tag-glass")
-        expect(tag).to_have_text("Locked")
+        expect(tag).to_have_text(text("de", "call.lockedTag"))
         expect(tag.locator("svg")).to_have_count(1)
     latecomer = join(open_person, invite_link, form_factor, page_errors=page_errors)
     expect(latecomer.locator("[data-screen=end]")).to_contain_text(text("de", "end.lockedTitle"))

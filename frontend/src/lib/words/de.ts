@@ -4,6 +4,26 @@ export const language = "de";
 // prettier-ignore
 export type Words = {
     readonly "call.unexpectedError": string;
+    readonly "call.pageTitle": string;
+    readonly "call.brandName": string;
+    readonly "call.leaveQuestion": string;
+    readonly "call.leaveCancelButton": string;
+    readonly "call.leaveConfirmButton": string;
+    readonly "call.lockedTag": string;
+    readonly "call.participantCountLabel": string;
+    readonly "call.ownTileName": string;
+    readonly "call.waitingTitle": string;
+    readonly "call.waitingText": string;
+    readonly "call.waitingCopyLinkButton": string;
+    readonly "call.waitingShareButton": string;
+    readonly "call.controlBarLabel": string;
+    readonly "call.muteButton": string;
+    readonly "call.cameraOffButton": string;
+    readonly "call.shareScreenButton": string;
+    readonly "call.inviteButton": string;
+    readonly "call.chatButton": string;
+    readonly "call.moreButton": string;
+    readonly "call.leaveButton": string;
     readonly "end.accountButton": string;
     readonly "end.retryButton": string;
     readonly "end.homeButton": string;
@@ -48,10 +68,50 @@ export type Words = {
     readonly "prejoin.guestJoinMicrophoneOnly": string;
     readonly "prejoin.guestJoinWithoutDevices": string;
     readonly "prejoin.mediaRefused": (gaps: { readonly errorName: string }) => string;
+    readonly "more.menuLabel": string;
+    readonly "more.lockSwitch": string;
+    readonly "invite.menuLabel": string;
+    readonly "invite.heading": string;
+    readonly "invite.closeButton": string;
+    readonly "invite.copyButton": string;
+    readonly "invite.membersNote": string;
+    readonly "invite.copyLinkButton": string;
+    readonly "invite.shareButton": string;
+    readonly "chat.header": string;
+    readonly "chat.inputPlaceholder": string;
+    readonly "chat.inputLabel": string;
+    readonly "chat.sendButton": string;
+    readonly "account.menuLabel": string;
+    readonly "tile.removeButton": string;
+    readonly "tile.aiBadge": string;
+    readonly "tile.agentThinkingLabel": (gaps: { readonly name: string }) => string;
+    readonly "tile.agentWaitingLabel": (gaps: { readonly name: string }) => string;
+    readonly "tile.agentSpeakingLabel": (gaps: { readonly name: string }) => string;
+    readonly "tile.agentPresentLabel": (gaps: { readonly name: string }) => string;
 };
 // prettier-ignore
 export const words: Words = {
     "call.unexpectedError": "Etwas ist schiefgegangen. Bitte versuch es noch einmal.",
+    "call.pageTitle": "HopIn - Videoanruf",
+    "call.brandName": "HopIn",
+    "call.leaveQuestion": "Diesen Anruf verlassen?",
+    "call.leaveCancelButton": "Abbrechen",
+    "call.leaveConfirmButton": "Verlassen",
+    "call.lockedTag": "Gesperrt",
+    "call.participantCountLabel": "Teilnehmende",
+    "call.ownTileName": "Du",
+    "call.waitingTitle": "Warten auf andere",
+    "call.waitingText": "Lade Leute ein, diesem Anruf beizutreten.",
+    "call.waitingCopyLinkButton": "Link kopieren",
+    "call.waitingShareButton": "Teilen",
+    "call.controlBarLabel": "Anrufsteuerung",
+    "call.muteButton": "Stummschalten",
+    "call.cameraOffButton": "Kamera ausschalten",
+    "call.shareScreenButton": "Bildschirm teilen",
+    "call.inviteButton": "Einladen",
+    "call.chatButton": "Chat",
+    "call.moreButton": "Mehr",
+    "call.leaveButton": "Verlassen",
     "end.accountButton": "Konto",
     "end.retryButton": "Erneut versuchen",
     "end.homeButton": "Zurück zum Start",
@@ -96,5 +156,25 @@ export const words: Words = {
     "prejoin.guestJoinMicrophoneOnly": "Nur mit Mikrofon beitreten",
     "prejoin.guestJoinWithoutDevices": "Ohne Kamera und Mikrofon beitreten",
     "prejoin.mediaRefused": (gaps: { readonly errorName: string }) => "Weder Kamera noch Mikrofon verfügbar (" + gaps.errorName + "). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal.",
+    "more.menuLabel": "Mehr",
+    "more.lockSwitch": "Anruf sperren",
+    "invite.menuLabel": "Leute einladen",
+    "invite.heading": "Leute einladen",
+    "invite.closeButton": "Schließen",
+    "invite.copyButton": "Kopieren",
+    "invite.membersNote": "Nur HopIn-Mitglieder können beitreten.",
+    "invite.copyLinkButton": "Link kopieren",
+    "invite.shareButton": "Teilen",
+    "chat.header": "Chat",
+    "chat.inputPlaceholder": "Schreib eine Nachricht …",
+    "chat.inputLabel": "Chatnachricht",
+    "chat.sendButton": "Senden",
+    "account.menuLabel": "Konto",
+    "tile.removeButton": "Entfernen",
+    "tile.aiBadge": "KI",
+    "tile.agentThinkingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, denkt nach",
+    "tile.agentWaitingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, wartet auf Antworten",
+    "tile.agentSpeakingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, spricht",
+    "tile.agentPresentLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, ist im Anruf",
 };
 export type Key = keyof Words;

@@ -23,6 +23,7 @@ from tests.e2e.support.page_assertions import (
     expect_toast,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -103,11 +104,11 @@ def test_alone_the_desktop_host_sees_the_card_with_the_link_and_copy_link_only(
 
     card = host.locator(CARD)
     expect(card).to_be_visible()
-    expect(card.get_by_role("heading", name="Waiting for others")).to_be_visible()
-    expect(card.get_by_text("Invite people to join this call.")).to_be_visible()
+    expect(card.get_by_role("heading", name=text("de", "call.waitingTitle"))).to_be_visible()
+    expect(card.get_by_text(text("de", "call.waitingText"))).to_be_visible()
     expect(host.locator(LINK_TEXT)).to_have_text(host.url)
     expect(card.get_by_role("button")).to_have_count(1)
-    expect(card.get_by_role("button", name="Copy link")).to_be_visible()
+    expect(card.get_by_role("button", name=text("de", "call.waitingCopyLinkButton"))).to_be_visible()
     for removed in ("#shareBox", "#shareUrl", "#copyBtn"):
         expect(host.locator(removed)).to_have_count(0)
 

@@ -29,8 +29,8 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 AGENT_TILE = "#container-agent"
-AGENT_THINKING = "Game master, AI, thinking"
-AGENT_WAITING = "Game master, AI, waiting for answers"
+AGENT_THINKING = text("de", "tile.agentThinkingLabel", name="Game master")
+AGENT_WAITING = text("de", "tile.agentWaitingLabel", name="Game master")
 STAGE = "#stage"
 CALL_PLACES = 6
 REVEAL = "Reveal"
