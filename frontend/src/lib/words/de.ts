@@ -128,7 +128,6 @@ export type Words = {
     readonly "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => string;
     readonly "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => string;
     readonly "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => string;
-    readonly "game.busyToast": (gaps: { readonly name: string }) => string;
     readonly "game.busyRetryToast": (count: number, gaps: { readonly name: string }) => string;
     readonly "game.unavailableToast": (gaps: { readonly name: string }) => string;
     readonly "game.noAccessToast": string;
@@ -276,7 +275,6 @@ export const words: Words = {
     "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => "Frage " + gaps.round + " von " + gaps.rounds,
     "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => gaps.answered + " von " + gaps.players + " haben geantwortet",
     "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => "Antwort gesendet · " + gaps.answered + " von " + gaps.players + " haben geantwortet",
-    "game.busyToast": (gaps: { readonly name: string }) => gaps.name + " ist gerade beschäftigt.",
     "game.busyRetryToast": (count: number, gaps: { readonly name: string }) => ({
         zero: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunden noch einmal.",
         one: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunde noch einmal.",

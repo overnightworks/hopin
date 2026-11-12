@@ -130,7 +130,6 @@ type Key = Literal[
     'game.questionProgress',
     'game.answerCountStatus',
     'game.answerSentCountStatus',
-    'game.busyToast',
     'game.busyRetryToast',
     'game.unavailableToast',
     'game.noAccessToast',
@@ -290,7 +289,6 @@ WORDS: Mapping[Language, Mapping[Key, str | Mapping[Category, str]]] = {
         'game.questionProgress': 'Frage {round} von {rounds}',
         'game.answerCountStatus': '{answered} von {players} haben geantwortet',
         'game.answerSentCountStatus': 'Antwort gesendet · {answered} von {players} haben geantwortet',
-        'game.busyToast': '{name} ist gerade beschäftigt.',
         'game.busyRetryToast': {
             'one': '{name} ist gerade beschäftigt. Versuch es in {count} Sekunde noch einmal.',
             'other': '{name} ist gerade beschäftigt. Versuch es in {count} Sekunden noch einmal.',

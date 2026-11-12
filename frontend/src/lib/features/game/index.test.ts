@@ -327,7 +327,6 @@ describe("refusals", () => {
     it.each([
         [GAME_REFUSAL.NO_ACCESS, words["game.noAccessToast"], "LOCKED"],
         [GAME_REFUSAL.SIGN_IN_AGAIN, words["game.signInAgainToast"](master), "WARNING"],
-        [GAME_REFUSAL.BUSY, words["game.busyToast"](master), "WAIT"],
         [GAME_REFUSAL.BUDGET_SPENT, words["game.budgetSpentToast"], "LOCKED"],
         [GAME_REFUSAL.ALREADY_ANSWERING, words["game.alreadyAnsweringToast"](master), "WAIT"],
         [GAME_REFUSAL.QUIZ_RUNNING, words["game.quizRunningToast"], "WAIT"],
@@ -345,12 +344,14 @@ describe("refusals", () => {
         expect(game.toasts).toMatchObject([{ text, kind: TOAST_KIND[kind] }]);
     });
 
-    it("names the wait when the game master is busy", async () => {
+    it.each([1, 12])("names the wait of %i seconds when the game master is busy", async (seconds) => {
         const game = await installedGame();
 
-        game.emit(GAME_SIGNAL.GAME_REFUSED, { reason: GAME_REFUSAL.BUSY, retry_after_seconds: 12 });
+        game.emit(GAME_SIGNAL.GAME_REFUSED, { reason: GAME_REFUSAL.BUSY, retry_after_seconds: seconds });
 
-        expect(game.toasts[0]?.text).toBe(words["game.busyRetryToast"](12, master));
+        expect(game.toasts).toMatchObject([
+            { text: words["game.busyRetryToast"](seconds, master), kind: TOAST_KIND.WAIT },
+        ]);
     });
 
     it("GM-13: unlocks Start quiz after a refusal", async () => {

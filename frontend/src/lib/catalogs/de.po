@@ -499,10 +499,6 @@ msgctxt "game.answerSentCountStatus"
 msgid "Antwort gesendet · {answered} von {players} haben geantwortet"
 msgstr ""
 
-msgctxt "game.busyToast"
-msgid "{name} ist gerade beschäftigt."
-msgstr ""
-
 msgctxt "game.busyRetryToast.one"
 msgid "{name} ist gerade beschäftigt. Versuch es in {count} Sekunde noch einmal."
 msgstr ""

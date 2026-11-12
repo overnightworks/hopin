@@ -45,8 +45,14 @@ class Line:
 
 @dataclass(frozen=True)
 class Refused:
+    """Why there is no line; a busy refusal carries the seconds to wait and no other refusal does."""
+
     reason: GameRefusal
     retry_after_seconds: int | None = None
+
+    def __post_init__(self) -> None:
+        if (self.reason is GameRefusal.BUSY) != (self.retry_after_seconds is not None):
+            raise ValueError(f"a {self.reason.value} refusal carries seconds to wait exactly when it is busy")
 
 
 type GameOutcome = Line | Refused

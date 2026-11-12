@@ -48,12 +48,6 @@ function signInAgain() {
     location.assign(`${AUTH_START_PATH}?${new URLSearchParams({ [RETURN_TO_QUERY_PARAMETER]: returnTo })}`);
 }
 
-function busyText(frame: RefusedFrame) {
-    return frame.retry_after_seconds === undefined
-        ? words["game.busyToast"](MASTER_NAME)
-        : words["game.busyRetryToast"](frame.retry_after_seconds, MASTER_NAME);
-}
-
 const UNAVAILABLE_TOAST: RefusalToast = (_frame, kind) => [
     words["game.unavailableToast"](MASTER_NAME),
     kind.WARNING,
@@ -67,7 +61,12 @@ const REFUSAL_TOASTS: Partial<Record<GAME_REFUSAL, RefusalToast>> = {
         kind.WARNING,
         { label: words["game.signInButton"], onAct: signInAgain },
     ],
-    [GAME_REFUSAL.BUSY]: (frame, kind) => [busyText(frame), kind.WAIT, null],
+    // The game master's busy refusal always carries its wait.
+    [GAME_REFUSAL.BUSY]: (frame, kind) => [
+        words["game.busyRetryToast"](frame.retry_after_seconds as number, MASTER_NAME),
+        kind.WAIT,
+        null,
+    ],
     [GAME_REFUSAL.BUDGET_SPENT]: (_frame, kind) => [words["game.budgetSpentToast"], kind.LOCKED, null],
     [GAME_REFUSAL.ALREADY_ANSWERING]: (_frame, kind) => [
         words["game.alreadyAnsweringToast"](MASTER_NAME),
