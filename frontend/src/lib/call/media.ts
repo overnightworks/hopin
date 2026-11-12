@@ -101,10 +101,7 @@ export async function acquireMedia(): Promise<void> {
     } catch (error) {
         // The rejection's name distinguishes a permission denial (NotAllowedError) from an
         // absent device (NotFoundError), which call for different advice.
-        throw new Error(
-            `No camera or microphone available (${(error as Error).name}). Please connect a device or grant permission and try again.`,
-            { cause: error },
-        );
+        throw new Error("Local media unavailable", { cause: error });
     }
 }
 

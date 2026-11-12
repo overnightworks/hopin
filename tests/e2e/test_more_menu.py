@@ -24,6 +24,7 @@ from tests.e2e.support.page_assertions import (
     expect_both_legal_links,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -164,7 +165,7 @@ def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_ta
         expect(tag).to_have_text("Locked")
         expect(tag.locator("svg")).to_have_count(1)
     latecomer = join(open_person, invite_link, form_factor, page_errors=page_errors)
-    expect(latecomer.locator("[data-screen=end]")).to_contain_text("locked", ignore_case=True)
+    expect(latecomer.locator("[data-screen=end]")).to_contain_text(text("de", "end.lockedTitle"))
 
     toggle_the_lock(host)
 

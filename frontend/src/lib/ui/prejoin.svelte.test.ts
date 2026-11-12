@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { words } from "#lib/words/de.ts";
+
 const media = vi.hoisted(() => ({
     acquireMedia: vi.fn(),
     addCamera: vi.fn(),
@@ -35,10 +37,10 @@ beforeEach(() => {
 });
 
 describe("before it is opened", () => {
-    it("starts like the static markup: disabled, not pressed, the heading HopIn, no texts", async () => {
+    it("starts like the static markup: disabled, not pressed, the app name as heading, no texts", async () => {
         const { isPrejoinInert, prejoin, prejoinTexts, startLabel } = await freshPrejoin();
 
-        expect(prejoinTexts()).toEqual({ title: "", heading: "HopIn", subLine: "" });
+        expect(prejoinTexts()).toEqual({ title: "", heading: words["prejoin.unopenedHeading"], subLine: "" });
         expect(startLabel()).toBe("");
         expect(isPrejoinInert()).toBe(true);
         expect(prejoin).toMatchObject({ isMicrophoneOn: true, isCameraOn: true, failureMessage: "" });
@@ -74,26 +76,26 @@ describe("an open pre-join", () => {
 describe.each([
     {
         kind: "host" as const,
-        title: "New call",
-        heading: "Ready to start?",
-        subLine: "You'll get a link to invite people.",
+        title: words["prejoin.hostTitle"],
+        heading: words["prejoin.hostHeading"],
+        subLine: words["prejoin.hostSubLine"],
         labels: {
-            both: "Start with camera and mic",
-            cameraOnly: "Start with camera only",
-            micOnly: "Start with mic only",
-            neither: "Start with camera and mic off",
+            both: words["prejoin.hostStartCameraAndMicrophone"],
+            cameraOnly: words["prejoin.hostStartCameraOnly"],
+            micOnly: words["prejoin.hostStartMicrophoneOnly"],
+            neither: words["prejoin.hostStartWithoutDevices"],
         },
     },
     {
         kind: "guest" as const,
-        title: "Join call",
-        heading: "Ready to join?",
+        title: words["prejoin.guestTitle"],
+        heading: words["prejoin.guestHeading"],
         subLine: "",
         labels: {
-            both: "Join with camera and mic",
-            cameraOnly: "Join with camera only",
-            micOnly: "Join with mic only",
-            neither: "Join with camera and mic off",
+            both: words["prejoin.guestJoinCameraAndMicrophone"],
+            cameraOnly: words["prejoin.guestJoinCameraOnly"],
+            micOnly: words["prejoin.guestJoinMicrophoneOnly"],
+            neither: words["prejoin.guestJoinWithoutDevices"],
         },
     },
 ])("the $kind pre-join", ({ kind, title, heading, subLine, labels }) => {
@@ -140,11 +142,13 @@ describe.each([
 describe("a refused media request", () => {
     it("shows the message and leaves every control disabled", async () => {
         const { isPrejoinInert, openPrejoin, prejoin } = await freshPrejoin();
-        media.acquireMedia.mockRejectedValue(new Error("Camera and microphone are blocked"));
+        media.acquireMedia.mockRejectedValue(
+            new Error("device refused", { cause: new DOMException("blocked", "NotAllowedError") }),
+        );
 
         openPrejoin("host");
         await vi.waitFor(() => {
-            expect(prejoin.failureMessage).toBe("Camera and microphone are blocked");
+            expect(prejoin.failureMessage).toBe(words["prejoin.mediaRefused"]({ errorName: "NotAllowedError" }));
         });
 
         expect(isPrejoinInert()).toBe(true);

@@ -4,6 +4,7 @@ import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "#lib/call/m
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
+import { words } from "#lib/words/de.ts";
 
 export const PREJOIN_KIND = {
     HOST: "host",
@@ -21,30 +22,28 @@ interface KindTexts {
 
 const KIND_TEXTS: Record<PrejoinKind, KindTexts> = {
     [PREJOIN_KIND.HOST]: {
-        title: "New call",
-        heading: "Ready to start?",
-        subLine: "You'll get a link to invite people.",
+        title: words["prejoin.hostTitle"],
+        heading: words["prejoin.hostHeading"],
+        subLine: words["prejoin.hostSubLine"],
         buttonLabels: {
-            cameraAndMic: "Start with camera and mic",
-            cameraOnly: "Start with camera only",
-            micOnly: "Start with mic only",
-            neither: "Start with camera and mic off",
+            cameraAndMic: words["prejoin.hostStartCameraAndMicrophone"],
+            cameraOnly: words["prejoin.hostStartCameraOnly"],
+            micOnly: words["prejoin.hostStartMicrophoneOnly"],
+            neither: words["prejoin.hostStartWithoutDevices"],
         },
     },
     [PREJOIN_KIND.GUEST]: {
-        title: "Join call",
-        heading: "Ready to join?",
+        title: words["prejoin.guestTitle"],
+        heading: words["prejoin.guestHeading"],
         subLine: "",
         buttonLabels: {
-            cameraAndMic: "Join with camera and mic",
-            cameraOnly: "Join with camera only",
-            micOnly: "Join with mic only",
-            neither: "Join with camera and mic off",
+            cameraAndMic: words["prejoin.guestJoinCameraAndMicrophone"],
+            cameraOnly: words["prejoin.guestJoinCameraOnly"],
+            micOnly: words["prejoin.guestJoinMicrophoneOnly"],
+            neither: words["prejoin.guestJoinWithoutDevices"],
         },
     },
 };
-
-const UNOPENED_HEADING = "HopIn";
 
 export const prejoin: {
     kind: PrejoinKind | null;
@@ -70,7 +69,7 @@ export function installPrejoinStart(callback: (kind: PrejoinKind) => void) {
 }
 
 export function prejoinTexts() {
-    if (!prejoin.kind) return { title: "", heading: UNOPENED_HEADING, subLine: "" };
+    if (!prejoin.kind) return { title: "", heading: words["prejoin.unopenedHeading"], subLine: "" };
     const { title, heading, subLine } = KIND_TEXTS[prejoin.kind];
     return { title, heading, subLine };
 }
@@ -115,8 +114,9 @@ async function openMedia() {
     updateLocalPreview();
 }
 
+// The browser's refusal (NotAllowedError, NotFoundError) travels as the failure's cause.
 function showMediaFailure(failure: Error) {
-    prejoin.failureMessage = failure.message;
+    prejoin.failureMessage = words["prejoin.mediaRefused"]({ errorName: (failure.cause as Error).name });
     flushSync();
 }
 

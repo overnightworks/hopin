@@ -186,7 +186,7 @@ describe("starting the media", () => {
         expect(fresh.state.videoEnabled).toBe(false);
     });
 
-    it("throws the advice with the rejection as cause when both requests fail", async () => {
+    it("throws an error with the rejection as cause when both requests fail", async () => {
         const fresh = await freshMedia();
         const starting = fresh.acquireMedia();
         const refusal = rejection("NotAllowedError");
@@ -194,11 +194,8 @@ describe("starting the media", () => {
         await settle();
         requests[1]?.reject(refusal);
 
-        await expect(starting).rejects.toMatchObject({
-            message:
-                "No camera or microphone available (NotAllowedError). Please connect a device or grant permission and try again.",
-            cause: refusal,
-        });
+        await expect(starting).rejects.toBeInstanceOf(Error);
+        await expect(starting).rejects.toHaveProperty("cause", refusal);
         expect(fresh.state.localStream).toBeNull();
     });
 

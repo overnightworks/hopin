@@ -23,6 +23,70 @@ msgctxt "end.rejoinButton"
 msgid "Wieder beitreten"
 msgstr ""
 
+msgctxt "end.callEndedTitle"
+msgid "Der Anruf ist beendet"
+msgstr ""
+
+msgctxt "end.endedByHostNamedText"
+msgid "{name} hat den Anruf für alle beendet."
+msgstr ""
+
+msgctxt "end.endedByHostUnnamedText"
+msgid "Der Host hat den Anruf für alle beendet."
+msgstr ""
+
+msgctxt "end.hostGoneNamedText"
+msgid "{name} ist nicht innerhalb von {seconds} Sekunden zurückgekommen, deshalb wurde der Anruf für alle beendet."
+msgstr ""
+
+msgctxt "end.hostGoneUnnamedText"
+msgid "Der Host ist nicht innerhalb von {seconds} Sekunden zurückgekommen, deshalb wurde der Anruf für alle beendet."
+msgstr ""
+
+msgctxt "end.leftTitle"
+msgid "Du hast den Anruf verlassen"
+msgstr ""
+
+msgctxt "end.leftText"
+msgid "Die anderen sprechen noch."
+msgstr ""
+
+msgctxt "end.expiredTitle"
+msgid "Dieser Link ist abgelaufen"
+msgstr ""
+
+msgctxt "end.expiredText"
+msgid "Der Anruf ist vorbei. Bitte um einen neuen Link."
+msgstr ""
+
+msgctxt "end.lockedTitle"
+msgid "Der Anruf ist gesperrt"
+msgstr ""
+
+msgctxt "end.lockedText"
+msgid "Der Host lässt gerade niemanden Neues herein. Versuch es gleich noch einmal."
+msgstr ""
+
+msgctxt "end.fullTitle"
+msgid "Der Anruf ist voll"
+msgstr ""
+
+msgctxt "end.fullPill"
+msgid "{capacity}/{capacity}"
+msgstr ""
+
+msgctxt "end.fullText"
+msgid "In einem Anruf ist Platz für {capacity} Personen."
+msgstr ""
+
+msgctxt "end.tooManyCallsTitle"
+msgid "Zu viele offene Anrufe"
+msgstr ""
+
+msgctxt "end.tooManyCallsText"
+msgid "Dein Konto ist schon in {limit} Anrufen. Verlass einen, um diesem beizutreten."
+msgstr ""
+
 msgctxt "home.accountButton"
 msgid "Konto"
 msgstr ""
@@ -57,4 +121,64 @@ msgstr ""
 
 msgctxt "prejoin.cameraOffButton"
 msgid "Kamera ausschalten"
+msgstr ""
+
+msgctxt "prejoin.unopenedHeading"
+msgid "HopIn"
+msgstr ""
+
+msgctxt "prejoin.hostTitle"
+msgid "Neuer Anruf"
+msgstr ""
+
+msgctxt "prejoin.hostHeading"
+msgid "Bereit zum Starten?"
+msgstr ""
+
+msgctxt "prejoin.hostSubLine"
+msgid "Du bekommst einen Link, mit dem du andere einladen kannst."
+msgstr ""
+
+msgctxt "prejoin.hostStartCameraAndMicrophone"
+msgid "Mit Kamera und Mikrofon starten"
+msgstr ""
+
+msgctxt "prejoin.hostStartCameraOnly"
+msgid "Nur mit Kamera starten"
+msgstr ""
+
+msgctxt "prejoin.hostStartMicrophoneOnly"
+msgid "Nur mit Mikrofon starten"
+msgstr ""
+
+msgctxt "prejoin.hostStartWithoutDevices"
+msgid "Ohne Kamera und Mikrofon starten"
+msgstr ""
+
+msgctxt "prejoin.guestTitle"
+msgid "Anruf beitreten"
+msgstr ""
+
+msgctxt "prejoin.guestHeading"
+msgid "Bereit zum Beitreten?"
+msgstr ""
+
+msgctxt "prejoin.guestJoinCameraAndMicrophone"
+msgid "Mit Kamera und Mikrofon beitreten"
+msgstr ""
+
+msgctxt "prejoin.guestJoinCameraOnly"
+msgid "Nur mit Kamera beitreten"
+msgstr ""
+
+msgctxt "prejoin.guestJoinMicrophoneOnly"
+msgid "Nur mit Mikrofon beitreten"
+msgstr ""
+
+msgctxt "prejoin.guestJoinWithoutDevices"
+msgid "Ohne Kamera und Mikrofon beitreten"
+msgstr ""
+
+msgctxt "prejoin.mediaRefused"
+msgid "Weder Kamera noch Mikrofon verfügbar ({errorName}). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal."
 msgstr ""

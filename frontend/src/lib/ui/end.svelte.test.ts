@@ -13,6 +13,7 @@ import {
     showEnd,
 } from "#lib/ui/end.svelte.ts";
 import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
+import { words } from "#lib/words/de.ts";
 
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
 
@@ -20,8 +21,6 @@ afterEach(() => {
     vi.unstubAllGlobals();
     history.pushState(null, "", "/");
 });
-
-const STILL_TALKING = "The others are still talking.";
 
 describe("showEnd", () => {
     it.each([
@@ -31,8 +30,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.ENDED,
                 isWarning: false,
-                title: "Call ended",
-                text: "Ada didn't come back within 30 seconds, so the call ended for everyone.",
+                title: words["end.callEndedTitle"],
+                text: words["end.hostGoneNamedText"]({ name: "Ada", seconds: "30" }),
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
@@ -43,8 +42,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.ENDED,
                 isWarning: false,
-                title: "Call ended",
-                text: "Ada ended the call for everyone.",
+                title: words["end.callEndedTitle"],
+                text: words["end.endedByHostNamedText"]({ name: "Ada" }),
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
@@ -55,8 +54,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.ENDED,
                 isWarning: false,
-                title: "You left the call",
-                text: STILL_TALKING,
+                title: words["end.leftTitle"],
+                text: words["end.leftText"],
                 pill: null,
                 actions: [END_ACTION.HOME, END_ACTION.REJOIN],
             },
@@ -67,8 +66,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.ENDED,
                 isWarning: false,
-                title: "You left the call",
-                text: STILL_TALKING,
+                title: words["end.leftTitle"],
+                text: words["end.leftText"],
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
@@ -79,8 +78,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.HOURGLASS,
                 isWarning: false,
-                title: "This link has expired",
-                text: "The call is over. Ask for a new link.",
+                title: words["end.expiredTitle"],
+                text: words["end.expiredText"],
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
@@ -91,8 +90,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.LOCK,
                 isWarning: true,
-                title: "Call is locked",
-                text: "The host isn't letting anyone new in right now. Try again in a moment.",
+                title: words["end.lockedTitle"],
+                text: words["end.lockedText"],
                 pill: null,
                 actions: [END_ACTION.RETRY, END_ACTION.HOME],
             },
@@ -103,9 +102,9 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.USERS,
                 isWarning: true,
-                title: "Call is full",
-                text: "A call has room for 8 people.",
-                pill: "8/8",
+                title: words["end.fullTitle"],
+                text: words["end.fullText"]({ capacity: "8" }),
+                pill: words["end.fullPill"]({ capacity: "8" }),
                 actions: [END_ACTION.HOME],
             },
         },
@@ -115,8 +114,8 @@ describe("showEnd", () => {
             expected: {
                 icon: END_ICON.USERS,
                 isWarning: true,
-                title: "Too many calls open",
-                text: "Your account is in 3 calls. Leave one to join this one.",
+                title: words["end.tooManyCallsTitle"],
+                text: words["end.tooManyCallsText"]({ limit: "3" }),
                 pill: null,
                 actions: [END_ACTION.HOME],
             },
@@ -129,13 +128,9 @@ describe("showEnd", () => {
     });
 
     it.each([
-        [END_KIND.ENDED_BY_HOST, { host_name: "" }, "The host ended the call for everyone."],
-        [
-            END_KIND.HOST_GONE,
-            { host_name: "", grace_seconds: 30 },
-            "The host didn't come back within 30 seconds, so the call ended for everyone.",
-        ],
-    ])("CALL-46: the %s end says The host when the host's name is empty", (kind, frame, text) => {
+        [END_KIND.ENDED_BY_HOST, { host_name: "" }, words["end.endedByHostUnnamedText"]],
+        [END_KIND.HOST_GONE, { host_name: "", grace_seconds: 30 }, words["end.hostGoneUnnamedText"]({ seconds: "30" })],
+    ])("CALL-46: the %s end says the host without a name when the host's name is empty", (kind, frame, text) => {
         showEnd(kind, frame);
 
         expect(shownEndView().text).toBe(text);
@@ -144,7 +139,7 @@ describe("showEnd", () => {
     it("shows a kind given without a frame", () => {
         showEnd(END_KIND.LEFT);
 
-        expect(shownEndView().title).toBe("You left the call");
+        expect(shownEndView().title).toBe(words["end.leftTitle"]);
     });
 
     it("replaces the pill of an earlier end", () => {
@@ -163,7 +158,7 @@ describe("shownEndView", () => {
         expect(fresh.shownEndView()).toEqual({
             icon: null,
             isWarning: false,
-            title: "Call ended",
+            title: words["end.callEndedTitle"],
             text: "",
             pill: null,
             actions: [],

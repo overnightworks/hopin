@@ -55,14 +55,14 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 IN_CALL = "In call"
-BOTH_ON = "Start with camera and mic"
-CAMERA_ONLY = "Start with camera only"
-MIC_ONLY = "Start with mic only"
-BOTH_OFF = "Start with camera and mic off"
-JOIN_BOTH_ON = "Join with camera and mic"
-JOIN_CAMERA_ONLY = "Join with camera only"
-JOIN_MIC_ONLY = "Join with mic only"
-JOIN_BOTH_OFF = "Join with camera and mic off"
+BOTH_ON = text("de", "prejoin.hostStartCameraAndMicrophone")
+CAMERA_ONLY = text("de", "prejoin.hostStartCameraOnly")
+MIC_ONLY = text("de", "prejoin.hostStartMicrophoneOnly")
+BOTH_OFF = text("de", "prejoin.hostStartWithoutDevices")
+JOIN_BOTH_ON = text("de", "prejoin.guestJoinCameraAndMicrophone")
+JOIN_CAMERA_ONLY = text("de", "prejoin.guestJoinCameraOnly")
+JOIN_MIC_ONLY = text("de", "prejoin.guestJoinMicrophoneOnly")
+JOIN_BOTH_OFF = text("de", "prejoin.guestJoinWithoutDevices")
 MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)"
 CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
 PREJOIN_SCREEN = "[data-screen=prejoin]"
@@ -71,9 +71,7 @@ PREVIEW_VIDEO = "#prejoinVideo"
 PREVIEW_ICON = "#prejoinPlaceholder"
 OWN_MUTE_MARK = "#localContainer .name .muted"
 OTHER_MUTE_MARK = f"{OTHER_TILE} .name .muted"
-MEDIA_REFUSED = (
-    "No camera or microphone available (NotAllowedError). Please connect a device or grant permission and try again."
-)
+MEDIA_REFUSED = text("de", "prejoin.mediaRefused", errorName="NotAllowedError")
 REFUSE_ALL_MEDIA = """
 navigator.mediaDevices.getUserMedia = async () => {
     throw new DOMException("permission denied", "NotAllowedError");
@@ -132,8 +130,13 @@ class KindTexts:
 
 
 TEXTS = {
-    Kind.HOST: KindTexts("Ready to start?", "New call", "You'll get a link to invite people.", BOTH_ON),
-    Kind.GUEST: KindTexts("Ready to join?", "Join call", None, JOIN_BOTH_ON),
+    Kind.HOST: KindTexts(
+        text("de", "prejoin.hostHeading"),
+        text("de", "prejoin.hostTitle"),
+        text("de", "prejoin.hostSubLine"),
+        BOTH_ON,
+    ),
+    Kind.GUEST: KindTexts(text("de", "prejoin.guestHeading"), text("de", "prejoin.guestTitle"), None, JOIN_BOTH_ON),
 }
 KINDS = [pytest.param(kind, id=kind.value) for kind in Kind]
 
@@ -488,7 +491,7 @@ def test_prejoin_legal_link_opens_a_new_tab_while_the_camera_keeps_playing(
 @pytest.mark.parametrize(
     ("form_factor", "way_home"),
     [
-        pytest.param(DESKTOP, "HopIn", id="desktop-brand"),
+        pytest.param(DESKTOP, text("de", "prejoin.unopenedHeading"), id="desktop-brand"),
         pytest.param(PHONE, text("de", "prejoin.backButton"), id="phone-back"),
     ],
 )

@@ -89,20 +89,19 @@ class EndScreenText:
     pill: str | None = None
 
 
-LEFT_BY_GUEST = EndScreenText("You left the call", "The others are still talking.", (BACK_TO_START, REJOIN))
-LEFT_BY_HOST = EndScreenText("You left the call", "The others are still talking.", (BACK_TO_START,))
-EXPIRED = EndScreenText("This link has expired", "The call is over. Ask for a new link.", (BACK_TO_START,))
-LOCKED = EndScreenText(
-    "Call is locked",
-    "The host isn't letting anyone new in right now. Try again in a moment.",
-    (RETRY, BACK_TO_START),
-)
+LEFT_BY_GUEST = EndScreenText(text("de", "end.leftTitle"), text("de", "end.leftText"), (BACK_TO_START, REJOIN))
+LEFT_BY_HOST = EndScreenText(text("de", "end.leftTitle"), text("de", "end.leftText"), (BACK_TO_START,))
+EXPIRED = EndScreenText(text("de", "end.expiredTitle"), text("de", "end.expiredText"), (BACK_TO_START,))
+LOCKED = EndScreenText(text("de", "end.lockedTitle"), text("de", "end.lockedText"), (RETRY, BACK_TO_START))
 FULL = EndScreenText(
-    "Call is full", f"A call has room for {CAPACITY} people.", (BACK_TO_START,), pill=f"{CAPACITY}/{CAPACITY}"
+    text("de", "end.fullTitle"),
+    text("de", "end.fullText", capacity=str(CAPACITY)),
+    (BACK_TO_START,),
+    pill=text("de", "end.fullPill", capacity=str(CAPACITY)),
 )
 TOO_MANY_CALLS = EndScreenText(
-    "Too many calls open",
-    f"Your account is in {MAX_LIVE_SEATS_PER_ACCOUNT} calls. Leave one to join this one.",
+    text("de", "end.tooManyCallsTitle"),
+    text("de", "end.tooManyCallsText", limit=str(MAX_LIVE_SEATS_PER_ACCOUNT)),
     (BACK_TO_START,),
 )
 OPEN_SOCKETS_AND_WAIT = f"""async (count) => {{
@@ -160,15 +159,19 @@ def call(hosted_call: HostedCall, open_person: Callable[..., Page], form_factor:
 
 
 def ended_by_host(host_name: str) -> EndScreenText:
-    return EndScreenText("Call ended", f"{host_name} ended the call for everyone.", (BACK_TO_START,))
+    return EndScreenText(
+        text("de", "end.callEndedTitle"), text("de", "end.endedByHostNamedText", name=host_name), (BACK_TO_START,)
+    )
 
 
 def host_gone(host_name: str) -> EndScreenText:
-    return EndScreenText(
-        "Call ended",
-        f"{host_name} didn't come back within {HOST_GRACE_SECONDS} seconds, so the call ended for everyone.",
-        (BACK_TO_START,),
+    grace_seconds = str(HOST_GRACE_SECONDS)
+    sentence = (
+        text("de", "end.hostGoneNamedText", name=host_name, seconds=grace_seconds)
+        if host_name
+        else text("de", "end.hostGoneUnnamedText", seconds=grace_seconds)
     )
+    return EndScreenText(text("de", "end.callEndedTitle"), sentence, (BACK_TO_START,))
 
 
 def end_screen(person: Page) -> Locator:
@@ -547,14 +550,16 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
     assert guest.evaluate(LEFTOVERS) == {"liveTracks": 0, "socketsOpened": 2}
 
 
+@pytest.mark.parametrize("host_has_name", [True, False], ids=["named", "unnamed"])
 def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
     hosted_call: HostedCall,
     open_person: Callable[..., Page],
     form_factor: dict[str, Any],
     member_of: Callable[[Page], SeededMember],
+    host_has_name: bool,
 ) -> None:
-    """CALL-01, CALL-46: Guest sees the grace seconds when the host did not come back."""
-    host_name = member_of(hosted_call.host).account.username
+    """CALL-01, CALL-46: Guest sees the grace seconds when the host did not come back, named or unnamed."""
+    host_name = member_of(hosted_call.host).account.username if host_has_name else ""
     person = open_recording_person(open_person, form_factor)
     answer_join_with(
         person,

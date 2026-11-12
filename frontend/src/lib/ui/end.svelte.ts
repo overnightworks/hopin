@@ -1,6 +1,7 @@
 import { ERROR_REASON, type ErrorFrame, ROOM_CLOSED_REASON, type RoomClosedFrame } from "#lib/wire.ts";
 import { getRoomIdFromUrl, openCall } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
+import { words } from "#lib/words/de.ts";
 
 export enum END_KIND {
     HOST_GONE = "host_gone",
@@ -38,65 +39,63 @@ type EndView = {
     actions: readonly END_ACTION[];
 };
 
-const OTHERS_STILL_TALKING = "The others are still talking.";
-const UNNAMED_HOST = "The host";
-
-function hostNameOf({ host_name }: EndFrame) {
-    return host_name || UNNAMED_HOST;
-}
-
 const END_VIEWS: Record<END_KIND, EndView> = {
     [END_KIND.HOST_GONE]: {
         icon: END_ICON.ENDED,
-        title: "Call ended",
-        text: (frame) =>
-            `${hostNameOf(frame)} didn't come back within ${String(frame.grace_seconds)} seconds, so the call ended for everyone.`,
+        title: words["end.callEndedTitle"],
+        text: ({ host_name, grace_seconds }) => {
+            const seconds = String(grace_seconds);
+            return host_name
+                ? words["end.hostGoneNamedText"]({ name: host_name, seconds })
+                : words["end.hostGoneUnnamedText"]({ seconds });
+        },
         actions: [END_ACTION.HOME],
     },
     [END_KIND.ENDED_BY_HOST]: {
         icon: END_ICON.ENDED,
-        title: "Call ended",
-        text: (frame) => `${hostNameOf(frame)} ended the call for everyone.`,
+        title: words["end.callEndedTitle"],
+        text: ({ host_name }) =>
+            host_name ? words["end.endedByHostNamedText"]({ name: host_name }) : words["end.endedByHostUnnamedText"],
         actions: [END_ACTION.HOME],
     },
     [END_KIND.LEFT]: {
         icon: END_ICON.ENDED,
-        title: "You left the call",
-        text: () => OTHERS_STILL_TALKING,
+        title: words["end.leftTitle"],
+        text: () => words["end.leftText"],
         actions: [END_ACTION.HOME, END_ACTION.REJOIN],
     },
     [END_KIND.HOST_LEFT]: {
         icon: END_ICON.ENDED,
-        title: "You left the call",
-        text: () => OTHERS_STILL_TALKING,
+        title: words["end.leftTitle"],
+        text: () => words["end.leftText"],
         actions: [END_ACTION.HOME],
     },
     [END_KIND.EXPIRED]: {
         icon: END_ICON.HOURGLASS,
-        title: "This link has expired",
-        text: () => "The call is over. Ask for a new link.",
+        title: words["end.expiredTitle"],
+        text: () => words["end.expiredText"],
         actions: [END_ACTION.HOME],
     },
     [END_KIND.LOCKED]: {
         icon: END_ICON.LOCK,
         warn: true,
-        title: "Call is locked",
-        text: () => `${UNNAMED_HOST} isn't letting anyone new in right now. Try again in a moment.`,
+        title: words["end.lockedTitle"],
+        text: () => words["end.lockedText"],
         actions: [END_ACTION.RETRY, END_ACTION.HOME],
     },
     [END_KIND.FULL]: {
         icon: END_ICON.USERS,
         warn: true,
-        title: "Call is full",
-        pill: ({ capacity }) => `${String(capacity)}/${String(capacity)}`,
-        text: ({ capacity }) => `A call has room for ${String(capacity)} people.`,
+        title: words["end.fullTitle"],
+        pill: ({ capacity }) => words["end.fullPill"]({ capacity: String(capacity) }),
+        text: ({ capacity }) => words["end.fullText"]({ capacity: String(capacity) }),
         actions: [END_ACTION.HOME],
     },
     [END_KIND.TOO_MANY_CALLS]: {
         icon: END_ICON.USERS,
         warn: true,
-        title: "Too many calls open",
-        text: ({ limit }) => `Your account is in ${String(limit)} calls. Leave one to join this one.`,
+        title: words["end.tooManyCallsTitle"],
+        text: ({ limit }) => words["end.tooManyCallsText"]({ limit: String(limit) }),
         actions: [END_ACTION.HOME],
     },
 };
@@ -135,7 +134,7 @@ export function shownEndView() {
         return {
             icon: null,
             isWarning: false,
-            title: "Call ended",
+            title: words["end.callEndedTitle"],
             text: "",
             pill: null,
             actions: [] as readonly END_ACTION[],
