@@ -375,6 +375,7 @@ button, input, textarea { font-family: inherit; }
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
+.name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name .muted:not(.hidden) { display: inline-flex; color: var(--on-stage); opacity: .9; }
 .name .wave:not(.hidden) { display: inline-flex; gap: 2px; align-items: center; height: 12px; color: var(--accent-stage); }
 .wave i {
