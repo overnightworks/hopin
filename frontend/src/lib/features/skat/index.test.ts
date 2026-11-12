@@ -85,7 +85,7 @@ const SHOWN = {
 };
 const NONE = { revision: 3, attachment: null, table: null, src: null, opener_id: null };
 
-describe("the Show Skat table item in More", () => {
+describe("the Skat entry in More", () => {
     it("opens a link field on a tap, and a second tap closes it", async () => {
         const page = await installedSkat();
         page.button().click();
