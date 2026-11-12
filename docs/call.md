@@ -9,7 +9,7 @@ Ruled by the operator:
 - CALL-26: Before I turn my camera on, nobody receives any picture from me.
 - CALL-27: Camera off releases the camera, so its light goes off; turning it on opens the camera again.
 - CALL-28: The pre-join preview starts with camera and microphone on and stays on the device; nothing reaches the server before Join.
-- CALL-29: The call starts with what is on at the pre-join, and what is switched off there stays off in the call; the Start or Join button names that state, such as "Join with camera and mic".
+- CALL-29: The call starts with what is on at the pre-join, and what is switched off there stays off in the call; the Start or Join button names that state, such as "Mit Kamera und Mikrofon beitreten".
 - CALL-30: A guest who opens a call link gets the same pre-join as the host.
 - CALL-31: On a desktop, the HopIn brand leads back from the pre-join to the start page.
 - CALL-32: The pre-join's own row shows the account's name, and "You" until the name is known.
@@ -32,12 +32,12 @@ Ruled by the operator:
 - CALL-11: For a host whose connection drops, the 60 seconds count from the drop.
 - CALL-12: People in a call see each other's Keycloak username on the tiles and in chat (not on a strip tile, CALL-55).
 - CALL-13: The same account in one call twice (phone and laptop) joins as two people, and stays host while any of its connections is in the call.
-- CALL-14: A call link whose call has ended, or an address that never had a call, shows "This link has expired" when someone joins; HopIn keeps no store of ended calls, so both are the same case.
+- CALL-14: A call link whose call has ended, or an address that never had a call, shows "Dieser Link ist abgelaufen" when someone joins; HopIn keeps no store of ended calls, so both are the same case.
 - CALL-15: The start page is `/` and a call is `/c/{id}`; the old addresses `/call` and `/join/{id}` answer not found.
 - CALL-16: "Zurück zum Start" opens the start page as a new page; the browser's back button then returns to the call link, which shows the call as it is now.
-- CALL-17: When the host ends the call, everyone else sees "Call ended" and that the host, by name, ended the call for everyone.
-- CALL-18: A host who leaves sees "You left the call" with only "Zurück zum Start"; the call goes on for the others for up to 60 seconds.
-- CALL-19: "Wieder beitreten" and "Erneut versuchen" open the call link again, as tapping it in a message does; if the call is over, the person sees "This link has expired".
+- CALL-17: When the host ends the call, everyone else sees "Der Anruf ist beendet" and that the host, by name, ended the call for everyone.
+- CALL-18: A host who leaves sees "Du hast den Anruf verlassen" with only "Zurück zum Start"; the call goes on for the others for up to 60 seconds.
+- CALL-19: "Wieder beitreten" and "Erneut versuchen" open the call link again, as tapping it in a message does; if the call is over, the person sees "Dieser Link ist abgelaufen".
 - CALL-20: When a call ends for me, or HopIn refuses to let me in, my camera and microphone turn off at once.
 - CALL-21: A person with the camera off shows as a neutral person icon, the same for everyone.
 - CALL-22: On a phone, the small own picture can be dragged to any corner; it snaps to the nearest one and stays there for the rest of the call, also when people join or leave.
@@ -52,10 +52,10 @@ Ruled by the operator:
 - CALL-39: In a running call, Impressum and Datenschutz are in More, one tap away; the call screen shows no account button.
 - CALL-40: Only the host sees Lock call; a locked call shows "Locked" at the top for everyone.
 - CALL-41: A toast fades in and out again over 2.4 seconds.
-- CALL-42: One account is in at most 8 calls at once, tabs and devices together. The 9th is refused without retrying and shows "Too many calls open" with "Your account is in 8 calls. Leave one to join this one."; a reconnect that meets the limit ends the same way.
+- CALL-42: One account is in at most 8 calls at once, tabs and devices together. The 9th is refused without retrying and shows "Zu viele offene Anrufe" with "Dein Konto ist schon in 8 Anrufen. Verlass einen, um diesem beizutreten."; a reconnect that meets the limit ends the same way.
 - CALL-44: A long chat scrolls inside its panel, and the newest line and the composer stay reachable.
 - CALL-45: A tab opened before a release still starts a call: it reloads itself when the new build lacks a piece it needs.
-- CALL-46: The end screens name the host by the account's name, and say "The host" only when that name is empty.
+- CALL-46: The end screens name the host by the account's name, and say "Der Host" only when that name is empty.
 - CALL-47: Agent tiles take none of the call's six places: the stage shows up to six people plus every agent in the call (the quiz master and up to two agents that joined, a person's own or one with an account of its own), at most nine tiles, and the participant count names people only. With eight or nine tiles the grid is two columns of four or five rows on a phone and three of three on a desktop, and the call controls stay uncovered.
 - CALL-48: A person's own agent joins only a call in which that person holds exactly one live seat, is bound to that seat, and leaves when that seat leaves for good; while the seat waits to resume (CALL-10) the tile stays and the agent's calls answer that the sponsor is away.
 - CALL-49: The agent's sponsor or the call's host removes an agent from its tile; a removal by anyone else is refused, and other guests see no remove button on the tile.
