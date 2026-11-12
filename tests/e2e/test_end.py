@@ -165,11 +165,13 @@ def ended_by_host(host_name: str) -> EndScreenText:
 
 
 def host_gone(host_name: str) -> EndScreenText:
-    return EndScreenText(
-        text("de", "end.callEndedTitle"),
-        text("de", "end.hostGoneNamedText", name=host_name, seconds=str(HOST_GRACE_SECONDS)),
-        (BACK_TO_START,),
+    grace_seconds = str(HOST_GRACE_SECONDS)
+    sentence = (
+        text("de", "end.hostGoneNamedText", name=host_name, seconds=grace_seconds)
+        if host_name
+        else text("de", "end.hostGoneUnnamedText", seconds=grace_seconds)
     )
+    return EndScreenText(text("de", "end.callEndedTitle"), sentence, (BACK_TO_START,))
 
 
 def end_screen(person: Page) -> Locator:
@@ -548,14 +550,16 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
     assert guest.evaluate(LEFTOVERS) == {"liveTracks": 0, "socketsOpened": 2}
 
 
+@pytest.mark.parametrize("host_has_name", [True, False], ids=["named", "unnamed"])
 def test_guest_sees_the_grace_seconds_when_the_host_did_not_come_back(
     hosted_call: HostedCall,
     open_person: Callable[..., Page],
     form_factor: dict[str, Any],
     member_of: Callable[[Page], SeededMember],
+    host_has_name: bool,
 ) -> None:
-    """CALL-01, CALL-46: Guest sees the grace seconds when the host did not come back."""
-    host_name = member_of(hosted_call.host).account.username
+    """CALL-01, CALL-46: Guest sees the grace seconds when the host did not come back, named or unnamed."""
+    host_name = member_of(hosted_call.host).account.username if host_has_name else ""
     person = open_recording_person(open_person, form_factor)
     answer_join_with(
         person,
