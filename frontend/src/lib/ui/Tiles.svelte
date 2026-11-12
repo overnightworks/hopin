@@ -91,8 +91,8 @@
         <span class="name"
             ><span class="wave" class:hidden={agent.activity !== AGENT_ACTIVITY.SPEAKING} aria-hidden="true"
                 ><i></i><i></i><i></i></span
-            >{agent.name}<span class="ai-badge">{words["tile.aiBadge"]}</span>{#if agent.sponsor !== undefined}<span class="sponsor"
-                    >{agent.sponsor}</span
+            >{agent.name}<span class="ai-badge">{words["tile.aiBadge"]}</span>{#if agent.sponsor !== undefined}<span
+                    class="sponsor">{agent.sponsor}</span
                 >{/if}</span
         >
     </div>
