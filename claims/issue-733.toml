@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "5c13afddfa19d186ba341fd533e2436c84c81852"
 branch = "claude/issue-733-the-quiz-speaks-german-from-the-catalog"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/game-master.md", "frontend/src/lib/catalogs", "frontend/src/lib/features/game", "frontend/src/lib/words", "tests/e2e/game", "tests/e2e/support/calls.py", "tests/support/words.py"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/game-master.md", "frontend/src/lib/catalogs", "frontend/src/lib/features/game", "frontend/src/lib/words", "src/hopin/game/table.py", "tests/e2e/game", "tests/e2e/support/calls.py", "tests/game", "tests/support/words.py"]
 opened_commit = "5d18a4ac250434dd260c5fc59f47a54133f0b73c"
 whole_reason = "About thirty sentences, the generated modules, the five quiz files that read them and the tests that pinned them change together; the generated files and the test edits are mechanical."
