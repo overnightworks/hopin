@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Page, expect
-from speech_client.wire import SPEECH_PATH, RefusalCode
+from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.feature import GameFeature
 from hopin.agent.settings import SpeechSettings
@@ -58,7 +58,7 @@ def speech_server(
     speech_origin: Origin, agent_backend: FakeAgentBackend, tmp_path_factory: pytest.TempPathFactory
 ) -> Iterator[RunningServer]:
     """HopIn with the game wired in and its voice on, the agent backend and the speech service fakes."""
-    speech = SpeechSettings(origin=speech_origin.base_url, voice="piper", audience_scope=AUDIENCE_SCOPE)
+    speech = SpeechSettings(origin=speech_origin.base_url, voice=VoiceId.THORSTEN, audience_scope=AUDIENCE_SCOPE)
     sign_in = loopback_sign_in(tmp_path_factory.mktemp("voice-sign-in"))
     with running_hopin(sign_in, tmp_path_factory.mktemp("voice-tls"), GameFeature(agent_backend, speech)) as server:
         yield server
