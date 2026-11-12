@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "2f9cad916a64dc1fe658e9512cd22453832846d1"
 branch = "claude/issue-739-the-speech-settings-and-the-speech-clien"
-scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "quality", "scripts/remove_feature.py", "src/hopin/agent", "tests", "uv.lock"]
+scope = [".aco/ahead-of-caller.toml", "README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "quality", "scripts/remove_feature.py", "src/hopin/agent", "tests", "uv.lock"]
 opened_commit = "60da5e9e31eeaa4579d41f74992efc70f67f3987"
 whole_reason = "The settings' move, the removal script, the contract's name and the tests and documents that describe the removal change together; a half-moved setting breaks the removal drill."
