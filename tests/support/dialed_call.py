@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import anyio
-from agents.mcp_wire import PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
+from agents.mcp_wire import MCP_ENDPOINT_PATH, PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER
 from agents.member import STANDING_URI, PlaceRef, place_window_uri
 from fastapi.testclient import TestClient
 from mcp_types import CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
     from webauth.single_process_stores import SingleProcessStores, StoredAccount
 
+    from hopin.agent.mcp import BuiltParticipationFeature
     from tests.support.fake_issuer import FakeIssuer
     from tests.support.sign_in_settings import SignInSettings
 
@@ -112,6 +113,7 @@ class DialedCall:
     sockets: ExitStack
     audience: str
     scheduler: ManualScheduler
+    participation: BuiltParticipationFeature
 
     def member(self, *, role=AppRole.USER, subject=None, groups=None):
         """A person with a login. With `groups` the issuer holds those groups for them and their login holds a refresh
@@ -263,6 +265,11 @@ class DialedCall:
         uri = window_uri(room_id)
         return self.request(token, "resources/read", {"uri": uri}, routing_name=uri).json()
 
+    def hearing_tokens(self):
+        """The holder of the exchanged tokens, which the MCP route keeps."""
+        [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
+        return route.endpoint.hearing_tokens
+
     def pass_time(self, seconds):
         """Move the app's clock on its own loop, running the timers that fall due."""
         self.client.portal.call(self.scheduler.advance, seconds)
@@ -290,6 +297,26 @@ class DialedCall:
             return Dialed(response.status_code, None, None, response)
         result = response.json()["result"]
         return Dialed(200, json.loads(result["content"][0]["text"]), result["isError"], response)
+
+
+class _ParticipationBuilt:
+    """The participation feature as the app builds it, keeping what it built."""
+
+    def __init__(self, feature: ParticipationFeature) -> None:
+        self._feature = feature
+        self.built: BuiltParticipationFeature | None = None
+
+    @property
+    def sign_in_scopes(self):
+        return self._feature.sign_in_scopes
+
+    @property
+    def frame_sources(self):
+        return self._feature.frame_sources
+
+    def __call__(self, **parts):
+        self.built = self._feature(**parts)
+        return self.built
 
 
 def _no_figure_source(url, timeout_seconds):
@@ -323,11 +350,23 @@ def serving_dialed_call(
     more_call_features=(),
     figure_sources=(),
     figure_transport=None,
+    hears=False,
+    hearing_scopes=(),
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test."""
     stores = single_process_stores()
     scheduler = ManualScheduler()
+    participation = _ParticipationBuilt(
+        ParticipationFeature(
+            sign_in.settings.public_origin,
+            agent_adders or {},
+            figure_sources,
+            figure_transport or _no_figure_source,
+            hears=hears,
+            hearing_scopes=hearing_scopes,
+        )
+    )
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
@@ -336,14 +375,9 @@ def serving_dialed_call(
         scheduler=scheduler,
         call_features=(
             *more_call_features,
-            ParticipationFeature(
-                sign_in.settings.public_origin,
-                agent_adders or {},
-                figure_sources,
-                figure_transport or _no_figure_source,
-            ),
+            participation,
         ),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
-        yield DialedCall(issuer, stores, client, sockets, audience, scheduler)
+        yield DialedCall(issuer, stores, client, sockets, audience, scheduler, participation.built)

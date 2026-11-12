@@ -73,6 +73,12 @@ class ManualScheduler:
             await timer.callback()
         self._now = target
 
+    async def run_cancelled(self):
+        """Run the callbacks cancelled after they had started, as a real loop does when a timer fires before its
+        cancel."""
+        for timer in [timer for timer in self._timers if timer.cancelled]:
+            await timer.callback()
+
 
 class ManualTimer:
     def __init__(self, deadline, callback, delay):
@@ -80,9 +86,11 @@ class ManualTimer:
         self.callback = callback
         self.delay = delay
         self.pending = True
+        self.cancelled = False
 
     def cancel(self):
         self.pending = False
+        self.cancelled = True
 
 
 def make_ws_mock():

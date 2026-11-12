@@ -82,6 +82,12 @@ def hears():
 
 
 @pytest.fixture
+def hearing_scopes():
+    """The scopes of the token HopIn exchanges for an agent that hears; none until a module about it names some."""
+    return ()
+
+
+@pytest.fixture
 def member_hearing(scheduler):
     """The agents library's record of who may hear whom, on the scheduler's clock."""
     return MemberHearing(now=scheduler.now)
@@ -180,7 +186,9 @@ def figure_transport():
 
 
 @pytest.fixture
-def adding_call(sign_in_settings, seat_changes, adding_call_adders, figure_sources, figure_transport):
+def adding_call(
+    sign_in_settings, seat_changes, adding_call_adders, figure_sources, figure_transport, hears, hearing_scopes
+):
     """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
     sign_in = sign_in_settings()
     with serving_dialed_call(
@@ -190,6 +198,8 @@ def adding_call(sign_in_settings, seat_changes, adding_call_adders, figure_sourc
         more_call_features=(WitnessFeatureBuilder(lambda rooms: SeatChangeWitness(rooms, announced=seat_changes)),),
         figure_sources=figure_sources,
         figure_transport=figure_transport,
+        hears=hears,
+        hearing_scopes=hearing_scopes,
     ) as call:
         yield call
 

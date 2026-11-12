@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from tests.support.sign_in_settings import SignInSettings
 
 KEY_ID = "the-key-only-this-test-has"
+TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange"
+ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 TOKEN_LIFETIME_SECONDS = 300
 RSA_KEY_BITS = 2048
 AUTHORIZATION_CODE_BYTES = 16
@@ -70,11 +72,18 @@ class FakeIssuer:
         self.refuses_refresh_grants = False
         self.refresh_refusal_error = "invalid_grant"
         self.refuses_client_credentials_grants = False
+        self.refuses_token_exchange_grants = False
+        self.token_exchange_refusal_error = "access_denied"
         self.omits_the_id_token_of_a_refresh_grant = False
         self._guard = threading.Lock()
         self._subjects_of_refresh_tokens: dict[str, str] = {}
         self._groups_of_subjects: dict[str, list[str]] = {}
         self._holds: dict[str, GrantHold] = {}
+
+    @property
+    def issuer(self) -> str:
+        """The issuer URL its tokens name."""
+        return self._issuer
 
     @property
     def client_id(self) -> str:
@@ -199,6 +208,8 @@ class FakeIssuer:
             return self._renewal(request.form["refresh_token"])
         if grant_type == "client_credentials":
             return self._workload_token()
+        if grant_type == TOKEN_EXCHANGE_GRANT:
+            return self._token_exchange()
         return self._code_exchange(request)
 
     def _workload_token(self) -> TokenEndpointAnswer:
@@ -206,6 +217,18 @@ class FakeIssuer:
             return self._refusal(HTTPStatus.BAD_REQUEST, "unauthorized_client")
         body = {
             "access_token": secrets.token_urlsafe(ACCESS_TOKEN_BYTES),
+            "token_type": "Bearer",
+            "expires_in": TOKEN_LIFETIME_SECONDS,
+        }
+        return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
+
+    def _token_exchange(self) -> TokenEndpointAnswer:
+        """RFC 8693: Keycloak refuses an exchange its realm does not offer with a 403."""
+        if self.refuses_token_exchange_grants:
+            return self._refusal(HTTPStatus.FORBIDDEN, self.token_exchange_refusal_error)
+        body = {
+            "access_token": secrets.token_urlsafe(ACCESS_TOKEN_BYTES),
+            "issued_token_type": ACCESS_TOKEN_TYPE,
             "token_type": "Bearer",
             "expires_in": TOKEN_LIFETIME_SECONDS,
         }
