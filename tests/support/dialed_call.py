@@ -277,6 +277,17 @@ class DialedCall:
         """Shut participation down as the app's lifespan does, while the sockets of the test are still open."""
         self.client.portal.call(self._mcp_front().participation().shut_down)
 
+    def end_room_after(self, room_id, before):
+        """End the call's room on the app's own loop in the same turn as `before`, which runs first: what `before`
+        queues for a reader of the loop is already waiting when the end is set."""
+        participation = self._mcp_front().participation()
+
+        def ending():
+            before()
+            participation.room_ended(room_id)
+
+        self.client.portal.call(ending)
+
     def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
         return route.endpoint

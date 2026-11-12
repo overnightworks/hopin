@@ -381,6 +381,12 @@ class TestWhatTheServiceAnswers:
         assert closed == HearingClose.OVER_CAP
 
 
+def _send_from_the_loop(socket, frame):
+    """`socket.send_bytes` for a caller on the app's loop, which that call blocks; the frame is waiting for the
+    relay's reader at once."""
+    socket._receive_tx.send_nowait({"type": "websocket.receive", "bytes": frame})  # noqa: SLF001 - no public way in
+
+
 def _remove(scene):
     scene.owner.send({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": scene.agent_id})
 
@@ -461,6 +467,19 @@ class TestEveryEndStopsTheHopAtOnce:
                 session.say(event)
 
         assert entries_of(sponsored) == []
+
+    def test_call_58_a_frame_already_waiting_when_the_hop_ends_does_not_reach_the_service(self, sponsored, fake_speech):
+        """CALL-58: No newly accepted frame is forwarded after the end."""
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            session = fake_speech.next_session()
+            session.wait_for_audio(1)
+
+            sponsored.call.end_room_after(sponsored.owner.room_id, lambda: _send_from_the_loop(socket, SOUND))
+            closed = closed_with(socket)
+            session.wait_until_closed()
+
+        assert (closed, session.audio_appends()) == (HearingClose.NORMAL, 1)
 
     def test_call_58_a_newer_hop_of_the_seat_ends_the_older(self, sponsored, fake_speech):
         with hop(sponsored) as older:

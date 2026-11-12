@@ -71,41 +71,36 @@ class _AudioClock:
 
 
 class _SessionRecheck:
-    """Asks each minute whether the socket's session still admits it, and sets `stop` once it does not or the check
-    fails: sound a revoked session sent is not relayed on."""
+    """Asks each minute whether the socket's session still admits it, and sets the hop's `ended` once it does not or
+    the check fails: sound a revoked session sent is not relayed on."""
 
     def __init__(
-        self, resolver: IdentityResolver, scheduler: Scheduler, websocket: WebSocket, stop: asyncio.Event
+        self, resolver: IdentityResolver, scheduler: Scheduler, websocket: WebSocket, ended: asyncio.Event
     ) -> None:
         self._resolver = resolver
         self._scheduler = scheduler
         self._websocket = websocket
-        self._stop = stop
+        self._ended = ended
         self._timer: TimerHandle = self._schedule()
 
-    def cancel(self) -> None:
+    def close(self) -> None:
         self._timer.cancel()
 
     def _schedule(self) -> TimerHandle:
         return self._scheduler.call_later(SESSION_RECHECK_SECONDS, self._tick)
 
     async def _tick(self) -> None:
-        if self._stop.is_set():
+        if self._ended.is_set():
             return
         try:
             account = await self._resolver.resolve(self._websocket)
         except Exception:
-            self._stop.set()
+            self._ended.set()
             raise
         if account is None:
-            self._stop.set()
+            self._ended.set()
         else:
             self._timer = self._schedule()
-
-
-async def _stop_when(ended: asyncio.Event, stop: asyncio.Event) -> None:
-    await ended.wait()
-    stop.set()
 
 
 class HearingRoute:
@@ -144,20 +139,16 @@ class HearingRoute:
         if person_token is None:
             await _close_unopened(websocket, HearingClose.NO_TOKEN)
             return
-        # The hop ends when its record ends it or its session is revoked; both are watched from the grant on.
-        stop = asyncio.Event()
-        recheck = _SessionRecheck(self._resolver, self._scheduler, websocket, stop)
-        ending = asyncio.create_task(_stop_when(handle.ended, stop))
+        # The hop ends when its record ends it or its session is revoked; both set `handle.ended`, watched from the
+        # grant on.
+        recheck = _SessionRecheck(self._resolver, self._scheduler, websocket, handle.ended)
         try:
-            await self._hear(websocket, handle, person_token, stop)
+            await self._hear(websocket, handle, person_token)
         finally:
-            recheck.cancel()
-            ending.cancel()
+            recheck.close()
 
-    async def _hear(
-        self, websocket: WebSocket, handle: HearingHandle, person_token: SecretStr, stop: asyncio.Event
-    ) -> None:
-        workload = await self._workload_token_unless(stop)
+    async def _hear(self, websocket: WebSocket, handle: HearingHandle, person_token: SecretStr) -> None:
+        workload = await self._workload_token_unless(handle.ended)
         if workload is None:
             _log_ended(AppEnded())
             await websocket.close(code=HearingClose.NORMAL)
@@ -179,20 +170,20 @@ class HearingRoute:
             languages=HEARING_LANGUAGES,
             deadline_seconds=HEARING_DEADLINE_SECONDS,
             held_limit_bytes=HELD_LIMIT_BYTES,
-            ended=stop,
+            ended=handle.ended,
             on_utterance=on_utterance,
         )
         _log_ended(outcome)
 
-    async def _workload_token_unless(self, stop: asyncio.Event) -> SecretStr | OidcRefusal | None:
+    async def _workload_token_unless(self, ended: asyncio.Event) -> SecretStr | OidcRefusal | None:
         """HopIn's own token for the service, or none when the hop ended while the issuer was still answering."""
         grant = asyncio.ensure_future(
             asyncio.to_thread(self._relying_party.workload_access_token, scopes=(self._service.audience_scope,))
         )
-        stopped = asyncio.ensure_future(stop.wait())
+        stopped = asyncio.ensure_future(ended.wait())
         try:
             await asyncio.wait({grant, stopped}, return_when=asyncio.FIRST_COMPLETED)
-            return None if stop.is_set() else grant.result()
+            return None if ended.is_set() else grant.result()
         finally:
             grant.cancel()
             stopped.cancel()
