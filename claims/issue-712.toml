@@ -1,0 +1,8 @@
+claim_id = "d81be9551a344396894fe38446cfd884"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "963c79db926c643735fba06ab882f118f37f0d3d"
+branch = "claude/issue-712-a-refusal-in-the-agent-control-leaves-wh"
+scope = ["docs/call.md", "frontend/src/lib/features/participation", "tests/e2e/participation"]
+opened_commit = "4afa7949df2d7e6b9565f05564c0dde93e7cf706"
+whole_reason = "The view's rule, its unit and end-to-end tests and the rule's sentence change together."
