@@ -33,6 +33,10 @@ def question_progress(round_number: int) -> str:
     return text("de", "game.questionProgress", round=str(round_number), rounds=str(QUIZ_ROUNDS))
 
 
+def answer_count_status(answered: int, players: int) -> str:
+    return text("de", "game.answerCountStatus", answered=str(answered), players=str(players))
+
+
 def answer_sent_status(answered: int, players: int) -> str:
     return text("de", "game.answerSentCountStatus", answered=str(answered), players=str(players))
 

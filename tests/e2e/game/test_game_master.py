@@ -24,6 +24,7 @@ from tests.e2e.game.game_page import (
     THINKING_STATUS_LABEL,
     TYPING,
     YOUR_ANSWER,
+    answer_count_status,
     answer_on_card,
     answer_sent_status,
     close_chat,
@@ -301,7 +302,7 @@ def test_a_typed_unsent_answer_survives_an_answer_count_and_a_phase_frame_that_r
     unsent.fill("Mond")
 
     answer_on_card(host, "Tejo")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_count_status(1, 2))
     phase_frame = {"type": GameSignal.GAME_PHASE, "round": 1, "rounds": QUIZ_ROUNDS, "starter": "someone"}
     guest.evaluate(DELIVER_SERVER_FRAME, {**phase_frame, "phase": GamePhase.THINKING})
     expect(unsent).to_be_disabled()
@@ -335,7 +336,7 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     answer_on_card(guest, "Mondego")
 
     expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
-    expect(host.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    expect(host.locator(CARD).locator(STATUS)).to_have_text(answer_count_status(1, 2))
     for person in (host, guest):
         expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
     expect(host.get_by_text("Mondego")).to_have_count(0)
@@ -382,7 +383,7 @@ def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_se
     # The host's own count comes after any toast the guest's answer could have sent the host.
     expect(host.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     expect(host.locator(TOASTS)).not_to_contain_text("too long")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_count_status(1, 2))
     expect(guest.locator(CARD).locator(STATUS)).not_to_have_class(SENT)
 
 
@@ -421,7 +422,7 @@ def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_ca
         open_chat(person)
         expect(person.locator(CARD)).to_be_visible()
     answer_on_card(host, "Tejo")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_count_status(1, 2))
     host.locator(CARD).get_by_role("button", name=REVEAL).click()
     expect(guest.locator(CARD).get_by_label(YOUR_ANSWER)).to_be_disabled()
     guest.locator(CARD).locator(".qcard-input, .qcard-send").evaluate_all(
@@ -431,7 +432,7 @@ def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_ca
     answer_on_card(guest, "Mondego")
 
     expect(guest.locator(TOASTS)).to_contain_text(text("de", "game.answerClosedToast"))
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_count_status(1, 2))
     reveal_run.release.set()
 
 
