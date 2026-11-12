@@ -129,11 +129,7 @@ describe("showEnd", () => {
 
     it.each([
         [END_KIND.ENDED_BY_HOST, { host_name: "" }, words["end.endedByHostUnnamedText"]],
-        [
-            END_KIND.HOST_GONE,
-            { host_name: "", grace_seconds: 30 },
-            words["end.hostGoneUnnamedText"]({ seconds: "30" }),
-        ],
+        [END_KIND.HOST_GONE, { host_name: "", grace_seconds: 30 }, words["end.hostGoneUnnamedText"]({ seconds: "30" })],
     ])("CALL-46: the %s end says the host without a name when the host's name is empty", (kind, frame, text) => {
         showEnd(kind, frame);
 
