@@ -1,7 +1,10 @@
 """The modules a source file imports, for tests that hold which module names which library."""
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def imported_modules(path: Path) -> set[str]:

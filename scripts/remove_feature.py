@@ -49,7 +49,6 @@ GAME = Removal(
         "src/hopin/main.py",
         "tests/conftest.py",
         "scripts/generate_wire.py",
-        "pyproject.toml",
         "tests/e2e/support/drive_hopin.py",
     ),
 )
