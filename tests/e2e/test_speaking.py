@@ -111,7 +111,8 @@ WAVE_LOOK = """
         barCount: bars.length,
         color: getComputedStyle(bars[0]).backgroundColor,
         barDurations: bars.map((bar) => getComputedStyle(bar).animationDuration),
-        beforeTheName: wave.nextSibling.nodeType === Node.TEXT_NODE,
+        beforeTheName: wave.getBoundingClientRect().right
+            <= wave.parentElement.querySelector(".name-text").getBoundingClientRect().left,
     };
 }
 """
