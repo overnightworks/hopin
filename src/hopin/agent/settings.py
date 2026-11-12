@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 from agents.config import AgentConfig  # noqa: TC002 - pydantic resolves the annotation at runtime
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from speech_client.wire import VoiceId
 
 # RFC 6749 section 3.3: a scope token is one or more printable ASCII characters other than space, `"` and `\`.
 type ScopeToken = Annotated[str, Field(pattern=r"^[\x21\x23-\x5b\x5d-\x7e]+$")]
@@ -15,7 +16,7 @@ class SpeechService:
     """A speech service that is configured: its origin, the voice it speaks and the scope its token carries."""
 
     origin: str
-    voice: str
+    voice: VoiceId
     audience_scope: str
 
 
@@ -23,7 +24,7 @@ class SpeechSettings(BaseModel):
     """The speech service the game master speaks through; without an origin the voice is off."""
 
     origin: str | None = None
-    voice: str = Field(default="piper", min_length=1)
+    voice: VoiceId = VoiceId.THORSTEN
     audience_scope: ScopeToken | None = None
 
     @property

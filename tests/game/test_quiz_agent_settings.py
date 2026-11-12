@@ -4,6 +4,7 @@ import pytest
 from agents.agent_file import load_agent
 from agents.config import BackendKind
 from pydantic import ValidationError
+from speech_client.wire import VoiceId
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
 from hopin.agent.feature import GameFeature, configured_game_feature
@@ -20,7 +21,7 @@ GATEWAY_ENVIRONMENT = {
 }
 SPEECH_ENVIRONMENT = {
     "HOPIN_SPEECH__ORIGIN": "http://speech.test:8090",
-    "HOPIN_SPEECH__VOICE": "other-voice",
+    "HOPIN_SPEECH__VOICE": VoiceId.NORMAN.value,
     "HOPIN_SPEECH__AUDIENCE_SCOPE": "scenario-audience",
 }
 CA_FILE = "HOPIN_AGENT__GATEWAY__CA_FILE"
@@ -38,6 +39,7 @@ MALFORMED_SETTINGS = [
     pytest.param("HOPIN_SPEECH__ORIGIN", f"https://{SECRET_SHAPED}.test", id="a-speech-origin-over-https"),
     pytest.param("HOPIN_SPEECH__ORIGIN", f"http://speech.test:{SECRET_SHAPED}", id="a-speech-origin-with-a-bad-port"),
     pytest.param("HOPIN_SPEECH__VOICE", "", id="an-empty-voice"),
+    pytest.param("HOPIN_SPEECH__VOICE", f"not-a-catalogue-voice-{SECRET_SHAPED}", id="a-voice-outside-the-catalogue"),
     pytest.param("HOPIN_SPEECH__AUDIENCE_SCOPE", f"two {SECRET_SHAPED}", id="a-scope-with-a-space"),
     pytest.param("HOPIN_SPEECH__AUDIENCE_SCOPE", "", id="an-empty-scope"),
 ]
