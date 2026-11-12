@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from agents.member import LISTEN_ALLOWANCE_SECONDS
+from design.words import text as kit_text
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.calls import join_by_link, open_more, record_page_errors
@@ -53,6 +54,23 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
     assert scene.agent.standings() == []
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_offer_of_an_agent_speaks_the_kits_german_and_fits_the_page(
+    scene_of: Callable[[dict[str, Any]], Scene], form_factor: dict[str, Any]
+) -> None:
+    """CALL-51: An agent's offer in More reads in the kit's German and does not overflow the page."""
+    scene = scene_of(form_factor)
+    scene.agent_listens()
+
+    open_more(scene.member)
+
+    offer = scene.offer_of_agent(scene.member)
+    expect(offer.get_by_role("button")).to_have_accessible_name(
+        kit_text("de", "agent.callLabel", name=scene.agent.name)
+    )
+    assert scene.member.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
 def test_an_agent_with_a_lease_and_no_listen_is_offered_to_nobody(scene_of: Callable[[dict[str, Any]], Scene]) -> None:

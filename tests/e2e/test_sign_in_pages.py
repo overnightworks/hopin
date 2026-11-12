@@ -64,7 +64,7 @@ def test_a_failed_sign_in_shows_login_failed_with_one_way_out_and_both_legal_lin
     card = person.get_by_role("main")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
     expect(card.get_by_role("heading", name=kit_text("de", "signIn.loginFailed"), exact=True)).to_be_visible()
-    expect(person.get_by_role("alert")).to_have_text("Sign-in did not work. Please try again.")
+    expect(person.get_by_role("alert")).to_have_text(kit_text("de", "signIn.loginFailedBanner"))
     expect(card.get_by_role("link")).to_have_text([kit_text("de", "signIn.tryAgain")])
     expect_both_legal_links_in_the_same_tab(person.get_by_role("navigation"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
@@ -159,7 +159,7 @@ def test_the_no_access_page_says_the_account_is_signed_in_but_has_no_access(
     person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, DESKTOP)
 
     expect(person.get_by_role("main").locator("p")).to_have_text(
-        "You are signed in, but this account has no access to HopIn."
+        kit_text("de", "signIn.noAccessSentence", appName="HopIn")
     )
 
 
