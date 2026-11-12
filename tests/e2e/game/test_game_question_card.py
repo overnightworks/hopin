@@ -1,10 +1,9 @@
-import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.game.game_page import CARD, YOUR_ANSWER, answer_sent_status, open_chat, start_quiz
+from tests.e2e.game.game_page import CARD, SENT, STATUS, YOUR_ANSWER, answer_sent_status, open_chat, start_quiz
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.people import FORM_FACTORS
 from tests.game.support.fake_agent_backend import Succeeds
@@ -17,8 +16,6 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-STATUS = ".qcard-status"
-SENT = re.compile(r"\bsent\b")
 # The server's answer count is a socket frame, a task of its own: no microtask can see it arrive.
 SEND_AND_READ_STATUS = """
 async (card) => {

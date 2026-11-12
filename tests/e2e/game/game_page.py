@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING, Any
 
 from playwright.sync_api import Page, expect
@@ -16,6 +17,8 @@ MUTE_VOICE = "#gameVoiceBtn"
 GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
 TYPING = "#chatMessages .game-master.typing"
 CARD = "#chatPanel .qcard"
+STATUS = ".qcard-status"
+SENT = re.compile(r"\bsent\b")
 GAME_MASTER_NAME = text("de", "game.masterName")
 GAME_MASTER_NAME_GAP = {"name": GAME_MASTER_NAME}
 START_QUIZ_LABEL = text("de", "game.startButton")

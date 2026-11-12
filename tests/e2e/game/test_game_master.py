@@ -18,8 +18,10 @@ from tests.e2e.game.game_page import (
     QUIZ_ENDED,
     QUIZ_RUNNING_LABEL,
     REVEAL,
+    SENT,
     START_QUIZ,
     START_QUIZ_LABEL,
+    STATUS,
     THINKING_BUTTON_LABEL,
     THINKING_STATUS_LABEL,
     TYPING,
@@ -67,8 +69,6 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 TOASTS = "#toasts"
-STATUS = ".qcard-status"
-SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
 THINKING = re.compile(r"\bthinking\b")
 QUESTION_ONE = question_progress(1)
