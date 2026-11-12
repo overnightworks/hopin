@@ -3,7 +3,7 @@ import re
 from typing import TYPE_CHECKING
 
 import pytest
-from playwright.sync_api import Page, Route, WebSocketRoute, expect
+from playwright.sync_api import Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
 from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call
@@ -23,10 +23,29 @@ pytestmark = pytest.mark.e2e
 
 HOME_HEADING = "#homeGreeting"
 TILE_NAME = f"{OTHER_TILE} .name"
+TILE_NAME_TEXT = f"{TILE_NAME} .name-text"
 CHAT_SENDER = "#chatMessages .chat-msg.other .chat-sender"
 MARKUP_NAME = "<b>x</b>"
+# Long enough to overflow the label at 390 and at 1280 px in a call of two.
+LONG_NAME = (
+    "Maximiliane-Theodora Friederike Wilhelmine von Hohenwart-Lichtenberg-Ostfriesland zu Sankt-Peter-Ording-Nord"
+)
+CUT_WITH_ELLIPSIS = "el => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis'"
 ACCOUNT_ROUTE = "**/api/account"
 BOTH_FORM_FACTORS = pytest.mark.parametrize("form_factor", [PHONE, DESKTOP], ids=["390", "1280"])
+
+
+def box_inside(inner: Locator, outer: Locator) -> bool:
+    inner_box = inner.bounding_box()
+    outer_box = outer.bounding_box()
+    assert inner_box is not None
+    assert outer_box is not None
+    return (
+        outer_box["x"] <= inner_box["x"]
+        and inner_box["x"] + inner_box["width"] <= outer_box["x"] + outer_box["width"]
+        and outer_box["y"] <= inner_box["y"]
+        and inner_box["y"] + inner_box["height"] <= outer_box["y"] + outer_box["height"]
+    )
 
 
 def drop_the_socket_once(person: Page) -> tuple[Callable[[], None], list[str]]:
@@ -145,6 +164,20 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
     expect(guest.locator(TILE_NAME)).to_have_text(MARKUP_NAME, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     expect(guest.locator(CHAT_SENDER)).to_have_text(MARKUP_NAME)
     assert guest.locator("#videoGrid .name b, #chatMessages b").count() == 0
+
+
+@BOTH_FORM_FACTORS
+def test_a_long_name_ends_with_an_ellipsis_inside_its_tile_label(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict
+) -> None:
+    host = record_page_errors(open_person(username="anna", **form_factor), page_errors)
+    invite_link = start_call(host, base_url)
+    guest = record_page_errors(open_person(username=LONG_NAME, **form_factor), page_errors)
+    join_by_link(guest, invite_link)
+    expect(host.locator(TILE_NAME)).to_have_text(LONG_NAME, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    assert host.locator(TILE_NAME_TEXT).evaluate(CUT_WITH_ELLIPSIS)
+    assert box_inside(host.locator(TILE_NAME), host.locator(OTHER_TILE))
 
 
 def test_home_keeps_the_unnamed_greeting_when_the_account_answer_fails(
