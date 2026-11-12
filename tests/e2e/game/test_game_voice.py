@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.feature import GameFeature
-from hopin.agent.settings import SpeechSettings
+from hopin.agent.speech_settings import SpeechSettings
 from hopin.game.vocabulary import VOICE_PATH
 from tests.e2e.game.game_page import (
     CARD,

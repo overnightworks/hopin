@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
 
     from hopin.agent.backend import StarterPerson
-    from hopin.agent.settings import SpeechService
+    from hopin.agent.speech_settings import SpeechService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 

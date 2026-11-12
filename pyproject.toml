@@ -28,7 +28,7 @@ build-backend = "hatchling.build"
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
     "overnightworks-agents",
-    "overnightworks-speech-client",  # game
+    "overnightworks-speech-client",
     "overnightworks-webauth",
 ]
 # Their build backends run with these exact tools, as hatchling is pinned above.
@@ -251,8 +251,8 @@ forbidden_modules = ["agents", "agent_runtime_client", "httpx2"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-id = "speech-service-only-through-the-game"
-name = "Only the game reaches the speech service"
+id = "speech-service-only-through-the-connector"
+name = "Only the connector reaches the speech service"
 type = "forbidden"
 # The speech client is the connector's alone, under either of its distribution names.
 source_modules = ["hopin.main", "hopin.app"]

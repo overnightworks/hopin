@@ -9,6 +9,11 @@ item = "#630"
 reason = "S1 lane L4b's hearing route calls `Participation.open_hearing` and `Participation.heard`."
 
 [[code]]
+path = "src/hopin/agent/speech_settings.py"
+item = "#630"
+reason = "After the game's removal, S1 lane L4b's hearing route reads `SpeechSettings` and its `SpeechService`."
+
+[[code]]
 path = "src/hopin/agent/hearing_token.py"
 item = "#630"
 reason = "S1 lane L4b's hearing route asks `HearingTokens.held` for the token it opens a speech session with."

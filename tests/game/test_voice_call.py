@@ -3,7 +3,7 @@ import secrets
 import pytest
 from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
-from hopin.agent.settings import SpeechSettings
+from hopin.agent.speech_settings import SpeechSettings
 from hopin.config.constants import AUTH_START_PATH, SignalType
 from hopin.game.vocabulary import VOICE_PATH, GameRefusal, GameSignal
 from tests.game.support.call_world import asked, serving_call
