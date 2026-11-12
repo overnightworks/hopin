@@ -120,7 +120,7 @@ def open_more(person: Page) -> Locator:
 
 
 def more_legal_links(person: Page) -> Locator:
-    """More's legal links at its foot; the note under Start quiz links the privacy notice too."""
+    """More's legal links at its foot; the note under Quiz starten links the privacy notice too."""
     return open_more(person).get_by_role("navigation", name="Legal")
 
 
