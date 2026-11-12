@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "1b7f489fca7da2a3122661b505e1498c7efb5013"
 branch = "claude/issue-735-the-server-reads-its-one-sentence-from-t"
-scope = ["AGENTS.md", "docs/ARCHITECTURE.md", "frontend/src/lib/catalogs", "frontend/src/lib/words", "pyproject.toml", "src/hopin/auth/sign_in.py", "src/hopin/words.py", "tests"]
+scope = ["AGENTS.md", "docs/ARCHITECTURE.md", "frontend/src/lib/catalogs", "frontend/src/lib/words", "pyproject.toml", "sonar-project.properties", "src/hopin/auth/sign_in.py", "src/hopin/words.py", "tests"]
 opened_commit = "822fb00454670a3fd839313bb99891e552c402d2"
 whole_reason = "The module's move changes one import line in each test that reads a sentence; that edit is mechanical and cannot land in parts."
