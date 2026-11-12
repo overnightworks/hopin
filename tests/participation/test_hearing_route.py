@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 from http import HTTPStatus
+from types import SimpleNamespace
 
 import pytest
 import structlog.testing
@@ -23,9 +24,10 @@ from starlette.websockets import WebSocketDisconnect
 from hopin.agent import hearing_route
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
-from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SignalType
+from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HEARING_PATH, HearingClose, HearingRefusal, ParticipationSignal
+from hopin.signaling.identity import SessionIdentityResolver
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_speech import FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
@@ -405,12 +407,19 @@ def _call_ends(scene):
     scene.owner.send({"type": SignalType.END_ROOM.value})
 
 
+def _shut_down(scene):
+    scene.call.shut_down()
+
+
+EVERY_END = pytest.mark.parametrize(
+    "end",
+    [switch_off, _remove, _agent_leaves, _lease_ends, _seat_parks, _seat_leaves, _call_ends, _shut_down],
+    ids=["switch_off", "removal", "leave", "lease_end", "park", "seat_leaves", "call_end", "shutdown"],
+)
+
+
 class TestEveryEndStopsTheHopAtOnce:
-    @pytest.mark.parametrize(
-        "end",
-        [switch_off, _remove, _agent_leaves, _lease_ends, _seat_parks, _seat_leaves, _call_ends],
-        ids=["switch_off", "removal", "leave", "lease_end", "park", "seat_leaves", "call_end"],
-    )
+    @EVERY_END
     def test_call_58_the_browser_is_closed_in_order_the_service_is_left_and_no_later_frame_reaches_it(
         self, sponsored, fake_speech, end
     ):
@@ -425,6 +434,22 @@ class TestEveryEndStopsTheHopAtOnce:
             session.wait_until_closed()
 
         assert (closed, session.audio_appends()) == (HearingClose.NORMAL, 1)
+
+    @EVERY_END
+    def test_call_58_an_end_while_the_workload_grant_is_awaited_closes_the_browser_and_opens_no_service_session(
+        self, sponsored, fake_speech, end
+    ):
+        """CALL-58: The hop ends at once also while the issuer is still answering for HopIn's own token."""
+        hold = sponsored.call.issuer.hold(CLIENT_CREDENTIALS_GRANT)
+        try:
+            with hop(sponsored) as socket:
+                assert hold.parked.wait(timeout=10)
+                end(sponsored)
+                closed = closed_with(socket)
+        finally:
+            hold.release.set()
+
+        assert (closed, fake_speech.sessions) == (HearingClose.NORMAL, [])
 
     def test_call_58_a_sentence_that_finishes_after_the_end_is_not_appended(self, sponsored, fake_speech):
         with hop(sponsored) as socket:
@@ -453,6 +478,82 @@ class TestEveryEndStopsTheHopAtOnce:
                 newer_closed = closed_with(newer)
 
         assert (older_closed, newer_closed) == (HearingClose.NORMAL, HearingClose.NORMAL)
+
+
+class TestTheSessionIsRechecked:
+    def test_call_58_a_hop_whose_session_was_revoked_ends_at_the_next_recheck_while_the_account_keeps_its_seat(
+        self, sponsored, fake_speech
+    ):
+        """CALL-58: Another login of the account holds the seat; revoking the hop's own session ends the hop alone."""
+        call = sponsored.call
+        hop_login = call.another_device(sponsored.owner_account)
+        with hop(sponsored, login=hop_login) as socket:
+            socket.send_bytes(SOUND)
+            session = fake_speech.next_session()
+            session.wait_for_audio(1)
+
+            call.stores.sessions.delete(hop_login.session.id)
+            call.pass_time(SESSION_RECHECK_SECONDS)
+            closed = closed_with(socket)
+            session.wait_until_closed()
+
+        assert (closed, session.audio_appends()) == (HearingClose.NORMAL, 1)
+
+    def test_call_58_a_hop_whose_session_still_admits_goes_on_through_the_recheck(self, sponsored, fake_speech):
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            session = fake_speech.next_session()
+            session.wait_for_audio(1)
+
+            sponsored.call.pass_time(SESSION_RECHECK_SECONDS)
+            socket.send_bytes(SOUND)
+            session.wait_for_audio(2)
+            session.hang_up()
+
+            assert closed_with(socket) == HearingClose.NORMAL
+
+    def test_call_58_a_recheck_that_fails_ends_the_hop(self, sponsored, fake_speech, hearing_lookups):
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            fake_speech.next_session().wait_for_audio(1)
+
+            hearing_lookups.fail = True
+            with pytest.raises(ConnectionError):
+                sponsored.call.pass_time(SESSION_RECHECK_SECONDS)
+
+            assert closed_with(socket) == HearingClose.NORMAL
+
+    def test_call_58_a_recheck_that_starts_after_the_hop_ended_looks_nothing_up_and_asks_again_no_more(
+        self, sponsored, fake_speech, hearing_lookups
+    ):
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            fake_speech.next_session().wait_for_audio(1)
+            switch_off(sponsored)
+            closed_with(socket)
+        looked_up = len(hearing_lookups.paths)
+
+        sponsored.call.client.portal.call(sponsored.call.scheduler.run_cancelled)
+
+        assert len(hearing_lookups.paths) == looked_up
+
+
+@pytest.fixture
+def hearing_lookups(monkeypatch):
+    """The session lookups the hearing socket makes: the paths asked, and `fail` to make the next ones fail."""
+    resolve = SessionIdentityResolver.resolve
+    lookups = SimpleNamespace(paths=[], fail=False)
+
+    async def resolving(resolver, websocket):
+        if not websocket.url.path.startswith(HEARING_PATH):
+            return await resolve(resolver, websocket)
+        lookups.paths.append(websocket.url.path)
+        if lookups.fail:
+            raise ConnectionError
+        return await resolve(resolver, websocket)
+
+    monkeypatch.setattr(SessionIdentityResolver, "resolve", resolving)
+    return lookups
 
 
 class TestHearingOff:

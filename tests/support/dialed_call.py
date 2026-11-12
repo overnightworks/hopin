@@ -129,6 +129,10 @@ class DialedCall:
             refresh_token = self.issuer.refresh_token_for(account.id)
         return account, seed_member(self.stores, config, account=account, refresh_token=refresh_token)
 
+    def another_device(self, account):
+        """A further login of the account, which its other logins do not share a session with."""
+        return seed_member(self.stores, installed_web_auth_config(self.client.app), account=account)
+
     def seated(self, **member_options):
         """A person in a call of their own: their account for a token, their login and their seat."""
         account, member = self.member(**member_options)
@@ -267,8 +271,15 @@ class DialedCall:
 
     def hearing_tokens(self):
         """The holder of the exchanged tokens, which the MCP route keeps."""
+        return self._mcp_front().hearing_tokens
+
+    def shut_down(self):
+        """Shut participation down as the app's lifespan does, while the sockets of the test are still open."""
+        self.client.portal.call(self._mcp_front().participation().shut_down)
+
+    def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
-        return route.endpoint.hearing_tokens
+        return route.endpoint
 
     def pass_time(self, seconds):
         """Move the app's clock on its own loop, running the timers that fall due."""

@@ -19,7 +19,7 @@ from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import issuer_error
-from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE
+from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS
 from hopin.participation.feature import Person
 from hopin.participation.vocabulary import HearingClose, HearingRefusal
 from hopin.signaling.frames import PeerId
@@ -27,13 +27,15 @@ from hopin.signaling.frames import PeerId
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pydantic import SecretStr
     from webauth.oidc import OidcRelyingParty
 
     from hopin.agent.hearing_token import HearingTokens
     from hopin.agent.speech_settings import SpeechService
     from hopin.participation.feature import Participation
+    from hopin.participation.hearing import HearingHandle
     from hopin.signaling.identity import IdentityResolver
-    from hopin.signaling.scheduler import Scheduler
+    from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -66,6 +68,44 @@ class _AudioClock:
 
     def _at(self, position_ms: int) -> float:
         return self.opened_at + position_ms / MILLISECONDS_PER_SECOND
+
+
+class _SessionRecheck:
+    """Asks each minute whether the socket's session still admits it, and sets `stop` once it does not or the check
+    fails: sound a revoked session sent is not relayed on."""
+
+    def __init__(
+        self, resolver: IdentityResolver, scheduler: Scheduler, websocket: WebSocket, stop: asyncio.Event
+    ) -> None:
+        self._resolver = resolver
+        self._scheduler = scheduler
+        self._websocket = websocket
+        self._stop = stop
+        self._timer: TimerHandle = self._schedule()
+
+    def cancel(self) -> None:
+        self._timer.cancel()
+
+    def _schedule(self) -> TimerHandle:
+        return self._scheduler.call_later(SESSION_RECHECK_SECONDS, self._tick)
+
+    async def _tick(self) -> None:
+        if self._stop.is_set():
+            return
+        try:
+            account = await self._resolver.resolve(self._websocket)
+        except Exception:
+            self._stop.set()
+            raise
+        if account is None:
+            self._stop.set()
+        else:
+            self._timer = self._schedule()
+
+
+async def _stop_when(ended: asyncio.Event, stop: asyncio.Event) -> None:
+    await ended.wait()
+    stop.set()
 
 
 class HearingRoute:
@@ -104,9 +144,24 @@ class HearingRoute:
         if person_token is None:
             await _close_unopened(websocket, HearingClose.NO_TOKEN)
             return
-        workload = await asyncio.to_thread(
-            self._relying_party.workload_access_token, scopes=(self._service.audience_scope,)
-        )
+        # The hop ends when its record ends it or its session is revoked; both are watched from the grant on.
+        stop = asyncio.Event()
+        recheck = _SessionRecheck(self._resolver, self._scheduler, websocket, stop)
+        ending = asyncio.create_task(_stop_when(handle.ended, stop))
+        try:
+            await self._hear(websocket, handle, person_token, stop)
+        finally:
+            recheck.cancel()
+            ending.cancel()
+
+    async def _hear(
+        self, websocket: WebSocket, handle: HearingHandle, person_token: SecretStr, stop: asyncio.Event
+    ) -> None:
+        workload = await self._workload_token_unless(stop)
+        if workload is None:
+            _log_ended(AppEnded())
+            await websocket.close(code=HearingClose.NORMAL)
+            return
         if isinstance(workload, OidcRefusal):
             logger.info("agent_hearing_workload_token_refused", idp_error=issuer_error(workload))
             await _close_unopened(websocket, HearingClose.SERVICE_FAILED)
@@ -124,10 +179,23 @@ class HearingRoute:
             languages=HEARING_LANGUAGES,
             deadline_seconds=HEARING_DEADLINE_SECONDS,
             held_limit_bytes=HELD_LIMIT_BYTES,
-            ended=handle.ended,
+            ended=stop,
             on_utterance=on_utterance,
         )
         _log_ended(outcome)
+
+    async def _workload_token_unless(self, stop: asyncio.Event) -> SecretStr | OidcRefusal | None:
+        """HopIn's own token for the service, or none when the hop ended while the issuer was still answering."""
+        grant = asyncio.ensure_future(
+            asyncio.to_thread(self._relying_party.workload_access_token, scopes=(self._service.audience_scope,))
+        )
+        stopped = asyncio.ensure_future(stop.wait())
+        try:
+            await asyncio.wait({grant, stopped}, return_when=asyncio.FIRST_COMPLETED)
+            return None if stop.is_set() else grant.result()
+        finally:
+            grant.cancel()
+            stopped.cancel()
 
 
 async def _close_unopened(websocket: WebSocket, code: HearingClose) -> None:
