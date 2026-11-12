@@ -1,0 +1,8 @@
+claim_id = "c68e961d12e34e3a9fc8f1b27709ec1d"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "934aeeb62211f7d32571c627e361e29b45ff630b"
+branch = "claude/issue-717-the-end-home-and-pre-join-views-script-s"
+scope = ["README.md", "docs/call.md", "frontend/src/lib/catalogs", "frontend/src/lib/ui/end.svelte.test.ts", "frontend/src/lib/ui/end.svelte.ts", "frontend/src/lib/ui/home.svelte.test.ts", "frontend/src/lib/ui/home.svelte.ts", "frontend/src/lib/ui/prejoin.svelte.test.ts", "frontend/src/lib/ui/prejoin.svelte.ts", "frontend/src/lib/words", "tests/e2e", "tests/support/words.py"]
+opened_commit = "ac3ac759c10dc2bfca3b877fef2e6b765ed65178"
+whole_reason = "The catalog entries, the generated modules, the three script owners and the tests that pinned their sentences change together; the generated files and the test edits are mechanical."
