@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("account name", () => {
-    it("CALL-32: reads Account, You and no initials before any answer", async () => {
+    it("CALL-32: fallback menu and own-row names come from the catalog, no initials before any answer", async () => {
         const { avatarInitials, menuName, ownRowName } = await freshAccount();
 
         expect([menuName(), ownRowName(), avatarInitials()]).toEqual([
