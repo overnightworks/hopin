@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { OutgoingFrame } from "#lib/call/feature-port.ts";
+import { words } from "#lib/words/de.ts";
 import { Quiz, type PhaseFrame } from "./quiz.svelte.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
 
 const ME = "me";
 const SOMEONE = "someone";
+const roundOfThree = (round: number) => words["game.questionProgress"]({ round: String(round), rounds: "3" });
 
 function answering(round: number, starter = ME): PhaseFrame {
     return { phase: GAME_PHASE.ANSWERING, round, rounds: 3, starter };
@@ -93,7 +95,7 @@ describe("the progress line", () => {
         expect(quiz.progress).toBe("");
 
         quiz.receivePhase(answering(2));
-        expect(quiz.progress).toBe("Question 2 of 3");
+        expect(quiz.progress).toBe(roundOfThree(2));
         quiz.receivePhase({ phase: GAME_PHASE.IDLE });
 
         expect(quiz.progress).toBe("");
@@ -104,7 +106,7 @@ describe("the progress line", () => {
 
         quiz.receivePhase(answering(1));
 
-        expect(seenProgress.at(-1)).toBe("Question 1 of 3");
+        expect(seenProgress.at(-1)).toBe(roundOfThree(1));
     });
 });
 
@@ -118,7 +120,7 @@ describe("the question card", () => {
         expect(quiz.card).toBeNull();
         quiz.receiveLine({ text: "Question 2?", round: 2 });
 
-        expect(quiz.card).toMatchObject({ tag: "Question 2 of 3", question: "Question 2?" });
+        expect(quiz.card).toMatchObject({ tag: roundOfThree(2), question: "Question 2?" });
     });
 
     it("closes on a line without a round, which is the reveal or the final score", () => {
@@ -152,11 +154,11 @@ describe("the question card", () => {
         quiz.receiveAnswerCount({ answered: 1, players: 2 });
         quiz.receivePhase(answering(1));
         expect(quiz.card).toBe(first);
-        expect(first.status).toBe("1 of 2 answered");
+        expect(first.status).toBe(words["game.answerCountStatus"]({ answered: "1", players: "2" }));
         openRound(quiz, 2);
 
         expect(quiz.card).not.toBe(first);
-        expect(openCard(quiz).tag).toBe("Question 2 of 3");
+        expect(openCard(quiz).tag).toBe(roundOfThree(2));
     });
 
     it.each([
@@ -230,10 +232,10 @@ describe("answering", () => {
         expect(card.status).toBe("");
 
         quiz.receiveAnswerCount({ answered: 1, players: 3 });
-        expect(card.status).toBe("1 of 3 answered");
+        expect(card.status).toBe(words["game.answerCountStatus"]({ answered: "1", players: "3" }));
         card.answer("Paris");
 
-        expect(card.status).toBe("Answer sent · 1 of 3 answered");
+        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "1", players: "3" }));
     });
 
     it("forgets the answers of the last round when a new round opens", () => {

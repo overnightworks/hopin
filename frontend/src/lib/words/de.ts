@@ -111,6 +111,38 @@ export type Words = {
     readonly "tile.agentWaitingLabel": (gaps: { readonly name: string }) => string;
     readonly "tile.agentSpeakingLabel": (gaps: { readonly name: string }) => string;
     readonly "tile.agentPresentLabel": (gaps: { readonly name: string }) => string;
+    readonly "game.masterName": string;
+    readonly "game.startButton": string;
+    readonly "game.startHint": (gaps: { readonly name: string }) => string;
+    readonly "game.runningLabel": string;
+    readonly "game.endButton": string;
+    readonly "game.thinkingButton": (gaps: { readonly name: string }) => string;
+    readonly "game.thinkingLabel": (gaps: { readonly name: string }) => string;
+    readonly "game.voiceLabel": (gaps: { readonly name: string }) => string;
+    readonly "game.voiceOn": string;
+    readonly "game.voiceOff": string;
+    readonly "game.questionCardLabel": string;
+    readonly "game.revealButton": string;
+    readonly "game.answerLabel": string;
+    readonly "game.sendButton": string;
+    readonly "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => string;
+    readonly "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => string;
+    readonly "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => string;
+    readonly "game.busyToast": (gaps: { readonly name: string }) => string;
+    readonly "game.busyRetryToast": (count: number, gaps: { readonly name: string }) => string;
+    readonly "game.unavailableToast": (gaps: { readonly name: string }) => string;
+    readonly "game.noAccessToast": string;
+    readonly "game.signInAgainToast": (gaps: { readonly name: string }) => string;
+    readonly "game.signInButton": string;
+    readonly "game.budgetSpentToast": string;
+    readonly "game.alreadyAnsweringToast": (gaps: { readonly name: string }) => string;
+    readonly "game.quizRunningToast": string;
+    readonly "game.notStarterToast": string;
+    readonly "game.notStarterOrHostToast": string;
+    readonly "game.answerClosedToast": string;
+    readonly "game.answerTooLongToast": string;
+    readonly "game.endedToast": string;
+    readonly "game.endedByLeaverToast": (gaps: { readonly leaver: string }) => string;
 };
 // prettier-ignore
 export const words: Words = {
@@ -227,5 +259,44 @@ export const words: Words = {
     "tile.agentWaitingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, wartet auf Antworten",
     "tile.agentSpeakingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, spricht",
     "tile.agentPresentLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, ist im Anruf",
+    "game.masterName": "Quizmaster",
+    "game.startButton": "Quiz starten",
+    "game.startHint": (gaps: { readonly name: string }) => gaps.name + " fragt die Runde",
+    "game.runningLabel": "Quiz läuft",
+    "game.endButton": "Quiz beenden",
+    "game.thinkingButton": (gaps: { readonly name: string }) => gaps.name + " denkt nach …",
+    "game.thinkingLabel": (gaps: { readonly name: string }) => gaps.name + " denkt nach",
+    "game.voiceLabel": (gaps: { readonly name: string }) => gaps.name + "-Stimme",
+    "game.voiceOn": "An",
+    "game.voiceOff": "Aus",
+    "game.questionCardLabel": "Quizfrage",
+    "game.revealButton": "Auflösen",
+    "game.answerLabel": "Deine Antwort",
+    "game.sendButton": "Senden",
+    "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => "Frage " + gaps.round + " von " + gaps.rounds,
+    "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => gaps.answered + " von " + gaps.players + " haben geantwortet",
+    "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => "Antwort gesendet · " + gaps.answered + " von " + gaps.players + " haben geantwortet",
+    "game.busyToast": (gaps: { readonly name: string }) => gaps.name + " ist gerade beschäftigt.",
+    "game.busyRetryToast": (count: number, gaps: { readonly name: string }) => ({
+        zero: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunden noch einmal.",
+        one: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunde noch einmal.",
+        two: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunden noch einmal.",
+        few: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunden noch einmal.",
+        many: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunden noch einmal.",
+        other: gaps.name + " ist gerade beschäftigt. Versuch es in " + numberFormat.format(count) + " Sekunden noch einmal.",
+    })[pluralRules.select(count)],
+    "game.unavailableToast": (gaps: { readonly name: string }) => gaps.name + " ist gerade nicht erreichbar.",
+    "game.noAccessToast": "Dein Konto hat keinen KI-Zugang.",
+    "game.signInAgainToast": (gaps: { readonly name: string }) => "Melde dich noch einmal an, um " + gaps.name + " zu nutzen.",
+    "game.signInButton": "Anmelden",
+    "game.budgetSpentToast": "Dein KI-Budget ist vorerst aufgebraucht.",
+    "game.alreadyAnsweringToast": (gaps: { readonly name: string }) => gaps.name + " antwortet schon.",
+    "game.quizRunningToast": "Es läuft schon ein Quiz.",
+    "game.notStarterToast": "Nur wer das Quiz gestartet hat, kann auflösen.",
+    "game.notStarterOrHostToast": "Nur wer das Quiz gestartet hat oder der Host kann es beenden.",
+    "game.answerClosedToast": "Diese Frage ist schon abgeschlossen.",
+    "game.answerTooLongToast": "Deine Antwort ist zu lang. Kürz sie und schick sie noch einmal.",
+    "game.endedToast": "Quiz beendet.",
+    "game.endedByLeaverToast": (gaps: { readonly leaver: string }) => "Quiz beendet: " + gaps.leaver + " ist gegangen.",
 };
 export type Key = keyof Words;

@@ -4,6 +4,7 @@ import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feat
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND, type ToastAction, type ToastKind } from "#lib/ui/toast.svelte.ts";
 import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
+import { words } from "#lib/words/de.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
 import { install } from "./index.ts";
@@ -22,6 +23,8 @@ vi.mock("#lib/ui/chat.svelte.ts", () => ({
 }));
 
 const ME = "me";
+const master = { name: words["game.masterName"] };
+const roundOfThree = (round: number) => words["game.questionProgress"]({ round: String(round), rounds: "3" });
 
 interface HandedOver {
     component: unknown;
@@ -177,7 +180,7 @@ describe("installing the game", () => {
         const game = await installedGame();
 
         expect(game.moreItems.map((item) => item.tagName)).toEqual(["BUTTON", "P", "BUTTON"]);
-        expect(game.startButton.textContent).toContain("Start quiz");
+        expect(game.startButton.textContent).toContain(words["game.startButton"]);
         expect(game.moreItems[1]?.textContent).toContain("Datenschutz");
     });
 });
@@ -207,7 +210,7 @@ describe("Start quiz in More", () => {
         expect(game.startButton.getAttribute("aria-busy")).toBe("false");
         expect(game.startButton.classList.contains("running")).toBe(true);
         expect(game.startButton.classList.contains("ending")).toBe(true);
-        expect(game.progress?.textContent).toBe("Question 1 of 3");
+        expect(game.progress?.textContent).toBe(roundOfThree(1));
     });
 
     it("ends the quiz it started when it is pressed while one runs", async () => {
@@ -283,10 +286,10 @@ describe("the question card", () => {
         expect(game.cards).toHaveLength(1);
         expect(game.cards[0]?.component).toBe(QuestionCard);
         expect(props).toMatchObject({
-            tag: "Question 1 of 3",
+            tag: roundOfThree(1),
             question: "Question 1?",
             canReveal: true,
-            status: "Answer sent · 1 of 2 answered",
+            status: words["game.answerSentCountStatus"]({ answered: "1", players: "2" }),
         });
         expect(game.sent).toEqual([{ type: GAME_SIGNAL.GAME_ANSWER, text: "Paris" }]);
     });
@@ -299,7 +302,7 @@ describe("the question card", () => {
 
         startRound(game, 2);
         expect(lastCardProps(game)).not.toBe(first);
-        expect(lastCardProps(game).tag).toBe("Question 2 of 3");
+        expect(lastCardProps(game).tag).toBe(roundOfThree(2));
         game.emit(GAME_SIGNAL.GAME_LINE, { text: "It was Paris." });
 
         // The next round's phase frame comes before its question, so the old card steps aside first.
@@ -322,18 +325,18 @@ describe("the question card", () => {
 
 describe("refusals", () => {
     it.each([
-        [GAME_REFUSAL.NO_ACCESS, "Your account has no AI access.", "LOCKED"],
-        [GAME_REFUSAL.SIGN_IN_AGAIN, "Sign in again to use the game master.", "WARNING"],
-        [GAME_REFUSAL.BUSY, "The game master is busy.", "WAIT"],
-        [GAME_REFUSAL.BUDGET_SPENT, "Your AI budget is used up for now.", "LOCKED"],
-        [GAME_REFUSAL.ALREADY_ANSWERING, "The game master is already answering.", "WAIT"],
-        [GAME_REFUSAL.QUIZ_RUNNING, "A quiz is already running.", "WAIT"],
-        [GAME_REFUSAL.NOT_STARTER, "Only the person who started the quiz can reveal.", "LOCKED"],
-        [GAME_REFUSAL.NOT_STARTER_OR_HOST, "Only the person who started the quiz or the host can end it.", "LOCKED"],
-        [GAME_REFUSAL.ANSWER_CLOSED, "This question is already closed.", "LOCKED"],
-        [GAME_REFUSAL.ANSWER_TOO_LONG, "Your answer is too long. Shorten it and send again.", "WARNING"],
-        [GAME_REFUSAL.UNAVAILABLE, "The game master is unavailable right now.", "WARNING"],
-        ["from_the_future", "The game master is unavailable right now.", "WARNING"],
+        [GAME_REFUSAL.NO_ACCESS, words["game.noAccessToast"], "LOCKED"],
+        [GAME_REFUSAL.SIGN_IN_AGAIN, words["game.signInAgainToast"](master), "WARNING"],
+        [GAME_REFUSAL.BUSY, words["game.busyToast"](master), "WAIT"],
+        [GAME_REFUSAL.BUDGET_SPENT, words["game.budgetSpentToast"], "LOCKED"],
+        [GAME_REFUSAL.ALREADY_ANSWERING, words["game.alreadyAnsweringToast"](master), "WAIT"],
+        [GAME_REFUSAL.QUIZ_RUNNING, words["game.quizRunningToast"], "WAIT"],
+        [GAME_REFUSAL.NOT_STARTER, words["game.notStarterToast"], "LOCKED"],
+        [GAME_REFUSAL.NOT_STARTER_OR_HOST, words["game.notStarterOrHostToast"], "LOCKED"],
+        [GAME_REFUSAL.ANSWER_CLOSED, words["game.answerClosedToast"], "LOCKED"],
+        [GAME_REFUSAL.ANSWER_TOO_LONG, words["game.answerTooLongToast"], "WARNING"],
+        [GAME_REFUSAL.UNAVAILABLE, words["game.unavailableToast"](master), "WARNING"],
+        ["from_the_future", words["game.unavailableToast"](master), "WARNING"],
     ] as const)("tells the person about %s", async (reason, text, kind) => {
         const game = await installedGame();
 
@@ -347,7 +350,7 @@ describe("refusals", () => {
 
         game.emit(GAME_SIGNAL.GAME_REFUSED, { reason: GAME_REFUSAL.BUSY, retry_after_seconds: 12 });
 
-        expect(game.toasts[0]?.text).toBe("The game master is busy. Try again in 12 s.");
+        expect(game.toasts[0]?.text).toBe(words["game.busyRetryToast"](12, master));
     });
 
     it("GM-13: unlocks Start quiz after a refusal", async () => {
@@ -378,8 +381,8 @@ describe("refusals", () => {
 
 describe("a quiz that ended because someone left", () => {
     it.each([
-        [{ leaver: "Ada" }, "Quiz ended: Ada left."],
-        [{}, "Quiz ended."],
+        [{ leaver: "Ada" }, words["game.endedByLeaverToast"]({ leaver: "Ada" })],
+        [{}, words["game.endedToast"]],
     ])("tells the call: %j", async (frame, text) => {
         const game = await installedGame();
 
@@ -567,7 +570,10 @@ describe("muting the game master's voice", () => {
             [],
             tileOf(AGENT_ACTIVITY.WAITING),
         ]);
-        expect(game.voiceButton).toMatchObject({ hidden: false, textContent: "Quiz master voiceOff" });
+        expect(game.voiceButton).toMatchObject({
+            hidden: false,
+            textContent: words["game.voiceLabel"](master) + words["game.voiceOff"],
+        });
         expect(game.voiceButton.getAttribute("aria-pressed")).toBe("false");
     });
 
@@ -600,8 +606,7 @@ describe("muting the game master's voice", () => {
     });
 });
 
-const GAME_MASTER = "Game master";
-const tileOf = (activity: AgentTile["activity"]): AgentTile => ({ name: GAME_MASTER, activity });
+const tileOf = (activity: AgentTile["activity"]): AgentTile => ({ name: master.name, activity });
 const thinkingPhase = { phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME };
 
 function lastTile(game: Game) {

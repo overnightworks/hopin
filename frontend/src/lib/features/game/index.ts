@@ -1,6 +1,7 @@
 import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView, type FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
+import { words } from "#lib/words/de.ts";
 import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
@@ -23,9 +24,10 @@ const X_PATHS = '<path d="M6 6l12 12M18 6L6 18"/>';
 const VOICE_ON_PATHS =
     '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>';
 const VOICE_OFF_PATHS = '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>';
-const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking not-ending" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon ending-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">Start quiz<small>The game master asks the call</small></span><span class="grow running-only"><span class="not-ending">Quiz running</span><span class="ending-only">End quiz</span><small id="gameProgress"></small></span><span class="grow thinking-only">Game master is thinking…</span></button>
+const MASTER_NAME = { name: words["game.masterName"] };
+const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="button"><svg class="icon not-thinking not-ending" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPARK_PATHS}</svg><svg class="icon ending-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X_PATHS}</svg><svg class="icon thinking-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg><span class="grow start-only">${words["game.startButton"]}<small>${words["game.startHint"](MASTER_NAME)}</small></span><span class="grow running-only"><span class="not-ending">${words["game.runningLabel"]}</span><span class="ending-only">${words["game.endButton"]}</span><small id="gameProgress"></small></span><span class="grow thinking-only">${words["game.thinkingButton"](MASTER_NAME)}</span></button>
 <p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>
-<button id="gameVoiceBtn" class="mi game-item" type="button" aria-label="Quiz master voice" hidden><svg class="icon voice-on-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_ON_PATHS}</svg><svg class="icon voice-off-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_OFF_PATHS}</svg><span class="grow">Quiz master voice<small id="gameVoiceState"></small></span></button>`;
+<button id="gameVoiceBtn" class="mi game-item" type="button" aria-label="${words["game.voiceLabel"](MASTER_NAME)}" hidden><svg class="icon voice-on-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_ON_PATHS}</svg><svg class="icon voice-off-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_OFF_PATHS}</svg><span class="grow">${words["game.voiceLabel"](MASTER_NAME)}<small id="gameVoiceState"></small></span></button>`;
 
 interface SeatFrame {
     participant_id: string;
@@ -48,43 +50,35 @@ function signInAgain() {
 
 function busyText(frame: RefusedFrame) {
     return frame.retry_after_seconds === undefined
-        ? "The game master is busy."
-        : `The game master is busy. Try again in ${String(frame.retry_after_seconds)} s.`;
+        ? words["game.busyToast"](MASTER_NAME)
+        : words["game.busyRetryToast"](frame.retry_after_seconds, MASTER_NAME);
 }
 
 const UNAVAILABLE_TOAST: RefusalToast = (_frame, kind) => [
-    "The game master is unavailable right now.",
+    words["game.unavailableToast"](MASTER_NAME),
     kind.WARNING,
     null,
 ];
 
 const REFUSAL_TOASTS: Partial<Record<GAME_REFUSAL, RefusalToast>> = {
-    [GAME_REFUSAL.NO_ACCESS]: (_frame, kind) => ["Your account has no AI access.", kind.LOCKED, null],
+    [GAME_REFUSAL.NO_ACCESS]: (_frame, kind) => [words["game.noAccessToast"], kind.LOCKED, null],
     [GAME_REFUSAL.SIGN_IN_AGAIN]: (_frame, kind) => [
-        "Sign in again to use the game master.",
+        words["game.signInAgainToast"](MASTER_NAME),
         kind.WARNING,
-        { label: "Sign in", onAct: signInAgain },
+        { label: words["game.signInButton"], onAct: signInAgain },
     ],
     [GAME_REFUSAL.BUSY]: (frame, kind) => [busyText(frame), kind.WAIT, null],
-    [GAME_REFUSAL.BUDGET_SPENT]: (_frame, kind) => ["Your AI budget is used up for now.", kind.LOCKED, null],
-    [GAME_REFUSAL.ALREADY_ANSWERING]: (_frame, kind) => ["The game master is already answering.", kind.WAIT, null],
-    [GAME_REFUSAL.QUIZ_RUNNING]: (_frame, kind) => ["A quiz is already running.", kind.WAIT, null],
-    [GAME_REFUSAL.NOT_STARTER]: (_frame, kind) => [
-        "Only the person who started the quiz can reveal.",
-        kind.LOCKED,
+    [GAME_REFUSAL.BUDGET_SPENT]: (_frame, kind) => [words["game.budgetSpentToast"], kind.LOCKED, null],
+    [GAME_REFUSAL.ALREADY_ANSWERING]: (_frame, kind) => [
+        words["game.alreadyAnsweringToast"](MASTER_NAME),
+        kind.WAIT,
         null,
     ],
-    [GAME_REFUSAL.NOT_STARTER_OR_HOST]: (_frame, kind) => [
-        "Only the person who started the quiz or the host can end it.",
-        kind.LOCKED,
-        null,
-    ],
-    [GAME_REFUSAL.ANSWER_CLOSED]: (_frame, kind) => ["This question is already closed.", kind.LOCKED, null],
-    [GAME_REFUSAL.ANSWER_TOO_LONG]: (_frame, kind) => [
-        "Your answer is too long. Shorten it and send again.",
-        kind.WARNING,
-        null,
-    ],
+    [GAME_REFUSAL.QUIZ_RUNNING]: (_frame, kind) => [words["game.quizRunningToast"], kind.WAIT, null],
+    [GAME_REFUSAL.NOT_STARTER]: (_frame, kind) => [words["game.notStarterToast"], kind.LOCKED, null],
+    [GAME_REFUSAL.NOT_STARTER_OR_HOST]: (_frame, kind) => [words["game.notStarterOrHostToast"], kind.LOCKED, null],
+    [GAME_REFUSAL.ANSWER_CLOSED]: (_frame, kind) => [words["game.answerClosedToast"], kind.LOCKED, null],
+    [GAME_REFUSAL.ANSWER_TOO_LONG]: (_frame, kind) => [words["game.answerTooLongToast"], kind.WARNING, null],
     [GAME_REFUSAL.UNAVAILABLE]: UNAVAILABLE_TOAST,
 };
 
@@ -189,7 +183,10 @@ function listen(core: FeatureCore, quiz: Quiz) {
         core.showToast(...toastOf(frame, core.toastKind));
     });
     core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
-        const text = frame.leaver === undefined ? "Quiz ended." : `Quiz ended: ${frame.leaver} left.`;
+        const text =
+            frame.leaver === undefined
+                ? words["game.endedToast"]
+                : words["game.endedByLeaverToast"]({ leaver: frame.leaver });
         core.showToast(text, core.toastKind.FAILED, null);
         voice.stop();
         quiz.receiveEnd();
@@ -222,7 +219,7 @@ export function install(core: FeatureCore): Promise<void> {
         more.voiceButton.hidden = !quiz.voiceToggleShown;
         more.voiceButton.setAttribute("aria-pressed", String(!quiz.voiceMuted));
         more.voiceButton.classList.toggle("muted", quiz.voiceMuted);
-        more.voiceState.textContent = quiz.voiceMuted ? "Off" : "On";
+        more.voiceState.textContent = quiz.voiceMuted ? words["game.voiceOff"] : words["game.voiceOn"];
     }
 
     function showThinking() {
