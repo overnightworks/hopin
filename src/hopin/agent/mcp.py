@@ -66,6 +66,7 @@ MCP_GROUP: Final = "/apps/hopin/mcp"
 AGENT_GROUP: Final = "/agents"
 MCP_CLIENT_ID: Final = "agents"
 GLB_MEDIA_TYPE: Final = "model/gltf-binary"
+OFFERS_RECOMPUTE_TASK_NAME: Final = "agent-offers-recompute"
 
 
 @dataclass
@@ -116,9 +117,14 @@ class _BuiltParticipation:
         its own, which the set keeps until it ends."""
         if uri != STANDING_URI:
             return
-        recompute = asyncio.create_task(self.current().listening_changed())
+        recompute = asyncio.create_task(self.current().listening_changed(), name=OFFERS_RECOMPUTE_TASK_NAME)
         self._recomputes.add(recompute)
-        recompute.add_done_callback(self._recomputes.discard)
+        recompute.add_done_callback(self._recompute_ended)
+
+    def _recompute_ended(self, recompute: asyncio.Task[None]) -> None:
+        self._recomputes.discard(recompute)
+        if not recompute.cancelled() and (error := recompute.exception()) is not None:
+            logger.error("agent_offers_recompute_failed", exc_info=error)
 
     def _tell_changed(self, person: Person) -> None:
         self.changes.changed(_principal_of_person(person), STANDING_URI)
