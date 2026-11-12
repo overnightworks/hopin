@@ -3,6 +3,6 @@ agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
 role = "builder"
 base = "2f4608e72b2ded07e2b727de311d47ddc5b6ee8a"
 branch = "claude/issue-734-the-skat-entries-and-participation-s-toa"
-scope = ["README.md", "docs/skat.md", "frontend/src/lib/catalogs", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat", "frontend/src/lib/words", "tests/e2e/skat", "tests/support/words.py"]
+scope = ["README.md", "docs/skat.md", "frontend/src/lib/catalogs", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat", "frontend/src/lib/words", "tests/e2e/participation/test_added_agent.py", "tests/e2e/skat", "tests/support/words.py"]
 opened_commit = "01bd1d00d7a4f3888b9be0fa5076a8427f7393ea"
 whole_reason = "Nine sentences, the generated modules, the three files that read them and their tests change together."
