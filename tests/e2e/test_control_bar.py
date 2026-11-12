@@ -7,6 +7,7 @@ from playwright.sync_api import Locator, Page, expect
 from tests.e2e.support.calls import join, open_call, open_host, press_start_call, record_page_errors
 from tests.e2e.support.media import (
     ICE_SERVERS_URL_PATTERN,
+    REFUSE_THE_SCREEN_SHARE,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     share_the_screen,
     stop_the_screen_share,
@@ -199,6 +200,20 @@ def test_share_screen_is_pressed_and_active_exactly_while_sharing(
 
     stop_the_screen_share(host)
 
+    expect(share).to_have_class("cb")
+
+
+def test_a_refused_screen_share_says_so_on_the_status_line_and_leaves_the_share_off(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    host, _, _ = open_call(open_person, base_url, page_errors, DESKTOP, REFUSE_THE_SCREEN_SHARE)
+    share = button_named(host, SHARE_SCREEN)
+
+    share.click()
+
+    expect(host.locator("#status")).to_have_text(
+        text("de", "call.statusScreenShareFailed", errorName="NotAllowedError")
+    )
     expect(share).to_have_class("cb")
 
 
