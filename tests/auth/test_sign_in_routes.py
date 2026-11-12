@@ -19,7 +19,6 @@ from webauth.dependencies import ConnectionRefusal, admit_session, session_id_fr
 from webauth.ports import AccountEventKind, AccountKind
 
 from hopin.auth.sign_in import (
-    LOGOUT_LABEL,
     IssuerTransports,
     LoggingAuditSink,
     build_relying_party,
@@ -39,6 +38,7 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
+from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
@@ -370,7 +370,7 @@ class TestLogout:
             "post_logout_redirect_uri": TEST_PUBLIC_ORIGIN + LOGIN_PATH,
             "id_token_hint": id_token,
         }
-        assert page.button_label == LOGOUT_LABEL
+        assert page.button_label == text("de", "signIn.logOutButton")
         assert harness.sessions.load(session_id) is None
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]

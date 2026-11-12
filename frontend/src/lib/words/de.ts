@@ -105,6 +105,7 @@ export type Words = {
     readonly "account.menuLabel": string;
     readonly "account.unnamedMenuName": string;
     readonly "account.unnamedRowName": string;
+    readonly "signIn.logOutButton": string;
     readonly "tile.removeButton": string;
     readonly "tile.aiBadge": string;
     readonly "tile.agentThinkingLabel": (gaps: { readonly name: string }) => string;
@@ -262,6 +263,7 @@ export const words: Words = {
     "account.menuLabel": "Konto",
     "account.unnamedMenuName": "Konto",
     "account.unnamedRowName": "Du",
+    "signIn.logOutButton": "Abmelden",
     "tile.removeButton": "Entfernen",
     "tile.aiBadge": "KI",
     "tile.agentThinkingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, denkt nach",

@@ -5,6 +5,7 @@ import pytest
 from playwright.sync_api import Expect, Page
 
 from hopin.config.constants import RESUME_WINDOW_SECONDS, ErrorReason, SignalType
+from hopin.words import text
 from tests.e2e.support.calls import say_in_chat
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
@@ -34,7 +35,6 @@ from tests.e2e.support.signaling import (
     RECONNECT_DELAYS_MS,
     SOCKETS_OPENED,
 )
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

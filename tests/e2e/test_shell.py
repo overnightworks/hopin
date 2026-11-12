@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
+from hopin.words import text
 from tests.e2e.support.calls import (
     PREJOIN_START,
     more_legal_links,
@@ -16,7 +17,6 @@ from tests.e2e.support.page_assertions import (
     expect_no_legal_footer,
 )
 from tests.e2e.support.people import DESKTOP, PHONE
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

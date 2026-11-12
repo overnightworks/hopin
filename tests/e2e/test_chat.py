@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import expect
 
+from hopin.words import text
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

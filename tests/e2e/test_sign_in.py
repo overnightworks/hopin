@@ -8,6 +8,7 @@ from starlette.requests import Request
 from webauth.dependencies import admit_session, session_id_from_request
 from webauth.ports import AuthenticatedUser
 
+from hopin.words import text
 from tests.e2e.support.calls import (
     PREJOIN_START,
     add_init_scripts,
@@ -34,7 +35,6 @@ from tests.e2e.support.media import (
 from tests.e2e.support.page_assertions import RECORD_POLICY_VIOLATIONS
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

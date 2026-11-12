@@ -7,6 +7,7 @@ import pytest
 from playwright.sync_api import Locator, Page, Request, Route, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
+from hopin.words import text
 from tests.e2e.support.calls import (
     PREJOIN_CAMERA,
     PREJOIN_MICROPHONE,
@@ -45,7 +46,6 @@ from tests.e2e.support.page_assertions import (
     expect_no_legal_footer,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence

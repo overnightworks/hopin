@@ -7,6 +7,7 @@ from playwright.sync_api import Page, Route, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
+from hopin.words import text
 from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.game.game_page import (
     CARD,
@@ -55,7 +56,6 @@ from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES,
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

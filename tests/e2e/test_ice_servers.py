@@ -5,10 +5,10 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
+from hopin.words import text
 from tests.e2e.support.calls import join_by_link, press_start_call, start_call
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, RECORD_PEER_CONNECTIONS
 from tests.e2e.support.people import DESKTOP
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

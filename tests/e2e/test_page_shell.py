@@ -15,6 +15,7 @@ from hopin.config.constants import (
     STATIC_PATH,
 )
 from hopin.web.routes import STATIC_DIR
+from hopin.words import text
 from tests.e2e.support.people import DESKTOP
 from tests.support.page_inventory import (
     CSS_COMMENT,
@@ -23,7 +24,6 @@ from tests.support.page_inventory import (
     PageInventory,
     inventory_of,
 )
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

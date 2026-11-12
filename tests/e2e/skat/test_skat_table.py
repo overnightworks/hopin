@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
+from hopin.words import text
 from tests.e2e.skat.skat_page import (
     FRAME,
     LINK_FIELD,
@@ -25,7 +26,6 @@ from tests.e2e.support.calls import join, open_call, open_more, press_through_th
 from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

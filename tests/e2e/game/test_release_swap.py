@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 import pytest
 from playwright.sync_api import Page, expect
 
+from hopin.words import text
 from tests.e2e.support.calls import press_through_the_prejoin
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

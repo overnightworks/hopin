@@ -34,6 +34,7 @@ from hopin.config.constants import (
 from hopin.config.secret_files import StartRefusedError, read_secret_file
 from hopin.config.web_policy import SIGN_IN_PATHS
 from hopin.web.page_build import built_page_response
+from hopin.words import text
 
 if TYPE_CHECKING:
     from pydantic import SecretStr
@@ -44,7 +45,6 @@ if TYPE_CHECKING:
     from hopin.web.page_build import PageBuild
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
-LOGOUT_LABEL = "Log out"
 
 logger = structlog.get_logger()
 
@@ -159,7 +159,7 @@ def install_sign_in(
         refused=lambda _request, refusal: _refusal_response(refusal, page_build),
         keeps_id_token=True,
         max_sessions=None,
-        logout_page_text=lambda _request: LogoutPageText(language="en", button_label=LOGOUT_LABEL),
+        logout_page_text=lambda _request: LogoutPageText(language="de", button_label=text("de", "signIn.logOutButton")),
         ui_language=lambda _request: None,
     )
     app.include_router(_create_pages_router(page_build))
