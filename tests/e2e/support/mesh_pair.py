@@ -19,6 +19,7 @@ from tests.e2e.support.signaling import (
     RECONNECT_DELAYS_MS,
     RECORD_SOCKETS,
 )
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -91,7 +92,7 @@ FIRST_CONNECTION_IS_CONNECTED = """
 """
 RESTART_OFFER_COUNT = "() => window.restartOfferCount"
 STATUS_IS = '(text) => document.getElementById("status").textContent === text'
-IN_CALL = "In call"
+IN_CALL = text("de", "call.statusInCall")
 RESTART_DELAY_BY_ATTEMPT = {0: 2000, 1: 4000, 2: 8000, 3: 15000, 4: 15000, 5: 15000}
 SDP_UFRAG = "async () => (await window.localUfrags(window.recordedConnections[0])).sdpUfrag"
 UFRAG_ROTATED_AND_IN_STATS = """
@@ -217,7 +218,7 @@ class ConnectedPair:
 
 
 def _reconnecting_status(delay_ms: int) -> str:
-    return f"Reconnecting in {delay_ms // 1000}s..."
+    return text("de", "call.statusReconnecting", count=delay_ms // 1000)
 
 
 def _wait_for(person: Page, condition: str, arg: Any = None) -> None:

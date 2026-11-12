@@ -48,8 +48,8 @@ CAMERA_BUTTON = "#videoBtn"
 SCREEN_BUTTON = "#screenBtn"
 STATUS = "#status"
 OWN_CAMERA_OFF = "#localPlaceholder:not(.hidden)"
-CAMERA_ERROR_STATUS = "No camera found (NotFoundError)"
-IN_CALL_STATUS = "In call"
+CAMERA_ERROR_STATUS = text("de", "call.statusCameraMissing", errorName="NotFoundError")
+IN_CALL_STATUS = text("de", "call.statusInCall")
 # About one second of Opus (20 ms packets): the first video bytes of a camera that is on arrive within
 # about 0.1 s of the first audio, so a zero-video read after this many packets sees an off camera.
 AUDIO_PACKETS_THAT_SPAN_FIRST_VIDEO = 50.0

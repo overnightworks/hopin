@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { words } from "#lib/words/de.ts";
 
 // The module reads the navigator once and holds its state, so each case loads a fresh copy.
 async function freshInvite() {
@@ -61,7 +62,7 @@ describe("copying the link", () => {
         await copyCallLink();
 
         expect(writeText).toHaveBeenCalledWith("https://example.test/c/abc");
-        expect(toastState.current).toMatchObject({ text: "Link copied", kind: TOAST_KIND.DONE });
+        expect(toastState.current).toMatchObject({ text: words["invite.linkCopiedToast"], kind: TOAST_KIND.DONE });
     });
 
     it("toasts failed when the clipboard rejects", async () => {
@@ -70,7 +71,7 @@ describe("copying the link", () => {
 
         await copyCallLink();
 
-        expect(toastState.current).toMatchObject({ text: "Couldn't copy the link", kind: TOAST_KIND.FAILED });
+        expect(toastState.current).toMatchObject({ text: words["invite.copyFailedToast"], kind: TOAST_KIND.FAILED });
     });
 });
 
@@ -103,6 +104,6 @@ describe("sharing the link", () => {
 
         await shareCallLink();
 
-        expect(toastState.current).toMatchObject({ text: "Couldn't share the link", kind: TOAST_KIND.FAILED });
+        expect(toastState.current).toMatchObject({ text: words["invite.shareFailedToast"], kind: TOAST_KIND.FAILED });
     });
 });

@@ -154,6 +154,21 @@ describe("a refused media request", () => {
         expect(isPrejoinInert()).toBe(true);
         expect(prejoin.isMediaPending).toBe(false);
     });
+
+    it("shows the unexpected-error sentence for a failure that is not the media request's", async () => {
+        const { openPrejoin, prejoin } = await freshPrejoin();
+        media.acquireMedia.mockResolvedValue(undefined);
+        stagePort.showLocalStream.mockImplementation(() => {
+            throw new Error("preview broke");
+        });
+
+        openPrejoin("host");
+        await vi.waitFor(() => {
+            expect(prejoin.failureMessage).toBe(words["call.unexpectedError"]);
+        });
+
+        expect(prejoin.isMediaPending).toBe(false);
+    });
 });
 
 describe("the microphone", () => {

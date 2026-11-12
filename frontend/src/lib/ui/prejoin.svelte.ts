@@ -108,16 +108,26 @@ async function whileMediaIsRequested(request: () => Promise<unknown>) {
     }
 }
 
-async function openMedia() {
-    await acquireMedia();
-    showLocalStream(state.localStream);
-    updateLocalPreview();
-}
-
 // The browser's refusal (NotAllowedError, NotFoundError) travels as the failure's cause.
 function showMediaFailure(failure: Error) {
     prejoin.failureMessage = words["prejoin.mediaRefused"]({ errorName: (failure.cause as Error).name });
     flushSync();
+}
+
+function showUnexpectedFailure() {
+    prejoin.failureMessage = words["call.unexpectedError"];
+    flushSync();
+}
+
+async function openMedia() {
+    try {
+        await acquireMedia();
+    } catch (error_) {
+        showMediaFailure(error_ as Error);
+        return;
+    }
+    showLocalStream(state.localStream);
+    updateLocalPreview();
 }
 
 export function microphoneClicked() {
@@ -147,5 +157,5 @@ export function startClicked() {
 export function openPrejoin(kind: PrejoinKind) {
     prejoin.kind = kind;
     showScreen(SCREEN.PREJOIN);
-    whileMediaIsRequested(openMedia).catch(showMediaFailure);
+    whileMediaIsRequested(openMedia).catch(showUnexpectedFailure);
 }

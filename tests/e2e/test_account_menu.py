@@ -276,7 +276,7 @@ def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_menu_named_acco
 
     expect(person.locator(AVATAR).locator("svg")).to_be_visible()
     expect(person.locator(AVATAR)).to_have_text("")
-    expect(person.locator(MENU_NAME)).to_have_text("Account")
+    expect(person.locator(MENU_NAME)).to_have_text(text("de", "account.unnamedMenuName"))
     expect(person.locator(MENU).get_by_role("button")).to_have_text(["Log out"])
     expect(person.locator("#homeGreeting")).to_have_text(text("de", "home.greetingUnnamed"))
     assert len(load_errors) == 1
@@ -358,7 +358,7 @@ def test_log_out_works_from_a_menu_named_account_before_the_account_answers(
     person.locator(AVATAR).click()
 
     expect(person.locator(AVATAR).locator("svg")).to_be_visible()
-    expect(person.locator(MENU_NAME)).to_have_text("Account")
+    expect(person.locator(MENU_NAME)).to_have_text(text("de", "account.unnamedMenuName"))
     log_out_from_the_open_menu(person, e2e_server, member_of(person).session.id_token)
 
 

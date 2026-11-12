@@ -60,7 +60,7 @@ pytestmark = pytest.mark.e2e
 
 CAPACITY = MAX_PARTICIPANTS_PER_ROOM
 GOING_AWAY_CLOSE_CODE = 1001
-IN_CALL = "In call"
+IN_CALL = text("de", "call.statusInCall")
 # startCall continues in the same microtask drain in which the ICE servers' body is read,
 # so a later poll that sees the flag also sees whatever that continuation did.
 RECORD_ICE_SERVERS_READ = f"""
@@ -540,7 +540,9 @@ def test_person_whose_reconnect_meets_the_maximum_of_calls_sees_the_refusal_and_
     other_device.goto(f"{hosted_call.base_url}/")
 
     cut(server_notices=server_notices)
-    expect(guest.locator("#status")).to_have_text(f"Reconnecting in {RECONNECT_DELAYS_MS[0] // 1000}s...")
+    expect(guest.locator("#status")).to_have_text(
+        text("de", "call.statusReconnecting", count=RECONNECT_DELAYS_MS[0] // 1000)
+    )
     live_elsewhere = MAX_LIVE_SEATS_PER_ACCOUNT if server_notices else MAX_LIVE_SEATS_PER_ACCOUNT - 1
     other_device.evaluate(OPEN_SOCKETS_AND_WAIT, live_elsewhere)
     guest.clock.run_for(RECONNECT_DELAYS_MS[0])

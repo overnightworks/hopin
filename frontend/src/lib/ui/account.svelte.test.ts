@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { words } from "#lib/words/de.ts";
 
 const { goThroughSignIn } = vi.hoisted(() => ({ goThroughSignIn: vi.fn() }));
 vi.mock("#lib/ui/navigation.ts", () => ({ goThroughSignIn }));
@@ -20,10 +21,14 @@ afterEach(() => {
 });
 
 describe("account name", () => {
-    it("CALL-32: reads Account, You and no initials before any answer", async () => {
+    it("CALL-32: fallback menu and own-row names come from the catalog, no initials before any answer", async () => {
         const { avatarInitials, menuName, ownRowName } = await freshAccount();
 
-        expect([menuName(), ownRowName(), avatarInitials()]).toEqual(["Account", "You", ""]);
+        expect([menuName(), ownRowName(), avatarInitials()]).toEqual([
+            words["account.unnamedMenuName"],
+            words["account.unnamedRowName"],
+            "",
+        ]);
     });
 
     it("CALL-32: resolves to the answered name and the menu and the own row follow it", async () => {
@@ -59,7 +64,11 @@ describe("account name", () => {
 
         const name = await readAccount();
 
-        expect([name, menuName(), goThroughSignIn.mock.calls.length]).toEqual([null, "Account", 1]);
+        expect([name, menuName(), goThroughSignIn.mock.calls.length]).toEqual([
+            null,
+            words["account.unnamedMenuName"],
+            1,
+        ]);
     });
 
     it("reads no name on a 500 and does not go through the sign-in", async () => {
@@ -77,7 +86,7 @@ describe("account name", () => {
 
         const name = await readAccount();
 
-        expect([name, menuName()]).toEqual([null, "Account"]);
+        expect([name, menuName()]).toEqual([null, words["account.unnamedMenuName"]]);
     });
 
     it("reads no name when the answer has no string name", async () => {
@@ -86,7 +95,7 @@ describe("account name", () => {
 
         const name = await readAccount();
 
-        expect([name, menuName()]).toEqual([null, "Account"]);
+        expect([name, menuName()]).toEqual([null, words["account.unnamedMenuName"]]);
     });
 
     it("reads no name when the answer does not parse", async () => {

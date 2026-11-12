@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { StatusType } from "#lib/ui/status.svelte.ts";
+import { words } from "#lib/words/de.ts";
 
 // The module holds its state, so each case loads a fresh copy.
 async function freshStatus() {
@@ -13,7 +14,7 @@ describe("status line", () => {
     it("starts as not connected", async () => {
         const { statusLine } = await freshStatus();
 
-        expect(statusLine).toEqual({ text: "Not connected", type: "disconnected" });
+        expect(statusLine).toEqual({ text: words["call.statusNotConnected"], type: "disconnected" });
     });
 
     it.each<StatusType>(["connecting", "connected", "error", "disconnected"])(

@@ -1,10 +1,6 @@
 import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
+import { words } from "#lib/words/de.ts";
 
-const TEXTS = {
-    COPIED: "Link copied",
-    COPY_FAILED: "Couldn't copy the link",
-    SHARE_FAILED: "Couldn't share the link",
-};
 const CANCELLED_SHARE_ERROR = "AbortError";
 
 export const invite: { link: string; isWaitingCardShown: boolean; share: "available" | "unavailable" } = $state({
@@ -29,16 +25,17 @@ export async function copyCallLink() {
     try {
         await navigator.clipboard.writeText(invite.link);
     } catch {
-        showToast(TEXTS.COPY_FAILED, TOAST_KIND.FAILED);
+        showToast(words["invite.copyFailedToast"], TOAST_KIND.FAILED);
         return;
     }
-    showToast(TEXTS.COPIED, TOAST_KIND.DONE);
+    showToast(words["invite.linkCopiedToast"], TOAST_KIND.DONE);
 }
 
 export async function shareCallLink() {
     try {
         await navigator.share({ url: invite.link });
     } catch (error) {
-        if ((error as Error).name !== CANCELLED_SHARE_ERROR) showToast(TEXTS.SHARE_FAILED, TOAST_KIND.FAILED);
+        if ((error as Error).name !== CANCELLED_SHARE_ERROR)
+            showToast(words["invite.shareFailedToast"], TOAST_KIND.FAILED);
     }
 }

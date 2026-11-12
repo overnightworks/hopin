@@ -42,6 +42,9 @@ OPEN_PEER_COUNT_REACHED = """
 SHARE_THE_SCREEN_FROM_A_CANVAS = """
 navigator.mediaDevices.getDisplayMedia = async () => document.createElement("canvas").captureStream();
 """
+REFUSE_THE_SCREEN_SHARE = """
+navigator.mediaDevices.getDisplayMedia = () => Promise.reject(new DOMException("share refused", "NotAllowedError"));
+"""
 REFUSE_THE_CAMERA = """
 const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 navigator.mediaDevices.getUserMedia = (constraints) => {

@@ -1,6 +1,8 @@
 // Generated from the de catalog by design-catalogs. Do not edit.
 
 export const language = "de";
+const numberFormat = new Intl.NumberFormat("de");
+const pluralRules = new Intl.PluralRules("de");
 // prettier-ignore
 export type Words = {
     readonly "call.unexpectedError": string;
@@ -24,6 +26,17 @@ export type Words = {
     readonly "call.chatButton": string;
     readonly "call.moreButton": string;
     readonly "call.leaveButton": string;
+    readonly "call.statusNotConnected": string;
+    readonly "call.statusJoining": string;
+    readonly "call.statusInCall": string;
+    readonly "call.statusReconnecting": (count: number) => string;
+    readonly "call.statusConnectionLost": string;
+    readonly "call.statusDisconnected": string;
+    readonly "call.statusConnectionError": string;
+    readonly "call.statusCameraMissing": (gaps: { readonly errorName: string }) => string;
+    readonly "call.statusScreenShareFailed": (gaps: { readonly errorName: string }) => string;
+    readonly "call.statusIceServersFailed": (gaps: { readonly status: string }) => string;
+    readonly "call.addOnLoadFailedToast": string;
     readonly "end.accountButton": string;
     readonly "end.retryButton": string;
     readonly "end.homeButton": string;
@@ -70,6 +83,10 @@ export type Words = {
     readonly "prejoin.mediaRefused": (gaps: { readonly errorName: string }) => string;
     readonly "more.menuLabel": string;
     readonly "more.lockSwitch": string;
+    readonly "more.lockLineLocked": string;
+    readonly "more.lockLineUnlocked": string;
+    readonly "more.lockedToast": string;
+    readonly "more.unlockedToast": string;
     readonly "invite.menuLabel": string;
     readonly "invite.heading": string;
     readonly "invite.closeButton": string;
@@ -77,11 +94,17 @@ export type Words = {
     readonly "invite.membersNote": string;
     readonly "invite.copyLinkButton": string;
     readonly "invite.shareButton": string;
+    readonly "invite.linkCopiedToast": string;
+    readonly "invite.copyFailedToast": string;
+    readonly "invite.shareFailedToast": string;
     readonly "chat.header": string;
     readonly "chat.inputPlaceholder": string;
     readonly "chat.inputLabel": string;
     readonly "chat.sendButton": string;
+    readonly "chat.closeButton": string;
     readonly "account.menuLabel": string;
+    readonly "account.unnamedMenuName": string;
+    readonly "account.unnamedRowName": string;
     readonly "tile.removeButton": string;
     readonly "tile.aiBadge": string;
     readonly "tile.agentThinkingLabel": (gaps: { readonly name: string }) => string;
@@ -112,6 +135,24 @@ export const words: Words = {
     "call.chatButton": "Chat",
     "call.moreButton": "Mehr",
     "call.leaveButton": "Verlassen",
+    "call.statusNotConnected": "Nicht verbunden",
+    "call.statusJoining": "Verbunden, Beitritt läuft …",
+    "call.statusInCall": "Im Anruf",
+    "call.statusReconnecting": (count: number) => ({
+        zero: "Neu verbinden in " + numberFormat.format(count) + " Sekunden …",
+        one: "Neu verbinden in " + numberFormat.format(count) + " Sekunde …",
+        two: "Neu verbinden in " + numberFormat.format(count) + " Sekunden …",
+        few: "Neu verbinden in " + numberFormat.format(count) + " Sekunden …",
+        many: "Neu verbinden in " + numberFormat.format(count) + " Sekunden …",
+        other: "Neu verbinden in " + numberFormat.format(count) + " Sekunden …",
+    })[pluralRules.select(count)],
+    "call.statusConnectionLost": "Verbindung verloren",
+    "call.statusDisconnected": "Getrennt",
+    "call.statusConnectionError": "Verbindungsfehler",
+    "call.statusCameraMissing": (gaps: { readonly errorName: string }) => "Keine Kamera gefunden (" + gaps.errorName + ")",
+    "call.statusScreenShareFailed": (gaps: { readonly errorName: string }) => "Bildschirmfreigabe fehlgeschlagen (" + gaps.errorName + ")",
+    "call.statusIceServersFailed": (gaps: { readonly status: string }) => "Die Server für die Verbindung konnten nicht geladen werden (" + gaps.status + ").",
+    "call.addOnLoadFailedToast": "Ein Zusatzmodul konnte nicht geladen werden.",
     "end.accountButton": "Konto",
     "end.retryButton": "Erneut versuchen",
     "end.homeButton": "Zurück zum Start",
@@ -158,6 +199,10 @@ export const words: Words = {
     "prejoin.mediaRefused": (gaps: { readonly errorName: string }) => "Weder Kamera noch Mikrofon verfügbar (" + gaps.errorName + "). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal.",
     "more.menuLabel": "Mehr",
     "more.lockSwitch": "Anruf sperren",
+    "more.lockLineLocked": "Niemand Neues kann beitreten",
+    "more.lockLineUnlocked": "Neue Leute können beitreten",
+    "more.lockedToast": "Anruf gesperrt",
+    "more.unlockedToast": "Anruf entsperrt",
     "invite.menuLabel": "Leute einladen",
     "invite.heading": "Leute einladen",
     "invite.closeButton": "Schließen",
@@ -165,11 +210,17 @@ export const words: Words = {
     "invite.membersNote": "Nur HopIn-Mitglieder können beitreten.",
     "invite.copyLinkButton": "Link kopieren",
     "invite.shareButton": "Teilen",
+    "invite.linkCopiedToast": "Link kopiert",
+    "invite.copyFailedToast": "Der Link konnte nicht kopiert werden",
+    "invite.shareFailedToast": "Der Link konnte nicht geteilt werden",
     "chat.header": "Chat",
     "chat.inputPlaceholder": "Schreib eine Nachricht …",
     "chat.inputLabel": "Chatnachricht",
     "chat.sendButton": "Senden",
+    "chat.closeButton": "Chat schließen",
     "account.menuLabel": "Konto",
+    "account.unnamedMenuName": "Konto",
+    "account.unnamedRowName": "Du",
     "tile.removeButton": "Entfernen",
     "tile.aiBadge": "KI",
     "tile.agentThinkingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, denkt nach",

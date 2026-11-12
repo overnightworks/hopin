@@ -14,6 +14,7 @@ import {
     type ServerFrameByType,
     WEBSOCKET_PATH,
 } from "#lib/wire.ts";
+import { words } from "#lib/words/de.ts";
 
 // Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
 type Handler = { handle(data: ServerFrame): void }["handle"];
@@ -125,7 +126,7 @@ function forgetSeat() {
 }
 
 function handleOpen(current: WebSocket) {
-    setStatus("Connected - joining...", "connecting");
+    setStatus(words["call.statusJoining"], "connecting");
     if (seat) {
         writeFirstFrame(current, resumeMessage(seat));
     } else {
@@ -139,7 +140,7 @@ function handleResumed(current: WebSocket, heldSeat: Seat, data: ResumedFrame) {
     sentLog.acknowledge(data.last_seq);
     startWriting(current);
     state.reconnectAttempt = 0;
-    setStatus("In call", "connected");
+    setStatus(words["call.statusInCall"], "connected");
 }
 
 function fallBackToJoin(current: WebSocket) {
@@ -180,7 +181,7 @@ function endSession() {
 
 function scheduleReconnect(delay: number) {
     state.reconnectAttempt++;
-    setStatus(`Reconnecting in ${String(delay / 1000)}s...`, "connecting");
+    setStatus(words["call.statusReconnecting"](delay / 1000), "connecting");
     reconnectTimer = setTimeout(connect, delay);
 }
 
@@ -201,9 +202,9 @@ function handleClose(event: CloseEvent) {
     endSession();
     sessionLost();
     if (heldSeat) {
-        setStatus("Connection lost", "error");
+        setStatus(words["call.statusConnectionLost"], "error");
     } else {
-        setStatus("Disconnected", "disconnected");
+        setStatus(words["call.statusDisconnected"], "disconnected");
     }
 }
 
@@ -225,7 +226,7 @@ export function connect() {
     });
     current.onclose = ifCurrent(handleClose);
     current.onerror = ifCurrent(() => {
-        setStatus("Connection error", "error");
+        setStatus(words["call.statusConnectionError"], "error");
     });
 }
 

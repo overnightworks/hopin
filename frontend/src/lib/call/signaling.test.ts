@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
+import { words } from "#lib/words/de.ts";
 
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
 
@@ -103,7 +104,7 @@ describe("connecting", () => {
         latestSocket().open();
 
         expect(latestSocket().sent).toEqual([{ type: SIGNAL_TYPE.JOIN, room_id: "abc" }]);
-        expect(statusLine).toEqual({ text: "Connected - joining...", type: "connecting" });
+        expect(statusLine).toEqual({ text: words["call.statusJoining"], type: "connecting" });
     });
 
     it("joins the room of the call state when the address names none", async () => {
@@ -131,7 +132,7 @@ describe("connecting", () => {
         connect();
         latestSocket().onerror?.();
 
-        expect(statusLine).toEqual({ text: "Connection error", type: "error" });
+        expect(statusLine).toEqual({ text: words["call.statusConnectionError"], type: "error" });
     });
 });
 
@@ -227,7 +228,7 @@ describe("losing the connection", () => {
 
         expect(lost).toHaveBeenCalledOnce();
         expect(isConnected()).toBe(false);
-        expect(statusLine).toEqual({ text: "Disconnected", type: "disconnected" });
+        expect(statusLine).toEqual({ text: words["call.statusDisconnected"], type: "disconnected" });
     });
 
     it.each([1006, SESSION_ENDED_CLOSE_CODE])(
@@ -281,7 +282,7 @@ describe("losing the connection", () => {
         socket.closeWith(1006);
 
         expect(lost).toHaveBeenCalledOnce();
-        expect(signaling.statusLine).toEqual({ text: "Connection lost", type: "error" });
+        expect(signaling.statusLine).toEqual({ text: words["call.statusConnectionLost"], type: "error" });
     });
 
     it("ignores the events of a socket that is no longer the current one", async () => {
@@ -303,7 +304,10 @@ describe("resuming", () => {
         signaling.send({ type: SIGNAL_TYPE.CHAT, text: "kept" });
 
         socket.closeWith(1006);
-        expect(signaling.statusLine).toEqual({ text: "Reconnecting in 1s...", type: "connecting" });
+        expect(signaling.statusLine).toEqual({
+            text: words["call.statusReconnecting"]((signaling.RECONNECT_DELAYS_MS[0] as number) / 1000),
+            type: "connecting",
+        });
         expect(FakeSocket.instances).toHaveLength(1);
         vi.advanceTimersByTime(signaling.RECONNECT_DELAYS_MS[0] as number);
         latestSocket().open();
@@ -327,7 +331,7 @@ describe("resuming", () => {
 
         expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.CHAT, text: "missed", seq: 2 }]);
         expect(signaling.state.reconnectAttempt).toBe(0);
-        expect(signaling.statusLine).toEqual({ text: "In call", type: "connected" });
+        expect(signaling.statusLine).toEqual({ text: words["call.statusInCall"], type: "connected" });
         latestSocket().closeWith(1006);
         vi.advanceTimersByTime(1000);
         latestSocket().open();

@@ -8,6 +8,7 @@ from hopin.config.constants import ICE_SERVERS_PATH
 from tests.e2e.support.calls import join_by_link, press_start_call, start_call
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, RECORD_PEER_CONNECTIONS
 from tests.e2e.support.people import DESKTOP
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -69,6 +70,24 @@ def test_call_start_with_failing_ice_servers_shows_the_error_and_releases_the_ca
     host.route(ICE_SERVERS_URL_PATTERN, refuse)
     press_start_call(host, base_url)
 
-    expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusIceServersFailed", status="500"))
+    assert host.evaluate(ACQUIRED_TRACK_COUNT) > 0
+    assert host.evaluate(LIVE_TRACK_COUNT) == 0
+
+
+def test_call_start_with_unreadable_ice_servers_shows_the_unexpected_error_and_releases_the_camera(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    """CALL-20: Call start with unreadable ice servers shows the unexpected error and releases the camera."""
+    host = open_person(**DESKTOP)
+    host.add_init_script(RECORD_MEDIA_STREAMS)
+
+    def answer_with_a_page(route: Route) -> None:
+        route.fulfill(status=200, content_type="text/html", body="<html>not json</html>")
+
+    host.route(ICE_SERVERS_URL_PATTERN, answer_with_a_page)
+    press_start_call(host, base_url)
+
+    expect(host.locator("#status")).to_have_text(text("de", "call.unexpectedError"))
     assert host.evaluate(ACQUIRED_TRACK_COUNT) > 0
     assert host.evaluate(LIVE_TRACK_COUNT) == 0

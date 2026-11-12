@@ -217,7 +217,7 @@
     <div id="chatPanel" class={["chat-panel", chat.isOpen && "visible"]}>
         <div class="chat-header">
             <span>{words["chat.header"]}</span>
-            <button id="chatClose" class="chat-close" onclick={closeChat}>x</button>
+            <button id="chatClose" class="chat-close" aria-label={words["chat.closeButton"]} onclick={closeChat}>x</button>
         </div>
         {#if chat.card !== null}<div class="chat-element"><chat.card /></div>{/if}
         <div id="chatMessages" class="chat-messages" {@attach chatList}>

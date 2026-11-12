@@ -4,7 +4,7 @@ What exactly does the game master promise a call, and which test proves each rul
 
 Ruled by the operator:
 
-- GM-01: Everyone's More holds "Start quiz"; a tap makes the game master ask one question in everyone's chat.
+- GM-01: Everyone's "Mehr" holds "Start quiz"; a tap makes the game master ask one question in everyone's chat.
 - GM-04: Answers go into their own answer field, never into the chat; the others see only how many have answered until the reveal.
 - GM-05: A quiz has 5 questions, then the game master's final score.
 - GM-06: A question is revealed once everyone present has answered, or when the person who started the quiz taps Reveal.
@@ -32,7 +32,7 @@ Ruled by the operator:
 - GM-28: There is no End quiz while the game master thinks; the server accepts an end in any phase, and a stuck run ends at its 90-second deadline.
 - GM-29: The game can be removed again without breaking the call.
 - GM-30: A restarted quiz asks different questions: each question names a topic drawn without repetition.
-- GM-31: More says under Start quiz: "Game answers and names go to the AI service. Chat does not.", linked to the privacy text.
+- GM-31: "Mehr" says under Start quiz: "Game answers and names go to the AI service. Chat does not.", linked to the privacy text.
 - GM-32: With speech configured, every seat that received a game master line and is still in the call starts that line's voice once, unless the browser refuses playback; a resumed seat does not start a voice it already played.
 - GM-33: A line's text and its phase change are sent without waiting for its voice; the run for the next line starts only after the previous line's voice was sent or failed; a page stops a playing voice on `game_ended`.
 - GM-34: Without its voice for any reason (among them speech unset, the starter's or HopIn's token refused, the service unreachable, refusing, busy or past VOICE_DEADLINE_SECONDS, an answer malformed, incomplete or over VOICE_MAX_BYTES, a line the client refuses, or a browser that cannot fetch or play it) a line stays text only, the quiz goes on as today, nobody sees a notice, and HopIn logs only an outcome code.

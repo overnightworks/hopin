@@ -123,7 +123,9 @@ def test_tile_keeps_the_username_after_the_other_persons_socket_resumes(
 
     with guest.expect_websocket(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS):
         drop_socket()
-    expect(guest.locator("#status")).to_have_text("In call", timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    expect(guest.locator("#status")).to_have_text(
+        text("de", "call.statusInCall"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
     assert SignalType.RESUMED.value in server_frame_types
     expect(host.locator(TILE_NAME)).to_have_text("ben")
 

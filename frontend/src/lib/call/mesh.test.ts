@@ -255,11 +255,12 @@ describe("loading the ice servers", () => {
         await expect(mesh.loadIceServers()).rejects.toThrow("Signed out");
     });
 
-    it("names the status of any other failure", async () => {
+    it("carries the status of any other failure", async () => {
         const mesh = await freshMesh();
         respondToFetch(503);
 
-        await expect(mesh.loadIceServers()).rejects.toThrow("Could not load ICE servers (503)");
+        await expect(mesh.loadIceServers()).rejects.toThrow(mesh.IceServersUnavailableError);
+        await expect(mesh.loadIceServers()).rejects.toMatchObject({ status: 503 });
     });
 
     it("connects with no servers until they are loaded", async () => {

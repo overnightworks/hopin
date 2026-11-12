@@ -143,7 +143,7 @@ def test_the_call_starts_without_the_game_and_says_so_when_a_file_of_it_does_not
 
     press_start_call(host, e2e_server.base_url)
 
-    expect(host.locator(TOASTS)).to_have_text("An add-on could not load.")
+    expect(host.locator(TOASTS)).to_have_text(text("de", "call.addOnLoadFailedToast"))
     assert call_link_of(host)
     menu = open_more(host)
     expect(menu.locator(START_QUIZ)).to_have_count(0)

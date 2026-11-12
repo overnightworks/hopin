@@ -14,6 +14,7 @@ import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.sve
 import { stopLocalMedia } from "#lib/call/media.ts";
 import { registerMediaStateHandlers } from "#lib/call/media-state.ts";
 import {
+    IceServersUnavailableError,
     loadIceServers,
     onPeersChanged,
     peerCount,
@@ -94,7 +95,7 @@ function startCall() {
     return Promise.all([loadIceServers(), featuresInstalled]).then(
         ([, everyFeatureInstalled]) => {
             if (state.intentionalLeave) return;
-            if (!everyFeatureInstalled) showToast("An add-on could not load.", TOAST_KIND.WARNING);
+            if (!everyFeatureInstalled) showToast(words["call.addOnLoadFailedToast"], TOAST_KIND.WARNING);
             connect();
         },
         (error_: unknown) => {
@@ -105,7 +106,12 @@ function startCall() {
             }
             stopLocalMedia();
             renderControls();
-            setStatus((error_ as Error).message, "error");
+            setStatus(
+                error_ instanceof IceServersUnavailableError
+                    ? words["call.statusIceServersFailed"]({ status: String(error_.status) })
+                    : words["call.unexpectedError"],
+                "error",
+            );
         },
     );
 }
@@ -151,7 +157,7 @@ function registerSessionHandlers() {
         void showCallAddress(state.roomId);
         setCallLink(callUrl(state.roomId));
         showWaitingCard();
-        setStatus("In call", "connected");
+        setStatus(words["call.statusInCall"], "connected");
         updateLockUI();
         updateParticipantCount();
     });
@@ -165,7 +171,7 @@ function registerSessionHandlers() {
         state.reconnectAttempt = 0;
         // A guest is admitted only from the call's own address.
         setCallLink(callUrl(getRoomIdFromUrl() as string));
-        setStatus("In call", "connected");
+        setStatus(words["call.statusInCall"], "connected");
         updateLockUI();
         updateParticipantCount();
     });

@@ -4,10 +4,9 @@ import { state } from "#lib/call/state.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
 import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
+import { words } from "#lib/words/de.ts";
 
 const CAMERA_ERROR_STATUS_MS = 2000;
-const LOCK_LINE = Object.freeze({ LOCKED: "No one new can join", UNLOCKED: "New people can join" });
-const LOCK_TOAST = Object.freeze({ LOCKED: "Call locked", UNLOCKED: "Call unlocked" });
 
 export const deviceButtons = $state({ hasMedia: true, isMicrophoneOn: true, isCameraOn: true, isSharing: false });
 export const lockSwitch = $state({ isShown: false, isLocked: false, line: "" });
@@ -34,7 +33,7 @@ export function addMoreItems(...items: Element[]) {
 export function showLockButton(isLocked: boolean) {
     lockSwitch.isShown = true;
     lockSwitch.isLocked = isLocked;
-    lockSwitch.line = isLocked ? LOCK_LINE.LOCKED : LOCK_LINE.UNLOCKED;
+    lockSwitch.line = isLocked ? words["more.lockLineLocked"] : words["more.lockLineUnlocked"];
 }
 
 export function hideLockButton() {
@@ -43,7 +42,7 @@ export function hideLockButton() {
 
 export function confirmLockChange(isLocked: boolean) {
     if (!state.isHost) return;
-    showToast(isLocked ? LOCK_TOAST.LOCKED : LOCK_TOAST.UNLOCKED, TOAST_KIND.DONE);
+    showToast(isLocked ? words["more.lockedToast"] : words["more.unlockedToast"], TOAST_KIND.DONE);
 }
 
 export function renderControls() {
@@ -60,9 +59,9 @@ export function muteClicked() {
 }
 
 function showCameraError(error: Error) {
-    setStatus(`No camera found (${error.name})`, "error");
+    setStatus(words["call.statusCameraMissing"]({ errorName: error.name }), "error");
     setTimeout(() => {
-        if (state.roomId) setStatus("In call", "connected");
+        if (state.roomId) setStatus(words["call.statusInCall"], "connected");
     }, CAMERA_ERROR_STATUS_MS);
 }
 
@@ -94,7 +93,7 @@ export async function screenClicked() {
         if (error instanceof CameraError) {
             showCameraError(error);
         } else {
-            setStatus(`Screen share failed: ${(error as Error).message}`, "error");
+            setStatus(words["call.statusScreenShareFailed"]({ errorName: (error as Error).name }), "error");
         }
     }
     renderControls();
