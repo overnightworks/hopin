@@ -9,8 +9,9 @@ HTTP_LIBRARY = "httpx2"
 BACKEND_MODULE = SOURCE / "agent" / "backend.py"
 SETTINGS_MODULE = SOURCE / "agent" / "settings.py"
 CLIENT_CONFIG = f"{CLIENT}.config"
-# The tools name only the client's tool contract and the member records, and the MCP module only the MCP profile, the
-# member records and the tool contract.
+# The tools name only the client's tool contract and the member records, the MCP module only the MCP profile, the
+# member records and the tool contract, and the hearing adapter only the hearing record, the member records and the
+# tool contract.
 CLIENT_PARTS_OF = {
     SOURCE / "agent" / "tools.py": {f"{CLIENT}.member", f"{CLIENT}.tools"},
     SOURCE / "agent" / "mcp.py": {
@@ -19,6 +20,7 @@ CLIENT_PARTS_OF = {
         f"{CLIENT}.member",
         f"{CLIENT}.tools",
     },
+    SOURCE / "agent" / "hearing.py": {f"{CLIENT}.mcp_server", f"{CLIENT}.member", f"{CLIENT}.tools"},
 }
 SPEECH_CLIENT = "speech_client"
 # The speech client's voice type is the setting's type, and the speak call is the connector's alone.
