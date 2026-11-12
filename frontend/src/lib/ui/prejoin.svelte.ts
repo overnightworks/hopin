@@ -122,8 +122,8 @@ function showUnexpectedFailure() {
 async function openMedia() {
     try {
         await acquireMedia();
-    } catch (failure) {
-        showMediaFailure(failure as Error);
+    } catch (error_) {
+        showMediaFailure(error_ as Error);
         return;
     }
     showLocalStream(state.localStream);
