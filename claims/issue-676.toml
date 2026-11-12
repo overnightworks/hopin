@@ -1,0 +1,8 @@
+claim_id = "fbf2117fa08e45e69d77fe623dc7720c"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "b0e36a7eebac55853a49bfb4ce8d2a1065045ae4"
+branch = "claude/issue-676-only-an-agent-that-listens-is-offered-h3"
+scope = ["docs/call.md", "pyproject.toml", "src/hopin/agent/mcp.py", "src/hopin/participation", "tests", "uv.lock"]
+opened_commit = "ead63959cf33d8c254a6a8d6d1c4dc885be7d68c"
+whole_reason = "The offer rule lives in participation and its input at the composition, with their tests across the participation suite."
