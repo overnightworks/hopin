@@ -2,8 +2,10 @@ from typing import TYPE_CHECKING, Any
 
 from playwright.sync_api import Page, expect
 
+from hopin.game.quiz import QUIZ_ROUNDS
 from tests.e2e.support.calls import open_more
 from tests.e2e.support.signaling import FrameInjector
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -13,8 +15,26 @@ MUTE_VOICE = "#gameVoiceBtn"
 GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
 TYPING = "#chatMessages .game-master.typing"
 CARD = "#chatPanel .qcard"
-SEND = "Send"
-YOUR_ANSWER = "Your answer"
+GAME_MASTER_NAME = text("de", "game.masterName")
+GAME_MASTER_NAME_GAP = {"name": GAME_MASTER_NAME}
+START_QUIZ_LABEL = text("de", "game.startButton")
+QUIZ_RUNNING_LABEL = text("de", "game.runningLabel")
+END_QUIZ_LABEL = text("de", "game.endButton")
+THINKING_BUTTON_LABEL = text("de", "game.thinkingButton", **GAME_MASTER_NAME_GAP)
+THINKING_STATUS_LABEL = text("de", "game.thinkingLabel", **GAME_MASTER_NAME_GAP)
+QUESTION_CARD_LABEL = text("de", "game.questionCardLabel")
+REVEAL = text("de", "game.revealButton")
+SEND = text("de", "game.sendButton")
+YOUR_ANSWER = text("de", "game.answerLabel")
+QUIZ_ENDED = text("de", "game.endedToast")
+
+
+def question_progress(round_number: int) -> str:
+    return text("de", "game.questionProgress", round=str(round_number), rounds=str(QUIZ_ROUNDS))
+
+
+def answer_sent_status(answered: int, players: int) -> str:
+    return text("de", "game.answerSentCountStatus", answered=str(answered), players=str(players))
 
 
 def start_quiz(person: Page) -> None:

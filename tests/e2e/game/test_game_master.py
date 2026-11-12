@@ -10,14 +10,26 @@ from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHAR
 from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.game.game_page import (
     CARD,
+    END_QUIZ_LABEL,
     GAME_MASTER_LINES,
+    GAME_MASTER_NAME,
+    GAME_MASTER_NAME_GAP,
+    QUESTION_CARD_LABEL,
+    QUIZ_ENDED,
+    QUIZ_RUNNING_LABEL,
+    REVEAL,
     START_QUIZ,
+    START_QUIZ_LABEL,
+    THINKING_BUTTON_LABEL,
+    THINKING_STATUS_LABEL,
     TYPING,
     YOUR_ANSWER,
     answer_on_card,
+    answer_sent_status,
     close_chat,
     end_quiz,
     open_chat,
+    question_progress,
     relaying_frames,
     start_quiz,
 )
@@ -53,15 +65,13 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 TOASTS = "#toasts"
-REVEAL = "Reveal"
 STATUS = ".qcard-status"
 SENT = re.compile(r"\bsent\b")
 MORE_PROGRESS = "#gameProgress"
 THINKING = re.compile(r"\bthinking\b")
-QUESTION_ONE = f"Question 1 of {QUIZ_ROUNDS}"
-QUIZ_RUNNING = re.compile(rf"^Quiz running\s+{QUESTION_ONE}$")
-END_QUIZ = re.compile(rf"^End quiz\s+{QUESTION_ONE}$")
-QUIZ_ENDED = "Quiz ended."
+QUESTION_ONE = question_progress(1)
+QUIZ_RUNNING = re.compile(rf"^{QUIZ_RUNNING_LABEL}\s+{QUESTION_ONE}$")
+END_QUIZ = re.compile(rf"^{END_QUIZ_LABEL}\s+{QUESTION_ONE}$")
 PRIVACY_NOTICE = "https://hallucinai.de/datenschutz#hopin-spielleiter"
 RECORD_WHETHER_THE_GAME_IS_IN_AT_EACH_CONNECT = """
 window.gameInAtConnect = [];
@@ -159,8 +169,8 @@ def test_more_holds_start_quiz_under_lock_call_for_the_host_and_starts_on_it_for
     open_more(host)
     menu = open_more(guest)
 
-    assert host.evaluate(VISIBLE_MORE_ENTRIES) == [text("de", "more.lockSwitch"), "Start quiz", *LEGAL_LINKS]
-    assert guest.evaluate(VISIBLE_MORE_ENTRIES) == ["Start quiz", *LEGAL_LINKS]
+    assert host.evaluate(VISIBLE_MORE_ENTRIES) == [text("de", "more.lockSwitch"), START_QUIZ_LABEL, *LEGAL_LINKS]
+    assert guest.evaluate(VISIBLE_MORE_ENTRIES) == [START_QUIZ_LABEL, *LEGAL_LINKS]
     expect(menu.locator(START_QUIZ)).to_be_focused()
 
 
@@ -194,7 +204,7 @@ def test_the_hosts_start_puts_one_question_marked_ai_in_both_chats(
         open_chat(person)
         line = person.locator(GAME_MASTER_LINES)
         expect(line).to_have_count(1)
-        expect(line.locator(".chat-sender")).to_have_text("Game masterAI")
+        expect(line.locator(".chat-sender")).to_have_text(GAME_MASTER_NAME + text("de", "tile.aiBadge"))
         expect(line.locator(".ai-badge")).to_be_visible()
         expect(line).to_contain_text("Welcher Fluss fließt durch Lissabon?")
 
@@ -212,9 +222,9 @@ def test_the_guest_sees_the_game_master_thinking_while_the_run_is_in_flight(
     open_more(guest)
 
     expect(guest.locator(START_QUIZ)).to_be_disabled()
-    expect(guest.locator(START_QUIZ)).to_contain_text("Game master is thinking…")
+    expect(guest.locator(START_QUIZ)).to_contain_text(THINKING_BUTTON_LABEL)
     expect(guest.locator(TYPING)).to_be_visible()
-    expect(guest.get_by_role("status", name="Game master is thinking")).to_have_count(1)
+    expect(guest.get_by_role("status", name=THINKING_STATUS_LABEL)).to_have_count(1)
     held.release.set()
     expect(guest.locator(GAME_MASTER_LINES)).to_have_count(1)
     expect(guest.locator(TYPING)).to_have_count(0)
@@ -237,7 +247,7 @@ def test_the_question_opens_the_card_on_both_pages_and_only_the_starter_sees_rev
     for person in (host, guest):
         open_chat(person)
         card = person.locator(CARD)
-        expect(person.get_by_role("region", name="Quiz question")).to_have_count(1)
+        expect(person.get_by_role("region", name=QUESTION_CARD_LABEL)).to_have_count(1)
         expect(card.locator(STATUS)).to_have_attribute("aria-live", "polite")
         expect(card.locator(".qcard-tag")).to_have_text(QUESTION_ONE)
         expect(card.locator(".qcard-q")).to_have_text("Welcher Fluss fließt durch Lissabon?")
@@ -268,7 +278,7 @@ def test_the_starters_reveal_puts_the_reveal_line_in_both_chats_and_opens_the_ne
         lines = person.locator(GAME_MASTER_LINES)
         expect(lines).to_have_count(3)
         expect(lines.nth(1)).to_contain_text("Der Tejo.")
-        expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+        expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(question_progress(2))
         expect(person.locator(CARD).locator(".qcard-q")).to_have_text("Zweite?")
 
 
@@ -324,13 +334,13 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
 
     answer_on_card(guest, "Mondego")
 
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     expect(host.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
     for person in (host, guest):
         expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
     expect(host.get_by_text("Mondego")).to_have_count(0)
     answer_on_card(guest, "Guadiana")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     # The guest's socket is handled in order: once the host sees this line, the overwrite is taken.
     overwrite_taken = "Guadiana ist meine Antwort"
     guest.fill("#chatInput", overwrite_taken)
@@ -341,12 +351,12 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
     for person in (host, guest):
         expect(person.locator(GAME_MASTER_LINES)).to_have_count(3)
         expect(person.locator(GAME_MASTER_LINES).nth(1)).to_contain_text(reveal_line)
-        expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+        expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(question_progress(2))
         expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
         close_chat(person)
-        expect(open_more(person).locator(MORE_PROGRESS)).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
-    expect(open_more(host).locator(START_QUIZ)).to_contain_text("End quiz")
-    expect(open_more(guest).locator(START_QUIZ)).to_contain_text("Quiz running")
+        expect(open_more(person).locator(MORE_PROGRESS)).to_have_text(question_progress(2))
+    expect(open_more(host).locator(START_QUIZ)).to_contain_text(END_QUIZ_LABEL)
+    expect(open_more(guest).locator(START_QUIZ)).to_contain_text(QUIZ_RUNNING_LABEL)
     reveal_request = agent_backend.runs[-2].request.turn.messages[-1].text
     assert answers_in_reveal(reveal_request) == [
         {"name": guest_name, "antwort": "Guadiana"},
@@ -367,10 +377,10 @@ def test_an_answer_over_the_cap_shows_only_its_sender_the_toast_and_no_answer_se
 
     answer_on_card(guest, "x" * (GAME_ANSWER_MAX_CHARACTERS + 1))
 
-    expect(guest.locator(TOASTS)).to_contain_text("Your answer is too long. Shorten it and send again.")
+    expect(guest.locator(TOASTS)).to_contain_text(text("de", "game.answerTooLongToast"))
     answer_on_card(host, "Tejo")
     # The host's own count comes after any toast the guest's answer could have sent the host.
-    expect(host.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(host.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     expect(host.locator(TOASTS)).not_to_contain_text("too long")
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
     expect(guest.locator(CARD).locator(STATUS)).not_to_have_class(SENT)
@@ -386,12 +396,12 @@ def test_an_answer_over_the_cap_after_a_given_answer_keeps_the_answer_sent_mark(
         open_chat(person)
         expect(person.locator(CARD)).to_be_visible()
     answer_on_card(guest, "Porto")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
 
     answer_on_card(guest, "x" * (GAME_ANSWER_MAX_CHARACTERS + 1))
 
-    expect(guest.locator(TOASTS)).to_contain_text("Your answer is too long. Shorten it and send again.")
-    expect(guest.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(guest.locator(TOASTS)).to_contain_text(text("de", "game.answerTooLongToast"))
+    expect(guest.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     expect(guest.locator(CARD).locator(STATUS)).to_have_class(SENT)
 
 
@@ -420,7 +430,7 @@ def test_an_answer_refused_as_closed_leaves_no_answer_sent_mark_on_its_sender_ca
 
     answer_on_card(guest, "Mondego")
 
-    expect(guest.locator(TOASTS)).to_contain_text("This question is already closed.")
+    expect(guest.locator(TOASTS)).to_contain_text(text("de", "game.answerClosedToast"))
     expect(guest.locator(CARD).locator(STATUS)).to_have_text("1 of 2 answered")
     reveal_run.release.set()
 
@@ -442,9 +452,9 @@ def test_a_page_that_joins_during_a_question_has_no_card_and_plays_from_the_next
     answer_on_card(host, "A")
     answer_on_card(guest, "B")
 
-    expect(late.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question 2 of {QUIZ_ROUNDS}")
+    expect(late.locator(CARD).locator(".qcard-tag")).to_have_text(question_progress(2))
     answer_on_card(late, "C")
-    expect(late.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 3 answered")
+    expect(late.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 3))
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -471,7 +481,7 @@ def test_both_pages_show_the_game_master_thinking_while_the_reveal_runs_and_unti
     for person in (host, guest):
         close_chat(person)
         item = open_more(person).locator(START_QUIZ)
-        expect(item).to_have_text("Game master is thinking…", use_inner_text=True)
+        expect(item).to_have_text(THINKING_BUTTON_LABEL, use_inner_text=True)
         expect(item).to_be_disabled()
         open_chat(person)
     reveal_run.release.set()
@@ -506,7 +516,7 @@ def test_five_rounds_end_in_the_game_masters_final_line_on_both_pages_and_free_s
 
     for number in range(1, QUIZ_ROUNDS + 1):
         for person in (host, guest):
-            expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question {number} of {QUIZ_ROUNDS}")
+            expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(question_progress(number))
         guest.locator(CARD).get_by_role("button", name=REVEAL).click()
 
     for person in (host, guest):
@@ -569,7 +579,7 @@ def test_the_starters_end_quiz_shows_everyone_quiz_ended_and_frees_start_quiz(
     for person in (host, guest):
         expect_toast(person, QUIZ_ENDED, X_ICON_PATH)
         expect(person.locator(CARD)).to_have_count(0)
-        expect(open_more(person).locator(START_QUIZ)).to_contain_text("Start quiz")
+        expect(open_more(person).locator(START_QUIZ)).to_contain_text(START_QUIZ_LABEL)
         expect_idle(person)
     assert len(agent_backend.runs) == runs_before + 1
 
@@ -595,10 +605,10 @@ def test_the_starters_leave_shows_everyone_quiz_ended_with_the_name_and_frees_st
     close_chat(guest)
     leave_the_call(guest)
 
-    expect_toast(host, f"Quiz ended: {guest_name} left.", X_ICON_PATH)
+    expect_toast(host, text("de", "game.endedByLeaverToast", leaver=guest_name), X_ICON_PATH)
     expect(host.locator(CARD)).to_have_count(0)
     close_chat(host)
-    expect(open_more(host).locator(START_QUIZ)).to_contain_text("Start quiz")
+    expect(open_more(host).locator(START_QUIZ)).to_contain_text(START_QUIZ_LABEL)
     expect_idle(host)
 
 
@@ -616,12 +626,12 @@ def test_a_players_leave_shrinks_the_count_and_the_reveal_follows_once_everyone_
     answer_on_card(host, "Tejo")
     answer_on_card(guest, "Mondego")
     for person in (host, guest):
-        expect(person.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 2 of 3 answered")
+        expect(person.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(2, 3))
 
     leave_the_call(third)
 
     for person in (host, guest):
-        expect(person.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 2 of 2 answered")
+        expect(person.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(2, 2))
     assert reveal_run.started.wait()
     reveal_run.release.set()
     for person in (host, guest):
@@ -641,7 +651,7 @@ def test_the_hosts_end_quiz_ends_a_guests_quiz_for_everyone(
 
     for person in (host, guest):
         expect_toast(person, QUIZ_ENDED, X_ICON_PATH)
-        expect(open_more(person).locator(START_QUIZ)).to_contain_text("Start quiz")
+        expect(open_more(person).locator(START_QUIZ)).to_contain_text(START_QUIZ_LABEL)
         expect_idle(person)
 
 
@@ -656,9 +666,9 @@ def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alo
     open_chat(host)
     expect(host.locator(CARD)).to_be_visible()
     refusals = {
-        GameSignal.GAME_START: "A quiz is already running.",
-        GameSignal.GAME_REVEAL: "Only the person who started the quiz can reveal.",
-        GameSignal.GAME_END: "Only the person who started the quiz or the host can end it.",
+        GameSignal.GAME_START: text("de", "game.quizRunningToast"),
+        GameSignal.GAME_REVEAL: text("de", "game.notStarterToast"),
+        GameSignal.GAME_END: text("de", "game.notStarterOrHostToast"),
     }
 
     for signal_type, toast in refusals.items():
@@ -667,7 +677,7 @@ def test_a_guests_crafted_start_reveal_and_end_are_each_refused_to_the_guest_alo
 
     answer_on_card(host, "Tejo")
     # The host's own count comes after any frame the guest's crafted frames could have sent the host.
-    expect(host.locator(CARD).locator(STATUS)).to_have_text("Answer sent · 1 of 2 answered")
+    expect(host.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     expect(host.locator(TOASTS)).to_be_empty()
     expect(host.locator(CARD)).to_be_visible()
     expect(open_more(host).locator(START_QUIZ)).to_have_text(END_QUIZ, use_inner_text=True)
@@ -686,7 +696,7 @@ def test_a_refused_reveal_shows_the_starter_the_reason_and_everyone_else_quiz_en
 
     host.locator(CARD).get_by_role("button", name=REVEAL).click()
 
-    expect(host.locator(TOASTS)).to_have_text("Your account has no AI access.")
+    expect(host.locator(TOASTS)).to_have_text(text("de", "game.noAccessToast"))
     expect_toast(guest, QUIZ_ENDED, X_ICON_PATH)
     for person in (host, guest):
         expect(person.locator(CARD)).to_have_count(0)
@@ -704,7 +714,7 @@ def test_an_account_without_ai_access_gets_the_toast_alone_and_the_other_returns
 
     start_quiz(host)
 
-    expect(host.locator(TOASTS)).to_have_text("Your account has no AI access.")
+    expect(host.locator(TOASTS)).to_have_text(text("de", "game.noAccessToast"))
     expect_idle(host)
     open_more(guest)
     expect_idle(guest)
@@ -720,7 +730,7 @@ def test_a_busy_game_master_names_the_seconds_the_service_asked_for(
 
     start_quiz(host)
 
-    expect(host.locator(TOASTS)).to_have_text("The game master is busy. Try again in 17 s.")
+    expect(host.locator(TOASTS)).to_have_text(text("de", "game.busyRetryToast", count=17, **GAME_MASTER_NAME_GAP))
     expect_idle(host)
 
 
@@ -761,8 +771,8 @@ def test_sign_in_again_returns_to_this_call_through_the_sign_in(
     host.route("**/auth/start?**", answer_the_sign_in)
 
     start_quiz(host)
-    expect(host.locator(TOASTS)).to_contain_text("Sign in again to use the game master.")
-    host.locator(TOASTS).get_by_role("button", name="Sign in").click()
+    expect(host.locator(TOASTS)).to_contain_text(text("de", "game.signInAgainToast", **GAME_MASTER_NAME_GAP))
+    host.locator(TOASTS).get_by_role("button", name=text("de", "game.signInButton")).click()
 
     expect(host).to_have_url(f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}")
     assert sign_in_requests == [f"{e2e_server.base_url}/auth/start?next={call_path.replace('/', '%2F')}"]
