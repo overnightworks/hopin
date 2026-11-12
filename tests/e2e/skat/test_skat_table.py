@@ -265,10 +265,11 @@ def test_the_item_is_not_offered_while_a_table_is_shown(
     expect(host.locator(LINK_FIELD)).to_be_hidden()
 
 
-def test_the_link_field_has_room_for_its_whole_placeholder_on_a_desktop(
-    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_link_field_has_room_for_its_whole_placeholder(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
 ) -> None:
-    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
 
     open_more(host).locator(SHOW_ITEM).click()
 

@@ -45,12 +45,10 @@
 .skat-form .button {
     height: 44px;
 }
-/* The desktop More popover is 280 px wide: the button goes under the field, so the placeholder fits. */
-@media (min-width: 601px) {
-    .skat-form {
-        flex-wrap: wrap;
-    }
-    .skat-form input {
-        flex-basis: 100%;
-    }
+/* The button sits under the field, so the field keeps the popover's full text width for its placeholder. */
+.skat-form {
+    flex-wrap: wrap;
+}
+.skat-form input {
+    flex-basis: 100%;
 }
