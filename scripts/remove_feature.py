@@ -1,10 +1,11 @@
 """Remove one optional feature from a throwaway copy of this checkout.
 
 CI runs it on a copy and then proves the call still works. Removing the AI game is
-this deletion, plus the compose network, the four `HOPIN_AGENT__` and the
-`HOPIN_SPEECH__` variables, the `litellm_key` mount and declaration, and the doc
-paragraphs. Participation and its MCP connector (`agent/mcp.py`, `agent/tools.py`)
-stay, and with them the agent runtime's client without its `backend` extra.
+this deletion, plus the compose network, the four `HOPIN_AGENT__` variables, the
+`litellm_key` mount and declaration, and the doc paragraphs. Participation and its
+MCP connector (`agent/mcp.py`, `agent/tools.py`) stay, and with them the agent
+runtime's client without its `backend` extra, and the speech settings
+(`agent/speech_settings.py`) with the speech client they name.
 Removing Skat is its server package, its browser module, its tests and the lines
 marked `# skat`. It refuses to touch the checkout it lives in, and fails when
 anything it expects to delete is missing, so the drill cannot pass by deleting
@@ -59,7 +60,6 @@ SKAT = Removal(
     marked_files=("src/hopin/main.py", "scripts/generate_wire.py"),
 )
 REMOVALS = {"game": GAME, "skat": SKAT}
-GAME_ONLY_PACKAGES = ("overnightworks-speech-client",)
 # The client stays for the MCP connector; only the extra that carries its HTTP library to the gateway goes.
 CLIENT_EXTRAS = ("[backend,mcp-server]", "[mcp-server]")
 REPOSITORY = Path(__file__).resolve().parent.parent
@@ -97,13 +97,12 @@ def drop_client_extra(copy: Path) -> None:
     path.write_text(text.replace(before, after))
 
 
-def remove_packages(copy: Path) -> None:
+def relock(copy: Path) -> None:
     uv = shutil.which("uv")
     if uv is None:
         raise SystemExit("remove_feature: uv is not on PATH")
-    # The arguments are this file's constants; --no-sync leaves installing to the caller, and the remove locks
-    # the copy with the dropped extra too.
-    subprocess.run([uv, "remove", "--no-sync", *GAME_ONLY_PACKAGES], cwd=copy, check=True)  # noqa: S603 - argv is the uv binary plus constants of this file
+    # The lock must follow the dropped extra; installing is left to the caller.
+    subprocess.run([uv, "lock"], cwd=copy, check=True)  # noqa: S603 - argv is the uv binary plus a constant of this file
 
 
 def main(arguments: list[str]) -> None:
@@ -117,7 +116,7 @@ def main(arguments: list[str]) -> None:
     remove_marked_lines(removal, copy)
     if feature == "game":
         drop_client_extra(copy)
-        remove_packages(copy)
+        relock(copy)
 
 
 if __name__ == "__main__":

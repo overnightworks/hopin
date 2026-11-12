@@ -1,0 +1,72 @@
+import secrets
+
+import pytest
+from pydantic import ValidationError
+from speech_client.wire import VoiceId
+
+from hopin.agent.speech_settings import SpeechSettings
+
+pytestmark = pytest.mark.integration
+
+SPEECH_ENVIRONMENT = {
+    "HOPIN_SPEECH__ORIGIN": "http://speech.test:8090",
+    "HOPIN_SPEECH__VOICE": VoiceId.NORMAN.value,
+    "HOPIN_SPEECH__AUDIENCE_SCOPE": "scenario-audience",
+}
+SECRET_SHAPED = f"not-a-value-{secrets.token_hex(8)}"
+MALFORMED_SETTINGS = [
+    pytest.param("HOPIN_SPEECH__ORIGIN", f"http://speech.test:8090/{SECRET_SHAPED}", id="an-origin-with-a-path"),
+    pytest.param("HOPIN_SPEECH__ORIGIN", f"https://{SECRET_SHAPED}.test", id="an-origin-over-https"),
+    pytest.param("HOPIN_SPEECH__ORIGIN", f"http://speech.test:{SECRET_SHAPED}", id="an-origin-with-a-bad-port"),
+    pytest.param("HOPIN_SPEECH__VOICE", "", id="an-empty-voice"),
+    pytest.param("HOPIN_SPEECH__VOICE", f"not-a-catalogue-voice-{SECRET_SHAPED}", id="a-voice-outside-the-catalogue"),
+    pytest.param("HOPIN_SPEECH__AUDIENCE_SCOPE", f"two {SECRET_SHAPED}", id="a-scope-with-a-space"),
+    pytest.param("HOPIN_SPEECH__AUDIENCE_SCOPE", "", id="an-empty-scope"),
+]
+
+
+@pytest.fixture
+def speech_environment(monkeypatch):
+    for name, value in SPEECH_ENVIRONMENT.items():
+        monkeypatch.setenv(name, value)
+    return monkeypatch
+
+
+def test_the_three_speech_settings_load_from_their_environment(speech_environment):
+    speech = SpeechSettings()
+
+    assert (speech.origin, speech.voice, speech.audience_scope) == (
+        SPEECH_ENVIRONMENT["HOPIN_SPEECH__ORIGIN"],
+        SPEECH_ENVIRONMENT["HOPIN_SPEECH__VOICE"],
+        SPEECH_ENVIRONMENT["HOPIN_SPEECH__AUDIENCE_SCOPE"],
+    )
+
+
+def test_without_an_origin_the_voice_is_off_and_its_voice_has_a_default(speech_environment):
+    for name in SPEECH_ENVIRONMENT:
+        speech_environment.delenv(name)
+
+    speech = SpeechSettings()
+
+    assert (speech.origin, speech.audience_scope, bool(speech.voice), speech.service) == (None, None, True, None)
+
+
+def test_an_origin_without_an_audience_scope_fails_when_the_settings_load(speech_environment):
+    speech_environment.delenv("HOPIN_SPEECH__AUDIENCE_SCOPE")
+
+    with pytest.raises(ValidationError):
+        SpeechSettings()
+
+
+@pytest.mark.parametrize(("name", "value"), MALFORMED_SETTINGS)
+def test_a_malformed_speech_setting_fails_when_the_settings_load_and_echoes_no_input(name, value, speech_environment):
+    speech_environment.setenv(name, value)
+
+    with pytest.raises(ValidationError) as refusal:
+        SpeechSettings()
+
+    assert SECRET_SHAPED not in str(refusal.value)
+
+
+def test_an_audience_scope_without_an_origin_leaves_the_voice_off():
+    assert SpeechSettings(audience_scope="scenario-audience").service is None

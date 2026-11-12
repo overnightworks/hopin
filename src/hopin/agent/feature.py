@@ -4,8 +4,9 @@ from random import SystemRandom
 from typing import TYPE_CHECKING
 
 from hopin.agent.backend import QuizGameMaster, StarterPerson, gateway_backend
-from hopin.agent.settings import AgentSettings, SpeechSettings
+from hopin.agent.settings import AgentSettings
 from hopin.agent.speech import SpeechVoice
+from hopin.agent.speech_settings import SpeechSettings
 from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS
 from hopin.game.table import Game
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
@@ -86,5 +87,4 @@ class GameFeature:
 
 def configured_game_feature() -> GameFeature:
     """The game as the environment configures it, on the gateway."""
-    settings = AgentSettings()
-    return GameFeature(gateway_backend(settings), settings.speech)
+    return GameFeature(gateway_backend(AgentSettings()), SpeechSettings())

@@ -11,7 +11,7 @@ from speech_client.wire import (
 )
 
 from hopin.agent.backend import StarterPerson
-from hopin.agent.settings import SpeechService
+from hopin.agent.speech_settings import SpeechService
 from hopin.agent.speech import SpeechVoice
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
 from tests.game.support.speech_origin import (

@@ -97,7 +97,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `HOPIN_SPEECH__VOICE` | `de_DE-thorsten-medium` | The speech service's catalogue voice the game master's lines are spoken with; a value outside the catalogue stops the start |
 | `HOPIN_SPEECH__AUDIENCE_SCOPE` | required when the origin is set | The one Keycloak scope whose token the speech service admits (`speech-service-audience`); sign-in asks for it only with the voice on |
 
-The `HOPIN_AGENT__` and `HOPIN_SPEECH__` settings are read by the connector's `AgentSettings`, and `HOPIN_AGENT_ADDERS` and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
+The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), and `HOPIN_AGENT_ADDERS` and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
 
 Agents dial in through `POST /mcp` with a bearer token and need no setting, except that an agent with an account of its own is added only where `HOPIN_AGENT_ADDERS` maps its owner: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the four required settings and the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
