@@ -1,0 +1,8 @@
+claim_id = "fcfd6bfc7012412fb15a320a861e9f7d"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "5e7b2b9249c9749c32ab1bb911b9554130750260"
+branch = "claude/issue-746-the-quiz-card-s-answer-sent-line-never-s"
+scope = ["frontend/src/lib/features/game", "tests/e2e/game"]
+opened_commit = "01912e854bff26c3b05e443f974c8474179865db"
+whole_reason = "The card's status line and the test that proves it change together."
