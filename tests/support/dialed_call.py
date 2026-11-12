@@ -26,7 +26,7 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
-from tests.support.stores import single_process_stores
+from tests.support.stores import WatchedSessions, single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -366,6 +366,7 @@ def serving_dialed_call(
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test. `hearing` is the speech service agents hear through, none with hearing off."""
     stores = single_process_stores()
+    stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
     participation = _ParticipationBuilt(
         ParticipationFeature(

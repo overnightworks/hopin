@@ -5,7 +5,6 @@ import base64
 import json
 import logging
 from http import HTTPStatus
-from types import SimpleNamespace
 
 import pytest
 import structlog.testing
@@ -27,7 +26,6 @@ from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HEARING_PATH, HearingClose, HearingRefusal, ParticipationSignal
-from hopin.signaling.identity import SessionIdentityResolver
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_speech import FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
@@ -512,48 +510,34 @@ class TestTheSessionIsRechecked:
 
             assert closed_with(socket) == HearingClose.NORMAL
 
-    def test_call_58_a_recheck_that_fails_ends_the_hop(self, sponsored, fake_speech, hearing_lookups):
-        with hop(sponsored) as socket:
+    def test_call_58_a_recheck_that_fails_ends_the_hop(self, sponsored, fake_speech):
+        call = sponsored.call
+        hop_login = call.another_device(sponsored.owner_account)
+        with hop(sponsored, login=hop_login) as socket:
             socket.send_bytes(SOUND)
             fake_speech.next_session().wait_for_audio(1)
 
-            hearing_lookups.fail = True
+            call.stores.sessions.fail_loads_of(hop_login.session.id)
             with pytest.raises(ConnectionError):
-                sponsored.call.pass_time(SESSION_RECHECK_SECONDS)
+                call.pass_time(SESSION_RECHECK_SECONDS)
 
             assert closed_with(socket) == HearingClose.NORMAL
 
     def test_call_58_a_recheck_that_starts_after_the_hop_ended_looks_nothing_up_and_asks_again_no_more(
-        self, sponsored, fake_speech, hearing_lookups
+        self, sponsored, fake_speech
     ):
-        with hop(sponsored) as socket:
+        call = sponsored.call
+        hop_login = call.another_device(sponsored.owner_account)
+        with hop(sponsored, login=hop_login) as socket:
             socket.send_bytes(SOUND)
             fake_speech.next_session().wait_for_audio(1)
             switch_off(sponsored)
             closed_with(socket)
-        looked_up = len(hearing_lookups.paths)
+        looked_up = call.stores.sessions.loaded.count(hop_login.session.id)
 
-        sponsored.call.client.portal.call(sponsored.call.scheduler.run_cancelled)
+        call.client.portal.call(call.scheduler.run_cancelled)
 
-        assert len(hearing_lookups.paths) == looked_up
-
-
-@pytest.fixture
-def hearing_lookups(monkeypatch):
-    """The session lookups the hearing socket makes: the paths asked, and `fail` to make the next ones fail."""
-    resolve = SessionIdentityResolver.resolve
-    lookups = SimpleNamespace(paths=[], fail=False)
-
-    async def resolving(resolver, websocket):
-        if not websocket.url.path.startswith(HEARING_PATH):
-            return await resolve(resolver, websocket)
-        lookups.paths.append(websocket.url.path)
-        if lookups.fail:
-            raise ConnectionError
-        return await resolve(resolver, websocket)
-
-    monkeypatch.setattr(SessionIdentityResolver, "resolve", resolving)
-    return lookups
+        assert call.stores.sessions.loaded.count(hop_login.session.id) == looked_up
 
 
 class TestHearingOff:
