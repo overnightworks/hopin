@@ -2,6 +2,7 @@ import secrets
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from agents.member import LISTEN_ALLOWANCE_SECONDS
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.calls import join_by_link, open_more, record_page_errors
@@ -18,6 +19,7 @@ pytestmark = pytest.mark.e2e
 
 LEAVE = "#leaveBtn"
 BYSTANDER_QUIET_SECONDS = 2
+LAPSE_WITHIN_MILLISECONDS = (LISTEN_ALLOWANCE_SECONDS + 10) * 1000
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -44,6 +46,30 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
     assert scene.agent.standings() == []
+
+
+def test_an_agent_with_a_lease_and_no_listen_is_offered_to_nobody(scene_of: Callable[[dict[str, Any]], Scene]) -> None:
+    """CALL-51: An agent that renews its lease without a listen on its standing is offered to no seat."""
+    scene = scene_of(DESKTOP)
+    assert scene.agent.standings() == []
+
+    open_more(scene.member)
+
+    expect(scene.offers_on(scene.member)).to_have_count(0)
+
+
+def test_a_listen_that_ends_without_a_next_one_drops_the_offer_of_the_seat_that_showed_it(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-51: An agent's offer ends once its last listen on the standing has ended and its allowance has passed."""
+    scene = scene_of(DESKTOP)
+    scene.agent_listens()
+    open_more(scene.member)
+    expect(scene.offer_of_agent(scene.member)).to_have_count(1)
+
+    scene.agent.stop_listening()
+
+    expect(scene.offer_of_agent(scene.member)).to_have_count(0, timeout=LAPSE_WITHIN_MILLISECONDS)
 
 
 def test_another_agents_stream_is_not_woken_by_this_agents_invitation(

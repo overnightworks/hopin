@@ -194,6 +194,7 @@ class Participation:
         wall_clock: Callable[[], float],
         adders: Mapping[str, str],
         groups_of: GroupsOf,
+        listens_to_standing: Callable[[Person], bool],
         figure_sources: Collection[FigureSource],
     ) -> None:
         self._rooms = rooms
@@ -205,6 +206,7 @@ class Participation:
         self._wall_clock = wall_clock
         self._adders = adders
         self._groups_of = groups_of
+        self._listens_to_standing = listens_to_standing
         self._figure_sources = figure_sources
         self._live = LiveAgents()
         self._places = Places()
@@ -360,6 +362,11 @@ class Participation:
             await self._end_lease(admission.ended)
         elif admission.registered:
             await self._update_every_room_offers()
+
+    async def listening_changed(self) -> None:
+        """Some agent's listen on its standing started or ended: the offers of every room follow it, as a lease's start
+        and end do."""
+        await self._update_every_room_offers()
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         match frame.signal_type:
@@ -664,12 +671,19 @@ class Participation:
         )
 
     def _offers_for(self, peer_id: PeerId, room_id: str) -> tuple[Offer, ...]:
+        """The agents a seat may add: each with a lease that runs and a listen on its standing that is open, or ended
+        within its allowance."""
         memberships = self._view_of(peer_id, room_id).memberships
         offers = []
         for live in self._live.by_person.values():
             group = self._adders.get(live.owner_subject)
             sponsor = self._sole_seat(room_id, live.owner_subject)
-            if group is None or isinstance(sponsor, AgentRefusal) or memberships.get(group) is not Membership.MEMBER:
+            if (
+                group is None
+                or isinstance(sponsor, AgentRefusal)
+                or memberships.get(group) is not Membership.MEMBER
+                or not self._listens_to_standing(live.person)
+            ):
                 continue
             place = self._places.get(live.person, room_id)
             if isinstance(place, Invited) and place.adder == peer_id:

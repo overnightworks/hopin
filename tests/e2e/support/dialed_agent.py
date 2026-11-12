@@ -136,10 +136,15 @@ class SdkAgent:
     def _run(self, coroutine: Any) -> Any:
         return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(REQUEST_SECONDS)
 
-    def listen(self, uris: Sequence[str] = (STANDING_URI,)) -> None:
-        """Replace the stream with one on the resources and return once the server has acknowledged it."""
+    def stop_listening(self) -> None:
+        """End the stream and keep the client: the server counts the agent as listening until its allowance passes."""
         if self._stream is not None:
             self._run(self._stop(self._stream))
+            self._stream = None
+
+    def listen(self, uris: Sequence[str] = (STANDING_URI,)) -> None:
+        """Replace the stream with one on the resources and return once the server has acknowledged it."""
+        self.stop_listening()
         self._acknowledged.clear()
         self._woken.clear()
         self._stream = self._run(self._start(uris))

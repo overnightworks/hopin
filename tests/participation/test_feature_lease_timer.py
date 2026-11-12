@@ -38,6 +38,7 @@ def participation(scheduler, changed):
         wall_clock=lambda: 0.0,
         adders={},
         groups_of=groups_never_read,
+        listens_to_standing=lambda person: False,
         figure_sources=(),
     )
 
