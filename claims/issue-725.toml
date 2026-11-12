@@ -1,0 +1,7 @@
+claim_id = "481042ea0e3e491b8bec053743e68a48"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "963c79db926c643735fba06ab882f118f37f0d3d"
+branch = "claude/issue-725-a-long-name-in-a-tile-s-label-ends-with"
+scope = ["frontend/src/lib/ui/Tiles.svelte", "tests/e2e/test_names.py"]
+opened_commit = "b9f67ed69b2f8c6ed762522575a85888e2cc73ec"
