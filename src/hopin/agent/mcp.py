@@ -37,6 +37,7 @@ from webauth.policies import AuthorizedParties
 from webauth.session_groups import SessionGroups
 
 from hopin.agent.hearing import MemberHearingRecord
+from hopin.agent.hearing_token import HearingTokens
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
@@ -177,17 +178,20 @@ def _caller_of(request: PersonRequest) -> Caller:
 @dataclass(frozen=True)
 class _LeaseRenewingFront:
     """The person front behind a lease: every admitted call of an agent with an account of its own renews that agent's
-    lease before the front serves it, the opening of a listen included."""
+    lease and keeps its exchanged hearing token before the front serves it, the opening of a listen included."""
 
     front: ASGIApp
     issuer: str
     participation: Callable[[], Participation]
+    hearing_tokens: HearingTokens
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         own_account = _own_account_of(scope)
         if own_account is not None:
             principal = _principal_of(self.issuer, scope)
-            await self.participation().agent_called(Person(principal.iss, principal.sub), own_account)
+            person = Person(principal.iss, principal.sub)
+            await self.participation().agent_called(person, own_account)
+            await self.hearing_tokens.keep(person, HTTPConnection(scope))
         await self.front(scope, receive, send)
 
 
@@ -287,6 +291,7 @@ class ParticipationFeature:
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
     hears: bool = False
+    hearing_scopes: tuple[str, ...] = ()
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -324,6 +329,9 @@ class ParticipationFeature:
             self.figure_sources,
             self.hears,
         )
+        hearing_tokens = HearingTokens(
+            self.hearing_scopes if self.hears else (), now=scheduler.now, wall_clock=auth_config.wall_clock
+        )
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         front = McpPersonFront(
             [_as_person_tool(tool) for tool in participation_tools(built.current)],
@@ -343,7 +351,10 @@ class ParticipationFeature:
         router = APIRouter(lifespan=lifespan)
         # No methods named, so every method reaches the front, which refuses all but POST itself.
         router.routes.append(
-            Route(MCP_ENDPOINT_PATH, endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current))
+            Route(
+                MCP_ENDPOINT_PATH,
+                endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current, hearing_tokens),
+            )
         )
         router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
         return BuiltParticipationFeature(built.build, router, resource)

@@ -7,3 +7,8 @@ reason = "S1 lane L4b's hearing route calls `Participation.open_hearing` with it
 path = "src/hopin/participation/feature.py"
 item = "#630"
 reason = "S1 lane L4b's hearing route calls `Participation.open_hearing` and `Participation.heard`."
+
+[[code]]
+path = "src/hopin/agent/hearing_token.py"
+item = "#630"
+reason = "S1 lane L4b's hearing route asks `HearingTokens.held` for the token it opens a speech session with."
