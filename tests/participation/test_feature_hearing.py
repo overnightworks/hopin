@@ -217,6 +217,15 @@ class TestTheGate:
 
         assert (handle.account, handle.seat, handle.ended.is_set()) == (GUEST, guest.peer_id, False)
 
+    async def test_call_57_a_handle_names_the_joined_agent_that_hears_the_seat(self, participation, invitation_of):
+        """CALL-57: The handle names the person of the joined agent, which for an agent with an account of its own
+        is not the account that holds the seat."""
+        owner, _member, _agent = await invitation_of(OWNER)
+
+        handle = participation.open_hearing(person_named(OWNER), owner.peer_id)
+
+        assert handle.agent == AGENT
+
     @pytest.mark.parametrize(
         ("account", "seat_of"),
         [

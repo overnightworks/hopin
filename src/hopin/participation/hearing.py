@@ -43,9 +43,11 @@ class HearingRecord(Protocol):
 
 @dataclass(frozen=True, eq=False)
 class HearingHandle:
-    """The sound session of one seat: the account that holds it, and an event set when the session ends."""
+    """The sound session of one seat: the account that holds it, the joined agent that hears it, and an event set when
+    the session ends."""
 
     account: Person
+    agent: Person
     seat: PeerId
     room_id: str
     ended: asyncio.Event = field(default_factory=asyncio.Event)
@@ -79,10 +81,12 @@ class Hearing:
 
     def open(self, account: Person, room_id: str, seat: PeerId) -> HearingHandle | HearingRefusal:
         """The sound session of the seat, which ends an older one; refused when no joined agent hears the seat."""
-        if not self._record.sensing(room_id, seat):
+        hearers = self._record.sensing(room_id, seat)
+        if not hearers:
             return HearingRefusal.NOBODY_HEARS
         self.end_sound(seat)
-        handle = HearingHandle(account, seat, room_id)
+        (agent,) = hearers  # a sponsor has at most one joined agent in a call
+        handle = HearingHandle(account, agent, seat, room_id)
         self._handles[seat] = handle
         return handle
 
