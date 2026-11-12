@@ -7,6 +7,7 @@ from speech_client.wire import (
     SPEECH_PATH,
     WORKLOAD_TOKEN_HEADER,
     RefusalCode,
+    VoiceId,
 )
 
 from hopin.agent.backend import StarterPerson
@@ -29,7 +30,7 @@ from tests.support.loopback_origin import Origin
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 TEXT = f"Wie heißt die Hauptstadt {secrets.token_hex(8)}?"
-VOICE_NAME = "piper"
+VOICE_NAME = VoiceId.THORSTEN
 FAILED = "game_voice_failed"
 OUTCOMES = [
     pytest.param(refusal_answer(RefusalCode.FORBIDDEN), {"outcome": "refused", "code": "forbidden"}, id="refused"),
