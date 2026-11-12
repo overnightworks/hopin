@@ -1,6 +1,7 @@
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
+import { words } from "#lib/words/de.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
@@ -39,7 +40,7 @@ interface AgentRefusedFrame {
     reason: AGENT_REFUSAL;
 }
 
-const NOT_REMOVED_TEXT = "Only the person who brought the agent or the host can remove it.";
+const NOT_REMOVED_TEXT = words["agent.notRemovedToast"];
 
 function tileKey(agentId: string) {
     return `agent-${agentId}`;
