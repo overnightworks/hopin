@@ -330,7 +330,10 @@ class ParticipationFeature:
             self.hears,
         )
         hearing_tokens = HearingTokens(
-            self.hearing_scopes if self.hears else (), now=scheduler.now, wall_clock=auth_config.wall_clock
+            self.hearing_scopes if self.hears else (),
+            lease_seconds=LEASE_SECONDS,
+            scheduler=scheduler,
+            wall_clock=auth_config.wall_clock,
         )
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         front = McpPersonFront(
