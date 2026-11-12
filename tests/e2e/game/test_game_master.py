@@ -27,6 +27,7 @@ from tests.e2e.game.game_page import (
     answer_count_status,
     answer_on_card,
     answer_sent_status,
+    call_of_two,
     close_chat,
     end_quiz,
     open_chat,
@@ -109,13 +110,6 @@ def expect_idle(person: Page) -> None:
     expect(item).to_be_enabled()
     expect(item).not_to_have_class(THINKING)
     expect(person.locator(TYPING)).to_have_count(0)
-
-
-def call_of_two(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str], **options: Any
-) -> tuple[Page, Page]:
-    host, guest, _ = open_call(open_person, base_url, page_errors, {**DESKTOP, **options})
-    return host, guest
 
 
 def test_the_page_connects_only_once_the_game_is_installed_even_when_its_module_arrives_last(

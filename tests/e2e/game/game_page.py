@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, Any
 from playwright.sync_api import Page, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
-from tests.e2e.support.calls import open_more
+from tests.e2e.support.calls import open_call, open_more
+from tests.e2e.support.people import DESKTOP
 from tests.e2e.support.signaling import FrameInjector
 from tests.support.words import text
 
@@ -61,6 +62,13 @@ def open_chat(person: Page) -> None:
 def close_chat(person: Page) -> None:
     person.click("#chatClose")
     expect(person.locator("#chatPanel")).to_be_hidden()
+
+
+def call_of_two(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], **options: Any
+) -> tuple[Page, Page]:
+    host, guest, _ = open_call(open_person, base_url, page_errors, {**DESKTOP, **options})
+    return host, guest
 
 
 def relaying_frames(open_person: Callable[..., Page], relays: list[FrameInjector]) -> Callable[..., Page]:
