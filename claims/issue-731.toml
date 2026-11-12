@@ -1,0 +1,8 @@
+claim_id = "0e04a0e3983b4ffe923444679cec8409"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "5c13afddfa19d186ba341fd533e2436c84c81852"
+branch = "claude/issue-731-hopin-pins-the-agents-library-at-v0-32-0"
+scope = ["pyproject.toml", "src/hopin/agent", "uv.lock"]
+opened_commit = "ea0966ad70c3ea6bad6be4cbced2d2eab6c1dc5a"
+whole_reason = "The pin, the lock and whatever narrowing mypy asks for in the connector change together."
