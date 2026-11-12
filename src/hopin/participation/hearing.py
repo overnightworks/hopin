@@ -61,8 +61,8 @@ class Hearing:
 
     def joined(self, agent: DialedAgent, *, brought_by_sponsor: bool) -> None:
         """Record the default of a switch: on when the sponsor brought the agent, else off."""
-        if self.enabled and brought_by_sponsor:
-            self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=True)
+        if self.enabled:
+            self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=brought_by_sponsor)
 
     def is_on(self, agent: DialedAgent) -> bool:
         return agent.person in self._record.sensing(agent.room_id, agent.sponsor)

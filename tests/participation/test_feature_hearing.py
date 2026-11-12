@@ -61,6 +61,16 @@ def lines_of(participation, person, room_id):
     return participation.read_window(person, room_id).lines
 
 
+@pytest.fixture
+def recorded(member_hearing):
+    return RecordedEnds(MemberHearingRecord(member_hearing))
+
+
+@pytest.fixture
+def hearing(recorded, hears):
+    return Hearing(recorded, enabled=hears)
+
+
 def hearers(member_hearing, room_id, seat):
     """The agents the record says hear the seat."""
     return {
@@ -127,6 +137,17 @@ class TestTheDefault:
 
         assert (hearing_frames(owner), hearing_frames(member)) == ([(agent.agent_id, False)], [])
         assert participation.open_hearing(person_named(OWNER), owner.peer_id) is HearingRefusal.NOBODY_HEARS
+
+    @pytest.mark.parametrize(
+        ("adder", "decision"), [(OWNER, True), ("guest", False)], ids=["the_sponsor", "another_member"]
+    )
+    async def test_call_57_every_join_records_its_default_decision_with_the_record(
+        self, invitation_of, recorded, adder, decision
+    ):
+        """CALL-57: The default of a switch reaches the record as a decision, off as well as on."""
+        await invitation_of(adder)
+
+        assert recorded.decisions == [decision]
 
 
 class TestTheSwitch:
@@ -354,14 +375,19 @@ async def shut_down(participation, host, guest, agent):
 
 
 class RecordedEnds:
-    """The record behind the port, with the ends participation reports to it, by kind and in order."""
+    """The record behind the port, with the decisions and ends participation reports to it, in order."""
 
     def __init__(self, record):
         self.reported = []
+        self.decisions = []
         self._record = record
 
     def __getattr__(self, name):
         return getattr(self._record, name)
+
+    def allow(self, room_id, seat, agent, *, allowed):
+        self.decisions.append(allowed)
+        self._record.allow(room_id, seat, agent, allowed=allowed)
 
     def member_ended(self, room_id, agent):
         self.reported.append("member_ended")
@@ -377,14 +403,6 @@ class RecordedEnds:
 
 
 class TestTheEnds:
-    @pytest.fixture
-    def recorded(self, member_hearing):
-        return RecordedEnds(MemberHearingRecord(member_hearing))
-
-    @pytest.fixture
-    def hearing(self, recorded, hears):
-        return Hearing(recorded, enabled=hears)
-
     @pytest.mark.parametrize(
         ("end", "reported"),
         [
