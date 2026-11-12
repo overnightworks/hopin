@@ -1,8 +1,0 @@
-claim_id = "b5cede6c2cbd45eb898dc835dcfbc276"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "a380bd2c51f8373d829eb59500221c9eeaa3c736"
-branch = "claude/issue-716-the-call-view-its-menus-the-chat-panel-t"
-scope = ["README.md", "docs/call.md", "frontend/src/app.html", "frontend/src/lib/catalogs", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e", "tests/support/page_build_fixture", "tests/support/words.py"]
-opened_commit = "34518e014931afcdea952f0d93680a07297d4309"
-whole_reason = "The catalog entries, the generated modules, the markup that reads them, the page's language and the tests that pinned the old sentences change together; the generated files and the test edits are mechanical."
