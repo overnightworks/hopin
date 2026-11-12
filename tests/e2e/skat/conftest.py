@@ -28,6 +28,19 @@ def skat_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFactory) -
         yield server
 
 
+@pytest.fixture(scope="session")
+def skat_hearing_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
+    """`skat_server` with the setting that lets agents hear on."""
+    with running_hopin(
+        loopback_sign_in(tmp_path_factory.mktemp("skat-hearing-sign-in")),
+        tmp_path_factory.mktemp("skat-hearing-tls"),
+        SkatFeature(stub_skat.origin),
+        participation=True,
+        hears=True,
+    ) as server:
+        yield server
+
+
 @pytest.fixture
 def e2e_server(skat_server: RunningServer) -> RunningServer:
     return skat_server
