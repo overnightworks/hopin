@@ -1,8 +1,0 @@
-claim_id = "5e21fe52dc254c0c82f2b37a990e8172"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "2f4608e72b2ded07e2b727de311d47ddc5b6ee8a"
-branch = "claude/issue-745-the-game-s-refused-frame-types-a-busy-re"
-scope = ["frontend/src/lib/features/game"]
-opened_commit = "e31d2fd1cbf1ce6da37f780ec52f6681f45debca"
-whole_reason = "The wire owner, its generated file and the one reader change together."
