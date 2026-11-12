@@ -1,7 +1,0 @@
-claim_id = "73a7d01297114c02976958e0f05659f0"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "963c79db926c643735fba06ab882f118f37f0d3d"
-branch = "claude/issue-724-the-privacy-part-on-agents-in-a-call-fit"
-scope = ["legal/datenschutz.html"]
-opened_commit = "22564c47406a6308163a456bcd1d8bcbb22d7896"
