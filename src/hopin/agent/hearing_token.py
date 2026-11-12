@@ -58,7 +58,9 @@ class HearingTokens:
     def held(self, person: Person) -> SecretStr | None:
         """The token exchanged for the agent, or none when it holds nothing or the token has expired."""
         holding = self._holdings.get(person)
-        return None if holding is None else holding.access_token
+        if holding is None or holding.lapses_at <= self._scheduler.now():
+            return None
+        return holding.access_token
 
     async def keep(self, person: Person, connection: HTTPConnection) -> None:
         """Exchange the token the agent's admitted request presents when due; a refusal is logged, not raised."""

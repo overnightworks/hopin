@@ -135,6 +135,15 @@ class TestExchangingForAnAgent:
 
         assert (before_expiry is not None, agent.held()) == (True, None)
 
+    def test_a_read_after_the_expiry_answers_nothing_while_the_release_is_still_pending(
+        self, adding_call, agent, margin_seconds
+    ):
+        agent.calls(agent.token())
+
+        adding_call.scheduler.skip(TOKEN_LIFETIME_SECONDS + margin_seconds)
+
+        assert agent.held() is None
+
     def test_an_agent_that_never_called_has_no_holding(self, agent):
         assert agent.held() is None
 
