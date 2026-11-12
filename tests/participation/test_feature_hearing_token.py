@@ -9,7 +9,7 @@ import structlog.testing
 from agents.member import LEASE_SECONDS
 
 from hopin.participation.feature import Person
-from tests.participation.conftest import OWNER_SUBJECT
+from tests.participation.support.own_accounts import OWNER
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
 
 pytestmark = pytest.mark.integration
@@ -33,7 +33,7 @@ def hearing_scopes():
 
 def agent_token(call, username="agent-one"):
     """Tokens of one agent that differ by the username they carry, as two tokens of one account do."""
-    return call.agent_token(owner=OWNER_SUBJECT, subject=AGENT_SUBJECT, preferred_username=username)
+    return call.agent_token(owner=OWNER, subject=AGENT_SUBJECT, preferred_username=username)
 
 
 def agent_calls(call, token):
