@@ -7,7 +7,7 @@ from playwright.sync_api import Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
 from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call
-from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE
+from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE, poll_until
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
 from tests.support.words import text
@@ -190,9 +190,19 @@ def test_a_long_name_ends_with_an_ellipsis_in_a_label_that_clears_the_own_tile(
     join_by_link(guest, invite_link)
     expect(host.locator(TILE_NAME)).to_have_text(LONG_NAME, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
+    poll_until(
+        host,
+        lambda: box_inside(host.locator(TILE_NAME), host.locator(OTHER_TILE)),
+        bool,
+        "the long name's label stayed inside its tile",
+    )
+    poll_until(
+        host,
+        lambda: not boxes_overlap(host.locator(TILE_NAME), host.locator(SELF_TILE)),
+        bool,
+        "the long name's label cleared the own tile",
+    )
     assert host.locator(TILE_NAME_TEXT).evaluate(CUT_WITH_ELLIPSIS)
-    assert box_inside(host.locator(TILE_NAME), host.locator(OTHER_TILE))
-    assert not boxes_overlap(host.locator(TILE_NAME), host.locator(SELF_TILE))
 
 
 def test_home_keeps_the_unnamed_greeting_when_the_account_answer_fails(
