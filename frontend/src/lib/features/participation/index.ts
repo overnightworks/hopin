@@ -87,7 +87,8 @@ export function install(core: FeatureCore): Promise<void> {
         },
     });
     core.addMoreItems(offers);
-    // A refusal is read in More; the server sends no frame that takes it away when the person only lost the right.
+    // A refusal leaves with the next offers frame (the server sends an add's own offers frame before its refusal) and
+    // when the person closes More, for the server sends no frame when the person only lost the right.
     offers.closest("dialog")?.addEventListener("close", () => {
         offersView.refusal = undefined;
     });
@@ -101,6 +102,7 @@ export function install(core: FeatureCore): Promise<void> {
     // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
     function showOffers(frame: AgentOffersFrame) {
         const hadFocus = offers.contains(document.activeElement);
+        offersView.refusal = undefined;
         offersView.shown = frame.shown;
         offersView.rows = rowsOf(frame.offers);
         flushSync();
