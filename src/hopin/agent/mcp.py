@@ -305,6 +305,7 @@ class ParticipationFeature:
             required_group=MCP_GROUP,
             agent_group=AGENT_GROUP,
             authorized_parties=AuthorizedParties(frozenset({MCP_CLIENT_ID})),
+            admits_client_audience=True,
             transaction=transaction,
         )
         built = _BuiltParticipation(
