@@ -28,11 +28,12 @@ class ParticipationSignal(StrEnum):
     AGENT_OFFERS = "agent_offers"
     AGENT_ADD = "agent_add"
     AGENT_LINE = "agent_line"
+    AGENT_HEARING = "agent_hearing"
 
 
 class AgentRefusal(StrEnum):
-    """Why a dial-in, an add, an accept, a leave, a removal or a line is refused; the tools answer with it and a seat is
-    told it."""
+    """Why a dial-in, an add, an accept, a leave, a removal, a line or a hearing switch is refused; the tools answer
+    with it and a seat is told it."""
 
     BAD_NAME = "bad_name"
     NO_SEAT = "no_seat"
@@ -41,6 +42,7 @@ class AgentRefusal(StrEnum):
     SPONSOR_AWAY = "sponsor_away"
     GONE = "gone"
     NOT_SPONSOR_OR_HOST = "not_sponsor_or_host"
+    NOT_SPONSOR = "not_sponsor"
     INVITATION_ONLY = "invitation_only"
     OWN_ACCOUNT_ONLY = "own_account_only"
     NOT_ADDER = "not_adder"
@@ -49,6 +51,15 @@ class AgentRefusal(StrEnum):
     UNAVAILABLE = "unavailable"
     BAD_LINE = "bad_line"
     TOO_FAST = "too_fast"
+
+
+class HearingRefusal(StrEnum):
+    """Why a seat gets no handle to be heard through: the account does not hold a seat in a room under that id, the
+    seat waits to resume, or no joined agent hears it."""
+
+    NO_SEAT = "no_seat"
+    SEAT_AWAY = "seat_away"
+    NOBODY_HEARS = "nobody_hears"
 
 
 class FigureRefusal(StrEnum):

@@ -1,6 +1,9 @@
 import pytest
+from agents.mcp_server.hearing import MemberHearing
 
+from hopin.agent.hearing import MemberHearingRecord
 from hopin.participation.feature import OwnAccount, Participation, Person
+from hopin.participation.hearing import Hearing
 from tests.support.signaling_fakes import ManualScheduler
 
 
@@ -40,6 +43,7 @@ def participation(scheduler, changed):
         groups_of=groups_never_read,
         listens_to_standing=lambda person: False,
         figure_sources=(),
+        hearing=Hearing(MemberHearingRecord(MemberHearing()), enabled=False),
     )
 
 

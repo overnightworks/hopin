@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Final
 
 import structlog
 from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, ResourceChanges
+from agents.mcp_server.hearing import MemberHearing
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
     INVITATION_SECONDS,
@@ -35,11 +36,13 @@ from webauth.oidc_login import AccessTokenRefusal
 from webauth.policies import AuthorizedParties
 from webauth.session_groups import SessionGroups
 
+from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
+from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import FIGURE_PATH
 
 if TYPE_CHECKING:
@@ -79,6 +82,7 @@ class _BuiltParticipation:
     adders: Mapping[str, str]
     groups: SessionGroups
     figure_sources: tuple[FigureSource, ...]
+    hears: bool
     changes: ResourceChanges = field(init=False)
     participation: Participation = field(init=False)
     _recomputes: set[asyncio.Task[None]] = field(init=False, default_factory=set)
@@ -99,6 +103,7 @@ class _BuiltParticipation:
             self._groups_of,
             self._listens_to_standing,
             self.figure_sources,
+            Hearing(MemberHearingRecord(MemberHearing(now=self.scheduler.now)), enabled=self.hears),
         )
         return self.participation
 
@@ -216,7 +221,9 @@ def _window_of(window: WindowRead) -> PlaceWindow:
         generation=window.generation,
         starts_at=window.starts_at,
         entries=tuple(
-            PlaceEntry(seq=line.seq, kind=line.kind.value, name=line.name, text=line.text, own=line.own)
+            PlaceEntry(
+                seq=line.seq, kind=line.kind.value, name=line.name, text=line.text, own=line.own, spoken=line.spoken
+            )
             for line in window.lines
         ),
     )
@@ -279,6 +286,7 @@ class ParticipationFeature:
     agent_adders: Mapping[str, str] = field(default_factory=dict)
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
+    hears: bool = False
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -314,6 +322,7 @@ class ParticipationFeature:
             self.agent_adders,
             SessionGroups(relying_party, lambda: nullcontext(sessions), auth_config),
             self.figure_sources,
+            self.hears,
         )
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         front = McpPersonFront(

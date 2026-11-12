@@ -27,6 +27,7 @@ class WindowLine:
     name: str
     text: str
     own: bool
+    spoken: bool = False
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,7 @@ class WindowRead:
     lines: tuple[WindowLine, ...]
 
 
-def _utf8_length(text: str) -> int | None:
+def utf8_length(text: str) -> int | None:
     """The bytes the text takes in UTF-8, or nothing when it does not encode (a lone surrogate) or is empty."""
     try:
         return len(text.encode()) or None
@@ -56,13 +57,13 @@ class ChatWindow:
         self._text_bytes = 0
         self._next_seq = 1
 
-    def append(self, kind: LineKind, name: str, text: str, *, own: bool) -> bool:
+    def append(self, kind: LineKind, name: str, text: str, *, own: bool, spoken: bool = False) -> bool:
         """Add the line and evict the oldest past the bounds; say whether it was added. A line whose name or text is
-        empty or does not encode as UTF-8 is refused and takes no `seq`."""
-        size = _utf8_length(text)
-        if size is None or _utf8_length(name) is None:
+        empty or does not encode as UTF-8 is refused and takes no `seq`. `spoken` marks a sentence heard aloud."""
+        size = utf8_length(text)
+        if size is None or utf8_length(name) is None:
             return False
-        self._lines.append((WindowLine(self._next_seq, kind, name, text, own), size))
+        self._lines.append((WindowLine(self._next_seq, kind, name, text, own, spoken), size))
         self._next_seq += 1
         self._text_bytes += size
         while len(self._lines) > LINES_PER_WINDOW or self._text_bytes > TEXT_BYTES_PER_WINDOW:
