@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechSettings
+from tests.support.settings_refusal import assert_refused_without_echo
 
 pytestmark = pytest.mark.integration
 
@@ -62,10 +63,7 @@ def test_an_origin_without_an_audience_scope_fails_when_the_settings_load(speech
 def test_a_malformed_speech_setting_fails_when_the_settings_load_and_echoes_no_input(name, value, speech_environment):
     speech_environment.setenv(name, value)
 
-    with pytest.raises(ValidationError) as refusal:
-        SpeechSettings()
-
-    assert SECRET_SHAPED not in str(refusal.value)
+    assert_refused_without_echo(SpeechSettings, SECRET_SHAPED)
 
 
 def test_an_audience_scope_without_an_origin_leaves_the_voice_off():

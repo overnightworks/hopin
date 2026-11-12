@@ -4,7 +4,7 @@ import pytest
 
 from tests.support.imported_modules import imported_modules, names
 
-SOURCE = Path(__file__).resolve().parents[1] / "src" / "hopin"
+SOURCE = Path(__file__).resolve().parents[2] / "src" / "hopin"
 SPEECH_CLIENT = "speech_client"
 # The speech client's voice type is the setting's type, and the speak call is the connector's alone; the game's
 # `agent/speech.py` is absent once the game is removed.

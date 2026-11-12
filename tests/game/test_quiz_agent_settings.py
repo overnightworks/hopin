@@ -10,6 +10,7 @@ from hopin.agent.feature import GameFeature, configured_game_feature
 from hopin.agent.settings import AgentSettings
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, VOICE_DEADLINE_SECONDS
+from tests.support.settings_refusal import assert_refused_without_echo
 
 pytestmark = pytest.mark.integration
 
@@ -73,10 +74,7 @@ def test_no_agent_settings_at_all_fail_when_the_settings_load(monkeypatch):
 def test_a_malformed_agent_setting_fails_when_the_settings_load_and_echoes_no_input(name, value, agent_environment):
     agent_environment.setenv(name, value)
 
-    with pytest.raises(ValidationError) as refusal:
-        AgentSettings()
-
-    assert SECRET_SHAPED not in str(refusal.value)
+    assert_refused_without_echo(AgentSettings, SECRET_SHAPED)
 
 
 def test_the_quiz_agent_file_and_a_voice_wait_end_inside_the_tables_deadline():
