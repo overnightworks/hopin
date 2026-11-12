@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
@@ -18,6 +18,8 @@ FIGURE_MAX_BYTES = 12 * 1024 * 1024
 FIGURE_CACHE_BYTES = 48 * 1024 * 1024
 FIGURE_FETCH_WORKERS = 2
 FIGURE_REDIRECTS = 1
+# The hearing socket of a seat is this path and the seat's id.
+HEARING_PATH = "/ws/hearing"
 
 
 class ParticipationSignal(StrEnum):
@@ -60,6 +62,25 @@ class HearingRefusal(StrEnum):
     NO_SEAT = "no_seat"
     SEAT_AWAY = "seat_away"
     NOBODY_HEARS = "nobody_hears"
+
+
+class HearingClose(IntEnum):
+    """How a hearing socket closes, as the page reads it: the refusals of a socket that never opened a hop, then the
+    ways a hop ends. A hop's own code is 4000 plus the HTTP status nearest its meaning."""
+
+    NO_SEAT = 4404
+    SEAT_AWAY = 4409
+    NOBODY_HEARS = 4403
+    NO_TOKEN = 4503
+    # The hop's endings are the codes the speech client's relay closes the socket with; they are named here for the
+    # page, and a test holds each equal to the client's.
+    NORMAL = 1000
+    TEXT_FRAME = 4400
+    FRAME_TOO_LARGE = 4413
+    OVER_CAP = 4507
+    BUSY = 4429
+    PAST_DEADLINE = 4504
+    SERVICE_FAILED = 4502
 
 
 class FigureRefusal(StrEnum):

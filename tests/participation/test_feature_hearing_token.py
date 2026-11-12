@@ -7,7 +7,9 @@ import threading
 import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
+from speech_client.wire import VoiceId
 
+from hopin.agent.speech_settings import SpeechService
 from hopin.participation.feature import Person
 from tests.participation.support.own_accounts import OWNER
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
@@ -34,14 +36,12 @@ class Agent:
         return None if token is None else token.get_secret_value()
 
 
-@pytest.fixture
-def hears():
-    return True
+AUDIENCE_SCOPE = "speech-audience"
 
 
 @pytest.fixture
-def hearing_scopes():
-    return ("speech-audience",)
+def hearing_service():
+    return SpeechService("http://speech.invalid:8090", VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ def exchanges(call):
 
 class TestExchangingForAnAgent:
     def test_the_first_call_exchanges_once_for_the_configured_scopes_and_the_holder_answers_the_issued_token(
-        self, adding_call, agent, hearing_scopes
+        self, adding_call, agent
     ):
         token = agent.token()
 
@@ -81,7 +81,7 @@ class TestExchangingForAnAgent:
         [(request, _)] = exchanges(adding_call)
         assert (response.status_code, request.form["scope"], request.form["subject_token"]) == (
             200,
-            " ".join(hearing_scopes),
+            AUDIENCE_SCOPE,
             token,
         )
         assert agent.held() == adding_call.issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT)[0]
@@ -191,11 +191,10 @@ class TestExchangingForAnAgent:
 
 
 class TestNoHearing:
-    @pytest.mark.parametrize(
-        ("hears", "hearing_scopes"),
-        [(False, ("speech-audience",)), (True, ())],
-        ids=["hearing_off", "no_scopes"],
-    )
+    @pytest.fixture
+    def hearing_service(self):
+        return None
+
     def test_the_call_is_served_and_no_exchange_is_posted(self, adding_call, agent):
         response = agent.calls(agent.token())
 

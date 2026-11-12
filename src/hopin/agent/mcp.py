@@ -37,6 +37,7 @@ from webauth.policies import AuthorizedParties
 from webauth.session_groups import SessionGroups
 
 from hopin.agent.hearing import MemberHearingRecord
+from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
@@ -44,7 +45,8 @@ from hopin.participation.feature import Caller, OwnAccount, Participation, Perso
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
 from hopin.participation.hearing import Hearing
-from hopin.participation.vocabulary import FIGURE_PATH
+from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH
+from hopin.signaling.identity import SessionIdentityResolver
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
@@ -55,6 +57,7 @@ if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore, SignInTransaction
 
+    from hopin.agent.speech_settings import SpeechService
     from hopin.participation.chat_window import WindowRead
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
@@ -290,8 +293,7 @@ class ParticipationFeature:
     agent_adders: Mapping[str, str] = field(default_factory=dict)
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
-    hears: bool = False
-    hearing_scopes: tuple[str, ...] = ()
+    hearing: SpeechService | None = None
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -327,10 +329,10 @@ class ParticipationFeature:
             self.agent_adders,
             SessionGroups(relying_party, lambda: nullcontext(sessions), auth_config),
             self.figure_sources,
-            self.hears,
+            hears=self.hearing is not None,
         )
         hearing_tokens = HearingTokens(
-            self.hearing_scopes if self.hears else (),
+            () if self.hearing is None else (self.hearing.audience_scope,),
             lease_seconds=LEASE_SECONDS,
             scheduler=scheduler,
             wall_clock=auth_config.wall_clock,
@@ -360,4 +362,15 @@ class ParticipationFeature:
             )
         )
         router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
+        if self.hearing is not None:
+            hearing_route = HearingRoute(
+                service=self.hearing,
+                issuer=relying_party.issuer,
+                resolver=SessionIdentityResolver(sessions),
+                participation=built.current,
+                tokens=hearing_tokens,
+                relying_party=relying_party,
+                scheduler=scheduler,
+            )
+            router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
         return BuiltParticipationFeature(built.build, router, resource)

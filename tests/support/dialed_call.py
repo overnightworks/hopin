@@ -350,11 +350,10 @@ def serving_dialed_call(
     more_call_features=(),
     figure_sources=(),
     figure_transport=None,
-    hears=False,
-    hearing_scopes=(),
+    hearing=None,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
-    test."""
+    test. `hearing` is the speech service agents hear through, none with hearing off."""
     stores = single_process_stores()
     scheduler = ManualScheduler()
     participation = _ParticipationBuilt(
@@ -363,8 +362,7 @@ def serving_dialed_call(
             agent_adders or {},
             figure_sources,
             figure_transport or _no_figure_source,
-            hears=hears,
-            hearing_scopes=hearing_scopes,
+            hearing=hearing,
         )
     )
     app = create_app(
