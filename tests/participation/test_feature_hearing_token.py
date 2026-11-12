@@ -119,6 +119,17 @@ class TestExchangingForAnAgent:
 
         assert agent.held() == adding_call.issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT)[1]
 
+    def test_a_release_that_started_before_its_holding_was_replaced_leaves_the_replacement(
+        self, adding_call, agent, margin_seconds
+    ):
+        agent.calls(agent.token())
+        adding_call.pass_time(TOKEN_LIFETIME_SECONDS - LEASE_SECONDS + margin_seconds)
+        agent.calls(agent.token(username="agent-two"))
+
+        adding_call.client.portal.call(adding_call.scheduler.run_cancelled)
+
+        assert agent.held() == adding_call.issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT)[1]
+
     def test_a_person_without_an_account_of_their_own_leads_to_no_exchange(self, adding_call):
         account, _ = adding_call.member()
 
