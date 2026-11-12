@@ -1,8 +1,0 @@
-claim_id = "9f2144bb969c491fa92a624d104ae0a7"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "7650b9c7f687347153c49ada968f0888f83c3f9e"
-branch = "claude/issue-728-take-design-v0-28-0-in-one-step-from-v0"
-scope = ["frontend", "pyproject.toml", "tests", "uv.lock"]
-opened_commit = "9ac274c2d028622921afb34d250e06f8fa1358e3"
-whole_reason = "The pin, the kit words' loading at every caller, the regenerated catalog modules and the tests that read the kit's texts change together; a half-applied upgrade does not build."
