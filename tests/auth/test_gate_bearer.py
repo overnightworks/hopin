@@ -41,6 +41,25 @@ class TestWhoIsLetIn:
             "refused": AgentRefusal.GONE.value
         }
 
+    @pytest.mark.parametrize(
+        ("audiences", "status"),
+        [
+            pytest.param(lambda url, client: [url], 200, id="the url alone"),
+            pytest.param(lambda url, client: [url, client], 200, id="the url and the client id"),
+            pytest.param(lambda url, client: [client, url], 200, id="the client id and the url"),
+            pytest.param(lambda url, client: [client], 401, id="the client id alone"),
+            pytest.param(lambda url, client: [url, "other-client"], 401, id="the url and another audience"),
+            pytest.param(lambda url, client: [url, client, "other-client"], 401, id="a third audience"),
+        ],
+    )
+    def test_the_endpoint_admits_the_url_alone_or_with_the_clients_own_id_and_no_other_audience(
+        self, dialed_call, audiences, status
+    ):
+        account, _, seat = dialed_call.seated()
+        token = dialed_call.token(account, audience=audiences(dialed_call.audience, dialed_call.issuer.client_id))
+
+        assert dialed_call.call(token, JOIN_CALL, join_arguments(seat)).status == status
+
     def test_a_person_with_no_account_is_refused(self, dialed_call):
         stranger = dialed_call.issuer.access_token(
             "nobody-signed-in",
