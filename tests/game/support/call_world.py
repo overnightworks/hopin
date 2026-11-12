@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from agents.backend import AgentBackend
     from webauth.single_process_stores import SingleProcessStores
 
-    from hopin.agent.settings import SpeechSettings
+    from hopin.agent.speech_settings import SpeechSettings
     from tests.support.fake_issuer import FakeIssuer
     from tests.support.sign_in_settings import SignInSettings
 
