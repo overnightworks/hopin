@@ -72,7 +72,7 @@ class _AudioClock:
 
 class _SessionRecheck:
     """Asks each minute whether the socket's session still admits it, and sets the hop's `ended` once it does not or
-    the check fails: sound a revoked session sent is not relayed on."""
+    the check fails: sound a revoked session sent is not relayed on. It asks no more once closed."""
 
     def __init__(
         self, resolver: IdentityResolver, scheduler: Scheduler, websocket: WebSocket, ended: asyncio.Event
@@ -81,22 +81,27 @@ class _SessionRecheck:
         self._scheduler = scheduler
         self._websocket = websocket
         self._ended = ended
+        self._closed = False
         self._timer: TimerHandle = self._schedule()
 
     def close(self) -> None:
+        # A check that is running is not interrupted by the cancel, so it also finds `_closed` when it returns.
+        self._closed = True
         self._timer.cancel()
 
     def _schedule(self) -> TimerHandle:
         return self._scheduler.call_later(SESSION_RECHECK_SECONDS, self._tick)
 
     async def _tick(self) -> None:
-        if self._ended.is_set():
+        if self._closed or self._ended.is_set():
             return
         try:
             account = await self._resolver.resolve(self._websocket)
         except Exception:
             self._ended.set()
             raise
+        if self._closed:
+            return
         if account is None:
             self._ended.set()
         else:

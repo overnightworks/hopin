@@ -497,6 +497,10 @@ class TestEveryEndStopsTheHopAtOnce:
         assert (older_closed, newer_closed) == (HearingClose.NORMAL, HearingClose.NORMAL)
 
 
+def _rechecks_waiting(call):
+    return [timer for timer in call.scheduler.pending_timers() if timer.delay == SESSION_RECHECK_SECONDS]
+
+
 class TestTheSessionIsRechecked:
     def test_call_58_a_hop_whose_session_was_revoked_ends_at_the_next_recheck_while_the_account_keeps_its_seat(
         self, sponsored, fake_speech
@@ -557,6 +561,28 @@ class TestTheSessionIsRechecked:
         call.client.portal.call(call.scheduler.run_cancelled)
 
         assert call.stores.sessions.loaded.count(hop_login.session.id) == looked_up
+
+    def test_call_58_a_recheck_still_running_when_the_hop_is_over_sets_no_timer_for_the_next(
+        self, sponsored, fake_speech
+    ):
+        """The hop is over without its end having been set: the service hung up."""
+        call = sponsored.call
+        hop_login = call.another_device(sponsored.owner_account)
+        of_the_seats = len(_rechecks_waiting(call))
+        with hop(sponsored, login=hop_login) as socket:
+            socket.send_bytes(SOUND)
+            session = fake_speech.next_session()
+            session.wait_for_audio(1)
+            hold = call.stores.sessions.hold_loads_of(hop_login.session.id)
+            checking = call.client.portal.start_task_soon(call.scheduler.advance, SESSION_RECHECK_SECONDS)
+            assert hold.parked.wait(timeout=10)
+
+            session.hang_up()
+            closed_with(socket)
+        hold.release.set()
+        checking.result(timeout=10)
+
+        assert len(_rechecks_waiting(call)) == of_the_seats
 
 
 class TestHearingOff:
