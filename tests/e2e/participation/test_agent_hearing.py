@@ -2,6 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import join, open_call
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 SWITCH = AGENT_TILE + ' [role="switch"]'
-SWITCH_NAME = "Agent darf mich hören"
+SWITCH_NAME = kit_text("de", "hearing.agentMayHearMe")
 CHIP_INSET_PIXELS = 8
 REMOVE_CLEARANCE_PIXELS = 64
 TOLERANCE_PIXELS = 1
