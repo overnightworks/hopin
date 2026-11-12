@@ -1,8 +1,0 @@
-claim_id = "cffecf0db19b4a8a84e8d9491ac13cca"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "cb3aec2b97e7d7def0a2fbab2610b379c3c07c31"
-branch = "claude/issue-722-the-call-page-s-script-set-sentences-spe"
-scope = ["README.md", "docs/call.md", "docs/game-master.md", "docs/skat.md", "frontend/src/lib/call/mesh.test.ts", "frontend/src/lib/call/mesh.ts", "frontend/src/lib/call/signaling.test.ts", "frontend/src/lib/call/signaling.ts", "frontend/src/lib/catalogs", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/lib/ui/account.svelte.test.ts", "frontend/src/lib/ui/account.svelte.ts", "frontend/src/lib/ui/controls.svelte.test.ts", "frontend/src/lib/ui/controls.svelte.ts", "frontend/src/lib/ui/invite.svelte.test.ts", "frontend/src/lib/ui/invite.svelte.ts", "frontend/src/lib/ui/prejoin.svelte.test.ts", "frontend/src/lib/ui/prejoin.svelte.ts", "frontend/src/lib/ui/status.svelte.test.ts", "frontend/src/lib/ui/status.svelte.ts", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "frontend/src/routes/(call)/start-up.ts", "tests/e2e", "tests/support/words.py"]
-opened_commit = "38cfd17a7cccce2259e06343675a055053a34b3c"
-whole_reason = "The catalog entries, the generated modules, the scripts that read them and the tests that pinned the old sentences change together; about twenty sentences, and the generated files and the test edits are mechanical."
