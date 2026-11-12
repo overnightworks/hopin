@@ -34,7 +34,7 @@ AGENT_WAITING = text("de", "tile.agentWaitingLabel", name="Game master")
 STAGE = "#stage"
 CALL_PLACES = 6
 REVEAL = "Reveal"
-IN_CALL = "In call"
+IN_CALL = text("de", "call.statusInCall")
 NO_AI_ACCESS = "Your account has no AI access."
 
 

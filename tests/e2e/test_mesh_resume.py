@@ -34,6 +34,7 @@ from tests.e2e.support.signaling import (
     RECONNECT_DELAYS_MS,
     SOCKETS_OPENED,
 )
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -309,7 +310,7 @@ def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_
         _wait_for(guest, NEW_SOCKET_IS_CLOSED, sockets_before)
         if attempt < len(RECONNECT_DELAYS_MS):
             wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
-    wait_for_status(guest, "Connection lost")
+    wait_for_status(guest, text("de", "call.statusConnectionLost"))
     upstream_before = len(tap.upstream)
     say_in_chat(guest, "nobody hears this")
 

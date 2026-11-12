@@ -54,7 +54,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-IN_CALL = "In call"
+IN_CALL = text("de", "call.statusInCall")
 BOTH_ON = text("de", "prejoin.hostStartCameraAndMicrophone")
 CAMERA_ONLY = text("de", "prejoin.hostStartCameraOnly")
 MIC_ONLY = text("de", "prejoin.hostStartMicrophoneOnly")

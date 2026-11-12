@@ -12,7 +12,7 @@ Ruled by the operator:
 - CALL-29: The call starts with what is on at the pre-join, and what is switched off there stays off in the call; the Start or Join button names that state, such as "Mit Kamera und Mikrofon beitreten".
 - CALL-30: A guest who opens a call link gets the same pre-join as the host.
 - CALL-31: On a desktop, the HopIn brand leads back from the pre-join to the start page.
-- CALL-32: The pre-join's own row shows the account's name, and "You" until the name is known.
+- CALL-32: The pre-join's own row shows the account's name, and "Du" until the name is known.
 - CALL-33: The address becomes the call link when the call starts.
 
 ## Call and end screens
@@ -46,7 +46,7 @@ Ruled by the operator:
 - CALL-25: Without a camera I still see and hear everyone; when I turn my camera on later, everyone in the call sees it, those who were there before me and those who joined after me.
 - CALL-34: Alone in the call, the host sees "Warten auf andere" with a way to invite: "Link kopieren", and on a phone "Teilen", which opens the system share menu. No share box stands in the call otherwise.
 - CALL-35: HopIn writes the clipboard only when the person presses Copy.
-- CALL-36: The call's controls are round buttons floating over the video. On a phone: mic, camera, invite, chat, more, leave in one row at the bottom. On a desktop: mic, camera, screen | invite, chat, more | leave, centred, with Leave as a pill. Screen sharing exists only on a desktop.
+- CALL-36: The call's controls are round buttons floating over the video. On a phone: mic, camera, invite, chat, more, leave in one row at the bottom. On a desktop: mic, camera, screen | invite, chat, more | leave, centred, with "Verlassen" as a pill. Screen sharing exists only on a desktop.
 - CALL-37: The number on the Chat button disappears when the chat opens.
 - CALL-38: The tile of another person who speaks carries a pulsing accent ring and a three-bar wave in the name pill; the mute mark takes the wave's place while muted; on a phone with two people the full tile shows only the wave; a strip tile shows no name pill (CALL-55).
 - CALL-39: In a running call, Impressum and Datenschutz are in "Mehr", one tap away; the call screen shows no account button.

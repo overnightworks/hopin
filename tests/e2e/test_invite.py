@@ -164,7 +164,7 @@ def test_copy_in_invite_puts_the_call_link_in_the_clipboard_and_leaves_invite_op
 
     host.click(COPY_BUTTON)
 
-    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+    expect_toast(host, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
     assert host.evaluate(READ_CLIPBOARD) == invite_link
     expect(host.locator(INVITE_MENU)).to_be_visible()
 
@@ -177,7 +177,7 @@ def test_copy_in_invite_without_clipboard_permission_reports_the_failure_and_thr
 
     host.click(COPY_BUTTON)
 
-    expect_toast(host, "Couldn't copy the link", X_ICON_PATH)
+    expect_toast(host, text("de", "invite.copyFailedToast"), X_ICON_PATH)
 
 
 @pytest.mark.parametrize(
@@ -185,7 +185,7 @@ def test_copy_in_invite_without_clipboard_permission_reports_the_failure_and_thr
     [
         pytest.param(STUB_SHARE, None, id="resolves"),
         pytest.param(REJECT_SHARE_WITH % "AbortError", None, id="cancelled"),
-        pytest.param(REJECT_SHARE_WITH % "NotAllowedError", "Couldn't share the link", id="refused"),
+        pytest.param(REJECT_SHARE_WITH % "NotAllowedError", text("de", "invite.shareFailedToast"), id="refused"),
     ],
 )
 def test_share_in_invite_hands_the_share_menu_the_call_link_alone_and_reports_only_a_refusal(
@@ -215,7 +215,7 @@ def test_a_guest_invites_with_the_link_of_the_call_the_guest_is_in(
     expect(guest.locator(INVITE_LINK)).to_have_text(invite_link)
     guest.click(COPY_BUTTON)
 
-    expect_toast(guest, "Link copied", CHECK_ICON_PATH)
+    expect_toast(guest, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
     assert guest.evaluate(READ_CLIPBOARD) == invite_link
 
 
@@ -229,7 +229,7 @@ def test_after_a_failed_start_invite_is_disabled_and_opens_nothing_while_more_wo
     )
     press_start_call(host, base_url)
 
-    expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusIceServersFailed", status="500"))
     expect(host.locator(INVITE_BUTTON)).to_be_disabled()
     host.evaluate("() => document.getElementById('inviteBtn').click()")
     expect_invite_closed(host)
@@ -277,7 +277,7 @@ def test_invite_closes_by_its_x_the_scrim_or_escape_and_a_scrim_tap_does_nothing
     if returns_focus:
         expect(host.locator(INVITE_BUTTON)).to_be_focused()
     expect(host.locator("#leaveConfirm")).to_be_hidden()
-    expect(host.locator("#status")).to_have_text("In call")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusInCall"))
 
 
 def test_opening_more_from_an_open_invite_closes_invite_and_shows_one_scrim(
@@ -311,7 +311,7 @@ def test_keyboard_opens_invite_on_copy_and_enter_copies(
 
     host.keyboard.press("Enter")
 
-    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+    expect_toast(host, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

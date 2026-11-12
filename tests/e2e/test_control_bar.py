@@ -237,7 +237,7 @@ def test_failed_start_draws_the_device_buttons_off_and_disabled_and_leave_still_
     )
     press_start_call(host, base_url)
 
-    expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusIceServersFailed", status="500"))
     for selector in ("#muteBtn", "#videoBtn", "#screenBtn"):
         expect(host.locator(selector)).to_be_disabled()
     pressed(button_named(host, MUTE), value=True)

@@ -147,7 +147,7 @@ def test_copy_link_puts_the_call_link_in_the_clipboard_and_says_so_briefly(
 
     host.click(COPY_BUTTON)
 
-    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+    expect_toast(host, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
     assert host.evaluate(READ_CLIPBOARD) == call_link_of(host)
     expect(host.locator(TOASTS)).to_be_empty()
 
@@ -160,7 +160,7 @@ def test_copy_link_without_clipboard_permission_reports_the_failure_and_throws_n
 
     host.click(COPY_BUTTON)
 
-    expect_toast(host, "Couldn't copy the link", X_ICON_PATH)
+    expect_toast(host, text("de", "invite.copyFailedToast"), X_ICON_PATH)
 
 
 def test_share_hands_the_share_menu_the_call_link_alone(
@@ -194,7 +194,7 @@ def test_a_refused_share_reports_the_failure(
 
     host.click(SHARE_BUTTON)
 
-    expect_toast(host, "Couldn't share the link", X_ICON_PATH)
+    expect_toast(host, text("de", "invite.shareFailedToast"), X_ICON_PATH)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -250,7 +250,7 @@ def test_keyboard_reaches_copy_link_and_enter_copies(
     expect(host.locator(COPY_BUTTON)).to_be_focused()
     host.keyboard.press("Enter")
 
-    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+    expect_toast(host, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
 
 
 def test_a_toast_fades_out_before_it_is_removed(
@@ -259,7 +259,7 @@ def test_a_toast_fades_out_before_it_is_removed(
     """CALL-41: A toast fades out before it is removed."""
     host = start_as_host(open_person, base_url, page_errors, {**DESKTOP, **CLIPBOARD_ALLOWED})
     host.click(COPY_BUTTON)
-    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+    expect_toast(host, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
 
     host.evaluate(START_WATCHING_A_TOAST_DIM)
     host.wait_for_function("() => window.toastWatch.removed")
@@ -285,7 +285,7 @@ def test_a_toast_started_just_before_leave_does_not_stand_over_the_end_screen(
 ) -> None:
     host = start_as_host(open_person, base_url, page_errors, {**form_factor, **CLIPBOARD_ALLOWED})
     host.click(COPY_BUTTON)
-    expect_toast(host, "Link copied", CHECK_ICON_PATH)
+    expect_toast(host, text("de", "invite.linkCopiedToast"), CHECK_ICON_PATH)
 
     host.click("#leaveBtn")
     host.click("#leaveYes")

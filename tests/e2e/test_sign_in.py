@@ -34,6 +34,7 @@ from tests.e2e.support.media import (
 from tests.e2e.support.page_assertions import RECORD_POLICY_VIOLATIONS
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -232,7 +233,7 @@ def test_a_page_whose_session_ended_goes_through_the_sign_in_when_the_call_canno
     assert ice_servers.value.status == 401
     expect_the_sign_in_at_the_issuer(documents(), e2e_server, opened=f"{e2e_server.base_url}/", next_path="%2F")
     assert statuses_were_watched is True
-    assert not any("Could not load ICE servers" in status for status in statuses)
+    assert text("de", "call.statusIceServersFailed", status=str(ice_servers.value.status)) not in statuses
 
 
 # The issuer's error page has no media devices.

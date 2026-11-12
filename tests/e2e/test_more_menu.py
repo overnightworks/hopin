@@ -135,7 +135,7 @@ def test_more_holds_both_legal_links_and_a_click_opens_one_in_a_new_tab_while_th
         legal_links.get_by_role("link", name="Datenschutz").click()
 
     assert opened.value.url == LEGAL_LINKS["Datenschutz"]
-    expect(host.locator("#status")).to_have_text("In call")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusInCall"))
     expect(host.locator(MORE_MENU)).to_be_visible()
 
 
@@ -150,9 +150,9 @@ def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_ta
     toggle_the_lock(host)
 
     expect(switch).to_have_attribute("aria-checked", "true")
-    expect(switch).to_contain_text("No one new can join")
+    expect(switch).to_contain_text(text("de", "more.lockLineLocked"))
     expect(host.locator(MORE_MENU)).to_be_visible()
-    expect(host.locator("#toasts")).to_have_text("Call locked")
+    expect(host.locator("#toasts")).to_have_text(text("de", "more.lockedToast"))
     expect(host.locator("#toasts svg path")).to_have_attribute("d", CHECK_ICON_PATH)
     boxes = host.evaluate(TOAST_AND_MENU_BOXES, MORE_MENU)
     assert boxes["toast"]["top"] >= 0
@@ -170,8 +170,8 @@ def test_lock_call_switch_locks_and_unlocks_with_a_toast_for_the_host_and_the_ta
     toggle_the_lock(host)
 
     expect(switch).to_have_attribute("aria-checked", "false")
-    expect(switch).to_contain_text("New people can join")
-    expect(host.locator("#toasts")).to_have_text("Call unlocked")
+    expect(switch).to_contain_text(text("de", "more.lockLineUnlocked"))
+    expect(host.locator("#toasts")).to_have_text(text("de", "more.unlockedToast"))
     for person in (host, guest):
         expect(person.locator(THE_TAG_AT_THE_TOP)).to_be_hidden()
 
@@ -189,7 +189,7 @@ def test_a_tap_where_a_desktop_bar_button_sits_only_closes_more(
 
     expect_more_closed(host)
     expect(host.locator("#leaveConfirm")).to_be_hidden()
-    expect(host.locator("#status")).to_have_text("In call")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusInCall"))
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -251,7 +251,7 @@ def test_more_stays_usable_and_the_bar_enabled_after_a_failed_start(
     )
     press_start_call(host, base_url)
 
-    expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusIceServersFailed", status="500"))
     expect(host.locator("#stage .cbar")).to_be_enabled()
     expect(host.locator(MORE_BUTTON)).to_be_enabled()
     expect_both_legal_links(more_legal_links(host))

@@ -8,6 +8,7 @@ from hopin.config.constants import ICE_SERVERS_PATH
 from tests.e2e.support.calls import join_by_link, press_start_call, start_call
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, MEDIA_FLOWING_TIMEOUT_MILLISECONDS, RECORD_PEER_CONNECTIONS
 from tests.e2e.support.people import DESKTOP
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -69,6 +70,6 @@ def test_call_start_with_failing_ice_servers_shows_the_error_and_releases_the_ca
     host.route(ICE_SERVERS_URL_PATTERN, refuse)
     press_start_call(host, base_url)
 
-    expect(host.locator("#status")).to_contain_text("Could not load ICE servers")
+    expect(host.locator("#status")).to_have_text(text("de", "call.statusIceServersFailed", status="500"))
     assert host.evaluate(ACQUIRED_TRACK_COUNT) > 0
     assert host.evaluate(LIVE_TRACK_COUNT) == 0
