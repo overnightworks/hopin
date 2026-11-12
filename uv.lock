@@ -437,7 +437,7 @@ dev = [
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "mypy", specifier = ">=1.19.1" },
-    { name = "overnightworks-design", extras = ["catalogs"], url = "https://github.com/overnightworks/design/releases/download/v0.24.0/overnightworks_design-0.24.0-py3-none-any.whl" },
+    { name = "overnightworks-design", extras = ["catalogs"], url = "https://github.com/overnightworks/design/releases/download/v0.28.0/overnightworks_design-0.28.0-py3-none-any.whl" },
     { name = "pyjwt", specifier = ">=2.15.1" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
@@ -722,10 +722,10 @@ mcp-server = [
 
 [[package]]
 name = "overnightworks-design"
-version = "0.24.0"
-source = { url = "https://github.com/overnightworks/design/releases/download/v0.24.0/overnightworks_design-0.24.0-py3-none-any.whl" }
+version = "0.28.0"
+source = { url = "https://github.com/overnightworks/design/releases/download/v0.28.0/overnightworks_design-0.28.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/overnightworks/design/releases/download/v0.24.0/overnightworks_design-0.24.0-py3-none-any.whl", hash = "sha256:a467bfcb2d8a7504f07cee5b626a0e5c0510922c83ec5845b51500fe16a03d20" },
+    { url = "https://github.com/overnightworks/design/releases/download/v0.28.0/overnightworks_design-0.28.0-py3-none-any.whl", hash = "sha256:9262408bfe931de3f6b9802796a9c2c67d9b20673e3771ca275c926fcd8aa968" },
 ]
 
 [package.optional-dependencies]
