@@ -558,3 +558,43 @@ msgstr ""
 msgctxt "game.endedByLeaverToast"
 msgid "Quiz beendet: {leaver} ist gegangen."
 msgstr ""
+
+msgctxt "skat.menuTitle"
+msgid "Skat-Tisch zeigen"
+msgstr ""
+
+msgctxt "skat.menuHint"
+msgid "Link eines Tisches einfügen"
+msgstr ""
+
+msgctxt "skat.linkLabel"
+msgid "Link des Skat-Tisches"
+msgstr ""
+
+msgctxt "skat.showButton"
+msgid "Zeigen"
+msgstr ""
+
+msgctxt "skat.badLinkToast"
+msgid "Das ist kein Link zu einem Skat-Tisch."
+msgstr ""
+
+msgctxt "skat.busyToast"
+msgid "Auf der Bühne steht schon ein Skat-Tisch."
+msgstr ""
+
+msgctxt "skat.notRemovedToast"
+msgid "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen."
+msgstr ""
+
+msgctxt "skat.frameTitle"
+msgid "Skat-Tisch"
+msgstr ""
+
+msgctxt "skat.removeButton"
+msgid "Tisch entfernen"
+msgstr ""
+
+msgctxt "agent.notRemovedToast"
+msgid "Nur wer die KI geholt hat oder der Host kann sie entfernen."
+msgstr ""

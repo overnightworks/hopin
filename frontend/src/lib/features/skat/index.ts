@@ -1,5 +1,6 @@
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
+import { words } from "#lib/words/de.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import "./skat.css";
 import SkatTable from "./SkatTable.svelte";
@@ -8,8 +9,8 @@ import { SKAT_REFUSAL, SKAT_SIGNAL } from "./wire.ts";
 
 const CARDS_PATHS =
     '<rect x="4" y="5" width="11" height="15" rx="2.4"/><path d="M9 5.6 15 3.8a2.2 2.2 0 0 1 2.8 1.5l2.4 9.2a2.2 2.2 0 0 1-1.5 2.7L17 17.7"/>';
-const MORE_ITEM_MARKUP = `<button id="skatShowBtn" class="mi" type="button" aria-expanded="false" aria-controls="skatForm"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CARDS_PATHS}</svg><span class="grow">Show Skat table<small>Paste the link of a table</small></span></button>
-<form id="skatForm" class="skat-form" hidden><input id="skatLink" type="url" name="link" placeholder="Link of the Skat table" aria-label="Link of the Skat table" required autocomplete="off" /><button class="button button-primary" type="submit">Show</button></form>`;
+const MORE_ITEM_MARKUP = `<button id="skatShowBtn" class="mi" type="button" aria-expanded="false" aria-controls="skatForm"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${CARDS_PATHS}</svg><span class="grow">${words["skat.menuTitle"]}<small>${words["skat.menuHint"]}</small></span></button>
+<form id="skatForm" class="skat-form" hidden><input id="skatLink" type="url" name="link" placeholder="${words["skat.linkLabel"]}" aria-label="${words["skat.linkLabel"]}" required autocomplete="off" /><button class="button button-primary" type="submit">${words["skat.showButton"]}</button></form>`;
 
 interface SeatFrame {
     participant_id: string;
@@ -21,9 +22,9 @@ interface RefusedFrame {
 }
 
 const REFUSED_TEXT: Partial<Record<string, string>> = {
-    [SKAT_REFUSAL.BAD_LINK]: "That is not a Skat table link.",
-    [SKAT_REFUSAL.BUSY]: "A Skat table is already on the stage.",
-    [SKAT_REFUSAL.NOT_OPENER_OR_HOST]: "Only the person who brought the table or the host can remove it.",
+    [SKAT_REFUSAL.BAD_LINK]: words["skat.badLinkToast"],
+    [SKAT_REFUSAL.BUSY]: words["skat.busyToast"],
+    [SKAT_REFUSAL.NOT_OPENER_OR_HOST]: words["skat.notRemovedToast"],
 };
 
 export function install(core: FeatureCore): Promise<void> {

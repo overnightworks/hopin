@@ -3,6 +3,7 @@ import { mount, unmount } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
+import { words } from "#lib/words/de.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { install } from "./index.ts";
@@ -84,7 +85,7 @@ const SHOWN = {
 };
 const NONE = { revision: 3, attachment: null, table: null, src: null, opener_id: null };
 
-describe("the Show Skat table item in More", () => {
+describe("the Skat entry in More", () => {
     it("opens a link field on a tap, and a second tap closes it", async () => {
         const page = await installedSkat();
         page.button().click();
@@ -176,9 +177,9 @@ describe("the stage", () => {
 
 describe("a refusal", () => {
     it.each([
-        [SKAT_REFUSAL.BAD_LINK, "That is not a Skat table link."],
-        [SKAT_REFUSAL.BUSY, "A Skat table is already on the stage."],
-        [SKAT_REFUSAL.NOT_OPENER_OR_HOST, "Only the person who brought the table or the host can remove it."],
+        [SKAT_REFUSAL.BAD_LINK, words["skat.badLinkToast"]],
+        [SKAT_REFUSAL.BUSY, words["skat.busyToast"]],
+        [SKAT_REFUSAL.NOT_OPENER_OR_HOST, words["skat.notRemovedToast"]],
     ])("%s is told to the person", async (reason, text) => {
         const page = await installedSkat();
 

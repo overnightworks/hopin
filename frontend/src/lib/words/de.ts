@@ -142,6 +142,16 @@ export type Words = {
     readonly "game.answerTooLongToast": string;
     readonly "game.endedToast": string;
     readonly "game.endedByLeaverToast": (gaps: { readonly leaver: string }) => string;
+    readonly "skat.menuTitle": string;
+    readonly "skat.menuHint": string;
+    readonly "skat.linkLabel": string;
+    readonly "skat.showButton": string;
+    readonly "skat.badLinkToast": string;
+    readonly "skat.busyToast": string;
+    readonly "skat.notRemovedToast": string;
+    readonly "skat.frameTitle": string;
+    readonly "skat.removeButton": string;
+    readonly "agent.notRemovedToast": string;
 };
 // prettier-ignore
 export const words: Words = {
@@ -296,5 +306,15 @@ export const words: Words = {
     "game.answerTooLongToast": "Deine Antwort ist zu lang. Kürz sie und schick sie noch einmal.",
     "game.endedToast": "Quiz beendet.",
     "game.endedByLeaverToast": (gaps: { readonly leaver: string }) => "Quiz beendet: " + gaps.leaver + " ist gegangen.",
+    "skat.menuTitle": "Skat-Tisch zeigen",
+    "skat.menuHint": "Link eines Tisches einfügen",
+    "skat.linkLabel": "Link des Skat-Tisches",
+    "skat.showButton": "Zeigen",
+    "skat.badLinkToast": "Das ist kein Link zu einem Skat-Tisch.",
+    "skat.busyToast": "Auf der Bühne steht schon ein Skat-Tisch.",
+    "skat.notRemovedToast": "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen.",
+    "skat.frameTitle": "Skat-Tisch",
+    "skat.removeButton": "Tisch entfernen",
+    "agent.notRemovedToast": "Nur wer die KI geholt hat oder der Host kann sie entfernen.",
 };
 export type Key = keyof Words;

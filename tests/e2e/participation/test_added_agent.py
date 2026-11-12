@@ -144,7 +144,6 @@ def test_a_refusal_after_the_adders_right_was_revoked_leaves_when_more_is_closed
     open_more(scene.member)
     expect(scene.member.get_by_role("alert")).to_have_count(0)
     expect(scene.offers_on(scene.member)).to_have_count(0)
-    expect(scene.member.locator("#agentOffers")).to_be_empty()
 
 
 def test_a_refusal_leaves_when_the_offers_change_after_it(

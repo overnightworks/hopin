@@ -25,6 +25,7 @@ from tests.e2e.support.calls import join, open_call, open_more, press_through_th
 from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -47,6 +48,20 @@ VIDEOS_ARE_THE_TAGGED_ONES = """() => {
 }"""
 REMOVE_BUTTON_PHONE_PIXELS = 24
 FIRST_REMOTE_TIME = "() => document.querySelector('#videoGrid .tile:not(.self) video').currentTime"
+PLACEHOLDER_FITS = """async (field) => {
+    await document.fonts.ready;
+    const style = getComputedStyle(field);
+    const sentence = document.createElement("span");
+    sentence.style.font = style.font;
+    sentence.style.position = "absolute";
+    sentence.style.whiteSpace = "pre";
+    sentence.textContent = field.placeholder;
+    document.body.append(sentence);
+    const sentenceWidth = sentence.getBoundingClientRect().width;
+    sentence.remove();
+    const roomWidth = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return sentenceWidth <= roomWidth;
+}"""
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -227,14 +242,14 @@ def test_a_link_that_is_no_table_of_skat_is_told_and_a_stale_second_attach_is_re
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
 
     show_table(host, "https://elsewhere.example/t/" + "a" * 32)
-    expect(host.locator(TOASTS)).to_contain_text("That is not a Skat table link.")
+    expect(host.locator(TOASTS)).to_contain_text(text("de", "skat.badLinkToast"))
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(guest, stub_skat)
     # A More that still offers the item stands for a seat whose attach crossed the other's.
     guest.evaluate("() => { document.querySelector('#skatItem').hidden = false; }")
     show_table(guest, table_link(stub_skat, "f" * 32))
 
-    expect(guest.locator(TOASTS)).to_contain_text("A Skat table is already on the stage.")
+    expect(guest.locator(TOASTS)).to_contain_text(text("de", "skat.busyToast"))
     expect_table_on_stage(host, stub_skat)
 
 
@@ -248,6 +263,18 @@ def test_the_item_is_not_offered_while_a_table_is_shown(
 
     expect(open_more(host).locator(SHOW_ITEM)).to_be_hidden()
     expect(host.locator(LINK_FIELD)).to_be_hidden()
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_link_field_has_room_for_its_whole_placeholder(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
+
+    open_more(host).locator(SHOW_ITEM).click()
+
+    expect(host.locator(LINK_FIELD)).to_be_visible()
+    assert host.eval_on_selector(LINK_FIELD, PLACEHOLDER_FITS)
 
 
 def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referrer(

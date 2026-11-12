@@ -23,8 +23,10 @@
 .skat-remove:focus-visible {
     background: var(--glass-hover);
 }
+/* The button sits under the field, so the field keeps the popover's full text width for its placeholder. */
 .skat-form {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 0 14px 6px 50px;
 }
@@ -32,7 +34,7 @@
     display: none;
 }
 .skat-form input {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 0;
     height: 44px;
     padding: 0 12px;

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { words } from "#lib/words/de.ts";
     import { greetingFor } from "./messages.ts";
     import type { Table } from "./table.svelte.ts";
 
@@ -27,7 +28,7 @@
     <iframe
         bind:this={frame}
         class="skat-frame"
-        title="Skat table"
+        title={words["skat.frameTitle"]}
         {src}
         sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         allow=""
@@ -39,7 +40,7 @@
             type="button"
             onclick={() => {
                 table.remove();
-            }}>Remove table</button
+            }}>{words["skat.removeButton"]}</button
         >
     {/if}
 </div>
