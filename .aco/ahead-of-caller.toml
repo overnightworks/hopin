@@ -1,0 +1,9 @@
+[[code]]
+path = "src/hopin/participation/hearing.py"
+item = "#630"
+reason = "S1 lane L4b's hearing route calls `Participation.open_hearing` with its `HearingHandle` and `Participation.heard`."
+
+[[code]]
+path = "src/hopin/participation/feature.py"
+item = "#630"
+reason = "S1 lane L4b's hearing route calls `Participation.open_hearing` and `Participation.heard`."

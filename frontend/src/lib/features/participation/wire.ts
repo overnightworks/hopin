@@ -8,6 +8,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_OFFERS = "agent_offers",
     AGENT_ADD = "agent_add",
     AGENT_LINE = "agent_line",
+    AGENT_HEARING = "agent_hearing",
 }
 
 export enum AGENT_REFUSAL {
@@ -18,6 +19,7 @@ export enum AGENT_REFUSAL {
     SPONSOR_AWAY = "sponsor_away",
     GONE = "gone",
     NOT_SPONSOR_OR_HOST = "not_sponsor_or_host",
+    NOT_SPONSOR = "not_sponsor",
     INVITATION_ONLY = "invitation_only",
     OWN_ACCOUNT_ONLY = "own_account_only",
     NOT_ADDER = "not_adder",
