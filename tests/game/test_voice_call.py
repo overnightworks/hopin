@@ -1,7 +1,7 @@
 import secrets
 
 import pytest
-from speech_client.wire import SPEECH_PATH, RefusalCode
+from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.settings import SpeechSettings
 from hopin.config.constants import AUTH_START_PATH, SignalType
@@ -30,7 +30,7 @@ def origin():
 
 @pytest.fixture
 def speech(origin):
-    return SpeechSettings(origin=origin.base_url, voice="piper", audience_scope=AUDIENCE_SCOPE)
+    return SpeechSettings(origin=origin.base_url, voice=VoiceId.THORSTEN, audience_scope=AUDIENCE_SCOPE)
 
 
 @pytest.fixture

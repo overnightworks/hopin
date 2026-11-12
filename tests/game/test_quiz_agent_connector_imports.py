@@ -21,7 +21,8 @@ CLIENT_PARTS_OF = {
     },
 }
 SPEECH_CLIENT = "speech_client"
-SPEECH_MODULE = SOURCE / "agent" / "speech.py"
+# The speech client's voice type is the setting's type, and the speak call is the connector's alone.
+SPEECH_MODULES = {SOURCE / "agent" / "speech.py", SOURCE / "agent" / "settings.py"}
 
 
 def imported_modules(path: Path) -> set[str]:
@@ -61,4 +62,4 @@ def test_only_the_connector_names_the_client_and_only_its_settings_name_the_clie
 def test_only_the_speech_connector_names_the_speech_client(path):
     named = {module for module in imported_modules(path) if names(module, SPEECH_CLIENT)}
 
-    assert bool(named) == (path == SPEECH_MODULE)
+    assert bool(named) == (path in SPEECH_MODULES)
