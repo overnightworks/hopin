@@ -199,6 +199,23 @@ class TestAnAdd:
 
         assert (refusals_sent_to(stranger), len(participation.standings_of(AGENT))) == ([], 1)
 
+    async def test_an_add_after_the_agents_listen_has_ended_is_served_and_opens_the_invitation(
+        self, link, participation, listeners
+    ):
+        """CALL-51: An add checks the agent's lease, not its listen, so an add in a re-listen gap is served."""
+        _owner, member = await owner_and_member(link)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        await agent_stops_listening(participation, listeners)
+        await let_reads_finish()
+
+        await add(member, offer["agent_key"])
+
+        assert refusals_sent_to(member) == []
+        [standing] = participation.standings_of(AGENT)
+        assert standing.state.value == "invited"
+
     async def test_an_add_opens_an_invitation_the_adder_sees_pending_and_no_other_member_is_offered(
         self, link, participation, groups_of_seat, listeners
     ):
