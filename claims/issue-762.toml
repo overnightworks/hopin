@@ -1,0 +1,8 @@
+claim_id = "b040966ce0d2491fbf6ae5038f81e34b"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "f9c5e61e9e0314c3ce01e656378a6f7026771206"
+branch = "claude/issue-762-the-sponsor-sees-and-sets-agent-darf-mic"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/participation", "frontend/src/lib/ui", "tests/e2e"]
+opened_commit = "97f58c36ccc10157178c2e592b50f6e13b8f6ae4"
+whole_reason = "The core's tile field, the stage that draws the kit's switch, the participation module that feeds it from the server's record and their spec and proofs change together; a field with no feeder is unreached code."
