@@ -118,4 +118,8 @@ def _members(vocabulary: type[StrEnum]) -> dict[str, str]:
 
 SIGNAL_TYPES = _members(ParticipationSignal)
 # The enums the generator renders into the feature's own browser wire, by their exported name.
-BROWSER_ENUMS = {"PARTICIPATION_SIGNAL": ParticipationSignal, "AGENT_REFUSAL": AgentRefusal}
+BROWSER_ENUMS = {
+    "PARTICIPATION_SIGNAL": ParticipationSignal,
+    "AGENT_REFUSAL": AgentRefusal,
+    "HEARING_CLOSE": HearingClose,
+}

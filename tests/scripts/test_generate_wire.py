@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 import pytest
 
 from hopin.config.constants import ErrorReason, RoomClosedReason, SignalType
+from hopin.participation.vocabulary import HEARING_PATH, HearingClose
 from hopin.signaling.frames import (
     SEQUENCE_KEY,
     AnswerRelayFrame,
@@ -253,6 +254,21 @@ def test_render_frame_type_names_the_properties_the_frame_sends_in_order(
     properties = [line.split(":")[0].strip().removesuffix("?") for line in rendered.splitlines()[1:-1]]
 
     assert properties == list(frame.to_json())
+
+
+def participation_wire(root: Path) -> str:
+    return generate_wire.outputs(root)[root / "frontend/src/lib/features/participation/wire.ts"]
+
+
+def test_participation_wire_renders_the_hearing_close_codes_as_numbers(tmp_path: Path) -> None:
+    rendered = participation_wire(tmp_path)
+
+    assert "export enum HEARING_CLOSE {\n" in rendered
+    assert all(f"    {name} = {member.value},\n" in rendered for name, member in HearingClose.__members__.items())
+
+
+def test_participation_wire_carries_the_hearing_path(tmp_path: Path) -> None:
+    assert f'export const HEARING_PATH = "{HEARING_PATH}";\n' in participation_wire(tmp_path)
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

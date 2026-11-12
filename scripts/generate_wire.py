@@ -31,6 +31,7 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
+from hopin.participation.vocabulary import HEARING_PATH  # noqa: E402
 from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
     SEQUENCE_KEY,
@@ -56,7 +57,7 @@ from hopin.skat.vocabulary import BROWSER_ENUMS as SKAT_BROWSER_ENUMS  # noqa: E
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-    from enum import StrEnum
+    from enum import IntEnum, StrEnum
 
     from _typeshed import DataclassInstance
 
@@ -71,12 +72,18 @@ INDENT = "    "
 PRINT_WIDTH = 120
 
 
-def _enum(exported_name: str, vocabulary: type[StrEnum]) -> str:
-    members = "".join(f'{INDENT}{name} = "{member.value}",\n' for name, member in vocabulary.__members__.items())
+def _literal(value: str | int) -> str:
+    return str(value) if isinstance(value, int) else f'"{value}"'
+
+
+def _enum(exported_name: str, vocabulary: type[StrEnum | IntEnum]) -> str:
+    members = "".join(
+        f"{INDENT}{name} = {_literal(member.value)},\n" for name, member in vocabulary.__members__.items()
+    )
     return f"export enum {exported_name} {{\n{members}}}\n"
 
 
-def _enums(vocabularies: Mapping[str, type[StrEnum]]) -> str:
+def _enums(vocabularies: Mapping[str, type[StrEnum | IntEnum]]) -> str:
     return "\n".join(_enum(exported_name, vocabulary) for exported_name, vocabulary in vocabularies.items())
 
 
@@ -184,12 +191,16 @@ def render_core() -> str:
     return _generated_file(f"{enums}\n{_server_frames()}\n{constants}")
 
 
+def render_participation() -> str:
+    return _generated_file(f'{_enums(PARTICIPATION_BROWSER_ENUMS)}\nexport const HEARING_PATH = "{HEARING_PATH}";\n')
+
+
 def outputs(root: Path) -> dict[Path, str]:
     """Every generated file under the root, by path."""
     return {
         root / CORE_OUTPUT: render_core(),
         root / "frontend/src/lib/features/game/wire.ts": _generated_file(_enums(BROWSER_ENUMS)),  # game
-        root / "frontend/src/lib/features/participation/wire.ts": _generated_file(_enums(PARTICIPATION_BROWSER_ENUMS)),
+        root / "frontend/src/lib/features/participation/wire.ts": render_participation(),
         root / "frontend/src/lib/features/skat/wire.ts": _generated_file(_enums(SKAT_BROWSER_ENUMS)),  # skat
     }
 

@@ -29,3 +29,19 @@ export enum AGENT_REFUSAL {
     BAD_LINE = "bad_line",
     TOO_FAST = "too_fast",
 }
+
+export enum HEARING_CLOSE {
+    NO_SEAT = 4404,
+    SEAT_AWAY = 4409,
+    NOBODY_HEARS = 4403,
+    NO_TOKEN = 4503,
+    NORMAL = 1000,
+    TEXT_FRAME = 4400,
+    FRAME_TOO_LARGE = 4413,
+    OVER_CAP = 4507,
+    BUSY = 4429,
+    PAST_DEADLINE = 4504,
+    SERVICE_FAILED = 4502,
+}
+
+export const HEARING_PATH = "/ws/hearing";
