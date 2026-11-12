@@ -1,8 +1,0 @@
-claim_id = "d437119a1128440da945c60879083dbe"
-agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
-role = "builder"
-base = "b0e36a7eebac55853a49bfb4ce8d2a1065045ae4"
-branch = "claude/issue-713-take-design-v0-24-0"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/words", "pyproject.toml", "sonar-project.properties", "tests/support/words.py", "uv.lock"]
-opened_commit = "510d390c0ed8f33e121b746ffeb3a4baa1c7e640"
-whole_reason = "The pins with their locks and, where the app already generates modules, the regenerated modules with the new loader."
