@@ -1,7 +1,9 @@
+import { loadKitWords } from "overnightworks-design";
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
 import { words } from "#lib/words/de.ts";
+import { sourceLanguage } from "#lib/words/index.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
@@ -46,7 +48,8 @@ function tileKey(agentId: string) {
     return `agent-${agentId}`;
 }
 
-export function install(core: FeatureCore): Promise<void> {
+export async function install(core: FeatureCore): Promise<void> {
+    const kitWords = await loadKitWords(sourceLanguage);
     let seatId = "";
     let isHost = false;
     const shown = new Set<string>();
@@ -81,6 +84,7 @@ export function install(core: FeatureCore): Promise<void> {
         target: offers,
         props: {
             view: offersView,
+            words: kitWords,
             onCall: (agentKey: string) => {
                 clearRefusal();
                 core.send({ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: agentKey });
@@ -145,5 +149,4 @@ export function install(core: FeatureCore): Promise<void> {
         for (const agentId of shown) hide(agentId);
         clearOffers();
     });
-    return Promise.resolve();
 }

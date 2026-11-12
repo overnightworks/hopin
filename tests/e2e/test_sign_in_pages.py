@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from design.words import text as kit_text
 from playwright.sync_api import Page, Route, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH, NO_ACCESS_PATH
@@ -33,8 +34,8 @@ CARD_AND_ACTION_WIDTHS = """(selectors) => {
 }"""
 BUILT_CARD_SELECTORS = ["main", "main .action"]
 SIGN_IN_STATES = [
-    pytest.param(LOGIN_PATH, "Log in", id="signed-out"),
-    pytest.param(FORGED_CALLBACK, "Try again", id="login-failed"),
+    pytest.param(LOGIN_PATH, kit_text("de", "signIn.logIn"), id="signed-out"),
+    pytest.param(FORGED_CALLBACK, kit_text("de", "signIn.tryAgain"), id="login-failed"),
 ]
 BUILT_SIGN_IN_PAGES = [
     pytest.param(LOGIN_PATH, id="signed-out"),
@@ -62,9 +63,9 @@ def test_a_failed_sign_in_shows_login_failed_with_one_way_out_and_both_legal_lin
 
     card = person.get_by_role("main")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name="Login failed", exact=True)).to_be_visible()
+    expect(card.get_by_role("heading", name=kit_text("de", "signIn.loginFailed"), exact=True)).to_be_visible()
     expect(person.get_by_role("alert")).to_have_text("Sign-in did not work. Please try again.")
-    expect(card.get_by_role("link")).to_have_text(["Try again"])
+    expect(card.get_by_role("link")).to_have_text([kit_text("de", "signIn.tryAgain")])
     expect_both_legal_links_in_the_same_tab(person.get_by_role("navigation"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
@@ -130,8 +131,8 @@ def test_the_no_access_page_shows_its_heading_its_one_action_and_both_legal_link
     expect(person).to_have_title("HopIn")
     card = person.get_by_role("main")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name="No access", exact=True)).to_be_visible()
-    expect(card.get_by_role("button")).to_have_text(["Log out"])
+    expect(card.get_by_role("heading", name=kit_text("de", "signIn.noAccess"), exact=True)).to_be_visible()
+    expect(card.get_by_role("button")).to_have_text([kit_text("de", "signIn.logOut")])
     expect(card.get_by_role("link")).to_have_count(0)
     expect_both_legal_links_in_the_same_tab(person.get_by_role("navigation"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
@@ -146,8 +147,8 @@ def test_the_signed_out_page_shows_its_heading_its_one_action_and_both_legal_lin
     expect(person).to_have_title("HopIn")
     card = person.get_by_role("main")
     expect(card.locator(".wordmark")).to_have_text("HopIn")
-    expect(card.get_by_role("heading", name="You are logged out.", exact=True)).to_be_visible()
-    expect(card.get_by_role("link")).to_have_text(["Log in"])
+    expect(card.get_by_role("heading", name=kit_text("de", "signIn.loggedOut"), exact=True)).to_be_visible()
+    expect(card.get_by_role("link")).to_have_text([kit_text("de", "signIn.logIn")])
     expect_both_legal_links_in_the_same_tab(person.get_by_role("navigation"))
     assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
@@ -206,7 +207,7 @@ def test_log_out_ends_the_session_and_the_loop_stops_at_the_issuers_end_session_
     # The test issuer's host does not resolve, so the browser's request for the end-session endpoint
     # (not blocked by the logout page's form-action) is where the loop ends here.
     with person.expect_event("requestfailed", lambda request: request.url.startswith(END_SESSION_URL)):
-        person.get_by_role("button", name="Log out").click()
+        person.get_by_role("button", name=kit_text("de", "signIn.logOut")).click()
 
     assert [(request.method, urlsplit(request.url).path) for request in documents] == [
         ("GET", NO_ACCESS_PATH),
@@ -306,7 +307,7 @@ def test_a_sign_in_page_whose_fonts_answer_404_still_shows_its_heading_in_the_fa
     assert response is not None
     assert response.status == 200
     assert font_requests
-    heading = person.get_by_role("heading", name="You are logged out.", exact=True)
+    heading = person.get_by_role("heading", name=kit_text("de", "signIn.loggedOut"), exact=True)
     expect(heading).to_be_visible()
     assert heading.evaluate("(element) => getComputedStyle(element).fontFamily").endswith("sans-serif")
     assert person.evaluate(LOADED_FONT_FACES) == 0
@@ -323,7 +324,7 @@ def test_login_failed_on_a_small_landscape_phone_reaches_try_again_and_both_lega
     person.mouse.wheel(0, 2000)
     person.wait_for_function("() => document.querySelector('.sign-in').scrollTop > 0")
     for control in (
-        person.get_by_role("link", name="Try again", exact=True),
+        person.get_by_role("link", name=kit_text("de", "signIn.tryAgain"), exact=True),
         *(person.get_by_role("link", name=label, exact=True) for label in LEGAL_LINKS),
     ):
         expect(control).to_be_in_viewport()

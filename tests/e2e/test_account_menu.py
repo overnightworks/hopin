@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from design.words import text as kit_text
 from playwright.sync_api import ConsoleMessage, Page, Request, Route, expect
 
 from hopin.config.constants import ACCOUNT_CONSOLE_PATH, ACCOUNT_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH
@@ -24,7 +25,7 @@ pytestmark = pytest.mark.e2e
 ACCOUNT_ROUTE = f"**{ACCOUNT_PATH}"
 AVATAR = ACCOUNT_AVATAR
 MENU = ACCOUNT_MENU
-LOG_OUT = f"{MENU} >> role=button[name='Log out']"
+LOG_OUT = f"{MENU} >> role=button[name='{kit_text('de', 'account.logOut')}']"
 MENU_NAME = f"{MENU} a[href='{ACCOUNT_CONSOLE_PATH}'] .as-typed"
 LONG_USERNAME = "felix-hummert-mit-einem-sehr-langen-namen-der-nicht-in-das-menu-passt"
 UNBROKEN_USERNAME = "x" * 64
@@ -185,7 +186,7 @@ def test_avatar_opens_a_menu_with_the_username_one_log_out_and_the_legal_row(
     expect(menu).to_be_visible()
     expect(person.locator(MENU_NAME)).to_have_text("felix")
     expect_both_legal_links(menu)
-    expect(menu.get_by_role("button")).to_have_text(["Log out"])
+    expect(menu.get_by_role("button")).to_have_text([kit_text("de", "account.logOut")])
     expect(menu.get_by_role("radio")).to_have_count(0)
     expect(menu.get_by_role("radiogroup")).to_have_count(0)
     expect(person.locator(AVATAR)).to_have_attribute("aria-expanded", "true")
@@ -277,7 +278,7 @@ def test_member_whose_name_cannot_be_read_gets_the_person_icon_a_menu_named_acco
     expect(person.locator(AVATAR).locator("svg")).to_be_visible()
     expect(person.locator(AVATAR)).to_have_text("")
     expect(person.locator(MENU_NAME)).to_have_text(text("de", "account.unnamedMenuName"))
-    expect(person.locator(MENU).get_by_role("button")).to_have_text(["Log out"])
+    expect(person.locator(MENU).get_by_role("button")).to_have_text([kit_text("de", "account.logOut")])
     expect(person.locator("#homeGreeting")).to_have_text(text("de", "home.greetingUnnamed"))
     assert len(load_errors) == 1
 
