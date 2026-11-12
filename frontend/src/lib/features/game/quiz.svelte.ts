@@ -288,7 +288,8 @@ export class Quiz {
         card.revealDisabled = locked;
         card.locked = locked;
         card.status = this.#answerStatus();
-        card.sent = this.#answerSent;
+        // The text needs the server's count, so the mark waits for it too: the status line never shows the mark alone.
+        card.sent = this.#answerSent && this.#answerCount !== null;
     }
 
     #syncCard() {
