@@ -6,6 +6,7 @@ from playwright.sync_api import expect
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
+from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -55,3 +56,15 @@ def test_chat_sends_the_typed_message_when_enter_is_pressed(
 
     expect(guest.locator("#chatMessages .chat-msg.self")).to_have_text("sent with enter")
     expect(guest.locator("#chatInput")).to_have_value("")
+
+
+def test_chat_panel_closes_from_its_close_button_found_by_name(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    _, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    guest.click("#chatBtn")
+    expect(guest.locator("#chatPanel")).to_have_class("chat-panel visible")
+
+    guest.get_by_role("button", name=text("de", "chat.closeButton")).click()
+
+    expect(guest.locator("#chatPanel")).not_to_have_class("chat-panel visible")
