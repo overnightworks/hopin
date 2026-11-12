@@ -109,28 +109,3 @@
         >
     </div>
 {/each}
-
-<style>
-    /* The kit's chip takes the stage accent: the app's own accent is dark in the light theme and would sink into the glass over a dark video. The chip's narrowest look is its icon and switch with the label shortened away, 81px: 15px of padding, the 16px icon, two 8px gaps and the 34px switch. */
-    .hear-set {
-        --accent: var(--accent-stage);
-        --narrowest: 81px;
-        position: absolute;
-        top: 8px;
-        left: 8px;
-        z-index: 7;
-        min-width: var(--narrowest);
-        max-width: calc(100% - 64px);
-    }
-    /* Under 131px the narrowest chip no longer fits beside the remove button (8px, the chip, the button's 32px and its 10px), so it moves into the tile's lower right corner, clear of the button. */
-    @container (max-width: 130.99px) {
-        .hear-set {
-            top: auto;
-            left: auto;
-            right: 2px;
-            bottom: 2px;
-            width: var(--narrowest);
-            max-width: none;
-        }
-    }
-</style>
