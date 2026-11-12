@@ -313,7 +313,10 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.BUSY });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart"), offered("Haydn", false, "k2")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, {
+            shown: true,
+            offers: [offered("Mozart"), offered("Haydn", false, "k2")],
+        });
 
         expect(page.alert()).toBeUndefined();
     });

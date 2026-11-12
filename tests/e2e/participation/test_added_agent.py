@@ -6,7 +6,14 @@ from agents.member import LISTEN_ALLOWANCE_SECONDS
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.calls import join_by_link, open_more, record_page_errors
-from tests.e2e.support.dialed_agent import AGENT_NAME, AGENT_TILE, OWNER_USERNAME, REMOVE, OwnAccountAgent
+from tests.e2e.support.dialed_agent import (
+    AGENT_NAME,
+    AGENT_TILE,
+    OWNER_SUBJECT,
+    OWNER_USERNAME,
+    REMOVE,
+    OwnAccountAgent,
+)
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -18,8 +25,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 LEAVE = "#leaveBtn"
-BYSTANDER_QUIET_SECONDS = 2
-NO_OFFER_QUIET_SECONDS = 2
+QUIET_SECONDS = 2
 LAPSE_WITHIN_MILLISECONDS = (LISTEN_ALLOWANCE_SECONDS + 10) * 1000
 
 
@@ -55,7 +61,7 @@ def test_an_agent_with_a_lease_and_no_listen_is_offered_to_nobody(scene_of: Call
     assert scene.agent.standings() == []
 
     open_more(scene.member)
-    scene.member.wait_for_timeout(NO_OFFER_QUIET_SECONDS * 1000)
+    scene.member.wait_for_timeout(QUIET_SECONDS * 1000)
 
     expect(scene.offers_on(scene.member)).to_have_count(0)
 
@@ -85,7 +91,7 @@ def test_another_agents_stream_is_not_woken_by_this_agents_invitation(
 
         scene.member_adds_and_the_agent_accepts()
 
-        assert not bystander.woken_within(BYSTANDER_QUIET_SECONDS)
+        assert not bystander.woken_within(QUIET_SECONDS)
     finally:
         bystander.close()
 
@@ -137,3 +143,29 @@ def test_a_refusal_after_the_adders_right_was_revoked_leaves_when_more_is_closed
     scene.member.keyboard.press("Escape")
     open_more(scene.member)
     expect(scene.member.get_by_role("alert")).to_have_count(0)
+    expect(scene.offers_on(scene.member)).to_have_count(0)
+    expect(scene.member.locator("#agentOffers")).to_be_empty()
+
+
+def test_a_refusal_leaves_when_the_offers_change_after_it(
+    scene_of: Callable[[dict[str, Any]], Scene], e2e_server: RunningServer
+) -> None:
+    """CALL-51: A refused add stays until the person calls again, closes "Mehr" or an offers frame follows it."""
+    scene = scene_of(DESKTOP)
+    scene.agent_listens()
+    open_more(scene.member)
+    expect(scene.offer_of_agent(scene.member)).to_have_count(1)
+    e2e_server.issuer.refuses_refresh_grants = True
+    try:
+        scene.offer_of_agent(scene.member).get_by_role("button").click()
+        expect(scene.member.get_by_role("alert")).to_be_visible()
+    finally:
+        e2e_server.issuer.refuses_refresh_grants = False
+    second = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{AGENT_NAME}-{secrets.token_hex(3)}")
+    try:
+        second.listen()
+
+        expect(scene.offers_on(scene.member).filter(has_text=second.name)).to_have_count(1)
+        expect(scene.member.get_by_role("alert")).to_have_count(0)
+    finally:
+        second.close()

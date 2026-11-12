@@ -41,7 +41,8 @@ async def owner_and_member(link):
 
 
 def kinds_of_frames_sent_to(browser):
-    return [frame["type"] for frame in browser.frames(ParticipationSignal.AGENT_OFFERS, ParticipationSignal.AGENT_REFUSED)]
+    frames = browser.frames(ParticipationSignal.AGENT_OFFERS, ParticipationSignal.AGENT_REFUSED)
+    return [frame["type"] for frame in frames]
 
 
 def refusals_sent_to(browser):
@@ -319,7 +320,7 @@ class TestAnAdd:
     async def test_a_refused_add_that_changes_the_offers_sends_the_offers_before_the_refusal(
         self, link, participation, groups_of_seat, listeners
     ):
-        """CALL-51: A refusal that changes the offers follows the offers frame, so a later offers frame is a later one."""
+        """CALL-51: A refusal that changes the offers follows the offers frame, so a later offers frame is later."""
         _owner, member = await owner_and_member(link)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
@@ -335,6 +336,7 @@ class TestAnAdd:
         ]
 
     async def test_a_refused_add_that_changes_no_offers_sends_only_the_refusal(self, link, participation, listeners):
+        """CALL-51: A refusal that changes no offers is the only frame the add sends."""
         owner, member = await owner_and_member(link)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
