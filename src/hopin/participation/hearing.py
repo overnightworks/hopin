@@ -1,0 +1,114 @@
+"""Whom a joined agent may hear: HopIn's rule, and the record it is told to.
+
+The rule is that only the sponsor of a joined agent has a switch for it, which starts on when the sponsor brought the
+agent and off when someone else added it. The record behind the port is the one truth of who hears whom; this module
+tells it every decision and every end, reaches it only on the event loop, and keeps the sound sessions (handles) that
+end with it.
+"""
+
+import asyncio
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Protocol
+
+from hopin.participation.chat_window import utf8_length
+from hopin.participation.vocabulary import HearingRefusal
+
+if TYPE_CHECKING:
+    from hopin.participation.feature import DialedAgent, Person
+    from hopin.signaling.frames import PeerId
+
+
+class HearingRecord(Protocol):
+    """The record of who may hear whom, in participation's terms: a seat is the speaker and a joined agent's person
+    the member, in the call of a room."""
+
+    def allow(self, room_id: str, seat: PeerId, agent: Person, *, allowed: bool) -> None:
+        """Record the decision that the agent hears the seat, or no longer does."""
+
+    def sensing(self, room_id: str, seat: PeerId) -> frozenset[Person]:
+        """The agents whose switch for the seat is on."""
+
+    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> frozenset[Person]:
+        """The agents that hear a finished sentence the seat said under the name, which began at `began_at`."""
+
+    def member_ended(self, room_id: str, agent: Person) -> None:
+        """The agent left the call or was removed from it."""
+
+    def speaker_ended(self, room_id: str, seat: PeerId) -> None:
+        """The seat left the call for good."""
+
+    def place_ended(self, room_id: str) -> None:
+        """The call ended."""
+
+
+@dataclass(frozen=True, eq=False)
+class HearingHandle:
+    """The sound session of one seat: the account that holds it, and an event set when the session ends."""
+
+    account: Person
+    seat: PeerId
+    room_id: str
+    ended: asyncio.Event = field(default_factory=asyncio.Event)
+
+
+class Hearing:
+    """The rule over the record. With `enabled` false no switch is ever turned on, so nothing is heard."""
+
+    def __init__(self, record: HearingRecord, *, enabled: bool) -> None:
+        self._record = record
+        self.enabled = enabled
+        self._handles: dict[PeerId, HearingHandle] = {}
+
+    def joined(self, agent: DialedAgent, *, brought_by_sponsor: bool) -> None:
+        """Record the default of a switch: on when the sponsor brought the agent, else off."""
+        if self.enabled and brought_by_sponsor:
+            self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=True)
+
+    def is_on(self, agent: DialedAgent) -> bool:
+        return agent.person in self._record.sensing(agent.room_id, agent.sponsor)
+
+    def switch(self, agent: DialedAgent, *, on: bool) -> None:
+        """Set the sponsor's switch for the agent, which must be joined."""
+        self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=on)
+        self._end_handle_unless_heard(agent.room_id, agent.sponsor)
+
+    def open(self, account: Person, room_id: str, seat: PeerId) -> HearingHandle | HearingRefusal:
+        """The sound session of the seat, which ends an older one; refused when no joined agent hears the seat."""
+        if not self._record.sensing(room_id, seat):
+            return HearingRefusal.NOBODY_HEARS
+        self.end_sound(seat)
+        handle = HearingHandle(account, seat, room_id)
+        self._handles[seat] = handle
+        return handle
+
+    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> frozenset[Person]:
+        """The agents that hear the sentence; none for a name or text that is blank or does not encode."""
+        if any(utf8_length(part) is None for part in (name, text)) or not text.strip():
+            return frozenset()
+        return self._record.heard(room_id, seat, name, text, began_at)
+
+    def agent_ended(self, agent: DialedAgent) -> None:
+        """The agent's removal, leave or lease end: it hears nothing more."""
+        self._record.member_ended(agent.room_id, agent.person)
+        self._end_handle_unless_heard(agent.room_id, agent.sponsor)
+
+    def seat_ended(self, room_id: str, seat: PeerId) -> None:
+        """The seat left the call for good."""
+        self._record.speaker_ended(room_id, seat)
+        self.end_sound(seat)
+
+    def end_sound(self, seat: PeerId) -> None:
+        """End the seat's sound session, which a parked seat does without ending the record."""
+        handle = self._handles.pop(seat, None)
+        if handle is not None:
+            handle.ended.set()
+
+    def room_ended(self, room_id: str) -> None:
+        """The call ended or the process shuts down."""
+        self._record.place_ended(room_id)
+        for seat in [seat for seat, handle in self._handles.items() if handle.room_id == room_id]:
+            self.end_sound(seat)
+
+    def _end_handle_unless_heard(self, room_id: str, seat: PeerId) -> None:
+        if not self._record.sensing(room_id, seat):
+            self.end_sound(seat)

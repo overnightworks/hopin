@@ -6,9 +6,12 @@ from typing import NamedTuple
 
 import pytest
 import pytest_asyncio
+from agents.mcp_server.hearing import MemberHearing
 from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECONDS, STANDING_URI
 
+from hopin.agent.hearing import MemberHearingRecord
 from hopin.participation.feature import Participation
+from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
@@ -73,7 +76,24 @@ def group_reads(groups_of_seat):
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads, listeners):
+def hears():
+    """Whether participation lets an agent hear; a module about hearing turns it on."""
+    return False
+
+
+@pytest.fixture
+def member_hearing(scheduler):
+    """The agents library's record of who may hear whom, on the scheduler's clock."""
+    return MemberHearing(now=scheduler.now)
+
+
+@pytest.fixture
+def hearing(member_hearing, hears):
+    return Hearing(MemberHearingRecord(member_hearing), enabled=hears)
+
+
+@pytest.fixture
+def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads, listeners, hearing):
     async def groups_of(connection):
         group_reads.append(connection.account.name)
         groups = groups_of_seat.get(connection.account.name, frozenset())
@@ -99,6 +119,7 @@ def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_
                 groups_of=groups_of,
                 figure_sources=(),
                 listens_to_standing=lambda person: person in listeners,
+                hearing=hearing,
             )
         ],
     )
