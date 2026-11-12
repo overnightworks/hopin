@@ -176,7 +176,7 @@ async function settled() {
 }
 
 describe("installing the game", () => {
-    it("adds Start quiz and the privacy note to More, and resolves", async () => {
+    it("adds the start button and the privacy note to More, and resolves", async () => {
         const game = await installedGame();
 
         expect(game.moreItems.map((item) => item.tagName)).toEqual(["BUTTON", "P", "BUTTON"]);
@@ -185,7 +185,7 @@ describe("installing the game", () => {
     });
 });
 
-describe("Start quiz in More", () => {
+describe("the start button in More", () => {
     it("asks the game master to start and then waits for its answer", async () => {
         const game = await installedGame();
         expect(game.startButton.disabled).toBe(false);
@@ -354,7 +354,7 @@ describe("refusals", () => {
         ]);
     });
 
-    it("GM-13: unlocks Start quiz after a refusal", async () => {
+    it("GM-13: unlocks the start button after a refusal", async () => {
         const game = await installedGame();
         game.startButton.click();
         expect(game.startButton.disabled).toBe(true);
@@ -394,7 +394,7 @@ describe("a quiz that ended because someone left", () => {
 });
 
 describe("a call that is not connected", () => {
-    it("sends nothing from Start quiz", async () => {
+    it("sends nothing from the start button", async () => {
         const game = await installedGame({ connected: false });
 
         game.startButton.click();
