@@ -28,12 +28,19 @@ export type AgentFigure = (typeof AGENT_FIGURE)[keyof typeof AGENT_FIGURE];
 /** Draws the figure at the same-origin `path` into `host` and reports whether it is `DRAWN` or `ENDED`; the tile shows its symbol until `DRAWN`. The returned stop takes the figure away and is the last the drawer reports. */
 export type AgentFigureDrawer = (host: HTMLElement, path: string, show: (figure: AgentFigure) => void) => () => void;
 
-/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it. */
+/** The switch on an agent's tile that lets the agent hear the person: the tile shows `on` and hands each press, as the value it asks for, to `onChange`; it holds no state of its own. */
+export interface AgentHearing {
+    on: boolean;
+    onChange: (on: boolean) => void;
+}
+
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it; a tile with `hearing` carries the person's switch for the agent. */
 export interface AgentTile {
     name: string;
     activity: AgentActivity;
     sponsor?: string;
     figure?: string;
+    hearing?: AgentHearing;
     onRemove?: () => void;
 }
 

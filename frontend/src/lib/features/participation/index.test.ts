@@ -218,6 +218,108 @@ describe("dialed-in agents", () => {
     });
 });
 
+describe("the sponsor's hearing switch on an agent's tile", () => {
+    const hearingOf = (page: Awaited<ReturnType<typeof installedParticipation>>, agentId = "a1") =>
+        page.tiles.get(`agent-${agentId}`)?.hearing;
+
+    it("CALL-57: shows no switch on a tile whose agent's hearing frame never came", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        expect(hearingOf(page)).toBeUndefined();
+    });
+
+    it.each([true, false])("CALL-57: shows the server's record as the switch, on being %s", async (on) => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on });
+
+        expect(hearingOf(page)?.on).toBe(on);
+    });
+
+    it("CALL-57: keeps the tile's other fields when the record arrives", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, { ...joined(ME), figure: "/api/participation/figures/abc" });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
+
+        const tile = page.tiles.get("agent-a1");
+        expect([tile?.name, tile?.sponsor, tile?.figure, typeof tile?.onRemove]).toEqual([
+            "Claude",
+            "Ada",
+            "/api/participation/figures/abc",
+            "function",
+        ]);
+    });
+
+    it("CALL-57: sends the new value on a press and shows what the server answers, never its own flip", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
+
+        hearingOf(page)?.onChange(false);
+        const beforeTheAnswer = hearingOf(page)?.on;
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: false });
+
+        expect([page.sent, beforeTheAnswer, hearingOf(page)?.on]).toEqual([
+            [{ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: "a1", on: false }],
+            true,
+            false,
+        ]);
+    });
+
+    it("CALL-57: gives each agent its own record", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
+
+        expect([hearingOf(page, "a1")?.on, hearingOf(page, "a2")]).toEqual([true, undefined]);
+    });
+
+    it("CALL-57: keeps the record when the same agent is announced again", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+
+        expect(hearingOf(page)?.on).toBe(true);
+    });
+
+    it("CALL-57: shows no switch for an agent that is no longer on the stage", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
+
+        expect(page.tiles.size).toBe(0);
+    });
+
+    it("CALL-57: shows no switch on an agent announced again to a new seat until that seat's record comes", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
+
+        page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        expect(hearingOf(page)).toBeUndefined();
+    });
+});
+
 describe("calling an agent that has an account of its own", () => {
     const offered = (name: string, pending = false, key = "k1") => ({ agent_key: key, name, pending });
     const names = (page: Awaited<ReturnType<typeof installedParticipation>>) =>

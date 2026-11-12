@@ -28,6 +28,17 @@ interface AgentLeftFrame {
     agent_id: string;
 }
 
+interface AgentHearingFrame {
+    agent_id: string;
+    on: boolean;
+}
+
+interface ShownAgent {
+    readonly joined: AgentJoinedFrame;
+    // The server's record of the sponsor's switch; absent until its frame comes, which only the sponsor gets.
+    readonly hearing?: boolean;
+}
+
 interface AgentOffersFrame {
     shown: boolean;
     offers: Offer[];
@@ -52,20 +63,28 @@ export async function install(core: FeatureCore): Promise<void> {
     const kitWords = await loadKitWords(sourceLanguage);
     let seatId = "";
     let isHost = false;
-    const shown = new Set<string>();
+    const shown = new Map<string, ShownAgent>();
 
     function mayRemove(frame: AgentJoinedFrame) {
         return isHost || frame.sponsor_id === seatId;
     }
 
-    function show(frame: AgentJoinedFrame) {
-        shown.add(frame.agent_id);
+    function draw({ joined: frame, hearing }: ShownAgent) {
         core.showAgentTile(
             {
                 name: frame.name,
                 activity: AGENT_ACTIVITY.PRESENT,
                 sponsor: frame.sponsor,
                 figure: frame.figure,
+                hearing:
+                    hearing === undefined
+                        ? undefined
+                        : {
+                              on: hearing,
+                              onChange: (on: boolean) => {
+                                  core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
+                              },
+                          },
                 onRemove: mayRemove(frame)
                     ? () => {
                           core.send({ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: frame.agent_id });
@@ -74,6 +93,20 @@ export async function install(core: FeatureCore): Promise<void> {
             },
             tileKey(frame.agent_id),
         );
+    }
+
+    function show(frame: AgentJoinedFrame) {
+        const agent: ShownAgent = { joined: frame, hearing: shown.get(frame.agent_id)?.hearing };
+        shown.set(frame.agent_id, agent);
+        draw(agent);
+    }
+
+    function showHearing(frame: AgentHearingFrame) {
+        const agent = shown.get(frame.agent_id);
+        if (agent === undefined) return;
+        const recorded = { ...agent, hearing: frame.on };
+        shown.set(frame.agent_id, recorded);
+        draw(recorded);
     }
 
     const offers = document.createElement("div");
@@ -125,7 +158,7 @@ export async function install(core: FeatureCore): Promise<void> {
         seatId = frame.participant_id;
         isHost = frame.is_host;
         // The server announces every agent still in the room to a new seat; one it does not announce has left.
-        for (const agentId of shown) hide(agentId);
+        for (const agentId of shown.keys()) hide(agentId);
         clearOffers();
     };
     core.on(SIGNAL_TYPE.ROOM_CREATED, seated);
@@ -134,6 +167,7 @@ export async function install(core: FeatureCore): Promise<void> {
     core.on(PARTICIPATION_SIGNAL.AGENT_LEFT, (frame: AgentLeftFrame) => {
         hide(frame.agent_id);
     });
+    core.on(PARTICIPATION_SIGNAL.AGENT_HEARING, showHearing);
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: AgentLineFrame) => {
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
@@ -146,7 +180,7 @@ export async function install(core: FeatureCore): Promise<void> {
         }
     });
     core.onCallEnded(() => {
-        for (const agentId of shown) hide(agentId);
+        for (const agentId of shown.keys()) hide(agentId);
         clearOffers();
     });
 }
