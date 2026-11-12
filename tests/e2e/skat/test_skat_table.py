@@ -48,6 +48,20 @@ VIDEOS_ARE_THE_TAGGED_ONES = """() => {
 }"""
 REMOVE_BUTTON_PHONE_PIXELS = 24
 FIRST_REMOTE_TIME = "() => document.querySelector('#videoGrid .tile:not(.self) video').currentTime"
+PLACEHOLDER_FITS = """async (field) => {
+    await document.fonts.ready;
+    const style = getComputedStyle(field);
+    const sentence = document.createElement("span");
+    sentence.style.font = style.font;
+    sentence.style.position = "absolute";
+    sentence.style.whiteSpace = "pre";
+    sentence.textContent = field.placeholder;
+    document.body.append(sentence);
+    const sentenceWidth = sentence.getBoundingClientRect().width;
+    sentence.remove();
+    const roomWidth = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return sentenceWidth <= roomWidth;
+}"""
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -249,6 +263,17 @@ def test_the_item_is_not_offered_while_a_table_is_shown(
 
     expect(open_more(host).locator(SHOW_ITEM)).to_be_hidden()
     expect(host.locator(LINK_FIELD)).to_be_hidden()
+
+
+def test_the_link_field_has_room_for_its_whole_placeholder_on_a_desktop(
+    open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str]
+) -> None:
+    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+
+    open_more(host).locator(SHOW_ITEM).click()
+
+    expect(host.locator(LINK_FIELD)).to_be_visible()
+    assert host.eval_on_selector(LINK_FIELD, PLACEHOLDER_FITS)
 
 
 def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referrer(
