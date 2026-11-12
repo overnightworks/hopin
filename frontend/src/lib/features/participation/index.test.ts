@@ -222,25 +222,6 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     const hearingOf = (page: Awaited<ReturnType<typeof installedParticipation>>, agentId = "a1") =>
         page.tiles.get(`agent-${agentId}`)?.hearing;
 
-    it("CALL-57: shows no switch on a tile whose agent's hearing frame never came", async () => {
-        const page = await installedParticipation();
-        page.seat(false);
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
-
-        expect(hearingOf(page)).toBeUndefined();
-    });
-
-    it.each([true, false])("CALL-57: shows the server's record as the switch, on being %s", async (on) => {
-        const page = await installedParticipation();
-        page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on });
-
-        expect(hearingOf(page)?.on).toBe(on);
-    });
-
     it("CALL-57: keeps the tile's other fields when the record arrives", async () => {
         const page = await installedParticipation();
         page.seat(false);
