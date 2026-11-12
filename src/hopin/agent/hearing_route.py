@@ -136,36 +136,36 @@ async def _close_unopened(websocket: WebSocket, code: HearingClose) -> None:
 
 
 def _log_ended(outcome: UtteranceOutcome) -> None:
-    code: str | None = None
-    match outcome:
-        case Closed():
-            ended = "closed"
-        case Refused(code=refusal_code):
-            ended = "refused"
-            code = None if refusal_code is None else refusal_code.value
-        case ServiceFailed(code=failure_code):
-            ended = "service_failed"
-            code = failure_code.value
-        case Busy():
-            ended = "busy"
-        case OverCap():
-            ended = "over_cap"
-        case Malformed():
-            ended = "malformed"
-        case PastDeadline():
-            ended = "past_deadline"
-        case Cut():
-            ended = "cut"
-        case Unreachable():
-            ended = "unreachable"
-        case BrowserLeft():
-            ended = "browser_left"
-        case AppEnded():
-            ended = "app_ended"
-        case RuleBroken(close=hop_close):
-            ended = "rule_broken"
-            code = hop_close.name.lower()
-        case _:  # pragma: no cover - the type checker proves the match exhaustive
-            assert_never(outcome)
+    ended, code = _ending_of(outcome)
     # Only closed codes: the sound, the text and a token never reach a log.
     logger.info("agent_hearing_ended", outcome=ended, **({} if code is None else {"code": code}))
+
+
+def _ending_of(outcome: UtteranceOutcome) -> tuple[str, str | None]:
+    match outcome:
+        case Closed():
+            return "closed", None
+        case Refused(code=refusal_code):
+            return "refused", None if refusal_code is None else refusal_code.value
+        case ServiceFailed(code=failure_code):
+            return "service_failed", failure_code.value
+        case Busy():
+            return "busy", None
+        case OverCap():
+            return "over_cap", None
+        case Malformed():
+            return "malformed", None
+        case PastDeadline():
+            return "past_deadline", None
+        case Cut():
+            return "cut", None
+        case Unreachable():
+            return "unreachable", None
+        case BrowserLeft():
+            return "browser_left", None
+        case AppEnded():
+            return "app_ended", None
+        case RuleBroken(close=hop_close):
+            return "rule_broken", hop_close.name.lower()
+        case _:  # pragma: no cover - the type checker proves the match exhaustive
+            assert_never(outcome)

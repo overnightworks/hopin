@@ -314,15 +314,6 @@ class ParticipationFeature:
         scheduler: Scheduler,
         transaction: SignInTransaction,
     ) -> BuiltParticipationFeature:
-        resource = ProtectedResource(
-            url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
-            scope=MCP_SCOPE,
-            required_group=MCP_GROUP,
-            agent_group=AGENT_GROUP,
-            authorized_parties=AuthorizedParties(frozenset({MCP_CLIENT_ID})),
-            admits_client_audience=True,
-            transaction=transaction,
-        )
         built = _BuiltParticipation(
             scheduler,
             auth_config.wall_clock,
@@ -331,12 +322,7 @@ class ParticipationFeature:
             self.figure_sources,
             hears=self.hearing is not None,
         )
-        hearing_tokens = HearingTokens(
-            () if self.hearing is None else (self.hearing.audience_scope,),
-            lease_seconds=LEASE_SECONDS,
-            scheduler=scheduler,
-            wall_clock=auth_config.wall_clock,
-        )
+        hearing_tokens = self._hearing_tokens(scheduler, auth_config)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         front = McpPersonFront(
             [_as_person_tool(tool) for tool in participation_tools(built.current)],
@@ -373,4 +359,21 @@ class ParticipationFeature:
                 scheduler=scheduler,
             )
             router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
-        return BuiltParticipationFeature(built.build, router, resource)
+        return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+
+    def _resource(self, transaction: SignInTransaction) -> ProtectedResource:
+        return ProtectedResource(
+            url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
+            scope=MCP_SCOPE,
+            required_group=MCP_GROUP,
+            agent_group=AGENT_GROUP,
+            authorized_parties=AuthorizedParties(frozenset({MCP_CLIENT_ID})),
+            admits_client_audience=True,
+            transaction=transaction,
+        )
+
+    def _hearing_tokens(self, scheduler: Scheduler, auth_config: WebAuthConfig) -> HearingTokens:
+        scopes = () if self.hearing is None else (self.hearing.audience_scope,)
+        return HearingTokens(
+            scopes, lease_seconds=LEASE_SECONDS, scheduler=scheduler, wall_clock=auth_config.wall_clock
+        )

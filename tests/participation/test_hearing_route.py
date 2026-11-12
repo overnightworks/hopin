@@ -24,6 +24,7 @@ from hopin.agent import hearing_route
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SignalType
+from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HEARING_PATH, HearingClose, HearingRefusal, ParticipationSignal
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
@@ -182,6 +183,33 @@ class TestAFinishedSentence:
             closed_with(socket)
 
         assert entries_of(sponsored) == []
+
+    def test_call_58_a_sentence_began_at_the_moment_the_hop_opened_plus_its_position_in_the_sound(
+        self, sponsored, fake_speech, monkeypatch
+    ):
+        """CALL-58: The record reads the scheduler's clock, so the start is that clock at the hop's opening plus the
+        service's position; a sentence without a position begins where the one before it ended."""
+        began = []
+        heard = Participation.heard
+
+        def recording(participation, seat, text, began_at):
+            began.append((text, began_at))
+            heard(participation, seat, text, began_at)
+
+        monkeypatch.setattr(Participation, "heard", recording)
+        sponsored.call.pass_time(40)
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            session = fake_speech.next_session()
+            for event in (
+                *a_sentence("Erster", started_ms=500, stopped_ms=900),
+                *a_sentence("Zweiter", started_ms=None, stopped_ms=None),
+            ):
+                session.say(event)
+            session.hang_up()
+            closed_with(socket)
+
+        assert began == [("Erster", pytest.approx(40.5)), ("Zweiter", pytest.approx(40.9))]
 
     def test_call_58_two_sentences_enter_in_the_order_they_were_heard(self, sponsored, fake_speech):
         with hop(sponsored) as socket:
