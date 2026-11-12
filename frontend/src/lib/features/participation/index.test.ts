@@ -74,9 +74,6 @@ async function installedParticipation() {
                 .at(0)?.textContent,
         shown: () => onThePage().some((item) => item.textContent !== ""),
         focused: () => moreItems.find((item) => item.contains(document.activeElement)),
-        personClosesMore: () => {
-            more.dispatchEvent(new Event("close"));
-        },
         endCall: () => {
             callEndedHooks.forEach((hook) => {
                 hook();
@@ -311,25 +308,27 @@ describe("calling an agent that has an account of its own", () => {
         expect(page.alert()).toBeTruthy();
     });
 
-    it("CALL-51: shows a refusal that comes with the frame taking the control away", async () => {
+    it("CALL-51: takes a refusal away when an offers frame arrives after it", async () => {
         const page = await installedParticipation();
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.BUSY });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, {
+            shown: true,
+            offers: [offered("Mozart"), offered("Haydn", false, "k2")],
+        });
 
-        expect(page.alert()).toBeTruthy();
+        expect(page.alert()).toBeUndefined();
     });
 
-    it("CALL-51: takes a refusal away when the person closes More, with the control that only held it", async () => {
+    it("CALL-51: keeps a refusal that follows the offers frame taking the control away", async () => {
         const page = await installedParticipation();
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
 
-        page.personClosesMore();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ADDER });
 
-        expect([page.shown(), page.alert()]).toEqual([false, undefined]);
+        expect(page.alert()).toBeTruthy();
     });
 
     it("takes the refusal away when the person calls again", async () => {
