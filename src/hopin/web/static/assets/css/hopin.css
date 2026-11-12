@@ -464,6 +464,8 @@ button, input, textarea { font-family: inherit; }
         padding: 0 12px;
         font-size: 14.5px;
     }
+    /* The own tile rests 14px in from the right edge, 104px wide, and the pill starts 16px in: the pill ends 8px before it. */
+    .stage[data-count="2"]:not([data-surface]) .tile:not(.self) .name { max-width: calc(100% - 142px); }
     .stage[data-count="2"]:not([data-surface]) .tile.self {
         position: absolute;
         width: 104px;

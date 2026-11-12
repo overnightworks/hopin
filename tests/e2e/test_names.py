@@ -24,6 +24,7 @@ pytestmark = pytest.mark.e2e
 HOME_HEADING = "#homeGreeting"
 TILE_NAME = f"{OTHER_TILE} .name"
 TILE_NAME_TEXT = f"{TILE_NAME} .name-text"
+SELF_TILE = "#videoGrid .tile.self"
 CHAT_SENDER = "#chatMessages .chat-msg.other .chat-sender"
 MARKUP_NAME = "<b>x</b>"
 # Long enough to overflow the label at 390 and at 1280 px in a call of two.
@@ -45,6 +46,19 @@ def box_inside(inner: Locator, outer: Locator) -> bool:
         and inner_box["x"] + inner_box["width"] <= outer_box["x"] + outer_box["width"]
         and outer_box["y"] <= inner_box["y"]
         and inner_box["y"] + inner_box["height"] <= outer_box["y"] + outer_box["height"]
+    )
+
+
+def boxes_overlap(first: Locator, second: Locator) -> bool:
+    first_box = first.bounding_box()
+    second_box = second.bounding_box()
+    assert first_box is not None
+    assert second_box is not None
+    return (
+        first_box["x"] < second_box["x"] + second_box["width"]
+        and second_box["x"] < first_box["x"] + first_box["width"]
+        and first_box["y"] < second_box["y"] + second_box["height"]
+        and second_box["y"] < first_box["y"] + first_box["height"]
     )
 
 
@@ -167,7 +181,7 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
 
 
 @BOTH_FORM_FACTORS
-def test_a_long_name_ends_with_an_ellipsis_inside_its_tile_label(
+def test_a_long_name_ends_with_an_ellipsis_in_a_label_that_clears_the_own_tile(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict
 ) -> None:
     host = record_page_errors(open_person(username="anna", **form_factor), page_errors)
@@ -178,6 +192,7 @@ def test_a_long_name_ends_with_an_ellipsis_inside_its_tile_label(
 
     assert host.locator(TILE_NAME_TEXT).evaluate(CUT_WITH_ELLIPSIS)
     assert box_inside(host.locator(TILE_NAME), host.locator(OTHER_TILE))
+    assert not boxes_overlap(host.locator(TILE_NAME), host.locator(SELF_TILE))
 
 
 def test_home_keeps_the_unnamed_greeting_when_the_account_answer_fails(
