@@ -19,6 +19,7 @@ pytestmark = pytest.mark.e2e
 
 LEAVE = "#leaveBtn"
 BYSTANDER_QUIET_SECONDS = 2
+NO_OFFER_QUIET_SECONDS = 2
 LAPSE_WITHIN_MILLISECONDS = (LISTEN_ALLOWANCE_SECONDS + 10) * 1000
 
 
@@ -54,6 +55,7 @@ def test_an_agent_with_a_lease_and_no_listen_is_offered_to_nobody(scene_of: Call
     assert scene.agent.standings() == []
 
     open_more(scene.member)
+    scene.member.wait_for_timeout(NO_OFFER_QUIET_SECONDS * 1000)
 
     expect(scene.offers_on(scene.member)).to_have_count(0)
 
