@@ -1,0 +1,8 @@
+claim_id = "9aa3949943264c8989a4a0a4c42d47a0"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "963c79db926c643735fba06ab882f118f37f0d3d"
+branch = "claude/issue-727-the-game-master-speaks-through-speech-0"
+scope = ["README.md", "pyproject.toml", "src/hopin/agent", "tests/e2e/game", "tests/game", "uv.lock"]
+opened_commit = "890421b107486b50352c44998f449dbe012a711d"
+whole_reason = "The pin, the lock, the setting with its README row and the tests that name the voice change together."
