@@ -1,7 +1,7 @@
 """Write the browser's typed copies of the wire vocabulary: the core's, and each feature's beside the feature.
 
 The Python enums and constants own the vocabulary; this generator renders them as
-TypeScript string enums and typed constants. `--check` writes nothing and fails when a
+TypeScript string and integer enums and typed constants. `--check` writes nothing and fails when a
 committed file differs from the rendering or is missing, so CI catches drift.
 """
 
