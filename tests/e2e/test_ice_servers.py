@@ -73,3 +73,21 @@ def test_call_start_with_failing_ice_servers_shows_the_error_and_releases_the_ca
     expect(host.locator("#status")).to_have_text(text("de", "call.statusIceServersFailed", status="500"))
     assert host.evaluate(ACQUIRED_TRACK_COUNT) > 0
     assert host.evaluate(LIVE_TRACK_COUNT) == 0
+
+
+def test_call_start_with_unreadable_ice_servers_shows_the_unexpected_error_and_releases_the_camera(
+    open_person: Callable[..., Page], base_url: str
+) -> None:
+    """CALL-20: Call start with unreadable ice servers shows the unexpected error and releases the camera."""
+    host = open_person(**DESKTOP)
+    host.add_init_script(RECORD_MEDIA_STREAMS)
+
+    def answer_with_a_page(route: Route) -> None:
+        route.fulfill(status=200, content_type="text/html", body="<html>not json</html>")
+
+    host.route(ICE_SERVERS_URL_PATTERN, answer_with_a_page)
+    press_start_call(host, base_url)
+
+    expect(host.locator("#status")).to_have_text(text("de", "call.unexpectedError"))
+    assert host.evaluate(ACQUIRED_TRACK_COUNT) > 0
+    assert host.evaluate(LIVE_TRACK_COUNT) == 0
