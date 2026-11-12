@@ -88,7 +88,7 @@ class HearingTokens:
         release = self._scheduler.call_later(seconds_left, partial(self._release, person, lapses_at))
         self._holdings[person] = _Holding(access_token, lapses_at, release)
 
-    async def _release(self, person: Person, lapses_at: float) -> None:
+    async def _release(self, person: Person, lapses_at: float) -> None:  # NOSONAR(S7503) the scheduler awaits it
         holding = self._holdings.get(person)
         if holding is not None and holding.lapses_at == lapses_at:
             del self._holdings[person]
