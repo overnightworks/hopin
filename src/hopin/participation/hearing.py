@@ -10,12 +10,22 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
-from hopin.participation.chat_window import utf8_length
 from hopin.participation.vocabulary import HearingRefusal
 
 if TYPE_CHECKING:
+    from hopin.participation.chat_window import LineKind
     from hopin.participation.feature import DialedAgent, Person
     from hopin.signaling.frames import PeerId
+
+
+@dataclass(frozen=True)
+class HeardLine:
+    """A finished sentence and the agents that hear it, with the line each of their windows takes."""
+
+    hearers: frozenset[Person]
+    kind: LineKind
+    name: str
+    text: str
 
 
 class HearingRecord(Protocol):
@@ -28,8 +38,9 @@ class HearingRecord(Protocol):
     def sensing(self, room_id: str, seat: PeerId) -> frozenset[Person]:
         """The agents whose switch for the seat is on."""
 
-    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> frozenset[Person]:
-        """The agents that hear a finished sentence the seat said under the name, which began at `began_at`."""
+    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> HeardLine | None:
+        """The agents that hear a finished sentence the seat said under the name, which began at `began_at`, with its
+        line; nothing when the record refuses the sentence as no text that may be heard."""
 
     def member_ended(self, room_id: str, agent: Person) -> None:
         """The agent left the call or was removed from it."""
@@ -90,10 +101,8 @@ class Hearing:
         self._handles[seat] = handle
         return handle
 
-    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> frozenset[Person]:
-        """The agents that hear the sentence; none for a name or text that is blank or does not encode."""
-        if any(utf8_length(part) is None for part in (name, text)) or not text.strip():
-            return frozenset()
+    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> HeardLine | None:
+        """The agents that hear the sentence with its line; nothing for a sentence the record refuses."""
         return self._record.heard(room_id, seat, name, text, began_at)
 
     def agent_ended(self, agent: DialedAgent) -> None:

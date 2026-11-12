@@ -319,10 +319,11 @@ class Participation:
         room_id = self._rooms.room_of(seat)
         if room_id is None:
             return
-        name = self._rooms.name_of(seat)
-        hearers = self._hearing.heard(room_id, seat, name, text, began_at)
+        heard = self._hearing.heard(room_id, seat, self._rooms.name_of(seat), text, began_at)
+        if heard is None:
+            return
         for person, window in self._places.windows_in(room_id).items():
-            if person in hearers and window.append(LineKind.PERSON, name, text, own=False, spoken=True):
+            if person in heard.hearers and window.append(heard.kind, heard.name, heard.text, own=False, spoken=True):
                 self._on_window_changed(person, room_id)
 
     def is_live_agent(self, person: Person) -> bool:

@@ -5,10 +5,12 @@ from typing import TYPE_CHECKING
 from agents.mcp_server.hearing import MemberHearing, Sense, Utterance
 from agents.member import PlaceRef
 from agents.tools import Principal
+from pydantic import ValidationError
 
 from hopin.agent.tools import CALL_KIND
 from hopin.participation.chat_window import LineKind
 from hopin.participation.feature import Person
+from hopin.participation.hearing import HeardLine
 
 if TYPE_CHECKING:
     from hopin.signaling.frames import PeerId
@@ -38,11 +40,21 @@ class MemberHearingRecord:
     def sensing(self, room_id: str, seat: PeerId) -> frozenset[Person]:
         return frozenset(map(_person_of, self._record.sensing(_place_of(room_id), seat, Sense.HEARING)))
 
-    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> frozenset[Person]:
-        utterance = Utterance(
-            place=_place_of(room_id), speaker=seat, kind=LineKind.PERSON.value, name=name, text=text, began_at=began_at
-        )
-        return frozenset(map(_person_of, self._record.heard(utterance).members))
+    def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> HeardLine | None:
+        try:
+            utterance = Utterance(
+                place=_place_of(room_id),
+                speaker=seat,
+                kind=LineKind.PERSON.value,
+                name=name,
+                text=text,
+                began_at=began_at,
+            )
+        except ValidationError:
+            return None
+        heard = self._record.heard(utterance)
+        line = heard.line
+        return HeardLine(frozenset(map(_person_of, heard.members)), LineKind(line.kind), line.name, line.text)
 
     def member_ended(self, room_id: str, agent: Person) -> None:
         self._record.member_ended(_place_of(room_id), _principal_of(agent))
