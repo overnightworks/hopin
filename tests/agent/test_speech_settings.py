@@ -66,5 +66,7 @@ def test_a_malformed_speech_setting_fails_when_the_settings_load_and_echoes_no_i
     assert_refused_without_echo(SpeechSettings, SECRET_SHAPED)
 
 
-def test_an_audience_scope_without_an_origin_leaves_the_voice_off():
+def test_an_audience_scope_without_an_origin_leaves_the_voice_off(speech_environment):
+    speech_environment.delenv("HOPIN_SPEECH__ORIGIN")
+
     assert SpeechSettings(audience_scope="scenario-audience").service is None
