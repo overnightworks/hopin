@@ -456,6 +456,21 @@ class TestTheEnds:
         assert hearers(member_hearing, room_of(host), guest.peer_id) == set()
         assert handle.ended.is_set()
 
+    @pytest.mark.parametrize(
+        "agent_end",
+        [pytest.param(leave_by_the_agent, id="leave"), pytest.param(remove_by_the_host, id="removal")],
+    )
+    async def test_call_57_a_seat_leaving_for_good_after_its_agent_ended_still_reports_its_end(
+        self, participation, recorded, dialed, agent_end
+    ):
+        """CALL-57: The seat's permanent leaving reports `speaker_ended` even when no joined agent is left to sponsor."""
+        host, guest, agent = dialed
+        await agent_end(participation, host, guest, agent)
+
+        await leave_by_the_sponsor(participation, host, guest, agent)
+
+        assert recorded.reported == ["member_ended", "speaker_ended"]
+
     async def test_call_57_the_end_of_an_agents_lease_ends_hearing_at_once(
         self, participation, scheduler, member_hearing, invitation_of
     ):

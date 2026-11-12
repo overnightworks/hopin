@@ -436,13 +436,14 @@ class Participation:
             (person, room_id, place) for person, room_id, place in self._places.entries() if place.sponsor == peer_id
         ]
         if self._rooms.room_of(peer_id) is None:
-            self._views.pop(peer_id, None)
+            view = self._views.pop(peer_id, None)
             for person, room_id, _ in bound:
                 self._places.remove(person, room_id)
             joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
             for agent in joined:
                 self._hearing.agent_ended(agent)
-                self._hearing.seat_ended(agent.room_id, peer_id)
+            if view is not None:
+                self._hearing.seat_ended(view.room_id, peer_id)
             if joined:
                 self._departed[peer_id] = joined
         elif self._rooms.is_parked(peer_id):
