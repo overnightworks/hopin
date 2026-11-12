@@ -48,37 +48,37 @@ function signInAgain() {
     location.assign(`${AUTH_START_PATH}?${new URLSearchParams({ [RETURN_TO_QUERY_PARAMETER]: returnTo })}`);
 }
 
-const UNAVAILABLE_TOAST: RefusalToast = (_frame, kind) => [
-    words["game.unavailableToast"](MASTER_NAME),
-    kind.WARNING,
-    null,
-];
-
-const REFUSAL_TOASTS: Partial<Record<GAME_REFUSAL, RefusalToast>> = {
-    [GAME_REFUSAL.NO_ACCESS]: (_frame, kind) => [words["game.noAccessToast"], kind.LOCKED, null],
-    [GAME_REFUSAL.SIGN_IN_AGAIN]: (_frame, kind) => [
-        words["game.signInAgainToast"](MASTER_NAME),
-        kind.WARNING,
-        { label: words["game.signInButton"], onAct: signInAgain },
-    ],
-    // The game master's busy refusal always carries its wait.
-    [GAME_REFUSAL.BUSY]: (frame, kind) => [
-        words["game.busyRetryToast"](frame.retry_after_seconds as number, MASTER_NAME),
-        kind.WAIT,
-        null,
-    ],
-    [GAME_REFUSAL.BUDGET_SPENT]: (_frame, kind) => [words["game.budgetSpentToast"], kind.LOCKED, null],
-    [GAME_REFUSAL.ALREADY_ANSWERING]: (_frame, kind) => [
-        words["game.alreadyAnsweringToast"](MASTER_NAME),
-        kind.WAIT,
-        null,
-    ],
-    [GAME_REFUSAL.QUIZ_RUNNING]: (_frame, kind) => [words["game.quizRunningToast"], kind.WAIT, null],
-    [GAME_REFUSAL.NOT_STARTER]: (_frame, kind) => [words["game.notStarterToast"], kind.LOCKED, null],
-    [GAME_REFUSAL.NOT_STARTER_OR_HOST]: (_frame, kind) => [words["game.notStarterOrHostToast"], kind.LOCKED, null],
-    [GAME_REFUSAL.ANSWER_CLOSED]: (_frame, kind) => [words["game.answerClosedToast"], kind.LOCKED, null],
-    [GAME_REFUSAL.ANSWER_TOO_LONG]: (_frame, kind) => [words["game.answerTooLongToast"], kind.WARNING, null],
-    [GAME_REFUSAL.UNAVAILABLE]: UNAVAILABLE_TOAST,
+// A switch narrows the frame by its reason, so the busy wait is read without a cast; a keyed table cannot.
+const refusalToast: RefusalToast = (frame, kind) => {
+    switch (frame.reason) {
+        case GAME_REFUSAL.NO_ACCESS:
+            return [words["game.noAccessToast"], kind.LOCKED, null];
+        case GAME_REFUSAL.SIGN_IN_AGAIN:
+            return [
+                words["game.signInAgainToast"](MASTER_NAME),
+                kind.WARNING,
+                { label: words["game.signInButton"], onAct: signInAgain },
+            ];
+        case GAME_REFUSAL.BUSY:
+            return [words["game.busyRetryToast"](frame.retry_after_seconds, MASTER_NAME), kind.WAIT, null];
+        case GAME_REFUSAL.BUDGET_SPENT:
+            return [words["game.budgetSpentToast"], kind.LOCKED, null];
+        case GAME_REFUSAL.ALREADY_ANSWERING:
+            return [words["game.alreadyAnsweringToast"](MASTER_NAME), kind.WAIT, null];
+        case GAME_REFUSAL.QUIZ_RUNNING:
+            return [words["game.quizRunningToast"], kind.WAIT, null];
+        case GAME_REFUSAL.NOT_STARTER:
+            return [words["game.notStarterToast"], kind.LOCKED, null];
+        case GAME_REFUSAL.NOT_STARTER_OR_HOST:
+            return [words["game.notStarterOrHostToast"], kind.LOCKED, null];
+        case GAME_REFUSAL.ANSWER_CLOSED:
+            return [words["game.answerClosedToast"], kind.LOCKED, null];
+        case GAME_REFUSAL.ANSWER_TOO_LONG:
+            return [words["game.answerTooLongToast"], kind.WARNING, null];
+        case GAME_REFUSAL.UNAVAILABLE:
+        default:
+            return [words["game.unavailableToast"](MASTER_NAME), kind.WARNING, null];
+    }
 };
 
 function moreItems() {
@@ -178,8 +178,7 @@ function listen(core: FeatureCore, quiz: Quiz) {
     });
     core.on(GAME_SIGNAL.GAME_REFUSED, (frame: RefusedFrame) => {
         quiz.receiveRefusal(frame);
-        const toastOf = REFUSAL_TOASTS[frame.reason] ?? UNAVAILABLE_TOAST;
-        core.showToast(...toastOf(frame, core.toastKind));
+        core.showToast(...refusalToast(frame, core.toastKind));
     });
     core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
         const text =
