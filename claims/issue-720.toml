@@ -1,0 +1,8 @@
+claim_id = "584821d232b74d5b9ef02eccd42323ff"
+agent = "Claude 550bd1a5-81f1-44fc-9582-d5afb4894119"
+role = "builder"
+base = "a380bd2c51f8373d829eb59500221c9eeaa3c736"
+branch = "claude/issue-720-a-failed-recompute-of-the-offers-after-a"
+scope = ["src/hopin/agent/mcp.py", "tests/participation"]
+opened_commit = "4bce3c29c358d0fe3daebb2de5defa356659a793"
+whole_reason = "The callback and its one test change together; the builder places the test beside the connector's existing ones."
