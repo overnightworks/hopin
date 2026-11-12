@@ -200,7 +200,7 @@ describe("the question card", () => {
 });
 
 describe("answering", () => {
-    it("sends the trimmed answer and marks it sent", () => {
+    it("sends the trimmed answer and marks it sent only together with the count that comes back", () => {
         const { quiz, sent } = seatedQuiz();
         openRound(quiz, 1);
         const card = openCard(quiz);
@@ -209,7 +209,12 @@ describe("answering", () => {
         card.answer("  Paris  ");
 
         expect(sent).toEqual([{ type: GAME_SIGNAL.GAME_ANSWER, text: "Paris" }]);
-        expect(card.sent).toBe(true);
+        expect(card).toMatchObject({ sent: false, status: "" });
+        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        expect(card).toMatchObject({
+            sent: true,
+            status: words["game.answerSentCountStatus"]({ answered: "1", players: "3" }),
+        });
     });
 
     it.each([
@@ -264,6 +269,7 @@ describe("answering", () => {
         openRound(quiz, 1);
         const card = openCard(quiz);
         card.answer("Paris");
+        quiz.receiveAnswerCount({ answered: 1, players: 3 });
         card.answer("Paris, France, ...");
 
         quiz.receiveRefusal({ reason: GAME_REFUSAL.ANSWER_TOO_LONG });
@@ -281,6 +287,7 @@ describe("answering", () => {
         openRound(quiz, 1);
         const card = openCard(quiz);
         card.answer("Paris");
+        quiz.receiveAnswerCount({ answered: 1, players: 3 });
         card.reveal();
         expect(card.locked).toBe(true);
 
