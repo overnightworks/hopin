@@ -16,6 +16,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
+from hopin.errors import RoomNotFoundError
 from hopin.rooms.models import Account
 from hopin.signaling.seats import Peer
 from tests.signaling.support.browsers import (
@@ -254,7 +255,8 @@ class TestParkedHost:
 
         [closed] = guest.frames(SignalType.ROOM_CLOSED)
         assert closed["reason"] == RoomClosedReason.HOST_GONE.value
-        assert room_manager.has_room(host.socket.sent[0]["room_id"]) is False
+        with pytest.raises(RoomNotFoundError):
+            room_manager.get_room(host.socket.sent[0]["room_id"])
 
     async def test_host_resuming_inside_the_window_was_never_away(self, link, scheduler, room_manager):
         host, guest = await host_and_guest(link)
@@ -267,7 +269,7 @@ class TestParkedHost:
         await scheduler.advance(2 * HOST_GRACE_SECONDS)
 
         assert len(guest.socket.sent) == heard_before
-        assert room_manager.has_room(room_id) is True
+        assert room_manager.get_room(room_id).room_id == room_id
 
     async def test_host_account_joining_fresh_after_the_window_is_host_again_and_the_guest_hears_host_back(
         self, link, scheduler
