@@ -1,0 +1,8 @@
+claim_id = "9fe8669842fd4bcf8b3747b2dfab3ace"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "b199ce25e3062699f1ca576458a871b65c3e3807"
+branch = "claude/issue-760-hopin-holds-a-speech-token-for-an-agent"
+scope = [".aco/ahead-of-caller.toml", "docs/ARCHITECTURE.md", "src/hopin/agent/hearing_token.py", "src/hopin/agent/mcp.py", "tests/participation", "tests/support/fake_issuer.py"]
+opened_commit = "f80a4ae56b074a3bdcbf57290978db2b75411599"
+whole_reason = "The holder, its one caller in the lease-renewing front, the fake issuer's exchange grant that proves it, the trust paragraph and the ahead-of-caller entry change together; a holder without its front or its proof is untested secret handling."
