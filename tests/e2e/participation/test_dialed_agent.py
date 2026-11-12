@@ -49,6 +49,8 @@ def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_th
     expect(host.locator(AGENT_TILE + " " + REMOVE)).to_have_count(1)
     expect(bystander.locator(AGENT_TILE + " " + REMOVE)).to_have_count(1)
     expect(guest.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
+    for person in (host, guest, bystander):
+        expect(person.locator(AGENT_TILE + ' [role="switch"]')).to_have_count(0)
 
     bystander.locator(AGENT_TILE + " " + REMOVE).click()
 

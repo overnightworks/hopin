@@ -140,13 +140,15 @@ def running_hopin(
     page_build_directory: Path = BUILD_DIRECTORY,
     *,
     participation: bool = False,
+    hears: bool = False,
     agent_adders: Mapping[str, str] | None = None,
     certificate: tuple[Path, Path] | None = None,
     more_call_features: Sequence[CallFeatureBuilder] = (),
     figure_sources: tuple[FigureSource, ...] = (),
     figure_transport: FigureTransport = get_figure_over_https,
 ) -> Iterator[RunningServer]:
-    """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for;
+    """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for, and with
+    the setting that lets agents hear on when `hears`;
     `agent_adders` maps an owner's subject to the group whose members may add that owner's agent,
     `figure_sources` are where participation may fetch an agent's figure from, through `figure_transport`, and
     `more_call_features` wires further features beside `call_feature`.
@@ -165,7 +167,11 @@ def running_hopin(
             *(
                 (
                     ParticipationFeature(
-                        loopback.sign_in.settings.public_origin, agent_adders or {}, figure_sources, figure_transport
+                        loopback.sign_in.settings.public_origin,
+                        agent_adders or {},
+                        figure_sources,
+                        figure_transport,
+                        hears=hears,
                     ),
                 )
                 if participation

@@ -427,6 +427,32 @@ button, input, textarea { font-family: inherit; }
     .stage[data-surface] .agent-remove { top: 2px; right: 2px; width: 24px; height: 24px; }
     .stage[data-surface] .agent-remove .icon { width: 14px; height: 14px; }
 }
+/* The kit's chip takes the stage accent: the app's own accent is dark in the light theme and would sink into the glass
+   over a dark video. Its narrowest look is the icon and the switch with the label shortened away, 81px: 15px of padding,
+   the 16px icon, two 8px gaps and the 34px switch. */
+.hear-set {
+    --accent: var(--accent-stage);
+    --hear-narrowest: 81px;
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 7;
+    min-width: var(--hear-narrowest);
+    max-width: calc(100% - 64px);
+}
+/* Under 131px the narrowest chip no longer fits beside the remove button (8px, the chip, the button's 32px and its
+   10px), so it moves into the tile's lower right corner, clear of the button; its icon may be cut, its switch stays
+   whole and pressable. */
+@container (max-width: 130.99px) {
+    .hear-set {
+        top: auto;
+        left: auto;
+        right: 2px;
+        bottom: 2px;
+        width: var(--hear-narrowest);
+        max-width: none;
+    }
+}
 .tile.agent .av { color: var(--accent-stage); background: var(--stage-2); box-shadow: inset 0 0 0 2px var(--accent-stage); }
 .agent-activity { position: absolute; left: 50%; top: calc(50% + clamp(22px, 15cqmin, 56px) + 14px); display: flex; gap: 5px; transform: translateX(-50%); }
 .agent-activity i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-stage); }
