@@ -8,8 +8,11 @@ from hopin.config.constants import SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
 from tests.e2e.game.game_page import (
     CARD,
+    GAME_MASTER_NAME,
+    REVEAL,
     end_quiz,
     open_chat,
+    question_progress,
     relaying_frames,
     start_quiz,
 )
@@ -29,13 +32,12 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 AGENT_TILE = "#container-agent"
-AGENT_THINKING = text("de", "tile.agentThinkingLabel", name="Game master")
-AGENT_WAITING = text("de", "tile.agentWaitingLabel", name="Game master")
+AGENT_THINKING = text("de", "tile.agentThinkingLabel", name=GAME_MASTER_NAME)
+AGENT_WAITING = text("de", "tile.agentWaitingLabel", name=GAME_MASTER_NAME)
 STAGE = "#stage"
 CALL_PLACES = 6
-REVEAL = "Reveal"
 IN_CALL = text("de", "call.statusInCall")
-NO_AI_ACCESS = "Your account has no AI access."
+NO_AI_ACCESS = text("de", "game.noAccessToast")
 
 
 @pytest.fixture
@@ -154,7 +156,7 @@ def test_the_tile_goes_for_everyone_when_the_fifth_round_ends_the_quiz(
 
     for number in range(1, QUIZ_ROUNDS + 1):
         for person in (host, guest):
-            expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(f"Question {number} of {QUIZ_ROUNDS}")
+            expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(question_progress(number))
         guest.locator(CARD).get_by_role("button", name=REVEAL).click()
 
     for person in (host, guest):
