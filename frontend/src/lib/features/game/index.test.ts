@@ -349,9 +349,8 @@ describe("refusals", () => {
 
         game.emit(GAME_SIGNAL.GAME_REFUSED, { reason: GAME_REFUSAL.BUSY, retry_after_seconds: seconds });
 
-        expect(game.toasts).toMatchObject([
-            { text: words["game.busyRetryToast"](seconds, master), kind: TOAST_KIND.WAIT },
-        ]);
+        const text = words["game.busyRetryToast"](seconds, master);
+        expect(game.toasts).toMatchObject([{ text, kind: TOAST_KIND.WAIT }]);
     });
 
     it("GM-13: unlocks the start button after a refusal", async () => {
