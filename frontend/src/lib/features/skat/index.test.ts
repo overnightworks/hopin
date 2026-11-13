@@ -37,6 +37,7 @@ async function installedSkat() {
         pinLastChatLine: () => undefined,
         showChatCard: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
+        onMicrophone: () => undefined,
     };
     await install(core);
     const [item] = moreItems as [HTMLElement];
