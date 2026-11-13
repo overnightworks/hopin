@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from agents.member import INVITATION_SECONDS, LEASE_SECONDS
 
-from hopin.config.constants import SignalType
+from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.participants import DialedAgent
 from hopin.participation.places import PlaceState
 from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
@@ -21,7 +21,7 @@ from tests.participation.support.own_accounts import (
     offers_sent_to,
 )
 from tests.participation.support.people import person_named
-from tests.signaling.support.browsers import HeldWrite
+from tests.signaling.support.browsers import HeldClose, HeldWrite
 from tests.support.signaling_fakes import ROOM_LIMIT, text_frame
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -219,6 +219,20 @@ class TestAnInvitation:
             InvitationOutcome.OWNER_ABSENT.value,
             True,
         )
+
+    async def test_a_room_that_ends_while_its_owners_cleanup_is_pending_tells_the_adder_nothing(
+        self, invited, scheduler
+    ):
+        invited.owner.socket.account = None
+        closing = HeldClose(invited.owner.socket)
+        ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
+        await closing.reached()
+
+        invited.participation.room_ended(invited.owner.room_id)
+        closing.release.set()
+        await ending
+
+        assert invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED) == []
 
     async def test_a_decline_ends_it_as_busy_for_the_adder_alone(self, invited):
         """CALL-52: A standing decline ends the invitation at once, tells the seat that made it, and no other, the
