@@ -2,8 +2,9 @@
 
 A joined agent's place holds its chat window and the times of its recent lines, which go with the place.
 
-The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal, a
-withdrawal or an expiry raises the epoch of its (agent, room), so an invitation made before it is stale.
+The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal or a
+withdrawal raises the epoch of its (agent, room), so an invitation made before it is stale. An invitation's
+expiry or decline leaves the epoch as it is: a new invitation is a new id.
 """
 
 from dataclasses import dataclass
