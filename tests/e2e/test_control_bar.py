@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
+from hopin.words import text
 from tests.e2e.support.calls import join, open_call, open_host, press_start_call, record_page_errors
 from tests.e2e.support.media import (
     ICE_SERVERS_URL_PATTERN,
@@ -15,7 +16,6 @@ from tests.e2e.support.media import (
 )
 from tests.e2e.support.page_assertions import CLIPBOARD_ALLOWED
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -4,6 +4,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.game.vocabulary import GameSignal
+from hopin.words import text
 from tests.e2e.game.game_page import (
     CARD,
     GAME_MASTER_NAME_GAP,
@@ -16,7 +17,6 @@ from tests.e2e.game.game_page import (
 from tests.e2e.support.calls import open_more
 from tests.e2e.support.page_assertions import TOASTS
 from tests.game.support.fake_agent_backend import Fails, Holds
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
+from hopin.words import text
 from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
@@ -36,7 +37,6 @@ from tests.e2e.support.media import (
     wait_for_video_tracks,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable

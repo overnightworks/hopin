@@ -86,10 +86,10 @@ runtime-evaluated-decorators = ["fastapi.APIRouter.api_route", "fastapi.APIRoute
     "ARG",     # allow unused arguments in fixtures
 ]
 # design-catalogs writes this module; its lines are as long as the sentences they carry.
-"tests/support/words.py" = ["E501"]
+"src/hopin/words.py" = ["E501"]
 
 [tool.design-catalogs]
-python = "tests/support/words.py"
+python = "src/hopin/words.py"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -146,6 +146,8 @@ branch = true
 # The unit and end-to-end runs happen on different runners; relative paths
 # let their data combine.
 relative_files = true
+# design-catalogs writes this module and design tests its lookup; hopin owns none of its logic.
+omit = ["src/hopin/words.py"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -181,9 +183,9 @@ containers = ["hopin"]
 # serves participation over MCP, and neither knows it. The person export
 # joins sign-in's sessions with signaling's seats, so `people` sits above both.
 # Sign-in sits above the web routes it guards, the routes above the signaling and
-# room services they are handed, and `config` is the floor every package reads.
+# room services they are handed, and `config` and `words` (the catalog's generated sentences) are the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "(agent)", "(game) | (participation) | (skat)", "people", "auth", "web", "signaling", "rooms", "errors", "config"]
+layers = ["main", "app", "(agent)", "(game) | (participation) | (skat)", "people", "auth", "web", "signaling", "rooms", "errors", "config | words"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"

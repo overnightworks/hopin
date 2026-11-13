@@ -407,6 +407,10 @@ msgctxt "account.unnamedRowName"
 msgid "Du"
 msgstr ""
 
+msgctxt "signIn.logOutButton"
+msgid "Abmelden"
+msgstr ""
+
 msgctxt "tile.removeButton"
 msgid "Entfernen"
 msgstr ""

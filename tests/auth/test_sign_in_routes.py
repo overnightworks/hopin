@@ -19,7 +19,6 @@ from webauth.dependencies import ConnectionRefusal, admit_session, session_id_fr
 from webauth.ports import AccountEventKind, AccountKind
 
 from hopin.auth.sign_in import (
-    LOGOUT_LABEL,
     IssuerTransports,
     LoggingAuditSink,
     build_relying_party,
@@ -39,6 +38,7 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
+from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
@@ -324,10 +324,11 @@ class TestMemberSignIn:
 
 
 class EndSessionPage(HTMLParser):
-    """The form webauth's logout page posts: its action, hidden fields and button text."""
+    """The form webauth's logout page posts: its language, action, hidden fields and button text."""
 
     def __init__(self, markup: str) -> None:
         super().__init__()
+        self.language = ""
         self.action = ""
         self.fields: dict[str, str] = {}
         self.button_label = ""
@@ -336,7 +337,9 @@ class EndSessionPage(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
-        if tag == "form":
+        if tag == "html":
+            self.language = attributes["lang"]
+        elif tag == "form":
             self.action = attributes["action"]
         elif tag == "input":
             self.fields[attributes["name"]] = attributes["value"]
@@ -370,7 +373,8 @@ class TestLogout:
             "post_logout_redirect_uri": TEST_PUBLIC_ORIGIN + LOGIN_PATH,
             "id_token_hint": id_token,
         }
-        assert page.button_label == LOGOUT_LABEL
+        assert page.language == "de"
+        assert page.button_label == text("de", "signIn.logOutButton")
         assert harness.sessions.load(session_id) is None
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]

@@ -6,6 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from hopin.config.constants import SignalType
+from hopin.words import text
 from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import (
     COUNT_OFFERS,
@@ -19,7 +20,6 @@ from tests.e2e.support.signaling import (
     RECONNECT_DELAYS_MS,
     RECORD_SOCKETS,
 )
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

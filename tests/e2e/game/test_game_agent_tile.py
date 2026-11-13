@@ -6,6 +6,7 @@ from playwright.sync_api import Page, expect
 
 from hopin.config.constants import SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
+from hopin.words import text
 from tests.e2e.game.game_page import (
     CARD,
     GAME_MASTER_NAME,
@@ -20,7 +21,6 @@ from tests.e2e.support.calls import join, open_call, press_through_the_prejoin
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector, wait_for_status
 from tests.e2e.support.people import DESKTOP
 from tests.game.support.fake_agent_backend import Holds, Rejects, Succeeds
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

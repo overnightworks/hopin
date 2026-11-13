@@ -18,6 +18,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.errors import NotHostError
+from hopin.words import text
 from tests.e2e.support.calls import (
     add_init_scripts,
     call_link_of,
@@ -48,7 +49,6 @@ from tests.e2e.support.media import (
 from tests.e2e.support.page_assertions import expect_both_legal_links_in_the_profile_menu, expect_no_legal_footer
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.e2e.support.signaling import RECONNECT_DELAYS_MS, FrameInjector
-from tests.support.words import text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
