@@ -86,25 +86,20 @@ class Seat:
 
 
 @pytest.fixture
-def seat(
-    scene_of: Callable[[dict[str, Any]], Scene],
-    own_account_agent: OwnAccountAgent,
-    second_own_account_agent: OwnAccountAgent,
-    fake_speech: FakeSpeech,
-    form_factor: dict[str, Any],
-) -> Seat:
-    return Seat(scene_of(form_factor), own_account_agent, second_own_account_agent, fake_speech)
-
-
-@pytest.fixture
-def owners_own_seat(
+def seat_of(
     scene_of: Callable[..., Scene],
     own_account_agent: OwnAccountAgent,
     second_own_account_agent: OwnAccountAgent,
     fake_speech: FakeSpeech,
     form_factor: dict[str, Any],
-) -> Seat:
-    return Seat(scene_of(form_factor, owner_adds=True), own_account_agent, second_own_account_agent, fake_speech)
+) -> Callable[..., Seat]:
+    """Builds the seat of a member who adds both agents, or with `owner_adds` the owner from their own seat."""
+
+    def build(*, owner_adds: bool = False) -> Seat:
+        scene = scene_of(form_factor, owner_adds=owner_adds)
+        return Seat(scene, own_account_agent, second_own_account_agent, fake_speech)
+
+    return build
 
 
 def wait_for_sentence(seat: Seat, agent: OwnAccountAgent, text: str) -> None:
@@ -112,10 +107,13 @@ def wait_for_sentence(seat: Seat, agent: OwnAccountAgent, text: str) -> None:
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_a_seat_brings_both_of_its_owners_agents_and_each_hears_only_while_its_own_switch_is_on(seat: Seat) -> None:
+def test_a_seat_brings_both_of_its_owners_agents_and_each_hears_only_while_its_own_switch_is_on(
+    seat_of: Callable[..., Seat],
+) -> None:
     """CALL-51, CALL-57: The owner's seat holds both agents of the owner in one call, each tile in every browser;
     with both switches on the sound reaches both, with one off only the other, and with both off the owner's browser
     sends nothing."""
+    seat = seat_of()
     for person in seat.scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(2)
     for agent in (seat.first, seat.second):
@@ -145,10 +143,12 @@ def test_a_seat_brings_both_of_its_owners_agents_and_each_hears_only_while_its_o
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_an_owner_adds_both_of_their_agents_from_their_own_seat_and_both_hear_at_once(owners_own_seat: Seat) -> None:
+def test_an_owner_adds_both_of_their_agents_from_their_own_seat_and_both_hear_at_once(
+    seat_of: Callable[..., Seat],
+) -> None:
     """CALL-51, CALL-57: After the first agent joined, the owner's seat still offers the second, which they add too;
     every browser shows both tiles, and as the owner added them the sound reaches both with no switch pressed."""
-    seat = owners_own_seat
+    seat = seat_of(owner_adds=True)
     for person in seat.scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(2)
     for agent in (seat.first, seat.second):
@@ -161,8 +161,9 @@ def test_an_owner_adds_both_of_their_agents_from_their_own_seat_and_both_hear_at
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_the_other_agent_keeps_hearing_when_one_leaves(seat: Seat) -> None:
+def test_the_other_agent_keeps_hearing_when_one_leaves(seat_of: Callable[..., Seat]) -> None:
     """CALL-57: When one of the two agents leaves, the other keeps hearing the owner."""
+    seat = seat_of()
     seat.switch(seat.first, on=True)
     seat.switch(seat.second, on=True)
     seat.says(SENTENCE)
