@@ -7,6 +7,8 @@ export type PlayerFactory = () => Player;
 export interface AgentVoices {
     /** Queues the voice of the route's id behind the agent's earlier ones; the agent's first voice creates its player. */
     play(agentId: string, voiceId: string): void;
+    /** Ends the agent's playing sound at once and drops its waiting ones, and reports the agent silent; later sounds play. */
+    stop(agentId: string): void;
     /** Closes the agent's player, which ends every sound of it, and reports nothing more for the agent. */
     close(agentId: string): void;
 }
@@ -49,6 +51,9 @@ export function createAgentVoices(
         play(agentId, voiceId) {
             const held = playerOf(agentId);
             void follow(agentId, held, held.player.play(`${VOICE_PATH}/${voiceId}`));
+        },
+        stop(agentId) {
+            players.get(agentId)?.player.stop();
         },
         close(agentId) {
             players.get(agentId)?.player.close();

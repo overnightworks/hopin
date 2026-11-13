@@ -47,6 +47,10 @@ interface AgentVoiceFrame {
     voice_id: string;
 }
 
+interface AgentStopFrame {
+    agent_id: string;
+}
+
 interface AgentOffersFrame {
     shown: boolean;
     full: boolean;
@@ -239,6 +243,9 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     core.on(PARTICIPATION_SIGNAL.AGENT_HEARING, showHearing);
     core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame: AgentVoiceFrame) => {
         if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id);
+    });
+    core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame: AgentStopFrame) => {
+        voices.stop(frame.agent_id);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);

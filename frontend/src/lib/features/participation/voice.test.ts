@@ -114,6 +114,66 @@ describe("whether an agent is speaking", () => {
     });
 });
 
+describe("stopping an agent's voice", () => {
+    it("ends the playing sound and the waiting ones of the agent and reports it silent", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a1", "second");
+        await players.created[0]?.sounds[0]?.start();
+
+        agentVoices.stop("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", false],
+        ]);
+    });
+
+    it("stops only the player of the agent it names", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a2", "second");
+        await players.created[0]?.sounds[0]?.start();
+        await players.created[1]?.sounds[0]?.start();
+
+        agentVoices.stop("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a2", true],
+            ["a1", false],
+        ]);
+    });
+
+    it("plays the voices that arrive after the stop", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        await players.created[0]?.sounds[0]?.start();
+        agentVoices.stop("a1");
+
+        agentVoices.play("a1", "later");
+        await players.created[0]?.sounds[1]?.start();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", false],
+            ["a1", true],
+        ]);
+    });
+
+    it("stops nothing for an agent that never spoke", () => {
+        const { players, agentVoices } = voices();
+
+        agentVoices.stop("a1");
+
+        expect(players.created).toEqual([]);
+    });
+});
+
 describe("closing an agent's player", () => {
     it("closes only the player of the agent that leaves, and the other keeps playing", async () => {
         const { players, reported, agentVoices } = voices();

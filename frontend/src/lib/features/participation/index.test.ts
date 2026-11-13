@@ -434,6 +434,21 @@ describe("an agent's voice", () => {
         ]);
     });
 
+    it("CALL-60: shows the agent present again when the server stops its voice, and plays the voice that follows", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_STOP, { agent_id: "a1" });
+        await Promise.resolve();
+        await Promise.resolve();
+        const afterStop = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "later"));
+        await page.players.created[0]?.sounds[1]?.start();
+
+        expect([afterStop, tileActivities(page)]).toEqual([[AGENT_ACTIVITY.PRESENT], [AGENT_ACTIVITY.SPEAKING]]);
+    });
+
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {
         const page = await pageWithAgents("a1", "a2");
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
