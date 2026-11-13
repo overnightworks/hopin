@@ -263,7 +263,11 @@ class Scene:
         return offer["agent_key"]
 
     def key_of_offer_named(self, name):
-        return next(offer["agent_key"] for offer in self.offered() if offer["name"] == name)
+        """The key of the offer of that name in the next frame that lists it."""
+        while True:
+            for offer in self.offered():
+                if offer["name"] == name:
+                    return offer["agent_key"]
 
     def add(self, key):
         self.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})

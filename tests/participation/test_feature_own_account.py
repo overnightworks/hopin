@@ -115,14 +115,19 @@ def _owner_away(scene, arguments, seat_changes):
     return arguments
 
 
-def _owner_sponsoring_another_agent(scene, arguments, seat_changes):
-    other = scene.call.agent_token(owner=scene.owner_subject, subject="other-agent", agent_name="Codex")
-    scene.call.standing(other)
-    scene.call.listen(other, [STANDING_URI])
-    scene.member.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": scene.key_of_offer_named("Codex")})
-    scene.member.frame_of_type(OFFERS)
-    [invitation] = scene.call.standing(other)
-    assert not scene.call.call(other, ACCEPT_INVITATION_TOOL, accept_arguments(invitation)).is_error
+def _call_holding_two_other_agents(scene, arguments, seat_changes):
+    for number in (1, 2):
+        other = scene.call.agent_token(
+            owner=scene.owner_subject, subject=f"other-agent-{number}", agent_name=f"Codex {number}"
+        )
+        scene.call.standing(other)
+        scene.call.listen(other, [STANDING_URI])
+        scene.member.send(
+            {"type": ParticipationSignal.AGENT_ADD.value, "agent_key": scene.key_of_offer_named(f"Codex {number}")}
+        )
+        scene.member.frame_of_type(OFFERS)
+        [invitation] = scene.call.standing(other)
+        assert not scene.call.call(other, ACCEPT_INVITATION_TOOL, accept_arguments(invitation)).is_error
     return arguments
 
 
@@ -130,7 +135,7 @@ ACCEPT_REFUSALS = {
     "stale_invitation": _another_epoch,
     "two_seats": _owner_on_two_seats,
     "sponsor_away": _owner_away,
-    "busy": _owner_sponsoring_another_agent,
+    "busy": _call_holding_two_other_agents,
 }
 
 

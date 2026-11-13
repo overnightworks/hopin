@@ -127,8 +127,8 @@ def _membership_in(groups: Collection[str] | None, group: str) -> Membership:
 
 
 class Participation:
-    """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group, one per
-    sponsoring seat, up to two per call and 32 in the process."""
+    """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group, whichever
+    seat sponsors them, up to two per call and 32 in the process."""
 
     def __init__(
         self,
@@ -193,7 +193,7 @@ class Participation:
         existing = self._places.get(person, room_id)
         if isinstance(existing, DialedAgent) and existing.sponsor == sponsor:
             return existing
-        if self._is_busy(room_id, sponsor):
+        if self._is_busy(room_id):
             return AgentRefusal.BUSY
         agent = DialedAgent(secrets.token_hex(AGENT_ID_BYTES), agent_name, person, sponsor, room_id)
         self._places.put(person, room_id, agent)
@@ -316,7 +316,7 @@ class Participation:
             return AgentRefusal.TWO_SEATS
         if self._rooms.is_parked(invitation.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        if self._is_busy(room_id, invitation.sponsor):
+        if self._is_busy(room_id):
             return AgentRefusal.BUSY
         refusal = None if figure is None else figure_refusal(self._figure_sources, figure.url)
         agent = DialedAgent(
@@ -542,7 +542,7 @@ class Participation:
             return AgentRefusal.NOT_ADDER
         if self._places.get(live.person, room_id) is not None:
             return AgentRefusal.ALREADY_THERE
-        if self._is_busy(room_id, sponsor):
+        if self._is_busy(room_id):
             return AgentRefusal.BUSY
         return None
 
@@ -662,13 +662,11 @@ class Participation:
             return AgentRefusal.TWO_SEATS
         return seats[0]
 
-    def _is_busy(self, room_id: str, sponsor: PeerId) -> bool:
-        """A seat sponsors one agent, a call holds two and the process 32."""
+    def _is_busy(self, room_id: str) -> bool:
+        """A call holds two agents, whoever sponsors them, and the process 32."""
         joined = self._places.joined()
         in_room = sum(1 for agent in joined if agent.room_id == room_id)
-        return (
-            in_room >= AGENTS_PER_ROOM or len(joined) >= AGENTS_PER_PROCESS or any(a.sponsor == sponsor for a in joined)
-        )
+        return in_room >= AGENTS_PER_ROOM or len(joined) >= AGENTS_PER_PROCESS
 
     def _in_call(self, agent: DialedAgent) -> bool:
         """The agent holds its place, so its seat has not taken it away."""
@@ -765,7 +763,7 @@ class Participation:
             place = self._places.get(live.person, room_id)
             if isinstance(place, Invited) and place.adder == peer_id:
                 offers.append(Offer(live.key, live.name, pending=True))
-            elif place is None and not self._is_busy(room_id, sponsor):
+            elif place is None and not self._is_busy(room_id):
                 offers.append(Offer(live.key, live.name, pending=False))
         return tuple(offers)
 

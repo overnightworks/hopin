@@ -173,8 +173,21 @@ class TestAnInvitation:
 
         assert await invited.accept() is AgentRefusal.TWO_SEATS
 
-    async def test_accepting_it_while_the_owners_seat_sponsors_another_agent_is_busy(self, invited, participation):
+    async def test_accepting_it_while_the_owners_seat_sponsors_another_agent_joins_both(self, invited, participation):
+        """CALL-51: A seat sponsors up to the call's two agents."""
+        other = await participation.dial_in(person_named(OWNER), invited.owner.room_id, "Codex")
+
+        agent = await invited.accept()
+
+        assert (isinstance(agent, DialedAgent), agent.sponsor, other.sponsor) == (
+            True,
+            invited.owner.peer_id,
+            invited.owner.peer_id,
+        )
+
+    async def test_accepting_it_into_a_call_that_holds_two_agents_is_busy(self, invited, participation):
         await participation.dial_in(person_named(OWNER), invited.owner.room_id, "Codex")
+        await participation.dial_in(person_named("guest"), invited.owner.room_id, "Gemini")
 
         assert await invited.accept() is AgentRefusal.BUSY
 
