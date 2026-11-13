@@ -2,6 +2,7 @@
 they start in on the scheduler's clock, where each is shown and the ends that drop them."""
 
 import asyncio
+import contextlib
 
 import pytest
 import pytest_asyncio
@@ -13,7 +14,6 @@ from hopin.participation.speaking import RenderedSentence
 from hopin.participation.vocabulary import (
     LINE_WINDOW_SECONDS,
     LINES_PER_WINDOW,
-    SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     ParticipationSignal,
 )
@@ -42,6 +42,22 @@ async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room
     return await participation.speak(who, room_id, text, rendering() if render is None else render)
 
 
+LONG_MS = 60 * 60 * 1000
+LONG = rendering(duration_ms=LONG_MS)
+
+
+async def renders_nothing(sentence):
+    return None
+
+
+async def renders_cancelled(sentence):
+    raise asyncio.CancelledError
+
+
+async def renders_broken(sentence):
+    raise RuntimeError("the speech service broke")
+
+
 def voice_ids(browser):
     return [frame["voice_id"] for frame in browser.frames(VOICE)]
 
@@ -53,6 +69,17 @@ async def call(link, participation):
     mozart = await participation.dial_in(GUEST, room_of(guest), "Mozart")
     salieri = await participation.dial_in(HOST, room_of(host), "Salieri")
     return host, guest, mozart, salieri
+
+
+@pytest_asyncio.fixture
+async def nine_waiting(participation, call, scheduler):
+    """The room where the guest's agent plays an hour-long sentence with nine waiting, its slots free again."""
+    host, *_ = call
+    room_id = room_of(host)
+    for _ in range(LINES_PER_WINDOW):
+        await speak(participation, room_id=room_id, render=LONG)
+    await scheduler.advance(LINE_WINDOW_SECONDS)
+    return room_id
 
 
 class TestASentenceStarts:
@@ -321,16 +348,10 @@ class TestTheBounds:
         assert refused is AgentRefusal.UNAVAILABLE
 
     async def test_call_60_the_sentence_behind_a_full_queue_is_refused_not_rendered_and_logs_queue_full(
-        self, participation, call, scheduler
+        self, participation, nine_waiting
     ):
-        host, *_ = call
-        room_id = room_of(host)
-        long = rendering(duration_ms=60 * 60 * 1000)
-        for _ in range(LINES_PER_WINDOW):
-            await speak(participation, room_id=room_id, render=long)
-        await scheduler.advance(LINE_WINDOW_SECONDS)
-        for _ in range(SENTENCES_WAITING_PER_AGENT - LINES_PER_WINDOW + 1):
-            assert await speak(participation, room_id=room_id, render=long) == 60 * 60 * 1000
+        room_id = nine_waiting
+        assert await speak(participation, room_id=room_id, render=LONG) == LONG_MS
         rendered = []
 
         async def render(sentence):
@@ -344,6 +365,35 @@ class TestTheBounds:
             [],
             [{"outcome": "queue_full"}],
         )
+
+    async def test_call_60_sentences_rendering_at_once_never_leave_more_than_the_queue_allows_waiting(
+        self, participation, nine_waiting
+    ):
+        room_id = nine_waiting
+
+        async def render_slowly(sentence):
+            await asyncio.sleep(0)
+            return await LONG(sentence)
+
+        with structlog.testing.capture_logs() as logs:
+            answers = await asyncio.gather(
+                *(speak(participation, render=render_slowly, room_id=room_id) for _ in range(2))
+            )
+
+        assert (answers, failures_in(logs, FAILED)) == (
+            [LONG_MS, AgentRefusal.UNAVAILABLE],
+            [{"outcome": "queue_full"}],
+        )
+
+    @pytest.mark.parametrize("failing", [renders_nothing, renders_cancelled, renders_broken])
+    async def test_call_60_a_sentence_that_fails_to_render_leaves_its_place_in_the_queue_free(
+        self, participation, nine_waiting, failing
+    ):
+        room_id = nine_waiting
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            await speak(participation, render=failing, room_id=room_id)
+
+        assert await speak(participation, room_id=room_id, render=LONG) == LONG_MS
 
 
 class TestAnEndWhileTheSentenceRenders:

@@ -45,6 +45,7 @@ class _Queue:
 
     playing: QueuedSentence | None = None
     waiting: deque[QueuedSentence] = field(default_factory=deque)
+    rendering: int = 0
     timer: TimerHandle | None = None
 
 
@@ -67,7 +68,11 @@ class Speaking:
         before it; how long it plays, or why not: no sound came, or an end dropped the agent's queue while it was
         rendered, which a rejoin or a resume does not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue())
-        rendered = await render(text)
+        queue.rendering += 1
+        try:
+            rendered = await render(text)
+        finally:
+            queue.rendering -= 1
         if rendered is None:
             return AgentRefusal.UNAVAILABLE
         if self._queues.get(agent.agent_id) is not queue:
@@ -82,9 +87,10 @@ class Speaking:
         return rendered.duration_ms
 
     def is_full(self, agent: DialedAgent) -> bool:
-        """Whether as many sentences already wait behind the agent's playing one as it may keep."""
+        """Whether as many sentences already wait behind the agent's playing one or are being rendered for its queue as
+        it may keep."""
         queue = self._queues.get(agent.agent_id)
-        return queue is not None and len(queue.waiting) >= SENTENCES_WAITING_PER_AGENT
+        return queue is not None and len(queue.waiting) + queue.rendering >= SENTENCES_WAITING_PER_AGENT
 
     def is_playing(self, agent: DialedAgent, sentence: QueuedSentence) -> bool:
         """Whether the sentence is the one the agent's queue plays now, no end having dropped it."""
