@@ -371,14 +371,20 @@ class TestTheBounds:
     ):
         room_id = nine_waiting
 
-        async def render_slowly(sentence):
-            await asyncio.sleep(0)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def render_held(sentence):
+            entered.set()
+            await release.wait()
             return await LONG(sentence)
 
         with structlog.testing.capture_logs() as logs:
-            answers = await asyncio.gather(
-                *(speak(participation, render=render_slowly, room_id=room_id) for _ in range(2))
-            )
+            first = asyncio.create_task(speak(participation, render=render_held, room_id=room_id))
+            await entered.wait()
+            second = await speak(participation, render=LONG, room_id=room_id)
+            release.set()
+            answers = [await first, second]
 
         assert (answers, failures_in(logs, FAILED)) == (
             [LONG_MS, AgentRefusal.UNAVAILABLE],
