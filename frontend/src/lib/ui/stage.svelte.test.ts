@@ -310,25 +310,25 @@ describe("agent tiles", () => {
     const tile = { name: "Game master", activity: "waiting" } as const;
     const dialed = { name: "Claude", activity: "present", sponsor: "Ada" } as const;
 
-    it("CALL-47: takes none of the six places, so six people and an agent are seven tiles", async () => {
+    it("CALL-47: an agent tile adds one tile beside the people on stage", async () => {
         const { addRemoteTile, showAgentTile, stageTileCount } = await freshStage();
-        for (const person of ["a", "b", "c", "d", "e"]) addRemoteTile(person);
+        for (const person of ["a", "b", "c"]) addRemoteTile(person);
         const peopleOnly = stageTileCount();
 
         showAgentTile(tile);
 
-        expect([peopleOnly, stageTileCount()]).toEqual([6, 7]);
+        expect([peopleOnly, stageTileCount()]).toEqual([4, 5]);
     });
 
-    it("CALL-47: shows every agent beside six people, nine tiles at most with the quiz master and two dialed-in agents", async () => {
+    it("CALL-47: shows every agent tile it is told beside four people, seven tiles with the quiz master and two dialed-in agents", async () => {
         const { addRemoteTile, showAgentTile, stageTileCount } = await freshStage();
-        for (const person of ["a", "b", "c", "d", "e"]) addRemoteTile(person);
+        for (const person of ["a", "b", "c"]) addRemoteTile(person);
 
         showAgentTile(tile);
         showAgentTile(dialed, "agent-one");
         showAgentTile({ ...dialed, name: "Codex" }, "agent-two");
 
-        expect(stageTileCount()).toBe(9);
+        expect(stageTileCount()).toBe(7);
     });
 
     it("CALL-47: leaves the participant count to people", async () => {
