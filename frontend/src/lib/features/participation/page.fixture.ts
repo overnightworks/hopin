@@ -1,4 +1,5 @@
 import { flushSync } from "svelte";
+import { expect, vi } from "vitest";
 import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
@@ -24,12 +25,12 @@ export async function installedParticipation(installOn?: typeof install) {
     const core: FeatureCore = {
         on: (type, handler) => void handlers.set(type, handler),
         send: (frame) => void sent.push(frame),
-        isConnected: () => true,
+        isConnected: vi.fn().mockReturnValue(true),
         showToast: (text) => void toasts.push(text),
         toastKind: TOAST_KIND,
-        showStage: () => undefined,
-        drawAgentFigures: () => undefined,
-        closeMore: () => undefined,
+        showStage: vi.fn(),
+        drawAgentFigures: vi.fn(),
+        closeMore: vi.fn(),
         showAgentTile: (tile, key = "agent") => {
             if (tile === null) tiles.delete(key);
             else tiles.set(key, tile);
@@ -39,8 +40,8 @@ export async function installedParticipation(installOn?: typeof install) {
             more.append(...items);
         },
         receiveChatLine: (view: FeatureView) => void lines.push(view),
-        pinLastChatLine: () => undefined,
-        showChatCard: () => undefined,
+        pinLastChatLine: vi.fn(),
+        showChatCard: vi.fn(),
         onMicrophone: (handler) => {
             microphoneHandlers.push(handler);
             handler(null);
@@ -55,7 +56,7 @@ export async function installedParticipation(installOn?: typeof install) {
     };
     const emit = (type: string, frame: object) => {
         const handler = handlers.get(type);
-        if (handler === undefined) throw new Error(`no handler for ${type}`);
+        expect(handler, `no handler for ${type}`).toBeDefined();
         (handler as (frame: object) => void)(frame);
     };
     return {
