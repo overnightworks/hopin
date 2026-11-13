@@ -553,15 +553,18 @@ describe("calling an agent that has an account of its own", () => {
         [INVITATION_OUTCOME.NO_ANSWER, "Keine Antwort"],
         [INVITATION_OUTCOME.BUSY, "Gerade beschäftigt"],
         [INVITATION_OUTCOME.OWNER_ABSENT, "Sein Besitzer ist nicht hier."],
-    ])("CALL-52: shows an invitation that ended as %s as the kit's row for it, with no call button", async (outcome, words) => {
-        const page = await installedParticipation();
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+    ])(
+        "CALL-52: shows an invitation that ended as %s as the kit's row for it, with no call button",
+        async (outcome, words) => {
+            const page = await installedParticipation();
+            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
+            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, { agent_key: "k1", outcome });
+            page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, { agent_key: "k1", outcome });
 
-        expect([page.offers()[0]?.textContent, page.buttons()]).toEqual([expect.stringContaining(words), []]);
-    });
+            expect([page.offers()[0]?.textContent, page.buttons()]).toEqual([expect.stringContaining(words), []]);
+        },
+    );
 
     it("CALL-52: keeps an agent's no-answer row while the list still offers it unchanged", async () => {
         const page = await installedParticipation();
