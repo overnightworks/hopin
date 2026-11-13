@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 LEAVE = "#leaveBtn"
+END_SCREEN = "[data-screen=end]"
 QUIET_SECONDS = 2
 LAPSE_WITHIN_MILLISECONDS = (LISTEN_ALLOWANCE_SECONDS + 10) * 1000
 
@@ -152,6 +153,7 @@ def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_
     scene = scene_of(DESKTOP)
     scene.member_adds(scene.agent)
     scene.owner.click(LEAVE)
+    expect(scene.owner.locator(END_SCREEN)).to_be_visible()
 
     join_by_link(scene.owner, scene.link)
 
