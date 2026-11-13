@@ -8,6 +8,7 @@ from tests.e2e.support.dialed_agent import (
     ADDERS_GROUP,
     AGENT_NAME,
     OWNER_SUBJECT,
+    SECOND_AGENT_NAME,
     OwnAccountAgent,
     OwnAgent,
 )
@@ -86,6 +87,14 @@ def own_account_agent(e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
 
 
 @pytest.fixture
+def second_own_account_agent(e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
+    """Another scripted agent of `OWNER_SUBJECT`, so the owner has two to bring into one call."""
+    agent = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{SECOND_AGENT_NAME}-{secrets.token_hex(3)}")
+    yield agent
+    agent.close()
+
+
+@pytest.fixture
 def grant_adders(e2e_server: RunningServer) -> Callable[[str], None]:
     """Make the issuer hold the adders group for the subject."""
 
@@ -117,8 +126,17 @@ def scene_of(
     page_errors: list[str],
     grant_adders: Callable[[str], None],
     own_account_agent: OwnAccountAgent,
-) -> Callable[[dict[str, Any]], Scene]:
-    def build(form_factor: dict[str, Any]) -> Scene:
-        return Scene(open_person, member_of, e2e_server, page_errors, form_factor, grant_adders, own_account_agent)
+) -> Callable[..., Scene]:
+    def build(form_factor: dict[str, Any], *, owner_adds: bool = False) -> Scene:
+        return Scene(
+            open_person,
+            member_of,
+            e2e_server,
+            page_errors,
+            form_factor,
+            grant_adders,
+            own_account_agent,
+            owner_adds=owner_adds,
+        )
 
     return build

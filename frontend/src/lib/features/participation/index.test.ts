@@ -419,7 +419,7 @@ describe("the sponsor's microphone capture", () => {
         expect([captures.started.length, live().length]).toEqual([1, 0]);
     });
 
-    it("CALL-59: keeps capturing for another agent that still hears the person when one is switched off", async () => {
+    it("CALL-59: stops the capture on a press of one switch before the server answers and resumes it for the agent that still hears", async () => {
         const page = await sponsorsAgent("a1");
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));
         record(page, true, "a1");
@@ -427,11 +427,12 @@ describe("the sponsor's microphone capture", () => {
         page.hear(MICROPHONE);
 
         page.tiles.get("agent-a1")?.hearing?.onChange(false);
+        const beforeTheAnswer = live().length;
         record(page, false, "a1");
-        expect(live()).toHaveLength(1);
+        const afterTheAnswer = live().length;
         record(page, false, "a2");
 
-        expect(live()).toHaveLength(0);
+        expect([beforeTheAnswer, afterTheAnswer, live().length]).toEqual([0, 1, 0]);
     });
 
     it("CALL-59: stops the capture when the agent that hears the person leaves", async () => {

@@ -136,7 +136,9 @@ class HearingRoute:
             await websocket.close(code=POLICY_VIOLATION_CLOSE_CODE)
             return
         await websocket.accept()
-        handle = self._participation().open_hearing(Person(self._issuer, account.id), PeerId(seat))
+        handle = self._participation().open_hearing(
+            Person(self._issuer, account.id), PeerId(seat), lambda agent: self._tokens.held(agent) is not None
+        )
         if isinstance(handle, HearingRefusal):
             await _close_unopened(websocket, HearingClose[handle.name])
             return

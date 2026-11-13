@@ -89,13 +89,13 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         // Only a player that is still open reports, and `hide` closes the player of an agent before it leaves `shown`.
         draw(shown.get(agentId) as ShownAgent);
     });
-    // Agents whose switch the person pressed off and whose record has not answered yet: they no longer hear the person
-    // for the capture, whatever the record still says.
+    // Agents whose switch the person pressed off and whose record has not answered yet: until it does, the capture
+    // stays closed, for no sound sent after the press may reach them, whichever other agents still hear the person.
     const pressedOff = new Set<string>();
 
-    // The server's record decides, except for an agent whose switch the person pressed off before the record answered.
-    function agentHears() {
-        return [...shown.values()].some((agent) => agent.hearing === true && !pressedOff.has(agent.joined.agent_id));
+    function hearingAgents() {
+        if (pressedOff.size > 0) return 0;
+        return [...shown.values()].filter((agent) => agent.hearing === true).length;
     }
 
     function mayRemove(frame: AgentJoinedFrame) {
@@ -117,7 +117,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
                               onChange: (on: boolean) => {
                                   if (!on) {
                                       pressedOff.add(frame.agent_id);
-                                      capture.setHeard(agentHears());
+                                      capture.setHearers(hearingAgents());
                                   }
                                   core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
                               },
@@ -145,7 +145,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         const recorded = { ...agent, hearing: frame.on };
         shown.set(frame.agent_id, recorded);
         draw(recorded);
-        capture.setHeard(agentHears());
+        capture.setHearers(hearingAgents());
     }
 
     const offers = document.createElement("div");
@@ -194,7 +194,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         speaking.delete(agentId);
         voices.close(agentId);
         core.showAgentTile(null, tileKey(agentId));
-        capture.setHeard(agentHears());
+        capture.setHearers(hearingAgents());
     }
 
     const seated = (frame: SeatFrame) => {
