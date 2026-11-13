@@ -1,8 +1,0 @@
-claim_id = "9a57d62a14424411bb14dfc9dc024369"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "d0993dbc138595d926b5227e37300ac67ca9a174"
-branch = "claude/issue-794-answer-an-idle-agent-s-sentence-at-its"
-scope = ["src/hopin/participation/feature.py", "src/hopin/participation/speaking.py", "tests/participation"]
-opened_commit = "bd1a346e8a4ec610c270547eab763ccdc1eddbc2"
-whole_reason = "The answer's timing and the tests that pin it change together."
