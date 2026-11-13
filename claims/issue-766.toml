@@ -1,0 +1,8 @@
+claim_id = "f0c1f6d1b09b4305b6c117ab66ef118b"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "ef5355e8f32ddff9f91790bc665b0702119c4c0d"
+branch = "claude/issue-766-the-agent-s-speak-tool-renders-its-sente"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/wire.ts", "src/hopin/agent", "src/hopin/game", "src/hopin/main.py", "src/hopin/participation", "tests/agent", "tests/game", "tests/participation", "tests/support"]
+opened_commit = "971a4bd3b5fd5fbd0bb7c77e8c6f315d9b4ec192"
+whole_reason = "The speak tool, its token choice, its queue, the shared voice store it fans out through and its setting change together; the store move needs its game caller in the same change, and the frame's wire.ts is generated from participation's vocabulary."
