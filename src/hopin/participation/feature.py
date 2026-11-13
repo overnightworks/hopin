@@ -262,15 +262,18 @@ class Participation:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
         return tuple(self._standing_in(room_id, place) for room_id, place in self._places.of_person(person))
 
-    def open_hearing(self, account: Person, seat: PeerId) -> HearingHandle | HearingRefusal:
-        """The sound session of a seat the account holds in a room, which ends when nobody hears the seat any more;
-        refused for a seat the account does not hold, one waiting to resume, or one no joined agent hears."""
+    def open_hearing(
+        self, account: Person, seat: PeerId, holds_token: Callable[[Person], bool]
+    ) -> HearingHandle | HearingRefusal:
+        """The sound session of a seat the account holds in a room, served by one of the agents that hear the seat,
+        preferably one that holds a token, and ended with that agent's hearing; refused for a seat the account does
+        not hold, one waiting to resume, or one no joined agent hears."""
         room_id = self._rooms.room_of(seat)
         if room_id is None or seat not in self._rooms.seats_in(room_id, account.subject):
             return HearingRefusal.NO_SEAT
         if self._rooms.is_parked(seat):
             return HearingRefusal.SEAT_AWAY
-        return self._hearing.open(account, room_id, seat)
+        return self._hearing.open(account, room_id, seat, holds_token)
 
     def heard(self, seat: PeerId, text: str, began_at: float) -> None:
         """Add a finished sentence the seat said, which began at `began_at` on the scheduler's clock, to the window of

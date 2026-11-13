@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Protocol
 from hopin.participation.vocabulary import HearingRefusal
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hopin.participation.chat_window import LineKind
     from hopin.participation.feature import DialedAgent, Person
     from hopin.signaling.frames import PeerId
@@ -54,8 +56,9 @@ class HearingRecord(Protocol):
 
 @dataclass(frozen=True, eq=False)
 class HearingHandle:
-    """The sound session of one seat: the account that holds it, the joined agent that hears it, and an event set when
-    the session ends."""
+    """The sound session of one seat: the account that holds it, the joined agent that serves it, and an event set when
+    the session ends. Of the agents that hear the seat when it opens, the one that serves it holds a token, which the
+    speech service takes; the session ends with that agent's hearing."""
 
     account: Person
     agent: Person
@@ -88,15 +91,18 @@ class Hearing:
         if not self.enabled:
             return
         self._record.allow(agent.room_id, agent.sponsor, agent.person, allowed=on)
-        self._end_handle_unless_heard(agent.room_id, agent.sponsor)
+        self._end_sound_unless_served(agent.sponsor)
 
-    def open(self, account: Person, room_id: str, seat: PeerId) -> HearingHandle | HearingRefusal:
-        """The sound session of the seat, which ends an older one; refused when no joined agent hears the seat."""
+    def open(
+        self, account: Person, room_id: str, seat: PeerId, holds_token: Callable[[Person], bool]
+    ) -> HearingHandle | HearingRefusal:
+        """The sound session of the seat, which ends an older one; refused when no joined agent hears the seat. It is
+        served by an agent that holds a token, else by the first of the agents that hear."""
         hearers = self._record.sensing(room_id, seat)
         if not hearers:
             return HearingRefusal.NOBODY_HEARS
         self.end_sound(seat)
-        (agent,) = hearers  # a sponsor has at most one joined agent in a call
+        agent = min(hearers, key=lambda hearer: (not holds_token(hearer), hearer.issuer, hearer.subject))
         handle = HearingHandle(account, agent, seat, room_id)
         self._handles[seat] = handle
         return handle
@@ -108,7 +114,7 @@ class Hearing:
     def agent_ended(self, agent: DialedAgent) -> None:
         """The agent's removal, leave or lease end: it hears nothing more."""
         self._record.member_ended(agent.room_id, agent.person)
-        self._end_handle_unless_heard(agent.room_id, agent.sponsor)
+        self._end_sound_unless_served(agent.sponsor)
 
     def seat_ended(self, room_id: str, seat: PeerId) -> None:
         """The seat left the call for good."""
@@ -127,6 +133,8 @@ class Hearing:
         for seat in [seat for seat, handle in self._handles.items() if handle.room_id == room_id]:
             self.end_sound(seat)
 
-    def _end_handle_unless_heard(self, room_id: str, seat: PeerId) -> None:
-        if not self._record.sensing(room_id, seat):
+    def _end_sound_unless_served(self, seat: PeerId) -> None:
+        """End the seat's sound session when the agent that serves it no longer hears the seat."""
+        handle = self._handles.get(seat)
+        if handle is not None and handle.agent not in self._record.sensing(handle.room_id, seat):
             self.end_sound(seat)

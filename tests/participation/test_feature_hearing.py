@@ -79,6 +79,11 @@ def hearers(member_hearing, room_id, seat):
     }
 
 
+def open_hearing(participation, account, seat, *, holding=lambda agent: True):
+    """The sound session of the seat, opened as the route opens it: `holding` says which agents hold a token."""
+    return participation.open_hearing(account, seat, holding)
+
+
 async def dial(participation, browser):
     return await participation.dial_in(person_named(browser.name), room_of(browser), "Claude")
 
@@ -124,7 +129,7 @@ class TestTheDefault:
         agent = await dial(participation, guest)
 
         assert (hearing_frames(guest), hearing_frames(host)) == ([(agent.agent_id, True)], [])
-        assert isinstance(participation.open_hearing(GUEST, guest.peer_id), HearingHandle)
+        assert isinstance(open_hearing(participation, GUEST, guest.peer_id), HearingHandle)
 
     async def test_call_57_an_agent_the_sponsor_added_from_their_own_seat_starts_on(self, invitation_of):
         """CALL-57: The switch starts on when the sponsor added the agent from their own seat."""
@@ -137,7 +142,7 @@ class TestTheDefault:
         owner, member, agent = await invitation_of("guest")
 
         assert (hearing_frames(owner), hearing_frames(member)) == ([(agent.agent_id, False)], [])
-        assert participation.open_hearing(person_named(OWNER), owner.peer_id) is HearingRefusal.NOBODY_HEARS
+        assert open_hearing(participation, person_named(OWNER), owner.peer_id) is HearingRefusal.NOBODY_HEARS
 
     @pytest.mark.parametrize(
         ("adder", "decision"), [(OWNER, True), ("guest", False)], ids=["the_sponsor", "another_member"]
@@ -163,7 +168,7 @@ class TestTheSwitch:
         await guest.say(switch(agent.agent_id, on=on))
 
         assert hearing_frames(guest)[1:] == [(agent.agent_id, False), (agent.agent_id, on)]
-        assert isinstance(participation.open_hearing(GUEST, guest.peer_id), HearingHandle) is on
+        assert isinstance(open_hearing(participation, GUEST, guest.peer_id), HearingHandle) is on
 
     async def test_call_57_a_seat_that_does_not_sponsor_the_agent_is_refused_and_the_switch_stays(
         self, participation, dialed
@@ -174,7 +179,7 @@ class TestTheSwitch:
         await host.say(switch(agent.agent_id, on=False))
 
         assert refusals(host) == [AgentRefusal.NOT_SPONSOR.value]
-        assert isinstance(participation.open_hearing(GUEST, guest.peer_id), HearingHandle)
+        assert isinstance(open_hearing(participation, GUEST, guest.peer_id), HearingHandle)
 
     async def test_call_57_a_switch_of_an_agent_that_is_not_joined_there_is_refused_as_gone(self, dialed):
         """CALL-57: A switch frame for an agent that holds no joined place in the seat's room is refused as gone."""
@@ -198,15 +203,118 @@ class TestTheSwitch:
     ):
         """CALL-57: A parked seat is not an end: its sound ends, its switch stays, and it hears on after a resume."""
         _host, guest, _agent = dialed
-        handle = participation.open_hearing(GUEST, guest.peer_id)
+        handle = open_hearing(participation, GUEST, guest.peer_id)
 
         await guest.drop()
 
         assert handle.ended.is_set()
-        assert participation.open_hearing(GUEST, guest.peer_id) is HearingRefusal.SEAT_AWAY
+        assert open_hearing(participation, GUEST, guest.peer_id) is HearingRefusal.SEAT_AWAY
         await guest.resume()
         await guest.accept_resumption()
-        assert isinstance(participation.open_hearing(GUEST, guest.peer_id), HearingHandle)
+        assert isinstance(open_hearing(participation, GUEST, guest.peer_id), HearingHandle)
+
+
+@pytest_asyncio.fixture
+async def both(participation, invitation_of):
+    """An owner's seat with two joined agents it sponsors, both hearing it: the added agent and the owner's own."""
+    owner, _member, added = await invitation_of(OWNER)
+    own = await dial(participation, owner)
+    return owner, added, own
+
+
+class TestTwoAgentsOfOneSponsor:
+    async def test_call_57_a_sentence_reaches_each_agent_whose_switch_is_on(self, participation, both):
+        """CALL-57: With both switches on, a heard sentence joins the window of each agent."""
+        owner, added, own = both
+
+        participation.heard(owner.peer_id, "to both", began_at=0.0)
+
+        assert [
+            [line.text for line in lines_of(participation, agent.person, owner.room_id)] for agent in (added, own)
+        ] == [["to both"], ["to both"]]
+
+    async def test_call_57_a_sentence_reaches_only_the_agent_whose_switch_stays_on(self, participation, both):
+        """CALL-57: Turning one switch off stops that agent hearing and leaves the other."""
+        owner, added, own = both
+        await owner.say(switch(own.agent_id, on=False))
+
+        participation.heard(owner.peer_id, "to one", began_at=0.0)
+
+        assert [
+            [line.text for line in lines_of(participation, agent.person, owner.room_id)] for agent in (added, own)
+        ] == [["to one"], []]
+
+    async def test_call_57_the_handle_is_served_by_an_agent_holding_a_token(self, participation, both):
+        """CALL-58: The sound session names one hearing agent, the one that holds a token."""
+        owner, added, own = both
+
+        handles = [
+            open_hearing(
+                participation, person_named(OWNER), owner.peer_id, holding=lambda agent, held=held: agent == held
+            )
+            for held in (added.person, own.person)
+        ]
+
+        assert [handle.agent for handle in handles] == [added.person, own.person]
+
+    async def test_call_57_the_handle_goes_on_when_the_other_agent_switches_off(self, participation, both):
+        """CALL-57: The handle ends only with the agent that serves it; the other's switch leaves it open."""
+        owner, added, own = both
+        handle = open_hearing(
+            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
+        )
+
+        await owner.say(switch(own.agent_id, on=False))
+
+        assert handle.ended.is_set() is False
+
+    async def test_call_57_the_handle_ends_when_the_agent_serving_it_switches_off_and_the_other_still_hears(
+        self, participation, both
+    ):
+        """CALL-57: Turning the serving agent's switch off ends the handle; a new one is served by the other agent."""
+        owner, added, own = both
+        handle = open_hearing(
+            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
+        )
+
+        await owner.say(switch(added.agent_id, on=False))
+
+        assert handle.ended.is_set()
+        assert open_hearing(participation, person_named(OWNER), owner.peer_id).agent == own.person
+
+    async def test_call_57_the_handle_ends_when_the_agent_serving_it_leaves_and_the_other_hears_on(
+        self, participation, both
+    ):
+        """CALL-57: An agent's leave ends the handle it serves; the other agent still hears the seat."""
+        owner, added, own = both
+        handle = open_hearing(
+            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
+        )
+
+        await participation.leave(added.person, owner.room_id)
+
+        assert handle.ended.is_set()
+        assert open_hearing(participation, person_named(OWNER), owner.peer_id).agent == own.person
+
+    async def test_call_57_the_handle_goes_on_when_the_agent_not_serving_it_leaves(self, participation, both):
+        owner, added, own = both
+        handle = open_hearing(
+            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
+        )
+
+        await participation.leave(own.person, owner.room_id)
+
+        assert handle.ended.is_set() is False
+
+    async def test_call_57_the_handle_ends_with_the_last_switch_that_goes_off(self, participation, both):
+        owner, added, own = both
+        handle = open_hearing(participation, person_named(OWNER), owner.peer_id)
+
+        await owner.say(switch(added.agent_id, on=False))
+        await owner.say(switch(own.agent_id, on=False))
+
+        assert handle.ended.is_set()
+        assert open_hearing(participation, person_named(OWNER), owner.peer_id) is HearingRefusal.NOBODY_HEARS
 
 
 class TestTheGate:
@@ -214,7 +322,7 @@ class TestTheGate:
         """CALL-57: A seat that its account holds, in its room, which a joined agent hears, gets a handle."""
         _host, guest, _agent = dialed
 
-        handle = participation.open_hearing(GUEST, guest.peer_id)
+        handle = open_hearing(participation, GUEST, guest.peer_id)
 
         assert (handle.account, handle.seat, handle.ended.is_set()) == (GUEST, guest.peer_id, False)
 
@@ -223,7 +331,7 @@ class TestTheGate:
         is not the account that holds the seat."""
         owner, _member, _agent = await invitation_of(OWNER)
 
-        handle = participation.open_hearing(person_named(OWNER), owner.peer_id)
+        handle = open_hearing(participation, person_named(OWNER), owner.peer_id)
 
         assert handle.agent == AGENT
 
@@ -240,30 +348,30 @@ class TestTheGate:
         """CALL-57: A seat that the account does not hold, or that sits in no room, gets no handle."""
         _host, guest, _agent = dialed
 
-        assert participation.open_hearing(account, seat_of(guest)) is HearingRefusal.NO_SEAT
+        assert open_hearing(participation, account, seat_of(guest)) is HearingRefusal.NO_SEAT
 
     async def test_call_57_a_seat_no_joined_agent_hears_is_refused(self, link, participation):
         """CALL-57: A seat with no joined agent that hears it gets no handle."""
         _host, guest = await host_and_guest(link)
 
-        assert participation.open_hearing(GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
+        assert open_hearing(participation, GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
 
     async def test_call_57_a_seat_with_its_switch_off_is_refused_and_its_handle_ends(self, participation, dialed):
         """CALL-57: Switching the last agent that hears the seat off ends the seat's handle."""
         _host, guest, agent = dialed
-        handle = participation.open_hearing(GUEST, guest.peer_id)
+        handle = open_hearing(participation, GUEST, guest.peer_id)
 
         await guest.say(switch(agent.agent_id, on=False))
 
         assert handle.ended.is_set()
-        assert participation.open_hearing(GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
+        assert open_hearing(participation, GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
 
     async def test_call_57_a_seat_has_one_handle_and_a_newer_one_ends_the_older_first(self, participation, dialed):
         """CALL-57: A seat has at most one handle; opening another ends the older one."""
         _host, guest, _agent = dialed
-        older = participation.open_hearing(GUEST, guest.peer_id)
+        older = open_hearing(participation, GUEST, guest.peer_id)
 
-        newer = participation.open_hearing(GUEST, guest.peer_id)
+        newer = open_hearing(participation, GUEST, guest.peer_id)
 
         assert (older.ended.is_set(), newer.ended.is_set()) == (True, False)
 
@@ -458,7 +566,7 @@ class TestTheEnds:
         """CALL-57: Leave, removal, the sponsor's leaving, the call's end and shutdown each end the record's entries
         and the seat's handle at once."""
         host, guest, agent = dialed
-        handle = participation.open_hearing(GUEST, guest.peer_id)
+        handle = open_hearing(participation, GUEST, guest.peer_id)
 
         await end(participation, host, guest, agent)
 
@@ -485,7 +593,7 @@ class TestTheEnds:
     ):
         """CALL-57: An agent whose lease runs out stops hearing at once."""
         owner, _member, _agent = await invitation_of(OWNER)
-        handle = participation.open_hearing(person_named(OWNER), owner.peer_id)
+        handle = open_hearing(participation, person_named(OWNER), owner.peer_id)
 
         await scheduler.advance(LEASE_SECONDS)
 
@@ -535,7 +643,7 @@ class TestTheSettingOff:
 
         assert [frame["reason"] for frame in guest.frames(SignalType.ERROR)] == [ErrorReason.INVALID_MESSAGE.value]
         assert hearing_frames(guest) == []
-        assert participation.open_hearing(GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
+        assert open_hearing(participation, GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
         participation.heard(guest.peer_id, "hello", began_at=0.0)
         assert (lines_of(participation, GUEST, room_of(host)), window_changes) == ((), [])
 
