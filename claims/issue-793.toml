@@ -1,8 +1,0 @@
-claim_id = "ce8de1f3d19d452bba709e13cf360fca"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "40237b6e394163e3d413f430142cfbfefa03788d"
-branch = "claude/issue-793-take-design-v0-29-0"
-scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "src/hopin/participation/feature.py", "src/hopin/participation/frames.py", "src/hopin/participation/vocabulary.py", "tests/participation", "uv.lock"]
-opened_commit = "bac78b09932e635bd0929c0bf6b5995a85c1c681"
-whole_reason = "The kit pin and the ended rows it brings land together: the page cannot show an outcome the pinned kit lacks."
