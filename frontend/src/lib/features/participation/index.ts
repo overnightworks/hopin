@@ -1,5 +1,5 @@
 import { loadKitWords } from "overnightworks-design";
-import { startCapture } from "overnightworks-speech-browser";
+import { createPlayer as createSpeechPlayer, startCapture } from "overnightworks-speech-browser";
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
@@ -11,6 +11,7 @@ import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createAgentOffers, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
+import { createAgentVoices, type PlayerFactory } from "./voice.ts";
 import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 interface SeatFrame {
@@ -41,6 +42,11 @@ interface ShownAgent {
     readonly hearing?: boolean;
 }
 
+interface AgentVoiceFrame {
+    agent_id: string;
+    voice_id: string;
+}
+
 interface AgentOffersFrame {
     shown: boolean;
     offers: Offer[];
@@ -61,7 +67,12 @@ function tileKey(agentId: string) {
     return `agent-${agentId}`;
 }
 
-export async function install(core: FeatureCore): Promise<void> {
+export function install(core: FeatureCore): Promise<void> {
+    return installWith(core, createSpeechPlayer);
+}
+
+/** `createPlayer` makes the player of each agent that speaks. */
+export async function installWith(core: FeatureCore, createPlayer: PlayerFactory): Promise<void> {
     const kitWords = await loadKitWords(sourceLanguage);
     let seatId = "";
     let isHost = false;
@@ -70,6 +81,14 @@ export async function install(core: FeatureCore): Promise<void> {
         () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
         startCapture,
     );
+    // Agents whose sound plays now: their tile shows them speaking.
+    const speaking = new Set<string>();
+    const voices = createAgentVoices(createPlayer, (agentId, isSpeaking) => {
+        if (isSpeaking) speaking.add(agentId);
+        else speaking.delete(agentId);
+        // Only a player that is still open reports, and `hide` closes the player of an agent before it leaves `shown`.
+        draw(shown.get(agentId) as ShownAgent);
+    });
     // Agents whose switch the person pressed off and whose record has not answered yet: they no longer hear the person
     // for the capture, whatever the record still says.
     const pressedOff = new Set<string>();
@@ -87,7 +106,7 @@ export async function install(core: FeatureCore): Promise<void> {
         core.showAgentTile(
             {
                 name: frame.name,
-                activity: AGENT_ACTIVITY.PRESENT,
+                activity: speaking.has(frame.agent_id) ? AGENT_ACTIVITY.SPEAKING : AGENT_ACTIVITY.PRESENT,
                 sponsor: frame.sponsor,
                 figure: frame.figure,
                 hearing:
@@ -172,6 +191,8 @@ export async function install(core: FeatureCore): Promise<void> {
     function hide(agentId: string) {
         shown.delete(agentId);
         pressedOff.delete(agentId);
+        speaking.delete(agentId);
+        voices.close(agentId);
         core.showAgentTile(null, tileKey(agentId));
         capture.setHeard(agentHears());
     }
@@ -190,6 +211,9 @@ export async function install(core: FeatureCore): Promise<void> {
         hide(frame.agent_id);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_HEARING, showHearing);
+    core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame: AgentVoiceFrame) => {
+        if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id);
+    });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: AgentLineFrame) => {
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));

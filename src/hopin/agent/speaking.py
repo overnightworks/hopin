@@ -42,6 +42,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 SPEAK_DEADLINE_SECONDS: Final = 20
 SPEAK_MAX_BYTES: Final = 4 * 1024 * 1024
 MILLISECONDS_PER_SECOND: Final = 1000
+# The size a streaming WAV declares for its sound, which is not known when the first byte leaves.
+STREAMING_DATA_SIZE: Final = 0xFFFFFFFF
 
 
 @dataclass(frozen=True)
@@ -111,16 +113,19 @@ class SpeechRenderer:
 
 
 def duration_ms_of(wav: bytes) -> int | None:
-    """How long the WAV plays, rounded up to a millisecond, or nothing when it cannot be read, names no sample rate or
-    holds no sound."""
+    """How long the WAV plays, rounded up to a millisecond, or nothing when it cannot be read, names no sample rate,
+    holds no sound or holds fewer frames than its header declares. A streaming WAV declares no size, so the frames it
+    holds are its length."""
     try:
         with wave.open(io.BytesIO(wav)) as reader:
-            frames, rate = reader.getnframes(), reader.getframerate()
+            declared, rate = reader.getnframes(), reader.getframerate()
+            frame_bytes = reader.getnchannels() * reader.getsampwidth()
+            held = len(reader.readframes(declared)) // frame_bytes
     except wave.Error, EOFError:
         return None
-    if rate <= 0:
+    if rate <= 0 or (held < declared and declared != STREAMING_DATA_SIZE // frame_bytes):
         return None
-    return math.ceil(frames * MILLISECONDS_PER_SECOND / rate) or None
+    return math.ceil(held * MILLISECONDS_PER_SECOND / rate) or None
 
 
 class AgentVoice:

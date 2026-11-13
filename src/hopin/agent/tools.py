@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.figures import Figure
+from hopin.participation.text import one_line
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME_MAX_CHARACTERS, AgentRefusal
 
 if TYPE_CHECKING:
@@ -223,7 +224,7 @@ async def _spoken(
     request = _speak_request(arguments)
     if request is None or request.place.kind != CALL_KIND:
         return _speak_refused(SpeakRefusal.NOT_ACTIVE)
-    if len(request.text) > SPEAK_MAX_CHARACTERS:
+    if len(one_line(request.text)) > SPEAK_MAX_CHARACTERS:
         return _speak_refused(SpeakRefusal.TOO_LONG)
     render = None if voice is None else partial(voice.render, caller.person)
     outcome = await participation.speak(caller.person, request.place.id, request.text, render)

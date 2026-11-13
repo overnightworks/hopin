@@ -46,3 +46,4 @@ export enum HEARING_CLOSE {
 }
 
 export const HEARING_PATH = "/ws/hearing";
+export const VOICE_PATH = "/api/game/voice";
