@@ -10,8 +10,9 @@
 # every secret is generated there and never printed. With --smoke the stack checks that the three hosts answer over
 # HTTPS and that a HopIn page loads, then stops.
 #
-# The script runs itself under the probe-stack lock and the repository-wide cap: the 1800 s cap and a 30 s grace,
-# which the teardown below (processes by pid, the container) stays within.
+# The script runs itself under `probe-run`, which waits for the machine's load, with the 1800 s cap and a 30 s
+# grace, which the teardown below (processes by pid, the container) stays within; its ports and container name are
+# its own, so two drives can run side by side.
 set -euo pipefail
 
 CAP_SECONDS=1800
@@ -19,8 +20,7 @@ GRACE_SECONDS=30
 READY_WAIT_SECONDS=120
 
 if [ -z "${HOPIN_JOINT_CAPPED:-}" ]; then
-    HOPIN_JOINT_CAPPED=1 exec flock -o -w 3600 /tmp/probe-stack.lock \
-        setpriv --pdeathsig TERM timeout -k "${GRACE_SECONDS}" "${CAP_SECONDS}" "$0" "$@"
+    HOPIN_JOINT_CAPPED=1 exec probe-run -k "${GRACE_SECONDS}" "${CAP_SECONDS}" "$0" "$@"
 fi
 
 smoke=0
