@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "e61e4cc1e4a27e46f019cb779c72e9f7250c71f3"
 branch = "claude/issue-786-agent-declines-busy"
-scope = ["docs/call.md", "frontend/src/lib/catalogs/de.po", "frontend/src/lib/features/participation", "frontend/src/lib/words/de.ts", "pyproject.toml", "src/hopin/agent", "src/hopin/participation", "src/hopin/words.py", "tests/agent", "tests/e2e/participation", "tests/participation", "uv.lock"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/catalogs/de.po", "frontend/src/lib/features/participation", "frontend/src/lib/words/de.ts", "pyproject.toml", "src/hopin/agent", "src/hopin/participation", "src/hopin/words.py", "tests/agent", "tests/e2e/participation", "tests/e2e/support/dialed_agent.py", "tests/participation", "uv.lock"]
 opened_commit = "04d91649b2c7bfa1dfe0a412c603f51ca23e68db"
 whole_reason = "The decline, its display and the rule that states it change together."
