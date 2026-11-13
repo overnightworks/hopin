@@ -39,12 +39,26 @@ def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
 
 
 async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
-    return await participation.speak(who, room_id, text, rendering() if render is None else render)
+    """The agent's answer once the sentence started and the announcement of it that follows the answer was sent."""
+    render = rendering() if render is None else render
+    known = asyncio.all_tasks()
+
+    async def render_and_note_the_running_tasks(sentence_text, voice):
+        try:
+            return await render(sentence_text, voice)
+        finally:
+            known.update(asyncio.all_tasks())
+
+    answer = await participation.speak(who, room_id, text, render_and_note_the_running_tasks)
+    announcements = asyncio.all_tasks() - known - {asyncio.current_task()}
+    if announcements:
+        await asyncio.wait(announcements)
+    return answer
 
 
 async def waiting_to_speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
     """A `speak` waiting in the agent's queue for its sentence to start; the task holds its answer."""
-    answer = asyncio.create_task(speak(participation, text, render, who=who, room_id=room_id))
+    answer = asyncio.create_task(participation.speak(who, room_id, text, rendering() if render is None else render))
     await asyncio.sleep(0)
     return answer
 
@@ -85,16 +99,35 @@ async def call(link, participation):
     return host, guest, mozart, salieri
 
 
-@pytest_asyncio.fixture
-async def nine_waiting(participation, call, scheduler):
-    """The room where the guest's agent plays an hour-long sentence with nine waiting, its slots free again."""
-    host, *_ = call
-    room_id = room_of(host)
+async def a_full_window(participation, room_id, scheduler):
+    """The room where the agent plays a sentence with the window's other lines waiting."""
+    await speak(participation, room_id=room_id)
+    for _ in range(LINES_PER_WINDOW - 1):
+        await waiting_to_speak(participation, room_id=room_id)
+    return room_id
+
+
+async def nine_waiting_in(participation, room_id, scheduler):
+    """The room where the agent plays an hour-long sentence with nine waiting, its slots free again."""
     await speak(participation, room_id=room_id, render=LONG)
     for _ in range(LINES_PER_WINDOW - 1):
         await waiting_to_speak(participation, room_id=room_id, render=LONG)
     await scheduler.advance(LINE_WINDOW_SECONDS)
     return room_id
+
+
+async def a_full_queue(participation, room_id, scheduler):
+    """The room of `nine_waiting_in`, with one more waiting."""
+    await nine_waiting_in(participation, room_id, scheduler)
+    await waiting_to_speak(participation, room_id=room_id, render=LONG)
+    return room_id
+
+
+@pytest_asyncio.fixture
+async def nine_waiting(participation, call, scheduler):
+    """The room where the guest's agent plays an hour-long sentence with nine waiting, its slots free again."""
+    host, *_ = call
+    return await nine_waiting_in(participation, room_of(host), scheduler)
 
 
 class TestASentenceStarts:
@@ -192,6 +225,21 @@ class TestTheAnswerComesWhenTheSentenceStarts:
             SENTENCE_MS,
             SENTENCE_MS,
         )
+
+    async def test_call_60_an_idle_agents_first_sentence_answers_while_a_browser_write_blocks(
+        self, participation, call
+    ):
+        host, *_ = call
+        held = HeldWrite(host.socket, first_only=True)
+        speaking = asyncio.create_task(participation.speak(GUEST, room_of(host), "Guten Tag", rendering()))
+        await held.reached()
+        await asyncio.sleep(0)
+
+        answered_while_blocked = speaking.done()
+        held.release.set()
+        await speaking
+
+        assert answered_while_blocked
 
     async def test_call_60_a_refusal_answers_while_the_agents_sentences_still_wait(self, participation, call):
         host, *_ = call
@@ -382,28 +430,6 @@ class TestASentenceThatIsNotSpoken:
 
 
 class TestTheBounds:
-    async def test_call_60_the_sentence_over_the_lines_a_window_allows_is_refused_not_rendered_and_logs_too_fast(
-        self, participation, call
-    ):
-        host, *_ = call
-        room_id = room_of(host)
-        await speak(participation, room_id=room_id)
-        for _ in range(LINES_PER_WINDOW - 1):
-            await waiting_to_speak(participation, room_id=room_id)
-        rendered = []
-
-        async def render(sentence, voice):
-            rendered.append(sentence)
-
-        with structlog.testing.capture_logs() as logs:
-            refused = await speak(participation, render=render, room_id=room_id)
-
-        assert (refused, rendered, failures_in(logs, FAILED)) == (
-            AgentRefusal.UNAVAILABLE,
-            [],
-            [{"outcome": "too_fast"}],
-        )
-
     async def test_call_60_a_sentence_is_spoken_again_once_the_window_has_passed(self, participation, call, scheduler):
         host, *_ = call
         room_id = room_of(host)
@@ -425,11 +451,13 @@ class TestTheBounds:
 
         assert refused is AgentRefusal.UNAVAILABLE
 
-    async def test_call_60_the_sentence_behind_a_full_queue_is_refused_not_rendered_and_logs_queue_full(
-        self, participation, nine_waiting
+    @pytest.mark.parametrize(
+        ("arranged", "outcome"), [(a_full_window, "too_fast"), (a_full_queue, "queue_full")], ids=["window", "queue"]
+    )
+    async def test_call_60_a_sentence_over_a_bound_is_refused_not_rendered_and_logs_its_outcome(
+        self, participation, call, scheduler, arranged, outcome
     ):
-        room_id = nine_waiting
-        await waiting_to_speak(participation, room_id=room_id, render=LONG)
+        room_id = await arranged(participation, room_of(call[0]), scheduler)
         rendered = []
 
         async def render(sentence, voice):
@@ -441,7 +469,7 @@ class TestTheBounds:
         assert (refused, rendered, failures_in(logs, FAILED)) == (
             AgentRefusal.UNAVAILABLE,
             [],
-            [{"outcome": "queue_full"}],
+            [{"outcome": outcome}],
         )
 
     async def test_call_60_sentences_rendering_at_once_never_leave_more_than_the_queue_allows_waiting(
@@ -524,3 +552,57 @@ class TestAnEndWhileTheSentenceIsAnnounced:
         await speaking
 
         assert (host.frames(VOICE), guest.frames(VOICE)) == ([], [])
+
+    @pytest.mark.parametrize("end", ["room_ended", "leave"])
+    async def test_call_60_an_end_in_the_turn_after_the_answer_shows_and_tells_nothing_of_the_sentence(
+        self, participation, call, end
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+
+        async def end_the_agent():
+            if end == "room_ended":
+                participation.room_ended(room_id)
+            else:
+                await participation.leave(GUEST, room_id)
+
+        ending = []
+
+        async def render_then_end_next_turn(sentence, voice):
+            ending.append(asyncio.ensure_future(end_the_agent()))
+            return RenderedSentence(b"sound", SENTENCE_MS)
+
+        await speak(participation, render=render_then_end_next_turn, room_id=room_id)
+        await asyncio.gather(*ending)
+
+        assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])
+
+    async def test_call_60_a_sentence_that_finished_while_its_line_was_sent_is_not_given_a_voice(
+        self, participation, call, scheduler
+    ):
+        host, guest, *_ = call
+        held = HeldWrite(host.socket)
+        first = asyncio.create_task(speak(participation, "eins", room_id=room_of(host)))
+        await held.reached()
+        await scheduler.advance(SENTENCE_MS / 1000)
+        second = asyncio.create_task(speak(participation, "zwei", room_id=room_of(host)))
+        await asyncio.sleep(0)
+        held.release.set()
+        await asyncio.gather(first, second)
+
+        assert (sorted(frame["text"] for frame in guest.frames(LINE)), len(guest.frames(VOICE))) == (
+            ["eins", "zwei"],
+            1,
+        )
+
+    async def test_call_60_a_failed_announcement_is_logged(self, participation, call):
+        host, *_ = call
+
+        async def refuse(text):
+            raise RuntimeError("closed")
+
+        host.socket.send_text = refuse
+        with structlog.testing.capture_logs() as logs:
+            await speak(participation, room_id=room_of(host))
+
+        assert [log["agent_id"] is not None for log in logs if log["event"] == "agent_announcement_failed"] == [True]
