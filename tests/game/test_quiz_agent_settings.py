@@ -10,6 +10,7 @@ from hopin.agent.feature import GameFeature, configured_game_feature
 from hopin.agent.settings import AgentSettings
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, VOICE_DEADLINE_SECONDS
+from hopin.participation.voice import VoiceStore
 from tests.support.settings_refusal import assert_refused_without_echo
 
 pytestmark = pytest.mark.integration
@@ -51,7 +52,7 @@ def test_the_four_settings_load_as_the_clients_agent_section(agent_environment):
 
 
 def test_a_missing_key_file_does_not_refuse_the_start(agent_environment):
-    assert configured_game_feature().backend is not None
+    assert configured_game_feature(VoiceStore()).backend is not None
 
 
 @pytest.mark.parametrize("name", GATEWAY_ENVIRONMENT)
@@ -87,13 +88,16 @@ def test_the_game_reads_the_speech_settings_beside_the_agent_ones(agent_environm
     agent_environment.setenv("HOPIN_SPEECH__ORIGIN", "http://speech.test:8090")
     agent_environment.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
 
-    assert configured_game_feature().sign_in_scopes == ("scenario-audience",)
+    assert configured_game_feature(VoiceStore()).sign_in_scopes == ("scenario-audience",)
 
 
 def test_the_sign_in_asks_for_no_audience_scope_without_speech_and_for_the_configured_one_with_it():
     speech = SpeechSettings(origin="http://speech.test:8090", audience_scope="scenario-audience")
 
-    assert (GameFeature(None).sign_in_scopes, GameFeature(None, speech).sign_in_scopes) == ((), ("scenario-audience",))
+    assert (GameFeature(None, VoiceStore()).sign_in_scopes, GameFeature(None, VoiceStore(), speech).sign_in_scopes) == (
+        (),
+        ("scenario-audience",),
+    )
 
 
 def test_an_audience_scope_without_an_origin_leaves_the_sign_in_asking_for_no_scope_and_the_voice_off(
@@ -102,4 +106,4 @@ def test_an_audience_scope_without_an_origin_leaves_the_sign_in_asking_for_no_sc
     monkeypatch.delenv("HOPIN_SPEECH__ORIGIN", raising=False)
     speech = SpeechSettings(audience_scope="scenario-audience")
 
-    assert (GameFeature(None, speech).sign_in_scopes, speech.service) == ((), None)
+    assert (GameFeature(None, VoiceStore(), speech).sign_in_scopes, speech.service) == ((), None)

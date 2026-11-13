@@ -76,10 +76,13 @@ class TestMain:
 
         assert (refused.value.code == POLICY_VIOLATION_CLOSE_CODE) is route_exists
 
-    def test_refuses_to_start_when_hearing_is_on_without_a_speech_service(self, sign_in_settings, monkeypatch):
+    @pytest.mark.parametrize("setting", ["HOPIN_SPEECH__HEARING", "HOPIN_SPEECH__SPEAKING"])
+    def test_refuses_to_start_when_hearing_or_speaking_is_on_without_a_speech_service(
+        self, sign_in_settings, monkeypatch, setting
+    ):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
-        monkeypatch.setenv("HOPIN_SPEECH__HEARING", "true")
+        monkeypatch.setenv(setting, "true")
 
         with pytest.raises(ValidationError):
             build_application(ServerSettings())

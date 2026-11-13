@@ -20,6 +20,8 @@ FIGURE_FETCH_WORKERS = 2
 FIGURE_REDIRECTS = 1
 # The hearing socket of a seat is this path and the seat's id.
 HEARING_PATH = "/ws/hearing"
+# A voice is fetched at this path and the voice's id; the game's lines and an agent's sentences are served alike.
+VOICE_PATH = "/api/game/voice"
 
 
 class ParticipationSignal(StrEnum):
@@ -31,6 +33,7 @@ class ParticipationSignal(StrEnum):
     AGENT_ADD = "agent_add"
     AGENT_LINE = "agent_line"
     AGENT_HEARING = "agent_hearing"
+    AGENT_VOICE = "agent_voice"
 
 
 class AgentRefusal(StrEnum):

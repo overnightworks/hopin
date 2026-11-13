@@ -94,3 +94,27 @@ def test_hearing_on_without_an_origin_and_an_audience_scope_fails_when_the_setti
 
     with pytest.raises(ValidationError):
         SpeechSettings()
+
+
+def test_speaking_is_off_by_default_and_names_no_service(speech_environment):
+    speech = SpeechSettings()
+
+    assert (speech.speaking, speech.speaking_service) == (False, None)
+
+
+def test_speaking_on_names_the_configured_service(speech_environment):
+    speech_environment.setenv("HOPIN_SPEECH__SPEAKING", "true")
+
+    speech = SpeechSettings()
+
+    assert (speech.speaking, speech.speaking_service) == (True, speech.service)
+    assert speech.speaking_service is not None
+
+
+@pytest.mark.parametrize("missing", ["HOPIN_SPEECH__ORIGIN", "HOPIN_SPEECH__AUDIENCE_SCOPE"])
+def test_speaking_on_without_an_origin_and_an_audience_scope_fails_when_the_settings_load(speech_environment, missing):
+    speech_environment.setenv("HOPIN_SPEECH__SPEAKING", "true")
+    speech_environment.delenv(missing)
+
+    with pytest.raises(ValidationError):
+        SpeechSettings()

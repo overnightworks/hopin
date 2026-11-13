@@ -11,6 +11,7 @@ from hopin.agent.feature import GameFeature
 from hopin.app import create_app
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.vocabulary import GameSignal
+from hopin.participation.voice import VoiceStore
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Succeeds
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import fixture_page_build
@@ -40,7 +41,7 @@ def quiz_call(sign_in_settings, stores):
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
-        call_features=(GameFeature(backend),),
+        call_features=(GameFeature(backend, VoiceStore()),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client:
         yield client, issuer, installed_web_auth_config(app), question

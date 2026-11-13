@@ -10,6 +10,7 @@ from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
+from hopin.participation.voice import VoiceStore
 from hopin.skat.feature import configured_skat_feature  # skat
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
@@ -48,16 +49,20 @@ def command_line_parser() -> argparse.ArgumentParser:
 
 def build_application(settings: ServerSettings) -> FastAPI:
     participation = ParticipationSettings()
+    speech = SpeechSettings()
+    voices = VoiceStore()
     return create_app(
         settings,
         page_build=PageBuild.load(BUILD_DIRECTORY),
         call_features=(
-            configured_game_feature(),  # game
+            configured_game_feature(voices),  # game
             ParticipationFeature(
                 settings.public_origin,
                 participation.agent_adders,
                 participation.figure_sources,
-                hearing=SpeechSettings().hearing_service,
+                hearing=speech.hearing_service,
+                speaking=speech.speaking_service,
+                voices=voices,
             ),
             *configured_skat_feature(settings.public_origin),  # skat
         ),

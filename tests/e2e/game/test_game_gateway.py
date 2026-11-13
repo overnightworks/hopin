@@ -9,6 +9,7 @@ from agents.backend.gateway import GatewayBackend
 from playwright.sync_api import Page, expect
 
 from hopin.agent.feature import GameFeature
+from hopin.participation.voice import VoiceStore
 from tests.e2e.game.game_page import GAME_MASTER_LINES, open_chat, start_quiz
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.people import DESKTOP
@@ -36,7 +37,7 @@ def gateway_server(gateway: FakeGateway, tmp_path_factory: pytest.TempPathFactor
     directory = tmp_path_factory.mktemp("gateway-sign-in")
     key_file = directory / "gateway-key"
     key_file.write_text(f"scenario-key-{secrets.token_hex(16)}\n")
-    game = GameFeature(GatewayBackend(agent_settings(key_file).agent, transport=gateway))
+    game = GameFeature(GatewayBackend(agent_settings(key_file).agent, transport=gateway), VoiceStore())
     with running_hopin(loopback_sign_in(directory), tmp_path_factory.mktemp("gateway-tls"), game) as server:
         yield server
 

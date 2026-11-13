@@ -54,16 +54,10 @@ def hearing_service(fake_speech):
 
 
 @pytest.fixture
-def sponsored(scene):
-    """The scene with its owner's agent added from the owner's own seat and accepted, so the agent hears the owner."""
-    owner = scene.owner
-    while not (offers := owner.frame_of_type(OFFERS)["offers"]):
-        pass
-    owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
-    owner.frame_of_type(OFFERS)
-    scene.accept(scene.standings()[0])
-    scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)["agent_id"]
-    return scene
+def sponsored(joined_agent):
+    """The scene with its owner's agent joined, so the agent hears the owner; the sponsor's switch is told on."""
+    joined_agent.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
+    return joined_agent
 
 
 def hop(scene, *, seat=None, login=...):
@@ -602,10 +596,25 @@ class TestHearingOff:
         )
 
 
+def the_service_drops(session, socket):
+    session.drop()
+    closed_with(socket)
+
+
+def the_browser_leaves(_session, socket):
+    socket.close()
+
+
 class TestHowAHopEndsInTheLog:
-    @pytest.mark.parametrize("ending", ["the_service_drops", "the_browser_leaves"])
+    @pytest.mark.parametrize(
+        ("action", "ending"),
+        [
+            pytest.param(the_service_drops, "cut", id="the_service_drops"),
+            pytest.param(the_browser_leaves, "browser_left", id="the_browser_leaves"),
+        ],
+    )
     def test_call_58_a_hop_the_service_drops_or_the_browser_leaves_is_logged_with_that_ending(
-        self, sponsored, fake_speech, ending
+        self, sponsored, fake_speech, action, ending
     ):
         endings = []
         logged = threading.Event()
@@ -620,14 +629,10 @@ class TestHowAHopEndsInTheLog:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
             session.wait_for_audio(1)
-            if ending == "the_service_drops":
-                session.drop()
-                closed_with(socket)
-            else:
-                socket.close()
+            action(session, socket)
             assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
 
-        assert endings == ["cut" if ending == "the_service_drops" else "browser_left"]
+        assert endings == [ending]
 
 
 class TestNothingIsLogged:

@@ -3,13 +3,19 @@
 import json
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
+    SPEAK_TOOL,
     AcceptInvitationArguments,
     AcceptInvitationRefusal,
     AcceptInvitationRefused,
+    SpeakArguments,
+    SpeakRefusal,
+    SpeakRefused,
+    Spoken,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
@@ -21,11 +27,15 @@ from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from hopin.agent.speaking import AgentVoice
     from hopin.participation.feature import Participation
 
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
 SAY: Final = "say"
+
+# The longest sentence an agent speaks at once: the chat's line bound, since the sentence also stands there as a line.
+SPEAK_MAX_CHARACTERS: Final = AGENT_LINE_MAX_CHARACTERS
 
 # The kind of a place a call is, which the runtime's runner maps to a call's id.
 CALL_KIND: Final = "call"
@@ -48,6 +58,13 @@ AUDIENCE_OF_TOOL: Final = {
     LEAVE_CALL: Audience.EVERY_AGENT,
     ACCEPT_INVITATION_TOOL: Audience.OWN_ACCOUNT,
     SAY: Audience.EVERY_AGENT,
+    SPEAK_TOOL: Audience.EVERY_AGENT,
+}
+
+_SPEAK_REFUSAL_OF: Final = {
+    AgentRefusal.GONE: SpeakRefusal.NOT_ACTIVE,
+    AgentRefusal.SPONSOR_AWAY: SpeakRefusal.NOT_ACTIVE,
+    AgentRefusal.UNAVAILABLE: SpeakRefusal.UNAVAILABLE,
 }
 
 
@@ -122,6 +139,18 @@ _SAY_DECLARATION: Final = ToolDeclaration(
     },
     effect=ToolEffect.SIDE_EFFECTING,
 )
+_SPEAK_DECLARATION: Final = ToolDeclaration(
+    name=SPEAK_TOOL,
+    description=(
+        "Say one sentence aloud in the call you joined. Everyone in the call hears it in your own voice and reads it "
+        f"in the chat under your name with an AI mark. A sentence holds 1 to {SPEAK_MAX_CHARACTERS} characters. "
+        "Sentences play one after another, each when the one before it has ended; the answer is how long yours plays. "
+        "It is refused as not_active when you are not joined there or your person's seat is away, as too_long above "
+        "the bound and as unavailable when no voice can be made."
+    ),
+    parameters=SpeakArguments.model_json_schema(),
+    effect=ToolEffect.SIDE_EFFECTING,
+)
 
 
 @dataclass(frozen=True)
@@ -140,6 +169,10 @@ def _accept_refused(refusal: AcceptInvitationRefusal) -> ToolOutcome:
     return ToolOutcome(AcceptInvitationRefused(refused=refusal).model_dump_json(), is_error=True)
 
 
+def _speak_refused(refusal: SpeakRefusal) -> ToolOutcome:
+    return ToolOutcome(SpeakRefused(refused=refusal).model_dump_json(), is_error=True)
+
+
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
     if isinstance(outcome, DialedAgent):
         return ToolOutcome(json.dumps({"room": outcome.room_id, "name": outcome.name}), is_error=False)
@@ -151,8 +184,9 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def participation_tools(participation: Callable[[], Participation]) -> tuple[CallerTool, ...]:
-    """The tools on the participation the call's handler builds; `participation` is read at each call."""
+def participation_tools(participation: Callable[[], Participation], voice: AgentVoice | None) -> tuple[CallerTool, ...]:
+    """The tools on the participation the call's handler builds; `participation` is read at each call. `voice` speaks
+    an agent's sentences, none while speaking is off."""
 
     async def join_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         outcome = await participation().dial_in(caller.person, _text_of(arguments, "room"), _text_of(arguments, "name"))
@@ -185,9 +219,25 @@ def participation_tools(participation: Callable[[], Participation]) -> tuple[Cal
             return ToolOutcome(json.dumps({}), is_error=False)
         return refused(refusal)
 
+    async def speak(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        try:
+            spoken = SpeakArguments.model_validate(arguments)
+        except ValidationError:
+            return _speak_refused(SpeakRefusal.NOT_ACTIVE)
+        if spoken.place.kind != CALL_KIND:
+            return _speak_refused(SpeakRefusal.NOT_ACTIVE)
+        if len(spoken.text) > SPEAK_MAX_CHARACTERS:
+            return _speak_refused(SpeakRefusal.TOO_LONG)
+        render = None if voice is None else partial(voice.render, caller.person)
+        outcome = await participation().speak(caller.person, spoken.place.id, spoken.text, render)
+        if isinstance(outcome, AgentRefusal):
+            return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
+        return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)
+
     return (
         CallerTool(_JOIN_CALL_DECLARATION, join_call),
         CallerTool(_ACCEPT_INVITATION_DECLARATION, accept_invitation),
         CallerTool(_LEAVE_CALL_DECLARATION, leave_call),
         CallerTool(_SAY_DECLARATION, say),
+        CallerTool(_SPEAK_DECLARATION, speak),
     )

@@ -14,7 +14,9 @@ from hopin.agent.backend import StarterPerson
 from hopin.agent.speech import SpeechVoice
 from hopin.agent.speech_settings import SpeechService
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
-from tests.game.support.speech_origin import (
+from tests.game.support.world import build_world
+from tests.support.loopback_origin import Origin
+from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     SPOKEN_WAV,
     chunked_wav,
@@ -24,8 +26,6 @@ from tests.game.support.speech_origin import (
     speaking,
     spoken_request,
 )
-from tests.game.support.world import build_world
-from tests.support.loopback_origin import Origin
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
