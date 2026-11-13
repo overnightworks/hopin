@@ -12,6 +12,7 @@ const streamsOf = () => live().map((started) => started.options.stream);
 const freshCapture = () => createHearingCapture(() => "ws://page/hop", captures.startCapture);
 const PAST_DEADLINE = { kind: "hop", close: HopClose.PAST_DEADLINE } as const;
 const ENDED_IN_ORDER = { kind: "hop", close: HopClose.NORMAL } as const;
+const ENDS_THAT_REOPEN = [PAST_DEADLINE, ENDED_IN_ORDER] as const;
 
 beforeEach(captures.clear);
 
@@ -86,37 +87,47 @@ describe("capturing the sponsor's microphone", () => {
 });
 
 describe("a hop that ended", () => {
-    it("CALL-59: is opened again once when it ended past its deadline while both are still on", async () => {
+    it.each(ENDS_THAT_REOPEN)(
+        "CALL-59: is opened again once when it ended $close while an agent still hears the person",
+        async (end) => {
+            const capture = freshCapture();
+            capture.setStream(stream("microphone"));
+            capture.setHearers(1);
+
+            await captures.started[0]?.end(end);
+
+            expect([live().length, captures.started.length]).toEqual([1, 2]);
+        },
+    );
+
+    it.each(ENDS_THAT_REOPEN)(
+        "CALL-59: is not opened a second time when the reopened hop ends $close too",
+        async (end) => {
+            const capture = freshCapture();
+            capture.setStream(stream("microphone"));
+            capture.setHearers(1);
+
+            await captures.started[0]?.end(end);
+            await captures.started[1]?.end(end);
+
+            expect([live().length, captures.started.length]).toEqual([0, 2]);
+        },
+    );
+
+    it.each(
+        ENDS_THAT_REOPEN.flatMap((end) => [
+            { end, change: "the switch going off and on", counts: [0, 1] },
+            { end, change: "one of two agents stopping to hear the person", counts: [2, 1] },
+        ]),
+    )("CALL-59: gets a new reopening after $change when the hop ended $end.close twice", async ({ end, counts }) => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHearers(1);
+        await captures.started[0]?.end(end);
+        await captures.started[1]?.end(end);
 
-        await captures.started[0]?.end(PAST_DEADLINE);
-
-        expect([live().length, captures.started.length]).toEqual([1, 2]);
-    });
-
-    it("CALL-59: is not opened a second time when the reopened hop ends past its deadline too", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(1);
-
-        await captures.started[0]?.end(PAST_DEADLINE);
-        await captures.started[1]?.end(PAST_DEADLINE);
-
-        expect([live().length, captures.started.length]).toEqual([0, 2]);
-    });
-
-    it("CALL-59: gets a new reopening after the person's next switch change", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(1);
-        await captures.started[0]?.end(PAST_DEADLINE);
-        await captures.started[1]?.end(PAST_DEADLINE);
-
-        capture.setHearers(0);
-        capture.setHearers(1);
-        await captures.started[2]?.end(PAST_DEADLINE);
+        for (const count of counts) capture.setHearers(count);
+        await captures.started[2]?.end(end);
 
         expect([live().length, captures.started.length]).toEqual([1, 4]);
     });
@@ -153,65 +164,20 @@ describe("a hop that ended", () => {
         expect(streamsOf()).toEqual(["second"]);
     });
 
-    it("CALL-59: is opened again once when it ended in order while an agent still hears the person", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(2);
-        capture.setHearers(1);
+    it.each(ENDS_THAT_REOPEN)(
+        "CALL-59: is not opened again when it ended $close after the last agent stopped hearing the person",
+        async (end) => {
+            const capture = freshCapture();
+            capture.setStream(stream("microphone"));
+            capture.setHearers(1);
+            const first = captures.started[0];
 
-        await captures.started[0]?.end(ENDED_IN_ORDER);
+            capture.setHearers(0);
+            await first?.end(end);
 
-        expect([live().length, captures.started.length]).toEqual([1, 2]);
-    });
-
-    it("CALL-59: gets a new reopening after each change of how many agents hear the person", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(2);
-        capture.setHearers(1);
-        await captures.started[0]?.end(ENDED_IN_ORDER);
-
-        capture.setHearers(2);
-        capture.setHearers(1);
-        await captures.started[1]?.end(ENDED_IN_ORDER);
-
-        expect([live().length, captures.started.length]).toEqual([1, 3]);
-    });
-
-    it("CALL-59: is not opened a second time when the reopened hop ends in order with the same agents hearing", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(1);
-        await captures.started[0]?.end(ENDED_IN_ORDER);
-
-        await captures.started[1]?.end(ENDED_IN_ORDER);
-
-        expect([live().length, captures.started.length]).toEqual([0, 2]);
-    });
-
-    it("CALL-59: is not opened again when it ended in order after the last agent stopped hearing the person", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(1);
-        const first = captures.started[0];
-
-        capture.setHearers(0);
-        await first?.end(ENDED_IN_ORDER);
-
-        expect(captures.started).toHaveLength(1);
-    });
-
-    it("CALL-59: is not opened again when it ended past its deadline after the switch went off", async () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHearers(1);
-        const first = captures.started[0];
-
-        capture.setHearers(0);
-        await first?.end(PAST_DEADLINE);
-
-        expect(captures.started).toHaveLength(1);
-    });
+            expect(captures.started).toHaveLength(1);
+        },
+    );
 
     it("CALL-59: is not mistaken for the running capture when an older one ends late", async () => {
         const capture = freshCapture();
