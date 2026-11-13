@@ -17,12 +17,14 @@ from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, silent_wav,
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.participation_scene import Scene
 
 pytestmark = pytest.mark.e2e
 
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
 SOUND_SECONDS = 1.0
+LONGER_SOUND_SECONDS = 3.0
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
 # Each page records the length of every sound its player starts and how many it stopped.
@@ -75,19 +77,21 @@ class Speaker:
     """The call of three people whose member added the owner's agent, a recording player on each page, and the agent's
     sentences."""
 
-    def __init__(self, scene: Scene, speech_origin: Origin) -> None:
+    def __init__(self, scene: Scene, speech_origin: Origin, *, other: OwnAccountAgent | None = None) -> None:
         self.scene = scene
         self.speech_origin = speech_origin
         self.room = room_of_link(scene.link)
         scene.member_adds_and_the_agent_accepts()
+        if other is not None:
+            scene.member_adds_and_accepts(other)
         for person in scene.everyone:
             person.evaluate(RECORD_PLAYBACK)
-            expect(person.locator(AGENT_TILE)).to_have_count(1)
+            expect(person.locator(AGENT_TILE)).to_have_count(1 if other is None else 2)
 
-    def speak(self, seconds: float, text: str = "Guten Tag") -> None:
+    def speak(self, seconds: float, text: str = "Guten Tag", agent: OwnAccountAgent | None = None) -> None:
         speaking(self.speech_origin, chunked_wav(silent_wav(seconds)))
         place = PlaceRef(kind=CALL_KIND, id=self.room)
-        self.scene.agent.call(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+        (self.scene.agent if agent is None else agent).call(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
 
     def leave(self) -> None:
         self.scene.agent.call(LEAVE_CALL, {"room": self.room})
@@ -140,3 +144,28 @@ def test_an_agent_that_leaves_takes_its_tile_and_the_sound_it_plays_from_every_b
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
         assert person.evaluate("() => window.soundsStopped") == 1
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_tile(
+    scene_of: Callable[[dict[str, Any]], Scene],
+    speech_origin: Origin,
+    second_own_account_agent: OwnAccountAgent,
+    form_factor: dict[str, Any],
+) -> None:
+    """CALL-60: Two agents of one seat speak at once: each sound plays in its own player in every browser, and each
+    tile shows speaking apart from the other's."""
+    speaker = Speaker(scene_of(form_factor), speech_origin, other=second_own_account_agent)
+    first, second = speaker.scene.agent, second_own_account_agent
+
+    speaker.speak(LONGER_SOUND_SECONDS, agent=first)
+    speaker.speak(SOUND_SECONDS, agent=second)
+
+    for person in speaker.scene.everyone:
+        tiles = [person.locator(AGENT_TILE).filter(has_text=agent.name) for agent in (first, second)]
+        for tile in tiles:
+            expect(tile).to_have_class(SPEAKING_TILE)
+        expect(tiles[1]).not_to_have_class(SPEAKING_TILE)
+        expect(tiles[0]).to_have_class(SPEAKING_TILE)
+        expect(tiles[0]).not_to_have_class(SPEAKING_TILE)
+        assert speaker.started(person) == [LONGER_SOUND_SECONDS, SOUND_SECONDS]

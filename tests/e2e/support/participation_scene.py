@@ -46,7 +46,10 @@ class Scene:
         return page.locator(OFFER)
 
     def offer_of_agent(self, page: Page) -> Locator:
-        return self.offers_on(page).filter(has_text=self.agent.name)
+        return self.offer_of(page, self.agent)
+
+    def offer_of(self, page: Page, agent: OwnAccountAgent) -> Locator:
+        return self.offers_on(page).filter(has_text=agent.name)
 
     def agent_listens(self) -> None:
         """The agent opens its stream, which registers it, so a member's seat is offered it; it holds no place yet."""
@@ -54,12 +57,21 @@ class Scene:
         assert self.agent.standings() == []
 
     def member_adds_and_the_agent_accepts(self, figure: dict[str, str] | None = None) -> None:
-        self.agent_listens()
+        self.member_adds_and_accepts(self.agent, figure)
+
+    def member_adds_and_accepts(self, agent: OwnAccountAgent, figure: dict[str, str] | None = None) -> None:
+        """The member adds the agent from its offer and the agent accepts the invitation."""
+        self.member_adds(agent)
+        accepted = agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure)
+        assert accepted["name"] == agent.name
+
+    def member_adds(self, agent: OwnAccountAgent) -> None:
+        """The agent opens its stream and the member adds it from its offer, which then shows the invitation."""
+        agent.listen()
+        assert agent.standings() == []
         open_more(self.member)
-        offer = self.offer_of_agent(self.member)
+        offer = self.offer_of(self.member, agent)
         expect(offer).to_have_count(1)
         offer.get_by_role("button").click()
         expect(offer.get_by_role("status")).to_be_visible()
         expect(offer.get_by_role("button")).to_have_count(0)
-        accepted = self.agent.accept(self.agent.invitation_within(INVITATION_WAKE_SECONDS), figure)
-        assert accepted["name"] == self.agent.name

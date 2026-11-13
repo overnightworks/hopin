@@ -27,6 +27,7 @@ OWNER_USERNAME = "owner"
 OWNER_SUBJECT = f"subject-{OWNER_USERNAME}"
 ADDERS_GROUP = "/apps/hopin/agent-adders"
 AGENT_NAME = "Mozart"
+SECOND_AGENT_NAME = "Leonardo"
 AGENT_TILE = '#stage [id^="container-agent-"]'
 REMOVE = ".agent-remove"
 COUNT = "#participantCount .num"
@@ -200,9 +201,20 @@ class OwnAccountAgent(SdkAgent):
 
     def accept(self, standing: dict[str, Any], figure: dict[str, str] | None = None) -> dict[str, Any]:
         """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one."""
+        return self.call(
+            ACCEPT_INVITATION_TOOL, self._acceptance(standing) | ({} if figure is None else {"figure": figure})
+        )
+
+    def accept_refusal(self, standing: dict[str, Any]) -> str:
+        """Accept the invitation and return the code the call refuses it with."""
+        result = self._run(self._client.call_tool(ACCEPT_INVITATION_TOOL, self._acceptance(standing)))
+        assert result.is_error
+        return json.loads(result.content[0].text)["refused"]
+
+    @staticmethod
+    def _acceptance(standing: dict[str, Any]) -> dict[str, Any]:
         invitation = standing["invitation"]
-        arguments = {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
-        return self.call(ACCEPT_INVITATION_TOOL, arguments | ({} if figure is None else {"figure": figure}))
+        return {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
 
 
 class OwnAgent(SdkAgent):

@@ -8,6 +8,7 @@ from tests.e2e.support.dialed_agent import (
     ADDERS_GROUP,
     AGENT_NAME,
     OWNER_SUBJECT,
+    SECOND_AGENT_NAME,
     OwnAccountAgent,
     OwnAgent,
 )
@@ -81,6 +82,14 @@ def e2e_server(participation_server: RunningServer) -> RunningServer:
 def own_account_agent(e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
     """The scripted agent of `OWNER_SUBJECT`, named apart from the agents earlier tests left registered."""
     agent = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{AGENT_NAME}-{secrets.token_hex(3)}")
+    yield agent
+    agent.close()
+
+
+@pytest.fixture
+def second_own_account_agent(e2e_server: RunningServer) -> Iterator[OwnAccountAgent]:
+    """Another scripted agent of `OWNER_SUBJECT`, so the owner has two to bring into one call."""
+    agent = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{SECOND_AGENT_NAME}-{secrets.token_hex(3)}")
     yield agent
     agent.close()
 
