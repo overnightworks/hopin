@@ -1,17 +1,20 @@
 import { HopClose, type Capture, type CaptureOptions } from "overnightworks-speech-browser";
 import workletUrl from "overnightworks-speech-browser/capture-worklet.js?url&no-inline";
 
+const REOPENED_ENDS: ReadonlySet<HopClose> = new Set([HopClose.PAST_DEADLINE, HopClose.NORMAL]);
+
 type StartCapture = (options: CaptureOptions) => Capture;
 
 /** What the person's browser sends of their microphone: one capture of the stream into the seat's hop while the server's record has an agent hearing them and the core holds their microphone, and none otherwise. */
 export interface HearingCapture {
-    setHeard(heard: boolean): void;
+    /** The number of agents the server's record has hearing the person. */
+    setHearers(count: number): void;
     setStream(stream: MediaStream | null): void;
 }
 
-/** `hopUrl` is read when a capture starts and `startCapture` starts it; the stream's capture stops the moment either input ends. A hop that ends past its deadline is opened once more; every other end leaves the capture closed until the next change of the switch or the stream. */
+/** `hopUrl` is read when a capture starts and `startCapture` starts it; the stream's capture stops the moment either input ends. A hop that ends past its deadline or in order, as it does with the agent that serves it, is opened once more; every other end leaves the capture closed until the next change of the switch or the stream. Each change of the number of agents that hear the person allows one more reopening. */
 export function createHearingCapture(hopUrl: () => string, startCapture: StartCapture): HearingCapture {
-    let heard = false;
+    let hearers = 0;
     let stream: MediaStream | null = null;
     let running: Capture | null = null;
     let mayReopen = true;
@@ -27,7 +30,7 @@ export function createHearingCapture(hopUrl: () => string, startCapture: StartCa
         void capture.ended.then((end) => {
             if (running !== capture) return;
             running = null;
-            if (end.kind === "hop" && end.close === HopClose.PAST_DEADLINE && mayReopen) {
+            if (end.kind === "hop" && REOPENED_ENDS.has(end.close) && mayReopen) {
                 mayReopen = false;
                 reconcile();
             }
@@ -36,15 +39,16 @@ export function createHearingCapture(hopUrl: () => string, startCapture: StartCa
 
     function reconcile() {
         stop();
-        if (heard && stream !== null) start(stream);
+        if (hearers > 0 && stream !== null) start(stream);
     }
 
     return {
-        setHeard(value) {
-            if (value === heard) return;
-            heard = value;
+        setHearers(count) {
+            if (count === hearers) return;
+            const wasHeard = hearers > 0;
+            hearers = count;
             mayReopen = true;
-            reconcile();
+            if (wasHeard !== hearers > 0) reconcile();
         },
         setStream(value) {
             if (value === stream) return;

@@ -94,8 +94,9 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     const pressedOff = new Set<string>();
 
     // The server's record decides, except for an agent whose switch the person pressed off before the record answered.
-    function agentHears() {
-        return [...shown.values()].some((agent) => agent.hearing === true && !pressedOff.has(agent.joined.agent_id));
+    function hearingAgents() {
+        return [...shown.values()].filter((agent) => agent.hearing === true && !pressedOff.has(agent.joined.agent_id))
+            .length;
     }
 
     function mayRemove(frame: AgentJoinedFrame) {
@@ -117,7 +118,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
                               onChange: (on: boolean) => {
                                   if (!on) {
                                       pressedOff.add(frame.agent_id);
-                                      capture.setHeard(agentHears());
+                                      capture.setHearers(hearingAgents());
                                   }
                                   core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
                               },
@@ -145,7 +146,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         const recorded = { ...agent, hearing: frame.on };
         shown.set(frame.agent_id, recorded);
         draw(recorded);
-        capture.setHeard(agentHears());
+        capture.setHearers(hearingAgents());
     }
 
     const offers = document.createElement("div");
@@ -194,7 +195,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         speaking.delete(agentId);
         voices.close(agentId);
         core.showAgentTile(null, tileKey(agentId));
-        capture.setHeard(agentHears());
+        capture.setHearers(hearingAgents());
     }
 
     const seated = (frame: SeatFrame) => {
