@@ -388,6 +388,34 @@ describe("the sponsor's microphone capture", () => {
         expect(live()).toHaveLength(1);
     });
 
+    it("CALL-59: starts no capture on the person's own press of the switch on, only when the server's record says on", async () => {
+        const page = await sponsorsAgent();
+        record(page, false);
+        page.hear(MICROPHONE);
+
+        page.tiles.get("agent-a1")?.hearing?.onChange(true);
+        const startedByThePress = captures.started.length;
+        record(page, true);
+
+        expect([page.sent, startedByThePress, live().length]).toEqual([
+            [{ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: "a1", on: true }],
+            0,
+            1,
+        ]);
+    });
+
+    it("CALL-59: keeps a pressed-off switch's capture stopped when another agent leaves before the server answers", async () => {
+        const page = await sponsorsAgent("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));
+        record(page, true, "a1");
+        page.hear(MICROPHONE);
+        page.tiles.get("agent-a1")?.hearing?.onChange(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a2" });
+
+        expect([captures.started.length, live().length]).toEqual([1, 0]);
+    });
+
     it("CALL-59: keeps capturing for another agent that still hears the person when one is switched off", async () => {
         const page = await sponsorsAgent("a1");
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));

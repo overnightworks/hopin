@@ -70,10 +70,13 @@ export async function install(core: FeatureCore): Promise<void> {
         () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
         startCapture,
     );
+    // Agents whose switch the person pressed off and whose record has not answered yet: they no longer hear the person
+    // for the capture, whatever the record still says.
+    const pressedOff = new Set<string>();
 
-    // The server's record decides; `except` leaves out an agent whose switch the person has just pressed off.
-    function agentHears(except?: string) {
-        return [...shown.values()].some((agent) => agent.hearing === true && agent.joined.agent_id !== except);
+    // The server's record decides, except for an agent whose switch the person pressed off before the record answered.
+    function agentHears() {
+        return [...shown.values()].some((agent) => agent.hearing === true && !pressedOff.has(agent.joined.agent_id));
     }
 
     function mayRemove(frame: AgentJoinedFrame) {
@@ -93,7 +96,10 @@ export async function install(core: FeatureCore): Promise<void> {
                         : {
                               on: hearing,
                               onChange: (on: boolean) => {
-                                  if (!on) capture.setHeard(agentHears(frame.agent_id));
+                                  if (!on) {
+                                      pressedOff.add(frame.agent_id);
+                                      capture.setHeard(agentHears());
+                                  }
                                   core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
                               },
                           },
@@ -116,6 +122,7 @@ export async function install(core: FeatureCore): Promise<void> {
     function showHearing(frame: AgentHearingFrame) {
         const agent = shown.get(frame.agent_id);
         if (agent === undefined) return;
+        pressedOff.delete(frame.agent_id);
         const recorded = { ...agent, hearing: frame.on };
         shown.set(frame.agent_id, recorded);
         draw(recorded);
@@ -164,6 +171,7 @@ export async function install(core: FeatureCore): Promise<void> {
 
     function hide(agentId: string) {
         shown.delete(agentId);
+        pressedOff.delete(agentId);
         core.showAgentTile(null, tileKey(agentId));
         capture.setHeard(agentHears());
     }
