@@ -32,6 +32,20 @@ def participation_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[R
         yield server
 
 
+@pytest.fixture(scope="session")
+def hearing_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
+    """`participation_server` with the setting that lets agents hear on."""
+    loopback = loopback_sign_in(tmp_path_factory.mktemp("hearing-sign-in"))
+    with running_hopin(
+        loopback,
+        tmp_path_factory.mktemp("hearing-tls"),
+        participation=True,
+        hears=True,
+        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
+    ) as server:
+        yield server
+
+
 @pytest.fixture
 def e2e_server(participation_server: RunningServer) -> RunningServer:
     return participation_server
