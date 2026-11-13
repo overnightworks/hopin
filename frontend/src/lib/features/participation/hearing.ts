@@ -1,5 +1,5 @@
 import { HopClose, startCapture, type Capture } from "overnightworks-speech-browser";
-import workletUrl from "overnightworks-speech-browser/capture-worklet.js?url";
+import workletUrl from "overnightworks-speech-browser/capture-worklet.js?url&no-inline";
 
 interface Running {
     readonly capture: Capture;
