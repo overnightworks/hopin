@@ -154,7 +154,7 @@ def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_t
     form_factor: dict[str, Any],
 ) -> None:
     """CALL-60: Two agents of one seat speak at once: each sound plays in its own player in every browser, and each
-    tile shows speaking apart from the other's."""
+    tile shows speaking apart from the other's. The players start together, so the order of their starts is open."""
     speaker = Speaker(scene_of(form_factor), speech_origin, other=second_own_account_agent)
     first, second = speaker.scene.agent, second_own_account_agent
 
@@ -174,4 +174,4 @@ def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_t
         expect(tiles[0]).to_have_class(SPEAKING_TILE)
     for person, tiles in tiles_of.items():
         expect(tiles[0]).not_to_have_class(SPEAKING_TILE)
-        assert speaker.started(person) == [LONGER_SOUND_SECONDS, SOUND_SECONDS]
+        assert sorted(speaker.started(person)) == [SOUND_SECONDS, LONGER_SOUND_SECONDS]
