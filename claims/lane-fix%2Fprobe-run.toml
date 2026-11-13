@@ -1,7 +1,0 @@
-claim_id = "001b1a682f444fd0bcdbf742197a6bf8"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "0178127a9266fad408de9e1d11bdc47437f88214"
-branch = "fix/probe-run"
-scope = ["AGENTS.md", "scripts/skat_joint_stack.sh"]
-opened_commit = "f0a38f6dcb48cf438ebfc4ef0d66c7d3f0388c7e"
