@@ -7,6 +7,7 @@ from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
     WORKLOAD_TOKEN_HEADER,
+    Language,
     RefusalCode,
     VoiceId,
 )
@@ -56,9 +57,9 @@ def origin():
     origin.close()
 
 
-def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS):
+def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS, voice_name=VOICE_NAME):
     person = StarterPerson(world.relying_party, world.sessions, world.web_auth)
-    service = SpeechService(origin.base_url, VOICE_NAME, AUDIENCE_SCOPE)
+    service = SpeechService(origin.base_url, voice_name, AUDIENCE_SCOPE)
     return SpeechVoice(service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, person)
 
 
@@ -94,6 +95,20 @@ class TestSpeaking:
         assert world.grant_types() == ["refresh_token", "client_credentials"]
         workload_grant = world.issuer.exchanges[1][0]
         assert workload_grant.form["scope"] == AUDIENCE_SCOPE
+
+
+class TestTheLanguageOfALine:
+    @pytest.mark.parametrize("voice_name", [VoiceId.THORSTEN, VoiceId.RYAN])
+    async def test_a_line_is_spoken_in_the_language_of_the_starters_page_which_is_german(
+        self, world, origin, voice_name
+    ):
+        speaking(origin, chunked_wav(SPOKEN_WAV))
+        starter, _ = world.starter()
+
+        wav = await voice_of(world, origin, voice_name=voice_name).speak(starter, TEXT)
+
+        [request] = origin.requests
+        assert (wav, spoken_request(request).language) == (SPOKEN_WAV, Language.DE)
 
 
 class TestWithoutAVoice:
