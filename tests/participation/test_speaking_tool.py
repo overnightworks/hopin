@@ -1,6 +1,7 @@
 """CALL-60: the agent's `speak` at HopIn's real `/mcp` and `/ws`, with a fake speech service on a loopback port, a fake
 issuer, and the sound fetched at the route the seats are told."""
 
+import asyncio
 import logging
 import secrets
 from functools import partial
@@ -19,6 +20,7 @@ from speech_client.wire import (
 from hopin.agent.speaking import SPEAK_MAX_BYTES
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, SPEAK_MAX_CHARACTERS
+from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import VOICE_PATH, ParticipationSignal
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
@@ -169,6 +171,27 @@ class TestTheVoiceRoute:
 
     def test_call_60_without_a_session_the_gate_answers_before_the_route(self, joined_agent, path):
         assert joined_agent.call.client.get(path, headers={"accept": "*/*"}).status_code == 401
+
+    def test_call_60_the_seat_check_runs_on_the_event_loop_which_changes_the_seats(
+        self, joined_agent, path, monkeypatch
+    ):
+        runs_in_the_loop = []
+        holds_seat = Participation.holds_seat
+
+        def recording(participation, account_id, room_id):
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                runs_in_the_loop.append(False)
+            else:
+                runs_in_the_loop.append(True)
+            return holds_seat(participation, account_id, room_id)
+
+        monkeypatch.setattr(Participation, "holds_seat", recording)
+
+        fetched = joined_agent.call.voice(joined_agent.member_login, path)
+
+        assert (fetched.status_code, runs_in_the_loop) == (200, [True])
 
     def test_call_60_an_id_nobody_was_told_gets_nothing(self, joined_agent, path):
         unknown = f"{VOICE_PATH}/{secrets.token_urlsafe(16)}"
