@@ -1,4 +1,4 @@
-import { loadKitWords } from "overnightworks-design";
+import { loadKitWords, type AgentControlOutcome } from "overnightworks-design";
 import { createPlayer as createSpeechPlayer, startCapture } from "overnightworks-speech-browser";
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
@@ -10,9 +10,9 @@ import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
-import { createAgentOffers, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
+import { createAgentOffers, outcomeOf, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
 import { createAgentVoices, type PlayerFactory } from "./voice.ts";
-import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { AGENT_REFUSAL, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 interface SeatFrame {
     participant_id: string;
@@ -50,6 +50,11 @@ interface AgentVoiceFrame {
 interface AgentOffersFrame {
     shown: boolean;
     offers: Offer[];
+}
+
+interface InvitationEndedFrame {
+    agent_key: string;
+    outcome: INVITATION_OUTCOME;
 }
 
 interface AgentLineFrame {
@@ -152,6 +157,9 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     offers.id = "agentOffers";
     offers.tabIndex = -1;
     const offersView = createAgentOffers();
+    // The last offers frame and how each agent's last invitation ended, which the row shows until a new call.
+    let offered: Offer[] = [];
+    const endings = new Map<string, AgentControlOutcome>();
     mount(AgentOffers, {
         target: offers,
         props: {
@@ -175,17 +183,32 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     function clearOffers() {
         offersView.shown = false;
         offersView.rows = [];
+        offered = [];
+        endings.clear();
         clearRefusal();
+    }
+
+    function drawOffers() {
+        offersView.rows = rowsOf(offered, endings);
     }
 
     // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
     function showOffers(frame: AgentOffersFrame) {
         const hadFocus = offers.contains(document.activeElement);
         clearRefusal();
+        offered = frame.offers;
+        const pending = new Set(offered.filter((offer) => offer.pending).map((offer) => offer.agent_key));
+        const listed = new Set(offered.map((offer) => offer.agent_key));
+        for (const key of [...endings.keys()]) if (pending.has(key) || !listed.has(key)) endings.delete(key);
         offersView.shown = frame.shown;
-        offersView.rows = rowsOf(frame.offers);
+        drawOffers();
         flushSync();
         if (hadFocus && !offers.contains(document.activeElement)) offers.focus();
+    }
+
+    function showEnding(frame: InvitationEndedFrame) {
+        endings.set(frame.agent_key, outcomeOf(frame.outcome));
+        drawOffers();
     }
 
     function hide(agentId: string) {
@@ -215,6 +238,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
+    core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);
     core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: AgentLineFrame) => {
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });

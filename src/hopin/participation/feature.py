@@ -13,6 +13,7 @@ from hopin.participation.figures import Figure, FigureSource, NamedFigure, figur
 from hopin.participation.frames import (
     Offer,
     hearing_frame,
+    invitation_ended_frame,
     joined_frame,
     left_frame,
     line_frame,
@@ -34,6 +35,7 @@ from hopin.participation.vocabulary import (
     SPEAK_FAILED_EVENT,
     AgentRefusal,
     HearingRefusal,
+    InvitationOutcome,
     ParticipationSignal,
     SpeakFailure,
 )
@@ -572,6 +574,9 @@ class Participation:
         self._on_changed(person)
         await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="expired")
         await self._update_offers(room_id)
+        # After the offers, which list the agent as available again: the outcome then marks that row.
+        live = self._live.by_person[person]  # a lease that ends takes the invitation with it, so it still runs
+        await self._tell(room_id, [place.adder], invitation_ended_frame(live.key, InvitationOutcome.NO_ANSWER))
 
     def _arm(self, person: Person, generation: int, seconds: float) -> None:
         self._scheduler.call_later(seconds, partial(self._lease_timer, person, generation))

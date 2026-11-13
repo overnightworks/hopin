@@ -10,7 +10,7 @@ import { fakeCaptures } from "./capture.fixture.ts";
 import { install, installWith } from "./index.ts";
 import { fakePlayers } from "./player.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL, VOICE_PATH } from "./wire.ts";
+import { AGENT_REFUSAL, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL, VOICE_PATH } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -632,6 +632,60 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
 
         expect([pending, names(page)]).toEqual([0, []]);
+    });
+
+    it("CALL-52: shows an invitation that ran out as the kit's no-answer row, with no call button", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            outcome: INVITATION_OUTCOME.NO_ANSWER,
+        });
+
+        expect([page.offers()[0]?.textContent, page.buttons()]).toEqual([expect.stringContaining("Keine Antwort"), []]);
+    });
+
+    it("CALL-52: shows a new call of the agent as inviting again, not as its earlier outcome", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            outcome: INVITATION_OUTCOME.NO_ANSWER,
+        });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
+
+        expect(page.offers()[0]?.textContent).not.toContain("Keine Antwort");
+    });
+
+    it("CALL-52: shows no earlier outcome of an agent that returns to the list after leaving it", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            outcome: INVITATION_OUTCOME.NO_ANSWER,
+        });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        expect(page.offers()[0]?.textContent).not.toContain("Keine Antwort");
+    });
+
+    it("CALL-52: takes an outcome away with the control at a fresh join", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            outcome: INVITATION_OUTCOME.NO_ANSWER,
+        });
+        page.seat(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        expect(page.offers()[0]?.textContent).not.toContain("Keine Antwort");
     });
 
     it("CALL-51: keeps the control with its one sentence while no agent is listed, and shows none when it is not shown", async () => {
