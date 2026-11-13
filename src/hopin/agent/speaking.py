@@ -41,7 +41,6 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 SPEAK_DEADLINE_SECONDS: Final = 20
 SPEAK_MAX_BYTES: Final = 4 * 1024 * 1024
-AGENT_SPEAK_FAILED_EVENT: Final = "agent_speak_failed"
 MILLISECONDS_PER_SECOND: Final = 1000
 
 
@@ -112,11 +111,14 @@ class SpeechRenderer:
 
 
 def duration_ms_of(wav: bytes) -> int | None:
-    """How long the WAV plays, rounded up to a millisecond, or nothing when it cannot be read or holds no sound."""
+    """How long the WAV plays, rounded up to a millisecond, or nothing when it cannot be read, names no sample rate or
+    holds no sound."""
     try:
         with wave.open(io.BytesIO(wav)) as reader:
             frames, rate = reader.getnframes(), reader.getframerate()
     except wave.Error, EOFError:
+        return None
+    if rate <= 0:
         return None
     return math.ceil(frames * MILLISECONDS_PER_SECOND / rate) or None
 

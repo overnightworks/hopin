@@ -39,20 +39,14 @@ from webauth.session_groups import SessionGroups
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
-from hopin.agent.speaking import (
-    AGENT_SPEAK_FAILED_EVENT,
-    SPEAK_DEADLINE_SECONDS,
-    SPEAK_MAX_BYTES,
-    AgentVoice,
-    SpeechRenderer,
-)
+from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, AgentVoice, SpeechRenderer
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
 from hopin.participation.hearing import Hearing
-from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, VOICE_PATH
+from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, SPEAK_FAILED_EVENT, VOICE_PATH
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
 
@@ -399,7 +393,7 @@ class ParticipationFeature:
         if self.speaking is None:
             return None
         renderer = SpeechRenderer(
-            self.speaking, SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, relying_party, AGENT_SPEAK_FAILED_EVENT
+            self.speaking, SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, relying_party, SPEAK_FAILED_EVENT
         )
         return AgentVoice(renderer, tokens)
 

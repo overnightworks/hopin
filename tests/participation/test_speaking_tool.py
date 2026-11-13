@@ -34,6 +34,7 @@ from tests.support.speech_origin import (
     silent_wav,
     speaking,
     spoken_request,
+    with_sample_rate,
 )
 
 pytestmark = pytest.mark.integration
@@ -92,12 +93,16 @@ class TestSpeakingOff:
     def speaking_service(self):
         return None
 
-    def test_call_60_with_the_setting_off_speak_is_unavailable_and_nobody_is_called(self, joined_agent):
-        dialed = speak(joined_agent)
+    def test_call_60_with_the_setting_off_speak_is_unavailable_logs_speaking_off_and_nobody_is_called(
+        self, joined_agent
+    ):
+        with structlog.testing.capture_logs() as logs:
+            dialed = speak(joined_agent)
         drained(joined_agent)
 
         issuer = joined_agent.call.issuer
         assert refusal_of(dialed) == (True, {"refused": "unavailable"})
+        assert failures_of(logs) == [{"outcome": "speaking_off"}]
         assert (
             issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT),
             issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT),
@@ -179,6 +184,7 @@ SPEECH_FAILS = [
     pytest.param(chunked_wav(SOUND + bytes(SPEAK_MAX_BYTES)), {"outcome": "over_cap"}, id="over-cap"),
     pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
     pytest.param(chunked_wav(SPOKEN_WAV), {"outcome": UNREADABLE}, id="unreadable-sound"),
+    pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), {"outcome": UNREADABLE}, id="zero-sample-rate"),
 ]
 
 
@@ -233,6 +239,24 @@ class TestWhenTheSentenceCannotBeSpoken:
         assert (refusal_of(dialed), [log["outcome"] for log in failures_of(logs)], speech_origin.requests) == (
             (True, {"refused": "unavailable"}),
             ["workload_token_refused"],
+            [],
+        )
+
+
+class TestASentenceWithNoText:
+    @pytest.mark.parametrize("text", [None, "", "   "], ids=["missing", "empty", "blank"])
+    def test_call_60_it_is_unavailable_with_no_text_logged_and_nobody_is_called(
+        self, joined_agent, speech_origin, text
+    ):
+        place = PlaceRef(kind=CALL_KIND, id=joined_agent.owner.room_id).model_dump()
+        arguments = {"place": place} if text is None else {"place": place, "text": text}
+
+        with structlog.testing.capture_logs() as logs:
+            dialed = joined_agent.call.call(joined_agent.token, SPEAK_TOOL, arguments)
+
+        assert (refusal_of(dialed), failures_of(logs), speech_origin.requests) == (
+            (True, {"refused": "unavailable"}),
+            [{"outcome": "no_text"}],
             [],
         )
 
@@ -292,7 +316,7 @@ class TestEveryEndAtTheRoute:
         [
             pytest.param({"place": {"kind": "elsewhere", "id": "x"}, "text": TEXT}, id="another-kind-of-place"),
             pytest.param({"place": {"kind": CALL_KIND, "id": "no-such-call"}, "text": TEXT}, id="a-call-it-is-not-in"),
-            pytest.param({"place": {"kind": CALL_KIND, "id": "x"}}, id="no-text"),
+            pytest.param({"text": TEXT}, id="no-place"),
         ],
     )
     def test_call_60_a_place_the_agent_holds_no_joined_place_in_is_not_active(self, joined_agent, arguments):

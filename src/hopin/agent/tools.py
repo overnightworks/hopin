@@ -12,6 +12,7 @@ from agents.member import (
     AcceptInvitationArguments,
     AcceptInvitationRefusal,
     AcceptInvitationRefused,
+    PlaceRef,
     SpeakArguments,
     SpeakRefusal,
     SpeakRefused,
@@ -173,6 +174,24 @@ def _speak_refused(refusal: SpeakRefusal) -> ToolOutcome:
     return ToolOutcome(SpeakRefused(refused=refusal).model_dump_json(), is_error=True)
 
 
+@dataclass(frozen=True)
+class _SpeakRequest:
+    place: PlaceRef
+    text: str
+
+
+def _speak_request(arguments: JsonObject) -> _SpeakRequest | None:
+    """The place and the sentence a `speak` call names, or nothing when the arguments name no place. A sentence the
+    schema refuses, a missing or an empty one, is no text, which participation answers once the place holds an agent."""
+    try:
+        spoken = SpeakArguments.model_validate(arguments)
+    except ValidationError as invalid:
+        if any(error["loc"][:1] != ("text",) for error in invalid.errors()):
+            return None
+        return _SpeakRequest(PlaceRef.model_validate(arguments["place"]), "")
+    return _SpeakRequest(spoken.place, spoken.text)
+
+
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
     if isinstance(outcome, DialedAgent):
         return ToolOutcome(json.dumps({"room": outcome.room_id, "name": outcome.name}), is_error=False)
@@ -220,16 +239,13 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         return refused(refusal)
 
     async def speak(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        try:
-            spoken = SpeakArguments.model_validate(arguments)
-        except ValidationError:
+        request = _speak_request(arguments)
+        if request is None or request.place.kind != CALL_KIND:
             return _speak_refused(SpeakRefusal.NOT_ACTIVE)
-        if spoken.place.kind != CALL_KIND:
-            return _speak_refused(SpeakRefusal.NOT_ACTIVE)
-        if len(spoken.text) > SPEAK_MAX_CHARACTERS:
+        if len(request.text) > SPEAK_MAX_CHARACTERS:
             return _speak_refused(SpeakRefusal.TOO_LONG)
         render = None if voice is None else partial(voice.render, caller.person)
-        outcome = await participation().speak(caller.person, spoken.place.id, spoken.text, render)
+        outcome = await participation().speak(caller.person, request.place.id, request.text, render)
         if isinstance(outcome, AgentRefusal):
             return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
         return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)

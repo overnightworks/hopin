@@ -1,15 +1,25 @@
 """CALL-60: an agent's sentences at participation's real feature and handler, rendered by a fake renderer: the order
 they start in on the scheduler's clock, where each is shown and the ends that drop them."""
 
+import asyncio
+
 import pytest
 import pytest_asyncio
+import structlog.testing
 
 from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.speaking import RenderedSentence
-from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
+from hopin.participation.vocabulary import (
+    LINE_WINDOW_SECONDS,
+    LINES_PER_WINDOW,
+    SENTENCES_WAITING_PER_AGENT,
+    AgentRefusal,
+    ParticipationSignal,
+)
 from tests.participation.support.people import person_named, room_of
-from tests.signaling.support.browsers import host_and_guest
+from tests.signaling.support.browsers import HeldWrite, host_and_guest
+from tests.support.speech_origin import failures_in
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -18,6 +28,7 @@ GUEST = person_named("guest")
 VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
 SENTENCE_MS = 1500
+FAILED = "agent_speak_failed"
 
 
 def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
@@ -208,16 +219,24 @@ class TestASentenceThatIsNotSpoken:
         assert refused is AgentRefusal.GONE
 
     @pytest.mark.parametrize("text", ["", "   ", "\n\t"])
-    async def test_call_60_a_sentence_with_no_text_is_refused_and_not_rendered(self, participation, call, text):
+    async def test_call_60_a_sentence_with_no_text_is_refused_not_rendered_and_logs_no_text(
+        self, participation, call, text
+    ):
         host, *_ = call
         rendered = []
 
         async def render(sentence):
             rendered.append(sentence)
 
-        refused = await speak(participation, text, render=render, room_id=room_of(host))
+        with structlog.testing.capture_logs() as logs:
+            refused = await speak(participation, text, render=render, room_id=room_of(host))
 
-        assert (refused, rendered, host.frames(VOICE)) == (AgentRefusal.UNAVAILABLE, [], [])
+        assert (refused, rendered, host.frames(VOICE), failures_in(logs, FAILED)) == (
+            AgentRefusal.UNAVAILABLE,
+            [],
+            [],
+            [{"outcome": "no_text"}],
+        )
 
     async def test_call_60_a_renderer_with_no_sound_refuses_unavailable_and_nothing_is_shown(self, participation, call):
         host, *_ = call
@@ -229,15 +248,20 @@ class TestASentenceThatIsNotSpoken:
 
         assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.UNAVAILABLE, [])
 
-    async def test_call_60_with_no_renderer_it_refuses_unavailable_after_the_place_is_checked(
+    async def test_call_60_with_no_renderer_it_refuses_unavailable_logs_speaking_off_after_the_place_is_checked(
         self, participation, call
     ):
         host, *_ = call
 
-        unavailable = await participation.speak(GUEST, room_of(host), "Hallo", None)
-        gone = await participation.speak(person_named("stranger"), room_of(host), "Hallo", None)
+        with structlog.testing.capture_logs() as logs:
+            unavailable = await participation.speak(GUEST, room_of(host), "Hallo", None)
+            gone = await participation.speak(person_named("stranger"), room_of(host), "Hallo", None)
 
-        assert (unavailable, gone) == (AgentRefusal.UNAVAILABLE, AgentRefusal.GONE)
+        assert (unavailable, gone, failures_in(logs, FAILED)) == (
+            AgentRefusal.UNAVAILABLE,
+            AgentRefusal.GONE,
+            [{"outcome": "speaking_off"}],
+        )
 
     async def test_call_60_an_agent_removed_while_its_sentence_renders_is_refused_and_nothing_is_shown(
         self, participation, call, scheduler
@@ -252,3 +276,117 @@ class TestASentenceThatIsNotSpoken:
         await scheduler.advance(10)
 
         assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
+
+
+class TestTheBounds:
+    async def test_call_60_the_sentence_over_the_lines_a_window_allows_is_refused_not_rendered_and_logs_too_fast(
+        self, participation, call
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        for _ in range(LINES_PER_WINDOW):
+            assert await speak(participation, room_id=room_id) == SENTENCE_MS
+        rendered = []
+
+        async def render(sentence):
+            rendered.append(sentence)
+
+        with structlog.testing.capture_logs() as logs:
+            refused = await speak(participation, render=render, room_id=room_id)
+
+        assert (refused, rendered, failures_in(logs, FAILED)) == (
+            AgentRefusal.UNAVAILABLE,
+            [],
+            [{"outcome": "too_fast"}],
+        )
+
+    async def test_call_60_a_sentence_is_spoken_again_once_the_window_has_passed(self, participation, call, scheduler):
+        host, *_ = call
+        room_id = room_of(host)
+        for _ in range(LINES_PER_WINDOW):
+            await speak(participation, room_id=room_id)
+
+        await scheduler.advance(LINE_WINDOW_SECONDS)
+
+        assert await speak(participation, room_id=room_id) == SENTENCE_MS
+
+    async def test_call_60_a_line_the_agent_said_takes_a_slot_the_sentences_share(self, participation, call):
+        host, *_ = call
+        room_id = room_of(host)
+        for _ in range(LINES_PER_WINDOW):
+            assert await participation.say(GUEST, room_id, "Hallo") is None
+
+        refused = await speak(participation, room_id=room_id)
+
+        assert refused is AgentRefusal.UNAVAILABLE
+
+    async def test_call_60_the_sentence_behind_a_full_queue_is_refused_not_rendered_and_logs_queue_full(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        long = rendering(duration_ms=60 * 60 * 1000)
+        for _ in range(LINES_PER_WINDOW):
+            await speak(participation, room_id=room_id, render=long)
+        await scheduler.advance(LINE_WINDOW_SECONDS)
+        for _ in range(SENTENCES_WAITING_PER_AGENT - LINES_PER_WINDOW + 1):
+            assert await speak(participation, room_id=room_id, render=long) == 60 * 60 * 1000
+        rendered = []
+
+        async def render(sentence):
+            rendered.append(sentence)
+
+        with structlog.testing.capture_logs() as logs:
+            refused = await speak(participation, render=render, room_id=room_id)
+
+        assert (refused, rendered, failures_in(logs, FAILED)) == (
+            AgentRefusal.UNAVAILABLE,
+            [],
+            [{"outcome": "queue_full"}],
+        )
+
+
+class TestAnEndWhileTheSentenceRenders:
+    async def test_call_60_an_agent_removed_and_dialed_in_again_meanwhile_is_not_spoken_for(
+        self, participation, call, scheduler
+    ):
+        host, guest, mozart, _ = call
+
+        async def render_while_replaced(sentence):
+            await removed_by_the_host(participation, host, guest, mozart)
+            await participation.dial_in(GUEST, room_of(host), "Mozart")
+            return RenderedSentence(b"sound", SENTENCE_MS)
+
+        refused = await speak(participation, render=render_while_replaced, room_id=room_of(host))
+        await scheduler.advance(10)
+
+        assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
+
+    async def test_call_60_an_agent_paused_and_resumed_meanwhile_does_not_speak_the_sentence(
+        self, participation, call, scheduler
+    ):
+        host, guest, *_ = call
+
+        async def render_while_paused(sentence):
+            await guest.drop()
+            await guest.resume()
+            return RenderedSentence(b"sound", SENTENCE_MS)
+
+        refused = await speak(participation, render=render_while_paused, room_id=room_of(host))
+        await scheduler.advance(10)
+
+        assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
+
+
+class TestAnEndWhileTheSentenceIsAnnounced:
+    async def test_call_60_a_removal_while_the_line_is_sent_stops_the_voice_to_every_seat(self, participation, call):
+        host, guest, mozart, _ = call
+        held = HeldWrite(host.socket, first_only=True)
+        speaking = asyncio.create_task(speak(participation, room_id=room_of(host)))
+        await held.reached()
+
+        await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": mozart.agent_id})
+        held.release.set()
+        await speaking
+
+        assert (host.frames(VOICE), guest.frames(VOICE)) == ([], [])

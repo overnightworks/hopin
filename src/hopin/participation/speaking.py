@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
+from hopin.participation.vocabulary import SENTENCES_WAITING_PER_AGENT, AgentRefusal
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -39,6 +41,8 @@ class QueuedSentence:
 
 @dataclass
 class _Queue:
+    """One agent's sentences, kept from its first one until its speaking ends; the queue itself names that span."""
+
     playing: QueuedSentence | None = None
     waiting: deque[QueuedSentence] = field(default_factory=deque)
     timer: TimerHandle | None = None
@@ -58,16 +62,34 @@ class Speaking:
         self._start = start
         self._queues: dict[str, _Queue] = {}
 
-    async def enqueue(self, agent: DialedAgent, text: str, rendered: RenderedSentence) -> None:
-        """Keep the sound and start the sentence at once when the agent is silent, else after the ones before it."""
+    async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> int | AgentRefusal:
+        """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
+        before it; how long it plays, or why not: no sound came, or an end dropped the agent's queue while it was
+        rendered, which a rejoin or a resume does not undo."""
+        queue = self._queues.setdefault(agent.agent_id, _Queue())
+        rendered = await render(text)
+        if rendered is None:
+            return AgentRefusal.UNAVAILABLE
+        if self._queues.get(agent.agent_id) is not queue:
+            return AgentRefusal.GONE
         sentence = QueuedSentence(
             text, self._voices.put(agent.room_id, agent.agent_id, rendered.wav), rendered.duration_ms
         )
-        queue = self._queues.setdefault(agent.agent_id, _Queue())
         if queue.playing is None:
             await self._begin(agent, queue, sentence)
         else:
             queue.waiting.append(sentence)
+        return rendered.duration_ms
+
+    def is_full(self, agent: DialedAgent) -> bool:
+        """Whether as many sentences already wait behind the agent's playing one as it may keep."""
+        queue = self._queues.get(agent.agent_id)
+        return queue is not None and len(queue.waiting) >= SENTENCES_WAITING_PER_AGENT
+
+    def is_playing(self, agent: DialedAgent, sentence: QueuedSentence) -> bool:
+        """Whether the sentence is the one the agent's queue plays now, no end having dropped it."""
+        queue = self._queues.get(agent.agent_id)
+        return queue is not None and queue.playing is sentence
 
     def end(self, agent: DialedAgent) -> None:
         """The agent's removal, leave, pause, lease end or call end: drop its queue and its sounds at once."""
@@ -87,7 +109,6 @@ class Speaking:
         if queue is None or queue.playing is not sentence:
             return
         self._voices.release(sentence.voice.id)
+        queue.playing = None
         if queue.waiting:
             await self._begin(agent, queue, queue.waiting.popleft())
-        else:
-            del self._queues[agent.agent_id]

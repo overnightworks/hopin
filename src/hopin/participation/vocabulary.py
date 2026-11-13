@@ -7,6 +7,8 @@ AGENT_NAME_MAX_CHARACTERS = 32
 AGENT_LINE_MAX_CHARACTERS = 600
 LINES_PER_WINDOW = 10
 LINE_WINDOW_SECONDS = 60
+SENTENCES_WAITING_PER_AGENT = 10
+SPEAK_FAILED_EVENT = "agent_speak_failed"
 AGENT_ID_BYTES = 16
 AGENTS_PER_ROOM = 2
 AGENTS_PER_PROCESS = 32
@@ -56,6 +58,15 @@ class AgentRefusal(StrEnum):
     UNAVAILABLE = "unavailable"
     BAD_LINE = "bad_line"
     TOO_FAST = "too_fast"
+
+
+class SpeakFailure(StrEnum):
+    """Why participation answers a sentence `unavailable` before any sound is asked for; the code its log carries."""
+
+    NO_TEXT = "no_text"
+    SPEAKING_OFF = "speaking_off"
+    TOO_FAST = "too_fast"
+    QUEUE_FULL = "queue_full"
 
 
 class HearingRefusal(StrEnum):

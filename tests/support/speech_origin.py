@@ -1,6 +1,7 @@
 """What a speech service answers, as bytes on a loopback origin, and how a test reads what it was sent."""
 
 import io
+import struct
 import wave
 from http import HTTPStatus
 
@@ -11,6 +12,7 @@ from tests.support.loopback_origin import Origin, http_response
 SPOKEN_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
 WAV_MEDIA_TYPE = ResponseFormat.WAV.media_type
 AUDIENCE_SCOPE = "speech-service-audience"
+SAMPLE_RATE_OFFSET = 24  # in a canonical 44-byte header, after the format, channel count
 
 
 def silent_wav(seconds: float = 0.2, rate: int = 8000) -> bytes:
@@ -22,6 +24,13 @@ def silent_wav(seconds: float = 0.2, rate: int = 8000) -> bytes:
         writer.setframerate(rate)
         writer.writeframes(bytes(int(seconds * rate) * 2))
     return buffer.getvalue()
+
+
+def with_sample_rate(wav: bytes, rate: int) -> bytes:
+    """The WAV with its header's sample rate overwritten, as a wave writer refuses to write it."""
+    header = bytearray(wav)
+    struct.pack_into("<I", header, SAMPLE_RATE_OFFSET, rate)
+    return bytes(header)
 
 
 def chunked_wav(wav: bytes, *, terminated: bool = True) -> bytes:

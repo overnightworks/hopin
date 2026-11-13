@@ -20,7 +20,6 @@ from hopin.participation.frames import (
     refusal_frame,
     voice_frame,
 )
-from hopin.participation.line_rate import admitted
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.speaking import Speaking
@@ -32,9 +31,11 @@ from hopin.participation.vocabulary import (
     FEATURE_NAME,
     FIGURE_MODULE,
     SIGNAL_TYPES,
+    SPEAK_FAILED_EVENT,
     AgentRefusal,
     HearingRefusal,
     ParticipationSignal,
+    SpeakFailure,
 )
 from hopin.signaling.frames import JsonObject, PeerId
 
@@ -160,7 +161,6 @@ class Participation:
         self._speaking = Speaking(voices, scheduler, self._sentence_started)
         self._live = LiveAgents()
         self._places = Places()
-        self._line_windows: dict[str, tuple[float, ...]] = {}
         self._departed: dict[PeerId, list[DialedAgent]] = {}
         self._views: dict[PeerId, _SeatView] = {}
         self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
@@ -224,31 +224,26 @@ class Participation:
         line = clean_line(text)
         if line is None:
             return AgentRefusal.BAD_LINE
-        window = admitted(self._line_windows_of_joined().get(agent.agent_id, ()), self._scheduler.now())
-        if window is None:
+        if not self._places.take_line(person, room_id, self._scheduler.now()):
             return AgentRefusal.TOO_FAST
-        self._line_windows[agent.agent_id] = window
         self._append_to_windows(room_id, LineKind.AGENT, agent.name, line, sayer=person)
         await self._tell(room_id, self._recipients(room_id), line_frame(agent, line))
         return None
 
     async def speak(self, person: Person, room_id: str, text: str, render: Renderer | None) -> int | AgentRefusal:
         """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer how long
-        it plays; the refusal when the agent holds no active place there, the sentence has no text or no sound came."""
+        it plays; the refusal when the agent holds no active place there or the sentence cannot be spoken: no text, no
+        renderer, past the agent's line rate or waiting queue, no sound, or an end of its speaking meanwhile."""
         agent = self._active_agent(person, room_id)
+        if isinstance(agent, AgentRefusal):
+            return agent
         sentence = clean_line(" ".join(text.split()))
-        if isinstance(agent, AgentRefusal):
-            return agent
         if sentence is None or render is None:
-            return AgentRefusal.UNAVAILABLE
-        rendered = await render(sentence)
-        if rendered is None:
-            return AgentRefusal.UNAVAILABLE
-        agent = self._active_agent(person, room_id)  # the rendering took time
-        if isinstance(agent, AgentRefusal):
-            return agent
-        await self._speaking.enqueue(agent, sentence, rendered)
-        return rendered.duration_ms
+            return await self._unavailable(SpeakFailure.NO_TEXT if sentence is None else SpeakFailure.SPEAKING_OFF)
+        failure = self._no_room_to_speak(agent)
+        if failure is not None:
+            return await self._unavailable(failure)
+        return await self._speaking.speak(agent, sentence, render)
 
     def holds_seat(self, account_id: str, room_id: str) -> bool:
         """Whether the account holds a seat in the room now, a parked one included."""
@@ -622,6 +617,19 @@ class Participation:
             return AgentRefusal.GONE
         return AgentRefusal.SPONSOR_AWAY if self._rooms.is_parked(agent.sponsor) else agent
 
+    def _no_room_to_speak(self, agent: DialedAgent) -> SpeakFailure | None:
+        """Why the agent may not queue one more sentence, or nothing when it may and takes a line slot for it."""
+        if self._speaking.is_full(agent):
+            return SpeakFailure.QUEUE_FULL
+        if not self._places.take_line(agent.person, agent.room_id, self._scheduler.now()):
+            return SpeakFailure.TOO_FAST
+        return None
+
+    async def _unavailable(self, failure: SpeakFailure) -> AgentRefusal:
+        """Answer `unavailable` for a sentence never rendered, its closed cause logged and nothing else."""
+        await logger.ainfo(SPEAK_FAILED_EVENT, outcome=failure.value)
+        return AgentRefusal.UNAVAILABLE
+
     def _end_speaking_of(self, places: Iterable[Place]) -> None:
         """Drop the queue and the sounds of each agent among the places."""
         for place in places:
@@ -641,7 +649,10 @@ class Participation:
         )
         recipients = self._recipients(agent.room_id)
         await self._tell(agent.room_id, recipients, line_frame(agent, sentence.text))
-        await self._tell(agent.room_id, recipients, voice_frame(agent, sentence.voice.id))
+        for peer_id in recipients:
+            if not self._speaking.is_playing(agent, sentence):
+                return
+            await self._tell(agent.room_id, [peer_id], voice_frame(agent, sentence.voice.id))
 
     def _sole_seat(self, room_id: str, owner_subject: str) -> PeerId | AgentRefusal:
         seats = self._rooms.seats_in(room_id, owner_subject)
@@ -658,12 +669,6 @@ class Participation:
         return (
             in_room >= AGENTS_PER_ROOM or len(joined) >= AGENTS_PER_PROCESS or any(a.sponsor == sponsor for a in joined)
         )
-
-    def _line_windows_of_joined(self) -> dict[str, tuple[float, ...]]:
-        """The windows of the agents that hold a place now: a window goes with its place, so a rejoin starts anew."""
-        joined = {agent.agent_id for agent in self._places.joined()}
-        self._line_windows = {agent_id: window for agent_id, window in self._line_windows.items() if agent_id in joined}
-        return self._line_windows
 
     def _in_call(self, agent: DialedAgent) -> bool:
         """The agent holds its place, so its seat has not taken it away."""
