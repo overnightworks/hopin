@@ -127,8 +127,8 @@ def _membership_in(groups: Collection[str] | None, group: str) -> Membership:
 
 
 class Participation:
-    """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group, whichever
-    seat sponsors them, up to two per call and 32 in the process."""
+    """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group,
+    whichever seat sponsors them, up to two per call and 32 in the process."""
 
     def __init__(
         self,
