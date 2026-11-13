@@ -76,17 +76,15 @@ def speak(scene, text=TEXT, room_id=None):
 
 
 @pytest.fixture
-def speaking_behind(joined_agent, speech_origin):
+def speaking_behind(joined_agent):
     """The agent's `speak` call that waits behind its playing sentence, on a worker thread of its own because a call
-    answers only when its sentence starts. It returns the call's future once the speech service has served the
-    request; the end of the lease at teardown answers a call still waiting, so no thread stays blocked."""
+    answers only when its sentence starts. It returns the call's future once the queue holds the sentence; the end of
+    the lease at teardown answers a call still waiting, so no thread stays blocked."""
     pool = ThreadPoolExecutor(max_workers=1)
 
     def behind():
-        served = speech_origin.received[SPEECH_PATH]
-        served.clear()
         waiting = pool.submit(speak, joined_agent)
-        assert served.wait(ANSWER_SECONDS)
+        joined_agent.call.wait_until_a_sentence_waits()
         return waiting
 
     yield behind

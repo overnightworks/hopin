@@ -1,6 +1,7 @@
 """HopIn's real composition around participation: sockets on `/ws`, the MCP endpoint, and a fake issuer that signs
 the agents' tokens."""
 
+import asyncio
 import json
 import secrets
 import time
@@ -291,6 +292,19 @@ class DialedCall:
             participation.room_ended(room_id)
 
         self.client.portal.call(ending)
+
+    def wait_until_a_sentence_waits(self, timeout_seconds=LISTEN_TIMEOUT_SECONDS):
+        """Return once a sentence waits behind a playing one in a speaking queue, read on the app's own loop where the
+        queue is filled: a speech answer that has arrived is not yet a sentence the queue holds."""
+        speaking = self._mcp_front().participation()._speaking  # noqa: SLF001 - no public way to read the queue
+
+        async def waiting():
+            async with asyncio.timeout(timeout_seconds):
+                # A poll: the speak may fill the queue before this runs, so no event can be armed ahead of it.
+                while not any(queue.waiting for queue in speaking._queues.values()):  # noqa: SLF001, ASYNC110
+                    await asyncio.sleep(0)
+
+        self.client.portal.call(waiting)
 
     def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
