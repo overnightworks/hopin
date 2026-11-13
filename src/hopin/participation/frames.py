@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from hopin.participation.figures import figure_path
-from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue
 
 if TYPE_CHECKING:
@@ -47,6 +47,10 @@ def left_frame(agent: DialedAgent) -> JsonObject:
 
 def refusal_frame(refusal: AgentRefusal) -> JsonObject:
     return frame(ParticipationSignal.AGENT_REFUSED, reason=refusal.value)
+
+
+def invitation_ended_frame(agent_key: str, outcome: InvitationOutcome) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_INVITATION_ENDED, agent_key=agent_key, outcome=outcome.value)
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ from agents.member import INVITATION_SECONDS, LEASE_SECONDS
 from hopin.config.constants import SignalType
 from hopin.participation.feature import DialedAgent
 from hopin.participation.places import PlaceState
-from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
@@ -138,6 +138,45 @@ class TestAnInvitation:
         assert invited.participation.standings_of(AGENT) == ()
         assert offers_sent_to(invited.member)[0]["pending"] is False
         assert len(changes) > told
+
+    async def test_its_expiry_tells_only_the_adder_that_nobody_answered_after_the_offers_list_the_agent_again(
+        self, invited, scheduler, participation, listeners
+    ):
+        """CALL-52: An invitation that runs out tells the seat that made it, and no other, that nobody answered."""
+        [offer] = offers_sent_to(invited.member)
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls_and_listens(participation, listeners)  # the agent keeps calling, so its lease holds
+        await scheduler.advance(1)
+
+        told = invited.member.frames(ParticipationSignal.AGENT_OFFERS, ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (
+            [frame["type"] for frame in told[-2:]],
+            told[-1].get("outcome"),
+            told[-1].get("agent_key") == offer["agent_key"],
+            invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
+        ) == (
+            [ParticipationSignal.AGENT_OFFERS.value, ParticipationSignal.AGENT_INVITATION_ENDED.value],
+            InvitationOutcome.NO_ANSWER.value,
+            True,
+            [],
+        )
+
+    async def test_its_expiry_tells_the_adder_even_when_its_agents_lease_ends_while_the_offers_go_out(
+        self, invited, scheduler, participation
+    ):
+        [offer] = offers_sent_to(invited.member)
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls(participation)  # the lease now outlives the invitation
+        held = HeldWrite(invited.member.socket, first_only=True)
+        expiry = asyncio.create_task(scheduler.advance(1))
+        await held.reached()
+
+        await scheduler.advance(LEASE_SECONDS)
+        held.release.set()
+        await expiry
+
+        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (ended["outcome"], ended["agent_key"]) == (InvitationOutcome.NO_ANSWER.value, offer["agent_key"])
 
     async def test_it_ends_with_the_lease_of_the_agent_it_was_made_for(self, invited, scheduler):
         await scheduler.advance(LEASE_SECONDS)

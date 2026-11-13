@@ -36,6 +36,7 @@ class ParticipationSignal(StrEnum):
     AGENT_LINE = "agent_line"
     AGENT_HEARING = "agent_hearing"
     AGENT_VOICE = "agent_voice"
+    AGENT_INVITATION_ENDED = "agent_invitation_ended"
 
 
 class AgentRefusal(StrEnum):
@@ -58,6 +59,12 @@ class AgentRefusal(StrEnum):
     UNAVAILABLE = "unavailable"
     BAD_LINE = "bad_line"
     TOO_FAST = "too_fast"
+
+
+class InvitationOutcome(StrEnum):
+    """How an invitation ended without the agent joining, as the seat that made it is told."""
+
+    NO_ANSWER = "no_answer"
 
 
 class SpeakFailure(StrEnum):
@@ -135,5 +142,6 @@ SIGNAL_TYPES = _members(ParticipationSignal)
 BROWSER_ENUMS = {
     "PARTICIPATION_SIGNAL": ParticipationSignal,
     "AGENT_REFUSAL": AgentRefusal,
+    "INVITATION_OUTCOME": InvitationOutcome,
     "HEARING_CLOSE": HearingClose,
 }

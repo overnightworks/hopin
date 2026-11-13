@@ -24,17 +24,17 @@ from speech_client.speak import (
     Unreachable,
     speak,
 )
-from speech_client.wire import ResponseFormat, VoiceId
+from speech_client.wire import VOICES, Language, ResponseFormat, VoiceId
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import issuer_error
+from hopin.agent.speech_settings import PAGE_LANGUAGE, SpeechService
 from hopin.participation.speaking import RenderedSentence
 
 if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
 
     from hopin.agent.hearing_token import HearingTokens
-    from hopin.agent.speech_settings import SpeechService
     from hopin.participation.feature import Person
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -57,9 +57,9 @@ class SpeechRenderer:
     relying_party: OidcRelyingParty
     failed_event: str
 
-    async def wav(self, text: str, person_token: str, voice: VoiceId | None = None) -> bytes | None:
-        """The WAV of the text spoken on the person's token and HopIn's workload token in `voice`, the service's
-        configured one when none, or nothing for any reason.
+    async def wav(self, text: str, person_token: str, language: Language, voice: VoiceId | None = None) -> bytes | None:
+        """The WAV of the text spoken in `language` on the person's token and HopIn's workload token in `voice`, the
+        service's configured one when none, or nothing for any reason.
 
         Raises nothing but `CancelledError`; a cancelled call's worker ends within the deadline.
         """
@@ -76,6 +76,7 @@ class SpeechRenderer:
                 self.service.origin,
                 text,
                 self.service.voice if voice is None else voice,
+                language=language,
                 response_format=ResponseFormat.WAV,
                 workload_token=workload.get_secret_value(),
                 person_token=person_token,
@@ -137,6 +138,10 @@ def known_voice(name: str | None) -> str | None:
         return None
 
 
+class LanguageUnavailableError(Exception):
+    """The language of a sentence is none the voice that would speak it speaks, or none the speech service knows."""
+
+
 class AgentVoice:
     """Renders an agent's sentence on the token HopIn holds for the agent."""
 
@@ -144,14 +149,21 @@ class AgentVoice:
         self._renderer = renderer
         self._tokens = tokens
 
-    async def render(self, agent: Person, text: str, voice: str | None) -> RenderedSentence | None:
+    async def render(
+        self, agent: Person, text: str, voice: str | None, *, language: str | None = None
+    ) -> RenderedSentence | None:
         """The sentence's sound and length in the agent's `voice`, a catalogue voice its accept named or none for the
-        configured one, or nothing when no token is held, speech fails or its WAV cannot be read."""
+        configured one, spoken in the `language` it names or in the page's when it names none, or nothing when no token
+        is held, speech fails or its WAV cannot be read.
+
+        Raises `LanguageUnavailableError`, before any request to speech, for a language the voice does not speak."""
+        spoken_voice = self._renderer.service.voice if voice is None else VoiceId(voice)
+        spoken_language = _spoken_language(language, spoken_voice)
         token = self._tokens.held(agent)
         if token is None:
             self._renderer.log_failure("no_token")
             return None
-        wav = await self._renderer.wav(text, token.get_secret_value(), None if voice is None else VoiceId(voice))
+        wav = await self._renderer.wav(text, token.get_secret_value(), spoken_language, spoken_voice)
         if wav is None:
             return None
         duration_ms = duration_ms_of(wav)
@@ -159,3 +171,13 @@ class AgentVoice:
             self._renderer.log_failure("unreadable_audio")
             return None
         return RenderedSentence(wav, duration_ms)
+
+
+def _spoken_language(code: str | None, voice: VoiceId) -> Language:
+    try:
+        language = PAGE_LANGUAGE if code is None else Language(code)
+    except ValueError:
+        raise LanguageUnavailableError from None
+    if language not in VOICES[voice].languages:
+        raise LanguageUnavailableError
+    return language

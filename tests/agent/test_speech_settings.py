@@ -11,7 +11,7 @@ pytestmark = pytest.mark.integration
 
 SPEECH_ENVIRONMENT = {
     "HOPIN_SPEECH__ORIGIN": "http://speech.test:8090",
-    "HOPIN_SPEECH__VOICE": VoiceId.NORMAN.value,
+    "HOPIN_SPEECH__VOICE": VoiceId.KERSTIN.value,
     "HOPIN_SPEECH__AUDIENCE_SCOPE": "scenario-audience",
 }
 SECRET_SHAPED = f"not-a-value-{secrets.token_hex(8)}"
@@ -64,6 +64,24 @@ def test_a_malformed_speech_setting_fails_when_the_settings_load_and_echoes_no_i
     speech_environment.setenv(name, value)
 
     assert_refused_without_echo(SpeechSettings, SECRET_SHAPED)
+
+
+@pytest.mark.parametrize("voice", [VoiceId.NORMAN, VoiceId.LJSPEECH, VoiceId.CORI])
+def test_a_voice_that_does_not_speak_german_fails_when_the_settings_load_and_names_the_setting(
+    speech_environment, voice
+):
+    speech_environment.setenv("HOPIN_SPEECH__VOICE", voice.value)
+
+    with pytest.raises(ValidationError) as refusal:
+        SpeechSettings()
+
+    assert "HOPIN_SPEECH__VOICE" in str(refusal.value)
+
+
+def test_a_voice_of_several_languages_that_includes_german_is_configured(speech_environment):
+    speech_environment.setenv("HOPIN_SPEECH__VOICE", VoiceId.RYAN.value)
+
+    assert SpeechSettings().voice is VoiceId.RYAN
 
 
 def test_an_audience_scope_without_an_origin_leaves_the_voice_off(speech_environment):

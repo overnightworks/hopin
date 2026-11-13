@@ -14,6 +14,7 @@ from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
     WORKLOAD_TOKEN_HEADER,
+    Language,
     RefusalCode,
     VoiceId,
 )
@@ -71,10 +72,11 @@ def speaking_service(speech_origin):
     return SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
-def speak(scene, text=TEXT, room_id=None, token=None):
+def speak(scene, text=TEXT, room_id=None, token=None, **named):
+    """The agent's `speak` call; `named` is what else the call names, such as its `language`."""
     place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
     return scene.call.call(
-        scene.token if token is None else token, SPEAK_TOOL, {"place": place.model_dump(), "text": text}
+        scene.token if token is None else token, SPEAK_TOOL, {"place": place.model_dump(), "text": text, **named}
     )
 
 
@@ -255,6 +257,69 @@ class TestTheVoiceOfASentence:
         second.result(timeout=ANSWER_SECONDS)
 
         assert [spoken_request(request).voice for request in speech_origin.requests] == [VoiceId.KERSTIN] * 2
+
+
+class TestTheLanguageOfASentence:
+    @pytest.fixture
+    def speaking_service(self, speech_origin):
+        return SpeechService(speech_origin.base_url, VoiceId.RYAN, AUDIENCE_SCOPE)
+
+    @pytest.mark.parametrize(
+        ("named", "spoken_in"),
+        [
+            pytest.param({}, Language.DE, id="none-is-german"),
+            pytest.param({"language": "en"}, Language.EN, id="en"),
+            pytest.param({"language": "de"}, Language.DE, id="de"),
+        ],
+    )
+    def test_call_60_the_sentence_is_spoken_in_the_language_it_names_and_in_german_when_it_names_none(
+        self, joined_agent, speech_origin, named, spoken_in
+    ):
+        dialed = speak(joined_agent, **named)
+
+        [request] = speech_origin.requests
+        assert (dialed.is_error, spoken_request(request).language) == (False, spoken_in)
+
+    @pytest.mark.parametrize("language", ["fr", "zz", "DE", "german", ""])
+    def test_call_60_a_language_the_voice_or_speech_does_not_know_is_language_unavailable_and_nobody_is_called(
+        self, joined_agent, speech_origin, language
+    ):
+        dialed = speak(joined_agent, language=language)
+
+        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "language_unavailable"}), [])
+        assert joined_agent.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT) == []
+
+    def test_call_60_a_refused_language_leaves_the_agent_able_to_speak(self, joined_agent, speech_origin):
+        speak(joined_agent, language="zz")
+
+        dialed = speak(joined_agent, language="en")
+
+        assert (dialed.is_error, len(speech_origin.requests)) == (False, 1)
+
+    def test_call_60_a_sentence_for_an_inactive_agent_is_not_active_whatever_language_it_names(
+        self, joined_agent, speech_origin
+    ):
+        dialed = speak(joined_agent, room_id="no-such-room", language="zz")
+
+        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "not_active"}), [])
+
+
+class TestTheLanguageOfAnAgentWithAVoiceOfItsOwn:
+    @pytest.fixture
+    def accepted_voice(self):
+        return VoiceId.NORMAN
+
+    def test_call_60_a_voice_the_accept_named_decides_which_language_it_speaks_not_the_configured_one(
+        self, joined_agent, speech_origin
+    ):
+        german = speak(joined_agent)
+        english = speak(joined_agent, language="en")
+
+        assert (refusal_of(german), english.is_error, [spoken_request(r).language for r in speech_origin.requests]) == (
+            (True, {"refused": "language_unavailable"}),
+            False,
+            [Language.EN],
+        )
 
 
 class TestAVoiceSpeechDoesNotName:

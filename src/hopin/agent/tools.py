@@ -22,7 +22,7 @@ from agents.member import (
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
-from hopin.agent.speaking import known_voice
+from hopin.agent.speaking import LanguageUnavailableError, known_voice
 from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.figures import Figure
 from hopin.participation.text import one_line
@@ -155,8 +155,10 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
         "Sentences play one after another, each when the one before it has ended. The answer comes when yours starts, "
         "which can be after the ones before it have played, so allow for that in your timeout; it is how long yours "
         "plays. "
+        "Name the language of the sentence as a two-letter code such as de or en; without one it is spoken in German. "
         "It is refused as not_active when you are not joined there or your person's seat is away, as too_long above "
-        "the bound and as unavailable when no voice can be made."
+        "the bound, as language_unavailable when your voice does not speak the language and as unavailable when no "
+        "voice can be made."
     ),
     parameters=SpeakArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
@@ -187,18 +189,25 @@ def _speak_refused(refusal: SpeakRefusal) -> ToolOutcome:
 class _SpeakRequest:
     place: PlaceRef
     text: str
+    language: str | None
 
 
 def _speak_request(arguments: JsonObject) -> _SpeakRequest | None:
-    """The place and the sentence a `speak` call names, or nothing when the arguments name no place. A sentence the
-    schema refuses, a missing or an empty one, is no text, which participation answers once the place holds an agent."""
+    """The place, the sentence and the language a `speak` call names, or nothing when the arguments name no place. A
+    sentence the schema refuses, a missing or an empty one, is no text, which participation answers once the place holds
+    an agent; a language it refuses is one no voice speaks, which the voice answers once the sentence is rendered."""
     try:
         spoken = SpeakArguments.model_validate(arguments)
     except ValidationError as invalid:
-        if any(error["loc"][:1] != ("text",) for error in invalid.errors()):
+        refused = {error["loc"][:1] for error in invalid.errors()}
+        if not refused <= {("text",), ("language",)}:
             return None
-        return _SpeakRequest(PlaceRef.model_validate(arguments["place"]), "")
-    return _SpeakRequest(spoken.place, spoken.text)
+        return _SpeakRequest(
+            PlaceRef.model_validate(arguments["place"]),
+            "" if ("text",) in refused else _text_of(arguments, "text"),
+            _text_of(arguments, "language") if ("language",) in refused else None,
+        )
+    return _SpeakRequest(spoken.place, spoken.text, spoken.language)
 
 
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
@@ -239,8 +248,11 @@ async def _spoken(
         return _speak_refused(SpeakRefusal.NOT_ACTIVE)
     if len(one_line(request.text)) > SPEAK_MAX_CHARACTERS:
         return _speak_refused(SpeakRefusal.TOO_LONG)
-    render = None if voice is None else partial(voice.render, caller.person)
-    outcome = await participation.speak(caller.person, request.place.id, request.text, render)
+    render = None if voice is None else partial(voice.render, caller.person, language=request.language)
+    try:
+        outcome = await participation.speak(caller.person, request.place.id, request.text, render)
+    except LanguageUnavailableError:
+        return _speak_refused(SpeakRefusal.LANGUAGE_UNAVAILABLE)
     if isinstance(outcome, AgentRefusal):
         return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
     return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)

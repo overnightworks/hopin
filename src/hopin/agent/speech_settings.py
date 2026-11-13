@@ -1,13 +1,19 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Final
 from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from speech_client.wire import VoiceId
+from speech_client.wire import VOICES, Language, VoiceId
+
+from hopin.words import SOURCE_LANGUAGE
 
 # RFC 6749 section 3.3: a scope token is one or more printable ASCII characters other than space, `"` and `\`.
 type ScopeToken = Annotated[str, Field(pattern=r"^[\x21\x23-\x5b\x5d-\x7e]+$")]
+
+
+# The language of HopIn's page, which the game master's lines and an agent's sentence without a language are spoken in.
+PAGE_LANGUAGE: Final = Language(SOURCE_LANGUAGE)
 
 
 @dataclass(frozen=True)
@@ -57,6 +63,13 @@ class SpeechSettings(BaseSettings):
             raise ValueError("origin must be http://host[:port] with no path")
         if self.audience_scope is None:
             raise ValueError("audience_scope is required when origin is set")
+        return self
+
+    @model_validator(mode="after")
+    def _voice_speaks_the_page_language(self) -> SpeechSettings:
+        if PAGE_LANGUAGE not in VOICES[self.voice].languages:
+            setting = f"{self.model_config['env_prefix']}VOICE"
+            raise ValueError(f"{setting} must name a voice that speaks the page's language, German")
         return self
 
     @model_validator(mode="after")

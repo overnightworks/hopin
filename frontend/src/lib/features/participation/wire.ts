@@ -10,6 +10,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_LINE = "agent_line",
     AGENT_HEARING = "agent_hearing",
     AGENT_VOICE = "agent_voice",
+    AGENT_INVITATION_ENDED = "agent_invitation_ended",
 }
 
 export enum AGENT_REFUSAL {
@@ -29,6 +30,10 @@ export enum AGENT_REFUSAL {
     UNAVAILABLE = "unavailable",
     BAD_LINE = "bad_line",
     TOO_FAST = "too_fast",
+}
+
+export enum INVITATION_OUTCOME {
+    NO_ANSWER = "no_answer",
 }
 
 export enum HEARING_CLOSE {

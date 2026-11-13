@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agents[backend,mcp-server] @ git+https://github.com/overnightworks/agents@v0.34.0",
+    "overnightworks-agents[backend,mcp-server] @ git+https://github.com/overnightworks/agents@v0.36.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.12.0#subdirectory=packages/client",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.38.0",
     "pydantic>=2.10",
@@ -276,7 +276,7 @@ dev = [
     "cryptography>=50.0.2",
     "httpx2>=2.13.1",
     "mypy>=1.19.1",
-    "overnightworks-design[catalogs] @ https://github.com/overnightworks/design/releases/download/v0.28.0/overnightworks_design-0.28.0-py3-none-any.whl#sha256=9262408bfe931de3f6b9802796a9c2c67d9b20673e3771ca275c926fcd8aa968",
+    "overnightworks-design[catalogs] @ https://github.com/overnightworks/design/releases/download/v0.29.0/overnightworks_design-0.29.0-py3-none-any.whl#sha256=56923294a40a1488a3b284410c562d2f73a4115e54d39e133ab9cf62a89a6bff",
     "pyjwt>=2.15.1",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
