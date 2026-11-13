@@ -14,7 +14,7 @@ from hopin.participation.chat_window import ChatWindow
 from hopin.participation.line_rate import admitted
 
 if TYPE_CHECKING:
-    from hopin.participation.feature import DialedAgent, Person
+    from hopin.participation.participants import DialedAgent, Person
     from hopin.signaling.frames import PeerId
 
 type PlaceKey = tuple[Person, str]
@@ -80,6 +80,10 @@ class Places:
         self._windows.pop((person, room_id), None)
         self._line_times.pop((person, room_id), None)
         self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
+
+    def end_invitation(self, person: Person, room_id: str) -> None:
+        """Take the open invitation away and leave the epoch as it is: a new invitation is a new id."""
+        del self._places[(person, room_id)]
 
     def drop_room(self, room_id: str) -> None:
         for key in [key for key in {*self._places, *self._epochs} if key[1] == room_id]:

@@ -10,7 +10,7 @@ from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hopin.participation.feature import DialedAgent
+    from hopin.participation.participants import DialedAgent
 
 
 def frame(signal: ParticipationSignal, **fields: JsonValue) -> JsonObject:

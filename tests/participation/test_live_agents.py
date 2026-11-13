@@ -1,7 +1,7 @@
 import pytest
 
-from hopin.participation.feature import Person
 from hopin.participation.live_agents import LiveAgents, TimerAction
+from hopin.participation.participants import Person
 
 LEASE = 30.0
 PERSON = Person("issuer", "agent-subject")

@@ -5,7 +5,7 @@ import pytest_asyncio
 from agents.member import INVITATION_SECONDS, LEASE_SECONDS
 
 from hopin.config.constants import SignalType
-from hopin.participation.feature import DialedAgent
+from hopin.participation.participants import DialedAgent
 from hopin.participation.places import PlaceState
 from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from tests.participation.support.own_accounts import (

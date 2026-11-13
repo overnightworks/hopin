@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
 
     from hopin.agent.hearing_token import HearingTokens
-    from hopin.participation.feature import Person
+    from hopin.participation.participants import Person
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 

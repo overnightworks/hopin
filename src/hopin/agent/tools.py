@@ -23,8 +23,8 @@ from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, known_voice
-from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.figures import Figure
+from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
 from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME_MAX_CHARACTERS, AgentRefusal
 

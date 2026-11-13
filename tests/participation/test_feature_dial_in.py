@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, ErrorReason, SignalType
-from hopin.participation.feature import DialedAgent
+from hopin.participation.participants import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AGENTS_PER_PROCESS,

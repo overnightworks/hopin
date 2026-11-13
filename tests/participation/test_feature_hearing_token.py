@@ -10,7 +10,7 @@ from agents.member import LEASE_SECONDS
 from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechService
-from hopin.participation.feature import Person
+from hopin.participation.participants import Person
 from tests.participation.support.own_accounts import OWNER
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
 

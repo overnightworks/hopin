@@ -2,8 +2,9 @@ import pytest
 from agents.mcp_server.hearing import MemberHearing
 
 from hopin.agent.hearing import MemberHearingRecord
-from hopin.participation.feature import OwnAccount, Participation, Person
+from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
+from hopin.participation.participants import OwnAccount, Person
 from hopin.participation.voice import VoiceStore
 from tests.support.signaling_fakes import ManualScheduler
 
