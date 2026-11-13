@@ -2,19 +2,19 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from agents.member import STANDING_URI
 from playwright.sync_api import Page, WebSocket, expect
 
 from hopin.participation.vocabulary import HEARING_PATH
-from tests.e2e.support.calls import open_call
 from tests.e2e.support.dialed_agent import AGENT_TILE, room_of_link
-from tests.e2e.support.people import FORM_FACTORS
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.e2e.support.dialed_agent import OwnAgent
+    from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
     from tests.support.fake_speech import FakeSpeech, Session
 
@@ -77,30 +77,26 @@ def settle(page: Page) -> None:
 
 
 class Sponsor:
-    """A person in a call whose own agent has joined and hears them, and the hops their page opens."""
+    """The owner of the agent a member added, whose switch starts off, and the hops the pages of the call open: the
+    sponsor's, and each of the two other people's."""
 
-    def __init__(
-        self,
-        open_person: Callable[..., Page],
-        server: RunningServer,
-        page_errors: list[str],
-        member_of: Callable[[Page], Any],
-        own_agent_of: Callable[[str], OwnAgent],
-        speech: FakeSpeech,
-        form_factor: dict[str, Any],
-    ) -> None:
-        self.page, self.guest, link = open_call(open_person, server.base_url, page_errors, form_factor)
+    def __init__(self, scene: Scene, member_of: Callable[[Page], Any], speech: FakeSpeech) -> None:
+        self.page = scene.owner
+        self.agent = scene.agent
         self.hops = Hops()
         self.hops.watch(self.page)
-        self.guest_hops = Hops()
-        self.guest_hops.watch(self.guest)
+        self.others_hops = [Hops(), Hops()]
+        for other, hops in zip((scene.host, scene.member), self.others_hops, strict=True):
+            hops.watch(other)
         self.name = member_of(self.page).account.username
-        self.room = room_of_link(link)
+        self.room = room_of_link(scene.link)
         self.speech = speech
         self.sessions_before = len(speech.sessions)
-        self.agent = own_agent_of(member_of(self.page).account.id)
-        self.agent.dial_in(self.room, "Claude")
-        self.agent.listen([window_uri(self.room)])
+        scene.member_adds_and_the_agent_accepts()
+        self.agent.listen([STANDING_URI, window_uri(self.room)])
+
+    def press_the_switch(self) -> None:
+        self.page.locator(SWITCH).click()
 
     def session(self, number: int) -> Session:
         return self.speech.next_session(self.sessions_before + number)
@@ -112,22 +108,23 @@ class Sponsor:
 
 @pytest.fixture
 def sponsor(
-    open_person: Callable[..., Page],
-    e2e_server: RunningServer,
-    page_errors: list[str],
+    scene_of: Callable[[dict[str, Any]], Scene],
     member_of: Callable[[Page], Any],
-    own_agent_of: Callable[[str], OwnAgent],
     fake_speech: FakeSpeech,
     form_factor: dict[str, Any],
 ) -> Sponsor:
-    return Sponsor(open_person, e2e_server, page_errors, member_of, own_agent_of, fake_speech, form_factor)
+    return Sponsor(scene_of(form_factor), member_of, fake_speech)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_the_sponsors_sentence_reaches_the_agent_and_a_guest_opens_no_hop(sponsor: Sponsor) -> None:
-    """CALL-59: With the switch and the microphone on, the sponsor's browser sends the microphone's sound and the
-    agent reads the sentence the speech service finds in it as a spoken line of kind person under the sponsor's name;
-    a guest, whose microphone is on too, opens no hop."""
+def test_the_sponsors_sentence_reaches_the_agent_and_no_one_else_opens_a_hop(sponsor: Sponsor) -> None:
+    """CALL-59: While the switch is off the sponsor's browser opens no hop; with the switch and the microphone on it
+    sends the microphone's sound and the agent reads the sentence the speech service finds in it as a spoken line of
+    kind person under the sponsor's name; no other person, whose microphone is on too, opens a hop."""
+    settle(sponsor.page)
+    assert sponsor.hops.opened == []
+
+    sponsor.press_the_switch()
     session = sponsor.session(1)
     session.wait_for_audio(1)
     for event in a_sentence(SENTENCE):
@@ -135,7 +132,9 @@ def test_the_sponsors_sentence_reaches_the_agent_and_a_guest_opens_no_hop(sponso
 
     assert sponsor.agent.woken_within(WAKE_SECONDS)
     assert sponsor.heard() == [("person", sponsor.name, SENTENCE, True)]
-    assert sponsor.guest_hops.opened == []
+    until(sponsor.page, lambda: len(sponsor.hops.opened) == 1, "the sponsor's hop")
+    settle(sponsor.page)
+    assert [hops.opened for hops in sponsor.others_hops] == [[], []]
     assert len(sponsor.hops.opened) == 1
 
 
@@ -144,10 +143,11 @@ def test_the_switch_and_the_microphone_each_end_the_sending_at_once_and_only_bot
     """CALL-59: Turning the switch or the microphone off closes the hop, so the speech service gets no frame after
     it, and the microphone on again opens a new hop only while the switch is on."""
     page = sponsor.page
+    sponsor.press_the_switch()
     first = sponsor.session(1)
     first.wait_for_audio(1)
 
-    page.locator(SWITCH).click()
+    sponsor.press_the_switch()
     until(page, lambda: sponsor.hops.opened[0].closed, "the hop's close after the switch went off")
     first.wait_until_closed()
     after_the_close = first.audio_appends()
@@ -156,7 +156,7 @@ def test_the_switch_and_the_microphone_each_end_the_sending_at_once_and_only_bot
     settle(page)
     assert (first.audio_appends(), len(sponsor.hops.opened)) == (after_the_close, 1)
 
-    page.locator(SWITCH).click()
+    sponsor.press_the_switch()
     until(page, lambda: len(sponsor.hops.opened) == 2, "a new hop after the switch went on")
     second = sponsor.session(2)
     second.wait_for_audio(1)
