@@ -168,6 +168,31 @@ class TestTheAnswerComesWhenTheSentenceStarts:
             [SENTENCE_MS] * 3,
         )
 
+    async def test_call_60_a_sentence_whose_speaker_gave_up_waiting_still_starts_in_order_and_the_queue_goes_on(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        await speak(participation, "one", room_id=room_id)
+        gave_up = await waiting_to_speak(participation, "two", room_id=room_id)
+        behind = await waiting_to_speak(participation, "three", room_id=room_id)
+        gave_up.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await gave_up
+
+        seconds = SENTENCE_MS / 1000
+        await scheduler.advance(seconds)
+        await scheduler.advance(seconds)
+        await asyncio.sleep(0)
+        await scheduler.advance(seconds)
+        later = await speak(participation, "four", room_id=room_id)
+
+        assert ([frame["text"] for frame in host.frames(LINE)], behind.result(), later) == (
+            ["one", "two", "three", "four"],
+            SENTENCE_MS,
+            SENTENCE_MS,
+        )
+
     async def test_call_60_a_refusal_answers_while_the_agents_sentences_still_wait(self, participation, call):
         host, *_ = call
         room_id = room_of(host)
