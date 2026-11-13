@@ -609,6 +609,13 @@ describe("handing the microphone to a feature", () => {
         expect(told(fresh)).toEqual([null]);
     });
 
+    it("tells a call that has no local stream only that there is no microphone", async () => {
+        const fresh = await freshMedia();
+        seated(fresh);
+
+        expect(told(fresh)).toEqual([null]);
+    });
+
     it("tells a handler registered while the microphone is on in a call at once, with the microphone track alone", async () => {
         const fresh = await freshMedia();
         const own = await startedCall(fresh);

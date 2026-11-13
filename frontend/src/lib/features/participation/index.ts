@@ -8,8 +8,9 @@ import { SIGNAL_TYPE } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
+import { createHearingCapture } from "./hearing.ts";
 import { createAgentOffers, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 interface SeatFrame {
     participant_id: string;
@@ -64,6 +65,14 @@ export async function install(core: FeatureCore): Promise<void> {
     let seatId = "";
     let isHost = false;
     const shown = new Map<string, ShownAgent>();
+    const capture = createHearingCapture(
+        () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
+    );
+
+    // The server's record decides; `except` leaves out an agent whose switch the person has just pressed off.
+    function agentHears(except?: string) {
+        return [...shown.values()].some((agent) => agent.hearing === true && agent.joined.agent_id !== except);
+    }
 
     function mayRemove(frame: AgentJoinedFrame) {
         return isHost || frame.sponsor_id === seatId;
@@ -82,6 +91,7 @@ export async function install(core: FeatureCore): Promise<void> {
                         : {
                               on: hearing,
                               onChange: (on: boolean) => {
+                                  if (!on) capture.setHeard(agentHears(frame.agent_id));
                                   core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
                               },
                           },
@@ -107,6 +117,7 @@ export async function install(core: FeatureCore): Promise<void> {
         const recorded = { ...agent, hearing: frame.on };
         shown.set(frame.agent_id, recorded);
         draw(recorded);
+        capture.setHeard(agentHears());
     }
 
     const offers = document.createElement("div");
@@ -152,6 +163,7 @@ export async function install(core: FeatureCore): Promise<void> {
     function hide(agentId: string) {
         shown.delete(agentId);
         core.showAgentTile(null, tileKey(agentId));
+        capture.setHeard(agentHears());
     }
 
     const seated = (frame: SeatFrame) => {
@@ -178,6 +190,9 @@ export async function install(core: FeatureCore): Promise<void> {
         } else {
             offersView.refusal = refusalOf(frame.reason);
         }
+    });
+    core.onMicrophone((stream) => {
+        capture.setStream(stream);
     });
     core.onCallEnded(() => {
         for (const agentId of shown.keys()) hide(agentId);

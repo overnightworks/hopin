@@ -215,6 +215,9 @@ importers:
       overnightworks-figure:
         specifier: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz
         version: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz
+      overnightworks-speech-browser:
+        specifier: https://github.com/overnightworks/speech/releases/download/v0.11.0/overnightworks-speech-browser-0.11.0.tgz
+        version: https://github.com/overnightworks/speech/releases/download/v0.11.0/overnightworks-speech-browser-0.11.0.tgz
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -1282,6 +1285,10 @@ packages:
     resolution: {integrity: sha512-1eTIGs9vI8wTxu0/ccogZxJqJRgim4fYt+5I9XIYtv4VOu1XVoHH/4lDP6OY/juh8Jb7bAgxkslfJ0FcQn6UKw==, tarball: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz}
     version: 0.3.0
     hasBin: true
+
+  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.11.0/overnightworks-speech-browser-0.11.0.tgz:
+    resolution: {integrity: sha512-i3zPEN9RwpTFI902u6jhQbjTH9PNzK/m8dPqZuQYnxRdvzdQPwXtwsDQjGzcv26eCZoZrxiRbaR4KXo+dxO0JQ==, tarball: https://github.com/overnightworks/speech/releases/download/v0.11.0/overnightworks-speech-browser-0.11.0.tgz}
+    version: 0.11.0
 
   p-limit@3.1.0:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
@@ -2665,6 +2672,8 @@ snapshots:
     dependencies:
       '@pixiv/three-vrm': 3.5.5(three@0.187.0)
       three: 0.187.0
+
+  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.11.0/overnightworks-speech-browser-0.11.0.tgz: {}
 
   p-limit@3.1.0:
     dependencies:
