@@ -1,7 +1,6 @@
 import asyncio
 import secrets
-from dataclasses import dataclass, field
-from enum import StrEnum
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
@@ -21,6 +20,7 @@ from hopin.participation.frames import (
     voice_frame,
 )
 from hopin.participation.live_agents import LiveAgents, TimerAction
+from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.speaking import Speaking
 from hopin.participation.text import clean_line, clean_name, one_line
@@ -105,29 +105,6 @@ GROUPS_READ_TASK_NAME = "participation-groups-read"
 type DialOutcome = DialedAgent | AgentRefusal
 
 
-class Membership(StrEnum):
-    MEMBER = "member"
-    NOT_MEMBER = "not_member"
-    FAILED = "failed"
-
-
-@dataclass
-class _SeatView:
-    """What participation keeps of a seat in a room: its group memberships as last read and the offers last sent."""
-
-    room_id: str
-    memberships: dict[str, Membership] = field(default_factory=dict)
-    offered: tuple[Offer, ...] = ()
-    shown: bool = False
-
-
-def _membership_in(groups: Collection[str] | None, group: str) -> Membership:
-    """The membership a groups read shows: none when the read failed."""
-    if groups is None:
-        return Membership.FAILED
-    return Membership.MEMBER if group in groups else Membership.NOT_MEMBER
-
-
 class Participation:
     """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group,
     whichever seat sponsors them, up to two per call and 32 in the process."""
@@ -164,7 +141,7 @@ class Participation:
         self._live = LiveAgents()
         self._places = Places()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
-        self._views: dict[PeerId, _SeatView] = {}
+        self._views: dict[PeerId, SeatView] = {}
         self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
 
     @property
@@ -390,7 +367,7 @@ class Participation:
         room_id = self._rooms.room_of(peer_id)
         if room_id is None:  # pragma: no cover - a seat is in its room when it is announced
             return
-        self._views[peer_id] = _SeatView(room_id)
+        self._views[peer_id] = SeatView(room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == room_id]:
             if self._in_call(agent):
                 await self._announce_joined(agent, [peer_id], self._rooms.name_of(agent.sponsor))
@@ -512,7 +489,7 @@ class Participation:
             return
         group = self._adders[live.owner_subject]
         memberships = self._view_of(peer_id, room_id).memberships
-        memberships[group] = _membership_in(groups, group)
+        memberships[group] = membership_in(groups, group)
         refusal: AgentRefusal | None
         if memberships[group] is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
@@ -683,8 +660,8 @@ class Participation:
         """The agent holds its place, so its seat has not taken it away."""
         return self._places.get(agent.person, agent.room_id) == agent
 
-    def _view_of(self, peer_id: PeerId, room_id: str) -> _SeatView:
-        return self._views.setdefault(peer_id, _SeatView(room_id))
+    def _view_of(self, peer_id: PeerId, room_id: str) -> SeatView:
+        return self._views.setdefault(peer_id, SeatView(room_id))
 
     def _recipients(self, room_id: str) -> list[PeerId]:
         """The room's seats now, none once the room has ended."""
@@ -802,7 +779,7 @@ class Participation:
             return
         memberships = self._view_of(peer_id, room_id).memberships
         for group in set(self._adders.values()):
-            memberships[group] = _membership_in(groups, group)
+            memberships[group] = membership_in(groups, group)
         if groups is None:
             await logger.ainfo("agent_adders_read_failed", room_id=room_id)
         await self._update_offers(room_id, read=False)
