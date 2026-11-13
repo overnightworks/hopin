@@ -10,7 +10,7 @@ from hopin.agent.tools import LEAVE_CALL
 from hopin.participation.vocabulary import AgentRefusal
 from hopin.words import text
 from tests.e2e.support.calls import join_by_link, open_more
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, OwnAccountAgent, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, COUNT, OWNER_SUBJECT, OwnAccountAgent, room_of_link
 from tests.e2e.support.hearing_hops import Hops, settle, until
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
@@ -191,8 +191,8 @@ def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_a
     form_factor: dict[str, Any],
 ) -> None:
     """CALL-47, CALL-51: Agents take places like people: a fourth person fills the last place, the invited third
-    agent's acceptance is refused as place full and the control says so, a further person is refused as full, and
-    once an agent leaves the third agent's acceptance joins it."""
+    agent's acceptance is refused as place full, a further person is refused as full, and once an agent leaves the
+    third agent's acceptance joins it and the control says that no place is free."""
     scene = scene_of(form_factor)
     third = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{THIRD_AGENT_NAME}-{secrets.token_hex(3)}")
     try:
@@ -201,9 +201,9 @@ def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_a
         scene.member_adds(third)
         [invited] = [standing for standing in third.standings() if standing["state"] == "invited"]
         join_by_link(open_person(**form_factor), scene.link)
+        expect(scene.host.locator(COUNT)).to_have_text(str(len(scene.everyone) + 1))
 
         assert third.accept_refusal(invited) == AgentRefusal.BUSY.value
-        expect(open_more(scene.adder)).to_contain_text(kit_text("de", "agent.placeFull"))
         refused = open_person(**form_factor)
         join_by_link(refused, scene.link)
         expect(refused.locator("body")).to_contain_text(text("de", "end.fullTitle"))
@@ -215,5 +215,6 @@ def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_a
 
         for person in scene.everyone:
             expect(person.locator(AGENT_TILE).filter(has_text=third.name)).to_have_count(1)
+        expect(open_more(scene.adder)).to_contain_text(kit_text("de", "agent.placeFull"))
     finally:
         third.close()
