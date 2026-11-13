@@ -254,7 +254,7 @@ class TestAnAdd:
     async def test_an_add_while_the_owners_seat_sponsors_another_agent_opens_an_invitation(
         self, link, participation, listeners
     ):
-        """CALL-51: A seat sponsors up to the call's two agents, so the owner's other agent is still offered."""
+        """CALL-51: A seat sponsors every agent of its owner the call has places for, so the other agent is offered."""
         owner, member = await owner_and_member(link)
         await agent_calls_and_listens(participation, listeners)
         await participation.dial_in(person_named(OWNER), owner.room_id, "Codex")

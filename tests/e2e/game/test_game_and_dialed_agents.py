@@ -20,7 +20,7 @@ pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_six_people_the_quiz_master_and_two_dialed_in_agents_are_nine_tiles_and_the_controls_stay_clear(
+def test_four_people_the_quiz_master_and_two_dialed_in_agents_are_seven_tiles_and_the_controls_stay_clear(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
@@ -28,9 +28,9 @@ def test_six_people_the_quiz_master_and_two_dialed_in_agents_are_nine_tiles_and_
     agent_backend: FakeAgentBackend,
     form_factor: dict[str, Any],
 ) -> None:
-    """CALL-47: Six people, the quiz master and two agents are nine tiles, the count names people only."""
+    """CALL-47: Four people, the quiz master and two agents are seven tiles, the count names people only."""
     host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
-    for _ in range(4):
+    for _ in range(2):
         join(open_person, invite_link, form_factor, (), page_errors)
     agent_backend.answer_next(Succeeds("Erste?"))
 
@@ -41,5 +41,5 @@ def test_six_people_the_quiz_master_and_two_dialed_in_agents_are_nine_tiles_and_
 
     expect(host.locator("#container-agent")).to_have_count(1)
     expect(host.locator(AGENT_TILE)).to_have_count(2)
-    expect(host.locator(COUNT)).to_have_text("6")
-    assert_tiles_clear_of_the_controls(host, 9, form_factor)
+    expect(host.locator(COUNT)).to_have_text("4")
+    assert_tiles_clear_of_the_controls(host, 7, form_factor)

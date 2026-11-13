@@ -3,13 +3,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from hopin.agent.tools import LEAVE_CALL
 from hopin.participation.vocabulary import AgentRefusal
+from hopin.words import text
+from tests.e2e.support.calls import join_by_link, open_more
 from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, OwnAccountAgent, room_of_link
 from tests.e2e.support.hearing_hops import Hops, settle, until
-from tests.e2e.support.participation_scene import INVITATION_WAKE_SECONDS
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
@@ -180,28 +182,38 @@ def test_the_other_agent_keeps_hearing_when_one_leaves(seat_of: Callable[..., Se
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_a_third_agent_is_refused_as_place_full_when_the_call_holds_two(
+def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_admits_the_third_agent(
     scene_of: Callable[[dict[str, Any]], Scene],
+    open_person: Callable[..., Page],
     own_account_agent: OwnAccountAgent,
     second_own_account_agent: OwnAccountAgent,
     e2e_server: RunningServer,
     form_factor: dict[str, Any],
 ) -> None:
-    """CALL-47, CALL-51: A call holds two agents of one seat and no third: the third agent's acceptance is refused as
-    place full while its two predecessors' stay, and the stage shows two agent tiles."""
+    """CALL-47, CALL-51: Agents take places like people: a fourth person fills the last place, the invited third
+    agent's acceptance is refused as place full and the control says so, a further person is refused as full, and
+    once an agent leaves the third agent's acceptance joins it."""
     scene = scene_of(form_factor)
     third = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{THIRD_AGENT_NAME}-{secrets.token_hex(3)}")
     try:
-        agents = (own_account_agent, second_own_account_agent, third)
-        for agent in agents:
-            scene.member_adds(agent)
-
-        for agent in agents[:2]:
-            agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS))
+        for agent in (own_account_agent, second_own_account_agent):
+            scene.member_adds_and_accepts(agent)
+        scene.member_adds(third)
         [invited] = [standing for standing in third.standings() if standing["state"] == "invited"]
+        join_by_link(open_person(**form_factor), scene.link)
 
         assert third.accept_refusal(invited) == AgentRefusal.BUSY.value
+        expect(open_more(scene.adder)).to_contain_text(kit_text("de", "agent.placeFull"))
+        refused = open_person(**form_factor)
+        join_by_link(refused, scene.link)
+        expect(refused.locator("body")).to_contain_text(text("de", "end.fullTitle"))
         for person in scene.everyone:
             expect(person.locator(AGENT_TILE)).to_have_count(2)
+
+        own_account_agent.call(LEAVE_CALL, {"room": room_of_link(scene.link)})
+        third.accept(invited)
+
+        for person in scene.everyone:
+            expect(person.locator(AGENT_TILE).filter(has_text=third.name)).to_have_count(1)
     finally:
         third.close()

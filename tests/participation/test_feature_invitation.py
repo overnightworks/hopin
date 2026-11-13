@@ -213,7 +213,7 @@ class TestAnInvitation:
         assert await invited.accept() is AgentRefusal.TWO_SEATS
 
     async def test_accepting_it_while_the_owners_seat_sponsors_another_agent_joins_both(self, invited, participation):
-        """CALL-51: A seat sponsors up to the call's two agents."""
+        """CALL-51: A seat sponsors every agent of its owner the call has places for."""
         other = await participation.dial_in(person_named(OWNER), invited.owner.room_id, "Codex")
 
         agent = await invited.accept()
