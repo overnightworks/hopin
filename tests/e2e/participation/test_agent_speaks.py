@@ -29,15 +29,20 @@ SOUND_SECONDS = 1.0
 LONGER_SOUND_SECONDS = 5.0
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
-# Each page records the length of every sound its player starts and how many it stopped.
+# Each page records the length of every sound its player starts and how many sources it stopped. The player starts a
+# sound as the chunks of its body arrive, each chunk beginning where the one before it ends, so the chunks that join
+# up are one sound.
 RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
     window.soundsStopped = 0;
+    let joinsAt = NaN;
     const start = AudioBufferSourceNode.prototype.start;
-    AudioBufferSourceNode.prototype.start = function (...args) {
-        window.soundsStarted.push(this.buffer.duration);
-        return start.apply(this, args);
+    AudioBufferSourceNode.prototype.start = function (when, ...args) {
+        if (when === joinsAt) window.soundsStarted[window.soundsStarted.length - 1] += this.buffer.duration;
+        else window.soundsStarted.push(this.buffer.duration);
+        joinsAt = when + this.buffer.duration;
+        return start.call(this, when, ...args);
     };
     const stop = AudioBufferSourceNode.prototype.stop;
     AudioBufferSourceNode.prototype.stop = function (...args) {
@@ -157,7 +162,7 @@ def test_an_agent_that_leaves_takes_its_tile_and_the_sound_it_plays_from_every_b
 
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
-        assert person.evaluate("() => window.soundsStopped") == 1
+        assert person.evaluate("() => window.soundsStopped") > 0
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
