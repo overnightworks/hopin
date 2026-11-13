@@ -31,7 +31,7 @@ class RoomManager:
             raise RoomNotFoundError(room_id)
         return room
 
-    # Stays synchronous: checking for a free seat and seating are one step, so an await between them
+    # Stays synchronous: checking for a free place and taking it are one step, so an await between them
     # would let concurrent joins pass the cap.
     def add_participant(self, room_id: str, participant_id: str, account: Account) -> Room:
         room = self.get_room(room_id)
@@ -41,6 +41,22 @@ class RoomManager:
             raise RoomFullError(room_id, self._max_participants_per_room)
         room.participants[participant_id] = Participant(participant_id=participant_id, account=account)
         return room
+
+    def has_free_place_for_agent(self, room_id: str) -> bool:
+        return self.get_room(room_id).has_free_place_for_agent(self._max_participants_per_room)
+
+    # Stays synchronous for the same reason as `add_participant`.
+    def add_agent(self, room_id: str, agent_id: str) -> None:
+        room = self.get_room(room_id)
+        if not room.has_free_place_for_agent(self._max_participants_per_room):
+            raise RoomFullError(room_id, self._max_participants_per_room)
+        room.agent_ids.add(agent_id)
+
+    def remove_agent(self, room_id: str, agent_id: str) -> None:
+        """Free the agent's place; a room that has ended holds none."""
+        room = self._rooms.get(room_id)
+        if room is not None:
+            room.agent_ids.discard(agent_id)
 
     def get_room_for_host(self, room_id: str, requester: Account) -> Room:
         room = self.get_room(room_id)

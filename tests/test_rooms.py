@@ -81,6 +81,26 @@ class TestRoom:
     def test_has_free_seat_for_counts_the_away_hosts_seat_as_taken(self, present, joiner, has_seat):
         assert room_with(*present).has_free_seat_for(account_named(joiner), SEAT_LIMIT) is has_seat
 
+    @pytest.mark.parametrize(
+        ("present", "agents", "has_place"),
+        [
+            (("h1",), 1, True),
+            (("h1", "p1"), 1, False),
+            (("h1",), 2, False),
+            (("p1",), 1, False),
+        ],
+        ids=["agent_beside_host", "agent_fills_last_place", "agents_fill_call", "away_host_place_reserved"],
+    )
+    def test_has_free_place_for_agent_counts_people_and_joined_agents_together(self, present, agents, has_place):
+        room = room_with(*present)
+        room.agent_ids.update(f"agent{number}" for number in range(agents))
+        assert room.has_free_place_for_agent(SEAT_LIMIT) is has_place
+
+    def test_a_person_finds_no_seat_when_joined_agents_fill_the_places(self):
+        room = room_with("h1")
+        room.agent_ids.update({"agent0", "agent1"})
+        assert not room.has_free_seat_for(account_named("p1"), SEAT_LIMIT)
+
 
 class TestRoomManager:
     @pytest.fixture
@@ -180,6 +200,32 @@ class TestRoomManager:
         manager.add_participant(room.room_id, "p2", account_named("p2"))
         updated = manager.add_participant(room.room_id, "h1-back", account_named("h1"))
         assert updated.host_present
+
+    def test_add_agent_takes_a_place_a_person_could_have_taken(self, manager):
+        room = manager.create_room("h1", account_named("h1"))
+        manager.add_agent(room.room_id, "agent0")
+        manager.add_participant(room.room_id, "p1", ACCOUNT_P1)
+        with pytest.raises(RoomFullError):
+            manager.add_participant(room.room_id, "p2", account_named("p2"))
+
+    def test_add_agent_raises_when_people_fill_the_places(self, manager):
+        room = manager.create_room("h1", account_named("h1"))
+        manager.add_participant(room.room_id, "p1", ACCOUNT_P1)
+        manager.add_participant(room.room_id, "p2", account_named("p2"))
+        with pytest.raises(RoomFullError) as refusal:
+            manager.add_agent(room.room_id, "agent0")
+        assert refusal.value.capacity == SEAT_LIMIT
+
+    def test_remove_agent_frees_the_place(self, manager):
+        room = manager.create_room("h1", account_named("h1"))
+        manager.add_agent(room.room_id, "agent0")
+        manager.add_agent(room.room_id, "agent1")
+        manager.remove_agent(room.room_id, "agent0")
+        assert manager.has_free_place_for_agent(room.room_id)
+        manager.add_agent(room.room_id, "agent2")
+
+    def test_remove_agent_of_an_ended_room_is_nothing(self, manager):
+        manager.remove_agent("nonexistent", "agent0")
 
     def test_set_room_locked_by_non_host_raises(self, manager):
         room = manager.create_room("h1", account_named("h1"))

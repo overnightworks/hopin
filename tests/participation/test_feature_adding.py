@@ -12,11 +12,13 @@ from tests.participation.support.own_accounts import (
     agent_listens,
     agent_stops_listening,
     control_shown_to,
+    full_told_to,
     let_reads_finish,
     offers_sent_to,
 )
 from tests.participation.support.people import person_named
 from tests.signaling.support.browsers import clear_sent
+from tests.support.signaling_fakes import ROOM_LIMIT
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -266,20 +268,33 @@ class TestAnAdd:
             ["invited"],
         )
 
-    async def test_an_add_into_a_call_that_holds_two_agents_is_busy_and_the_offer_is_gone(
+    async def test_an_add_into_a_full_call_is_busy_and_the_offer_is_gone_and_the_call_is_told_full(
         self, link, participation, listeners
     ):
-        """CALL-51: Place full is shown when the call holds two agents."""
+        """CALL-51: Place full is shown when no place of the call is free, for people and agents alike."""
         owner, member = await owner_and_member(link)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
         [offer] = offers_sent_to(member)
-        await participation.dial_in(person_named(OWNER), owner.room_id, "Codex")
-        await participation.dial_in(person_named("guest"), owner.room_id, "Gemini")
+        for number in range(ROOM_LIMIT - 2):
+            await link.join(f"person{number}", owner.room_id)
 
         await add(member, offer["agent_key"])
 
-        assert (refusals_sent_to(member), offers_sent_to(member)) == ([AgentRefusal.BUSY.value], [])
+        assert (refusals_sent_to(member), offers_sent_to(member), full_told_to(member)) == (
+            [AgentRefusal.BUSY.value],
+            [],
+            True,
+        )
+
+    async def test_a_call_with_free_places_is_not_told_full(self, link, participation, listeners):
+        """CALL-51: Place full is not shown while a place of the call is free."""
+        _owner, member = await owner_and_member(link)
+
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+
+        assert full_told_to(member) is False
 
     async def test_an_add_with_the_owner_on_two_seats_is_refused_two_seats(self, link, participation, listeners):
         owner, member = await owner_and_member(link)

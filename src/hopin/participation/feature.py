@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Final
 
 import structlog
 
-from hopin.errors import InvalidMessageError, RoomNotFoundError
+from hopin.errors import InvalidMessageError, RoomFullError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
 from hopin.participation.frames import (
@@ -28,7 +28,6 @@ from hopin.participation.text import clean_line, clean_name, one_line
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     AGENTS_PER_PROCESS,
-    AGENTS_PER_ROOM,
     FEATURE_NAME,
     FIGURE_MODULE,
     SIGNAL_TYPES,
@@ -109,7 +108,7 @@ type DialOutcome = DialedAgent | AgentRefusal
 
 class Participation:
     """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group,
-    whichever seat sponsors them, up to two per call and 32 in the process."""
+    whichever seat sponsors them; each takes a place of the call like a person, and the process holds 32."""
 
     def __init__(
         self,
@@ -174,9 +173,9 @@ class Participation:
         existing = self._places.get(person, room_id)
         if isinstance(existing, DialedAgent) and existing.sponsor == sponsor:
             return existing
-        if self._is_busy(room_id):
-            return AgentRefusal.BUSY
         agent = DialedAgent(secrets.token_hex(AGENT_ID_BYTES), agent_name, person, sponsor, room_id)
+        if not self._takes_place(agent):
+            return AgentRefusal.BUSY
         self._places.put(person, room_id, agent)
         self._hearing.joined(agent, brought_by_sponsor=True)
         self._on_changed(person)
@@ -306,8 +305,6 @@ class Participation:
             return AgentRefusal.TWO_SEATS
         if self._rooms.is_parked(invitation.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        if self._is_busy(room_id):
-            return AgentRefusal.BUSY
         refusal = None if figure is None else figure_refusal(self._figure_sources, figure.url)
         agent = DialedAgent(
             secrets.token_hex(AGENT_ID_BYTES),
@@ -318,6 +315,8 @@ class Participation:
             figure if refusal is None else None,
             voice,
         )
+        if not self._takes_place(agent):
+            return AgentRefusal.BUSY
         self._places.put(person, room_id, agent)
         self._hearing.joined(agent, brought_by_sponsor=invitation.adder == invitation.sponsor)
         self._on_changed(person)
@@ -631,7 +630,8 @@ class Participation:
                 self._speaking.end(place)
 
     def _agent_ended(self, agent: DialedAgent) -> None:
-        """The agent's removal, leave or lease end: it hears and speaks nothing more."""
+        """The agent's removal, leave or lease end: it frees its place and hears and speaks nothing more."""
+        self._rooms.release_agent_place(agent.room_id, agent.agent_id)
         self._hearing.agent_ended(agent)
         self._speaking.end(agent)
 
@@ -657,10 +657,21 @@ class Participation:
         return seats[0]
 
     def _is_busy(self, room_id: str) -> bool:
-        """A call holds two agents, whoever sponsors them, and the process 32."""
-        joined = self._places.joined()
-        in_room = sum(1 for agent in joined if agent.room_id == room_id)
-        return in_room >= AGENTS_PER_ROOM or len(joined) >= AGENTS_PER_PROCESS
+        """The call has no place left for an agent, or the process holds its 32."""
+        return self._process_is_full() or not self._rooms.has_free_place(room_id)
+
+    def _process_is_full(self) -> bool:
+        return len(self._places.joined()) >= AGENTS_PER_PROCESS
+
+    def _takes_place(self, agent: DialedAgent) -> bool:
+        """Seat the agent among the call's people, or say the call or the process is full."""
+        if self._process_is_full():
+            return False
+        try:
+            self._rooms.take_agent_place(agent.room_id, agent.agent_id)
+        except RoomFullError:
+            return False
+        return True
 
     def _in_call(self, agent: DialedAgent) -> bool:
         """The agent holds its place, so its seat has not taken it away."""
@@ -714,20 +725,24 @@ class Participation:
             await self._update_offers(room_id)
 
     async def _update_offers(self, room_id: str, *, read: bool = True) -> None:
-        """Send each seat of the room the agents it may add and whether its control shows, when they differ from what it
-        was last sent. `read` starts the reads of memberships still unknown or failed; the read that just ended asks
-        for none, so a failure retries at the next trigger."""
+        """Send each seat of the room the agents it may add, whether its control shows and whether no place is free for
+        an agent, when they differ from what it was last sent. `read` starts the reads of memberships still unknown or
+        failed; the read that just ended asks for none, so a failure retries at the next trigger."""
         seats = self._recipients(room_id)
+        if not seats:  # the room has ended
+            return
         if read:
             self._start_reads(room_id, seats)
+        full = self._is_busy(room_id)
         for peer_id in seats:
             view = self._view_of(peer_id, room_id)
             offers = self._offers_for(peer_id, room_id)
             shown = self._control_shown_to(peer_id, room_id, offers)
-            if (offers, shown) != (view.offered, view.shown):
+            if (offers, shown, full) != (view.offered, view.shown, view.full):
                 view.offered = offers
                 view.shown = shown
-                await self._tell(room_id, [peer_id], offers_frame(offers, shown=shown))
+                view.full = full
+                await self._tell(room_id, [peer_id], offers_frame(offers, shown=shown, full=full))
 
     def _control_shown_to(self, peer_id: PeerId, room_id: str, offers: Sequence[Offer]) -> bool:
         """The control shows to a seat with an offer, to the call's host and to a member of an adders group, even with

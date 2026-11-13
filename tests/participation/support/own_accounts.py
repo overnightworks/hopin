@@ -73,6 +73,13 @@ def offers_sent_to(browser):
     return frames[-1]["offers"] if frames else None
 
 
+def full_told_to(browser):
+    """Whether the last `agent_offers` frame the browser was sent says that no place is free for an agent, or nothing
+    when it got none."""
+    frames = browser.frames(ParticipationSignal.AGENT_OFFERS)
+    return frames[-1]["full"] if frames else None
+
+
 def control_shown_to(browser):
     """Whether the last `agent_offers` frame the browser was sent shows the control, or nothing when it got none."""
     frames = browser.frames(ParticipationSignal.AGENT_OFFERS)

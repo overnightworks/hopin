@@ -62,9 +62,10 @@ class Offer:
     pending: bool
 
 
-def offers_frame(offers: Sequence[Offer], *, shown: bool) -> JsonObject:
+def offers_frame(offers: Sequence[Offer], *, shown: bool, full: bool) -> JsonObject:
     return frame(
         ParticipationSignal.AGENT_OFFERS,
         shown=shown,
+        full=full,
         offers=[{"agent_key": offer.agent_key, "name": offer.name, "pending": offer.pending} for offer in offers],
     )

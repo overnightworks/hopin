@@ -19,6 +19,7 @@ class Room:
     host: Account
     locked: bool = False
     participants: dict[str, Participant] = field(default_factory=dict)
+    agent_ids: set[str] = field(default_factory=set)
 
     @property
     def participant_count(self) -> int:
@@ -36,5 +37,12 @@ class Room:
         return account.id == self.host.id
 
     def has_free_seat_for(self, account: Account, seat_limit: int) -> bool:
-        host_seat_reserved = not self.host_present and not self.is_hosted_by(account)
-        return self.participant_count + int(host_seat_reserved) < seat_limit
+        return self._has_free_place(host_place_reserved=not self.is_hosted_by(account), place_limit=seat_limit)
+
+    def has_free_place_for_agent(self, place_limit: int) -> bool:
+        return self._has_free_place(host_place_reserved=True, place_limit=place_limit)
+
+    def _has_free_place(self, *, host_place_reserved: bool, place_limit: int) -> bool:
+        """People and joined agents take the same places; an away host's place stays free for the host."""
+        reserved = host_place_reserved and not self.host_present
+        return self.participant_count + len(self.agent_ids) + int(reserved) < place_limit
