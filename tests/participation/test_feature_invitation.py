@@ -220,7 +220,7 @@ class TestAnInvitation:
             True,
         )
 
-    async def test_a_decline_ends_it_as_busy_for_the_adder_alone_and_raises_no_epoch(self, invited):
+    async def test_a_decline_ends_it_as_busy_for_the_adder_alone(self, invited):
         """CALL-52: A standing decline ends the invitation at once, tells the seat that made it, and no other, the
         outcome, and offers the agent again."""
         old = invited.invitation
@@ -239,6 +239,19 @@ class TestAnInvitation:
             invited.participation.standings_of(AGENT),
             offers_sent_to(invited.member)[0]["pending"],
         ) == (None, InvitationOutcome.BUSY.value, True, [], (), False)
+
+    async def test_an_invitation_added_after_a_decline_has_the_epoch_of_the_declined_one(self, invited):
+        old = invited.invitation
+        [offer] = offers_sent_to(invited.member)
+        await invited.participation.decline(
+            AGENT, invited.owner.room_id, old.invitation_id, old.epoch, InvitationOutcome.BUSY
+        )
+
+        await invited.member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
+        await let_reads_finish()
+
+        [standing] = invited.participation.standings_of(AGENT)
+        assert (standing.invitation.invitation_id != old.invitation_id, standing.invitation.epoch) == (True, old.epoch)
 
     async def test_a_decline_past_its_deadline_before_its_timer_ran_is_stale(self, invited, scheduler):
         old = invited.invitation
