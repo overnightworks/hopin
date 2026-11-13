@@ -16,6 +16,7 @@ from hopin.app import create_app
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GamePhase, GameSignal
+from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from tests.game.support.fake_agent_backend import DEFAULT_QUESTION
 from tests.support.page_build import fixture_page_build
@@ -90,6 +91,7 @@ class Call:
     stores: SingleProcessStores
     client: TestClient
     sockets: ExitStack
+    offers_agents: bool
 
     def member(self, *, subject=None, groups=(), with_refresh_token=True):
         config = installed_web_auth_config(self.client.app)
@@ -110,6 +112,9 @@ class Call:
 
     def host_and_guest(self, host_member=None):
         host, created = self.seat(self.member() if host_member is None else host_member)
+        if self.offers_agents:
+            # The host's control is sent right after its join; the guest joins only once it has arrived.
+            host.frames_until(ParticipationSignal.AGENT_OFFERS)
         guest_member = self.member()
         guest, _ = self.seat(guest_member, created["room_id"])
         host.frames_until(SignalType.PARTICIPANT_JOINED)
@@ -153,7 +158,7 @@ def serving_call(
         ),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
-        yield Call(issuer, backend, stores, client, sockets)
+        yield Call(issuer, backend, stores, client, sockets, offers_agents=speech is not None)
 
 
 IDLE = {"type": GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
