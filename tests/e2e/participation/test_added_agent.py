@@ -6,7 +6,8 @@ from agents.member import LISTEN_ALLOWANCE_SECONDS
 from design.words import text as kit_text
 from playwright.sync_api import Page, expect
 
-from tests.e2e.support.calls import join_by_link, open_more, record_page_errors
+from hopin.words import text
+from tests.e2e.support.calls import join_by_link, open_more, press_through_the_prejoin, record_page_errors
 from tests.e2e.support.dialed_agent import (
     AGENT_NAME,
     AGENT_TILE,
@@ -153,9 +154,9 @@ def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_
     scene = scene_of(DESKTOP)
     scene.member_adds(scene.agent)
     scene.owner.click(LEAVE)
-    expect(scene.owner.locator(END_SCREEN)).to_be_visible()
 
-    join_by_link(scene.owner, scene.link)
+    scene.owner.locator(END_SCREEN).get_by_role("button", name=text("de", "end.rejoinButton")).click()
+    press_through_the_prejoin(scene.owner)
 
     expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
     assert scene.agent.standings() == []
