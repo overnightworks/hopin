@@ -3,5 +3,5 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "d0993dbc138595d926b5227e37300ac67ca9a174"
 branch = "docs/platform-runs-the-gateway"
-scope = ["docs/ARCHITECTURE.md"]
+scope = ["README.md", "docs/ARCHITECTURE.md"]
 opened_commit = "5f0e733be70205ffdd31d530bab75575f1fd7a37"
