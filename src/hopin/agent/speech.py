@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Final
 
 from hopin.agent.backend import StarterRefusedError
 from hopin.agent.speaking import SpeechRenderer
+from hopin.agent.speech_settings import PAGE_LANGUAGE
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
@@ -33,4 +34,4 @@ class SpeechVoice:
         except StarterRefusedError:
             self._renderer.log_failure("starter_token_refused")
             return None
-        return await self._renderer.wav(text, person_token)
+        return await self._renderer.wav(text, person_token, PAGE_LANGUAGE)
