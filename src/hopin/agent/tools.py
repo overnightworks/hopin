@@ -6,6 +6,7 @@ from enum import StrEnum
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
+import structlog
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
     SPEAK_TOOL,
@@ -21,6 +22,7 @@ from agents.member import (
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
+from hopin.agent.speaking import known_voice
 from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.figures import Figure
 from hopin.participation.text import one_line
@@ -31,6 +33,10 @@ if TYPE_CHECKING:
 
     from hopin.agent.speaking import AgentVoice
     from hopin.participation.feature import Participation
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+AGENT_VOICE_UNKNOWN_EVENT: Final = "agent_voice_unknown"
 
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
@@ -214,9 +220,14 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
-    outcome = await participation.accept(caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure)
+    voice = known_voice(accepted.voice)
+    outcome = await participation.accept(
+        caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voice
+    )
     if isinstance(outcome, AgentRefusal):
         return _accept_refused(AcceptInvitationRefusal(outcome.value))
+    if accepted.voice is not None and voice is None:
+        await logger.ainfo(AGENT_VOICE_UNKNOWN_EVENT, room_id=accepted.place.id)
     return _joined_or_refused(outcome)
 
 

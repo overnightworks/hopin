@@ -24,7 +24,7 @@ from speech_client.speak import (
     Unreachable,
     speak,
 )
-from speech_client.wire import ResponseFormat
+from speech_client.wire import ResponseFormat, VoiceId
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import issuer_error
@@ -57,8 +57,9 @@ class SpeechRenderer:
     relying_party: OidcRelyingParty
     failed_event: str
 
-    async def wav(self, text: str, person_token: str) -> bytes | None:
-        """The WAV of the text spoken on the person's token and HopIn's workload token, or nothing for any reason.
+    async def wav(self, text: str, person_token: str, voice: VoiceId | None = None) -> bytes | None:
+        """The WAV of the text spoken on the person's token and HopIn's workload token in `voice`, the service's
+        configured one when none, or nothing for any reason.
 
         Raises nothing but `CancelledError`; a cancelled call's worker ends within the deadline.
         """
@@ -74,7 +75,7 @@ class SpeechRenderer:
                 speak,
                 self.service.origin,
                 text,
-                self.service.voice,
+                self.service.voice if voice is None else voice,
                 response_format=ResponseFormat.WAV,
                 workload_token=workload.get_secret_value(),
                 person_token=person_token,
@@ -128,6 +129,14 @@ def duration_ms_of(wav: bytes) -> int | None:
     return math.ceil(held * MILLISECONDS_PER_SECOND / rate) or None
 
 
+def known_voice(name: str | None) -> str | None:
+    """The voice the speech service's catalogue names, or nothing for no name and for one it does not name."""
+    try:
+        return None if name is None else VoiceId(name).value
+    except ValueError:
+        return None
+
+
 class AgentVoice:
     """Renders an agent's sentence on the token HopIn holds for the agent."""
 
@@ -135,13 +144,14 @@ class AgentVoice:
         self._renderer = renderer
         self._tokens = tokens
 
-    async def render(self, agent: Person, text: str) -> RenderedSentence | None:
-        """The sentence's sound and length, or nothing when no token is held, speech fails or its WAV cannot be read."""
+    async def render(self, agent: Person, text: str, voice: str | None) -> RenderedSentence | None:
+        """The sentence's sound and length in the agent's `voice`, a catalogue voice its accept named or none for the
+        configured one, or nothing when no token is held, speech fails or its WAV cannot be read."""
         token = self._tokens.held(agent)
         if token is None:
             self._renderer.log_failure("no_token")
             return None
-        wav = await self._renderer.wav(text, token.get_secret_value())
+        wav = await self._renderer.wav(text, token.get_secret_value(), None if voice is None else VoiceId(voice))
         if wav is None:
             return None
         duration_ms = duration_ms_of(wav)

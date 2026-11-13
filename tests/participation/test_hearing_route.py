@@ -9,7 +9,7 @@ from http import HTTPStatus
 
 import pytest
 import structlog.testing
-from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
+from agents.member import LEASE_SECONDS
 from speech_client.relay import HopClose
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
@@ -27,7 +27,7 @@ from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HEARING_PATH, HearingClose, HearingRefusal, ParticipationSignal
-from tests.support.dialed_call import accept_arguments, join_arguments
+from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_speech import WAIT_SECONDS, FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.signed_in import handshake_headers
@@ -239,23 +239,9 @@ def agent_hears_no_more(scene, agent_id):
 
 def add_second_agent(scene):
     """The scene's owner also adds a second agent of an account of its own from its own seat, so both hear the owner's
-    seat; `second_token` is the second agent's and `second_agent_id` the id the seats are told."""
-    call, owner = scene.call, scene.owner
-    scene.second_token = call.agent_token(owner=scene.owner_subject, subject="agent-two", agent_name="Leonardo")
-    call.standing(scene.second_token)
-    call.listen(scene.second_token, [STANDING_URI])
-    while not (
-        key := next(
-            (offer["agent_key"] for offer in owner.frame_of_type(OFFERS)["offers"] if offer["name"] == "Leonardo"), None
-        )
-    ):
-        pass
-    owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
-    owner.frame_of_type(OFFERS)
-    [standing] = call.standing(scene.second_token)
-    call.call(scene.second_token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
-    scene.second_agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
-    owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
+    seat."""
+    scene.add_second_agent()
+    scene.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
     return scene
 
 

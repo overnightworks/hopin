@@ -285,8 +285,33 @@ class Scene:
         answer = self.call.window(self.token, self.owner.room_id)
         return json.loads(answer["result"]["contents"][0]["text"])["entries"]
 
-    def accept(self, standing):
-        return self.call.call(self.token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
+    def accept(self, standing, **more):
+        """The agent accepts the invitation; `more` is what else its accept names, such as its voice."""
+        return self.call.call(self.token, ACCEPT_INVITATION_TOOL, accept_arguments(standing) | more)
+
+    def add_second_agent(self, **more):
+        """The owner also adds a second agent of an account of its own, Leonardo, from its own seat and it accepts with
+        `more`; `second_token` is the second agent's and `second_agent_id` the id the seats are told."""
+        self.second_token = self.call.agent_token(owner=self.owner_subject, subject="agent-two", agent_name="Leonardo")
+        self.call.standing(self.second_token)
+        self.call.listen(self.second_token, [STANDING_URI])
+        while not (
+            key := next(
+                (
+                    offer["agent_key"]
+                    for offer in self.owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+                    if offer["name"] == "Leonardo"
+                ),
+                None,
+            )
+        ):
+            pass
+        self.owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
+        self.owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+        [standing] = self.call.standing(self.second_token)
+        self.call.call(self.second_token, ACCEPT_INVITATION_TOOL, accept_arguments(standing) | more)
+        self.second_agent_id = self.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
+        return self
 
 
 @pytest.fixture
@@ -305,7 +330,13 @@ def scene(scene_of):
 
 
 @pytest.fixture
-def joined_agent(scene):
+def accepted_voice():
+    """The voice the owner's agent names in its accept; none until a module about voices names one."""
+    return
+
+
+@pytest.fixture
+def joined_agent(scene, accepted_voice):
     """The scene with its owner's agent added from the owner's own seat and accepted, so the agent holds a joined place
     in the owner's call; `agent_id` is the id the seats are told."""
     owner = scene.owner
@@ -313,6 +344,6 @@ def joined_agent(scene):
         pass
     owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
     owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
-    scene.accept(scene.standings()[0])
+    scene.accept(scene.standings()[0], **({} if accepted_voice is None else {"voice": accepted_voice}))
     scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
     return scene
