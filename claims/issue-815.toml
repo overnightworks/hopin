@@ -1,0 +1,8 @@
+claim_id = "0fd7b8229ffb474bbab0f300886ab48d"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "716db63ba9e1844dafde975ee69304fb93f2fc36"
+branch = "claude/issue-815-quality-v0-16-0"
+scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "quality/baseline.toml"]
+opened_commit = "52a79e99543a86c570f7414defc463d55866b18e"
+whole_reason = "Every quality pin and the ceiling it reads move together."
