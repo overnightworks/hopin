@@ -691,7 +691,7 @@ describe("handing the microphone to a feature", () => {
         requests[0]?.resolve(replacement);
         await starting;
 
-        expect(stories).toEqual([expect.any(Array), [replacement.getAudioTracks()[0]]]);
+        expect(stories).toEqual([expect.any(Array), null, [replacement.getAudioTracks()[0]]]);
     });
 
     it("CALL-59: reports the microphone's real state in a second call of the same page after the first ended muted", async () => {
