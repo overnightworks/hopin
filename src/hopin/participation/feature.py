@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Final
 
 import structlog
 
-from hopin.errors import InvalidMessageError, RoomFullError, RoomNotFoundError
+from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
 from hopin.participation.frames import (
@@ -658,19 +658,12 @@ class Participation:
 
     def _is_busy(self, room_id: str) -> bool:
         """The call has no place left for an agent, or the process holds its 32."""
-        return self._process_is_full() or not self._rooms.has_free_place(room_id)
-
-    def _process_is_full(self) -> bool:
-        return len(self._places.joined()) >= AGENTS_PER_PROCESS
+        return len(self._places.joined()) >= AGENTS_PER_PROCESS or not self._rooms.has_free_place(room_id)
 
     def _takes_place(self, agent: DialedAgent) -> bool:
-        """Seat the agent among the call's people, or say the call or the process is full."""
-        if self._process_is_full():
+        if self._is_busy(agent.room_id):
             return False
-        try:
-            self._rooms.take_agent_place(agent.room_id, agent.agent_id)
-        except RoomFullError:
-            return False
+        self._rooms.take_agent_place(agent.room_id, agent.agent_id)
         return True
 
     def _in_call(self, agent: DialedAgent) -> bool:
@@ -725,9 +718,9 @@ class Participation:
             await self._update_offers(room_id)
 
     async def _update_offers(self, room_id: str, *, read: bool = True) -> None:
-        """Send each seat of the room the agents it may add, whether its control shows and whether no place is free for
-        an agent, when they differ from what it was last sent. `read` starts the reads of memberships still unknown or
-        failed; the read that just ended asks for none, so a failure retries at the next trigger."""
+        """Send each seat the agents it may add, whether its control shows and whether no place is free for an agent,
+        when they differ from what it was last sent. `read` starts the reads of memberships still unknown or failed;
+        the read that just ended asks for none, so a failure retries at the next trigger."""
         seats = self._recipients(room_id)
         if not seats:  # the room has ended
             return
