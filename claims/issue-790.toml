@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "cc5c564edeab32de1553ab731329db9469a73303"
 branch = "claude/issue-790-agent-takes-a-place"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation", "src/hopin/participation", "src/hopin/rooms", "tests/e2e/participation", "tests/participation", "tests/test_rooms.py"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation", "frontend/src/lib/ui/stage.svelte.test.ts", "src/hopin/participation", "src/hopin/rooms", "src/hopin/signaling/features.py", "tests/e2e/game/test_game_and_dialed_agents.py", "tests/e2e/participation", "tests/game/support/call_world.py", "tests/participation", "tests/test_rooms.py"]
 opened_commit = "3358f4aedb86a4febb4af2da9491b9cae4dc6ba4"
 whole_reason = "The place count, both joins that check it, the control's full state and the rules that state it change together."
