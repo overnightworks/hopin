@@ -29,7 +29,6 @@ VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
 SENTENCE_MS = 1500
 FAILED = "agent_speak_failed"
-ANNOUNCING_COROUTINE = "_sentence_started"
 
 
 def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
@@ -41,9 +40,17 @@ def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
 
 async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
     """The agent's answer once the sentence started and the announcement of it that follows the answer was sent."""
-    before = asyncio.all_tasks()
-    answer = await participation.speak(who, room_id, text, rendering() if render is None else render)
-    announcements = {task for task in asyncio.all_tasks() - before if task.get_coro().__name__ == ANNOUNCING_COROUTINE}
+    render = rendering() if render is None else render
+    known = asyncio.all_tasks()
+
+    async def render_and_note_the_running_tasks(sentence_text, voice):
+        try:
+            return await render(sentence_text, voice)
+        finally:
+            known.update(asyncio.all_tasks())
+
+    answer = await participation.speak(who, room_id, text, render_and_note_the_running_tasks)
+    announcements = asyncio.all_tasks() - known - {asyncio.current_task()}
     if announcements:
         await asyncio.wait(announcements)
     return answer
@@ -545,6 +552,20 @@ class TestAnEndWhileTheSentenceIsAnnounced:
         await speaking
 
         assert (host.frames(VOICE), guest.frames(VOICE)) == ([], [])
+
+    async def test_call_60_an_end_in_the_turn_after_the_answer_shows_and_tells_nothing_of_the_sentence(
+        self, participation, call
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+
+        async def render_then_end_the_call_next_turn(sentence, voice):
+            asyncio.get_running_loop().call_soon(participation.room_ended, room_id)
+            return RenderedSentence(b"sound", SENTENCE_MS)
+
+        await speak(participation, render=render_then_end_the_call_next_turn, room_id=room_id)
+
+        assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])
 
     async def test_call_60_an_agent_removed_before_its_started_sentence_is_announced_shows_and_tells_nothing(
         self, participation, call
