@@ -4,6 +4,7 @@ issuer, and the sound fetched at the route the seats are told."""
 import asyncio
 import logging
 import secrets
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
 import pytest
@@ -51,6 +52,7 @@ STREAMING_DATA_SIZE = 0xFFFFFFFF
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 TEXT = "Ein geheimer Satz"
 FAILED = "agent_speak_failed"
+ANSWER_SECONDS = 30
 failures_of = partial(failures_in, event=FAILED)
 
 
@@ -70,6 +72,15 @@ def speaking_service(speech_origin):
 def speak(scene, text=TEXT, room_id=None):
     place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
     return scene.call.call(scene.token, SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+
+
+def speaking_behind(scene):
+    """The agent's `speak` call that waits behind its playing sentence, on a thread of its own because a call answers
+    only when its sentence starts; the future holds the answer."""
+    pool = ThreadPoolExecutor(max_workers=1)
+    waiting = pool.submit(speak, scene)
+    pool.shutdown(wait=False)
+    return waiting
 
 
 def refusal_of(dialed):
@@ -121,6 +132,17 @@ class TestSpeaking:
 
     def test_call_60_it_answers_spoken_with_the_length_of_the_sound(self, spoken):
         assert (spoken.is_error, spoken.outcome) == (False, {"duration_ms": SENTENCE_MS})
+
+    def test_call_60_a_sentence_behind_the_playing_one_answers_when_the_clock_has_run_out_its_length(
+        self, joined_agent
+    ):
+        speak(joined_agent)
+        second = speaking_behind(joined_agent)
+
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
+        answered = second.result(timeout=ANSWER_SECONDS)
+
+        assert (answered.is_error, answered.outcome) == (False, {"duration_ms": SENTENCE_MS})
 
     def test_call_60_every_seat_gets_one_voice_and_the_sound_is_served_no_store_to_a_seat_of_the_room(
         self, joined_agent, spoken
@@ -347,7 +369,7 @@ class TestEveryEndAtTheRoute:
     ):
         speaking(speech_origin, chunked_wav(silent_wav(LEASE_SECONDS + 1)))
         speak(joined_agent)
-        speak(joined_agent)
+        waiting = speaking_behind(joined_agent)
         path = f"{VOICE_PATH}/{joined_agent.member.frame_of_type(VOICE)['voice_id']}"
 
         joined_agent.call.pass_time(LEASE_SECONDS)
@@ -356,8 +378,9 @@ class TestEveryEndAtTheRoute:
         assert (
             joined_agent.call.voice(joined_agent.member_login, path).status_code,
             len(frames_of(joined_agent.member, VOICE)),
+            refusal_of(waiting.result(timeout=ANSWER_SECONDS)),
             refusal_of(speak(joined_agent)),
-        ) == (404, 1, (True, {"refused": "not_active"}))
+        ) == (404, 1, (True, {"refused": "not_active"}), (True, {"refused": "not_active"}))
 
     @pytest.mark.parametrize(
         "arguments",

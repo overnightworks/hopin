@@ -42,6 +42,20 @@ async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room
     return await participation.speak(who, room_id, text, rendering() if render is None else render)
 
 
+async def waiting_to_speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
+    """A `speak` waiting in the agent's queue for its sentence to start; the task holds its answer."""
+    answer = asyncio.create_task(speak(participation, text, render, who=who, room_id=room_id))
+    await asyncio.sleep(0)
+    return answer
+
+
+async def answers_so_far(scheduler, seconds, *answers):
+    """Which of the answers are in after the clock moved on by `seconds`."""
+    await scheduler.advance(seconds)
+    await asyncio.sleep(0)
+    return [answer.done() for answer in answers]
+
+
 LONG_MS = 60 * 60 * 1000
 LONG = rendering(duration_ms=LONG_MS)
 
@@ -76,8 +90,9 @@ async def nine_waiting(participation, call, scheduler):
     """The room where the guest's agent plays an hour-long sentence with nine waiting, its slots free again."""
     host, *_ = call
     room_id = room_of(host)
-    for _ in range(LINES_PER_WINDOW):
-        await speak(participation, room_id=room_id, render=LONG)
+    await speak(participation, room_id=room_id, render=LONG)
+    for _ in range(LINES_PER_WINDOW - 1):
+        await waiting_to_speak(participation, room_id=room_id, render=LONG)
     await scheduler.advance(LINE_WINDOW_SECONDS)
     return room_id
 
@@ -133,14 +148,49 @@ class TestASentenceStarts:
         assert frame["text"] == "Guten Tag"
 
 
+class TestTheAnswerComesWhenTheSentenceStarts:
+    async def test_call_60_each_waiting_sentence_answers_when_the_previous_ones_length_has_run_out(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        first = await speak(participation, room_id=room_id)
+        second = await waiting_to_speak(participation, room_id=room_id)
+        third = await waiting_to_speak(participation, room_id=room_id)
+        seconds = SENTENCE_MS / 1000
+
+        done = [[second.done(), third.done()]]
+        for step in (seconds - 0.001, 0.001, seconds - 0.001, 0.001):
+            done.append(await answers_so_far(scheduler, step, second, third))
+
+        assert (done, [first, second.result(), third.result()]) == (
+            [[False, False], [False, False], [True, False], [True, False], [True, True]],
+            [SENTENCE_MS] * 3,
+        )
+
+    async def test_call_60_a_refusal_answers_while_the_agents_sentences_still_wait(self, participation, call):
+        host, *_ = call
+        room_id = room_of(host)
+        await speak(participation, room_id=room_id, render=LONG)
+        waiting = await waiting_to_speak(participation, room_id=room_id, render=LONG)
+
+        refusals = [
+            await speak(participation, "", room_id=room_id),
+            await speak(participation, room_id=room_id, who=person_named("stranger")),
+        ]
+
+        assert (refusals, waiting.done()) == ([AgentRefusal.UNAVAILABLE, AgentRefusal.GONE], False)
+
+
 class TestTheOrder:
     async def test_call_60_three_sentences_start_in_order_each_when_the_previous_ones_length_has_run_out(
         self, participation, call, scheduler, voices
     ):
         host, *_ = call
         sounds = [b"one", b"two", b"three"]
-        for sound in sounds:
-            await speak(participation, sound.decode(), room_id=room_of(host), render=rendering(sound))
+        await speak(participation, "one", room_id=room_of(host), render=rendering(b"one"))
+        for sound in sounds[1:]:
+            await waiting_to_speak(participation, sound.decode(), room_id=room_of(host), render=rendering(sound))
         started = [len(voice_ids(host))]
 
         for _ in range(2):
@@ -158,7 +208,7 @@ class TestTheOrder:
     ):
         host, *_ = call
         await speak(participation, room_id=room_of(host), render=rendering(duration_ms=5000))
-        await speak(participation, room_id=room_of(host))
+        await waiting_to_speak(participation, room_id=room_of(host))
 
         await scheduler.advance(4.999)
         before = len(voice_ids(host))
@@ -223,7 +273,7 @@ class TestEveryEndDropsTheQueue:
         host, guest, mozart, _ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id)
-        await speak(participation, room_id=room_id)
+        waiting = await waiting_to_speak(participation, room_id=room_id)
         [playing] = voice_ids(host)
 
         await end(participation, host, guest, mozart)
@@ -233,8 +283,9 @@ class TestEveryEndDropsTheQueue:
         assert (
             voice_ids(host),
             voices.get(playing),
+            await waiting,
             await speak(participation, room_id=room_id),
-        ) == ([playing], None, next_refusal)
+        ) == ([playing], None, AgentRefusal.GONE, next_refusal)
 
 
 class TestASentenceThatIsNotSpoken:
@@ -311,8 +362,9 @@ class TestTheBounds:
     ):
         host, *_ = call
         room_id = room_of(host)
-        for _ in range(LINES_PER_WINDOW):
-            assert await speak(participation, room_id=room_id) == SENTENCE_MS
+        await speak(participation, room_id=room_id)
+        for _ in range(LINES_PER_WINDOW - 1):
+            await waiting_to_speak(participation, room_id=room_id)
         rendered = []
 
         async def render(sentence):
@@ -330,8 +382,9 @@ class TestTheBounds:
     async def test_call_60_a_sentence_is_spoken_again_once_the_window_has_passed(self, participation, call, scheduler):
         host, *_ = call
         room_id = room_of(host)
-        for _ in range(LINES_PER_WINDOW):
-            await speak(participation, room_id=room_id)
+        await speak(participation, room_id=room_id)
+        for _ in range(LINES_PER_WINDOW - 1):
+            await waiting_to_speak(participation, room_id=room_id)
 
         await scheduler.advance(LINE_WINDOW_SECONDS)
 
@@ -351,7 +404,7 @@ class TestTheBounds:
         self, participation, nine_waiting
     ):
         room_id = nine_waiting
-        assert await speak(participation, room_id=room_id, render=LONG) == LONG_MS
+        await waiting_to_speak(participation, room_id=room_id, render=LONG)
         rendered = []
 
         async def render(sentence):
@@ -372,24 +425,17 @@ class TestTheBounds:
         room_id = nine_waiting
 
         entered = asyncio.Event()
-        release = asyncio.Event()
 
         async def render_held(sentence):
             entered.set()
-            await release.wait()
-            return await LONG(sentence)
+            await asyncio.Event().wait()
 
         with structlog.testing.capture_logs() as logs:
-            first = asyncio.create_task(speak(participation, render=render_held, room_id=room_id))
+            await waiting_to_speak(participation, render=render_held, room_id=room_id)
             await entered.wait()
             second = await speak(participation, render=LONG, room_id=room_id)
-            release.set()
-            answers = [await first, second]
 
-        assert (answers, failures_in(logs, FAILED)) == (
-            [LONG_MS, AgentRefusal.UNAVAILABLE],
-            [{"outcome": "queue_full"}],
-        )
+        assert (second, failures_in(logs, FAILED)) == (AgentRefusal.UNAVAILABLE, [{"outcome": "queue_full"}])
 
     @pytest.mark.parametrize("failing", [renders_nothing, renders_cancelled, renders_broken])
     async def test_call_60_a_sentence_that_fails_to_render_leaves_its_place_in_the_queue_free(
@@ -398,8 +444,15 @@ class TestTheBounds:
         room_id = nine_waiting
         with contextlib.suppress(Exception, asyncio.CancelledError):
             await speak(participation, render=failing, room_id=room_id)
+        rendered = []
 
-        assert await speak(participation, room_id=room_id, render=LONG) == LONG_MS
+        async def render_noting(sentence):
+            rendered.append(sentence)
+            return await LONG(sentence)
+
+        await waiting_to_speak(participation, render=render_noting, room_id=room_id)
+
+        assert rendered == ["Guten Tag"]
 
 
 class TestAnEndWhileTheSentenceRenders:

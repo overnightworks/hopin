@@ -1,6 +1,8 @@
 """An agent's spoken sentences: one queue per joined agent, in memory only. A sentence starts when the previous one's
-length has run out on the scheduler's clock, and its sound is kept only while it waits or plays."""
+length has run out on the scheduler's clock, its speaker is answered then, and its sound is kept only while it waits or
+plays."""
 
+import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 from functools import partial
@@ -32,11 +34,13 @@ type Renderer = Callable[[str], Awaitable[RenderedSentence | None]]
 
 @dataclass(frozen=True)
 class QueuedSentence:
-    """A sentence that waits or plays: its text, its sound's place in the store and how long it plays."""
+    """A sentence that waits or plays: its text, its sound's place in the store, how long it plays and its speaker's
+    answer, which is how long it plays once it starts, or why it never does."""
 
     text: str
     voice: StoredVoice
     duration_ms: int
+    answer: asyncio.Future[int | AgentRefusal] = field(repr=False, compare=False)
 
 
 @dataclass
@@ -65,8 +69,8 @@ class Speaking:
 
     async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> int | AgentRefusal:
         """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
-        before it; how long it plays, or why not: no sound came, or an end dropped the agent's queue while it was
-        rendered, which a rejoin or a resume does not undo."""
+        before it. Answers when it starts how long it plays, or why it never does: no sound came, or an end dropped the
+        agent's queue while it was rendered or waited, which a rejoin or a resume does not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue())
         queue.rendering += 1
         try:
@@ -78,13 +82,16 @@ class Speaking:
         if self._queues.get(agent.agent_id) is not queue:
             return AgentRefusal.GONE
         sentence = QueuedSentence(
-            text, self._voices.put(agent.room_id, agent.agent_id, rendered.wav), rendered.duration_ms
+            text,
+            self._voices.put(agent.room_id, agent.agent_id, rendered.wav),
+            rendered.duration_ms,
+            asyncio.get_running_loop().create_future(),
         )
         if queue.playing is None:
             await self._begin(agent, queue, sentence)
         else:
             queue.waiting.append(sentence)
-        return rendered.duration_ms
+        return await sentence.answer
 
     def is_full(self, agent: DialedAgent) -> bool:
         """Whether as many sentences already wait behind the agent's playing one or are being rendered for its queue as
@@ -100,12 +107,16 @@ class Speaking:
     def end(self, agent: DialedAgent) -> None:
         """The agent's removal, leave, pause, lease end or call end: drop its queue and its sounds at once."""
         queue = self._queues.pop(agent.agent_id, None)
-        if queue is not None and queue.timer is not None:
-            queue.timer.cancel()
+        if queue is not None:
+            if queue.timer is not None:
+                queue.timer.cancel()
+            for sentence in queue.waiting:
+                _answer(sentence, AgentRefusal.GONE)
         self._voices.forget_speaker(agent.room_id, agent.agent_id)
 
     async def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> None:
         queue.playing = sentence
+        _answer(sentence, sentence.duration_ms)
         delay = sentence.duration_ms / MILLISECONDS_PER_SECOND
         queue.timer = self._scheduler.call_later(delay, partial(self._played, agent, sentence))
         await self._start(agent, sentence)
@@ -118,3 +129,9 @@ class Speaking:
         queue.playing = None
         if queue.waiting:
             await self._begin(agent, queue, queue.waiting.popleft())
+
+
+def _answer(sentence: QueuedSentence, answer: int | AgentRefusal) -> None:
+    """Tell the sentence's speaker, unless the speaker gave up waiting."""
+    if not sentence.answer.done():
+        sentence.answer.set_result(answer)
