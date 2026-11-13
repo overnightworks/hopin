@@ -265,9 +265,8 @@ class Participation:
     def open_hearing(
         self, account: Person, seat: PeerId, holds_token: Callable[[Person], bool]
     ) -> HearingHandle | HearingRefusal:
-        """The sound session of a seat the account holds in a room, served by one of the agents that hear the seat,
-        preferably one that holds a token, and ended with that agent's hearing; refused for a seat the account does
-        not hold, one waiting to resume, or one no joined agent hears."""
+        """The sound session of a seat the account holds in a room, served by an agent that hears it and ending with
+        that agent's hearing; refused for a seat the account does not hold, one waiting to resume or one nobody hears."""
         room_id = self._rooms.room_of(seat)
         if room_id is None or seat not in self._rooms.seats_in(room_id, account.subject):
             return HearingRefusal.NO_SEAT
