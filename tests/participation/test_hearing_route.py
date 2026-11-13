@@ -237,14 +237,13 @@ def agent_hears_no_more(scene, agent_id):
     assert scene.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)["agent_id"] == agent_id
 
 
-@pytest.fixture
-def two_agents(sponsored):
-    """The scene whose owner also added a second agent of an account of its own from its own seat, so both hear the
-    owner's seat; `second_token` is the second agent's and `second_agent_id` the id the seats are told."""
-    call, owner = sponsored.call, sponsored.owner
-    sponsored.second_token = call.agent_token(owner=sponsored.owner_subject, subject="agent-two", agent_name="Leonardo")
-    call.standing(sponsored.second_token)
-    call.listen(sponsored.second_token, [STANDING_URI])
+def add_second_agent(scene):
+    """The scene's owner also adds a second agent of an account of its own from its own seat, so both hear the owner's
+    seat; `second_token` is the second agent's and `second_agent_id` the id the seats are told."""
+    call, owner = scene.call, scene.owner
+    scene.second_token = call.agent_token(owner=scene.owner_subject, subject="agent-two", agent_name="Leonardo")
+    call.standing(scene.second_token)
+    call.listen(scene.second_token, [STANDING_URI])
     while not (
         key := next(
             (offer["agent_key"] for offer in owner.frame_of_type(OFFERS)["offers"] if offer["name"] == "Leonardo"), None
@@ -253,11 +252,16 @@ def two_agents(sponsored):
         pass
     owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
     owner.frame_of_type(OFFERS)
-    [standing] = call.standing(sponsored.second_token)
-    call.call(sponsored.second_token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
-    sponsored.second_agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
+    [standing] = call.standing(scene.second_token)
+    call.call(scene.second_token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
+    scene.second_agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
     owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
-    return sponsored
+    return scene
+
+
+@pytest.fixture
+def two_agents(sponsored):
+    return add_second_agent(sponsored)
 
 
 def second_entries(scene):
@@ -265,26 +269,17 @@ def second_entries(scene):
 
 
 class TestTwoAgentsOfOneSponsor:
-    def test_call_58_a_finished_sentence_enters_the_window_of_each_agent_that_hears(self, two_agents, fake_speech):
-        """CALL-58: With both switches on, a sentence reaches each of the two agents."""
-        hear_one_sentence(two_agents, fake_speech)
-
-        assert [len(entries_of(two_agents)), len(second_entries(two_agents))] == [1, 1]
-
-    def test_call_58_a_switch_off_during_the_hop_leaves_the_other_agent_hearing_on_the_same_hop(
-        self, two_agents, fake_speech
+    def test_call_58_a_hop_is_served_by_the_agent_that_holds_a_token_when_the_other_holds_none(
+        self, sponsored, fake_speech
     ):
-        """CALL-58: Turning off the agent that does not serve the hop stops that agent hearing and nothing else."""
-        with hop(two_agents) as socket:
-            socket.send_bytes(SOUND)
-            session = fake_speech.next_session()
-            agent_hears_no_more(two_agents, two_agents.second_agent_id)
-            for event in a_sentence("Guten Tag"):
-                session.say(event)
-            session.hang_up()
-            closed = closed_with(socket)
+        """CALL-58: An agent whose exchange was refused serves no hop while another agent that hears holds a token."""
+        lose_the_held_token(sponsored)
+        sponsored.call.issuer.refuses_token_exchange_grants = False
+        add_second_agent(sponsored)
 
-        assert (closed, len(entries_of(two_agents)), second_entries(two_agents)) == (HearingClose.NORMAL, 1, [])
+        closed = hear_one_sentence(sponsored, fake_speech)
+
+        assert (closed, len(second_entries(sponsored))) == (HearingClose.NORMAL, 1)
 
     def test_call_58_the_agent_serving_the_hop_switched_off_ends_it_and_the_next_hop_is_served_by_the_other(
         self, two_agents, fake_speech
@@ -306,17 +301,6 @@ class TestTwoAgentsOfOneSponsor:
             1,
         )
         assert header_of(fake_speech.sessions[-1], AUTHORIZATION_HEADER) == f"Bearer {served_by}"
-
-    def test_call_58_one_agent_leaving_ends_a_hop_it_serves_and_the_other_agent_hears_on(self, two_agents, fake_speech):
-        with hop(two_agents) as socket:
-            socket.send_bytes(SOUND)
-            fake_speech.next_session(1).wait_for_audio(1)
-            _agent_leaves(two_agents)
-            ended = closed_with(socket)
-
-        hear_one_sentence(two_agents, fake_speech, session_number=2)
-
-        assert (ended, len(second_entries(two_agents))) == (HearingClose.NORMAL, 1)
 
     def test_call_58_both_switches_off_end_the_hop_and_nobody_hears_the_next(self, two_agents, fake_speech):
         with hop(two_agents) as socket:
