@@ -77,6 +77,20 @@ class Places:
     def epoch_of(self, person: Person, room_id: str) -> int:
         return self._epochs.get((person, room_id), 0)
 
+    def standing_invitation(
+        self, person: Person, room_id: str, invitation_id: str, epoch: int, now: float
+    ) -> Invited | None:
+        """The open invitation when it is that one, of that epoch, and has not run out by `now`."""
+        invitation = self.get(person, room_id)
+        if (
+            not isinstance(invitation, Invited)
+            or invitation.invitation_id != invitation_id
+            or epoch != self.epoch_of(person, room_id)
+            or now >= invitation.deadline
+        ):
+            return None
+        return invitation
+
     def put(self, person: Person, room_id: str, place: Place) -> None:
         """Hold the place; a joined agent's place starts an empty window named by the agent's id."""
         self._places[(person, room_id)] = place

@@ -252,7 +252,7 @@ class Participation:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it, and the agent keeps `voice` for its sentences."""
         live = self._live.by_person.get(person)
-        invitation = self._standing_invitation(person, room_id, invitation_id, epoch)
+        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
         if live is None or invitation is None:
             return AgentRefusal.STALE_INVITATION
         if self._rooms.seats_in(room_id, live.owner_subject) != [invitation.sponsor]:
@@ -287,7 +287,7 @@ class Participation:
     ) -> AgentRefusal | None:
         """End the agent's standing invitation as its expiry does and tell the seat that made it `outcome`; the refusal,
         or nothing when it ended. A decline seats nothing, so it needs no lease."""
-        invitation = self._standing_invitation(person, room_id, invitation_id, epoch)
+        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
         if invitation is None:
             return AgentRefusal.STALE_INVITATION
         await self._end_invitation(person, room_id, invitation, outcome, reason="declined")
@@ -544,18 +544,6 @@ class Participation:
         place = self._places.get(person, room_id)
         if isinstance(place, Invited) and place.invitation_id == invitation_id:
             await self._end_invitation(person, room_id, place, InvitationOutcome.NO_ANSWER, reason="expired")
-
-    def _standing_invitation(self, person: Person, room_id: str, invitation_id: str, epoch: int) -> Invited | None:
-        """The agent's open invitation when it is that one, of that epoch, and has not run out."""
-        invitation = self._places.get(person, room_id)
-        if (
-            not isinstance(invitation, Invited)
-            or invitation.invitation_id != invitation_id
-            or epoch != self._places.epoch_of(person, room_id)
-            or self._scheduler.now() >= invitation.deadline
-        ):
-            return None
-        return invitation
 
     async def _end_invitation(
         self, person: Person, room_id: str, invitation: Invited, outcome: InvitationOutcome, *, reason: str
