@@ -52,6 +52,8 @@ STREAMING_DATA_SIZE = 0xFFFFFFFF
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 TEXT = "Ein geheimer Satz"
 FAILED = "agent_speak_failed"
+UNKNOWN_VOICE = "de_DE-nobody-medium"
+UNKNOWN_VOICE_EVENT = "agent_voice_unknown"
 ANSWER_SECONDS = 30
 SETTLE_SECONDS = 0.5
 failures_of = partial(failures_in, event=FAILED)
@@ -70,9 +72,11 @@ def speaking_service(speech_origin):
     return SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
-def speak(scene, text=TEXT, room_id=None):
+def speak(scene, text=TEXT, room_id=None, token=None):
     place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
-    return scene.call.call(scene.token, SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+    return scene.call.call(
+        scene.token if token is None else token, SPEAK_TOOL, {"place": place.model_dump(), "text": text}
+    )
 
 
 @pytest.fixture
@@ -222,6 +226,59 @@ class TestSpeaking:
         dialed = speak(joined_agent, text)
 
         assert dialed.is_error is False
+
+
+class TestTheVoiceOfASentence:
+    @pytest.fixture
+    def accepted_voice(self):
+        return VoiceId.KERSTIN
+
+    def test_call_60_each_agent_speaks_with_the_voice_its_accept_named_and_one_that_named_none_with_the_configured_one(
+        self, joined_agent, speech_origin
+    ):
+        joined_agent.add_second_agent()
+
+        speak(joined_agent)
+        speak(joined_agent, token=joined_agent.second_token)
+
+        assert [spoken_request(request).voice for request in speech_origin.requests] == [
+            VoiceId.KERSTIN,
+            VoiceId.THORSTEN,
+        ]
+
+    def test_call_60_a_sentence_that_waited_behind_another_takes_the_voice_too(
+        self, joined_agent, speaking_behind, speech_origin
+    ):
+        speak(joined_agent)
+        second = speaking_behind()
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
+        second.result(timeout=ANSWER_SECONDS)
+
+        assert [spoken_request(request).voice for request in speech_origin.requests] == [VoiceId.KERSTIN] * 2
+
+
+class TestAVoiceSpeechDoesNotName:
+    @pytest.fixture
+    def accepted_voice(self):
+        return UNKNOWN_VOICE
+
+    def test_call_60_the_agent_joins_and_speaks_with_the_configured_voice_and_the_log_holds_a_closed_code_and_no_name(
+        self, scene, speech_origin
+    ):
+        scene.invite()
+        with structlog.testing.capture_logs() as logs:
+            accepted = scene.accept(scene.standings()[0], voice=UNKNOWN_VOICE)
+            scene.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)
+        spoken = speak(scene)
+
+        unknown = [log for log in logs if log["event"] == UNKNOWN_VOICE_EVENT]
+        assert (
+            accepted.is_error,
+            spoken.is_error,
+            [spoken_request(request).voice for request in speech_origin.requests],
+            [{key: value for key, value in log.items() if key not in {"event", "log_level"}} for log in unknown],
+            UNKNOWN_VOICE in repr(logs),
+        ) == (False, False, [VoiceId.THORSTEN], [{"room_id": scene.owner.room_id}], False)
 
 
 class TestTheVoiceRoute:
