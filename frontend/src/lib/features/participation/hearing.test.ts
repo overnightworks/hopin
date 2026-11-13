@@ -56,19 +56,22 @@ describe("capturing the sponsor's microphone", () => {
         { heard: false, microphone: false },
         { heard: true, microphone: false },
         { heard: false, microphone: true },
-    ])("runs no capture while the switch is $heard and the microphone is $microphone", ({ heard, microphone }) => {
-        const capture = freshCapture();
+    ])(
+        "CALL-59: runs no capture while the switch is $heard and the microphone is $microphone",
+        ({ heard, microphone }) => {
+            const capture = freshCapture();
 
-        capture.setHeard(heard);
-        capture.setStream(microphone ? stream("microphone") : null);
+            capture.setHeard(heard);
+            capture.setStream(microphone ? stream("microphone") : null);
 
-        expect(running.captures).toHaveLength(0);
-    });
+            expect(running.captures).toHaveLength(0);
+        },
+    );
 
     it.each([
         ["the switch comes last", "stream first"],
         ["the microphone comes last", "heard first"],
-    ])("starts one capture of the microphone's stream into the seat's hop when %s", (order) => {
+    ])("CALL-59: starts one capture of the microphone's stream into the seat's hop when %s", (order) => {
         const capture = freshCapture();
 
         if (order === "stream first") {
@@ -88,7 +91,7 @@ describe("capturing the sponsor's microphone", () => {
         ]);
     });
 
-    it("starts the hop's capture once however often it is told the same", () => {
+    it("CALL-59: starts the hop's capture once however often it is told the same", () => {
         const capture = freshCapture();
 
         capture.setHeard(true);
@@ -99,7 +102,7 @@ describe("capturing the sponsor's microphone", () => {
         expect(running.captures).toHaveLength(1);
     });
 
-    it("stops the capture the moment the switch goes off, and starts a new one when it is on again", () => {
+    it("CALL-59: stops the capture the moment the switch goes off, and starts a new one when it is on again", () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -112,7 +115,7 @@ describe("capturing the sponsor's microphone", () => {
         expect(running.captures).toHaveLength(2);
     });
 
-    it("stops the capture the moment the microphone goes away, and starts a new one with the next stream", () => {
+    it("CALL-59: stops the capture the moment the microphone goes away, and starts a new one with the next stream", () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -124,7 +127,7 @@ describe("capturing the sponsor's microphone", () => {
         expect(live().map((started) => started.options.stream)).toEqual(["second"]);
     });
 
-    it("moves to a replaced stream by stopping the first capture", () => {
+    it("CALL-59: moves to a replaced stream by stopping the first capture", () => {
         const capture = freshCapture();
         capture.setHeard(true);
         capture.setStream(stream("first"));
@@ -139,7 +142,7 @@ describe("capturing the sponsor's microphone", () => {
 });
 
 describe("a hop that ended", () => {
-    it("is opened again once when it ended past its deadline while both are still on", async () => {
+    it("CALL-59: is opened again once when it ended past its deadline while both are still on", async () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -150,7 +153,7 @@ describe("a hop that ended", () => {
         expect(running.captures).toHaveLength(2);
     });
 
-    it("is not opened a second time when the reopened hop ends past its deadline too", async () => {
+    it("CALL-59: is not opened a second time when the reopened hop ends past its deadline too", async () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -162,7 +165,7 @@ describe("a hop that ended", () => {
         expect(running.captures).toHaveLength(2);
     });
 
-    it("gets a new reopening after the person's next switch change", async () => {
+    it("CALL-59: gets a new reopening after the person's next switch change", async () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -183,7 +186,7 @@ describe("a hop that ended", () => {
         { kind: "hop", close: HopClose.NORMAL },
         { kind: "socket", code: HEARING_CLOSE.NO_TOKEN },
         { kind: "local", failure: "worklet-refused" },
-    ])("stays closed on its own after %o and starts again with the next change", async (end) => {
+    ])("CALL-59: stays closed on its own after %o and starts again with the next change", async (end) => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -195,7 +198,7 @@ describe("a hop that ended", () => {
         expect(live().map((started) => started.options.stream)).toEqual(["second"]);
     });
 
-    it("is not opened again when it ended past its deadline after the switch went off", async () => {
+    it("CALL-59: is not opened again when it ended past its deadline after the switch went off", async () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
@@ -207,7 +210,7 @@ describe("a hop that ended", () => {
         expect(running.captures).toHaveLength(1);
     });
 
-    it("is not mistaken for the running capture when an older one ends late", async () => {
+    it("CALL-59: is not mistaken for the running capture when an older one ends late", async () => {
         const capture = freshCapture();
         capture.setStream(stream("first"));
         capture.setHeard(true);

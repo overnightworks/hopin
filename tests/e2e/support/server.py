@@ -146,6 +146,7 @@ def running_hopin(
     *,
     participation: bool = False,
     hears: bool = False,
+    speech: SpeechService = UNREACHABLE_HEARING,
     agent_adders: Mapping[str, str] | None = None,
     certificate: tuple[Path, Path] | None = None,
     more_call_features: Sequence[CallFeatureBuilder] = (),
@@ -153,7 +154,7 @@ def running_hopin(
     figure_transport: FigureTransport = get_figure_over_https,
 ) -> Iterator[RunningServer]:
     """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for, and with
-    the setting that lets agents hear on when `hears`;
+    the setting that lets agents hear on when `hears`, hearing through `speech`;
     `agent_adders` maps an owner's subject to the group whose members may add that owner's agent,
     `figure_sources` are where participation may fetch an agent's figure from, through `figure_transport`, and
     `more_call_features` wires further features beside `call_feature`.
@@ -176,7 +177,7 @@ def running_hopin(
                         agent_adders or {},
                         figure_sources,
                         figure_transport,
-                        hearing=UNREACHABLE_HEARING if hears else None,
+                        hearing=speech if hears else None,
                     ),
                 )
                 if participation

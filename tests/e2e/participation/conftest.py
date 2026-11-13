@@ -1,4 +1,5 @@
 import secrets
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -11,7 +12,8 @@ from tests.e2e.support.dialed_agent import (
     OwnAgent,
 )
 from tests.e2e.support.participation_scene import Scene
-from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
+from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
+from tests.support.fake_speech import FakeSpeech
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -41,6 +43,30 @@ def hearing_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Running
         tmp_path_factory.mktemp("hearing-tls"),
         participation=True,
         hears=True,
+        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
+    ) as server:
+        yield server
+
+
+@pytest.fixture(scope="session")
+def fake_speech() -> Iterator[FakeSpeech]:
+    """A speech service on a loopback port, which records each hop's session and says what a test scripts."""
+    service = FakeSpeech()
+    service.start()
+    yield service
+    service.stop()
+
+
+@pytest.fixture(scope="session")
+def speaking_server(tmp_path_factory: pytest.TempPathFactory, fake_speech: FakeSpeech) -> Iterator[RunningServer]:
+    """`hearing_server` whose speech service is `fake_speech`."""
+    loopback = loopback_sign_in(tmp_path_factory.mktemp("speaking-sign-in"))
+    with running_hopin(
+        loopback,
+        tmp_path_factory.mktemp("speaking-tls"),
+        participation=True,
+        hears=True,
+        speech=replace(UNREACHABLE_HEARING, origin=fake_speech.origin),
         agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
