@@ -34,7 +34,7 @@ export function createAgentVoices(
 
     // A refused or failed sound never starts, so it neither makes the agent speak nor shows an error.
     async function follow(agentId: string, held: AgentPlayer, playback: Playback) {
-        if ((await playback.started) !== "playing") return;
+        if ((await playback.started).kind !== "playing") return;
         const isOpen = () => players.get(agentId) === held;
         if (!isOpen()) return;
         held.playing += 1;

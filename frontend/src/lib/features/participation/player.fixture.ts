@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { Player, PlaybackEnd, Sound } from "overnightworks-speech-browser";
+import type { Player, PlaybackEnd, PlaybackStart, Sound } from "overnightworks-speech-browser";
 
 /** A sound the player was handed; the test starts it and ends it by hand. */
 export interface FakeSound {
@@ -27,16 +27,16 @@ export function fakePlayers() {
         created.push(fake);
         return {
             play: (sound) => {
-                const started = Promise.withResolvers<"playing" | "ended">();
+                const started = Promise.withResolvers<PlaybackStart>();
                 const ended = Promise.withResolvers<PlaybackEnd>();
                 fake.sounds.push({
                     sound,
                     start: async () => {
-                        started.resolve("playing");
+                        started.resolve({ kind: "playing", contextTime: 0, context: {} as AudioContext });
                         await settled();
                     },
                     end: async (end) => {
-                        started.resolve("ended");
+                        started.resolve({ kind: "ended" });
                         ended.resolve(end);
                         await settled();
                     },

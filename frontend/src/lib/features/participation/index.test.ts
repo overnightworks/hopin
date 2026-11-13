@@ -425,7 +425,7 @@ describe("an agent's voice", () => {
         const before = tileActivities(page);
         await sound?.start();
         const whilePlaying = [...page.tiles.values()].map(({ activity, name, sponsor }) => [activity, name, sponsor]);
-        await sound?.end({ kind: "played" });
+        await sound?.end({ kind: "played", playedSeconds: 1 });
 
         expect([before, whilePlaying, tileActivities(page)]).toEqual([
             [AGENT_ACTIVITY.PRESENT],
@@ -441,7 +441,7 @@ describe("an agent's voice", () => {
 
         await page.players.created[0]?.sounds[0]?.start();
         await page.players.created[1]?.sounds[0]?.start();
-        await page.players.created[0]?.sounds[0]?.end({ kind: "played" });
+        await page.players.created[0]?.sounds[0]?.end({ kind: "played", playedSeconds: 1 });
 
         expect([...page.tiles.entries()].map(([key, { activity }]) => [key, activity])).toEqual([
             ["agent-a1", AGENT_ACTIVITY.PRESENT],
