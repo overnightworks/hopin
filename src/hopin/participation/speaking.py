@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
+import structlog
+
 from hopin.participation.vocabulary import SENTENCES_WAITING_PER_AGENT, AgentRefusal
 
 if TYPE_CHECKING:
@@ -18,6 +20,8 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 MILLISECONDS_PER_SECOND: Final = 1000
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -127,6 +131,8 @@ class Speaking:
         task.add_done_callback(partial(self._announced, agent.agent_id))
 
     def _announced(self, agent_id: str, task: asyncio.Task[None]) -> None:
+        if not task.cancelled() and task.exception() is not None:
+            logger.error("agent_announcement_failed", agent_id=agent_id, exc_info=task.exception())
         pending = self._announcements.get(agent_id)
         if pending is not None:
             pending.discard(task)

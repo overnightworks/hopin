@@ -553,30 +553,56 @@ class TestAnEndWhileTheSentenceIsAnnounced:
 
         assert (host.frames(VOICE), guest.frames(VOICE)) == ([], [])
 
+    @pytest.mark.parametrize("end", ["room_ended", "leave"])
     async def test_call_60_an_end_in_the_turn_after_the_answer_shows_and_tells_nothing_of_the_sentence(
-        self, participation, call
+        self, participation, call, end
     ):
         host, guest, *_ = call
         room_id = room_of(host)
 
-        async def render_then_end_the_call_next_turn(sentence, voice):
-            asyncio.get_running_loop().call_soon(participation.room_ended, room_id)
+        async def end_the_agent():
+            if end == "room_ended":
+                participation.room_ended(room_id)
+            else:
+                await participation.leave(GUEST, room_id)
+
+        ending = []
+
+        async def render_then_end_next_turn(sentence, voice):
+            ending.append(asyncio.ensure_future(end_the_agent()))
             return RenderedSentence(b"sound", SENTENCE_MS)
 
-        await speak(participation, render=render_then_end_the_call_next_turn, room_id=room_id)
+        await speak(participation, render=render_then_end_next_turn, room_id=room_id)
+        await asyncio.gather(*ending)
 
         assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])
 
-    async def test_call_60_an_agent_removed_before_its_started_sentence_is_announced_shows_and_tells_nothing(
-        self, participation, call
+    async def test_call_60_a_sentence_that_finished_while_its_line_was_sent_is_not_given_a_voice(
+        self, participation, call, scheduler
     ):
         host, guest, *_ = call
-        removals = []
+        held = HeldWrite(host.socket)
+        first = asyncio.create_task(speak(participation, "eins", room_id=room_of(host)))
+        await held.reached()
+        await scheduler.advance(SENTENCE_MS / 1000)
+        second = asyncio.create_task(speak(participation, "zwei", room_id=room_of(host)))
+        await asyncio.sleep(0)
+        held.release.set()
+        await asyncio.gather(first, second)
 
-        async def render_then_remove(sentence, voice):
-            removals.append(asyncio.ensure_future(participation.leave(GUEST, room_of(host))))
-            return RenderedSentence(b"sound", SENTENCE_MS)
+        assert (sorted(frame["text"] for frame in guest.frames(LINE)), len(guest.frames(VOICE))) == (
+            ["eins", "zwei"],
+            1,
+        )
 
-        await speak(participation, render=render_then_remove, room_id=room_of(host))
+    async def test_call_60_a_failed_announcement_is_logged(self, participation, call):
+        host, *_ = call
 
-        assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])
+        async def refuse(text):
+            raise RuntimeError("closed")
+
+        host.socket.send_text = refuse
+        with structlog.testing.capture_logs() as logs:
+            await speak(participation, room_id=room_of(host))
+
+        assert [log["agent_id"] is not None for log in logs if log["event"] == "agent_announcement_failed"] == [True]
