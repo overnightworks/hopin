@@ -146,7 +146,9 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
     description=(
         "Say one sentence aloud in the call you joined. Everyone in the call hears it in your own voice and reads it "
         f"in the chat under your name with an AI mark. A sentence holds 1 to {SPEAK_MAX_CHARACTERS} characters. "
-        "Sentences play one after another, each when the one before it has ended; the answer is how long yours plays. "
+        "Sentences play one after another, each when the one before it has ended. The answer comes when yours starts, "
+        "which can be after the ones before it have played, so allow for that in your timeout; it is how long yours "
+        "plays. "
         "It is refused as not_active when you are not joined there or your person's seat is away, as too_long above "
         "the bound and as unavailable when no voice can be made."
     ),

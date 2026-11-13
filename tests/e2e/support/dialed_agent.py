@@ -20,6 +20,7 @@ from tests.e2e.support.people import PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from concurrent.futures import Future
 
     from tests.e2e.support.server import RunningServer
 
@@ -155,7 +156,15 @@ class SdkAgent:
         return json.loads(self._run(self._client.read_resource(uri)).contents[0].text)
 
     def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        result = self._run(self._client.call_tool(tool, arguments))
+        return self.call_unawaited(tool, arguments).result(REQUEST_SECONDS)
+
+    def call_unawaited(self, tool: str, arguments: dict[str, Any]) -> Future[dict[str, Any]]:
+        """Send the call and return at once with its answer to come, for a tool that answers later while the test
+        keeps driving its browsers: a thread waiting on the answer serves none of their page routes."""
+        return asyncio.run_coroutine_threadsafe(self._call(tool, arguments), self._loop)
+
+    async def _call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        result = await self._client.call_tool(tool, arguments)
         text = result.content[0].text
         assert not result.is_error, text
         return json.loads(text)

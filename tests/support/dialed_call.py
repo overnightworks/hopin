@@ -1,6 +1,7 @@
 """HopIn's real composition around participation: sockets on `/ws`, the MCP endpoint, and a fake issuer that signs
 the agents' tokens."""
 
+import asyncio
 import json
 import secrets
 import time
@@ -26,7 +27,7 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
-from tests.support.stores import WatchedSessions, single_process_stores
+from tests.support.stores import WatchedSessions, WatchedVoices, single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -114,6 +115,7 @@ class DialedCall:
     audience: str
     scheduler: ManualScheduler
     participation: BuiltParticipationFeature
+    voices: WatchedVoices
 
     def member(self, *, role=AppRole.USER, subject=None, groups=None):
         """A person with a login. With `groups` the issuer holds those groups for them and their login holds a refresh
@@ -292,6 +294,12 @@ class DialedCall:
 
         self.client.portal.call(ending)
 
+    def after_sounds_stored(self, stored, timeout_seconds=LISTEN_TIMEOUT_SECONDS):
+        """Return once `stored` sounds were put in the voice store and the app's loop has run on past the step that put
+        the last one: the sentence of that sound is queued by then."""
+        self.voices.wait_for(stored, timeout_seconds)
+        self.client.portal.call(asyncio.sleep, 0)
+
     def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
         return route.endpoint
@@ -385,6 +393,7 @@ def serving_dialed_call(
     stores = single_process_stores()
     stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
+    voices = WatchedVoices()
     participation = _ParticipationBuilt(
         ParticipationFeature(
             sign_in.settings.public_origin,
@@ -393,6 +402,7 @@ def serving_dialed_call(
             figure_transport or _no_figure_source,
             hearing=hearing,
             speaking=speaking,
+            voices=voices,
         )
     )
     app = create_app(
@@ -408,4 +418,4 @@ def serving_dialed_call(
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
-        yield DialedCall(issuer, stores, client, sockets, audience, scheduler, participation.built)
+        yield DialedCall(issuer, stores, client, sockets, audience, scheduler, participation.built, voices)

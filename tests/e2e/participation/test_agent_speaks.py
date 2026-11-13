@@ -8,7 +8,8 @@ from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, room_of_link
+from hopin.participation.speaking import MILLISECONDS_PER_SECOND
+from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.loopback_origin import Origin
@@ -16,6 +17,7 @@ from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, silent_wav,
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+    from concurrent.futures import Future
 
     from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.participation_scene import Scene
@@ -89,9 +91,19 @@ class Speaker:
             expect(person.locator(AGENT_TILE)).to_have_count(1 if other is None else 2)
 
     def speak(self, seconds: float, text: str = "Guten Tag", agent: OwnAccountAgent | None = None) -> None:
+        """Say a sentence of an agent that is silent and return once it started; behind a playing sentence the wait
+        would hold the page routes, so `speak_behind` serves that."""
+        self.speak_behind(seconds, text, agent).result(REQUEST_SECONDS)
+
+    def speak_behind(
+        self, seconds: float, text: str = "Guten Tag", agent: OwnAccountAgent | None = None
+    ) -> Future[dict[str, Any]]:
+        """Say a sentence and return at once with its answer to come when it starts, behind the ones before it."""
         speaking(self.speech_origin, chunked_wav(silent_wav(seconds)))
         place = PlaceRef(kind=CALL_KIND, id=self.room)
-        (self.scene.agent if agent is None else agent).call(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+        return (self.scene.agent if agent is None else agent).call_unawaited(
+            SPEAK_TOOL, {"place": place.model_dump(), "text": text}
+        )
 
     def leave(self) -> None:
         self.scene.agent.call(LEAVE_CALL, {"room": self.room})
@@ -121,13 +133,15 @@ def test_an_agents_sentences_sound_once_each_in_order_in_every_browser_and_its_t
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
         assert speaker.started(person) == [SOUND_SECONDS]
 
-    for seconds in LATER_SOUND_SECONDS:
-        speaker.speak(seconds)
+    after_silence, behind_it = LATER_SOUND_SECONDS
+    speaker.speak(after_silence)
+    behind_answer = speaker.speak_behind(behind_it)
 
     for person in everyone:
         person.wait_for_function("() => window.soundsStarted.length === 3", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert speaker.started(person) == [SOUND_SECONDS, *LATER_SOUND_SECONDS]
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+    assert behind_answer.result(REQUEST_SECONDS) == {"duration_ms": round(behind_it * MILLISECONDS_PER_SECOND)}
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
