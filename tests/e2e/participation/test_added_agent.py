@@ -6,7 +6,8 @@ from agents.member import LISTEN_ALLOWANCE_SECONDS
 from design.words import text as kit_text
 from playwright.sync_api import Page, expect
 
-from tests.e2e.support.calls import join_by_link, open_more, record_page_errors
+from hopin.words import text
+from tests.e2e.support.calls import join_by_link, open_more, press_through_the_prejoin, record_page_errors
 from tests.e2e.support.dialed_agent import (
     AGENT_NAME,
     AGENT_TILE,
@@ -15,6 +16,7 @@ from tests.e2e.support.dialed_agent import (
     REMOVE,
     OwnAccountAgent,
 )
+from tests.e2e.support.participation_scene import INVITATION_WAKE_SECONDS
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -26,6 +28,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 LEAVE = "#leaveBtn"
+END_SCREEN = "[data-screen=end]"
 QUIET_SECONDS = 2
 LAPSE_WITHIN_MILLISECONDS = (LISTEN_ALLOWANCE_SECONDS + 10) * 1000
 
@@ -124,6 +127,38 @@ def test_the_agent_leaves_when_its_owner_leaves_for_good(scene_of: Callable[[dic
 
     for person in (scene.host, scene.member):
         expect(person.locator(AGENT_TILE)).to_have_count(0)
+    assert scene.agent.standings() == []
+
+
+def test_an_agent_that_declines_as_busy_shows_the_adder_the_busy_row_and_the_owner_none(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-52: A decline ends the invitation at once and only the seat that made it sees the kit's busy row."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds(scene.agent)
+    open_more(scene.owner)
+
+    scene.agent.decline_busy(scene.agent.invitation_within(INVITATION_WAKE_SECONDS))
+
+    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.busy"))
+    expect(scene.offer_of_agent(scene.member).get_by_role("button")).to_have_count(0)
+    expect(scene.offers_on(scene.owner)).to_have_count(0)
+    assert scene.agent.standings() == []
+
+
+def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_the_owner_away_row(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-52: An invitation whose owner leaves before the agent joins ends at once and the seat that made it sees
+    the kit's owner-away row when the agent is offered again."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds(scene.agent)
+    scene.owner.click(LEAVE)
+
+    scene.owner.locator(END_SCREEN).get_by_role("button", name=text("de", "end.rejoinButton")).click()
+    press_through_the_prejoin(scene.owner)
+
+    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
     assert scene.agent.standings() == []
 
 

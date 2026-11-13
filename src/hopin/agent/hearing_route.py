@@ -20,7 +20,7 @@ from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import issuer_error
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS
-from hopin.participation.feature import Person
+from hopin.participation.participants import Person
 from hopin.participation.vocabulary import HearingClose, HearingRefusal
 from hopin.signaling.frames import PeerId
 

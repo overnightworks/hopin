@@ -1,6 +1,5 @@
 import asyncio
 import secrets
-from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
@@ -22,7 +21,8 @@ from hopin.participation.frames import (
 )
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.memberships import Membership, SeatView, membership_in
-from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
+from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
+from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.speaking import Speaking
 from hopin.participation.text import clean_line, clean_name, one_line
 from hopin.participation.vocabulary import (
@@ -62,48 +62,7 @@ type GroupsOf = Callable[[HTTPConnection], Awaitable[frozenset[str] | None]]
 """The groups the issuer holds for the session a connection carries now, or nothing when they cannot be read."""
 
 
-@dataclass(frozen=True)
-class Person:
-    """Who a token speaks for, as the issuer names them: the issuer and the subject, which is the account's id."""
-
-    issuer: str
-    subject: str
-
-
-@dataclass(frozen=True)
-class OwnAccount:
-    """What an agent with an account of its own says about itself: its owner's subject and its name."""
-
-    owner_subject: str
-    name: str
-
-
-@dataclass(frozen=True)
-class Caller:
-    """Who calls a tool: a person, and the account of its own when the caller is an agent that has one."""
-
-    person: Person
-    own_account: OwnAccount | None = None
-
-
-@dataclass(frozen=True)
-class DialedAgent:
-    """An agent in a call. Its person is whose token it uses; its sponsor is the seat that decides where it may be and
-    when it goes. Today both are the one person who dialed it in. Its voice is the speech voice its accept named and
-    the connector knows, or none, which keeps the configured one."""
-
-    agent_id: str
-    name: str
-    person: Person
-    sponsor: PeerId
-    room_id: str
-    figure: Figure | None = None
-    voice: str | None = None
-
-
 GROUPS_READ_TASK_NAME = "participation-groups-read"
-
-type DialOutcome = DialedAgent | AgentRefusal
 
 
 class Participation:
@@ -142,6 +101,7 @@ class Participation:
         self._live = LiveAgents()
         self._places = Places()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
+        self._abandoned: dict[PeerId, list[AbandonedInvitation]] = {}
         self._views: dict[PeerId, SeatView] = {}
         self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
 
@@ -292,14 +252,8 @@ class Participation:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it, and the agent keeps `voice` for its sentences."""
         live = self._live.by_person.get(person)
-        invitation = self._places.get(person, room_id)
-        if (
-            live is None
-            or not isinstance(invitation, Invited)
-            or invitation.invitation_id != invitation_id
-            or epoch != self._places.epoch_of(person, room_id)
-            or self._scheduler.now() >= invitation.deadline
-        ):
+        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
+        if live is None or invitation is None:
             return AgentRefusal.STALE_INVITATION
         if self._rooms.seats_in(room_id, live.owner_subject) != [invitation.sponsor]:
             return AgentRefusal.TWO_SEATS
@@ -327,6 +281,17 @@ class Participation:
         await self._tell_hearing(agent)
         await self._update_offers(room_id)
         return agent
+
+    async def decline(
+        self, person: Person, room_id: str, invitation_id: str, epoch: int, outcome: InvitationOutcome
+    ) -> AgentRefusal | None:
+        """End the agent's standing invitation as its expiry does and tell the seat that made it `outcome`; the refusal,
+        or nothing when it ended. A decline seats nothing, so it needs no lease."""
+        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
+        if invitation is None:
+            return AgentRefusal.STALE_INVITATION
+        await self._end_invitation(person, room_id, invitation, outcome, reason="declined")
+        return None
 
     async def agent_called(self, person: Person, own_account: OwnAccount) -> None:
         """An admitted call of an agent with an account of its own: renew its lease, or register it. A lease that ran
@@ -386,35 +351,49 @@ class Participation:
             (person, room_id, place) for person, room_id, place in self._places.entries() if place.sponsor == peer_id
         ]
         if self._rooms.room_of(peer_id) is None:
-            view = self._views.pop(peer_id, None)
-            for person, room_id, _ in bound:
-                self._places.remove(person, room_id)
-            joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
-            for agent in joined:
-                self._agent_ended(agent)
-            if view is not None:
-                self._hearing.seat_ended(view.room_id, peer_id)
-            if joined:
-                self._departed[peer_id] = joined
+            self._take_out_places_of_departed(peer_id, bound)
         elif self._rooms.is_parked(peer_id):
             self._hearing.end_sound(peer_id)
             self._end_speaking_of(place for _, _, place in bound)
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
 
+    def _take_out_places_of_departed(self, peer_id: PeerId, bound: list[tuple[Person, str, Place]]) -> None:
+        view = self._views.pop(peer_id, None)
+        invitations = [
+            AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
+            for person, room_id, place in bound
+            if isinstance(place, Invited)
+        ]
+        for person, room_id, _ in bound:
+            self._places.remove(person, room_id)
+        if invitations:
+            self._abandoned[peer_id] = invitations
+        joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
+        for agent in joined:
+            self._agent_ended(agent)
+        if view is not None:
+            self._hearing.seat_ended(view.room_id, peer_id)
+        if joined:
+            self._departed[peer_id] = joined
+
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
-        """Announce the tiles of the agents the seat took with it, and the agents the others may add now."""
+        """Announce the tiles of the agents the seat took with it and the agents the others may add now, then tell the
+        seats that invited the owner's agents that the owner is away."""
         del name
         for agent in self._departed.pop(peer_id, []):
             await self._announce_removed(agent, self._recipients(agent.room_id))
         await self._update_offers(room_id)
+        for invitation in self._abandoned.pop(peer_id, []):
+            await self._tell(
+                invitation.room_id,
+                [invitation.adder],
+                invitation_ended_frame(invitation.agent_key, InvitationOutcome.OWNER_ABSENT),
+            )
 
     def room_ended(self, room_id: str) -> None:
         """Drop the room's places and seats; the room's seats hear the end itself."""
-        for sponsor in [sponsor for sponsor, gone in self._departed.items() if gone[0].room_id == room_id]:
-            del self._departed[sponsor]
-        for peer_id in [peer_id for peer_id, view in self._views.items() if view.room_id == room_id]:
-            del self._views[peer_id]
+        self._forget_seats_of_ended_room(room_id)
         holders = {person for person, held_room, _ in self._places.entries() if held_room == room_id}
         self._hearing.room_ended(room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == room_id]:
@@ -422,6 +401,14 @@ class Participation:
         self._places.drop_room(room_id)
         for person in holders:
             self._on_changed(person)
+
+    def _forget_seats_of_ended_room(self, room_id: str) -> None:
+        for sponsor in [sponsor for sponsor, gone in self._departed.items() if gone[0].room_id == room_id]:
+            del self._departed[sponsor]
+        for sponsor in [sponsor for sponsor, gone in self._abandoned.items() if gone[0].room_id == room_id]:
+            del self._abandoned[sponsor]
+        for peer_id in [peer_id for peer_id, view in self._views.items() if view.room_id == room_id]:
+            del self._views[peer_id]
 
     async def shut_down(self) -> None:
         reads = list(self._reads.values())
@@ -434,6 +421,7 @@ class Participation:
             self._speaking.end(agent)
         self._places.clear()
         self._departed.clear()
+        self._abandoned.clear()
         self._views.clear()
         self._live = LiveAgents()
 
@@ -554,15 +542,19 @@ class Participation:
 
     async def _invitation_timer(self, person: Person, room_id: str, invitation_id: str) -> None:
         place = self._places.get(person, room_id)
-        if not isinstance(place, Invited) or place.invitation_id != invitation_id:
-            return
+        if isinstance(place, Invited) and place.invitation_id == invitation_id:
+            await self._end_invitation(person, room_id, place, InvitationOutcome.NO_ANSWER, reason="expired")
+
+    async def _end_invitation(
+        self, person: Person, room_id: str, invitation: Invited, outcome: InvitationOutcome, *, reason: str
+    ) -> None:
         agent_key = self._live.by_person[person].key  # read before the awaits: the lease may end during them
-        self._places.remove(person, room_id)
+        self._places.end_invitation(person, room_id)
         self._on_changed(person)
-        await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="expired")
+        await logger.ainfo("agent_invitation_ended", room_id=room_id, reason=reason)
         await self._update_offers(room_id)
         # After the offers, which list the agent as available again: the outcome then marks that row.
-        await self._tell(room_id, [place.adder], invitation_ended_frame(agent_key, InvitationOutcome.NO_ANSWER))
+        await self._tell(room_id, [invitation.adder], invitation_ended_frame(agent_key, outcome))
 
     def _arm(self, person: Person, generation: int, seconds: float) -> None:
         self._scheduler.call_later(seconds, partial(self._lease_timer, person, generation))

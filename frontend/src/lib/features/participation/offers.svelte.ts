@@ -33,6 +33,8 @@ export function rowsOf(offers: Offer[], endings: ReadonlyMap<string, AgentContro
 
 const OUTCOME_OF_ENDING: Record<INVITATION_OUTCOME, AgentControlOutcome> = {
     [INVITATION_OUTCOME.NO_ANSWER]: "no-answer",
+    [INVITATION_OUTCOME.BUSY]: "busy",
+    [INVITATION_OUTCOME.OWNER_ABSENT]: "owner-absent",
 };
 
 /** The kit's outcome for the way an invitation ended. */

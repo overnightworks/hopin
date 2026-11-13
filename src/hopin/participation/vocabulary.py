@@ -64,6 +64,8 @@ class InvitationOutcome(StrEnum):
     """How an invitation ended without the agent joining, as the seat that made it is told."""
 
     NO_ANSWER = "no_answer"
+    BUSY = "busy"
+    OWNER_ABSENT = "owner_absent"
 
 
 class SpeakFailure(StrEnum):

@@ -2,8 +2,9 @@
 
 A joined agent's place holds its chat window and the times of its recent lines, which go with the place.
 
-The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal, a
-withdrawal or an expiry raises the epoch of its (agent, room), so an invitation made before it is stale.
+The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal or a
+withdrawal raises the epoch of its (agent, room), so an invitation made before it is stale. An invitation's
+expiry or decline leaves the epoch as it is: a new invitation is a new id.
 """
 
 from dataclasses import dataclass
@@ -14,7 +15,7 @@ from hopin.participation.chat_window import ChatWindow
 from hopin.participation.line_rate import admitted
 
 if TYPE_CHECKING:
-    from hopin.participation.feature import DialedAgent, Person
+    from hopin.participation.participants import DialedAgent, Person
     from hopin.signaling.frames import PeerId
 
 type PlaceKey = tuple[Person, str]
@@ -30,6 +31,15 @@ class Invited:
     expires_at: float
     deadline: float
     sponsor: PeerId
+    adder: PeerId
+
+
+@dataclass(frozen=True)
+class AbandonedInvitation:
+    """An invitation that ended because the owner's seat left: the room, the agent's key and the seat that made it."""
+
+    room_id: str
+    agent_key: str
     adder: PeerId
 
 
@@ -67,6 +77,20 @@ class Places:
     def epoch_of(self, person: Person, room_id: str) -> int:
         return self._epochs.get((person, room_id), 0)
 
+    def standing_invitation(
+        self, person: Person, room_id: str, invitation_id: str, epoch: int, now: float
+    ) -> Invited | None:
+        """The open invitation when it is that one, of that epoch, and has not run out by `now`."""
+        invitation = self.get(person, room_id)
+        if (
+            not isinstance(invitation, Invited)
+            or invitation.invitation_id != invitation_id
+            or epoch != self.epoch_of(person, room_id)
+            or now >= invitation.deadline
+        ):
+            return None
+        return invitation
+
     def put(self, person: Person, room_id: str, place: Place) -> None:
         """Hold the place; a joined agent's place starts an empty window named by the agent's id."""
         self._places[(person, room_id)] = place
@@ -80,6 +104,10 @@ class Places:
         self._windows.pop((person, room_id), None)
         self._line_times.pop((person, room_id), None)
         self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
+
+    def end_invitation(self, person: Person, room_id: str) -> None:
+        """Take the open invitation away and leave the epoch as it is: a new invitation is a new id."""
+        del self._places[(person, room_id)]
 
     def drop_room(self, room_id: str) -> None:
         for key in [key for key in {*self._places, *self._epochs} if key[1] == room_id]:

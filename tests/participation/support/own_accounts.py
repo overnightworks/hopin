@@ -2,7 +2,8 @@
 
 import asyncio
 
-from hopin.participation.feature import GROUPS_READ_TASK_NAME, OwnAccount
+from hopin.participation.feature import GROUPS_READ_TASK_NAME
+from hopin.participation.participants import OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS

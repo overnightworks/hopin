@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from hopin.participation.feature import Person
+    from hopin.participation.participants import Person
 
 
 @dataclass(frozen=True)

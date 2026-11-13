@@ -15,7 +15,7 @@ from hopin.participation.vocabulary import SENTENCES_WAITING_PER_AGENT, AgentRef
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from hopin.participation.feature import DialedAgent
+    from hopin.participation.participants import DialedAgent
     from hopin.participation.voice import StoredVoice, VoiceStore
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 

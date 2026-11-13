@@ -7,7 +7,7 @@ from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
-from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from playwright.sync_api import Page, expect
@@ -213,6 +213,10 @@ class OwnAccountAgent(SdkAgent):
         return self.call(
             ACCEPT_INVITATION_TOOL, self._acceptance(standing) | ({} if figure is None else {"figure": figure})
         )
+
+    def decline_busy(self, standing: dict[str, Any]) -> None:
+        """Decline the invitation because the agent is at its own limit of places."""
+        self.call(DECLINE_INVITATION_TOOL, self._acceptance(standing) | {"reason": "busy"})
 
     def accept_refusal(self, standing: dict[str, Any]) -> str:
         """Accept the invitation and return the code the call refuses it with."""

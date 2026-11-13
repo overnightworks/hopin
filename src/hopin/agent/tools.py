@@ -9,10 +9,15 @@ from typing import TYPE_CHECKING, Final
 import structlog
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
+    DECLINE_INVITATION_TOOL,
     SPEAK_TOOL,
     AcceptInvitationArguments,
     AcceptInvitationRefusal,
     AcceptInvitationRefused,
+    DeclineInvitationArguments,
+    DeclineInvitationReason,
+    DeclineInvitationRefusal,
+    DeclineInvitationRefused,
     PlaceRef,
     SpeakArguments,
     SpeakRefusal,
@@ -23,10 +28,15 @@ from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, known_voice
-from hopin.participation.feature import Caller, DialedAgent
 from hopin.participation.figures import Figure
+from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
-from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AGENT_NAME_MAX_CHARACTERS, AgentRefusal
+from hopin.participation.vocabulary import (
+    AGENT_LINE_MAX_CHARACTERS,
+    AGENT_NAME_MAX_CHARACTERS,
+    AgentRefusal,
+    InvitationOutcome,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -65,9 +75,13 @@ AUDIENCE_OF_TOOL: Final = {
     JOIN_CALL: Audience.OWN_AGENT,
     LEAVE_CALL: Audience.EVERY_AGENT,
     ACCEPT_INVITATION_TOOL: Audience.OWN_ACCOUNT,
+    DECLINE_INVITATION_TOOL: Audience.OWN_ACCOUNT,
     SAY: Audience.EVERY_AGENT,
     SPEAK_TOOL: Audience.EVERY_AGENT,
 }
+
+# The row's outcome a decline's reason shows to the seat that made the invitation.
+_OUTCOME_OF_DECLINE: Final = {DeclineInvitationReason.BUSY: InvitationOutcome.BUSY}
 
 _SPEAK_REFUSAL_OF: Final = {
     AgentRefusal.GONE: SpeakRefusal.NOT_ACTIVE,
@@ -128,6 +142,16 @@ _ACCEPT_INVITATION_DECLARATION: Final = ToolDeclaration(
     parameters=AcceptInvitationArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
 )
+_DECLINE_INVITATION_DECLARATION: Final = ToolDeclaration(
+    name=DECLINE_INVITATION_TOOL,
+    description=(
+        "Decline an invitation from your standing at once, when you are at your own limit of places: the person who "
+        "called you sees that you are busy. Pass the standing's place, the invitation's id and epoch and the reason "
+        "busy. It is refused as stale_invitation when the invitation is not yours or no longer stands."
+    ),
+    parameters=DeclineInvitationArguments.model_json_schema(),
+    effect=ToolEffect.SIDE_EFFECTING,
+)
 _SAY_DECLARATION: Final = ToolDeclaration(
     name=SAY,
     description=(
@@ -179,6 +203,10 @@ def refused(refusal: AgentRefusal) -> ToolOutcome:
 
 def _accept_refused(refusal: AcceptInvitationRefusal) -> ToolOutcome:
     return ToolOutcome(AcceptInvitationRefused(refused=refusal).model_dump_json(), is_error=True)
+
+
+def _decline_refused(refusal: DeclineInvitationRefusal) -> ToolOutcome:
+    return ToolOutcome(DeclineInvitationRefused(refused=refusal).model_dump_json(), is_error=True)
 
 
 def _speak_refused(refusal: SpeakRefusal) -> ToolOutcome:
@@ -240,6 +268,21 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
     return _joined_or_refused(outcome)
 
 
+async def _declined(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    try:
+        declined = DeclineInvitationArguments.model_validate(arguments)
+    except ValidationError:
+        return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
+    if declined.place.kind != CALL_KIND:
+        return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
+    refusal = await participation.decline(
+        caller.person, declined.place.id, declined.invitation, declined.epoch, _OUTCOME_OF_DECLINE[declined.reason]
+    )
+    if refusal is not None:
+        return _decline_refused(DeclineInvitationRefusal(refusal.value))
+    return ToolOutcome(json.dumps({}), is_error=False)
+
+
 async def _spoken(
     participation: Participation, voice: AgentVoice | None, caller: Caller, arguments: JsonObject
 ) -> ToolOutcome:
@@ -269,6 +312,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def accept_invitation(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _accepted(participation(), caller, arguments)
 
+    async def decline_invitation(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _declined(participation(), caller, arguments)
+
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         refusal = await participation().leave(caller.person, _text_of(arguments, "room"))
         if refusal is None:
@@ -287,6 +333,7 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     return (
         CallerTool(_JOIN_CALL_DECLARATION, join_call),
         CallerTool(_ACCEPT_INVITATION_DECLARATION, accept_invitation),
+        CallerTool(_DECLINE_INVITATION_DECLARATION, decline_invitation),
         CallerTool(_LEAVE_CALL_DECLARATION, leave_call),
         CallerTool(_SAY_DECLARATION, say),
         CallerTool(_SPEAK_DECLARATION, speak),

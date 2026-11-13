@@ -9,8 +9,8 @@ from pydantic import ValidationError
 
 from hopin.agent.tools import CALL_KIND
 from hopin.participation.chat_window import LineKind
-from hopin.participation.feature import Person
 from hopin.participation.hearing import HeardLine
+from hopin.participation.participants import Person
 
 if TYPE_CHECKING:
     from hopin.signaling.frames import PeerId

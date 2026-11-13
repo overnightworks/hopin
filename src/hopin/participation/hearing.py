@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from hopin.participation.chat_window import LineKind
-    from hopin.participation.feature import DialedAgent, Person
+    from hopin.participation.participants import DialedAgent, Person
     from hopin.signaling.frames import PeerId
 
 

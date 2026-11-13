@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from pydantic import SecretStr
     from starlette.requests import HTTPConnection
 
-    from hopin.participation.feature import Person
+    from hopin.participation.participants import Person
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()

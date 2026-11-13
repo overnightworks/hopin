@@ -1,4 +1,4 @@
-from hopin.participation.feature import Person
+from hopin.participation.participants import Person
 
 ISSUER = "https://issuer.test.invalid/realms/test"
 
