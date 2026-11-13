@@ -29,7 +29,7 @@ VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
 SENTENCE_MS = 1500
 FAILED = "agent_speak_failed"
-ANNOUNCEMENT_TURNS = 10
+ANNOUNCING_COROUTINE = "_sentence_started"
 
 
 def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
@@ -41,9 +41,11 @@ def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
 
 async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
     """The agent's answer once the sentence started and the announcement of it that follows the answer was sent."""
+    before = asyncio.all_tasks()
     answer = await participation.speak(who, room_id, text, rendering() if render is None else render)
-    for _ in range(ANNOUNCEMENT_TURNS):
-        await asyncio.sleep(0)
+    announcements = {task for task in asyncio.all_tasks() - before if task.get_coro().__name__ == ANNOUNCING_COROUTINE}
+    if announcements:
+        await asyncio.wait(announcements)
     return answer
 
 
@@ -98,12 +100,18 @@ async def a_full_window(participation, room_id, scheduler):
     return room_id
 
 
-async def a_full_queue(participation, room_id, scheduler):
-    """The room where the agent plays an hour-long sentence with nine waiting, its slots free again, and one more."""
+async def nine_waiting_in(participation, room_id, scheduler):
+    """The room where the agent plays an hour-long sentence with nine waiting, its slots free again."""
     await speak(participation, room_id=room_id, render=LONG)
     for _ in range(LINES_PER_WINDOW - 1):
         await waiting_to_speak(participation, room_id=room_id, render=LONG)
     await scheduler.advance(LINE_WINDOW_SECONDS)
+    return room_id
+
+
+async def a_full_queue(participation, room_id, scheduler):
+    """The room of `nine_waiting_in`, with one more waiting."""
+    await nine_waiting_in(participation, room_id, scheduler)
     await waiting_to_speak(participation, room_id=room_id, render=LONG)
     return room_id
 
@@ -112,12 +120,7 @@ async def a_full_queue(participation, room_id, scheduler):
 async def nine_waiting(participation, call, scheduler):
     """The room where the guest's agent plays an hour-long sentence with nine waiting, its slots free again."""
     host, *_ = call
-    room_id = room_of(host)
-    await speak(participation, room_id=room_id, render=LONG)
-    for _ in range(LINES_PER_WINDOW - 1):
-        await waiting_to_speak(participation, room_id=room_id, render=LONG)
-    await scheduler.advance(LINE_WINDOW_SECONDS)
-    return room_id
+    return await nine_waiting_in(participation, room_of(host), scheduler)
 
 
 class TestASentenceStarts:
@@ -542,3 +545,17 @@ class TestAnEndWhileTheSentenceIsAnnounced:
         await speaking
 
         assert (host.frames(VOICE), guest.frames(VOICE)) == ([], [])
+
+    async def test_call_60_an_agent_removed_before_its_started_sentence_is_announced_shows_and_tells_nothing(
+        self, participation, call
+    ):
+        host, guest, *_ = call
+        removals = []
+
+        async def render_then_remove(sentence, voice):
+            removals.append(asyncio.ensure_future(participation.leave(GUEST, room_of(host))))
+            return RenderedSentence(b"sound", SENTENCE_MS)
+
+        await speak(participation, render=render_then_remove, room_id=room_of(host))
+
+        assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])

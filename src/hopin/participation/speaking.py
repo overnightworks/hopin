@@ -67,7 +67,7 @@ class Speaking:
         self._scheduler = scheduler
         self._start = start
         self._queues: dict[str, _Queue] = {}
-        self._announcements: set[asyncio.Task[None]] = set()
+        self._announcements: dict[str, set[asyncio.Task[None]]] = {}
 
     async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> int | AgentRefusal:
         """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
@@ -90,7 +90,7 @@ class Speaking:
             asyncio.get_running_loop().create_future(),
         )
         if queue.playing is None:
-            self._announce_in_background(self._begin(agent, queue, sentence))
+            self._announce_in_background(agent, self._begin(agent, queue, sentence))
         else:
             queue.waiting.append(sentence)
         return await sentence.answer
@@ -114,13 +114,24 @@ class Speaking:
                 queue.timer.cancel()
             for sentence in queue.waiting:
                 _answer(sentence, AgentRefusal.GONE)
+        for announcement in self._announcements.pop(agent.agent_id, ()):
+            announcement.cancel()
         self._voices.forget_speaker(agent.room_id, agent.agent_id)
 
-    def _announce_in_background(self, announcement: Awaitable[None]) -> None:
-        """Show a started sentence without holding its speaker's answer back behind a browser's blocked write."""
+    def _announce_in_background(self, agent: DialedAgent, announcement: Awaitable[None]) -> None:
+        """Show a started sentence without holding its speaker's answer back behind a browser's blocked write; the
+        agent's end cancels the announcement."""
         task = asyncio.ensure_future(announcement)
-        self._announcements.add(task)
-        task.add_done_callback(self._announcements.discard)
+        pending = self._announcements.setdefault(agent.agent_id, set())
+        pending.add(task)
+        task.add_done_callback(partial(self._announced, agent.agent_id))
+
+    def _announced(self, agent_id: str, task: asyncio.Task[None]) -> None:
+        pending = self._announcements.get(agent_id)
+        if pending is not None:
+            pending.discard(task)
+            if not pending:
+                del self._announcements[agent_id]
 
     def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> Awaitable[None]:
         """Start the sentence's length and answer its speaker now; the returned announcement shows it."""
