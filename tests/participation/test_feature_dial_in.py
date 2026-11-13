@@ -2,15 +2,15 @@ import asyncio
 
 import pytest
 
-from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, SignalType
+from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, ErrorReason, SignalType
 from hopin.participation.feature import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AGENTS_PER_PROCESS,
-    AGENTS_PER_ROOM,
     AgentRefusal,
     ParticipationSignal,
 )
+from hopin.rooms.manager import RoomManager
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, HeldClose, Hold, host_and_guest
 
@@ -376,18 +376,52 @@ class TestTheAgentsName:
         assert (joined["name"], joined["sponsor"]) == (shown, "host")
 
 
+CALL_PLACES = 6
+
+
 @pytest.mark.asyncio
-class TestBounds:
-    async def test_a_third_agent_in_a_room_is_busy(self, link, participation):
+class TestAgentsTakePlaces:
+    @pytest.fixture
+    def room_manager(self):
+        return RoomManager(max_participants_per_room=CALL_PLACES)
+
+    async def test_call_47_a_third_agent_joins_while_the_call_has_free_places(self, link, participation):
+        """CALL-47: A call holds as many agents as it has places left; there is no limit of its own for agents."""
         people = [await link.join("first")]
-        room = room_of(people[0])
-        people += [await link.join(name, room) for name in ("second", "third")]
+        people += [await link.join(name, room_of(people[0])) for name in ("second", "third")]
 
         outcomes = [await dial(participation, person) for person in people]
 
-        assert [isinstance(outcome, DialedAgent) for outcome in outcomes] == [True, True, False]
-        assert outcomes[2] is AgentRefusal.BUSY
-        assert AGENTS_PER_ROOM == 2
+        assert all(isinstance(outcome, DialedAgent) for outcome in outcomes)
+
+    async def test_call_47_a_full_call_refuses_an_agent_and_a_person_alike(self, link, participation):
+        """CALL-47: When people and joined agents fill the call's places, an agent and a person are both refused."""
+        people = [await link.join("first")]
+        people += [await link.join(name, room_of(people[0])) for name in ("second", "third", "fourth")]
+        for person in people[:2]:
+            await dial(participation, person)
+
+        agent_outcome = await dial(participation, people[2])
+        latecomer = await link.join("latecomer", room_of(people[0]))
+
+        assert agent_outcome is AgentRefusal.BUSY
+        assert [frame["reason"] for frame in latecomer.frames(SignalType.ERROR)] == [ErrorReason.FULL.value]
+
+    async def test_call_47_a_place_an_agent_leaves_admits_a_person_and_an_agent_again(self, link, participation):
+        """CALL-47: A place freed by a leaving agent is open to the next agent or person."""
+        people = [await link.join("first")]
+        people += [await link.join(name, room_of(people[0])) for name in ("second", "third", "fourth")]
+        for person in people[:2]:
+            await dial(participation, person)
+        assert await dial(participation, people[2]) is AgentRefusal.BUSY
+
+        await participation.leave(person_named("first"), room_of(people[0]))
+
+        assert isinstance(await dial(participation, people[2]), DialedAgent)
+        assert await dial(participation, people[3]) is AgentRefusal.BUSY
+        await participation.leave(person_named("second"), room_of(people[0]))
+        latecomer = await link.join("latecomer", room_of(people[0]))
+        assert latecomer.frames(SignalType.ERROR) == []
 
     async def test_the_process_cap_is_busy(self, link, participation):
         outcomes = []

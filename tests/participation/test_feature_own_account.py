@@ -8,6 +8,7 @@ import structlog.testing
 from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
 from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME
+from hopin.config.constants import MAX_PARTICIPANTS_PER_ROOM
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
@@ -115,19 +116,9 @@ def _owner_away(scene, arguments, seat_changes):
     return arguments
 
 
-def _call_holding_two_other_agents(scene, arguments, seat_changes):
-    for number in (1, 2):
-        other = scene.call.agent_token(
-            owner=scene.owner_subject, subject=f"other-agent-{number}", agent_name=f"Codex {number}"
-        )
-        scene.call.standing(other)
-        scene.call.listen(other, [STANDING_URI])
-        scene.member.send(
-            {"type": ParticipationSignal.AGENT_ADD.value, "agent_key": scene.key_of_offer_named(f"Codex {number}")}
-        )
-        scene.member.frame_of_type(OFFERS)
-        [invitation] = scene.call.standing(other)
-        assert not scene.call.call(other, ACCEPT_INVITATION_TOOL, accept_arguments(invitation)).is_error
+def _call_with_no_place_free(scene, arguments, seat_changes):
+    for _ in range(MAX_PARTICIPANTS_PER_ROOM - 2):  # the owner and the member already sit in the call
+        scene.call.seat(scene.call.member()[1], scene.owner.room_id)
     return arguments
 
 
@@ -135,7 +126,7 @@ ACCEPT_REFUSALS = {
     "stale_invitation": _another_epoch,
     "two_seats": _owner_on_two_seats,
     "sponsor_away": _owner_away,
-    "busy": _call_holding_two_other_agents,
+    "busy": _call_with_no_place_free,
 }
 
 

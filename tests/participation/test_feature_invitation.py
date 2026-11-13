@@ -22,7 +22,7 @@ from tests.participation.support.own_accounts import (
 )
 from tests.participation.support.people import person_named
 from tests.signaling.support.browsers import HeldWrite
-from tests.support.signaling_fakes import text_frame
+from tests.support.signaling_fakes import ROOM_LIMIT, text_frame
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -213,7 +213,7 @@ class TestAnInvitation:
         assert await invited.accept() is AgentRefusal.TWO_SEATS
 
     async def test_accepting_it_while_the_owners_seat_sponsors_another_agent_joins_both(self, invited, participation):
-        """CALL-51: A seat sponsors up to the call's two agents."""
+        """CALL-51: A seat sponsors every agent of its owner the call has places for."""
         other = await participation.dial_in(person_named(OWNER), invited.owner.room_id, "Codex")
 
         agent = await invited.accept()
@@ -224,9 +224,9 @@ class TestAnInvitation:
             invited.owner.peer_id,
         )
 
-    async def test_accepting_it_into_a_call_that_holds_two_agents_is_busy(self, invited, participation):
-        await participation.dial_in(person_named(OWNER), invited.owner.room_id, "Codex")
-        await participation.dial_in(person_named("guest"), invited.owner.room_id, "Gemini")
+    async def test_accepting_it_into_a_call_with_no_place_free_is_busy(self, invited, link):
+        for number in range(ROOM_LIMIT - 2):
+            await link.join(f"person{number}", invited.owner.room_id)
 
         assert await invited.accept() is AgentRefusal.BUSY
 

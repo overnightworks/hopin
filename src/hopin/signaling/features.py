@@ -43,6 +43,19 @@ class CallRooms:
             if self._routing.room_of(peer_id) == room_id
         ]
 
+    def has_free_place(self, room_id: str) -> bool:
+        """Whether the room has a place left for another joined agent; the room must exist."""
+        return self._room_manager.has_free_place_for_agent(room_id)
+
+    def take_agent_place(self, room_id: str, agent_id: str) -> None:
+        """Seat the joined agent among the room's people; the room must exist. Raises `RoomFullError` with no place
+        left."""
+        self._room_manager.add_agent(room_id, agent_id)
+
+    def release_agent_place(self, room_id: str, agent_id: str) -> None:
+        """Free the agent's place; a room that has ended holds none."""
+        self._room_manager.remove_agent(room_id, agent_id)
+
     def is_parked(self, peer_id: PeerId) -> bool:
         """Whether the seat has lost its socket and waits for a resume; the seat must exist."""
         return self._routing.seats.seat(peer_id).park is not None

@@ -7,5 +7,5 @@
 
 <!-- A refusal stays readable when the frame that refused also takes the control away. -->
 {#if view.shown || view.refusal}
-    <AgentControl rows={view.rows} {onCall} refusal={view.refusal} {words} />
+    <AgentControl rows={view.rows} full={view.full} {onCall} refusal={view.refusal} {words} />
 {/if}

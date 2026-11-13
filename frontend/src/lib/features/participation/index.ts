@@ -49,6 +49,7 @@ interface AgentVoiceFrame {
 
 interface AgentOffersFrame {
     shown: boolean;
+    full: boolean;
     offers: Offer[];
 }
 
@@ -182,6 +183,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
 
     function clearOffers() {
         offersView.shown = false;
+        offersView.full = false;
         offersView.rows = [];
         offered = [];
         endings.clear();
@@ -201,6 +203,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         const listed = new Set(offered.map((offer) => offer.agent_key));
         for (const key of endings.keys()) if (pending.has(key) || !listed.has(key)) endings.delete(key);
         offersView.shown = frame.shown;
+        offersView.full = frame.full;
         drawOffers();
         flushSync();
         if (hadFocus && !offers.contains(document.activeElement)) offers.focus();

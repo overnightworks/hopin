@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-COUNTS_OF_PEOPLE = (1, 2, 6)
+COUNTS_OF_PEOPLE = (1, 2, 5)
 
 
 def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_the_host_removes_it(
@@ -59,31 +59,31 @@ def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_th
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_six_people_and_two_dialed_in_agents_are_eight_tiles_the_count_names_people_and_the_controls_stay_clear(
+def test_four_people_and_two_dialed_in_agents_are_six_tiles_the_count_names_people_and_the_controls_stay_clear(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
     agent_of: Callable[[Page], Agent],
     form_factor: dict[str, Any],
 ) -> None:
-    """CALL-47: Six people and two agents are eight tiles, the count names people only, the controls stay clear."""
+    """CALL-47: Four people and two agents fill six places, the count names people only, the controls stay clear."""
     host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
-    for _ in range(4):
+    for _ in range(2):
         join(open_person, invite_link, form_factor, (), page_errors)
 
     agent_of(host).dial_in("Claude")
     agent_of(guest).dial_in("Codex")
 
-    expect(host.locator("#stage")).to_have_attribute("data-count", "8")
-    expect(host.locator(COUNT)).to_have_text("6")
+    expect(host.locator("#stage")).to_have_attribute("data-count", "6")
+    expect(host.locator(COUNT)).to_have_text("4")
     overhang = host.evaluate(TILES_ABOVE_THE_CONTROLS)
-    assert len(overhang) == 8
+    assert len(overhang) == 6
     assert all(extra <= TOLERANCE_PIXELS for extra in overhang)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 @pytest.mark.parametrize("people", COUNTS_OF_PEOPLE)
-def test_one_dialed_in_agent_is_one_more_tile_beside_one_two_or_six_people_and_the_controls_stay_clear(
+def test_one_dialed_in_agent_is_one_more_tile_beside_one_two_or_five_people_and_the_controls_stay_clear(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
@@ -91,7 +91,7 @@ def test_one_dialed_in_agent_is_one_more_tile_beside_one_two_or_six_people_and_t
     form_factor: dict[str, Any],
     people: int,
 ) -> None:
-    """CALL-47: An agent is one more tile beside one, two or six people, the count names people only."""
+    """CALL-47: An agent is one more tile beside one, two or five people, the count names people only."""
     host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, form_factor)
     for _ in range(people - 1):
         join(open_person, invite_link, form_factor, (), page_errors)

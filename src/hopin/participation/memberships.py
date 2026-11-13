@@ -22,6 +22,7 @@ class SeatView:
     memberships: dict[str, Membership] = field(default_factory=dict)
     offered: tuple[Offer, ...] = ()
     shown: bool = False
+    full: bool = False
 
 
 def membership_in(groups: Collection[str] | None, group: str) -> Membership:

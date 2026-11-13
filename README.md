@@ -78,7 +78,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `HOPIN_TURN_PROVIDER` | `off` | `off` or `cloudflare`. With `cloudflare`, each call start asks the provider for a TURN credential that lives 12 hours and serves it with the STUN entry. Switching off (it takes a restart) stops new TURN credentials only: credentials already handed out stay valid at the provider until their 12 h end |
 | `HOPIN_TURN_KEY_ID_FILE` | unset | Absolute path of the file holding the TURN key's ID; required when TURN is on |
 | `HOPIN_TURN_API_TOKEN_FILE` | unset | Absolute path of the file holding the TURN key's API token; required when TURN is on |
-| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum participants per call, from `2` to `6` |
+| `HOPIN_MAX_PARTICIPANTS_PER_ROOM` | `6` | Maximum places per call, from `2` to `6`; people and joined agents take them alike |
 | `HOPIN_OIDC_ISSUER` | required | The Keycloak realm URL, https, without a trailing slash |
 | `HOPIN_OIDC_CLIENT_ID` | `hopin` | The Keycloak client HopIn signs in as |
 | `HOPIN_OIDC_CLIENT_SECRET_FILE` | required | Absolute path of the file holding that client's secret |
