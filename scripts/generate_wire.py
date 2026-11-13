@@ -31,7 +31,7 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
-from hopin.participation.vocabulary import HEARING_PATH  # noqa: E402
+from hopin.participation.vocabulary import HEARING_PATH, VOICE_PATH  # noqa: E402
 from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
     SEQUENCE_KEY,
@@ -192,7 +192,8 @@ def render_core() -> str:
 
 
 def render_participation() -> str:
-    return _generated_file(f'{_enums(PARTICIPATION_BROWSER_ENUMS)}\nexport const HEARING_PATH = "{HEARING_PATH}";\n')
+    paths = f'export const HEARING_PATH = "{HEARING_PATH}";\nexport const VOICE_PATH = "{VOICE_PATH}";\n'
+    return _generated_file(f"{_enums(PARTICIPATION_BROWSER_ENUMS)}\n{paths}")
 
 
 def outputs(root: Path) -> dict[Path, str]:
