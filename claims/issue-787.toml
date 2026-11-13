@@ -1,0 +1,8 @@
+claim_id = "5cb1e6fa2b484cf6ba6f12120faedb17"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "716db63ba9e1844dafde975ee69304fb93f2fc36"
+branch = "claude/issue-787-agent-talked-over"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "src/hopin/agent", "src/hopin/game", "src/hopin/participation", "tests/agent", "tests/e2e", "tests/game", "tests/participation", "uv.lock"]
+opened_commit = "8f8f4599093e4d5482d668a2f6e0b2c97fbd7af9"
+whole_reason = "The interruption signal, the dropped queue, the stopped players, the pins that carry them and the rule that states it change together."
