@@ -4,7 +4,7 @@ issuer, and the sound fetched at the route the seats are told."""
 import asyncio
 import logging
 import secrets
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
 import pytest
@@ -55,7 +55,6 @@ FAILED = "agent_speak_failed"
 UNKNOWN_VOICE = "de_DE-nobody-medium"
 UNKNOWN_VOICE_EVENT = "agent_voice_unknown"
 ANSWER_SECONDS = 30
-SETTLE_SECONDS = 0.5
 failures_of = partial(failures_in, event=FAILED)
 
 
@@ -97,9 +96,10 @@ def speaking_behind(joined_agent):
     pool.shutdown(wait=True)
 
 
-def still_waiting(call):
-    """Whether the call has no answer after the time the app has to give one that is already due."""
-    return not wait([call], timeout=SETTLE_SECONDS).done
+def still_waiting(scene, call):
+    """Whether the call has no answer after the app's loop ran on past everything already due."""
+    scene.call.client.portal.call(asyncio.sleep, 0)
+    return not call.done()
 
 
 def refusal_of(dialed):
@@ -157,10 +157,10 @@ class TestSpeaking:
     ):
         speak(joined_agent)
         second = speaking_behind()
-        waiting_at_first = still_waiting(second)
+        waiting_at_first = still_waiting(joined_agent, second)
 
         joined_agent.call.pass_time(SENTENCE_SECONDS - 0.001)
-        waiting_just_before = still_waiting(second)
+        waiting_just_before = still_waiting(joined_agent, second)
         joined_agent.call.pass_time(0.001)
         answered = second.result(timeout=ANSWER_SECONDS)
 
@@ -450,7 +450,7 @@ class TestEveryEndAtTheRoute:
         speaking(speech_origin, chunked_wav(silent_wav(LEASE_SECONDS + 1)))
         speak(joined_agent)
         waiting = speaking_behind()
-        waiting_before = still_waiting(waiting)
+        waiting_before = still_waiting(joined_agent, waiting)
         path = f"{VOICE_PATH}/{joined_agent.member.frame_of_type(VOICE)['voice_id']}"
 
         joined_agent.call.pass_time(LEASE_SECONDS)
