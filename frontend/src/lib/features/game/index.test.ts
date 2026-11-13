@@ -92,9 +92,7 @@ async function installedGame({ connected = true } = {}) {
         startButton,
         progress,
         endCall: () => {
-            callEndedHooks.forEach((hook) => {
-                hook();
-            });
+            for (const hook of callEndedHooks) hook();
         },
         seat: () => {
             emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: ME, is_host: false });
