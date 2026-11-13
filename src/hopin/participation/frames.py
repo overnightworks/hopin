@@ -41,6 +41,10 @@ def voice_frame(agent: DialedAgent, voice_id: str) -> JsonObject:
     return frame(ParticipationSignal.AGENT_VOICE, agent_id=agent.agent_id, voice_id=voice_id)
 
 
+def stop_frame(agent: DialedAgent) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_STOP, agent_id=agent.agent_id)
+
+
 def left_frame(agent: DialedAgent) -> JsonObject:
     return frame(ParticipationSignal.AGENT_LEFT, agent_id=agent.agent_id)
 

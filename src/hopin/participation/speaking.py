@@ -1,16 +1,17 @@
 """An agent's spoken sentences: one queue per joined agent, in memory only. A sentence starts when the previous one's
 length has run out on the scheduler's clock, its speaker is answered then, and its sound is kept only while it waits or
-plays."""
+plays. A stop cuts the playing sentence and drops every other one of the agent."""
 
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
 
-from hopin.participation.vocabulary import SENTENCES_WAITING_PER_AGENT, AgentRefusal
+from hopin.participation.vocabulary import SENTENCES_WAITING_PER_AGENT, AgentRefusal, SpeakStop
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -32,6 +33,12 @@ class RenderedSentence:
     duration_ms: int
 
 
+type SpeakResult = int | AgentRefusal | SpeakStop
+"""How long a sentence plays once it starts, or why it never does."""
+
+type StopResult = str | AgentRefusal | SpeakStop
+"""The text of the line a stop cut, or why nothing was cut."""
+
 type Renderer = Callable[[str, str | None], Awaitable[RenderedSentence | None]]
 """Makes the sound of a sentence in the voice its agent kept at accept (none for the configured one), or nothing when
 it cannot."""
@@ -45,39 +52,55 @@ class QueuedSentence:
     text: str
     voice: StoredVoice
     duration_ms: int
-    answer: asyncio.Future[int | AgentRefusal] = field(repr=False, compare=False)
+    answer: asyncio.Future[SpeakResult] = field(repr=False, compare=False)
+
+
+class SentenceEnd(StrEnum):
+    """How a playing sentence ended: its length ran out and the agent is silent, its length ran out and the agent's
+    next sentence starts at once, or an end or a stop cut it."""
+
+    PLAYED = "played"
+    CONTINUED = "continued"
+    CUT = "cut"
 
 
 @dataclass
 class _Queue:
-    """One agent's sentences, kept from its first one until its speaking ends; the queue itself names that span."""
+    """One agent's sentences, kept from its first one until its speaking ends; the queue itself names that span.
+    `stops` counts the stops that dropped sentences, which a sentence still being rendered finds when it is done."""
 
     playing: QueuedSentence | None = None
     waiting: deque[QueuedSentence] = field(default_factory=deque)
     rendering: int = 0
     timer: TimerHandle | None = None
+    stops: int = 0
 
 
 class Speaking:
-    """The queues of the joined agents' sentences. `start` shows a sentence that begins to play."""
+    """The queues of the joined agents' sentences. `start` shows a sentence that begins to play and `ended` tells how
+    the playing one ended, before the next one starts."""
 
     def __init__(
         self,
         voices: VoiceStore,
         scheduler: Scheduler,
         start: Callable[[DialedAgent, QueuedSentence], Awaitable[None]],
+        ended: Callable[[DialedAgent, QueuedSentence, SentenceEnd], None],
     ) -> None:
         self._voices = voices
         self._scheduler = scheduler
         self._start = start
+        self._ended = ended
         self._queues: dict[str, _Queue] = {}
         self._announcements: dict[str, set[asyncio.Task[None]]] = {}
 
-    async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> int | AgentRefusal:
+    async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> SpeakResult:
         """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
-        before it. Answers when it starts how long it plays, or why it never does: no sound came, or an end dropped the
-        agent's queue while it was rendered or waited, which a rejoin or a resume does not undo."""
+        before it. Answers when it starts how long it plays, or why it never does: no sound came, a stop dropped it
+        while it was rendered or waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does
+        not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue())
+        stops = queue.stops
         queue.rendering += 1
         try:
             rendered = await render(text, agent.voice)
@@ -87,6 +110,8 @@ class Speaking:
             return AgentRefusal.UNAVAILABLE
         if self._queues.get(agent.agent_id) is not queue:
             return AgentRefusal.GONE
+        if queue.stops != stops:
+            return SpeakStop.STOPPED
         sentence = QueuedSentence(
             text,
             self._voices.put(agent.room_id, agent.agent_id, rendered.wav),
@@ -98,6 +123,31 @@ class Speaking:
         else:
             queue.waiting.append(sentence)
         return await sentence.answer
+
+    def stop(self, agent: DialedAgent) -> str | None:
+        """Cut the sentence the agent plays and drop every other sentence of it, rendered or waiting, each answered as
+        stopped; the cut sentence's text, or nothing, and nothing dropped, when none plays. The agent speaks again at
+        its next sentence."""
+        queue = self._queues.get(agent.agent_id)
+        cut = None if queue is None else queue.playing
+        if queue is None or cut is None:
+            return None
+        if queue.timer is not None:
+            queue.timer.cancel()
+        queue.playing = None
+        queue.stops += 1
+        for sentence in queue.waiting:
+            self._voices.release(sentence.voice.id)
+            _answer(sentence, SpeakStop.STOPPED)
+        queue.waiting.clear()
+        self._voices.release(cut.voice.id)
+        self._ended(agent, cut, SentenceEnd.CUT)
+        return cut.text
+
+    def is_speaking(self, agent: DialedAgent) -> bool:
+        """Whether a sentence of the agent plays now."""
+        queue = self._queues.get(agent.agent_id)
+        return queue is not None and queue.playing is not None
 
     def is_full(self, agent: DialedAgent) -> bool:
         """Whether as many sentences already wait behind the agent's playing one or are being rendered for its queue as
@@ -118,6 +168,8 @@ class Speaking:
                 queue.timer.cancel()
             for sentence in queue.waiting:
                 _answer(sentence, AgentRefusal.GONE)
+            if queue.playing is not None:
+                self._ended(agent, queue.playing, SentenceEnd.CUT)
         for announcement in self._announcements.pop(agent.agent_id, ()):
             announcement.cancel()
         self._voices.forget_speaker(agent.room_id, agent.agent_id)
@@ -153,11 +205,13 @@ class Speaking:
             return
         self._voices.release(sentence.voice.id)
         queue.playing = None
-        if queue.waiting:
-            await self._begin(agent, queue, queue.waiting.popleft())
+        following = queue.waiting.popleft() if queue.waiting else None
+        self._ended(agent, sentence, SentenceEnd.PLAYED if following is None else SentenceEnd.CONTINUED)
+        if following is not None:
+            await self._begin(agent, queue, following)
 
 
-def _answer(sentence: QueuedSentence, answer: int | AgentRefusal) -> None:
+def _answer(sentence: QueuedSentence, answer: SpeakResult) -> None:
     """Tell the sentence's speaker, unless the speaker gave up waiting."""
     if not sentence.answer.done():
         sentence.answer.set_result(answer)

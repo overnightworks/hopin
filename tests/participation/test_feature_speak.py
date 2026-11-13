@@ -158,13 +158,16 @@ class TestASentenceStarts:
             [frame] = seat.frames(LINE)
             assert (frame["agent_id"], frame["name"], frame["text"]) == (mozart.agent_id, "Mozart", "Guten Tag")
 
-    async def test_call_60_it_enters_the_agents_window_as_own_and_spoken_and_every_other_agents_as_spoken(
-        self, participation, call
+    async def test_call_60_it_enters_the_agents_window_as_own_and_spoken_and_every_other_agents_as_spoken_once_it_ended(
+        self, participation, call, scheduler
     ):
         host, *_ = call
-
         await speak(participation, "Guten Tag", room_id=room_of(host))
+        while_playing = [participation.read_window(person, room_of(host)).lines for person in (GUEST, HOST)]
 
+        await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert while_playing == [(), ()]
         assert [participation.read_window(person, room_of(host)).lines for person in (GUEST, HOST)] == [
             (WindowLine(1, LineKind.AGENT, "Mozart", "Guten Tag", own=True, spoken=True),),
             (WindowLine(1, LineKind.AGENT, "Mozart", "Guten Tag", own=False, spoken=True),),

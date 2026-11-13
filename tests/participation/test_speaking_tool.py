@@ -183,11 +183,22 @@ class TestSpeaking:
         drained(joined_agent)
         assert [len(frames_of(seat, VOICE)) for seat in (joined_agent.owner, joined_agent.member)] == [1, 1]
 
-    def test_call_60_it_stands_in_the_agents_window_as_own_and_spoken_and_once_in_the_chat(self, joined_agent, spoken):
+    def test_call_60_it_stands_once_in_the_chat_and_in_the_agents_window_as_own_and_spoken_once_it_has_ended(
+        self, joined_agent, spoken
+    ):
         drained(joined_agent)
+        playing = joined_agent.entries()
+
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
 
         [entry] = joined_agent.entries()
-        assert (entry["kind"], entry["text"], entry["own"], entry["spoken"]) == ("agent", TEXT, True, True)
+        assert (playing, entry["kind"], entry["text"], entry["own"], entry["spoken"]) == (
+            [],
+            "agent",
+            TEXT,
+            True,
+            True,
+        )
         assert [len(frames_of(seat, LINE)) for seat in (joined_agent.owner, joined_agent.member)] == [1, 1]
 
     def test_call_60_the_sentence_goes_to_speech_on_the_agents_held_token_and_hopins_workload_token(
