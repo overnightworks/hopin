@@ -203,6 +203,35 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    try:
+        accepted = AcceptInvitationArguments.model_validate(arguments)
+    except ValidationError:
+        return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
+    if accepted.place.kind != CALL_KIND:
+        return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
+    figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
+    outcome = await participation.accept(caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure)
+    if isinstance(outcome, AgentRefusal):
+        return _accept_refused(AcceptInvitationRefusal(outcome.value))
+    return _joined_or_refused(outcome)
+
+
+async def _spoken(
+    participation: Participation, voice: AgentVoice | None, caller: Caller, arguments: JsonObject
+) -> ToolOutcome:
+    request = _speak_request(arguments)
+    if request is None or request.place.kind != CALL_KIND:
+        return _speak_refused(SpeakRefusal.NOT_ACTIVE)
+    if len(request.text) > SPEAK_MAX_CHARACTERS:
+        return _speak_refused(SpeakRefusal.TOO_LONG)
+    render = None if voice is None else partial(voice.render, caller.person)
+    outcome = await participation.speak(caller.person, request.place.id, request.text, render)
+    if isinstance(outcome, AgentRefusal):
+        return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
+    return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)
+
+
 def participation_tools(participation: Callable[[], Participation], voice: AgentVoice | None) -> tuple[CallerTool, ...]:
     """The tools on the participation the call's handler builds; `participation` is read at each call. `voice` speaks
     an agent's sentences, none while speaking is off."""
@@ -212,19 +241,7 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         return _joined_or_refused(outcome)
 
     async def accept_invitation(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        try:
-            accepted = AcceptInvitationArguments.model_validate(arguments)
-        except ValidationError:
-            return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
-        if accepted.place.kind != CALL_KIND:
-            return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
-        figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
-        outcome = await participation().accept(
-            caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure
-        )
-        if isinstance(outcome, AgentRefusal):
-            return _accept_refused(AcceptInvitationRefusal(outcome.value))
-        return _joined_or_refused(outcome)
+        return await _accepted(participation(), caller, arguments)
 
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         refusal = await participation().leave(caller.person, _text_of(arguments, "room"))
@@ -239,16 +256,7 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         return refused(refusal)
 
     async def speak(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        request = _speak_request(arguments)
-        if request is None or request.place.kind != CALL_KIND:
-            return _speak_refused(SpeakRefusal.NOT_ACTIVE)
-        if len(request.text) > SPEAK_MAX_CHARACTERS:
-            return _speak_refused(SpeakRefusal.TOO_LONG)
-        render = None if voice is None else partial(voice.render, caller.person)
-        outcome = await participation().speak(caller.person, request.place.id, request.text, render)
-        if isinstance(outcome, AgentRefusal):
-            return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
-        return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)
+        return await _spoken(participation(), voice, caller, arguments)
 
     return (
         CallerTool(_JOIN_CALL_DECLARATION, join_call),
