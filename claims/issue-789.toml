@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "d0993dbc138595d926b5227e37300ac67ca9a174"
 branch = "claude/issue-789-the-speak-request-names-the-language"
-scope = ["README.md", "docs/call.md", "pyproject.toml", "src/hopin/agent/backend.py", "src/hopin/agent/speaking.py", "src/hopin/agent/speech_settings.py", "src/hopin/agent/tools.py", "tests/agent", "tests/game", "uv.lock"]
+scope = ["README.md", "docs/call.md", "pyproject.toml", "src/hopin/agent/backend.py", "src/hopin/agent/speaking.py", "src/hopin/agent/speech.py", "src/hopin/agent/speech_settings.py", "src/hopin/agent/tools.py", "tests/agent", "tests/game", "tests/participation/test_speaking_tool.py", "uv.lock"]
 opened_commit = "424a573ceb6f2ef7390c271c274c334185a0b56a"
 whole_reason = "The agents bump and the language it brings land together: hopin cannot pass a field the pinned client lacks."
