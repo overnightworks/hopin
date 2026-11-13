@@ -15,6 +15,7 @@ from tests.e2e.support.dialed_agent import (
     REMOVE,
     OwnAccountAgent,
 )
+from tests.e2e.support.participation_scene import INVITATION_WAKE_SECONDS
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -124,6 +125,37 @@ def test_the_agent_leaves_when_its_owner_leaves_for_good(scene_of: Callable[[dic
 
     for person in (scene.host, scene.member):
         expect(person.locator(AGENT_TILE)).to_have_count(0)
+    assert scene.agent.standings() == []
+
+
+def test_an_agent_that_declines_as_busy_shows_the_adder_the_busy_row_and_the_owner_none(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-52: A decline ends the invitation at once and only the seat that made it sees the kit's busy row."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds(scene.agent)
+    open_more(scene.owner)
+
+    scene.agent.decline_busy(scene.agent.invitation_within(INVITATION_WAKE_SECONDS))
+
+    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.busy"))
+    expect(scene.offer_of_agent(scene.member).get_by_role("button")).to_have_count(0)
+    expect(scene.offers_on(scene.owner)).to_have_count(0)
+    assert scene.agent.standings() == []
+
+
+def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_the_owner_away_row(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-52: An invitation whose owner leaves before the agent joins ends at once and the seat that made it sees
+    the kit's owner-away row when the agent is offered again."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds(scene.agent)
+    scene.owner.click(LEAVE)
+
+    join_by_link(scene.owner, scene.link)
+
+    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
     assert scene.agent.standings() == []
 
 

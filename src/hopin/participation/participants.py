@@ -1,4 +1,4 @@
-"""Who takes part in a call beside its people: the person a token speaks for, the caller of a tool, and an agent's place."""
+"""Who takes part in a call beside its people: the person a token speaks for, a tool's caller and an agent's place."""
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING

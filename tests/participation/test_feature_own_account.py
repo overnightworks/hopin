@@ -143,9 +143,9 @@ class TestRefusingTheAcceptance:
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": code})
 
 
-def decline_arguments(standing, **more):
-    """The shared arguments of declining the invitation a read standing carries, as busy unless `more` says otherwise."""
-    return accept_arguments(standing) | {"reason": "busy"} | more
+def decline_arguments(standing):
+    """The shared arguments of declining, as busy, the invitation a read standing carries."""
+    return accept_arguments(standing) | {"reason": "busy"}
 
 
 class TestDecliningTheInvitation:
