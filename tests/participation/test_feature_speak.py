@@ -148,6 +148,20 @@ class TestASentenceStarts:
         [frame] = host.frames(LINE)
         assert frame["text"] == "Guten Tag"
 
+    async def test_call_60_a_sentence_no_window_can_hold_stays_out_of_the_windows_and_still_plays(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+
+        answer = await speak(participation, "Guten \ud800 Tag", room_id=room_id)
+        await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert (answer, [participation.read_window(person, room_id).lines for person in (GUEST, HOST)]) == (
+            SENTENCE_MS,
+            [(), ()],
+        )
+
 
 class TestTheAnswerComesWhenTheSentenceStarts:
     async def test_call_60_each_waiting_sentence_answers_when_the_previous_ones_length_has_run_out(

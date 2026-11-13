@@ -56,6 +56,16 @@ class TestBeingTalkedOver:
 
         assert talked_over(window) == ("1", True, [("Ada", ""), ("Bo", "Moment")])
 
+    def test_call_54_a_person_who_starts_speaking_again_in_the_same_turn_changes_nothing(self):
+        window = ChatWindow("generation")
+        window.set_playing(playing=True)
+        window.talk_over("seat-a", "Ada")
+        window.hear_partial("seat-a", "Hallo")
+
+        changed = window.talk_over("seat-a", "Ada")
+
+        assert (changed, talked_over(window)) == (False, ("1", True, [("Ada", "Hallo")]))
+
     def test_call_54_the_words_heard_so_far_replace_the_partial_of_that_person_only(self):
         window = ChatWindow("generation")
         window.set_playing(playing=True)

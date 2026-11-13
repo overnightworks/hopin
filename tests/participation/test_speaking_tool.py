@@ -400,6 +400,16 @@ class TestStoppingASentence:
     def test_call_60_for_a_place_the_agent_does_not_hold_it_is_not_active(self, joined_agent):
         assert refusal_of(stop(joined_agent, room_id="no-such-room")) == (True, {"refused": "not_active"})
 
+    @pytest.mark.parametrize(
+        "arguments",
+        [{}, {"place": {"kind": "table", "id": "any"}}],
+        ids=["no_place", "a_place_of_another_kind"],
+    )
+    def test_call_60_a_stop_that_names_no_call_is_not_active(self, joined_agent, arguments):
+        dialed = joined_agent.call.call(joined_agent.token, STOP_SPEAKING_TOOL, arguments)
+
+        assert refusal_of(dialed) == (True, {"refused": "not_active"})
+
     def test_call_60_the_agent_speaks_again_after_a_stop(self, joined_agent):
         speak(joined_agent)
         stop(joined_agent)

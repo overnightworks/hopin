@@ -132,8 +132,7 @@ class Speaking:
         cut = None if queue is None else queue.playing
         if queue is None or cut is None:
             return None
-        if queue.timer is not None:
-            queue.timer.cancel()
+        _cancel_timer(queue)
         queue.playing = None
         queue.stops += 1
         for sentence in queue.waiting:
@@ -143,11 +142,6 @@ class Speaking:
         self._voices.release(cut.voice.id)
         self._ended(agent, cut, SentenceEnd.CUT)
         return cut.text
-
-    def is_speaking(self, agent: DialedAgent) -> bool:
-        """Whether a sentence of the agent plays now."""
-        queue = self._queues.get(agent.agent_id)
-        return queue is not None and queue.playing is not None
 
     def is_full(self, agent: DialedAgent) -> bool:
         """Whether as many sentences already wait behind the agent's playing one or are being rendered for its queue as
@@ -164,8 +158,7 @@ class Speaking:
         """The agent's removal, leave, pause, lease end or call end: drop its queue and its sounds at once."""
         queue = self._queues.pop(agent.agent_id, None)
         if queue is not None:
-            if queue.timer is not None:
-                queue.timer.cancel()
+            _cancel_timer(queue)
             for sentence in queue.waiting:
                 _answer(sentence, AgentRefusal.GONE)
             if queue.playing is not None:
@@ -209,6 +202,11 @@ class Speaking:
         self._ended(agent, sentence, SentenceEnd.PLAYED if following is None else SentenceEnd.CONTINUED)
         if following is not None:
             await self._begin(agent, queue, following)
+
+
+def _cancel_timer(queue: _Queue) -> None:
+    if queue.timer is not None:
+        queue.timer.cancel()
 
 
 def _answer(sentence: QueuedSentence, answer: SpeakResult) -> None:
