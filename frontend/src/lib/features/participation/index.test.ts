@@ -647,6 +647,19 @@ describe("calling an agent that has an account of its own", () => {
         expect([page.offers()[0]?.textContent, page.buttons()]).toEqual([expect.stringContaining("Keine Antwort"), []]);
     });
 
+    it("CALL-52: keeps an agent's no-answer row while the list still offers it unchanged", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            outcome: INVITATION_OUTCOME.NO_ANSWER,
+        });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        expect(page.offers()[0]?.textContent).toContain("Keine Antwort");
+    });
+
     it("CALL-52: shows a new call of the agent as inviting again, not as its earlier outcome", async () => {
         const page = await installedParticipation();
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
