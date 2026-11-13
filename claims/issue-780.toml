@@ -1,8 +1,0 @@
-claim_id = "6f1d1fad811c4f28b360ac3e3752d8e5"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "0178127a9266fad408de9e1d11bdc47437f88214"
-branch = "claude/issue-780-speak-answers-when-its-sentence-starts"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "src/hopin/agent/speaking.py", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "src/hopin/participation/speaking.py", "tests/agent", "tests/e2e/participation/test_agent_speaks.py", "tests/e2e/support/dialed_agent.py", "tests/participation", "tests/support/dialed_call.py", "tests/support/stores.py"]
-opened_commit = "f9fbc0a92e35f890afa49f00047300fae5ec4108"
-whole_reason = "The tool's answer, the queue that releases it and the rule that states it change together."
