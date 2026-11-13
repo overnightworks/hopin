@@ -23,10 +23,16 @@ export async function installedParticipation(installOn?: typeof install) {
     more.open = true;
     document.body.append(more);
     const core: FeatureCore = {
-        on: (type, handler) => void handlers.set(type, handler),
-        send: (frame) => void sent.push(frame),
+        on: (type, handler) => {
+            handlers.set(type, handler);
+        },
+        send: (frame) => {
+            sent.push(frame);
+        },
         isConnected: vi.fn().mockReturnValue(true),
-        showToast: (text) => void toasts.push(text),
+        showToast: (text) => {
+            toasts.push(text);
+        },
         toastKind: TOAST_KIND,
         showStage: vi.fn(),
         drawAgentFigures: vi.fn(),
@@ -39,14 +45,18 @@ export async function installedParticipation(installOn?: typeof install) {
             moreItems.push(...items);
             more.append(...items);
         },
-        receiveChatLine: (view: FeatureView) => void lines.push(view),
+        receiveChatLine: (view: FeatureView) => {
+            lines.push(view);
+        },
         pinLastChatLine: vi.fn(),
         showChatCard: vi.fn(),
         onMicrophone: (handler) => {
             microphoneHandlers.push(handler);
             handler(null);
         },
-        onCallEnded: (hook) => void callEndedHooks.push(hook),
+        onCallEnded: (hook) => {
+            callEndedHooks.push(hook);
+        },
     };
     await (installOn ?? ((on) => installWith(on, players.createPlayer)))(core);
     // What the page draws follows its state at the next flush.
