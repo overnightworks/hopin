@@ -7,7 +7,7 @@ from playwright.sync_api import Page, WebSocket, expect
 
 from hopin.participation.vocabulary import HEARING_PATH
 from tests.e2e.support.dialed_agent import AGENT_TILE, room_of_link
-from tests.e2e.support.people import DESKTOP, FORM_FACTORS
+from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
 
