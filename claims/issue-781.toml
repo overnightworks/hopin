@@ -1,8 +1,0 @@
-claim_id = "8ad19751b4e94ffd91b08da56db2ec32"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "40237b6e394163e3d413f430142cfbfefa03788d"
-branch = "claude/issue-781-agent-speaks-with-accept-voice"
-scope = ["docs/call.md", "src/hopin/agent", "src/hopin/participation", "tests/agent", "tests/participation", "uv.lock"]
-opened_commit = "1656fe0e2c2e0f544ebf53f48726e58a866af2a3"
-whole_reason = "The accept's voice, the speak path that uses it and the rules that state it change together."
