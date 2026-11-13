@@ -36,6 +36,7 @@ from tests.support.speech_origin import (
     silent_wav,
     speaking,
     spoken_request,
+    with_data_size,
     with_sample_rate,
 )
 
@@ -46,6 +47,7 @@ LINE = ParticipationSignal.AGENT_LINE.value
 SENTENCE_SECONDS = 1.5
 SENTENCE_MS = 1500
 SOUND = silent_wav(SENTENCE_SECONDS)
+STREAMING_DATA_SIZE = 0xFFFFFFFF
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 TEXT = "Ein geheimer Satz"
 FAILED = "agent_speak_failed"
@@ -152,8 +154,27 @@ class TestSpeaking:
             header_of(request, WORKLOAD_TOKEN_HEADER),
         ) == (("POST", SPEECH_PATH), TEXT, f"Bearer {held}", workload)
 
-    def test_call_60_a_sentence_of_the_greatest_length_is_spoken(self, joined_agent):
-        dialed = speak(joined_agent, "x" * SPEAK_MAX_CHARACTERS)
+    def test_call_60_a_sound_that_streams_with_no_size_yet_is_as_long_as_the_frames_it_holds(
+        self, joined_agent, speech_origin
+    ):
+        speaking(speech_origin, chunked_wav(with_data_size(SOUND, STREAMING_DATA_SIZE)))
+
+        dialed = speak(joined_agent)
+
+        assert (dialed.is_error, dialed.outcome) == (False, {"duration_ms": SENTENCE_MS})
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("x" * SPEAK_MAX_CHARACTERS, id="greatest-length"),
+            pytest.param("x" * SPEAK_MAX_CHARACTERS + "\n", id="trailing-line-break"),
+            pytest.param("x" * 299 + "\n\n   " + "x" * 300, id="run-of-breaks"),
+        ],
+    )
+    def test_call_60_the_bound_counts_the_sentence_after_its_breaks_and_runs_of_spaces_become_one_space(
+        self, joined_agent, text
+    ):
+        dialed = speak(joined_agent, text)
 
         assert dialed.is_error is False
 
@@ -208,6 +229,10 @@ SPEECH_FAILS = [
     pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
     pytest.param(chunked_wav(SPOKEN_WAV), {"outcome": UNREADABLE}, id="unreadable-sound"),
     pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), {"outcome": UNREADABLE}, id="zero-sample-rate"),
+    pytest.param(chunked_wav(SOUND[:-2]), {"outcome": UNREADABLE}, id="fewer-frames-than-declared"),
+    pytest.param(
+        chunked_wav(with_data_size(SOUND, STREAMING_DATA_SIZE // 2)), {"outcome": UNREADABLE}, id="size-beyond-the-body"
+    ),
 ]
 
 

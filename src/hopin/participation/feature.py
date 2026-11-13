@@ -23,7 +23,7 @@ from hopin.participation.frames import (
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.speaking import Speaking
-from hopin.participation.text import clean_line, clean_name
+from hopin.participation.text import clean_line, clean_name, one_line
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     AGENTS_PER_PROCESS,
@@ -237,7 +237,7 @@ class Participation:
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
-        sentence = clean_line(" ".join(text.split()))
+        sentence = clean_line(one_line(text))
         if sentence is None or render is None:
             return await self._unavailable(SpeakFailure.NO_TEXT if sentence is None else SpeakFailure.SPEAKING_OFF)
         failure = self._no_room_to_speak(agent)

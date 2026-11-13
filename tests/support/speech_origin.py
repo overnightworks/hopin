@@ -13,6 +13,7 @@ SPOKEN_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
 WAV_MEDIA_TYPE = ResponseFormat.WAV.media_type
 AUDIENCE_SCOPE = "speech-service-audience"
 SAMPLE_RATE_OFFSET = 24  # in a canonical 44-byte header, after the format, channel count
+DATA_SIZE_OFFSET = 40  # in a canonical 44-byte header, the size field of the data chunk
 
 
 def silent_wav(seconds: float = 0.2, rate: int = 8000) -> bytes:
@@ -30,6 +31,13 @@ def with_sample_rate(wav: bytes, rate: int) -> bytes:
     """The WAV with its header's sample rate overwritten, as a wave writer refuses to write it."""
     header = bytearray(wav)
     struct.pack_into("<I", header, SAMPLE_RATE_OFFSET, rate)
+    return bytes(header)
+
+
+def with_data_size(wav: bytes, size: int) -> bytes:
+    """The WAV with the size its header declares for its sound overwritten, as a stream declares it before its end."""
+    header = bytearray(wav)
+    struct.pack_into("<I", header, DATA_SIZE_OFFSET, size)
     return bytes(header)
 
 
