@@ -12,7 +12,7 @@ from webauth.middleware import admitted_user
 from hopin.participation.vocabulary import VOICE_PATH
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Callable
 
 ID_BYTES: Final = 16
 WAV_MEDIA_TYPE: Final = "audio/wav"
@@ -67,13 +67,11 @@ class VoiceStore:
             del self._by_id[voice_id]
 
 
-def voice_endpoint(
-    store: VoiceStore, holds_seat: Callable[[str, str], bool]
-) -> Callable[[Request, str], Awaitable[Response]]:
+def voice_endpoint(store: VoiceStore, holds_seat: Callable[[str, str], bool]) -> Callable[[Request, str], Response]:
     """The route of a sound, at `VOICE_PATH` and the voice's id: a signed-in account that holds a seat in the sound's
     room gets it, no one else."""
 
-    async def voice(request: Request, voice_id: str) -> Response:
+    def voice(request: Request, voice_id: str) -> Response:
         user = admitted_user(request)
         wav = store.get(voice_id)
         room_id = store.room_of(voice_id)
