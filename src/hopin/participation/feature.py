@@ -602,13 +602,11 @@ class Participation:
         state = PlaceState.PAUSED if self._rooms.is_parked(place.sponsor) else PlaceState.ACTIVE
         return PlaceStanding(room_id, state)
 
-    def _append_to_windows(
-        self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None, spoken: bool = False
-    ) -> None:
+    def _append_to_windows(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
         """Add the line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
-        agent said it, whose window marks it own, and `spoken` marks a sentence said aloud."""
+        agent said it, whose window marks it own."""
         for person, window in self._places.windows_in(room_id).items():
-            if window.append(kind, name, text, own=person == sayer, spoken=spoken):
+            if window.append(kind, name, text, own=person == sayer):
                 self._on_window_changed(person, room_id)
 
     def _active_agent(self, person: Person, room_id: str) -> DialedAgent | AgentRefusal:
