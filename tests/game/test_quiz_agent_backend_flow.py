@@ -17,6 +17,7 @@ from hopin.app import create_app
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefusal, GameSignal
+from hopin.participation.voice import VoiceStore
 from tests.game.support.call_world import IDLE, asked, phase, question, refused, serving_call
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejects, Succeeds
 from tests.game.support.table_world import answers_in_reveal
@@ -292,7 +293,7 @@ class OneLoopServer:
             issuer_transports=self.issuer.transports,
             stores=self._stores,
             scheduler=self.scheduler,
-            call_features=(GameFeature(self.backend),),
+            call_features=(GameFeature(self.backend, VoiceStore()),),
         )
         self._to_app, self._from_app = asyncio.Queue(), asyncio.Queue()
         self._connection = None

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hopin.agent.feature import GameFeature
+from hopin.participation.voice import VoiceStore
 from hopin.web.page_build import BUILD_DIRECTORY
 from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.support.server import LoopbackSignIn, RunningServer, loopback_sign_in, running_hopin
@@ -37,7 +38,7 @@ def game_server(
 ) -> Iterator[RunningServer]:
     """HopIn with the game and participation wired into its calls, the game's agent backend a fake."""
     with running_hopin(
-        game_sign_in, tmp_path_factory.mktemp("game-tls"), GameFeature(agent_backend), participation=True
+        game_sign_in, tmp_path_factory.mktemp("game-tls"), GameFeature(agent_backend, VoiceStore()), participation=True
     ) as server:
         yield server
 
@@ -63,6 +64,9 @@ def server_after_a_release(
     """HopIn with the game wired in, serving `page_build_without_the_game_chunk`."""
     (tls_directory := tmp_path / "tls").mkdir()
     with running_hopin(
-        loopback_sign_in(tmp_path), tls_directory, GameFeature(agent_backend), page_build_without_the_game_chunk
+        loopback_sign_in(tmp_path),
+        tls_directory,
+        GameFeature(agent_backend, VoiceStore()),
+        page_build_without_the_game_chunk,
     ) as server:
         yield server

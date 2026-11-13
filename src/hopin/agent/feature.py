@@ -3,6 +3,8 @@ from functools import partial
 from random import SystemRandom
 from typing import TYPE_CHECKING
 
+from fastapi import APIRouter
+
 from hopin.agent.backend import QuizGameMaster, StarterPerson, gateway_backend
 from hopin.agent.settings import AgentSettings
 from hopin.agent.speech import SpeechVoice
@@ -10,16 +12,15 @@ from hopin.agent.speech_settings import SpeechSettings
 from hopin.game.quiz import QUIZ_ROUNDS, QUIZ_TOPICS
 from hopin.game.table import Game
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
-from hopin.game.voice import VoiceStore, create_voice_router
 
 if TYPE_CHECKING:
-    from fastapi import APIRouter
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.agent.backend import QuizBackend
+    from hopin.game.voice import VoiceShelf
     from hopin.signaling.features import FeatureFactory
     from hopin.signaling.scheduler import Scheduler
 
@@ -31,7 +32,7 @@ def draw_quiz_topics() -> tuple[str, ...]:
 
 @dataclass(frozen=True)
 class BuiltGameFeature:
-    """What the game adds to the app: its call feature and the route that serves its voices."""
+    """What the game adds to the app: its call feature."""
 
     factory: FeatureFactory
     router: APIRouter
@@ -43,6 +44,7 @@ class GameFeature:
     """The game, built inside `create_app` on the app's own sign-in and scheduler."""
 
     backend: QuizBackend
+    voices: VoiceShelf
     speech: SpeechSettings = field(default_factory=SpeechSettings)
 
     @property
@@ -67,16 +69,15 @@ class GameFeature:
     ) -> BuiltGameFeature:
         del transaction
         starter_person = StarterPerson(relying_party, sessions, auth_config)
-        voices = VoiceStore()
         factory = partial(
             Game,
             scheduler=scheduler,
             game_master=QuizGameMaster(self.backend, starter_person),
             topic_drawer=draw_quiz_topics,
             voice=self._voice(relying_party, starter_person),
-            voices=voices,
+            voices=self.voices,
         )
-        return BuiltGameFeature(factory, create_voice_router(voices))
+        return BuiltGameFeature(factory, APIRouter())
 
     def _voice(self, relying_party: OidcRelyingParty, starter_person: StarterPerson) -> SpeechVoice | None:
         service = self.speech.service
@@ -85,6 +86,6 @@ class GameFeature:
         return SpeechVoice(service, VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES, relying_party, starter_person)
 
 
-def configured_game_feature() -> GameFeature:
-    """The game as the environment configures it, on the gateway."""
-    return GameFeature(gateway_backend(AgentSettings()), SpeechSettings())
+def configured_game_feature(voices: VoiceShelf) -> GameFeature:
+    """The game as the environment configures it, on the gateway, keeping its voices on `voices`."""
+    return GameFeature(gateway_backend(AgentSettings()), voices, SpeechSettings())

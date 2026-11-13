@@ -39,13 +39,15 @@ from webauth.session_groups import SessionGroups
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
+from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, AgentVoice, SpeechRenderer
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Caller, OwnAccount, Participation, Person
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
 from hopin.participation.hearing import Hearing
-from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH
+from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, SPEAK_FAILED_EVENT, VOICE_PATH
+from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
 
 if TYPE_CHECKING:
@@ -87,6 +89,7 @@ class _BuiltParticipation:
     groups: SessionGroups
     figure_sources: tuple[FigureSource, ...]
     hears: bool
+    voices: VoiceStore
     changes: ResourceChanges = field(init=False)
     participation: Participation = field(init=False)
     _recomputes: set[asyncio.Task[None]] = field(init=False, default_factory=set)
@@ -108,6 +111,7 @@ class _BuiltParticipation:
             self._listens_to_standing,
             self.figure_sources,
             Hearing(MemberHearingRecord(MemberHearing(now=self.scheduler.now)), enabled=self.hears),
+            self.voices,
         )
         return self.participation
 
@@ -294,6 +298,8 @@ class ParticipationFeature:
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
     hearing: SpeechService | None = None
+    speaking: SpeechService | None = None
+    voices: VoiceStore = field(default_factory=VoiceStore)
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -321,11 +327,13 @@ class ParticipationFeature:
             SessionGroups(relying_party, lambda: nullcontext(sessions), auth_config),
             self.figure_sources,
             hears=self.hearing is not None,
+            voices=self.voices,
         )
         hearing_tokens = self._hearing_tokens(scheduler, auth_config)
+        voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         front = McpPersonFront(
-            [_as_person_tool(tool) for tool in participation_tools(built.current)],
+            [_as_person_tool(tool) for tool in participation_tools(built.current, voice)],
             resolve_person=partial(_principal_of, relying_party.issuer),
             resources=_MemberResources(built.current),
             changes=built.changes,
@@ -348,6 +356,7 @@ class ParticipationFeature:
             )
         )
         router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
+        self._add_voice_route(router, built.current)
         if self.hearing is not None:
             hearing_route = HearingRoute(
                 service=self.hearing,
@@ -361,6 +370,14 @@ class ParticipationFeature:
             router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
 
+    def _add_voice_route(self, router: APIRouter, participation: Callable[[], Participation]) -> None:
+        """Serve the stored sounds to the signed-in accounts that hold a seat in the sound's room."""
+        router.add_api_route(
+            f"{VOICE_PATH}/{{voice_id}}",
+            voice_endpoint(self.voices, lambda account, room: participation().holds_seat(account, room)),
+            methods=READ_METHODS,
+        )
+
     def _resource(self, transaction: SignInTransaction) -> ProtectedResource:
         return ProtectedResource(
             url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
@@ -372,8 +389,18 @@ class ParticipationFeature:
             transaction=transaction,
         )
 
+    def _voice(self, relying_party: OidcRelyingParty, tokens: HearingTokens) -> AgentVoice | None:
+        if self.speaking is None:
+            return None
+        renderer = SpeechRenderer(
+            self.speaking, SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, relying_party, SPEAK_FAILED_EVENT
+        )
+        return AgentVoice(renderer, tokens)
+
     def _hearing_tokens(self, scheduler: Scheduler, auth_config: WebAuthConfig) -> HearingTokens:
-        scopes = () if self.hearing is None else (self.hearing.audience_scope,)
+        """HopIn holds an agent's token for the scopes of each service the agent hears or speaks through."""
+        services = [service for service in (self.hearing, self.speaking) if service is not None]
+        scopes = tuple(dict.fromkeys(service.audience_scope for service in services))
         return HearingTokens(
             scopes, lease_seconds=LEASE_SECONDS, scheduler=scheduler, wall_clock=auth_config.wall_clock
         )

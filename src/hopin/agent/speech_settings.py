@@ -20,8 +20,8 @@ class SpeechService:
 
 
 class SpeechSettings(BaseSettings):
-    """The speech service HopIn speaks and hears through; without an origin the voice is off, and hearing is off until
-    it is turned on."""
+    """The speech service HopIn speaks and hears through; without an origin the voice is off, and hearing and agents'
+    speaking are off until each is turned on."""
 
     # Read like the server's own settings, and a refusal never echoes an input.
     model_config = SettingsConfigDict(env_prefix="HOPIN_SPEECH__", hide_input_in_errors=True)
@@ -30,6 +30,7 @@ class SpeechSettings(BaseSettings):
     voice: VoiceId = VoiceId.THORSTEN
     audience_scope: ScopeToken | None = None
     hearing: bool = False
+    speaking: bool = False
 
     @property
     def service(self) -> SpeechService | None:
@@ -43,6 +44,11 @@ class SpeechSettings(BaseSettings):
         """The service agents hear through, or nothing while hearing is off; the one decision of whether it is on."""
         return self.service if self.hearing else None
 
+    @property
+    def speaking_service(self) -> SpeechService | None:
+        """The service agents speak through, or nothing while speaking is off; the one decision of whether it is on."""
+        return self.service if self.speaking else None
+
     @model_validator(mode="after")
     def _origin_is_plain_http_and_names_its_scope(self) -> SpeechSettings:
         if self.origin is None:
@@ -54,9 +60,9 @@ class SpeechSettings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _hearing_needs_a_service(self) -> SpeechSettings:
-        if self.hearing and self.service is None:
-            raise ValueError("origin and audience_scope are required when hearing is on")
+    def _hearing_and_speaking_need_a_service(self) -> SpeechSettings:
+        if (self.hearing or self.speaking) and self.service is None:
+            raise ValueError("origin and audience_scope are required when hearing or speaking is on")
         return self
 
 

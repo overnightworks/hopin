@@ -13,6 +13,7 @@ from webauth.admission import AppRole
 from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature  # game
+from hopin.participation.voice import VoiceStore
 from hopin.skat.feature import SkatFeature
 from tests.e2e.support.people import playwright_cookie
 from tests.e2e.support.server import loopback_sign_in, running_hopin
@@ -27,11 +28,13 @@ def serve(directory: Path, skat_origin: str) -> None:
     sign_in_directory = directory / "hopin-sign-in"
     sign_in_directory.mkdir(exist_ok=True)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    voices = VoiceStore()
     with running_hopin(
         loopback_sign_in(sign_in_directory, HOST),
         directory,
-        GameFeature(FakeAgentBackend()),  # game
+        GameFeature(FakeAgentBackend(), voices),  # game
         participation=True,
+        voices=voices,
         certificate=(directory / "drive-key.pem", directory / "drive-ca.pem"),
         more_call_features=(SkatFeature(skat_origin),),
     ) as server:

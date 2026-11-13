@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 
 from hopin.game.table import Game
-from hopin.game.voice import VoiceStore
+from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import FakeGameMaster
 from tests.game.support.table_world import fixed_topics, shut_down_within_cap
