@@ -570,13 +570,15 @@ class Participation:
         place = self._places.get(person, room_id)
         if not isinstance(place, Invited) or place.invitation_id != invitation_id:
             return
+        live = self._live.by_person.get(person)  # read before the awaits: the lease may end during them
+        agent_key = live.key if live is not None else None
         self._places.remove(person, room_id)
         self._on_changed(person)
         await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="expired")
         await self._update_offers(room_id)
-        # After the offers, which list the agent as available again: the outcome then marks that row.
-        live = self._live.by_person[person]  # a lease that ends takes the invitation with it, so it still runs
-        await self._tell(room_id, [place.adder], invitation_ended_frame(live.key, InvitationOutcome.NO_ANSWER))
+        if agent_key is not None:
+            # After the offers, which list the agent as available again: the outcome then marks that row.
+            await self._tell(room_id, [place.adder], invitation_ended_frame(agent_key, InvitationOutcome.NO_ANSWER))
 
     def _arm(self, person: Person, generation: int, seconds: float) -> None:
         self._scheduler.call_later(seconds, partial(self._lease_timer, person, generation))

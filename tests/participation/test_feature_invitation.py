@@ -161,6 +161,23 @@ class TestAnInvitation:
             [],
         )
 
+    async def test_its_expiry_tells_the_adder_even_when_its_agents_lease_ends_while_the_offers_go_out(
+        self, invited, scheduler, participation
+    ):
+        [offer] = offers_sent_to(invited.member)
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls(participation)  # the lease now outlives the invitation
+        held = HeldWrite(invited.member.socket, first_only=True)
+        expiry = asyncio.create_task(scheduler.advance(1))
+        await held.reached()
+
+        await scheduler.advance(LEASE_SECONDS)
+        held.release.set()
+        await expiry
+
+        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (ended["outcome"], ended["agent_key"]) == (InvitationOutcome.NO_ANSWER.value, offer["agent_key"])
+
     async def test_it_ends_with_the_lease_of_the_agent_it_was_made_for(self, invited, scheduler):
         await scheduler.advance(LEASE_SECONDS)
 
