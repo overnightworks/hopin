@@ -347,9 +347,9 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     if stopping.place.kind != CALL_KIND:
         return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
     outcome = await participation.stop_speaking(caller.person, stopping.place.id)
-    if isinstance(outcome, str):
-        return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
-    return _stop_refused(_STOP_REFUSAL_OF[outcome])
+    if isinstance(outcome, AgentRefusal | SpeakStop):
+        return _stop_refused(_STOP_REFUSAL_OF[outcome])
+    return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
 
 def participation_tools(participation: Callable[[], Participation], voice: AgentVoice | None) -> tuple[CallerTool, ...]:

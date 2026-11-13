@@ -9,7 +9,7 @@ from functools import partial
 
 import pytest
 import structlog.testing
-from agents.member import LEASE_SECONDS, SPEAK_TOOL, PlaceRef
+from agents.member import LEASE_SECONDS, SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
@@ -78,6 +78,12 @@ def speak(scene, text=TEXT, room_id=None, token=None, **named):
     return scene.call.call(
         scene.token if token is None else token, SPEAK_TOOL, {"place": place.model_dump(), "text": text, **named}
     )
+
+
+def stop(scene, room_id=None):
+    """The agent's `stop_speaking` call."""
+    place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
+    return scene.call.call(scene.token, STOP_SPEAKING_TOOL, {"place": place.model_dump()})
 
 
 @pytest.fixture
@@ -313,6 +319,94 @@ class TestTheLanguageOfASentence:
         dialed = speak(joined_agent, room_id="no-such-room", language="zz")
 
         assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "not_active"}), [])
+
+
+class TestTheStyleOfASentence:
+    @pytest.fixture
+    def speaking_service(self, speech_origin):
+        return SpeechService(speech_origin.base_url, VoiceId.RYAN, AUDIENCE_SCOPE)
+
+    def test_call_60_the_style_reaches_speech_as_the_instructions_unchanged(self, joined_agent, speech_origin):
+        dialed = speak(joined_agent, style="louder and angrier")
+
+        [request] = speech_origin.requests
+        assert (dialed.is_error, spoken_request(request).instructions) == (False, "louder and angrier")
+
+    def test_call_60_a_sentence_without_a_style_asks_speech_for_no_instructions(self, joined_agent, speech_origin):
+        speak(joined_agent)
+
+        [request] = speech_origin.requests
+        assert spoken_request(request).instructions is None
+
+    @pytest.mark.parametrize("style", ["x" * 501, "!!!", "", "   "], ids=["too_long", "no_letter", "empty", "blank"])
+    def test_call_60_a_style_speech_refuses_is_style_unavailable_and_the_agent_speaks_on(
+        self, joined_agent, speech_origin, style
+    ):
+        refused = speak(joined_agent, style=style)
+
+        after = speak(joined_agent)
+        assert (refusal_of(refused), after.is_error, len(speech_origin.requests)) == (
+            (True, {"refused": "style_unavailable"}),
+            False,
+            1,
+        )
+
+    def test_call_60_a_style_the_service_refuses_is_style_unavailable(self, joined_agent, speech_origin):
+        speaking(speech_origin, refusal_answer(RefusalCode.INVALID_REQUEST, "instructions"))
+
+        dialed = speak(joined_agent, style="whispering")
+
+        assert refusal_of(dialed) == (True, {"refused": "style_unavailable"})
+
+
+class TestAVoiceThatTakesNoStyle:
+    def test_call_60_a_style_for_a_voice_without_styles_is_style_unavailable_and_speech_is_not_called(
+        self, joined_agent, speech_origin
+    ):
+        dialed = speak(joined_agent, style="louder")
+
+        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "style_unavailable"}), [])
+
+
+class TestStoppingASentence:
+    def test_call_60_it_cuts_the_playing_sentence_everywhere_and_the_window_holds_its_line_as_cut(self, joined_agent):
+        speak(joined_agent)
+
+        stopped = stop(joined_agent)
+        drained(joined_agent)
+
+        [entry] = joined_agent.entries()
+        assert (
+            (stopped.is_error, stopped.outcome),
+            [
+                len(frames_of(seat, ParticipationSignal.AGENT_STOP.value))
+                for seat in (joined_agent.owner, joined_agent.member)
+            ],
+            (entry["text"], entry["own"], entry["spoken"], entry["cut"]),
+        ) == ((False, {"cut": TEXT}), [1, 1], (TEXT, True, True, True))
+
+    def test_call_60_every_sentence_waiting_behind_it_answers_stopped(self, joined_agent, speaking_behind):
+        speak(joined_agent)
+        waiting = speaking_behind()
+
+        stop(joined_agent)
+
+        answered = waiting.result(timeout=ANSWER_SECONDS)
+        assert refusal_of(answered) == (True, {"refused": "stopped"})
+
+    def test_call_60_with_nothing_playing_it_is_nothing_playing(self, joined_agent):
+        assert refusal_of(stop(joined_agent)) == (True, {"refused": "nothing_playing"})
+
+    def test_call_60_for_a_place_the_agent_does_not_hold_it_is_not_active(self, joined_agent):
+        assert refusal_of(stop(joined_agent, room_id="no-such-room")) == (True, {"refused": "not_active"})
+
+    def test_call_60_the_agent_speaks_again_after_a_stop(self, joined_agent):
+        speak(joined_agent)
+        stop(joined_agent)
+
+        again = speak(joined_agent)
+
+        assert (again.is_error, again.outcome) == (False, {"duration_ms": SENTENCE_MS})
 
 
 class TestTheLanguageOfAnAgentWithAVoiceOfItsOwn:
