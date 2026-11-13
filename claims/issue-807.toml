@@ -1,8 +1,0 @@
-claim_id = "e353bfe741c242d5a1d6e873db044a77"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "e61e4cc1e4a27e46f019cb779c72e9f7250c71f3"
-branch = "claude/issue-807-codeql-config-for-test-secrets"
-scope = [".github/codeql", ".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml"]
-opened_commit = "a3ded8334aa195767c0975dc0fa7b43b0ebfb03a"
-whole_reason = "The CodeQL config and the one quality pin it needs move together across the workflows."
