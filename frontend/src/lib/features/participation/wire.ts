@@ -34,6 +34,8 @@ export enum AGENT_REFUSAL {
 
 export enum INVITATION_OUTCOME {
     NO_ANSWER = "no_answer",
+    BUSY = "busy",
+    OWNER_ABSENT = "owner_absent",
 }
 
 export enum HEARING_CLOSE {

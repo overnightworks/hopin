@@ -33,6 +33,15 @@ class Invited:
     adder: PeerId
 
 
+@dataclass(frozen=True)
+class AbandonedInvitation:
+    """An invitation that ended because the owner's seat left: the room, the agent's key and the seat that made it."""
+
+    room_id: str
+    agent_key: str
+    adder: PeerId
+
+
 type Place = Invited | DialedAgent
 
 

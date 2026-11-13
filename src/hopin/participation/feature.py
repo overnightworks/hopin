@@ -22,7 +22,7 @@ from hopin.participation.frames import (
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
-from hopin.participation.places import Invited, Places, PlaceStanding, PlaceState
+from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.speaking import Speaking
 from hopin.participation.text import clean_line, clean_name, one_line
 from hopin.participation.vocabulary import (
@@ -101,6 +101,7 @@ class Participation:
         self._live = LiveAgents()
         self._places = Places()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
+        self._abandoned: dict[PeerId, list[AbandonedInvitation]] = {}
         self._views: dict[PeerId, SeatView] = {}
         self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
 
@@ -351,8 +352,15 @@ class Participation:
         ]
         if self._rooms.room_of(peer_id) is None:
             view = self._views.pop(peer_id, None)
+            invitations = [
+                AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
+                for person, room_id, place in bound
+                if isinstance(place, Invited)
+            ]
             for person, room_id, _ in bound:
                 self._places.remove(person, room_id)
+            if invitations:
+                self._abandoned[peer_id] = invitations
             joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
             for agent in joined:
                 self._agent_ended(agent)
@@ -367,16 +375,25 @@ class Participation:
             self._on_changed(person)
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
-        """Announce the tiles of the agents the seat took with it, and the agents the others may add now."""
+        """Announce the tiles of the agents the seat took with it and the agents the others may add now, then tell the
+        seats that invited the owner's agents that the owner is away."""
         del name
         for agent in self._departed.pop(peer_id, []):
             await self._announce_removed(agent, self._recipients(agent.room_id))
         await self._update_offers(room_id)
+        for invitation in self._abandoned.pop(peer_id, []):
+            await self._tell(
+                invitation.room_id,
+                [invitation.adder],
+                invitation_ended_frame(invitation.agent_key, InvitationOutcome.OWNER_ABSENT),
+            )
 
     def room_ended(self, room_id: str) -> None:
         """Drop the room's places and seats; the room's seats hear the end itself."""
         for sponsor in [sponsor for sponsor, gone in self._departed.items() if gone[0].room_id == room_id]:
             del self._departed[sponsor]
+        for sponsor in [sponsor for sponsor, gone in self._abandoned.items() if gone[0].room_id == room_id]:
+            del self._abandoned[sponsor]
         for peer_id in [peer_id for peer_id, view in self._views.items() if view.room_id == room_id]:
             del self._views[peer_id]
         holders = {person for person, held_room, _ in self._places.entries() if held_room == room_id}
@@ -398,6 +415,7 @@ class Participation:
             self._speaking.end(agent)
         self._places.clear()
         self._departed.clear()
+        self._abandoned.clear()
         self._views.clear()
         self._live = LiveAgents()
 

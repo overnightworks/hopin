@@ -5,12 +5,12 @@ import json
 
 import pytest
 import structlog.testing
-from agents.member import ACCEPT_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
+from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
 from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME
 from hopin.config.constants import MAX_PARTICIPANTS_PER_ROOM
 from hopin.participation.feature import Participation
-from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 from tests.support.dialed_call import accept_arguments
 
@@ -21,6 +21,7 @@ RECOMPUTE_FAILED_EVENT = "agent_offers_recompute_failed"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 JOINED = ParticipationSignal.AGENT_JOINED.value
 REFUSED = ParticipationSignal.AGENT_REFUSED.value
+INVITATION_ENDED = ParticipationSignal.AGENT_INVITATION_ENDED.value
 
 
 class TestAddingTheAgent:
@@ -140,6 +141,58 @@ class TestRefusingTheAcceptance:
         dialed = scene.call.call(scene.token, ACCEPT_INVITATION_TOOL, arguments)
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": code})
+
+
+def decline_arguments(standing, **more):
+    """The shared arguments of declining the invitation a read standing carries, as busy unless `more` says otherwise."""
+    return accept_arguments(standing) | {"reason": "busy"} | more
+
+
+class TestDecliningTheInvitation:
+    def test_a_busy_decline_ends_the_invitation_and_tells_only_the_adder_that_the_agent_is_busy(self, scene):
+        """CALL-52: A decline ends the invitation at once and tells the seat that made it, and no other, busy."""
+        scene.invite()
+        [standing] = scene.standings()
+
+        dialed = scene.call.call(scene.token, DECLINE_INVITATION_TOOL, decline_arguments(standing))
+
+        ended = scene.member.frame_of_type(INVITATION_ENDED)
+        assert (dialed.is_error, ended["outcome"], scene.standings()) == (False, InvitationOutcome.BUSY.value, [])
+        assert INVITATION_ENDED not in [frame["type"] for frame in scene.owner.received]
+
+    def test_a_declined_agent_is_offered_to_the_adder_again_and_can_be_invited_anew(self, scene):
+        scene.invite()
+        scene.call.call(scene.token, DECLINE_INVITATION_TOOL, decline_arguments(scene.standings()[0]))
+
+        scene.invite()
+
+        assert [item["state"] for item in scene.standings()] == ["invited"]
+
+    @pytest.mark.parametrize("stale", STALE_ARGUMENTS.values(), ids=STALE_ARGUMENTS.keys())
+    def test_a_decline_that_does_not_match_the_invitation_is_refused_stale_and_leaves_it_open(self, scene, stale):
+        """CALL-52: A decline of an invitation that is not the agent's or no longer stands changes nothing."""
+        scene.invite()
+        [standing] = scene.standings()
+
+        dialed = scene.call.call(scene.token, DECLINE_INVITATION_TOOL, stale(decline_arguments(standing)))
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
+        assert [item["state"] for item in scene.standings()] == ["invited"]
+
+    def test_a_decline_after_the_agent_joined_is_stale_and_leaves_its_tile(self, scene):
+        scene.invite()
+        [standing] = scene.standings()
+        scene.accept(standing)
+
+        dialed = scene.call.call(scene.token, DECLINE_INVITATION_TOOL, decline_arguments(standing))
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
+        assert [item["state"] for item in scene.standings()] == ["active"]
+
+    def test_a_persons_own_agent_is_refused_own_account_only_whatever_it_sends(self, scene):
+        dialed = scene.call.call(scene.call.token(scene.member_account), DECLINE_INVITATION_TOOL, {})
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.OWN_ACCOUNT_ONLY.value})
 
 
 FOREIGN_URIS = {
