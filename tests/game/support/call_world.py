@@ -11,10 +11,12 @@ from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature
+from hopin.agent.mcp import ParticipationFeature
 from hopin.app import create_app
 from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GamePhase, GameSignal
+from hopin.participation.voice import VoiceStore
 from tests.game.support.fake_agent_backend import DEFAULT_QUESTION
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -66,6 +68,13 @@ class Seat:
     def chat(self, text):
         self.send({"type": SignalType.CHAT.value, "message": text})
 
+    def frames_until(self, signal_type):
+        """The frames up to and including the first of this type."""
+        received = []
+        while not received or received[-1]["type"] != signal_type.value:
+            received.extend(self.frames(1))
+        return received
+
     def frames(self, count):
         """The next `count` frames, without their replay sequence number."""
         received = [self._socket.receive_json() for _ in range(count)]
@@ -103,7 +112,7 @@ class Call:
         host, created = self.seat(self.member() if host_member is None else host_member)
         guest_member = self.member()
         guest, _ = self.seat(guest_member, created["room_id"])
-        host.frames(1)
+        host.frames_until(SignalType.PARTICIPANT_JOINED)
         return host, guest, guest_member
 
     def voice(self, member, path):
@@ -126,13 +135,22 @@ def serving_call(
     sign_in: SignInSettings, issuer: FakeIssuer, backend: AgentBackend, speech: SpeechSettings | None = None
 ) -> Iterator[Call]:
     stores = single_process_stores()
+    voices = VoiceStore()
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
-        call_features=(GameFeature(backend) if speech is None else GameFeature(backend, speech),),
+        call_features=(
+            (GameFeature(backend, voices),)
+            if speech is None
+            else (
+                GameFeature(backend, voices, speech),
+                # The voices are served by participation's route.
+                ParticipationFeature(sign_in.settings.public_origin, voices=voices),
+            )
+        ),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         yield Call(issuer, backend, stores, client, sockets)

@@ -6,10 +6,11 @@ from tests.support.imported_modules import imported_modules, names
 
 SOURCE = Path(__file__).resolve().parents[2] / "src" / "hopin"
 SPEECH_CLIENT = "speech_client"
-# The speech client's voice type is the setting's type, the speak call is the game's voice and the hearing route calls
-# the finished-utterance helper; the game's `agent/speech.py` is absent once the game is removed.
+# The speech client's voice type is the setting's type, the speak call is the renderer of the game's voice and of the
+# agent's speaking, and the hearing route calls the finished-utterance helper; the renderer stays once the game is
+# removed.
 SPEECH_MODULES = {
-    SOURCE / "agent" / "speech.py",
+    SOURCE / "agent" / "speaking.py",
     SOURCE / "agent" / "speech_settings.py",
     SOURCE / "agent" / "hearing_route.py",
 }

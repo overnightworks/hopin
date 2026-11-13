@@ -8,7 +8,8 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.feature import GameFeature
 from hopin.agent.speech_settings import SpeechSettings
-from hopin.game.vocabulary import VOICE_PATH
+from hopin.participation.vocabulary import VOICE_PATH
+from hopin.participation.voice import VoiceStore
 from tests.e2e.game.game_page import (
     CARD,
     GAME_MASTER_LINES,
@@ -22,8 +23,8 @@ from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Succeeds
-from tests.game.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, refusal_answer, silent_wav, speaking
 from tests.support.loopback_origin import ARRIVAL_CAP_SECONDS, Origin
+from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, refusal_answer, silent_wav, speaking
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -60,7 +61,14 @@ def speech_server(
     """HopIn with the game wired in and its voice on, the agent backend and the speech service fakes."""
     speech = SpeechSettings(origin=speech_origin.base_url, voice=VoiceId.THORSTEN, audience_scope=AUDIENCE_SCOPE)
     sign_in = loopback_sign_in(tmp_path_factory.mktemp("voice-sign-in"))
-    with running_hopin(sign_in, tmp_path_factory.mktemp("voice-tls"), GameFeature(agent_backend, speech)) as server:
+    voices = VoiceStore()
+    with running_hopin(
+        sign_in,
+        tmp_path_factory.mktemp("voice-tls"),
+        GameFeature(agent_backend, voices, speech),
+        participation=True,
+        voices=voices,
+    ) as server:
         yield server
 
 

@@ -5,12 +5,13 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.config.constants import AUTH_START_PATH, SignalType
-from hopin.game.vocabulary import VOICE_PATH, GameRefusal, GameSignal
+from hopin.game.vocabulary import GameRefusal, GameSignal
+from hopin.participation.vocabulary import VOICE_PATH
 from tests.game.support.call_world import asked, serving_call
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Succeeds
-from tests.game.support.speech_origin import AUDIENCE_SCOPE, SPOKEN_WAV, chunked_wav, refusal_answer, speaking
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.loopback_origin import ARRIVAL_CAP_SECONDS, Origin
+from tests.support.speech_origin import AUDIENCE_SCOPE, SPOKEN_WAV, chunked_wav, refusal_answer, speaking
 
 pytestmark = pytest.mark.integration
 

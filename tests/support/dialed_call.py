@@ -25,7 +25,7 @@ from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, Sig
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
-from tests.support.signed_in import handshake_headers, seed_member
+from tests.support.signed_in import cookie_header, handshake_headers, seed_member
 from tests.support.stores import WatchedSessions, single_process_stores
 
 if TYPE_CHECKING:
@@ -269,6 +269,10 @@ class DialedCall:
         uri = window_uri(room_id)
         return self.request(token, "resources/read", {"uri": uri}, routing_name=uri).json()
 
+    def voice(self, member, path):
+        """What a seat's browser gets fetching the voice at the path its frame names, on its session cookie."""
+        return self.client.get(path, headers={"cookie": cookie_header(member.set_cookie_headers)})
+
     def hearing_tokens(self):
         """The holder of the exchanged tokens, which the MCP route keeps."""
         return self._mcp_front().hearing_tokens
@@ -373,9 +377,11 @@ def serving_dialed_call(
     figure_sources=(),
     figure_transport=None,
     hearing=None,
+    speaking=None,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
-    test. `hearing` is the speech service agents hear through, none with hearing off."""
+    test. `hearing` is the speech service agents hear through and `speaking` the one they speak through, none with
+    the setting off."""
     stores = single_process_stores()
     stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
@@ -386,6 +392,7 @@ def serving_dialed_call(
             figure_sources,
             figure_transport or _no_figure_source,
             hearing=hearing,
+            speaking=speaking,
         )
     )
     app = create_app(

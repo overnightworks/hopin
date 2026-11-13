@@ -13,11 +13,11 @@ from hopin.game.vocabulary import (
     GAME_RUN_DEADLINE_SECONDS,
     SIGNAL_TYPES,
     VOICE_DEADLINE_SECONDS,
-    VOICE_PATH,
     GamePhase,
     GameRefusal,
     GameSignal,
 )
+from hopin.game.voice import GAME_SPEAKER
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
 
     from hopin.game.quiz import Turn
-    from hopin.game.voice import Voice, VoiceStore
+    from hopin.game.voice import StoredVoice, Voice, VoiceShelf
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
     from hopin.signaling.scheduler import Scheduler, TimerHandle
@@ -85,11 +85,11 @@ def _line_frame(line: Line, quiz: Quiz, *, voiced: bool) -> JsonObject:
     return frame
 
 
-def _voice_frame(voice_id: str | None) -> JsonObject:
-    """The line's voice, or, with no id, the word that none follows."""
-    if voice_id is None:
+def _voice_frame(voice: StoredVoice | None) -> JsonObject:
+    """The line's voice, or, with none, the word that none follows."""
+    if voice is None:
         return {TYPE_KEY: GameSignal.GAME_VOICE.value}
-    return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice_id, "path": f"{VOICE_PATH}/{voice_id}"}
+    return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice.id, "path": voice.path}
 
 
 def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId]) -> JsonObject:
@@ -164,7 +164,7 @@ class Game:
         game_master: GameMaster,
         topic_drawer: Callable[[], tuple[str, ...]],
         voice: Voice | None,
-        voices: VoiceStore,
+        voices: VoiceShelf,
     ) -> None:
         self._rooms = rooms
         self._scheduler = scheduler
@@ -355,7 +355,7 @@ class Game:
         """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
         self._quizzes.pop(room_id, None)
         self._phases.pop(room_id, None)
-        self._voices.forget_room(room_id)
+        self._voices.forget_speaker(room_id, GAME_SPEAKER)
         for run in self._runs.pop(room_id, []):
             run.stop()
 
@@ -445,8 +445,12 @@ class Game:
         if not self._is_live(room_id, run):
             return
         seated = [seat for seat in recipients if self._rooms.room_of(PeerId(seat)) == room_id]
-        voice_id = None if wav is None else self._voices.put(room_id, wav)
-        await self._send_each(room_id, run, seated, _voice_frame(voice_id))
+        await self._send_each(room_id, run, seated, _voice_frame(None if wav is None else self._keep(room_id, wav)))
+
+    def _keep(self, room_id: str, wav: bytes) -> StoredVoice:
+        """Keep the sound as the room's latest voice, which the next voice or the room's end replaces."""
+        self._voices.forget_speaker(room_id, GAME_SPEAKER)
+        return self._voices.put(room_id, GAME_SPEAKER, wav)
 
     def _chain(self, room_id: str, quiz: Quiz) -> None:
         """Run the quiz's next request at once, on the starter's token and with no idle in between.

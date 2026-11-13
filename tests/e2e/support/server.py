@@ -21,6 +21,7 @@ from hopin.agent.speech_settings import SpeechService
 from hopin.app import create_app
 from hopin.main import uvicorn_options
 from hopin.participation.figure_transport import get_figure_over_https
+from hopin.participation.voice import VoiceStore
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.sign_in_settings import build_sign_in_settings
@@ -137,6 +138,25 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
     return LoopbackSignIn(port, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in))
 
 
+def participation_feature(
+    loopback: LoopbackSignIn,
+    agent_adders: Mapping[str, str] | None,
+    figure_sources: tuple[FigureSource, ...],
+    figure_transport: FigureTransport,
+    hears: bool,
+    voices: VoiceStore | None,
+) -> ParticipationFeature:
+    """Participation at the loopback's public origin, its hearing a speech service nobody reaches when `hears`."""
+    return ParticipationFeature(
+        loopback.sign_in.settings.public_origin,
+        agent_adders or {},
+        figure_sources,
+        figure_transport,
+        hearing=UNREACHABLE_HEARING if hears else None,
+        voices=voices or VoiceStore(),
+    )
+
+
 @contextmanager
 def running_hopin(
     loopback: LoopbackSignIn,
@@ -151,12 +171,14 @@ def running_hopin(
     more_call_features: Sequence[CallFeatureBuilder] = (),
     figure_sources: tuple[FigureSource, ...] = (),
     figure_transport: FigureTransport = get_figure_over_https,
+    voices: VoiceStore | None = None,
 ) -> Iterator[RunningServer]:
     """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for, and with
     the setting that lets agents hear on when `hears`;
     `agent_adders` maps an owner's subject to the group whose members may add that owner's agent,
     `figure_sources` are where participation may fetch an agent's figure from, through `figure_transport`, and
-    `more_call_features` wires further features beside `call_feature`.
+    `more_call_features` wires further features beside `call_feature`, and `voices` is the store the game's voices
+    and participation's route share.
 
     The page comes from `page_build_directory`, so a test can serve a copy it changes, and over `certificate` (key
     file, certificate file) when one is given.
@@ -170,15 +192,7 @@ def running_hopin(
             *(() if call_feature is None else (call_feature,)),
             *more_call_features,
             *(
-                (
-                    ParticipationFeature(
-                        loopback.sign_in.settings.public_origin,
-                        agent_adders or {},
-                        figure_sources,
-                        figure_transport,
-                        hearing=UNREACHABLE_HEARING if hears else None,
-                    ),
-                )
+                (participation_feature(loopback, agent_adders, figure_sources, figure_transport, hears, voices),)
                 if participation
                 else ()
             ),

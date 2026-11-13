@@ -1,4 +1,5 @@
 import asyncio
+import json
 import threading
 from dataclasses import dataclass
 from functools import partial
@@ -13,6 +14,7 @@ from hopin.agent.hearing import MemberHearingRecord
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
+from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.signaling.support.browsers import Link
@@ -89,6 +91,12 @@ def hearing_service():
 
 
 @pytest.fixture
+def speaking_service():
+    """The speech service agents speak through; none until a module about speaking names one."""
+    return
+
+
+@pytest.fixture
 def member_hearing(scheduler):
     """The agents library's record of who may hear whom, on the scheduler's clock."""
     return MemberHearing(now=scheduler.now)
@@ -100,7 +108,15 @@ def hearing(member_hearing, hears):
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads, listeners, hearing):
+def voices():
+    """The store of the sounds agents' sentences wait and play as."""
+    return VoiceStore()
+
+
+@pytest.fixture
+def handler(
+    room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads, listeners, hearing, voices
+):
     async def groups_of(connection):
         group_reads.append(connection.account.name)
         groups = groups_of_seat.get(connection.account.name, frozenset())
@@ -127,6 +143,7 @@ def handler(room_manager, scheduler, changes, window_changes, adders, groups_of_
                 figure_sources=(),
                 listens_to_standing=lambda person: person in listeners,
                 hearing=hearing,
+                voices=voices,
             )
         ],
     )
@@ -187,7 +204,15 @@ def figure_transport():
 
 
 @pytest.fixture
-def adding_call(sign_in_settings, seat_changes, adding_call_adders, figure_sources, figure_transport, hearing_service):
+def adding_call(
+    sign_in_settings,
+    seat_changes,
+    adding_call_adders,
+    figure_sources,
+    figure_transport,
+    hearing_service,
+    speaking_service,
+):
     """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
     sign_in = sign_in_settings()
     with serving_dialed_call(
@@ -198,6 +223,7 @@ def adding_call(sign_in_settings, seat_changes, adding_call_adders, figure_sourc
         figure_sources=figure_sources,
         figure_transport=figure_transport,
         hearing=hearing_service,
+        speaking=speaking_service,
     ) as call:
         yield call
 
@@ -250,6 +276,11 @@ class Scene:
     def standings(self):
         return self.call.standing(self.token)
 
+    def entries(self):
+        """The lines of the agent's chat window in the owner's call."""
+        answer = self.call.window(self.token, self.owner.room_id)
+        return json.loads(answer["result"]["contents"][0]["text"])["entries"]
+
     def accept(self, standing):
         return self.call.call(self.token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
 
@@ -267,3 +298,17 @@ def scene_of(adding_call):
 @pytest.fixture
 def scene(scene_of):
     return scene_of()
+
+
+@pytest.fixture
+def joined_agent(scene):
+    """The scene with its owner's agent added from the owner's own seat and accepted, so the agent holds a joined place
+    in the owner's call; `agent_id` is the id the seats are told."""
+    owner = scene.owner
+    while not (offers := owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]):
+        pass
+    owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
+    owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+    scene.accept(scene.standings()[0])
+    scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
+    return scene
