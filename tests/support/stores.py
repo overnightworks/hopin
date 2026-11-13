@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from webauth.single_process_stores import SingleProcessStores
 
 from hopin.auth.sign_in import LoggingAuditSink
+from hopin.participation.voice import StoredVoice, VoiceStore
 
 if TYPE_CHECKING:
     from webauth.ports import AuditSink, SessionRecord, SessionRecordStore
@@ -52,3 +53,25 @@ class WatchedSessions:
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._sessions, name)
+
+
+class WatchedVoices(VoiceStore):
+    """The voice store, counting the sounds put into it: the speaking path puts a sentence's sound just before it queues
+    the sentence, in the same step of the app's loop, so a step run on the loop after the count rose finds it queued."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._count = threading.Condition()
+        self.stored = 0
+
+    def put(self, room_id: str, speaker: str, wav: bytes) -> StoredVoice:
+        stored = super().put(room_id, speaker, wav)
+        with self._count:
+            self.stored += 1
+            self._count.notify_all()
+        return stored
+
+    def wait_for(self, stored: int, timeout_seconds: float) -> None:
+        with self._count:
+            if not self._count.wait_for(lambda: self.stored >= stored, timeout_seconds):
+                raise TimeoutError(f"{stored} sounds were not stored in {timeout_seconds} seconds")
