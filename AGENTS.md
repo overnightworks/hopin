@@ -8,7 +8,7 @@
 - `make lint`: ruff, mypy, `wire-check` and `design-catalogs --check`.
 - `make wire`: regenerates the generated `wire.ts` files from the Python wire owners.
 - `make catalogs`: regenerates the two generated words modules (`frontend/src/lib/words/de.ts` and `src/hopin/words.py`, which the server and the tests read) from the catalog; `make lint` fails when they are stale.
-- `make e2e`: the browser tests. Builds the page first and needs Playwright's Chromium installed once (the `End-to-end` job in `.github/workflows/ci.yml` shows how). Run it under the global contract's `flock` rule.
+- `make e2e`: the browser tests. Builds the page first and needs Playwright's Chromium installed once (the `End-to-end` job in `.github/workflows/ci.yml` shows how). Run its drive under the global contract's `probe-run` rule.
 - `make run`: builds the page, then `hopin serve`. The server refuses to start without that build.
 
 ## Rules
