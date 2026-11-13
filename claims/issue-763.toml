@@ -1,8 +1,0 @@
-claim_id = "72a2fb5d29034043ba0a41d9f78310e1"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "ef5355e8f32ddff9f91790bc665b0702119c4c0d"
-branch = "claude/issue-763-the-sponsor-s-voice-reaches-the-agent-wh"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/call", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat/index.test.ts", "frontend/src/routes/(call)/start-up.ts", "tests/e2e"]
-opened_commit = "fecfc8c7ecbb084a9fee3d2ad3d50d5075b34bb2"
-whole_reason = "The core's microphone handler, its one caller the capture, the browser package's pin and the end-to-end proof of S1 change together; a handler without capture is unreached and capture without proof would send a voice nobody tested."
