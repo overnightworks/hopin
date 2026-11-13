@@ -38,7 +38,8 @@ def e2e_server(speaking_server: RunningServer) -> RunningServer:
 
 @dataclass
 class Seat:
-    """An owner's seat in a call whose member added both of the owner's agents; each agent's switch starts off."""
+    """An owner's seat in a call whose scene's adder added both of the owner's agents: a member, with each agent's
+    switch off, or the owner from their own seat, with each switch on."""
 
     scene: Scene
     first: OwnAccountAgent
@@ -95,6 +96,17 @@ def seat(
     return Seat(scene_of(form_factor), own_account_agent, second_own_account_agent, fake_speech)
 
 
+@pytest.fixture
+def owners_own_seat(
+    scene_of: Callable[..., Scene],
+    own_account_agent: OwnAccountAgent,
+    second_own_account_agent: OwnAccountAgent,
+    fake_speech: FakeSpeech,
+    form_factor: dict[str, Any],
+) -> Seat:
+    return Seat(scene_of(form_factor, owner_adds=True), own_account_agent, second_own_account_agent, fake_speech)
+
+
 def wait_for_sentence(seat: Seat, agent: OwnAccountAgent, text: str) -> None:
     until(seat.page, lambda: text in seat.heard_by(agent), f"{text!r} in {agent.name}'s window")
 
@@ -130,6 +142,22 @@ def test_a_seat_brings_both_of_its_owners_agents_and_each_hears_only_while_its_o
     sent = [session.audio_appends() for session in sessions]
     settle(seat.page)
     assert [session.audio_appends() for session in sessions] == sent
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_an_owner_adds_both_of_their_agents_from_their_own_seat_and_both_hear_at_once(owners_own_seat: Seat) -> None:
+    """CALL-51, CALL-57: After the first agent joined, the owner's seat still offers the second, which they add too;
+    every browser shows both tiles, and as the owner added them the sound reaches both with no switch pressed."""
+    seat = owners_own_seat
+    for person in seat.scene.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_count(2)
+    for agent in (seat.first, seat.second):
+        expect(seat.switch_of(agent)).to_have_attribute("aria-checked", "true")
+
+    seat.says(SENTENCE)
+
+    for agent in (seat.first, seat.second):
+        wait_for_sentence(seat, agent, SENTENCE)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

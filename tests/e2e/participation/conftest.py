@@ -126,8 +126,17 @@ def scene_of(
     page_errors: list[str],
     grant_adders: Callable[[str], None],
     own_account_agent: OwnAccountAgent,
-) -> Callable[[dict[str, Any]], Scene]:
-    def build(form_factor: dict[str, Any]) -> Scene:
-        return Scene(open_person, member_of, e2e_server, page_errors, form_factor, grant_adders, own_account_agent)
+) -> Callable[..., Scene]:
+    def build(form_factor: dict[str, Any], *, owner_adds: bool = False) -> Scene:
+        return Scene(
+            open_person,
+            member_of,
+            e2e_server,
+            page_errors,
+            form_factor,
+            grant_adders,
+            own_account_agent,
+            owner_adds=owner_adds,
+        )
 
     return build
