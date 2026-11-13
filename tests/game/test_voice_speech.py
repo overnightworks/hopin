@@ -1,4 +1,5 @@
 import secrets
+from functools import partial
 
 import pytest
 import structlog.testing
@@ -20,6 +21,7 @@ from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     SPOKEN_WAV,
     chunked_wav,
+    failures_in,
     header_of,
     not_chunked_answer,
     refusal_answer,
@@ -32,6 +34,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 TEXT = f"Wie heißt die Hauptstadt {secrets.token_hex(8)}?"
 VOICE_NAME = VoiceId.THORSTEN
 FAILED = "game_voice_failed"
+failures_of = partial(failures_in, event=FAILED)
 OUTCOMES = [
     pytest.param(refusal_answer(RefusalCode.FORBIDDEN), {"outcome": "refused", "code": "forbidden"}, id="refused"),
     pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), {"outcome": "busy"}, id="busy"),
@@ -57,14 +60,6 @@ def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS):
     person = StarterPerson(world.relying_party, world.sessions, world.web_auth)
     service = SpeechService(origin.base_url, VOICE_NAME, AUDIENCE_SCOPE)
     return SpeechVoice(service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, person)
-
-
-def failures_in(logs):
-    return [
-        {key: value for key, value in log.items() if key not in {"event", "log_level"}}
-        for log in logs
-        if log["event"] == FAILED
-    ]
 
 
 class TestSpeaking:
@@ -113,7 +108,7 @@ class TestWithoutAVoice:
         with structlog.testing.capture_logs() as logs:
             wav = await voice_of(world, origin).speak(starter, TEXT)
 
-        assert (wav, failures_in(logs)) == (None, [logged])
+        assert (wav, failures_of(logs)) == (None, [logged])
 
     async def test_a_service_that_is_not_there_is_nothing_and_logs_unreachable(self, world):
         """GM-34: A service that is not there is nothing and logs unreachable."""
@@ -125,7 +120,7 @@ class TestWithoutAVoice:
         with structlog.testing.capture_logs() as logs:
             wav = await voice.speak(starter, TEXT)
 
-        assert (wav, failures_in(logs)) == (None, [{"outcome": "unreachable"}])
+        assert (wav, failures_of(logs)) == (None, [{"outcome": "unreachable"}])
 
     async def test_an_answer_past_the_deadline_is_nothing_and_logs_past_deadline(self, world, origin):
         """GM-34: An answer past the deadline is nothing and logs past deadline."""
@@ -135,7 +130,7 @@ class TestWithoutAVoice:
         with structlog.testing.capture_logs() as logs:
             wav = await voice_of(world, origin, deadline_seconds=0.2).speak(starter, TEXT)
 
-        assert (wav, failures_in(logs)) == (None, [{"outcome": "past_deadline"}])
+        assert (wav, failures_of(logs)) == (None, [{"outcome": "past_deadline"}])
 
     async def test_a_starter_without_a_standing_session_is_nothing_and_no_workload_token_is_asked_for(
         self, world, origin
@@ -147,7 +142,7 @@ class TestWithoutAVoice:
         with structlog.testing.capture_logs() as logs:
             wav = await voice_of(world, origin).speak(starter, TEXT)
 
-        assert (wav, failures_in(logs), world.grant_types(), origin.requests) == (
+        assert (wav, failures_of(logs), world.grant_types(), origin.requests) == (
             None,
             [{"outcome": "starter_token_refused"}],
             [],
@@ -163,7 +158,7 @@ class TestWithoutAVoice:
         with structlog.testing.capture_logs() as logs:
             wav = await voice_of(world, origin).speak(starter, TEXT)
 
-        assert (wav, failures_in(logs), origin.requests) == (
+        assert (wav, failures_of(logs), origin.requests) == (
             None,
             [{"outcome": "workload_token_refused", "idp_error": "unauthorized_client"}],
             [],
@@ -177,7 +172,7 @@ class TestWithoutAVoice:
         with structlog.testing.capture_logs() as logs:
             wav = await voice_of(world, origin).speak(starter, "…!?")
 
-        assert (wav, failures_in(logs), origin.requests) == (None, [{"outcome": "input_refused"}], [])
+        assert (wav, failures_of(logs), origin.requests) == (None, [{"outcome": "input_refused"}], [])
 
     async def test_no_log_holds_the_text_a_token_or_the_audio(self, world, origin):
         """GM-34: No log holds the text, a token or the audio."""

@@ -3,6 +3,7 @@ issuer, and the sound fetched at the route the seats are told."""
 
 import logging
 import secrets
+from functools import partial
 
 import pytest
 import structlog.testing
@@ -26,6 +27,7 @@ from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     SPOKEN_WAV,
     chunked_wav,
+    failures_in,
     header_of,
     not_chunked_answer,
     refusal_answer,
@@ -44,6 +46,7 @@ SOUND = silent_wav(SENTENCE_SECONDS)
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 TEXT = "Ein geheimer Satz"
 FAILED = "agent_speak_failed"
+failures_of = partial(failures_in, event=FAILED)
 
 
 @pytest.fixture
@@ -179,14 +182,6 @@ SPEECH_FAILS = [
 ]
 
 
-def failures_in(logs):
-    return [
-        {key: value for key, value in log.items() if key not in {"event", "log_level"}}
-        for log in logs
-        if log["event"] == FAILED
-    ]
-
-
 class TestWhenTheSentenceCannotBeSpoken:
     def test_call_60_a_sentence_one_character_over_the_bound_is_too_long_and_nobody_is_called(
         self, joined_agent, speech_origin
@@ -205,7 +200,7 @@ class TestWhenTheSentenceCannotBeSpoken:
             dialed = speak(joined_agent)
         drained(joined_agent)
 
-        assert (refusal_of(dialed), failures_in(logs)) == ((True, {"refused": "unavailable"}), [logged])
+        assert (refusal_of(dialed), failures_of(logs)) == ((True, {"refused": "unavailable"}), [logged])
         assert frames_of(joined_agent.member, VOICE) == []
 
     def test_call_60_an_agent_with_no_held_token_is_unavailable_and_no_workload_token_is_asked_for(
@@ -222,7 +217,7 @@ class TestWhenTheSentenceCannotBeSpoken:
 
         assert (
             refusal_of(dialed),
-            failures_in(logs),
+            failures_of(logs),
             len(adding_call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)) - grants_before,
             speech_origin.requests,
         ) == ((True, {"refused": "unavailable"}), [{"outcome": "no_token"}], 0, [])
@@ -235,7 +230,7 @@ class TestWhenTheSentenceCannotBeSpoken:
         with structlog.testing.capture_logs() as logs:
             dialed = speak(joined_agent)
 
-        assert (refusal_of(dialed), [log["outcome"] for log in failures_in(logs)], speech_origin.requests) == (
+        assert (refusal_of(dialed), [log["outcome"] for log in failures_of(logs)], speech_origin.requests) == (
             (True, {"refused": "unavailable"}),
             ["workload_token_refused"],
             [],
@@ -268,7 +263,7 @@ class TestAServiceThatIsNotThere:
         with structlog.testing.capture_logs() as logs:
             dialed = speak(joined_agent)
 
-        assert (refusal_of(dialed), failures_in(logs)) == (
+        assert (refusal_of(dialed), failures_of(logs)) == (
             (True, {"refused": "unavailable"}),
             [{"outcome": "unreachable"}],
         )

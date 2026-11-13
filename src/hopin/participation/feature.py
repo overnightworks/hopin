@@ -39,12 +39,13 @@ from hopin.participation.vocabulary import (
 from hopin.signaling.frames import JsonObject, PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Collection, Iterable, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
     from hopin.participation.hearing import Hearing, HearingHandle
     from hopin.participation.live_agents import LiveAgent
+    from hopin.participation.places import Place
     from hopin.participation.speaking import QueuedSentence, Renderer
     from hopin.participation.voice import VoiceStore
     from hopin.signaling.features import CallRooms
@@ -412,8 +413,7 @@ class Participation:
                 self._departed[peer_id] = joined
         elif self._rooms.is_parked(peer_id):
             self._hearing.end_sound(peer_id)
-            for place in [place for _, _, place in bound if isinstance(place, DialedAgent)]:
-                self._speaking.end(place)
+            self._end_speaking_of(place for _, _, place in bound)
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
 
@@ -621,6 +621,12 @@ class Participation:
         if not isinstance(agent, DialedAgent):
             return AgentRefusal.GONE
         return AgentRefusal.SPONSOR_AWAY if self._rooms.is_parked(agent.sponsor) else agent
+
+    def _end_speaking_of(self, places: Iterable[Place]) -> None:
+        """Drop the queue and the sounds of each agent among the places."""
+        for place in places:
+            if isinstance(place, DialedAgent):
+                self._speaking.end(place)
 
     def _agent_ended(self, agent: DialedAgent) -> None:
         """The agent's removal, leave or lease end: it hears and speaks nothing more."""

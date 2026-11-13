@@ -138,6 +138,25 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
     return LoopbackSignIn(port, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in))
 
 
+def participation_feature(
+    loopback: LoopbackSignIn,
+    agent_adders: Mapping[str, str] | None,
+    figure_sources: tuple[FigureSource, ...],
+    figure_transport: FigureTransport,
+    hears: bool,
+    voices: VoiceStore | None,
+) -> ParticipationFeature:
+    """Participation at the loopback's public origin, its hearing a speech service nobody reaches when `hears`."""
+    return ParticipationFeature(
+        loopback.sign_in.settings.public_origin,
+        agent_adders or {},
+        figure_sources,
+        figure_transport,
+        hearing=UNREACHABLE_HEARING if hears else None,
+        voices=voices or VoiceStore(),
+    )
+
+
 @contextmanager
 def running_hopin(
     loopback: LoopbackSignIn,
@@ -173,16 +192,7 @@ def running_hopin(
             *(() if call_feature is None else (call_feature,)),
             *more_call_features,
             *(
-                (
-                    ParticipationFeature(
-                        loopback.sign_in.settings.public_origin,
-                        agent_adders or {},
-                        figure_sources,
-                        figure_transport,
-                        hearing=UNREACHABLE_HEARING if hears else None,
-                        voices=voices or VoiceStore(),
-                    ),
-                )
+                (participation_feature(loopback, agent_adders, figure_sources, figure_transport, hears, voices),)
                 if participation
                 else ()
             ),

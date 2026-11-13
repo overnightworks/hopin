@@ -58,3 +58,12 @@ def spoken_request(request) -> SpeechRequest:
     """The request parsed with the client's own model, never rebuilt."""
     _, _, _, body = request
     return SpeechRequest.model_validate_json(body)
+
+
+def failures_in(logs, event: str) -> list[dict]:
+    """What each log line of the event carries besides its name and level: the closed codes of a failure."""
+    return [
+        {key: value for key, value in log.items() if key not in {"event", "log_level"}}
+        for log in logs
+        if log["event"] == event
+    ]

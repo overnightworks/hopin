@@ -362,11 +362,7 @@ class ParticipationFeature:
             )
         )
         router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
-        router.add_api_route(
-            f"{VOICE_PATH}/{{voice_id}}",
-            voice_endpoint(self.voices, lambda account, room: built.current().holds_seat(account, room)),
-            methods=READ_METHODS,
-        )
+        self._add_voice_route(router, built.current)
         if self.hearing is not None:
             hearing_route = HearingRoute(
                 service=self.hearing,
@@ -379,6 +375,14 @@ class ParticipationFeature:
             )
             router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+
+    def _add_voice_route(self, router: APIRouter, participation: Callable[[], Participation]) -> None:
+        """Serve the stored sounds to the signed-in accounts that hold a seat in the sound's room."""
+        router.add_api_route(
+            f"{VOICE_PATH}/{{voice_id}}",
+            voice_endpoint(self.voices, lambda account, room: participation().holds_seat(account, room)),
+            methods=READ_METHODS,
+        )
 
     def _resource(self, transaction: SignInTransaction) -> ProtectedResource:
         return ProtectedResource(
