@@ -3,11 +3,6 @@ import workletUrl from "overnightworks-speech-browser/capture-worklet.js?url&no-
 
 type StartCapture = (options: CaptureOptions) => Capture;
 
-interface Running {
-    readonly capture: Capture;
-    readonly stream: MediaStream;
-}
-
 /** What the person's browser sends of their microphone: one capture of the stream into the seat's hop while the server's record has an agent hearing them and the core holds their microphone, and none otherwise. */
 export interface HearingCapture {
     setHeard(heard: boolean): void;
@@ -18,20 +13,19 @@ export interface HearingCapture {
 export function createHearingCapture(hopUrl: () => string, startCapture: StartCapture): HearingCapture {
     let heard = false;
     let stream: MediaStream | null = null;
-    let running: Running | null = null;
+    let running: Capture | null = null;
     let mayReopen = true;
 
     function stop() {
-        running?.capture.stop();
+        running?.stop();
         running = null;
     }
 
     function start(microphone: MediaStream) {
         const capture = startCapture({ stream: microphone, hopUrl: hopUrl(), workletUrl });
-        const own: Running = { capture, stream: microphone };
-        running = own;
+        running = capture;
         void capture.ended.then((end) => {
-            if (running !== own) return;
+            if (running !== capture) return;
             running = null;
             if (end.kind === "hop" && end.close === HopClose.PAST_DEADLINE && mayReopen) {
                 mayReopen = false;
@@ -41,12 +35,8 @@ export function createHearingCapture(hopUrl: () => string, startCapture: StartCa
     }
 
     function reconcile() {
-        if (!heard || stream === null) {
-            stop();
-        } else if (running?.stream !== stream) {
-            stop();
-            start(stream);
-        }
+        stop();
+        if (heard && stream !== null) start(stream);
     }
 
     return {
