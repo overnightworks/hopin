@@ -324,10 +324,11 @@ class TestMemberSignIn:
 
 
 class EndSessionPage(HTMLParser):
-    """The form webauth's logout page posts: its action, hidden fields and button text."""
+    """The form webauth's logout page posts: its language, action, hidden fields and button text."""
 
     def __init__(self, markup: str) -> None:
         super().__init__()
+        self.language = ""
         self.action = ""
         self.fields: dict[str, str] = {}
         self.button_label = ""
@@ -336,7 +337,9 @@ class EndSessionPage(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
-        if tag == "form":
+        if tag == "html":
+            self.language = attributes["lang"]
+        elif tag == "form":
             self.action = attributes["action"]
         elif tag == "input":
             self.fields[attributes["name"]] = attributes["value"]
@@ -370,6 +373,7 @@ class TestLogout:
             "post_logout_redirect_uri": TEST_PUBLIC_ORIGIN + LOGIN_PATH,
             "id_token_hint": id_token,
         }
+        assert page.language == "de"
         assert page.button_label == text("de", "signIn.logOutButton")
         assert harness.sessions.load(session_id) is None
         assert harness.who(browser) == {"user": None}
