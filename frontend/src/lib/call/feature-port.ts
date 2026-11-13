@@ -69,6 +69,8 @@ export interface FeatureCore {
     drawAgentFigures(drawer: AgentFigureDrawer): void;
     /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */
     showStage(view: FeatureView | null): void;
+    /** Register a handler for the person's microphone; it is told the current state at once and then on every change: a stream that holds only the local microphone track while the person is in a call and the microphone is on, and null otherwise (the pre-join included). The stream is never a screen share's audio, a peer's or an agent's. */
+    onMicrophone(handler: (stream: MediaStream | null) => void): void;
     onCallEnded(hook: () => void): void;
 }
 

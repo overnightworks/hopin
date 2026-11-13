@@ -13,6 +13,7 @@ import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.sv
 import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "#lib/call/media.ts";
 import { registerMediaStateHandlers } from "#lib/call/media-state.ts";
+import { microphoneChanged, onMicrophone } from "#lib/call/microphone.ts";
 import {
     IceServersUnavailableError,
     loadIceServers,
@@ -64,6 +65,7 @@ const FEATURE_CORE: FeatureCore = Object.freeze({
     showAgentTile: stageModule.showAgentTile,
     drawAgentFigures: stageModule.drawAgentFigures,
     showStage: stageModule.showStage,
+    onMicrophone,
     onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);
     },
@@ -116,8 +118,14 @@ function startCall() {
     );
 }
 
+function enterCall() {
+    state.inCall = true;
+    microphoneChanged();
+}
+
 function tearDownCall() {
     state.intentionalLeave = true;
+    state.inCall = false;
     removeAllPeers();
     stopLocalMedia();
     disconnect();
@@ -154,6 +162,7 @@ function registerSessionHandlers() {
         state.roomId = data.room_id;
         state.isHost = data.is_host;
         state.reconnectAttempt = 0;
+        enterCall();
         void showCallAddress(state.roomId);
         setCallLink(callUrl(state.roomId));
         showWaitingCard();
@@ -169,6 +178,7 @@ function registerSessionHandlers() {
         state.isHost = data.is_host;
         state.isLocked = data.locked;
         state.reconnectAttempt = 0;
+        enterCall();
         // A guest is admitted only from the call's own address.
         setCallLink(callUrl(getRoomIdFromUrl() as string));
         setStatus(words["call.statusInCall"], "connected");
