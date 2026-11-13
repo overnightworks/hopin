@@ -91,6 +91,10 @@ async function installedParticipation(installOn?: typeof install) {
                 .flatMap((item) => [...item.querySelectorAll("[role=alert]")])
                 .at(0)?.textContent,
         shown: () => onThePage().some((item) => item.textContent !== ""),
+        sentence: () =>
+            onThePage()
+                .flatMap((item) => [...item.querySelectorAll("p")])
+                .at(0)?.textContent,
         focused: () => moreItems.find((item) => item.contains(document.activeElement)),
         endCall: () => {
             callEndedHooks.forEach((hook) => {
@@ -709,6 +713,22 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
 
         expect([whileEmpty, page.shown()]).toEqual([true, false]);
+    });
+
+    it("CALL-51: says that no place is free, in place of the empty sentence, when the frame tells the call is full", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, full: false, offers: [] });
+        const whileFree = page.sentence();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, full: true, offers: [] });
+        const whileFull = page.sentence();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, full: false, offers: [] });
+
+        expect([whileFree, whileFull, page.sentence()]).toEqual([
+            expect.stringContaining("kein Agent erreichbar"),
+            expect.stringContaining("kein Platz"),
+            whileFree,
+        ]);
     });
 
     it("keeps the agent's name as text, never as markup", async () => {
