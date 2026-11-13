@@ -89,14 +89,13 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         // Only a player that is still open reports, and `hide` closes the player of an agent before it leaves `shown`.
         draw(shown.get(agentId) as ShownAgent);
     });
-    // Agents whose switch the person pressed off and whose record has not answered yet: they no longer hear the person
-    // for the capture, whatever the record still says.
+    // Agents whose switch the person pressed off and whose record has not answered yet: until it does, the capture
+    // stays closed, for no sound sent after the press may reach them, whichever other agents still hear the person.
     const pressedOff = new Set<string>();
 
-    // The server's record decides, except for an agent whose switch the person pressed off before the record answered.
     function hearingAgents() {
-        return [...shown.values()].filter((agent) => agent.hearing === true && !pressedOff.has(agent.joined.agent_id))
-            .length;
+        if (pressedOff.size > 0) return 0;
+        return [...shown.values()].filter((agent) => agent.hearing === true).length;
     }
 
     function mayRemove(frame: AgentJoinedFrame) {
