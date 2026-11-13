@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "2dddea7bfb9c520e3eb6622f2240f7f467236173"
 branch = "claude/issue-767-every-browser-plays-a-joined-agent-s-sen"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "scripts/generate_wire.py", "src/hopin/agent/speaking.py", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "src/hopin/participation/text.py", "tests/agent", "tests/e2e/participation", "tests/e2e/support", "tests/participation", "uv.lock"]
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "scripts/generate_wire.py", "src/hopin/agent/speaking.py", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "src/hopin/participation/text.py", "tests/agent", "tests/e2e/participation", "tests/e2e/support", "tests/participation", "tests/support/speech_origin.py", "uv.lock"]
 opened_commit = "77fbb6662002723e1bf84a2854312869652e7184"
 whole_reason = "The player per agent, the tile's speaking state, their end-to-end proof, the speech pins they play through and the two server fixes the live sound needs change together; a player without its proof would play a voice nobody tested."
