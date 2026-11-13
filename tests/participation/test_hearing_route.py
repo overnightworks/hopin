@@ -26,17 +26,16 @@ from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
-from hopin.participation.vocabulary import HEARING_PATH, HearingClose, HearingRefusal, ParticipationSignal
+from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_speech import WAIT_SECONDS, FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
-from tests.support.signed_in import handshake_headers
+from tests.support.hearing_socket import SOUND, closed_with, hop
 
 pytestmark = pytest.mark.integration
 
 AUDIENCE_SCOPE = "speech-audience"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
-SOUND = bytes(100)
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 
 
@@ -58,21 +57,6 @@ def sponsored(joined_agent):
     """The scene with its owner's agent joined, so the agent hears the owner; the sponsor's switch is told on."""
     joined_agent.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
     return joined_agent
-
-
-def hop(scene, *, seat=None, login=...):
-    """The hearing socket of a seat, opened as that seat's browser opens it; the owner's seat and login by default, and
-    no login at all for `None`."""
-    seat = scene.owner if seat is None else seat
-    return scene.call.client.websocket_connect(
-        f"{HEARING_PATH}/{seat.participant_id}", headers=handshake_headers(scene.owner_login if login is ... else login)
-    )
-
-
-def closed_with(socket):
-    message = socket.receive()
-    assert message["type"] == "websocket.close"
-    return message["code"]
 
 
 def entries_of(scene, token=None, room_id=None):

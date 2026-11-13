@@ -24,6 +24,7 @@ from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, SPEAK_MAX_CHARACTERS
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import VOICE_PATH, ParticipationSignal
+from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.loopback_origin import Origin
@@ -46,12 +47,10 @@ pytestmark = pytest.mark.integration
 
 VOICE = ParticipationSignal.AGENT_VOICE.value
 LINE = ParticipationSignal.AGENT_LINE.value
-SENTENCE_SECONDS = 1.5
 SENTENCE_MS = 1500
 SOUND = silent_wav(SENTENCE_SECONDS)
 STREAMING_DATA_SIZE = 0xFFFFFFFF
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
-TEXT = "Ein geheimer Satz"
 FAILED = "agent_speak_failed"
 UNKNOWN_VOICE = "de_DE-nobody-medium"
 UNKNOWN_VOICE_EVENT = "agent_voice_unknown"
@@ -70,14 +69,6 @@ def speech_origin():
 @pytest.fixture
 def speaking_service(speech_origin):
     return SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE)
-
-
-def speak(scene, text=TEXT, room_id=None, token=None, **named):
-    """The agent's `speak` call; `named` is what else the call names, such as its `language`."""
-    place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
-    return scene.call.call(
-        scene.token if token is None else token, SPEAK_TOOL, {"place": place.model_dump(), "text": text, **named}
-    )
 
 
 def stop(scene, room_id=None):
