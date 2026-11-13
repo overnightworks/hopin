@@ -51,11 +51,13 @@ export function createHearingCapture(hopUrl: () => string, startCapture: StartCa
 
     return {
         setHeard(value) {
+            if (value === heard) return;
             heard = value;
             mayReopen = true;
             reconcile();
         },
         setStream(value) {
+            if (value === stream) return;
             stream = value;
             mayReopen = true;
             reconcile();

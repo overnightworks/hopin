@@ -120,18 +120,33 @@ describe("a hop that ended", () => {
         expect([live().length, captures.started.length]).toEqual([1, 4]);
     });
 
+    it("CALL-59: gets no new reopening from a notice that changes neither the switch nor the microphone", async () => {
+        const capture = freshCapture();
+        capture.setStream(stream("microphone"));
+        capture.setHeard(true);
+        await captures.started[0]?.end(PAST_DEADLINE);
+
+        capture.setHeard(true);
+        capture.setStream(stream("microphone"));
+        await captures.started[1]?.end(PAST_DEADLINE);
+
+        expect([live().length, captures.started.length]).toEqual([0, 2]);
+    });
+
     it.each([
         { kind: "hop", close: HopClose.BUSY },
         { kind: "hop", close: HopClose.SERVICE_FAILED },
         { kind: "hop", close: HopClose.NORMAL },
         { kind: "socket", code: HEARING_CLOSE.NO_TOKEN },
         { kind: "local", failure: "worklet-refused" },
-    ] as const)("CALL-59: stays closed after %o with the next change", async (end) => {
+    ] as const)("CALL-59: stays closed after %o until the switch or the microphone changes", async (end) => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
 
         await captures.started[0]?.end(end);
+        capture.setHeard(true);
+        capture.setStream(stream("microphone"));
         expect(captures.started).toHaveLength(1);
         capture.setStream(stream("second"));
 
