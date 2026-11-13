@@ -1,0 +1,7 @@
+claim_id = "f17a5e547cd043f68ac0093e6b3c8523"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "95b3345b6c236bbc9733672a05fb858dc28e438f"
+branch = "docs/speaking-row"
+scope = ["README.md"]
+opened_commit = "a6929d3090c48e2f74b72d2b3cf50f48dd4db9a1"
