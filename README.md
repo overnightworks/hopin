@@ -30,7 +30,7 @@ Press "Anruf starten" and share the generated link.
 
 ## Run in a Container
 
-HopIn runs on the platform (k3s with Flux) from its attested private image in GHCR; the platform's repository owns its manifests and the live settings. [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs. Two gaps hold there today ([platform#46](https://github.com/overnightworks/platform/issues/46)): the quiz master reads unavailable, and Keycloak's back-channel logout does not reach HopIn.
+HopIn runs on the platform (k3s with Flux) from its attested private image in GHCR; the platform's repository owns its manifests and the live settings. [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs. One gap holds there today ([platform#46](https://github.com/overnightworks/platform/issues/46)): Keycloak's back-channel logout does not reach HopIn.
 
 `compose.yaml` serves only the rollback path on hal. It owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
 
