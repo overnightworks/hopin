@@ -2,7 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import SPEAK_TOOL, PlaceRef
+from agents.member import SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
 from playwright.sync_api import Page, expect
 from speech_client.wire import VoiceId
 
@@ -110,6 +110,10 @@ class Speaker:
             SPEAK_TOOL, {"place": place.model_dump(), "text": text}
         )
 
+    def stop(self) -> dict[str, Any]:
+        place = PlaceRef(kind=CALL_KIND, id=self.room)
+        return self.scene.agent.call(STOP_SPEAKING_TOOL, {"place": place.model_dump()})
+
     def leave(self) -> None:
         self.scene.agent.call(LEAVE_CALL, {"room": self.room})
 
@@ -194,3 +198,32 @@ def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_t
     for person, tiles in tiles_of.items():
         expect(tiles[0]).not_to_have_class(SPEAKING_TILE)
         assert sorted(speaker.started(person)) == [SOUND_SECONDS, LONGER_SOUND_SECONDS]
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_stop_cuts_the_sentence_and_drops_the_queue_in_every_browser_and_the_agent_speaks_again(
+    speaker: Speaker,
+) -> None:
+    """CALL-60: `stop_speaking` ends the sound that plays in every browser at once and its tile shows present again,
+    the sentence waiting behind it never sounds and answers stopped, and the agent's next sentence sounds."""
+    everyone = speaker.scene.everyone
+    speaker.speak(LONGER_SOUND_SECONDS)
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+    behind = speaker.speak_behind(SOUND_SECONDS)
+
+    cut = speaker.stop()
+
+    assert cut == {"cut": "Guten Tag"}
+    with pytest.raises(AssertionError, match="stopped"):
+        behind.result(REQUEST_SECONDS)
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+        assert person.evaluate("() => window.soundsStopped") > 0
+
+    speaker.speak(SOUND_SECONDS)
+
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+        person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        assert speaker.started(person)[1] == SOUND_SECONDS
