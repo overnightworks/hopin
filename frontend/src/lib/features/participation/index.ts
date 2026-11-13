@@ -199,7 +199,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         offered = frame.offers;
         const pending = new Set(offered.filter((offer) => offer.pending).map((offer) => offer.agent_key));
         const listed = new Set(offered.map((offer) => offer.agent_key));
-        for (const key of [...endings.keys()]) if (pending.has(key) || !listed.has(key)) endings.delete(key);
+        for (const key of endings.keys()) if (pending.has(key) || !listed.has(key)) endings.delete(key);
         offersView.shown = frame.shown;
         drawOffers();
         flushSync();
