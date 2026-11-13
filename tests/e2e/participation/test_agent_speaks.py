@@ -24,7 +24,7 @@ pytestmark = pytest.mark.e2e
 
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
 SOUND_SECONDS = 1.0
-LONGER_SOUND_SECONDS = 3.0
+LONGER_SOUND_SECONDS = 5.0
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
 # Each page records the length of every sound its player starts and how many it stopped.
@@ -161,11 +161,17 @@ def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_t
     speaker.speak(LONGER_SOUND_SECONDS, agent=first)
     speaker.speak(SOUND_SECONDS, agent=second)
 
-    for person in speaker.scene.everyone:
-        tiles = [person.locator(AGENT_TILE).filter(has_text=agent.name) for agent in (first, second)]
-        for tile in tiles:
-            expect(tile).to_have_class(SPEAKING_TILE)
+    everyone = speaker.scene.everyone
+    tiles_of = {
+        person: [person.locator(AGENT_TILE).filter(has_text=agent.name) for agent in (first, second)]
+        for person in everyone
+    }
+    for tiles in tiles_of.values():
+        expect(tiles[0]).to_have_class(SPEAKING_TILE)
+        expect(tiles[1]).to_have_class(SPEAKING_TILE)
+    for tiles in tiles_of.values():
         expect(tiles[1]).not_to_have_class(SPEAKING_TILE)
         expect(tiles[0]).to_have_class(SPEAKING_TILE)
+    for person, tiles in tiles_of.items():
         expect(tiles[0]).not_to_have_class(SPEAKING_TILE)
         assert speaker.started(person) == [LONGER_SOUND_SECONDS, SOUND_SECONDS]
