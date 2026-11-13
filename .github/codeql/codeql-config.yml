@@ -1,0 +1,5 @@
+paths-ignore:
+  # False positive: the sign-in test helper writes throwaway secrets.token_urlsafe
+  # values into pytest's temporary directory because ServerSettings reads both
+  # secrets from files; no real secret is involved.
+  - tests/support/sign_in_settings.py
