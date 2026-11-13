@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "1673ba551f67fb1c2d50ea53cd06d16042dfad32"
 branch = "claude/issue-779-a-seat-brings-both-of-its-owner-s-agents"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation", "src/hopin/agent", "src/hopin/participation", "tests/agent", "tests/e2e/participation", "tests/e2e/support", "tests/participation"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation", "src/hopin/agent", "src/hopin/participation", "tests/agent", "tests/e2e/participation", "tests/e2e/support", "tests/participation"]
 opened_commit = "3993c5c06287c080657ae18811bfc2d63fb799bd"
 whole_reason = "The seat's rule, its hearing and speaking per agent and the docs that state them change together."
