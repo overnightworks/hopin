@@ -84,6 +84,11 @@ class Session:
                 WAIT_SECONDS,
             ), f"the service received fewer than {appends} audio frames"
 
+    def app_has_spoken(self) -> bool:
+        """Whether the app has sent its session update, the first thing it says once the connection is open."""
+        with self._arrived:
+            return bool(self.client_messages)
+
     def wait_until_closed(self) -> None:
         assert self.closed.wait(WAIT_SECONDS), "the connection to the service stayed open"
 
@@ -175,7 +180,9 @@ class FakeSpeech:
     @staticmethod
     def _serve(connection: ServerConnection, session: Session) -> None:
         while True:
-            while True:
+            # The service answers only an app that has sent its session update; an event or a close sent before it
+            # makes the app's update fail on a connection that is already shut.
+            while session.app_has_spoken():
                 try:
                     outgoing = session._outgoing.get_nowait()  # noqa: SLF001 - the fake's own session
                 except queue.Empty:

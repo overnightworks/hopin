@@ -1,6 +1,7 @@
 """CALL-58: the hearing route at HopIn's real `/ws` composition, with a fake speech service on a loopback port, a fake
 issuer, and the agent's window read through the real `/mcp`."""
 
+import asyncio
 import base64
 import json
 import logging
@@ -10,6 +11,7 @@ from http import HTTPStatus
 import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
+from speech_client.hearing import HearingSession
 from speech_client.relay import HopClose
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
@@ -37,6 +39,7 @@ pytestmark = pytest.mark.integration
 AUDIENCE_SCOPE = "speech-audience"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 SOUND = bytes(100)
+SLOW_APP_SECONDS = 0.3
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 
 
@@ -133,6 +136,23 @@ class TestAFinishedSentence:
                 "spoken": True,
             },
         )
+
+    def test_call_58_a_sentence_the_service_says_before_the_app_sent_its_update_still_enters_the_window(
+        self, sponsored, fake_speech, monkeypatch
+    ):
+        """CALL-58: The service says nothing before the app's session update, so a slow app loses no sentence."""
+        connect = HearingSession._connect  # noqa: SLF001 - the app's slowness is the arrangement
+
+        async def slow_connect(session):
+            socket = await connect(session)
+            await asyncio.sleep(SLOW_APP_SECONDS)
+            return socket
+
+        monkeypatch.setattr(HearingSession, "_connect", slow_connect)
+
+        closed = hear_one_sentence(sponsored, fake_speech)
+
+        assert (closed, [entry["text"] for entry in entries_of(sponsored)]) == (HearingClose.NORMAL, ["Guten Tag"])
 
     def test_call_58_it_is_asked_for_german_and_english(self, sponsored, fake_speech):
         with hop(sponsored) as socket:
