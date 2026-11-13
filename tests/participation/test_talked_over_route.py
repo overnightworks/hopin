@@ -12,6 +12,7 @@ from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.test_hearing_route import SOUND, closed_with, hop
 from tests.participation.test_speaking_tool import SENTENCE_SECONDS, TEXT, speak
 from tests.support.fake_speech import ITEM, WAIT_SECONDS, FakeSpeech, completed
+from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, silent_wav, speaking
 
 pytestmark = pytest.mark.integration
