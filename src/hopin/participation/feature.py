@@ -88,7 +88,8 @@ class Caller:
 @dataclass(frozen=True)
 class DialedAgent:
     """An agent in a call. Its person is whose token it uses; its sponsor is the seat that decides where it may be and
-    when it goes. Today both are the one person who dialed it in."""
+    when it goes. Today both are the one person who dialed it in. Its voice is the speech voice its accept named and
+    the connector knows, or none, which keeps the configured one."""
 
     agent_id: str
     name: str
@@ -96,6 +97,7 @@ class DialedAgent:
     sponsor: PeerId
     room_id: str
     figure: Figure | None = None
+    voice: str | None = None
 
 
 GROUPS_READ_TASK_NAME = "participation-groups-read"
@@ -300,10 +302,16 @@ class Participation:
         )
 
     async def accept(
-        self, person: Person, room_id: str, invitation_id: str, epoch: int, figure: Figure | None
+        self,
+        person: Person,
+        room_id: str,
+        invitation_id: str,
+        epoch: int,
+        figure: Figure | None,
+        voice: str | None = None,
     ) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
-        shows the figure only when an allowed source holds it."""
+        shows the figure only when an allowed source holds it, and the agent keeps `voice` for its sentences."""
         live = self._live.by_person.get(person)
         invitation = self._places.get(person, room_id)
         if (
@@ -328,6 +336,7 @@ class Participation:
             invitation.sponsor,
             room_id,
             figure if refusal is None else None,
+            voice,
         )
         self._places.put(person, room_id, agent)
         self._hearing.joined(agent, brought_by_sponsor=invitation.adder == invitation.sponsor)

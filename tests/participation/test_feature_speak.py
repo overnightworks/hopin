@@ -32,7 +32,7 @@ FAILED = "agent_speak_failed"
 
 
 def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
-    async def render(text):
+    async def render(text, voice):
         return RenderedSentence(wav, duration_ms)
 
     return render
@@ -60,15 +60,15 @@ LONG_MS = 60 * 60 * 1000
 LONG = rendering(duration_ms=LONG_MS)
 
 
-async def renders_nothing(sentence):
+async def renders_nothing(sentence, voice):
     return None
 
 
-async def renders_cancelled(sentence):
+async def renders_cancelled(sentence, voice):
     raise asyncio.CancelledError
 
 
-async def renders_broken(sentence):
+async def renders_broken(sentence, voice):
     raise RuntimeError("the speech service broke")
 
 
@@ -328,7 +328,7 @@ class TestASentenceThatIsNotSpoken:
         host, *_ = call
         rendered = []
 
-        async def render(sentence):
+        async def render(sentence, voice):
             rendered.append(sentence)
 
         with structlog.testing.capture_logs() as logs:
@@ -344,7 +344,7 @@ class TestASentenceThatIsNotSpoken:
     async def test_call_60_a_renderer_with_no_sound_refuses_unavailable_and_nothing_is_shown(self, participation, call):
         host, *_ = call
 
-        async def render(sentence):
+        async def render(sentence, voice):
             return None
 
         refused = await speak(participation, render=render, room_id=room_of(host))
@@ -371,7 +371,7 @@ class TestASentenceThatIsNotSpoken:
     ):
         host, guest, mozart, _ = call
 
-        async def render_while_removed(sentence):
+        async def render_while_removed(sentence, voice):
             await removed_by_the_host(participation, host, guest, mozart)
             return RenderedSentence(b"sound", SENTENCE_MS)
 
@@ -392,7 +392,7 @@ class TestTheBounds:
             await waiting_to_speak(participation, room_id=room_id)
         rendered = []
 
-        async def render(sentence):
+        async def render(sentence, voice):
             rendered.append(sentence)
 
         with structlog.testing.capture_logs() as logs:
@@ -432,7 +432,7 @@ class TestTheBounds:
         await waiting_to_speak(participation, room_id=room_id, render=LONG)
         rendered = []
 
-        async def render(sentence):
+        async def render(sentence, voice):
             rendered.append(sentence)
 
         with structlog.testing.capture_logs() as logs:
@@ -451,7 +451,7 @@ class TestTheBounds:
 
         entered = asyncio.Event()
 
-        async def render_held(sentence):
+        async def render_held(sentence, voice):
             entered.set()
             await asyncio.Event().wait()
 
@@ -471,7 +471,7 @@ class TestTheBounds:
             await speak(participation, render=failing, room_id=room_id)
         rendered = []
 
-        async def render_noting(sentence):
+        async def render_noting(sentence, voice):
             rendered.append(sentence)
             return await LONG(sentence)
 
@@ -486,7 +486,7 @@ class TestAnEndWhileTheSentenceRenders:
     ):
         host, guest, mozart, _ = call
 
-        async def render_while_replaced(sentence):
+        async def render_while_replaced(sentence, voice):
             await removed_by_the_host(participation, host, guest, mozart)
             await participation.dial_in(GUEST, room_of(host), "Mozart")
             return RenderedSentence(b"sound", SENTENCE_MS)
@@ -501,7 +501,7 @@ class TestAnEndWhileTheSentenceRenders:
     ):
         host, guest, *_ = call
 
-        async def render_while_paused(sentence):
+        async def render_while_paused(sentence, voice):
             await guest.drop()
             await guest.resume()
             return RenderedSentence(b"sound", SENTENCE_MS)

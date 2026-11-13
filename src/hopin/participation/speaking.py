@@ -28,8 +28,9 @@ class RenderedSentence:
     duration_ms: int
 
 
-type Renderer = Callable[[str], Awaitable[RenderedSentence | None]]
-"""Makes the sound of a sentence for the agent that speaks it, or nothing when it cannot."""
+type Renderer = Callable[[str, str | None], Awaitable[RenderedSentence | None]]
+"""Makes the sound of a sentence in the voice its agent kept at accept (none for the configured one), or nothing when
+it cannot."""
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,7 @@ class Speaking:
         queue = self._queues.setdefault(agent.agent_id, _Queue())
         queue.rendering += 1
         try:
-            rendered = await render(text)
+            rendered = await render(text, agent.voice)
         finally:
             queue.rendering -= 1
         if rendered is None:
