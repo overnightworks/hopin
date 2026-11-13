@@ -66,6 +66,7 @@ async function installedGame({ connected = true } = {}) {
         drawAgentFigures: () => undefined,
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
+        onMicrophone: () => undefined,
     };
     await install(core);
     const emit = (type: string, frame: object) => {
@@ -91,9 +92,7 @@ async function installedGame({ connected = true } = {}) {
         startButton,
         progress,
         endCall: () => {
-            callEndedHooks.forEach((hook) => {
-                hook();
-            });
+            for (const hook of callEndedHooks) hook();
         },
         seat: () => {
             emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: ME, is_host: false });

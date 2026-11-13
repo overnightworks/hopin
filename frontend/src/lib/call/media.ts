@@ -1,5 +1,6 @@
 import { addTrackToPeers, removeTrackFromPeers, replaceVideoTrackOnPeers } from "#lib/call/mesh.ts";
 import { announceMediaState } from "#lib/call/media-state.ts";
+import { microphoneChanged } from "#lib/call/microphone.ts";
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
@@ -42,7 +43,10 @@ async function acquireStream(
 
 function adoptLocalStream(stream: MediaStream, cameraOn: boolean) {
     state.localStream = stream;
+    // A new stream's microphone track starts on, whatever the last call left behind.
+    state.audioEnabled = true;
     state.videoEnabled = cameraOn;
+    microphoneChanged();
 }
 
 // Every caller guarantees the stream: the controls and the pre-join act only on a started one.
@@ -116,6 +120,7 @@ export function toggleAudio() {
     for (const track of localStream.getAudioTracks()) {
         track.enabled = state.audioEnabled;
     }
+    microphoneChanged();
     localMediaChanged();
 }
 
@@ -227,8 +232,11 @@ export function stopLocalMedia() {
     mediaSession += 1;
     cameraRequest += 1;
     if (state.localStream) {
-        stopTracks(state.localStream);
+        const ended = state.localStream;
         state.localStream = null;
+        // The microphone is taken back before its track stops, so nothing reads a stopped track.
+        microphoneChanged();
+        stopTracks(ended);
     }
     if (state.screenStream) {
         stopTracks(state.screenStream);

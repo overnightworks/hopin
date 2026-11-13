@@ -1,4 +1,5 @@
 import { loadKitWords } from "overnightworks-design";
+import { startCapture } from "overnightworks-speech-browser";
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
@@ -8,8 +9,9 @@ import { SIGNAL_TYPE } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
+import { createHearingCapture } from "./hearing.ts";
 import { createAgentOffers, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 interface SeatFrame {
     participant_id: string;
@@ -64,6 +66,18 @@ export async function install(core: FeatureCore): Promise<void> {
     let seatId = "";
     let isHost = false;
     const shown = new Map<string, ShownAgent>();
+    const capture = createHearingCapture(
+        () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
+        startCapture,
+    );
+    // Agents whose switch the person pressed off and whose record has not answered yet: they no longer hear the person
+    // for the capture, whatever the record still says.
+    const pressedOff = new Set<string>();
+
+    // The server's record decides, except for an agent whose switch the person pressed off before the record answered.
+    function agentHears() {
+        return [...shown.values()].some((agent) => agent.hearing === true && !pressedOff.has(agent.joined.agent_id));
+    }
 
     function mayRemove(frame: AgentJoinedFrame) {
         return isHost || frame.sponsor_id === seatId;
@@ -82,6 +96,10 @@ export async function install(core: FeatureCore): Promise<void> {
                         : {
                               on: hearing,
                               onChange: (on: boolean) => {
+                                  if (!on) {
+                                      pressedOff.add(frame.agent_id);
+                                      capture.setHeard(agentHears());
+                                  }
                                   core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
                               },
                           },
@@ -104,9 +122,11 @@ export async function install(core: FeatureCore): Promise<void> {
     function showHearing(frame: AgentHearingFrame) {
         const agent = shown.get(frame.agent_id);
         if (agent === undefined) return;
+        pressedOff.delete(frame.agent_id);
         const recorded = { ...agent, hearing: frame.on };
         shown.set(frame.agent_id, recorded);
         draw(recorded);
+        capture.setHeard(agentHears());
     }
 
     const offers = document.createElement("div");
@@ -151,7 +171,9 @@ export async function install(core: FeatureCore): Promise<void> {
 
     function hide(agentId: string) {
         shown.delete(agentId);
+        pressedOff.delete(agentId);
         core.showAgentTile(null, tileKey(agentId));
+        capture.setHeard(agentHears());
     }
 
     const seated = (frame: SeatFrame) => {
@@ -178,6 +200,9 @@ export async function install(core: FeatureCore): Promise<void> {
         } else {
             offersView.refusal = refusalOf(frame.reason);
         }
+    });
+    core.onMicrophone((stream) => {
+        capture.setStream(stream);
     });
     core.onCallEnded(() => {
         for (const agentId of shown.keys()) hide(agentId);

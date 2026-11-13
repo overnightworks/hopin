@@ -2,6 +2,7 @@ export interface CallState {
     roomId: string | null;
     isHost: boolean;
     isLocked: boolean;
+    inCall: boolean;
     reconnectAttempt: number;
     intentionalLeave: boolean;
     localStream: MediaStream | null;
@@ -15,6 +16,7 @@ export const state: CallState = {
     roomId: null,
     isHost: false,
     isLocked: false,
+    inCall: false,
     reconnectAttempt: 0,
     intentionalLeave: false,
     localStream: null,

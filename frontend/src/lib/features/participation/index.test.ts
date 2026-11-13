@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { flushSync, mount, unmount } from "svelte";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
+import type { CaptureOptions } from "overnightworks-speech-browser";
+import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { refusalOf } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -15,6 +17,14 @@ vi.hoisted(() => {
 });
 
 const ME = "me";
+
+const captures = fakeCaptures();
+
+// `install(core)` has no seam for the capture, so the package's `startCapture` is the fake one.
+vi.mock("overnightworks-speech-browser", async (importActual) => ({
+    ...(await importActual<typeof import("overnightworks-speech-browser")>()),
+    startCapture: (options: CaptureOptions) => captures.startCapture(options),
+}));
 
 async function installedParticipation() {
     const handlers = new Map<string, (frame: never) => void>();
@@ -24,6 +34,7 @@ async function installedParticipation() {
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
+    const microphoneHandlers: ((stream: MediaStream | null) => void)[] = [];
     const more = document.createElement("dialog");
     more.open = true;
     document.body.append(more);
@@ -47,6 +58,10 @@ async function installedParticipation() {
         receiveChatLine: (view: FeatureView) => void lines.push(view),
         pinLastChatLine: () => undefined,
         showChatCard: () => undefined,
+        onMicrophone: (handler) => {
+            microphoneHandlers.push(handler);
+            handler(null);
+        },
         onCallEnded: (hook) => void callEndedHooks.push(hook),
     };
     await install(core);
@@ -77,6 +92,11 @@ async function installedParticipation() {
         endCall: () => {
             callEndedHooks.forEach((hook) => {
                 hook();
+            });
+        },
+        hear: (stream: MediaStream | null) => {
+            microphoneHandlers.forEach((handler) => {
+                handler(stream);
             });
         },
         seat: (isHost: boolean, signal: string = SIGNAL_TYPE.ROOM_CREATED) => {
@@ -298,6 +318,148 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
 
         expect(hearingOf(page)).toBeUndefined();
+    });
+});
+
+describe("the sponsor's microphone capture", () => {
+    const MICROPHONE = "microphone" as unknown as MediaStream;
+    const sponsorsAgent = async (agentId = "a1") => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, agentId));
+        return page;
+    };
+    const record = (page: Awaited<ReturnType<typeof installedParticipation>>, on: boolean, agentId = "a1") => {
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: agentId, on });
+    };
+    const { live } = captures;
+
+    beforeEach(captures.clear);
+
+    it("CALL-59: captures the microphone into the hop of the seat while the record is on and the microphone is held", async () => {
+        const page = await sponsorsAgent();
+
+        record(page, true);
+        page.hear(MICROPHONE);
+
+        expect(live().map((capture) => [capture.options.stream, capture.options.hopUrl])).toEqual([
+            [MICROPHONE, `ws://${location.host}${HEARING_PATH}/${ME}`],
+        ]);
+    });
+
+    it("CALL-59: starts no capture for a seat that gets no record, however its microphone is", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        page.hear(MICROPHONE);
+
+        expect(captures.started).toHaveLength(0);
+    });
+
+    it("CALL-59: starts no capture while the record is off or the microphone is not held", async () => {
+        const page = await sponsorsAgent();
+        record(page, false);
+        page.hear(MICROPHONE);
+        page.hear(null);
+        record(page, true);
+
+        expect(captures.started).toHaveLength(0);
+    });
+
+    it("CALL-59: stops the capture on the person's own press of the switch, before the server answers", async () => {
+        const page = await sponsorsAgent();
+        record(page, true);
+        page.hear(MICROPHONE);
+
+        page.tiles.get("agent-a1")?.hearing?.onChange(false);
+
+        expect(live()).toHaveLength(0);
+    });
+
+    it("CALL-59: starts a capture again when the server answers a press of the switch off with the record still on", async () => {
+        const page = await sponsorsAgent();
+        record(page, true);
+        page.hear(MICROPHONE);
+        page.tiles.get("agent-a1")?.hearing?.onChange(false);
+
+        record(page, true);
+
+        expect(live()).toHaveLength(1);
+    });
+
+    it("CALL-59: starts no capture on the person's own press of the switch on, only when the server's record says on", async () => {
+        const page = await sponsorsAgent();
+        record(page, false);
+        page.hear(MICROPHONE);
+
+        page.tiles.get("agent-a1")?.hearing?.onChange(true);
+        const startedByThePress = captures.started.length;
+        record(page, true);
+
+        expect([page.sent, startedByThePress, live().length]).toEqual([
+            [{ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: "a1", on: true }],
+            0,
+            1,
+        ]);
+    });
+
+    it("CALL-59: keeps a pressed-off switch's capture stopped when another agent leaves before the server answers", async () => {
+        const page = await sponsorsAgent("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));
+        record(page, true, "a1");
+        page.hear(MICROPHONE);
+        page.tiles.get("agent-a1")?.hearing?.onChange(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a2" });
+
+        expect([captures.started.length, live().length]).toEqual([1, 0]);
+    });
+
+    it("CALL-59: keeps capturing for another agent that still hears the person when one is switched off", async () => {
+        const page = await sponsorsAgent("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));
+        record(page, true, "a1");
+        record(page, true, "a2");
+        page.hear(MICROPHONE);
+
+        page.tiles.get("agent-a1")?.hearing?.onChange(false);
+        record(page, false, "a1");
+        expect(live()).toHaveLength(1);
+        record(page, false, "a2");
+
+        expect(live()).toHaveLength(0);
+    });
+
+    it("CALL-59: stops the capture when the agent that hears the person leaves", async () => {
+        const page = await sponsorsAgent();
+        record(page, true);
+        page.hear(MICROPHONE);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
+
+        expect(live()).toHaveLength(0);
+    });
+
+    it("CALL-59: stops the capture when the call ends", async () => {
+        const page = await sponsorsAgent();
+        record(page, true);
+        page.hear(MICROPHONE);
+
+        page.endCall();
+
+        expect(live()).toHaveLength(0);
+    });
+
+    it("CALL-59: stops the capture when a new seat is announced, and starts none until that seat's record", async () => {
+        const page = await sponsorsAgent();
+        record(page, true);
+        page.hear(MICROPHONE);
+
+        page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+
+        expect([live(), captures.started]).toEqual([[], [expect.anything()]]);
     });
 });
 

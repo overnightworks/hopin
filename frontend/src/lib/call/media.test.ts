@@ -118,12 +118,28 @@ async function freshMedia() {
             getDisplayMedia: (constraints: unknown) => held(constraints),
         },
     });
+    vi.stubGlobal(
+        "MediaStream",
+        class {
+            private readonly tracks: FakeTrack[];
+            constructor(tracks: FakeTrack[]) {
+                this.tracks = tracks;
+            }
+            getTracks() {
+                return [...this.tracks];
+            }
+            getAudioTracks() {
+                return this.tracks.filter((candidate) => candidate.kind === "audio");
+            }
+        },
+    );
     const media = await import("./media.ts");
+    const microphone = await import("./microphone.ts");
     const { installStage } = await import("./stage-port.ts");
     const { state } = await import("./state.ts");
     const stage = { showLocalStream: vi.fn(), updateLocalPreview: vi.fn() };
     installStage(stage as unknown as StagePort);
-    return { ...media, state, stage };
+    return { ...media, ...microphone, state, stage };
 }
 
 type Fresh = Awaited<ReturnType<typeof freshMedia>>;
@@ -568,5 +584,141 @@ describe("ending the media", () => {
         expect(() => {
             fresh.stopLocalMedia();
         }).not.toThrow();
+    });
+});
+
+/** Registers a handler and keeps what the core told it, the stream's tracks or null, in order. */
+function told(fresh: Fresh) {
+    const stories: (readonly FakeTrack[] | null)[] = [];
+    fresh.onMicrophone((stream) => {
+        stories.push(stream === null ? null : (stream as unknown as FakeStream).getTracks());
+    });
+    return stories;
+}
+
+/** The person is seated in the call: the server answered their join. */
+function seated(fresh: Fresh) {
+    fresh.state.inCall = true;
+    fresh.microphoneChanged();
+}
+
+describe("handing the microphone to a feature", () => {
+    it("CALL-59: tells a handler registered before any media only that there is no microphone", async () => {
+        const fresh = await freshMedia();
+
+        expect(told(fresh)).toEqual([null]);
+    });
+
+    it("CALL-59: tells a call that has no local stream only that there is no microphone", async () => {
+        const fresh = await freshMedia();
+        seated(fresh);
+
+        expect(told(fresh)).toEqual([null]);
+    });
+
+    it("CALL-59: tells a handler registered while the microphone is on in a call at once, with the microphone track alone", async () => {
+        const fresh = await freshMedia();
+        const own = await startedCall(fresh);
+        seated(fresh);
+
+        expect(told(fresh)).toEqual([[own.getAudioTracks()[0]]]);
+    });
+
+    it("CALL-59: tells the pre-join, with its microphone on, nothing but null", async () => {
+        const fresh = await freshMedia();
+        const stories = told(fresh);
+        await startedCall(fresh);
+        fresh.toggleAudio();
+        fresh.toggleAudio();
+
+        expect(stories).toEqual([null]);
+    });
+
+    it("CALL-59: hands over the microphone when the person is seated in the call and takes it back at the call's end", async () => {
+        const fresh = await freshMedia();
+        const own = await startedCall(fresh);
+        const stories = told(fresh);
+
+        seated(fresh);
+        fresh.state.inCall = false;
+        fresh.stopLocalMedia();
+
+        expect(stories).toEqual([null, [own.getAudioTracks()[0]], null]);
+    });
+
+    it("CALL-59: takes the microphone back when it is muted and hands it over again when it is unmuted", async () => {
+        const fresh = await freshMedia();
+        const own = await startedCall(fresh);
+        seated(fresh);
+        const stories = told(fresh);
+
+        fresh.toggleAudio();
+        fresh.toggleAudio();
+
+        expect(stories).toEqual([[own.getAudioTracks()[0]], null, [own.getAudioTracks()[0]]]);
+    });
+
+    it("CALL-59: tells nothing again while only the camera changes", async () => {
+        const fresh = await freshMedia();
+        await startedCall(fresh);
+        seated(fresh);
+        const stories = told(fresh);
+
+        fresh.releaseCamera();
+        const adding = fresh.addCamera();
+        requests[0]?.resolve(streamOf("video"));
+        await adding;
+
+        expect(stories).toHaveLength(1);
+    });
+
+    it("CALL-59: never hands a screen share's audio over", async () => {
+        const fresh = await freshMedia();
+        const { own } = await sharing(fresh, "video", "audio");
+        seated(fresh);
+
+        expect(told(fresh)).toEqual([[own.getAudioTracks()[0]]]);
+    });
+
+    it("CALL-59: takes the microphone back when the local stream is replaced and hands the new one over", async () => {
+        const fresh = await freshMedia();
+        await startedCall(fresh);
+        seated(fresh);
+        const stories = told(fresh);
+
+        const starting = fresh.acquireMedia();
+        const replacement = streamOf("audio", "video");
+        requests[0]?.resolve(replacement);
+        await starting;
+
+        expect(stories).toEqual([expect.any(Array), null, [replacement.getAudioTracks()[0]]]);
+    });
+
+    it("CALL-59: reports the microphone's real state in a second call of the same page after the first ended muted", async () => {
+        const fresh = await freshMedia();
+        await startedCall(fresh);
+        seated(fresh);
+        fresh.toggleAudio();
+        fresh.state.inCall = false;
+        fresh.stopLocalMedia();
+        const second = await startedCall(fresh);
+        const stories = told(fresh);
+
+        seated(fresh);
+
+        expect(fresh.state.audioEnabled).toBe(true);
+        expect(stories).toEqual([null, [second.getAudioTracks()[0]]]);
+    });
+
+    it("CALL-59: hands every registered handler the same changes", async () => {
+        const fresh = await freshMedia();
+        const own = await startedCall(fresh);
+        const first = told(fresh);
+        const second = told(fresh);
+
+        seated(fresh);
+
+        expect(first).toEqual([null, [own.getAudioTracks()[0]]]);
+        expect(second).toEqual(first);
     });
 });
