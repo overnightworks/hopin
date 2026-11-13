@@ -26,7 +26,7 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
-from tests.support.stores import single_process_stores
+from tests.support.stores import WatchedSessions, single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -128,6 +128,10 @@ class DialedCall:
             self.issuer.grant_groups(account.id, groups)
             refresh_token = self.issuer.refresh_token_for(account.id)
         return account, seed_member(self.stores, config, account=account, refresh_token=refresh_token)
+
+    def another_device(self, account):
+        """A further login of the account, which its other logins do not share a session with."""
+        return seed_member(self.stores, installed_web_auth_config(self.client.app), account=account)
 
     def seated(self, **member_options):
         """A person in a call of their own: their account for a token, their login and their seat."""
@@ -267,8 +271,26 @@ class DialedCall:
 
     def hearing_tokens(self):
         """The holder of the exchanged tokens, which the MCP route keeps."""
+        return self._mcp_front().hearing_tokens
+
+    def shut_down(self):
+        """Shut participation down as the app's lifespan does, while the sockets of the test are still open."""
+        self.client.portal.call(self._mcp_front().participation().shut_down)
+
+    def end_room_after(self, room_id, before):
+        """End the call's room on the app's own loop in the same turn as `before`, which runs first: what `before`
+        queues for a reader of the loop is already waiting when the end is set."""
+        participation = self._mcp_front().participation()
+
+        def ending():
+            before()
+            participation.room_ended(room_id)
+
+        self.client.portal.call(ending)
+
+    def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
-        return route.endpoint.hearing_tokens
+        return route.endpoint
 
     def pass_time(self, seconds):
         """Move the app's clock on its own loop, running the timers that fall due."""
@@ -350,12 +372,12 @@ def serving_dialed_call(
     more_call_features=(),
     figure_sources=(),
     figure_transport=None,
-    hears=False,
-    hearing_scopes=(),
+    hearing=None,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
-    test."""
+    test. `hearing` is the speech service agents hear through, none with hearing off."""
     stores = single_process_stores()
+    stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
     participation = _ParticipationBuilt(
         ParticipationFeature(
@@ -363,8 +385,7 @@ def serving_dialed_call(
             agent_adders or {},
             figure_sources,
             figure_transport or _no_figure_source,
-            hears=hears,
-            hearing_scopes=hearing_scopes,
+            hearing=hearing,
         )
     )
     app = create_app(

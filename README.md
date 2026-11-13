@@ -96,6 +96,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `HOPIN_SPEECH__ORIGIN` | unset | The speech service's http origin (scheme, host and optional port, no path); unset means the game master stays silent |
 | `HOPIN_SPEECH__VOICE` | `de_DE-thorsten-medium` | The speech service's catalogue voice the game master's lines are spoken with; a value outside the catalogue stops the start |
 | `HOPIN_SPEECH__AUDIENCE_SCOPE` | required when the origin is set | The one Keycloak scope whose token the speech service admits (`speech-service-audience`); sign-in asks for it only with the voice on |
+| `HOPIN_SPEECH__HEARING` | `false` | Whether an agent hears its sponsor, who sends their microphone sound through HopIn to the speech service; on needs the origin and the audience scope, or the start stops |
 
 The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), and `HOPIN_AGENT_ADDERS` and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
 

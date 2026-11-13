@@ -5,6 +5,7 @@ import pytest_asyncio
 from agents.mcp_server.hearing import Sense
 from agents.member import LEASE_SECONDS, PlaceRef, place_window_uri
 from agents.tools import Principal
+from pydantic import ValidationError
 
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.mcp import _MemberResources
@@ -320,6 +321,14 @@ class TestWhatIsHeard:
         participation.heard(guest.peer_id, text, began_at=0.0)
 
         assert (lines_of(participation, GUEST, room_of(host)), window_changes) == ((), [])
+
+    @pytest.mark.parametrize("began_at", [float("nan"), float("inf"), float("-inf")])
+    async def test_call_57_a_sentence_that_began_at_no_moment_fails_loudly(self, participation, dialed, began_at):
+        """CALL-57: Only a refused text is dropped quietly; a start that is no moment is HopIn's own defect."""
+        _host, guest, _agent = dialed
+
+        with pytest.raises(ValidationError):
+            participation.heard(guest.peer_id, "a sentence", began_at=began_at)
 
     async def test_call_57_a_switch_on_in_the_middle_of_a_sentence_loses_it(
         self, participation, scheduler, invitation_of

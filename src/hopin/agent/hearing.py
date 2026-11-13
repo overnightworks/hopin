@@ -41,17 +41,16 @@ class MemberHearingRecord:
         return frozenset(map(_person_of, self._record.sensing(_place_of(room_id), seat, Sense.HEARING)))
 
     def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> HeardLine | None:
+        place = _place_of(room_id)
         try:
             utterance = Utterance(
-                place=_place_of(room_id),
-                speaker=seat,
-                kind=LineKind.PERSON.value,
-                name=name,
-                text=text,
-                began_at=began_at,
+                place=place, speaker=seat, kind=LineKind.PERSON.value, name=name, text=text, began_at=began_at
             )
-        except ValidationError:
-            return None
+        except ValidationError as refusal:
+            # Only text that may not be heard is refused quietly; any other field is HopIn's own and fails loudly.
+            if {error["loc"] for error in refusal.errors()} == {("text",)}:
+                return None
+            raise
         heard = self._record.heard(utterance)
         line = heard.line
         return HeardLine(frozenset(map(_person_of, heard.members)), LineKind(line.kind), line.name, line.text)

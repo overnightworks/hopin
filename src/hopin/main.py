@@ -5,6 +5,7 @@ import uvicorn
 
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import ParticipationFeature
+from hopin.agent.speech_settings import SpeechSettings
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import ServerSettings
@@ -52,7 +53,12 @@ def build_application(settings: ServerSettings) -> FastAPI:
         page_build=PageBuild.load(BUILD_DIRECTORY),
         call_features=(
             configured_game_feature(),  # game
-            ParticipationFeature(settings.public_origin, participation.agent_adders, participation.figure_sources),
+            ParticipationFeature(
+                settings.public_origin,
+                participation.agent_adders,
+                participation.figure_sources,
+                hearing=SpeechSettings().hearing_service,
+            ),
             *configured_skat_feature(settings.public_origin),  # skat
         ),
     )

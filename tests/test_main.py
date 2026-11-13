@@ -3,11 +3,13 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from starlette.websockets import WebSocketDisconnect
 
-from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
+from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
 from hopin.main import build_application, main
+from hopin.participation.vocabulary import HEARING_PATH
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -55,6 +57,32 @@ class TestMain:
 
         assert served.get(METADATA_PATH).status_code == 200
         assert served.post("/mcp").status_code == 401
+
+    @pytest.mark.parametrize(
+        ("hearing", "route_exists"), [("true", True), ("false", False)], ids=["hearing_on", "hearing_off"]
+    )
+    def test_serves_the_hearing_route_only_while_hearing_is_on(
+        self, sign_in_settings, monkeypatch, hearing, route_exists
+    ):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("HOPIN_SPEECH__ORIGIN", "http://speech.test:8090")
+        monkeypatch.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
+        monkeypatch.setenv("HOPIN_SPEECH__HEARING", hearing)
+        served = TestClient(build_application(ServerSettings()), base_url=TEST_PUBLIC_ORIGIN)
+
+        with pytest.raises(WebSocketDisconnect) as refused, served.websocket_connect(f"{HEARING_PATH}/a-seat"):
+            pass
+
+        assert (refused.value.code == POLICY_VIOLATION_CLOSE_CODE) is route_exists
+
+    def test_refuses_to_start_when_hearing_is_on_without_a_speech_service(self, sign_in_settings, monkeypatch):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv("HOPIN_SPEECH__HEARING", "true")
+
+        with pytest.raises(ValidationError):
+            build_application(ServerSettings())
 
     @patch("hopin.main.uvicorn.run")
     def test_refuses_to_start_without_the_page_build_and_names_the_build_command(

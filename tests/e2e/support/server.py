@@ -13,9 +13,11 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from speech_client.wire import VoiceId
 from webauth.config import installed_web_auth_config
 
 from hopin.agent.mcp import ParticipationFeature
+from hopin.agent.speech_settings import SpeechService
 from hopin.app import create_app
 from hopin.main import uvicorn_options
 from hopin.participation.figure_transport import get_figure_over_https
@@ -36,6 +38,9 @@ if TYPE_CHECKING:
     from tests.support.sign_in_settings import SignInSettings
 
 LOOPBACK_HOST = "127.0.0.1"
+
+# A speech service no browser test reaches: the switch shows, and no speech call leaves the server.
+UNREACHABLE_HEARING = SpeechService("http://speech.invalid:8090", VoiceId.THORSTEN, "speech-audience")
 
 READINESS_POLL_INTERVAL_SECONDS = 0.1
 READINESS_DEADLINE_SECONDS = 20
@@ -171,7 +176,7 @@ def running_hopin(
                         agent_adders or {},
                         figure_sources,
                         figure_transport,
-                        hears=hears,
+                        hearing=UNREACHABLE_HEARING if hears else None,
                     ),
                 )
                 if participation
