@@ -351,28 +351,31 @@ class Participation:
             (person, room_id, place) for person, room_id, place in self._places.entries() if place.sponsor == peer_id
         ]
         if self._rooms.room_of(peer_id) is None:
-            view = self._views.pop(peer_id, None)
-            invitations = [
-                AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
-                for person, room_id, place in bound
-                if isinstance(place, Invited)
-            ]
-            for person, room_id, _ in bound:
-                self._places.remove(person, room_id)
-            if invitations:
-                self._abandoned[peer_id] = invitations
-            joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
-            for agent in joined:
-                self._agent_ended(agent)
-            if view is not None:
-                self._hearing.seat_ended(view.room_id, peer_id)
-            if joined:
-                self._departed[peer_id] = joined
+            self._take_out_places_of_departed(peer_id, bound)
         elif self._rooms.is_parked(peer_id):
             self._hearing.end_sound(peer_id)
             self._end_speaking_of(place for _, _, place in bound)
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
+
+    def _take_out_places_of_departed(self, peer_id: PeerId, bound: list[tuple[Person, str, Place]]) -> None:
+        view = self._views.pop(peer_id, None)
+        invitations = [
+            AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
+            for person, room_id, place in bound
+            if isinstance(place, Invited)
+        ]
+        for person, room_id, _ in bound:
+            self._places.remove(person, room_id)
+        if invitations:
+            self._abandoned[peer_id] = invitations
+        joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
+        for agent in joined:
+            self._agent_ended(agent)
+        if view is not None:
+            self._hearing.seat_ended(view.room_id, peer_id)
+        if joined:
+            self._departed[peer_id] = joined
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
         """Announce the tiles of the agents the seat took with it and the agents the others may add now, then tell the
@@ -390,12 +393,7 @@ class Participation:
 
     def room_ended(self, room_id: str) -> None:
         """Drop the room's places and seats; the room's seats hear the end itself."""
-        for sponsor in [sponsor for sponsor, gone in self._departed.items() if gone[0].room_id == room_id]:
-            del self._departed[sponsor]
-        for sponsor in [sponsor for sponsor, gone in self._abandoned.items() if gone[0].room_id == room_id]:
-            del self._abandoned[sponsor]
-        for peer_id in [peer_id for peer_id, view in self._views.items() if view.room_id == room_id]:
-            del self._views[peer_id]
+        self._forget_seats_of_ended_room(room_id)
         holders = {person for person, held_room, _ in self._places.entries() if held_room == room_id}
         self._hearing.room_ended(room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == room_id]:
@@ -403,6 +401,14 @@ class Participation:
         self._places.drop_room(room_id)
         for person in holders:
             self._on_changed(person)
+
+    def _forget_seats_of_ended_room(self, room_id: str) -> None:
+        for sponsor in [sponsor for sponsor, gone in self._departed.items() if gone[0].room_id == room_id]:
+            del self._departed[sponsor]
+        for sponsor in [sponsor for sponsor, gone in self._abandoned.items() if gone[0].room_id == room_id]:
+            del self._abandoned[sponsor]
+        for peer_id in [peer_id for peer_id, view in self._views.items() if view.room_id == room_id]:
+            del self._views[peer_id]
 
     async def shut_down(self) -> None:
         reads = list(self._reads.values())
