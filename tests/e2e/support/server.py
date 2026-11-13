@@ -145,15 +145,18 @@ def participation_feature(
     figure_transport: FigureTransport,
     speech: SpeechService,
     hears: bool,
+    speaks: bool,
     voices: VoiceStore | None,
 ) -> ParticipationFeature:
-    """The participation feature of a HopIn on `loopback`, hearing through `speech` only when `hears`."""
+    """The participation feature of a HopIn on `loopback`, hearing through `speech` only when `hears` and speaking
+    through it only when `speaks`."""
     return ParticipationFeature(
         loopback.sign_in.settings.public_origin,
         agent_adders or {},
         figure_sources,
         figure_transport,
         hearing=speech if hears else None,
+        speaking=speech if speaks else None,
         voices=voices or VoiceStore(),
     )
 
@@ -167,6 +170,7 @@ def running_hopin(
     *,
     participation: bool = False,
     hears: bool = False,
+    speaks: bool = False,
     speech: SpeechService = UNREACHABLE_HEARING,
     agent_adders: Mapping[str, str] | None = None,
     certificate: tuple[Path, Path] | None = None,
@@ -176,7 +180,7 @@ def running_hopin(
     voices: VoiceStore | None = None,
 ) -> Iterator[RunningServer]:
     """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for, and with
-    the setting that lets agents hear on when `hears`, hearing through `speech`;
+    the setting that lets agents hear on when `hears` and the one that lets them speak when `speaks`, through `speech`;
     `agent_adders` maps an owner's subject to the group whose members may add that owner's agent,
     `figure_sources` are where participation may fetch an agent's figure from, through `figure_transport`, and
     `more_call_features` wires further features beside `call_feature`, and `voices` is the store the game's voices
@@ -196,7 +200,7 @@ def running_hopin(
             *(
                 (
                     participation_feature(
-                        loopback, agent_adders, figure_sources, figure_transport, speech, hears, voices
+                        loopback, agent_adders, figure_sources, figure_transport, speech, hears, speaks, voices
                     ),
                 )
                 if participation
