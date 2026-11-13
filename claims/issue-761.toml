@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "57ed4f9dbbc2b7f80aacb234f53642febb7ac485"
 branch = "claude/issue-761-the-hearing-route-sends-a-sponsor-s-micr"
-scope = [".aco/ahead-of-caller.toml", "README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/wire.ts", "pyproject.toml", "scripts/generate_wire.py", "src/hopin/agent", "src/hopin/main.py", "src/hopin/participation/vocabulary.py", "tests/agent/test_speech_imports.py", "tests/agent/test_speech_settings.py", "tests/participation", "tests/scripts/test_generate_wire.py", "tests/support", "tests/test_main.py", "uv.lock"]
+scope = [".aco/ahead-of-caller.toml", "README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/wire.ts", "pyproject.toml", "scripts/generate_wire.py", "src/hopin/agent", "src/hopin/main.py", "src/hopin/participation/vocabulary.py", "tests/agent/test_speech_imports.py", "tests/agent/test_speech_settings.py", "tests/e2e/support/server.py", "tests/participation", "tests/scripts/test_generate_wire.py", "tests/support", "tests/test_main.py", "uv.lock"]
 opened_commit = "1a6a06947234f107493abd9621a8c4705ad87b3f"
 whole_reason = "The hearing route, its setting, its composition, its wire codes and their tests change together; a route without its setting or codes is unreached."
