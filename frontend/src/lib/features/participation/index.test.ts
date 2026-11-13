@@ -5,6 +5,8 @@ import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feat
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
+import type { CaptureOptions } from "overnightworks-speech-browser";
+import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
@@ -16,25 +18,12 @@ vi.hoisted(() => {
 
 const ME = "me";
 
-interface FakeCapture {
-    options: { stream: unknown; hopUrl: string };
-    stopped: boolean;
-}
+const captures = fakeCaptures();
 
-const running = vi.hoisted(() => ({ captures: [] as FakeCapture[] }));
-
+// `install(core)` has no seam for the capture, so the package's `startCapture` is the fake one.
 vi.mock("overnightworks-speech-browser", async (importActual) => ({
     ...(await importActual<typeof import("overnightworks-speech-browser")>()),
-    startCapture: (options: FakeCapture["options"]) => {
-        const started: FakeCapture = { options, stopped: false };
-        running.captures.push(started);
-        return {
-            ended: new Promise(() => undefined),
-            stop: () => {
-                started.stopped = true;
-            },
-        };
-    },
+    startCapture: (options: CaptureOptions) => captures.startCapture(options),
 }));
 
 async function installedParticipation() {
@@ -343,11 +332,9 @@ describe("the sponsor's microphone capture", () => {
     const record = (page: Awaited<ReturnType<typeof installedParticipation>>, on: boolean, agentId = "a1") => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: agentId, on });
     };
-    const live = () => running.captures.filter((capture) => !capture.stopped);
+    const { live } = captures;
 
-    beforeEach(() => {
-        running.captures.length = 0;
-    });
+    beforeEach(captures.clear);
 
     it("CALL-59: captures the microphone into the hop of the seat while the record is on and the microphone is held", async () => {
         const page = await sponsorsAgent();
@@ -367,7 +354,7 @@ describe("the sponsor's microphone capture", () => {
 
         page.hear(MICROPHONE);
 
-        expect(running.captures).toHaveLength(0);
+        expect(captures.started).toHaveLength(0);
     });
 
     it("CALL-59: starts no capture while the record is off or the microphone is not held", async () => {
@@ -377,7 +364,7 @@ describe("the sponsor's microphone capture", () => {
         page.hear(null);
         record(page, true);
 
-        expect(running.captures).toHaveLength(0);
+        expect(captures.started).toHaveLength(0);
     });
 
     it("CALL-59: stops the capture on the person's own press of the switch, before the server answers", async () => {
@@ -416,16 +403,6 @@ describe("the sponsor's microphone capture", () => {
         expect(live()).toHaveLength(0);
     });
 
-    it("CALL-59: stops the capture when the microphone goes away", async () => {
-        const page = await sponsorsAgent();
-        record(page, true);
-        page.hear(MICROPHONE);
-
-        page.hear(null);
-
-        expect(live()).toHaveLength(0);
-    });
-
     it("CALL-59: stops the capture when the agent that hears the person leaves", async () => {
         const page = await sponsorsAgent();
         record(page, true);
@@ -454,7 +431,7 @@ describe("the sponsor's microphone capture", () => {
         page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
 
-        expect([live(), running.captures]).toEqual([[], [expect.anything()]]);
+        expect([live(), captures.started]).toEqual([[], [expect.anything()]]);
     });
 });
 

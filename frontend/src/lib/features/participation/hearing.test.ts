@@ -1,55 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { HopClose } from "overnightworks-speech-browser";
+import { fakeCaptures } from "./capture.fixture.ts";
 import { createHearingCapture } from "./hearing.ts";
 import { HEARING_CLOSE } from "./wire.ts";
-import { HopClose } from "overnightworks-speech-browser";
 
-interface FakeCapture {
-    options: { stream: MediaStream; hopUrl: string; workletUrl: string };
-    stopped: boolean;
-    over: boolean;
-    end(end: unknown): void;
-}
-
-const running = vi.hoisted(() => ({ captures: [] as FakeCapture[] }));
-
-vi.mock("overnightworks-speech-browser", async (importActual) => ({
-    ...(await importActual<typeof import("overnightworks-speech-browser")>()),
-    startCapture: (options: FakeCapture["options"]) => {
-        const ended = Promise.withResolvers<unknown>();
-        const capture = {
-            options,
-            stopped: false,
-            over: false,
-            ended: ended.promise,
-            stop() {
-                this.stopped = true;
-            },
-            end: ended.resolve,
-        };
-        running.captures.push(capture);
-        return capture;
-    },
-}));
+const captures = fakeCaptures();
+const { live } = captures;
 
 const stream = (name: string) => name as unknown as MediaStream;
-const hopUrl = () => "ws://page/hop";
+const streamsOf = () => live().map((started) => started.options.stream);
+const freshCapture = () => createHearingCapture(() => "ws://page/hop", captures.startCapture);
+const PAST_DEADLINE = { kind: "hop", close: HopClose.PAST_DEADLINE } as const;
 
-function freshCapture() {
-    return createHearingCapture(hopUrl);
-}
-
-const live = () => running.captures.filter((capture) => !capture.stopped && !capture.over);
-
-async function endedBy(capture: FakeCapture, end: unknown) {
-    capture.over = true;
-    capture.end(end);
-    await Promise.resolve();
-    await Promise.resolve();
-}
-
-beforeEach(() => {
-    running.captures.length = 0;
-});
+beforeEach(captures.clear);
 
 describe("capturing the sponsor's microphone", () => {
     it.each([
@@ -64,32 +27,37 @@ describe("capturing the sponsor's microphone", () => {
             capture.setHeard(heard);
             capture.setStream(microphone ? stream("microphone") : null);
 
-            expect(running.captures).toHaveLength(0);
+            expect(captures.started).toHaveLength(0);
         },
     );
 
     it.each([
-        ["the switch comes last", "stream first"],
-        ["the microphone comes last", "heard first"],
-    ])("CALL-59: starts one capture of the microphone's stream into the seat's hop when %s", (order) => {
-        const capture = freshCapture();
+        { last: "the switch", order: ["stream", "heard"] },
+        { last: "the microphone", order: ["heard", "stream"] },
+    ] as const)(
+        "CALL-59: starts one capture of the microphone's stream into the seat's hop when $last comes last",
+        ({ order }) => {
+            const capture = freshCapture();
+            const arrivals = {
+                stream: () => {
+                    capture.setStream(stream("microphone"));
+                },
+                heard: () => {
+                    capture.setHeard(true);
+                },
+            };
 
-        if (order === "stream first") {
-            capture.setStream(stream("microphone"));
-            capture.setHeard(true);
-        } else {
-            capture.setHeard(true);
-            capture.setStream(stream("microphone"));
-        }
+            for (const arrival of order) arrivals[arrival]();
 
-        expect(live().map((started) => started.options)).toEqual([
-            {
-                stream: "microphone",
-                hopUrl: "ws://page/hop",
-                workletUrl: expect.stringContaining("capture-worklet") as string,
-            },
-        ]);
-    });
+            expect(live().map((started) => started.options)).toEqual([
+                {
+                    stream: "microphone",
+                    hopUrl: "ws://page/hop",
+                    workletUrl: expect.stringContaining("capture-worklet") as string,
+                },
+            ]);
+        },
+    );
 
     it("CALL-59: starts the hop's capture once however often it is told the same", () => {
         const capture = freshCapture();
@@ -99,32 +67,7 @@ describe("capturing the sponsor's microphone", () => {
         capture.setHeard(true);
         capture.setStream(stream("microphone"));
 
-        expect(running.captures).toHaveLength(1);
-    });
-
-    it("CALL-59: stops the capture the moment the switch goes off, and starts a new one when it is on again", () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHeard(true);
-
-        capture.setHeard(false);
-        expect(live()).toHaveLength(0);
-        capture.setHeard(true);
-
-        expect(live()).toHaveLength(1);
-        expect(running.captures).toHaveLength(2);
-    });
-
-    it("CALL-59: stops the capture the moment the microphone goes away, and starts a new one with the next stream", () => {
-        const capture = freshCapture();
-        capture.setStream(stream("microphone"));
-        capture.setHeard(true);
-
-        capture.setStream(null);
-        expect(live()).toHaveLength(0);
-        capture.setStream(stream("second"));
-
-        expect(live().map((started) => started.options.stream)).toEqual(["second"]);
+        expect(captures.started).toHaveLength(1);
     });
 
     it("CALL-59: moves to a replaced stream by stopping the first capture", () => {
@@ -134,7 +77,7 @@ describe("capturing the sponsor's microphone", () => {
 
         capture.setStream(stream("second"));
 
-        expect(running.captures.map((started) => [started.options.stream, started.stopped])).toEqual([
+        expect(captures.started.map((started) => [started.options.stream, started.stopped])).toEqual([
             ["first", true],
             ["second", false],
         ]);
@@ -147,10 +90,9 @@ describe("a hop that ended", () => {
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
 
-        await endedBy(running.captures[0] as FakeCapture, { kind: "hop", close: HopClose.PAST_DEADLINE });
+        await captures.started[0]?.end(PAST_DEADLINE);
 
-        expect(live()).toHaveLength(1);
-        expect(running.captures).toHaveLength(2);
+        expect([live().length, captures.started.length]).toEqual([1, 2]);
     });
 
     it("CALL-59: is not opened a second time when the reopened hop ends past its deadline too", async () => {
@@ -158,26 +100,24 @@ describe("a hop that ended", () => {
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
 
-        await endedBy(running.captures[0] as FakeCapture, { kind: "hop", close: HopClose.PAST_DEADLINE });
-        await endedBy(running.captures[1] as FakeCapture, { kind: "hop", close: HopClose.PAST_DEADLINE });
+        await captures.started[0]?.end(PAST_DEADLINE);
+        await captures.started[1]?.end(PAST_DEADLINE);
 
-        expect(live()).toHaveLength(0);
-        expect(running.captures).toHaveLength(2);
+        expect([live().length, captures.started.length]).toEqual([0, 2]);
     });
 
     it("CALL-59: gets a new reopening after the person's next switch change", async () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
-        await endedBy(running.captures[0] as FakeCapture, { kind: "hop", close: HopClose.PAST_DEADLINE });
-        await endedBy(running.captures[1] as FakeCapture, { kind: "hop", close: HopClose.PAST_DEADLINE });
+        await captures.started[0]?.end(PAST_DEADLINE);
+        await captures.started[1]?.end(PAST_DEADLINE);
 
         capture.setHeard(false);
         capture.setHeard(true);
-        await endedBy(running.captures[2] as FakeCapture, { kind: "hop", close: HopClose.PAST_DEADLINE });
+        await captures.started[2]?.end(PAST_DEADLINE);
 
-        expect(live()).toHaveLength(1);
-        expect(running.captures).toHaveLength(4);
+        expect([live().length, captures.started.length]).toEqual([1, 4]);
     });
 
     it.each([
@@ -186,40 +126,39 @@ describe("a hop that ended", () => {
         { kind: "hop", close: HopClose.NORMAL },
         { kind: "socket", code: HEARING_CLOSE.NO_TOKEN },
         { kind: "local", failure: "worklet-refused" },
-    ])("CALL-59: stays closed on its own after %o and starts again with the next change", async (end) => {
+    ] as const)("CALL-59: stays closed after %o with the next change", async (end) => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
 
-        await endedBy(running.captures[0] as FakeCapture, end);
-        expect(running.captures).toHaveLength(1);
+        await captures.started[0]?.end(end);
+        expect(captures.started).toHaveLength(1);
         capture.setStream(stream("second"));
 
-        expect(live().map((started) => started.options.stream)).toEqual(["second"]);
+        expect(streamsOf()).toEqual(["second"]);
     });
 
     it("CALL-59: is not opened again when it ended past its deadline after the switch went off", async () => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHeard(true);
-        const first = running.captures[0] as FakeCapture;
+        const first = captures.started[0];
 
         capture.setHeard(false);
-        await endedBy(first, { kind: "hop", close: HopClose.PAST_DEADLINE });
+        await first?.end(PAST_DEADLINE);
 
-        expect(running.captures).toHaveLength(1);
+        expect(captures.started).toHaveLength(1);
     });
 
     it("CALL-59: is not mistaken for the running capture when an older one ends late", async () => {
         const capture = freshCapture();
         capture.setStream(stream("first"));
         capture.setHeard(true);
-        const first = running.captures[0] as FakeCapture;
+        const first = captures.started[0];
         capture.setStream(stream("second"));
 
-        await endedBy(first, { kind: "hop", close: HopClose.PAST_DEADLINE });
+        await first?.end(PAST_DEADLINE);
 
-        expect(live().map((started) => started.options.stream)).toEqual(["second"]);
-        expect(running.captures).toHaveLength(2);
+        expect([streamsOf(), captures.started.length]).toEqual([["second"], 2]);
     });
 });

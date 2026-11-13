@@ -1,5 +1,7 @@
-import { HopClose, startCapture, type Capture } from "overnightworks-speech-browser";
+import { HopClose, type Capture, type CaptureOptions } from "overnightworks-speech-browser";
 import workletUrl from "overnightworks-speech-browser/capture-worklet.js?url&no-inline";
+
+type StartCapture = (options: CaptureOptions) => Capture;
 
 interface Running {
     readonly capture: Capture;
@@ -12,8 +14,8 @@ export interface HearingCapture {
     setStream(stream: MediaStream | null): void;
 }
 
-/** `hopUrl` is read when a capture starts; the stream's capture stops the moment either input ends. A hop that ends past its deadline is opened once more; every other end leaves the capture closed until the next change. */
-export function createHearingCapture(hopUrl: () => string): HearingCapture {
+/** `hopUrl` is read when a capture starts and `startCapture` starts it; the stream's capture stops the moment either input ends. A hop that ends past its deadline is opened once more; every other end leaves the capture closed until the next change of the switch or the stream. */
+export function createHearingCapture(hopUrl: () => string, startCapture: StartCapture): HearingCapture {
     let heard = false;
     let stream: MediaStream | null = null;
     let running: Running | null = null;

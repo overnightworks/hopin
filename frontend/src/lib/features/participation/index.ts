@@ -1,4 +1,5 @@
 import { loadKitWords } from "overnightworks-design";
+import { startCapture } from "overnightworks-speech-browser";
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
@@ -67,6 +68,7 @@ export async function install(core: FeatureCore): Promise<void> {
     const shown = new Map<string, ShownAgent>();
     const capture = createHearingCapture(
         () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
+        startCapture,
     );
 
     // The server's record decides; `except` leaves out an agent whose switch the person has just pressed off.
