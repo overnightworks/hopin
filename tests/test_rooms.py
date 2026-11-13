@@ -205,8 +205,9 @@ class TestRoomManager:
         room = manager.create_room("h1", account_named("h1"))
         manager.add_agent(room.room_id, "agent0")
         manager.add_participant(room.room_id, "p1", ACCOUNT_P1)
+        second_person = account_named("p2")
         with pytest.raises(RoomFullError):
-            manager.add_participant(room.room_id, "p2", account_named("p2"))
+            manager.add_participant(room.room_id, "p2", second_person)
 
     def test_add_agent_raises_when_people_fill_the_places(self, manager):
         room = manager.create_room("h1", account_named("h1"))
