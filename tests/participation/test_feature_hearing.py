@@ -222,6 +222,24 @@ async def both(participation, invitation_of):
     return owner, added, own
 
 
+@pytest_asyncio.fixture
+async def served(participation, both):
+    """The sound session of the owner's seat, served by the added agent, which holds the token."""
+    owner, added, _own = both
+    return open_hearing(participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person)
+
+
+async def _switched_off(_participation, owner, agent):
+    await owner.say(switch(agent.agent_id, on=False))
+
+
+async def _left(participation, owner, agent):
+    await participation.leave(agent.person, owner.room_id)
+
+
+AN_AGENT_ENDS_HEARING = pytest.mark.parametrize("stops_hearing", [_switched_off, _left], ids=["switch_off", "leave"])
+
+
 class TestTwoAgentsOfOneSponsor:
     async def test_call_57_a_sentence_reaches_each_agent_whose_switch_is_on(self, participation, both):
         """CALL-57: With both switches on, a heard sentence joins the window of each agent."""
@@ -257,54 +275,28 @@ class TestTwoAgentsOfOneSponsor:
 
         assert [handle.agent for handle in handles] == [added.person, own.person]
 
-    async def test_call_57_the_handle_goes_on_when_the_other_agent_switches_off(self, participation, both):
-        """CALL-57: The handle ends only with the agent that serves it; the other's switch leaves it open."""
-        owner, added, own = both
-        handle = open_hearing(
-            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
-        )
-
-        await owner.say(switch(own.agent_id, on=False))
-
-        assert handle.ended.is_set() is False
-
-    async def test_call_57_the_handle_ends_when_the_agent_serving_it_switches_off_and_the_other_still_hears(
-        self, participation, both
+    @AN_AGENT_ENDS_HEARING
+    async def test_call_57_the_handle_goes_on_when_the_agent_not_serving_it_stops_hearing(
+        self, participation, both, served, stops_hearing
     ):
-        """CALL-57: Turning the serving agent's switch off ends the handle; a new one is served by the other agent."""
-        owner, added, own = both
-        handle = open_hearing(
-            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
-        )
+        """CALL-57: The handle ends only with the agent that serves it; the other's switch or leave leaves it open."""
+        owner, _added, own = both
 
-        await owner.say(switch(added.agent_id, on=False))
+        await stops_hearing(participation, owner, own)
 
-        assert handle.ended.is_set()
-        assert open_hearing(participation, person_named(OWNER), owner.peer_id).agent == own.person
+        assert served.ended.is_set() is False
 
-    async def test_call_57_the_handle_ends_when_the_agent_serving_it_leaves_and_the_other_hears_on(
-        self, participation, both
+    @AN_AGENT_ENDS_HEARING
+    async def test_call_57_the_handle_ends_when_the_agent_serving_it_stops_hearing_and_the_other_still_hears(
+        self, participation, both, served, stops_hearing
     ):
-        """CALL-57: An agent's leave ends the handle it serves; the other agent still hears the seat."""
+        """CALL-57: Turning the serving agent off or its leave ends the handle; a new one is served by the other."""
         owner, added, own = both
-        handle = open_hearing(
-            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
-        )
 
-        await participation.leave(added.person, owner.room_id)
+        await stops_hearing(participation, owner, added)
 
-        assert handle.ended.is_set()
+        assert served.ended.is_set()
         assert open_hearing(participation, person_named(OWNER), owner.peer_id).agent == own.person
-
-    async def test_call_57_the_handle_goes_on_when_the_agent_not_serving_it_leaves(self, participation, both):
-        owner, added, own = both
-        handle = open_hearing(
-            participation, person_named(OWNER), owner.peer_id, holding=lambda agent: agent == added.person
-        )
-
-        await participation.leave(own.person, owner.room_id)
-
-        assert handle.ended.is_set() is False
 
     async def test_call_57_the_handle_ends_with_the_last_switch_that_goes_off(self, participation, both):
         owner, added, own = both
