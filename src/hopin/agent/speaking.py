@@ -8,10 +8,12 @@ import io
 import math
 import wave
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
 from pydantic import ValidationError
+from speech_client.health import fetch_health
 from speech_client.speak import (
     Busy,
     Cut,
@@ -24,7 +26,8 @@ from speech_client.speak import (
     Unreachable,
     speak,
 )
-from speech_client.wire import VOICES, Language, RefusalCode, ResponseFormat, VoiceId
+from speech_client.voice_preference import SpokenWithPreference, speak_with_preference
+from speech_client.wire import VOICES, Health, Language, RefusalCode, ResponseFormat, VoiceId
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import issuer_error
@@ -33,6 +36,9 @@ from hopin.participation.speaking import RenderedSentence
 from hopin.participation.vocabulary import VoiceFailure
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from speech_client.voice_preference import PreferenceOutcome
     from webauth.oidc import OidcRelyingParty
 
     from hopin.agent.hearing_token import HearingTokens
@@ -42,6 +48,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 SPEAK_DEADLINE_SECONDS: Final = 20
 SPEAK_MAX_BYTES: Final = 4 * 1024 * 1024
+HEALTH_DEADLINE_SECONDS: Final = 5
+HEALTH_MAX_BYTES: Final = 64 * 1024
 MILLISECONDS_PER_SECOND: Final = 1000
 # The size a streaming WAV declares for its sound, which is not known when the first byte leaves.
 STREAMING_DATA_SIZE: Final = 0xFFFFFFFF
@@ -68,12 +76,12 @@ class SpeechRenderer:
         text: str,
         person_token: str,
         language: Language,
-        voice: VoiceId | None = None,
+        voices: Sequence[VoiceId] | None = None,
         style: str | None = None,
     ) -> bytes | VoiceFailure:
-        """The WAV of the text spoken in `language` on the person's token and HopIn's workload token in `voice`, the
-        service's configured one when none, in the `style` handed to the service unchanged, or why the service made
-        none.
+        """The WAV of the text spoken in `language` on the person's token and HopIn's workload token, in the first of
+        the `voices` the service offers ready, in the service's configured voice alone when none are given, in the
+        `style` handed to the service unchanged, or why the service made none.
 
         Raises `StyleUnavailableError` when the voice refuses the style, and otherwise nothing but `CancelledError`; a
         cancelled call's worker ends within the deadline.
@@ -83,13 +91,15 @@ class SpeechRenderer:
         )
         if isinstance(workload, OidcRefusal):
             return self._failed(VoiceFailure.WORKLOAD_TOKEN_REFUSED, idp_error=issuer_error(workload))
+        speaking: Callable[..., SpeakOutcome | PreferenceOutcome] = (
+            partial(speak, self.service.origin, text, self.service.voice)
+            if voices is None
+            else partial(speak_with_preference, self.service.origin, text, voices)
+        )
         try:
             # A worker thread ends by its deadline, also when this call is cancelled.
             outcome = await asyncio.to_thread(
-                speak,
-                self.service.origin,
-                text,
-                self.service.voice if voice is None else voice,
+                speaking,
                 language=language,
                 instructions=style,
                 response_format=ResponseFormat.WAV,
@@ -111,9 +121,9 @@ class SpeechRenderer:
         self.log_failure(failure.value, **codes)
         return failure
 
-    def _wav_of(self, outcome: SpeakOutcome) -> bytes | VoiceFailure:
+    def _wav_of(self, outcome: SpeakOutcome | PreferenceOutcome) -> bytes | VoiceFailure:
         match outcome:
-            case Spoken(audio=audio):
+            case Spoken(audio=audio) | SpokenWithPreference(audio=audio):
                 return audio
             case Refused(code=RefusalCode.INVALID_REQUEST, param="instructions"):
                 raise StyleUnavailableError
@@ -151,12 +161,10 @@ def duration_ms_of(wav: bytes) -> int | None:
     return math.ceil(held * MILLISECONDS_PER_SECOND / rate) or None
 
 
-def known_voice(name: str | None) -> str | None:
-    """The voice the speech service's catalogue names, or nothing for no name and for one it does not name."""
-    try:
-        return None if name is None else VoiceId(name).value
-    except ValueError:
-        return None
+def known_voices(names: Sequence[str] | None) -> tuple[str, ...]:
+    """The voices of the list the speech service's catalogue names, in the list's order; the names it does not name
+    are left out, and no list at all is no voice."""
+    return tuple(VoiceId(name).value for name in names or () if name in VoiceId)
 
 
 class LanguageUnavailableError(Exception):
@@ -171,22 +179,33 @@ class AgentVoice:
         self._tokens = tokens
 
     async def render(
-        self, agent: Person, text: str, voice: str | None, *, language: str | None = None, style: str | None = None
+        self,
+        agent: Person,
+        text: str,
+        voices: tuple[str, ...],
+        *,
+        language: str | None = None,
+        style: str | None = None,
     ) -> RenderedSentence | VoiceFailure | None:
-        """The sentence's sound and length in the agent's `voice`, a catalogue voice its accept named or none for the
-        configured one, spoken in the `language` it names or in the page's when it names none and in the `style` it
-        names, which speech alone checks; why the voice failed when speech fails or its WAV cannot be read; nothing
-        when no token is held, which is no failure of the voice.
+        """The sentence's sound and length in the first of the agent's `voices`, the catalogue voices its accept
+        named, that speech offers ready, or in the configured voice for none; spoken in the `language` it names or in
+        the page's when it names none and in the `style` it names, which speech alone checks; why the voice failed
+        when speech fails, offers none of the voices or its WAV cannot be read; nothing when no token is held, which is
+        no failure of the voice. A style goes only to a voice that takes one; a voice of the list that takes none speaks
+        the sentence plain.
 
-        Raises `LanguageUnavailableError`, before any request to speech, for a language the voice does not speak, and
-        `StyleUnavailableError` for a style the voice refuses."""
-        spoken_voice = self._renderer.service.voice if voice is None else VoiceId(voice)
-        spoken_language = _spoken_language(language, spoken_voice)
+        Raises `LanguageUnavailableError` and `StyleUnavailableError`, before any request to speech, for a language none
+        of the voices speaks and for a style none of them takes; speech's own refusal of the style raises the latter
+        too."""
+        preference = self._preference(voices)
+        spoken_language = _spoken_language(language, preference)
+        if style is not None and not any(VOICES[voice].takes_instructions for voice in preference):
+            raise StyleUnavailableError
         token = self._tokens.held(agent)
         if token is None:
             self._renderer.log_failure("no_token")
             return None
-        wav = await self._renderer.wav(text, token.get_secret_value(), spoken_language, spoken_voice, style)
+        wav = await self._renderer.wav(text, token.get_secret_value(), spoken_language, preference, style)
         if isinstance(wav, VoiceFailure):
             return wav
         duration_ms = duration_ms_of(wav)
@@ -195,12 +214,29 @@ class AgentVoice:
             return VoiceFailure.UNREADABLE_AUDIO
         return RenderedSentence(wav, duration_ms)
 
+    async def offers(self, voices: tuple[str, ...]) -> bool:
+        """Whether speech's health offers one of the agent's `voices`, the configured voice for none, ready now; no
+        when health cannot be read."""
+        health = await asyncio.to_thread(
+            fetch_health,
+            self._renderer.service.origin,
+            deadline_seconds=HEALTH_DEADLINE_SECONDS,
+            cap_bytes=HEALTH_MAX_BYTES,
+        )
+        return isinstance(health, Health) and any(
+            (offered := health.speaking.voices.get(voice)) is not None and offered.ready
+            for voice in self._preference(voices)
+        )
 
-def _spoken_language(code: str | None, voice: VoiceId) -> Language:
+    def _preference(self, voices: tuple[str, ...]) -> tuple[VoiceId, ...]:
+        return tuple(VoiceId(voice) for voice in voices) or (self._renderer.service.voice,)
+
+
+def _spoken_language(code: str | None, preference: Sequence[VoiceId]) -> Language:
     try:
         language = PAGE_LANGUAGE if code is None else Language(code)
     except ValueError:
         raise LanguageUnavailableError from None
-    if language not in VOICES[voice].languages:
+    if not any(language in VOICES[voice].languages for voice in preference):
         raise LanguageUnavailableError
     return language

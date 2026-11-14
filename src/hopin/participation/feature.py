@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from hopin.participation.live_agents import LiveAgent
     from hopin.participation.looking import Picture
     from hopin.participation.places import Place
-    from hopin.participation.speaking import QueuedSentence, Renderer
+    from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
     from hopin.participation.voice import VoiceStore
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
@@ -104,7 +104,7 @@ class Participation:
         self._figure_sources = figure_sources
         self._hearing = hearing
         self._places = Places()
-        self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed)
+        self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed, scheduler)
         self._speaking = Speaking(
             voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
@@ -180,11 +180,14 @@ class Participation:
         await self._write_line(agent, line)
         return None
 
-    async def speak(self, person: Person, room_id: str, text: str, render: Renderer | None) -> SpeakResult:
-        """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer how long
+    async def speak(
+        self, person: Person, room_id: str, text: str, render: Renderer | None, offered: VoicesOffered | None = None
+    ) -> SpeakResult:
+        """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer that
         it plays when the sentence starts, not when it is queued; the refusal when the agent holds no active place
         there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, or an
-        end of its speaking meanwhile; a sound that could not be made is written as a line instead."""
+        end of its speaking meanwhile; a sound that could not be made is written as a line instead, and `offered` then
+        says when the voice is back, which turns the window's voice available without a sentence."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -194,7 +197,7 @@ class Participation:
         failure = self._no_room_to_speak(agent)
         if failure is not None:
             return await self._unavailable(failure)
-        return await self._speaking.speak(agent, sentence, self.speech.watching_voice(agent, render))
+        return await self._speaking.speak(agent, sentence, self.speech.watching_voice(agent, render, offered))
 
     async def stop_speaking(self, person: Person, room_id: str) -> StopResult:
         """Cut the sentence the person's agent plays in every seat and drop its others; the text of the cut sentence's
@@ -272,10 +275,10 @@ class Participation:
         invitation_id: str,
         epoch: int,
         figure: Figure | None,
-        voice: str | None = None,
+        voices: tuple[str, ...] = (),
     ) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
-        shows the figure only when an allowed source holds it, and the agent keeps `voice` for its sentences."""
+        shows the figure only when an allowed source holds it, and the agent keeps `voices` for its sentences."""
         live = self._live.by_person.get(person)
         invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
         if live is None or invitation is None:
@@ -292,7 +295,7 @@ class Participation:
             invitation.sponsor,
             room_id,
             figure if refusal is None else None,
-            voice,
+            voices,
         )
         if not self._takes_place(agent):
             return AgentRefusal.BUSY
@@ -455,6 +458,7 @@ class Participation:
             self._hearing.room_ended(room_id)
         ended = self._places.joined()
         self._places.clear()
+        self.speech.stop_recovery()
         for agent in ended:
             self._speaking.end(agent)
             self._seeing.ended(agent)

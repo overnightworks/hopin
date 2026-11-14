@@ -1,4 +1,6 @@
 import re
+import time
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -8,16 +10,25 @@ from speech_client.wire import RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from hopin.participation.speaking import MILLISECONDS_PER_SECOND
+from hopin.participation.vocabulary import VOICE_RECOVERY_SECONDS
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.dialed_call import window_uri
 from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, refusal_answer, silent_wav, speaking
+from tests.support.speech_origin import (
+    AUDIENCE_SCOPE,
+    chunked_wav,
+    offering,
+    refusal_answer,
+    silent_wav,
+    speaking,
+    speech_requests,
+    spoken_request,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterator, Sequence
     from concurrent.futures import Future
 
     from tests.e2e.support.dialed_agent import OwnAccountAgent
@@ -29,6 +40,7 @@ SPEAKING_TILE = re.compile(r"\bspeaking\b")
 AGENT_LINE = "#chatMessages .chat-msg:has(.participation-agent-sender)"
 SOUND_SECONDS = 1.0
 LONGER_SOUND_SECONDS = 5.0
+POLL_SECONDS = 0.2
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
 # Each page records the length of every sound its player starts and how many sources it stopped. The player starts a
@@ -58,6 +70,7 @@ RECORD_PLAYBACK = """
 @pytest.fixture(scope="module")
 def speech_origin() -> Iterator[Origin]:
     origin = Origin()
+    offering(origin, *VoiceId)
     yield origin
     origin.close()
 
@@ -86,11 +99,18 @@ class Speaker:
     """The call of three people whose member added the owner's agent, a recording player on each page, and the agent's
     sentences."""
 
-    def __init__(self, scene: Scene, speech_origin: Origin, *, other: OwnAccountAgent | None = None) -> None:
+    def __init__(
+        self,
+        scene: Scene,
+        speech_origin: Origin,
+        *,
+        other: OwnAccountAgent | None = None,
+        voices: Sequence[str] | None = None,
+    ) -> None:
         self.scene = scene
         self.speech_origin = speech_origin
         self.room = room_of_link(scene.link)
-        scene.member_adds_and_the_agent_accepts()
+        scene.member_adds_and_the_agent_accepts(voices=voices)
         if other is not None:
             scene.member_adds_and_accepts(other)
         for person in scene.everyone:
@@ -161,7 +181,7 @@ def test_an_agents_sentences_sound_once_each_in_order_in_every_browser_and_its_t
         person.wait_for_function("() => window.soundsStarted.length === 3", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert speaker.started(person) == [SOUND_SECONDS, *LATER_SOUND_SECONDS]
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
-    assert behind_answer.result(REQUEST_SECONDS) == {"duration_ms": round(behind_it * MILLISECONDS_PER_SECOND)}
+    assert behind_answer.result(REQUEST_SECONDS) == {"spoken": True}
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -271,4 +291,46 @@ def test_a_sentence_whose_voice_fails_is_written_in_every_chat_and_the_window_st
 
     for person in everyone:
         person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    assert speaker.window()["voice_state"] == "available"
+
+
+@pytest.fixture
+def voices_of_the_service(speech_origin: Origin) -> Iterator[Callable[..., None]]:
+    """What the speech service's health offers from now on; every voice again once the test is over."""
+    yield partial(offering, speech_origin)
+    offering(speech_origin, *VoiceId)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS[:1])
+def test_an_agent_speaks_with_the_first_ready_voice_of_its_list_and_its_voice_comes_back_by_itself(
+    scene_of: Callable[[dict[str, Any]], Scene],
+    speech_origin: Origin,
+    voices_of_the_service: Callable[..., None],
+    form_factor: dict[str, Any],
+) -> None:
+    """CALL-60 and CALL-61: An agent whose accept lists ryan then thorsten speaks with ryan while health offers it and
+    with thorsten once health offers only Piper voices, with no restart; when health offers none of its list the
+    sentence is written and the window states the voice unavailable, and the window states it available again, with no
+    sentence, once a voice of the list is offered."""
+    speaker = Speaker(scene_of(form_factor), speech_origin, voices=[VoiceId.RYAN, VoiceId.THORSTEN])
+    earlier = len(speech_requests(speech_origin))
+
+    speaker.speak(SOUND_SECONDS)
+    voices_of_the_service(VoiceId.THORSTEN, VoiceId.KERSTIN)
+    speaker.speak(SOUND_SECONDS)
+    voices_of_the_service(VoiceId.KERSTIN)
+    written = speaker.speak_behind(SOUND_SECONDS).result(REQUEST_SECONDS)
+
+    spoken_voices = [spoken_request(request).voice for request in speech_requests(speech_origin)[earlier:]]
+    assert (spoken_voices, written, speaker.window()["voice_state"]) == (
+        [VoiceId.RYAN, VoiceId.THORSTEN],
+        {"written": True},
+        "unavailable",
+    )
+
+    voices_of_the_service(VoiceId.KERSTIN, VoiceId.THORSTEN)
+
+    deadline = time.monotonic() + VOICE_RECOVERY_SECONDS * 3
+    while speaker.window()["voice_state"] != "available" and time.monotonic() < deadline:
+        time.sleep(POLL_SECONDS)
     assert speaker.window()["voice_state"] == "available"

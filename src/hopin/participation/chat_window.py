@@ -157,6 +157,10 @@ class ChatWindow:
         self._voice = WindowVoice.UNAVAILABLE
         return turned
 
+    @property
+    def voice_unavailable(self) -> bool:
+        return self._voice is WindowVoice.UNAVAILABLE
+
     def voice_worked(self) -> bool:
         """The agent's voice made a sound; say whether that turned an unavailable voice available again."""
         turned = self._voice is WindowVoice.UNAVAILABLE

@@ -338,13 +338,14 @@ def scene(scene_of):
 
 
 @pytest.fixture
-def accepted_voice():
-    """The voice the owner's agent names in its accept; none until a module about voices names one."""
-    return
+def accepted_voices():
+    """The voices, first choice first, the owner's agent names in its accept; none until a module about voices names
+    some."""
+    return ()
 
 
 @pytest.fixture
-def joined_agent(scene, accepted_voice):
+def joined_agent(scene, accepted_voices):
     """The scene with its owner's agent added from the owner's own seat and accepted, so the agent holds a joined place
     in the owner's call; `agent_id` is the id the seats are told."""
     owner = scene.owner
@@ -352,7 +353,7 @@ def joined_agent(scene, accepted_voice):
         pass
     owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
     owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
-    scene.accept(scene.standings()[0], **({} if accepted_voice is None else {"voice": accepted_voice}))
+    scene.accept(scene.standings()[0], **({"voices": list(accepted_voices)} if accepted_voices else {}))
     scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
     return scene
 
