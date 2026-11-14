@@ -132,6 +132,7 @@ faulthandler_timeout = 120
 markers = [
     "integration: integration tests",
     "e2e: browser end-to-end tests",
+    "shared_stores: tests that run two hopin serve processes against a live Redis (HOPIN_TEST_REDIS_URL)",
 ]
 
 # --- Coverage ---
