@@ -1,9 +1,11 @@
 import asyncio
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import pytest
@@ -13,6 +15,7 @@ from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECO
 from speech_client.wire import VoiceId
 
 from hopin.agent.hearing import MemberHearingRecord
+from hopin.auth import sign_in
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
@@ -213,8 +216,30 @@ def figure_transport():
     return
 
 
+class MonotonicClock:
+    """The clock the relying party measures a token's lifetime on, which a test moves on by hand."""
+
+    def __init__(self) -> None:
+        self._seconds = time.monotonic()
+
+    def __call__(self) -> float:
+        return self._seconds
+
+    def advance(self, seconds: float) -> None:
+        self._seconds += seconds
+
+
+@pytest.fixture
+def issuer_clock(monkeypatch):
+    """The relying party's monotonic clock; it stands still until a test advances it."""
+    clock = MonotonicClock()
+    monkeypatch.setattr(sign_in, "time", SimpleNamespace(monotonic=clock))
+    return clock
+
+
 @pytest.fixture
 def adding_call(
+    issuer_clock,
     sign_in_settings,
     seat_changes,
     adding_call_adders,
