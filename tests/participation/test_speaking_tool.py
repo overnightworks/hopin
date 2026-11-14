@@ -30,13 +30,14 @@ from tests.participation.support.speaking_scene import (
     VOICE,
     drained,
     frames_of,
+    grants,
     refusal_of,
     sound_at,
     still_waiting,
 )
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
-from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
+from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     chunked_wav,
@@ -182,6 +183,57 @@ class TestSpeaking:
         dialed = speak(joined_agent, text)
 
         assert dialed.is_error is False
+
+
+def speak_until_it_ends(scene):
+    """A sentence that is spoken to its end, so that the next one does not wait behind it."""
+    spoken = speak(scene)
+    scene.call.pass_time(SENTENCE_SECONDS)
+    return spoken
+
+
+class TestTheWorkloadToken:
+    def test_call_60_sentences_within_one_tokens_lifetime_post_one_grant_and_carry_the_same_token(
+        self, joined_agent, speech_origin
+    ):
+        """CALL-60: HopIn's token for the service is fetched once for the sentences that follow within its lifetime."""
+        for _ in range(2):
+            speak_until_it_ends(joined_agent)
+
+        assert (
+            len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT)),
+            {header_of(request, WORKLOAD_TOKEN_HEADER) for request in speech_requests(speech_origin)},
+        ) == (1, set(joined_agent.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)))
+
+    @pytest.mark.parametrize(
+        ("passed_seconds", "granted"),
+        [
+            pytest.param(TOKEN_LIFETIME_SECONDS // 2, 1, id="well_within_its_lifetime"),
+            pytest.param(TOKEN_LIFETIME_SECONDS, 2, id="at_the_end_of_its_lifetime"),
+        ],
+    )
+    def test_call_60_a_token_near_its_end_is_fetched_anew_before_the_next_sentence(
+        self, joined_agent, issuer_clock, passed_seconds, granted
+    ):
+        speak_until_it_ends(joined_agent)
+        issuer_clock.advance(passed_seconds)
+        speak_until_it_ends(joined_agent)
+
+        assert len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT)) == granted
+
+    def test_call_61_a_refusal_is_not_reused_for_the_next_sentence(self, joined_agent):
+        issuer = joined_agent.call.issuer
+        issuer.refuses_client_credentials_grants = True
+        refused = speak(joined_agent)
+        issuer.refuses_client_credentials_grants = False
+
+        spoken = speak(joined_agent)
+
+        assert (refused.outcome, spoken.outcome, len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT))) == (
+            {"written": True},
+            {"spoken": True},
+            2,
+        )
 
 
 class TestTheVoiceOfASentence:
