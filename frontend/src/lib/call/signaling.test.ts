@@ -166,7 +166,7 @@ describe("sending a transient frame", () => {
     it("writes it numbered like the rest once the socket is live and never resends it after a resume", async () => {
         const signaling = await freshSignaling();
         const socket = seatedSocket(signaling);
-        signaling.sendTransientFeatureFrame({ type: "game_picture", data: "part" });
+        signaling.sendFeatureFrame({ type: "game_picture", data: "part" }, { transient: true });
         signaling.send({ type: SIGNAL_TYPE.CHAT, text: "kept" });
         expect(socket.sent.slice(-2)).toEqual([
             { type: "game_picture", data: "part", seq: 1 },
@@ -182,20 +182,20 @@ describe("sending a transient frame", () => {
     });
 
     it("is dropped, not held, while the socket is not live", async () => {
-        const { connect, sendTransientFeatureFrame } = await freshSignaling();
+        const { connect, sendFeatureFrame } = await freshSignaling();
         connect();
 
-        sendTransientFeatureFrame({ type: "game_picture", data: "part" });
+        sendFeatureFrame({ type: "game_picture", data: "part" }, { transient: true });
         latestSocket().open();
 
         expect(latestSocket().sent).toEqual([{ type: SIGNAL_TYPE.JOIN }]);
     });
 
     it("refuses to send before connect", async () => {
-        const { sendTransientFeatureFrame } = await freshSignaling();
+        const { sendFeatureFrame } = await freshSignaling();
 
         expect(() => {
-            sendTransientFeatureFrame({ type: "game_picture" });
+            sendFeatureFrame({ type: "game_picture" }, { transient: true });
         }).toThrow("No signaling session");
     });
 });

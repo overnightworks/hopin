@@ -31,11 +31,8 @@ export async function installedParticipation(installOn?: typeof install) {
         on: (type, handler) => {
             handlers.set(type, handler);
         },
-        send: (frame) => {
-            sent.push(frame);
-        },
-        sendTransient: (frame) => {
-            sentTransient.push(frame);
+        send: (frame, options) => {
+            (options?.transient === true ? sentTransient : sent).push(frame);
         },
         isConnected: vi.fn().mockReturnValue(true),
         showToast: (text) => {

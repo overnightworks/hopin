@@ -1,4 +1,4 @@
-import type { OutgoingFrame, PictureBounds } from "#lib/call/feature-port.ts";
+import type { OutgoingFrame, PictureBounds, SendOptions } from "#lib/call/feature-port.ts";
 import { LOOK_MAX_BYTES, LOOK_MAX_PIXELS, LOOK_PART_CHARACTERS, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 export const PICTURE_BOUNDS: PictureBounds = { maxPixels: LOOK_MAX_PIXELS, maxBytes: LOOK_MAX_BYTES };
@@ -11,11 +11,10 @@ export interface Looks {
     answer(requestId: string): Promise<void>;
 }
 
-/** `takePicture` takes one picture of the person's own camera within the bounds, `send` hands a frame to the server and `sendTransient` one that nothing keeps, as the parts of a picture are sent. A request already answered is ignored. A camera that cannot be read answers as none, so the agent is not left waiting. */
+/** `takePicture` takes one picture of the person's own camera within the bounds, and `send` hands a frame to the server; the parts of the picture are sent transient, so nothing keeps them. A request already answered is ignored. A camera that cannot be read answers as none, so the agent is not left waiting. */
 export function createLooks(
     takePicture: (bounds: PictureBounds) => Promise<string | null>,
-    send: (frame: OutgoingFrame) => void,
-    sendTransient: (frame: OutgoingFrame) => void,
+    send: (frame: OutgoingFrame, options?: SendOptions) => void,
 ): Looks {
     const answered = new Set<string>();
 
@@ -35,13 +34,16 @@ export function createLooks(
             }
             const count = Math.ceil(picture.length / LOOK_PART_CHARACTERS);
             for (let index = 0; index < count; index += 1) {
-                sendTransient({
-                    type: PARTICIPATION_SIGNAL.AGENT_LOOK_PART,
-                    request_id: requestId,
-                    index,
-                    count,
-                    data: picture.slice(index * LOOK_PART_CHARACTERS, (index + 1) * LOOK_PART_CHARACTERS),
-                });
+                send(
+                    {
+                        type: PARTICIPATION_SIGNAL.AGENT_LOOK_PART,
+                        request_id: requestId,
+                        index,
+                        count,
+                        data: picture.slice(index * LOOK_PART_CHARACTERS, (index + 1) * LOOK_PART_CHARACTERS),
+                    },
+                    { transient: true },
+                );
             }
         },
     };

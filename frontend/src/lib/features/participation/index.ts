@@ -110,11 +110,8 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     );
     const looks = createLooks(
         (bounds) => core.takePicture(bounds),
-        (frame) => {
-            core.send(frame);
-        },
-        (frame) => {
-            core.sendTransient(frame);
+        (frame, options) => {
+            core.send(frame, options);
         },
     );
     // Agents whose sound plays now: their tile shows them speaking.

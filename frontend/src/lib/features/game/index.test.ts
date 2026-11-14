@@ -54,7 +54,6 @@ async function installedGame({ connected = true } = {}) {
     const core: FeatureCore = {
         on: (type, handler) => void handlers.set(type, handler),
         send: (frame) => void sent.push(frame),
-        sendTransient: () => undefined,
         isConnected: () => connected,
         showToast: (text, kind, action) => void toasts.push({ text, kind, action }),
         toastKind: TOAST_KIND,
