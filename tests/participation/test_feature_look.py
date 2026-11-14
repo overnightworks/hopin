@@ -28,7 +28,7 @@ from tests.participation.support.ends import (
     shut_down,
 )
 from tests.participation.support.people import person_named, room_of
-from tests.signaling.support.browsers import host_and_guest
+from tests.signaling.support.browsers import HeldWrite, host_and_guest
 from tests.support.pictures import jpeg_of, parts_of
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -252,6 +252,106 @@ class TestNoPicture:
         await guest.drop(1006)
 
         assert await asyncio.wait_for(look, timeout=1) is LookRefusal.NOT_ACTIVE
+
+
+async def switched_off(participation, host, guest, agent):
+    await guest.say(seeing(agent.agent_id, on=False))
+
+
+class TestASlowSocket:
+    async def test_call_63_a_request_the_sponsors_socket_does_not_take_in_time_yields_no_answer(
+        self, scheduler, seen, looking
+    ):
+        """CALL-63: One deadline bounds the whole look, the write of the request among it."""
+        _host, guest, _agent = seen
+        stalled = HeldWrite(guest.socket)
+        look = await looking()
+        await stalled.reached()
+
+        await scheduler.advance(LOOK_ANSWER_SECONDS)
+
+        assert await asyncio.wait_for(look, timeout=1) is LookRefusal.NO_ANSWER
+
+    async def test_call_63_a_mark_a_seat_does_not_take_in_time_yields_no_answer_and_no_picture(
+        self, scheduler, seen, looking
+    ):
+        """CALL-63: One deadline bounds the whole look, the showing of the look to the seats among it."""
+        host, guest, _agent = seen
+        look = await looking()
+        request_id = request_ids(guest)[-1]
+        stalled = HeldWrite(host.socket)
+        await guest.say(part(request_id, parts_of(jpeg_of(), 10**6)[0]))
+        await stalled.reached()
+
+        await scheduler.advance(LOOK_ANSWER_SECONDS)
+
+        assert await asyncio.wait_for(look, timeout=1) is LookRefusal.NO_ANSWER
+
+    @pytest.mark.parametrize(
+        ("end", "refusal"),
+        [
+            pytest.param(switched_off, LookRefusal.NOT_ALLOWED, id="the_switch_turned_off"),
+            pytest.param(leave_by_the_agent, LookRefusal.NOT_ACTIVE, id="the_agents_leave"),
+        ],
+    )
+    async def test_call_63_an_end_while_the_mark_is_shown_yields_no_picture(
+        self, participation, seen, looking, end, refusal
+    ):
+        """CALL-63: The sponsor's turning the switch off or the agent's leaving stops a look at the step it is on, the
+        showing of the look included, and the picture is not released."""
+        host, guest, agent = seen
+        look = await looking()
+        request_id = request_ids(guest)[-1]
+        stalled = HeldWrite(host.socket)
+        await guest.say(part(request_id, parts_of(jpeg_of(), 10**6)[0]))
+        await stalled.reached()
+
+        ending = asyncio.create_task(end(participation, host, guest, agent))
+        result = await asyncio.wait_for(look, timeout=1)
+        stalled.release.set()
+        await ending
+
+        assert result is refusal
+
+
+class TestAnswersWhileTheLookIsShown:
+    async def test_call_63_a_second_answer_while_the_look_is_shown_changes_nothing(self, seen, looking):
+        """CALL-63: A look is answered once: what the browser sends after its picture came is dropped."""
+        host, guest, _agent = seen
+        picture = jpeg_of()
+        look = await looking()
+        request_id = request_ids(guest)[-1]
+        stalled = HeldWrite(host.socket)
+        await guest.say(part(request_id, parts_of(picture, 10**6)[0]))
+        await stalled.reached()
+
+        await guest.say(no_camera(request_id))
+        stalled.release.set()
+
+        assert await asyncio.wait_for(look, timeout=1) == picture
+
+    async def test_call_63_a_cancelled_look_stays_cancelled(self, seen, looking):
+        """CALL-63: A caller that gives up its look is not answered with a refusal."""
+        look = await looking()
+
+        look.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await look
+
+    async def test_call_63_ending_one_agents_look_leaves_another_agents_look_waiting(self, participation, call):
+        """CALL-63: Turning one agent's switch off ends that agent's looks and no other agent's."""
+        host, guest, mozart, salieri = call
+        await guest.say(seeing(mozart.agent_id, on=True))
+        await host.say(seeing(salieri.agent_id, on=True))
+        mine = asyncio.create_task(participation.look(GUEST, room_of(guest)))
+        theirs = asyncio.create_task(participation.look(person_named("host"), room_of(host)))
+        await settle()
+
+        await guest.say(seeing(mozart.agent_id, on=False))
+        await host.say(no_camera(request_ids(host)[-1]))
+
+        assert [await mine, await theirs] == [LookRefusal.NOT_ALLOWED, LookRefusal.NO_CAMERA]
 
 
 class TestTheCap:

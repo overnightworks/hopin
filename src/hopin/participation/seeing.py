@@ -3,6 +3,7 @@
 A look needs the switch on and stays within the looks a window allows. It is asked of the sponsor's browser, which
 captures its own camera, and a picture it yields is shown to the call as a mark on the agent's tile."""
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 from hopin.participation.frames import look_request_frame, looked_frame
@@ -22,8 +23,7 @@ if TYPE_CHECKING:
 
 class Seeing:
     """The rule of looks over the seeing switch `Hearing` records, which starts off for every agent. `tell` sends a
-    frame to the seats of a room and `recipients` names a room's seats; `in_call` says whether the agent still holds
-    its place."""
+    frame to the seats of a room and `recipients` names a room's seats."""
 
     def __init__(
         self,
@@ -32,32 +32,23 @@ class Seeing:
         scheduler: Scheduler,
         tell: Callable[[str, Sequence[str], JsonObject], Awaitable[None]],
         recipients: Callable[[str], list[PeerId]],
-        in_call: Callable[[DialedAgent], bool],
     ) -> None:
         self._hearing = hearing
         self._places = places
         self._scheduler = scheduler
         self._tell = tell
         self._recipients = recipients
-        self._in_call = in_call
         self._looking = Looking(scheduler, self._ask)
 
     async def look(self, agent: DialedAgent) -> Picture:
         """The picture of the sponsor's camera, or why there is none: the switch is off, the agent looked too often,
-        or the browser gave none. Every seat of the call is shown the look when it yields a picture."""
+        the browser gave none or the agent or the switch ended meanwhile, which stops the look at whatever step it is
+        on. Every seat of the call is shown the look when it yields a picture."""
         if not self._hearing.sees(agent):
             return LookRefusal.NOT_ALLOWED
         if not self._places.take_look(agent.person, agent.room_id, self._scheduler.now()):
             return LookRefusal.TOO_FAST
-        picture = await self._looking.look(agent)
-        if isinstance(picture, LookRefusal):
-            return picture
-        if not self._in_call(agent):
-            return LookRefusal.NOT_ACTIVE
-        if not self._hearing.sees(agent):
-            return LookRefusal.NOT_ALLOWED
-        await self._tell(agent.room_id, self._recipients(agent.room_id), looked_frame(agent))
-        return picture
+        return await self._looking.look(agent, partial(self._show, agent))
 
     def answered(self, sender: PeerId, frame: ForeignFrame, *, part: bool) -> None:
         """Take the sponsor's browser's answer to a look."""
@@ -70,3 +61,6 @@ class Seeing:
 
     async def _ask(self, agent: DialedAgent, request_id: str) -> None:
         await self._tell(agent.room_id, [agent.sponsor], look_request_frame(request_id))
+
+    async def _show(self, agent: DialedAgent) -> None:
+        await self._tell(agent.room_id, self._recipients(agent.room_id), looked_frame(agent))

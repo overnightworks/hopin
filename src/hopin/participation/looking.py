@@ -1,6 +1,7 @@
 """A look is one still picture of a sponsor's camera, asked of the sponsor's browser by a request id. The browser
 answers in parts, each within a signaling frame, or with none; the picture is assembled in memory only while the
-request waits, and is handed to the asker or dropped. No part and no picture is logged."""
+request waits, and is handed to the asker or dropped. No part and no picture is logged. One deadline bounds the whole
+look: the request's write, the browser's answer and the showing of the look."""
 
 import asyncio
 import base64
@@ -36,13 +37,16 @@ type Picture = bytes | LookRefusal
 
 @dataclass
 class _Request:
-    """A look that waits for its answer: the agent that asks, and the parts of the picture that came so far."""
+    """A look in progress: the agent that asks, the browser's answer as it comes, and the parts of the picture that came
+    so far. `running` is the look's work, which an end or the deadline cancels, leaving `refusal` as the reason."""
 
     agent: DialedAgent
     answer: asyncio.Future[Picture] = field(repr=False)
     parts: dict[int, str] = field(default_factory=dict, repr=False)
     count: int | None = None
-    timer: TimerHandle | None = None
+    refusal: LookRefusal | None = None
+    running: asyncio.Future[Picture] = field(init=False, repr=False)
+    timer: TimerHandle = field(init=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -69,19 +73,35 @@ class Looking:
         self._ask = ask
         self._requests: dict[str, _Request] = {}
 
-    async def look(self, agent: DialedAgent) -> Picture:
-        """Ask the agent's sponsor for a picture and wait for the browser's answer, which the sponsor's leave or an end
-        of the agent also gives, or for the time to run out."""
+    async def look(self, agent: DialedAgent, show: Callable[[], Awaitable[None]]) -> Picture:
+        """Ask the agent's sponsor for a picture, wait for the browser's answer and `show` the look once a picture is
+        there. The agent's end, the sponsor's turning its seeing off or the time running out stops the look at whatever
+        step it is on and gives the refusal; so does the sponsor's browser, with none."""
         request_id = secrets.token_hex(REQUEST_ID_BYTES)
         request = _Request(agent, asyncio.get_running_loop().create_future())
+        request.running = asyncio.ensure_future(self._run(request, request_id, show))
         self._requests[request_id] = request
-        request.timer = self._scheduler.call_later(LOOK_ANSWER_SECONDS, partial(self._timed_out, request))
+        request.timer = self._scheduler.call_later(
+            LOOK_ANSWER_SECONDS, partial(self._stop, request, LookRefusal.NO_ANSWER)
+        )
         try:
-            await self._ask(agent, request_id)
-            return await request.answer
+            picture = await request.running
+        except asyncio.CancelledError:
+            if request.refusal is None:
+                raise
+            return request.refusal
         finally:
             request.timer.cancel()
+            request.parts.clear()
             del self._requests[request_id]
+        return picture if request.refusal is None else request.refusal
+
+    async def _run(self, request: _Request, request_id: str, show: Callable[[], Awaitable[None]]) -> Picture:
+        await self._ask(request.agent, request_id)
+        picture = await request.answer
+        if isinstance(picture, bytes):
+            await show()
+        return picture
 
     def answered(self, sender: PeerId, frame: ForeignFrame, *, part: bool) -> None:
         """Take a sponsor's answer, a part of the picture or the word that there is none; an answer to no waiting
@@ -100,13 +120,15 @@ class Looking:
             self._take_part(request, taken)
 
     def end(self, agent: DialedAgent, refusal: LookRefusal) -> None:
-        """The agent's looks that wait get no picture: it ended, or its sponsor turned its seeing off."""
+        """The agent's looks in progress get no picture: it ended, or its sponsor turned its seeing off."""
         for request in self._requests.values():
             if request.agent.agent_id == agent.agent_id:
-                _answer(request, refusal)
+                _stop_request(request, refusal)
 
-    async def _timed_out(self, request: _Request) -> None:  # NOSONAR(S7503) a scheduler callback is async
-        _answer(request, LookRefusal.NO_ANSWER)
+    async def _stop(
+        self, request: _Request, refusal: LookRefusal
+    ) -> None:  # NOSONAR(S7503) a scheduler callback is async
+        _stop_request(request, refusal)
 
     def _take_part(self, request: _Request, taken: _Part) -> None:
         if request.count not in (None, taken.count) or not 0 <= taken.index < taken.count <= LOOK_MAX_PARTS:
@@ -124,6 +146,12 @@ class Looking:
 def _answer(request: _Request, picture: Picture) -> None:
     if not request.answer.done():
         request.answer.set_result(picture)
+
+
+def _stop_request(request: _Request, refusal: LookRefusal) -> None:
+    """End the look's work and leave the refusal as its answer; the first reason stays."""
+    request.refusal = refusal if request.refusal is None else request.refusal
+    request.running.cancel()
 
 
 def _picture_of(encoded: str) -> Picture:

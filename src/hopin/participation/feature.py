@@ -108,7 +108,7 @@ class Participation:
         self._speaking = Speaking(
             voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
-        self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients, self._in_call)
+        self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients)
         self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
         self._live = LiveAgents()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
