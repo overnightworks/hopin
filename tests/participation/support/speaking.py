@@ -2,14 +2,13 @@
 
 import asyncio
 
-from hopin.participation.speaking import RenderedSentence, SoundLength
+from hopin.participation.speaking import RenderedSentence, SoundLength, _fill
 from hopin.participation.vocabulary import ParticipationSignal, VoiceFailure
-from tests.participation.support.people import person_named
+from tests.participation.support.people import person_named, room_of
 
 GUEST = person_named("guest")
 SENTENCE_MS = 1500
 LONG_MS = 60 * 60 * 1000
-FILLING_TASK = "_fill"
 
 
 def a_sentence(wav=b"sound", duration_ms=SENTENCE_MS):
@@ -37,6 +36,8 @@ class StreamedSentence:
         try:
             while True:
                 piece = await self._pieces.get()
+                if isinstance(piece, Exception):
+                    raise piece
                 yield piece
                 if not isinstance(piece, bytes):
                     return
@@ -51,6 +52,9 @@ class StreamedSentence:
 
     async def breaks_off(self, failure=VoiceFailure.CUT):
         await self._arrive(failure)
+
+    async def crashes(self):
+        await self._arrive(RuntimeError("the stream crashed"))
 
     async def _arrive(self, piece):
         self._pieces.put_nowait(piece)
@@ -81,7 +85,7 @@ async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room
     announcements = {
         task
         for task in asyncio.all_tasks() - known - {asyncio.current_task()}
-        if task.get_coro().__name__ != FILLING_TASK
+        if task.get_coro().__name__ != _fill.__name__
     }
     if announcements:
         await asyncio.wait(announcements)
@@ -125,3 +129,15 @@ async def renders_broken(sentence, voice):
 
 async def removed_by_the_host(participation, host, guest, agent):
     await host.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
+
+
+async def leaving(participation, host, guest, agent):
+    await participation.leave(GUEST, room_of(host))
+
+
+def voice_ids(browser):
+    return [frame["voice_id"] for frame in browser.frames(ParticipationSignal.AGENT_VOICE)]
+
+
+def window_texts(participation, person, room_id):
+    return [(line.text, line.own, line.cut) for line in participation.read_window(person, room_id).lines]

@@ -332,16 +332,22 @@ async def _fill(
     voice: StoredVoice, ended: asyncio.Future[int | VoiceFailure], pieces: AsyncGenerator[SoundPiece]
 ) -> None:
     """Keep each chunk of the sound as it arrives, and settle how it ended: whole with its length, or broken off."""
-    async for piece in pieces:
-        match piece:
-            case bytes():
-                voice.append(piece)
-            case SoundLength(duration_ms=duration_ms):
-                voice.finish()
-                ended.set_result(duration_ms)
-            case VoiceFailure():
-                voice.break_off()
-                ended.set_result(piece)
+    try:
+        async for piece in pieces:
+            match piece:
+                case bytes():
+                    voice.append(piece)
+                case SoundLength(duration_ms=duration_ms):
+                    voice.finish()
+                    ended.set_result(duration_ms)
+                case VoiceFailure():
+                    voice.break_off()
+                    ended.set_result(piece)
+    except Exception:
+        logger.exception("agent_voice_stream_failed", code=VoiceFailure.CUT)
+        voice.break_off()
+        if not ended.done():
+            ended.set_result(VoiceFailure.CUT)
 
 
 def _cancel_timer(queue: _Queue) -> None:
