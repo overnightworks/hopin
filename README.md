@@ -34,7 +34,7 @@ HopIn runs on the platform (k3s with Flux) from its attested private image in GH
 
 `compose.yaml` serves only the rollback path on hal. It owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
 
-A release is the `Release` workflow, which the operator dispatches with a version `YYYY.MM.DD.N`. It gates `main`, builds and attests the image in GHCR and tags `vYYYY.MM.DD.N`. The image ref reaches production in a platform pull request the operator merges. On the rollback path, edge's catalog applies instead: `hal apply` takes the newest `v…` tag and publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands.
+A release is the `Release` workflow, which an agent dispatches with a version `YYYY.MM.DD.N` once review and CI are green. It gates `main`, builds and attests the image in GHCR and tags `vYYYY.MM.DD.N`. The image ref reaches production in a platform pull request the operator merges. On the rollback path, edge's catalog applies instead: `hal apply` takes the newest `v…` tag and publishes HopIn, and `hal stop hopin` stops it. Edge owns those commands.
 
 ## A Person's Data
 
