@@ -1,8 +1,0 @@
-claim_id = "893192317a5e422f89954d435c330dc6"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "31b3167985febad8778f6fd907fc6b70b77b7060"
-branch = "claude/issue-838-speech-workload-token-reused"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "pyproject.toml", "src/hopin/agent/hearing_route.py", "src/hopin/agent/speaking.py", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "tests/agent", "tests/auth/test_sign_in_routes.py", "tests/participation", "tests/support/dialed_call.py", "tests/support/signed_in.py", "tests/test_app.py", "tests/test_people.py", "uv.lock"]
-opened_commit = "4e30a7906e7c616d5b273c10bba1e21a872f3a6a"
-whole_reason = "The token source of the two speech callers and its proof go together."
