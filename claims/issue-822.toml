@@ -1,0 +1,8 @@
+claim_id = "afa338d458a54ee69b52202adcc3f729"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "f349fa19281cd0e91f7c0a5955ece20ed5aff387"
+branch = "claude/issue-822-browser-shows-current-stylesheet"
+scope = ["README.md", "docs/ARCHITECTURE.md", "frontend/src", "src/hopin/auth/gate.py", "src/hopin/config", "src/hopin/web", "tests"]
+opened_commit = "1eaa6a5cf52cf29b89c702880bda7e0e7c24579c"
+whole_reason = "The stylesheet and icon move from the server's static mount into the page build, which touches the page shell, the routes, the sign-in gate's public paths and their tests together."
