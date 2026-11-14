@@ -3,6 +3,6 @@ agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
 role = "builder"
 base = "ed450a25a2fbb9b599cb3d7e124cf25538629485"
 branch = "claude/issue-832-no-process-wide-agent-limit"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "src/hopin/participation/feature.py", "src/hopin/participation/vocabulary.py", "tests/participation/test_feature_dial_in.py"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "src/hopin/participation/feature.py", "src/hopin/participation/vocabulary.py", "tests/participation/test_feature_dial_in.py"]
 opened_commit = "d19444142a73eb2d947ee026b24574407852eb15"
 whole_reason = "One removal of the process limit: its constant, its one use, its test and the two documents that state it."
