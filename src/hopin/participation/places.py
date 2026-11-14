@@ -1,6 +1,6 @@
 """The places agents hold in calls: an open invitation or a joined tile, one per agent and room.
 
-A joined agent's place holds its chat window and the times of its recent lines, which go with the place.
+A joined agent's place holds its chat window and the times of its recent lines and looks, which go with the place.
 
 The table is pure state with no clock and no I/O; its owner decides when an invitation ends. A removal or a
 withdrawal raises the epoch of its (agent, room), so an invitation made before it is stale. An invitation's
@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from hopin.participation.chat_window import ChatWindow
-from hopin.participation.line_rate import admitted
+from hopin.participation.line_rate import LINE_RATE, LOOK_RATE, Rate, admitted
 
 if TYPE_CHECKING:
     from hopin.participation.participants import DialedAgent, Person
@@ -70,6 +70,7 @@ class Places:
         self._epochs: dict[PlaceKey, int] = {}
         self._windows: dict[PlaceKey, ChatWindow] = {}
         self._line_times: dict[PlaceKey, tuple[float, ...]] = {}
+        self._look_times: dict[PlaceKey, tuple[float, ...]] = {}
 
     def get(self, person: Person, room_id: str) -> Place | None:
         return self._places.get((person, room_id))
@@ -97,12 +98,14 @@ class Places:
         if not isinstance(place, Invited):
             self._windows[(person, room_id)] = ChatWindow(place.agent_id)
             self._line_times[(person, room_id)] = ()
+            self._look_times[(person, room_id)] = ()
 
     def remove(self, person: Person, room_id: str) -> None:
         """Take the place, which must exist, away and raise its epoch."""
         del self._places[(person, room_id)]
         self._windows.pop((person, room_id), None)
         self._line_times.pop((person, room_id), None)
+        self._look_times.pop((person, room_id), None)
         self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
 
     def end_invitation(self, person: Person, room_id: str) -> None:
@@ -115,21 +118,31 @@ class Places:
             self._epochs.pop(key, None)
             self._windows.pop(key, None)
             self._line_times.pop(key, None)
+            self._look_times.pop(key, None)
 
     def clear(self) -> None:
         self._places.clear()
         self._epochs.clear()
         self._windows.clear()
         self._line_times.clear()
+        self._look_times.clear()
 
     def take_line(self, person: Person, room_id: str, now: float) -> bool:
         """Count a line of the person's joined agent at `now` among its recent ones; false, and none counted, when it
         has written the most lines a window allows."""
-        key = (person, room_id)
-        times = admitted(self._line_times[key], now)
+        return self._take(self._line_times, (person, room_id), now, LINE_RATE)
+
+    def take_look(self, person: Person, room_id: str, now: float) -> bool:
+        """Count a look of the person's joined agent at `now` among its recent ones; false, and none counted, when it
+        has taken the most looks a window allows."""
+        return self._take(self._look_times, (person, room_id), now, LOOK_RATE)
+
+    @staticmethod
+    def _take(times_of: dict[PlaceKey, tuple[float, ...]], key: PlaceKey, now: float, rate: Rate) -> bool:
+        times = admitted(times_of[key], now, rate)
         if times is None:
             return False
-        self._line_times[key] = times
+        times_of[key] = times
         return True
 
     def window_of(self, person: Person, room_id: str) -> ChatWindow | None:

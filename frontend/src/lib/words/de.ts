@@ -108,6 +108,9 @@ export type Words = {
     readonly "signIn.logOutButton": string;
     readonly "tile.removeButton": string;
     readonly "tile.aiBadge": string;
+    readonly "tile.seeSwitchLabel": string;
+    readonly "tile.seeSwitchShortLabel": string;
+    readonly "tile.lookMarkLabel": (gaps: { readonly name: string }) => string;
     readonly "tile.agentThinkingLabel": (gaps: { readonly name: string }) => string;
     readonly "tile.agentWaitingLabel": (gaps: { readonly name: string }) => string;
     readonly "tile.agentSpeakingLabel": (gaps: { readonly name: string }) => string;
@@ -266,6 +269,9 @@ export const words: Words = {
     "signIn.logOutButton": "Abmelden",
     "tile.removeButton": "Entfernen",
     "tile.aiBadge": "KI",
+    "tile.seeSwitchLabel": "Agent darf mich sehen",
+    "tile.seeSwitchShortLabel": "Sehen",
+    "tile.lookMarkLabel": (gaps: { readonly name: string }) => gaps.name + " schaut hin",
     "tile.agentThinkingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, denkt nach",
     "tile.agentWaitingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, wartet auf Antworten",
     "tile.agentSpeakingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, spricht",

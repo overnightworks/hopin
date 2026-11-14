@@ -1,5 +1,7 @@
 import asyncio
+import gc
 import secrets
+import weakref
 
 import pytest
 import pytest_asyncio
@@ -193,6 +195,25 @@ class TestJoinCreateRoom:
 
         assert sent_types(host) == [SignalType.ROOM_CREATED.value, SignalType.ROOM_LOCKED.value]
         assert room_manager.get_room(sent_frames(host)[0]["room_id"]).locked
+
+
+class Delivered(dict):
+    """A frame the socket delivers, which a test can watch for being let go."""
+
+
+class TestAFrameAfterItsHandling:
+    async def test_a_frame_is_let_go_while_the_handler_waits_for_the_next(self, link):
+        """The text of a frame, a picture's part among them, is held only while the frame is handled."""
+        host = await connect(link, "host1")
+        delivered = Delivered(text_frame({"type": SignalType.JOIN.value, "seq": 1}))
+        seen = weakref.ref(delivered)
+
+        host.socket.push(delivered)
+        await link.settle(host.socket)
+        del delivered
+        gc.collect()
+
+        assert seen() is None
 
 
 class TestJoinExistingRoom:

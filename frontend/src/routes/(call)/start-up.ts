@@ -14,6 +14,7 @@ import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.sve
 import { stopLocalMedia } from "#lib/call/media.ts";
 import { registerMediaStateHandlers } from "#lib/call/media-state.ts";
 import { microphoneChanged, onMicrophone } from "#lib/call/microphone.ts";
+import { takePicture } from "#lib/call/picture.ts";
 import {
     IceServersUnavailableError,
     loadIceServers,
@@ -66,6 +67,7 @@ const FEATURE_CORE: FeatureCore = Object.freeze({
     drawAgentFigures: stageModule.drawAgentFigures,
     showStage: stageModule.showStage,
     onMicrophone,
+    takePicture,
     onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);
     },

@@ -1,6 +1,6 @@
 import { flushSync } from "svelte";
 import { expect, vi } from "vitest";
-import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
+import type { AgentTile, FeatureCore, PictureBounds } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -13,11 +13,16 @@ export async function installedParticipation(installOn?: typeof install) {
     const players = fakePlayers();
     const handlers = new Map<string, (frame: never) => void>();
     const sent: unknown[] = [];
+    // The frames sent as transient: the parts of a look's picture, which nothing keeps.
+    const sentTransient: unknown[] = [];
     const tiles = new Map<string, AgentTile>();
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
+    // What the camera gives: a picture's base64 text, none or an error it fails with; the bounds each request named.
+    let picture: string | Error | null = null;
+    const pictureBounds: PictureBounds[] = [];
     const microphoneHandlers: ((stream: MediaStream | null) => void)[] = [];
     const more = document.createElement("dialog");
     more.open = true;
@@ -26,8 +31,8 @@ export async function installedParticipation(installOn?: typeof install) {
         on: (type, handler) => {
             handlers.set(type, handler);
         },
-        send: (frame) => {
-            sent.push(frame);
+        send: (frame, options) => {
+            (options?.transient === true ? sentTransient : sent).push(frame);
         },
         isConnected: vi.fn().mockReturnValue(true),
         showToast: (text) => {
@@ -54,6 +59,10 @@ export async function installedParticipation(installOn?: typeof install) {
             microphoneHandlers.push(handler);
             handler(null);
         },
+        takePicture: (bounds) => {
+            pictureBounds.push(bounds);
+            return picture instanceof Error ? Promise.reject(picture) : Promise.resolve(picture);
+        },
         onCallEnded: (hook) => {
             callEndedHooks.push(hook);
         },
@@ -73,6 +82,7 @@ export async function installedParticipation(installOn?: typeof install) {
         emit,
         players,
         sent,
+        sentTransient,
         tiles,
         toasts,
         lines,
@@ -92,6 +102,10 @@ export async function installedParticipation(installOn?: typeof install) {
             callEndedHooks.forEach((hook) => {
                 hook();
             });
+        },
+        pictureBounds,
+        cameraGives: (base64: string | Error | null) => {
+            picture = base64;
         },
         hear: (stream: MediaStream | null) => {
             microphoneHandlers.forEach((handler) => {

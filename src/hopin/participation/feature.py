@@ -10,7 +10,6 @@ from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
 from hopin.participation.frames import (
     Offer,
-    hearing_frame,
     invitation_ended_frame,
     joined_frame,
     left_frame,
@@ -24,8 +23,10 @@ from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
 from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
+from hopin.participation.seeing import Seeing
 from hopin.participation.speaking import Speaking, SpeakResult, StopResult
 from hopin.participation.speech_in_windows import SpeechInWindows
+from hopin.participation.switches import Switches
 from hopin.participation.text import clean_line, clean_name, one_line
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
@@ -37,6 +38,7 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     HearingRefusal,
     InvitationOutcome,
+    LookRefusal,
     ParticipationSignal,
     SpeakFailure,
     SpeakStop,
@@ -50,6 +52,7 @@ if TYPE_CHECKING:
 
     from hopin.participation.hearing import Hearing, HearingHandle
     from hopin.participation.live_agents import LiveAgent
+    from hopin.participation.looking import Picture
     from hopin.participation.places import Place
     from hopin.participation.speaking import QueuedSentence, Renderer
     from hopin.participation.voice import VoiceStore
@@ -105,6 +108,8 @@ class Participation:
         self._speaking = Speaking(
             voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
+        self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients)
+        self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
         self._live = LiveAgents()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
         self._abandoned: dict[PeerId, list[AbandonedInvitation]] = {}
@@ -146,7 +151,7 @@ class Participation:
         self._hearing.joined(agent, brought_by_sponsor=True)
         self._on_changed(person)
         await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(sponsor))
-        await self._tell_hearing(agent)
+        await self._switches.tell(agent)
         await logger.ainfo("agent_dialed_in", room_id=room_id, agent_id=agent.agent_id)
         await self._update_offers(room_id)
         return agent
@@ -202,6 +207,14 @@ class Participation:
             return SpeakStop.NOTHING_PLAYING
         await self._tell(room_id, self._recipients(room_id), stop_frame(agent))
         return cut
+
+    async def look(self, person: Person, room_id: str) -> Picture:
+        """The JPEG of the camera of the person's agent's sponsor, which the sponsor's seeing switch lets it take; why
+        there is none otherwise."""
+        agent = self._active_agent(person, room_id)
+        if isinstance(agent, AgentRefusal):
+            return LookRefusal.NOT_ACTIVE
+        return await self._seeing.look(agent)
 
     def holds_seat(self, account_id: str, room_id: str) -> bool:
         """Whether the account holds a seat in the room now, a parked one included."""
@@ -290,7 +303,7 @@ class Participation:
         if refusal is not None:
             await logger.ainfo("agent_figure_refused", room_id=room_id, reason=refusal.value)
         await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(invitation.sponsor))
-        await self._tell_hearing(agent)
+        await self._switches.tell(agent)
         await self._update_offers(room_id)
         return agent
 
@@ -336,7 +349,13 @@ class Participation:
             case ParticipationSignal.AGENT_ADD:
                 await self._on_add(peer_id, frame)
             case ParticipationSignal.AGENT_HEARING if self._hearing.enabled:
-                await self._on_hearing(peer_id, frame)
+                await self._switches.on_frame(peer_id, frame)
+            case ParticipationSignal.AGENT_SEEING:
+                await self._switches.on_frame(peer_id, frame)
+            case ParticipationSignal.AGENT_LOOK_PART:
+                self._seeing.answered(peer_id, frame, part=True)
+            case ParticipationSignal.AGENT_LOOK_NONE:
+                self._seeing.answered(peer_id, frame, part=False)
             case _:
                 return False
         return True
@@ -369,6 +388,7 @@ class Participation:
             for _, _, place in bound:
                 if isinstance(place, DialedAgent):
                     self._speaking.end(place)
+                    self._seeing.ended(place)
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
 
@@ -414,6 +434,7 @@ class Participation:
         self._places.drop_room(room_id)
         for agent in ended:
             self._speaking.end(agent)
+            self._seeing.ended(agent)
         for person in holders:
             self._on_changed(person)
 
@@ -436,6 +457,7 @@ class Participation:
         self._places.clear()
         for agent in ended:
             self._speaking.end(agent)
+            self._seeing.ended(agent)
         self._departed.clear()
         self._abandoned.clear()
         self._views.clear()
@@ -455,24 +477,6 @@ class Participation:
             await self._rooms.send(peer_id, refusal_frame(AgentRefusal.NOT_SPONSOR_OR_HOST))
             return
         await self._remove(agent)
-
-    async def _on_hearing(self, peer_id: PeerId, frame: ForeignFrame) -> None:
-        agent_id = frame.data.get("agent_id")
-        on = frame.data.get("on")
-        if not isinstance(agent_id, str) or not isinstance(on, bool):
-            raise InvalidMessageError("A hearing switch needs the agent's id and on or off")
-        room_id = self._rooms.room_of(peer_id)
-        agent = next(
-            (agent for agent in self._places.joined() if agent.agent_id == agent_id and agent.room_id == room_id), None
-        )
-        if agent is None:
-            await self._rooms.send(peer_id, refusal_frame(AgentRefusal.GONE))
-        elif agent.sponsor != peer_id:
-            await self._rooms.send(peer_id, refusal_frame(AgentRefusal.NOT_SPONSOR))
-        else:
-            self._hearing.switch(agent, on=on)
-            self.speech.hearing_switched(agent, on=on)
-            await self._tell_hearing(agent)
 
     async def _on_add(self, peer_id: PeerId, frame: ForeignFrame) -> None:
         agent_key = frame.data.get("agent_key")
@@ -633,6 +637,7 @@ class Participation:
         self._rooms.release_agent_place(agent.room_id, agent.agent_id)
         self._hearing.agent_ended(agent)
         self._speaking.end(agent)
+        self._seeing.ended(agent)
 
     async def _sentence_started(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
         """A sentence of the agent begins to play: it enters the call's chat as the agent's line, and every seat is told
@@ -696,13 +701,6 @@ class Participation:
             if not self._in_call(agent):
                 return
             await self._tell(agent.room_id, [peer_id], frame)
-
-    async def _tell_hearing(self, agent: DialedAgent) -> None:
-        """Tell the agent's sponsor the server's record of the agent's switch, while the agent is in the call and the
-        call lets agents hear."""
-        on = self._hearing.switch_of(agent)
-        if on is not None and self._in_call(agent):
-            await self._tell(agent.room_id, [agent.sponsor], hearing_frame(agent, on=on))
 
     async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: JsonObject) -> None:
         """Send to each seat that still sits in the room: a room that has ended gets nothing more."""

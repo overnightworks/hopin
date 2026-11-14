@@ -37,6 +37,18 @@ def hearing_frame(agent: DialedAgent, *, on: bool) -> JsonObject:
     return frame(ParticipationSignal.AGENT_HEARING, agent_id=agent.agent_id, on=on)
 
 
+def seeing_frame(agent: DialedAgent, *, on: bool) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_SEEING, agent_id=agent.agent_id, on=on)
+
+
+def look_request_frame(request_id: str) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_LOOK_REQUEST, request_id=request_id)
+
+
+def looked_frame(agent: DialedAgent) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_LOOKED, agent_id=agent.agent_id)
+
+
 def voice_frame(agent: DialedAgent, voice_id: str) -> JsonObject:
     return frame(ParticipationSignal.AGENT_VOICE, agent_id=agent.agent_id, voice_id=voice_id)
 

@@ -67,6 +67,7 @@ async function installedGame({ connected = true } = {}) {
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
         onMicrophone: () => undefined,
+        takePicture: () => Promise.resolve(null),
     };
     await install(core);
     const emit = (type: string, frame: object) => {

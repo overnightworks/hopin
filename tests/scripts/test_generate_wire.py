@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING, ClassVar
 import pytest
 
 from hopin.config.constants import ErrorReason, RoomClosedReason, SignalType
-from hopin.participation.vocabulary import HEARING_PATH, HearingClose
+from hopin.participation.vocabulary import (
+    HEARING_PATH,
+    LOOK_MAX_BYTES,
+    LOOK_MAX_PIXELS,
+    LOOK_PART_CHARACTERS,
+    HearingClose,
+)
 from hopin.signaling.frames import (
     SEQUENCE_KEY,
     AnswerRelayFrame,
@@ -269,6 +275,14 @@ def test_participation_wire_renders_the_hearing_close_codes_as_numbers(tmp_path:
 
 def test_participation_wire_carries_the_hearing_path(tmp_path: Path) -> None:
     assert f'export const HEARING_PATH = "{HEARING_PATH}";\n' in participation_wire(tmp_path)
+
+
+def test_participation_wire_carries_the_bounds_of_a_look(tmp_path: Path) -> None:
+    rendered = participation_wire(tmp_path)
+
+    assert f"export const LOOK_MAX_PIXELS = {LOOK_MAX_PIXELS};\n" in rendered
+    assert f"export const LOOK_MAX_BYTES = {LOOK_MAX_BYTES};\n" in rendered
+    assert f"export const LOOK_PART_CHARACTERS = {LOOK_PART_CHARACTERS};\n" in rendered
 
 
 def written_by_main(root: Path) -> dict[Path, str]:

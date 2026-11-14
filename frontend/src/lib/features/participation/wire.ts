@@ -11,6 +11,11 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_HEARING = "agent_hearing",
     AGENT_VOICE = "agent_voice",
     AGENT_STOP = "agent_stop",
+    AGENT_SEEING = "agent_seeing",
+    AGENT_LOOK_REQUEST = "agent_look_request",
+    AGENT_LOOK_PART = "agent_look_part",
+    AGENT_LOOK_NONE = "agent_look_none",
+    AGENT_LOOKED = "agent_looked",
     AGENT_INVITATION_ENDED = "agent_invitation_ended",
 }
 
@@ -55,3 +60,6 @@ export enum HEARING_CLOSE {
 
 export const HEARING_PATH = "/ws/hearing";
 export const VOICE_PATH = "/api/game/voice";
+export const LOOK_MAX_PIXELS = 1280;
+export const LOOK_MAX_BYTES = 524288;
+export const LOOK_PART_CHARACTERS = 32768;

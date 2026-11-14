@@ -330,7 +330,8 @@ class DialedCall:
         if response.status_code != 200:
             return Dialed(response.status_code, None, None, response)
         result = response.json()["result"]
-        return Dialed(200, json.loads(result["content"][0]["text"]), result["isError"], response)
+        text = next((block["text"] for block in result["content"] if block["type"] == "text"), None)
+        return Dialed(200, None if text is None else json.loads(text), result["isError"], response)
 
 
 class _ParticipationBuilt:

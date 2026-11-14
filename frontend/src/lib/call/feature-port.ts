@@ -10,6 +10,10 @@ export interface OutgoingFrame {
     [field: string]: unknown;
 }
 
+export interface SendOptions {
+    transient?: boolean;
+}
+
 export const AGENT_ACTIVITY = {
     THINKING: "thinking",
     WAITING: "waiting",
@@ -34,23 +38,38 @@ export interface AgentHearing {
     onChange: (on: boolean) => void;
 }
 
-/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it; a tile with `hearing` carries the person's switch for the agent. */
+/** The switch on an agent's tile that lets the agent see the person: the tile shows `on` and hands each press, as the value it asks for, to `onChange`; it holds no state of its own. */
+export interface AgentSeeing {
+    on: boolean;
+    onChange: (on: boolean) => void;
+}
+
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it; a tile with `hearing` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
 export interface AgentTile {
     name: string;
     activity: AgentActivity;
     sponsor?: string;
     figure?: string;
     hearing?: AgentHearing;
+    seeing?: AgentSeeing;
+    looking?: boolean;
     onRemove?: () => void;
 }
 
 /** The key of the tile a feature shows without naming one: a feature with several agents gives each its own. */
 export const DEFAULT_AGENT_KEY = "agent";
 
+/** What a still picture of the person's camera may be: the longer side in pixels and the encoded picture's bytes. */
+export interface PictureBounds {
+    maxPixels: number;
+    maxBytes: number;
+}
+
 export interface FeatureCore {
     /** The handler declares the fields of the frames it registers for; the server it trusts sends them. */
     on(type: string, handler: (frame: never) => void): void;
-    send(frame: OutgoingFrame): void;
+    /** A `transient` frame is sent once and nothing keeps it: a reconnect does not replay it and one sent while the session is not live is dropped, so a payload that must not outlast its use is not retained. */
+    send(frame: OutgoingFrame, options?: SendOptions): void;
     isConnected(): boolean;
     showToast(text: string, kind: ToastKind, action: ToastAction | null): void;
     toastKind: typeof TOAST_KIND;
@@ -71,6 +90,8 @@ export interface FeatureCore {
     showStage(view: FeatureView | null): void;
     /** Register a handler for the person's microphone; it is told the current state at once and then on every change: a stream that holds only the local microphone track while the person is in a call and the microphone is on, and null otherwise (the pre-join included). The stream is never a screen share's audio, a peer's or an agent's. */
     onMicrophone(handler: (stream: MediaStream | null) => void): void;
+    /** One still picture of the person's own camera as JPEG base64 within the bounds, or null when no camera is on: the camera is off, a screen share replaces it, or the person is not in a call. Never a screen share's, a peer's or an agent's picture. */
+    takePicture(bounds: PictureBounds): Promise<string | null>;
     onCallEnded(hook: () => void): void;
 }
 

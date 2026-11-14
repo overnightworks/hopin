@@ -2,7 +2,8 @@
 
 from typing import TYPE_CHECKING
 
-from agents.mcp_server.hearing import MemberHearing, Sense, Utterance
+from agents.mcp_server.hearing import MemberHearing, Utterance
+from agents.mcp_server.hearing import Sense as AgentSense
 from agents.member import PlaceRef
 from agents.tools import Principal
 from pydantic import ValidationError
@@ -13,6 +14,7 @@ from hopin.participation.hearing import HeardLine
 from hopin.participation.participants import Person
 
 if TYPE_CHECKING:
+    from hopin.participation.vocabulary import Sense
     from hopin.signaling.frames import PeerId
 
 
@@ -29,16 +31,16 @@ def _person_of(principal: Principal) -> Person:
 
 
 class MemberHearingRecord:
-    """Adapts `MemberHearing` to participation's `HearingRecord`: the seat is the speaker's key, hearing the sense."""
+    """Adapts `MemberHearing` to participation's `HearingRecord`: the seat is the speaker's key."""
 
     def __init__(self, record: MemberHearing) -> None:
         self._record = record
 
-    def allow(self, room_id: str, seat: PeerId, agent: Person, *, allowed: bool) -> None:
-        self._record.allow(_place_of(room_id), seat, _principal_of(agent), Sense.HEARING, allowed)
+    def allow(self, room_id: str, seat: PeerId, agent: Person, sense: Sense, *, allowed: bool) -> None:
+        self._record.allow(_place_of(room_id), seat, _principal_of(agent), AgentSense(sense.value), allowed)
 
-    def sensing(self, room_id: str, seat: PeerId) -> frozenset[Person]:
-        return frozenset(map(_person_of, self._record.sensing(_place_of(room_id), seat, Sense.HEARING)))
+    def sensing(self, room_id: str, seat: PeerId, sense: Sense) -> frozenset[Person]:
+        return frozenset(map(_person_of, self._record.sensing(_place_of(room_id), seat, AgentSense(sense.value))))
 
     def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> HeardLine | None:
         place = _place_of(room_id)

@@ -5,7 +5,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.skat.skat_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
-from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_TILE, REMOVE
 from tests.e2e.support.people import FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -17,8 +17,9 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-SWITCH = AGENT_TILE + ' [role="switch"]'
+SWITCH = AGENT_HEARING_SWITCH
 TRACK = SWITCH + ' > span[aria-hidden="true"]'
+SEE_TRACK = AGENT_SEE_SWITCH + ' > span[aria-hidden="true"]'
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
 TOLERANCE_PIXELS = 1
@@ -51,22 +52,29 @@ def overlap_of(first: dict[str, float], second: dict[str, float]) -> float:
     return max(width, 0) * max(height, 0)
 
 
-@pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_a_press(
+@pytest.fixture
+def host_with_a_table_and_an_agent(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     stub_skat: StubSkat,
     page_errors: list[str],
     agent_of: Callable[[Page], Agent],
     form_factor: dict[str, Any],
-) -> None:
-    """CALL-57: The switch is never hidden on a strip tile: its track lies wholly inside the tile and clear of the
-    remove button, the whole chip does too where the tile has the room, and a press is answered."""
+) -> Page:
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
     agent_of(host).dial_in("Claude")
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
+    return host
 
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_a_press(
+    host_with_a_table_and_an_agent: Page,
+) -> None:
+    """CALL-57: The switch is never hidden on a strip tile: its track lies wholly inside the tile and clear of the
+    remove button, the whole chip does too where the tile has the room, and a press is answered."""
+    host = host_with_a_table_and_an_agent
     switch = host.locator(SWITCH)
     expect(switch).to_be_visible()
     tile_box = box_of(AGENT_TILE, host)
@@ -84,3 +92,23 @@ def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_
     expect(switch).to_have_attribute("aria-checked", "false")
     switch.click()
     expect(switch).to_have_attribute("aria-checked", "true")
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponsor_can_turn_it_off(
+    host_with_a_table_and_an_agent: Page,
+) -> None:
+    """CALL-62: The sponsor can always withdraw the consent: on a strip tile the see switch's track lies wholly inside
+    the tile, clear of the remove button and of the hearing switch, and a press turns it on and off again."""
+    host = host_with_a_table_and_an_agent
+    see_switch = host.locator(AGENT_SEE_SWITCH)
+    expect(see_switch).to_be_visible()
+    tile_box = box_of(AGENT_TILE, host)
+    see_box = box_of(SEE_TRACK, host)
+    assert lies_inside(see_box, tile_box)
+    assert overlap_of(see_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
+    assert overlap_of(see_box, box_of(TRACK, host)) == 0
+    see_switch.click()
+    expect(see_switch).to_have_attribute("aria-checked", "true")
+    see_switch.click()
+    expect(see_switch).to_have_attribute("aria-checked", "false")
