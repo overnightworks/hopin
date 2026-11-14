@@ -5,7 +5,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
-from types import SimpleNamespace
 from typing import NamedTuple
 
 import pytest
@@ -15,7 +14,6 @@ from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECO
 from speech_client.wire import VoiceId
 
 from hopin.agent.hearing import MemberHearingRecord
-from hopin.auth import sign_in
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
@@ -230,11 +228,9 @@ class MonotonicClock:
 
 
 @pytest.fixture
-def issuer_clock(monkeypatch):
+def issuer_clock():
     """The relying party's monotonic clock; it stands still until a test advances it."""
-    clock = MonotonicClock()
-    monkeypatch.setattr(sign_in, "time", SimpleNamespace(monotonic=clock))
-    return clock
+    return MonotonicClock()
 
 
 @pytest.fixture
@@ -259,6 +255,7 @@ def adding_call(
         figure_transport=figure_transport,
         hearing=hearing_service,
         speaking=speaking_service,
+        monotonic_clock=issuer_clock,
     ) as call:
         yield call
 

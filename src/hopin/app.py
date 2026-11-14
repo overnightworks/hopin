@@ -1,4 +1,5 @@
 import asyncio
+import time
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
@@ -226,6 +227,7 @@ def create_app(
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_features: Sequence[CallFeatureBuilder] = (),
+    monotonic_clock: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(
         settings, tuple(scope for builder in call_features for scope in builder.sign_in_scopes)
@@ -235,7 +237,7 @@ def create_app(
     _configure_logging()
 
     sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
-    relying_party = build_relying_party(sign_in_configs, issuer_transports)
+    relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     built_features = [

@@ -37,6 +37,8 @@ from hopin.web.page_build import built_page_response
 from hopin.words import text
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
     from webauth.ports import AccountEvent, SignInTransaction
@@ -136,13 +138,17 @@ def _build_web_auth(
     )
 
 
-def build_relying_party(sign_in_configs: SignInConfigs, issuer_transports: IssuerTransports) -> OidcRelyingParty:
+def build_relying_party(
+    sign_in_configs: SignInConfigs,
+    issuer_transports: IssuerTransports,
+    monotonic_clock: Callable[[], float] = time.monotonic,
+) -> OidcRelyingParty:
     return OidcRelyingParty(
         sign_in_configs.oidc_client,
         post_token_request=issuer_transports.post_token_request,
         fetch_key_set=issuer_transports.fetch_key_set,
         wall_clock=sign_in_configs.web_auth.wall_clock,
-        monotonic_clock=time.monotonic,
+        monotonic_clock=monotonic_clock,
     )
 
 
