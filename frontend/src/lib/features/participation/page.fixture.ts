@@ -20,8 +20,8 @@ export async function installedParticipation(installOn?: typeof install) {
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
-    // What the camera gives: a picture's base64 text or none; the bounds each request named.
-    let picture: string | null = null;
+    // What the camera gives: a picture's base64 text, none or an error it fails with; the bounds each request named.
+    let picture: string | Error | null = null;
     const pictureBounds: PictureBounds[] = [];
     const microphoneHandlers: ((stream: MediaStream | null) => void)[] = [];
     const more = document.createElement("dialog");
@@ -64,7 +64,7 @@ export async function installedParticipation(installOn?: typeof install) {
         },
         takePicture: (bounds) => {
             pictureBounds.push(bounds);
-            return Promise.resolve(picture);
+            return picture instanceof Error ? Promise.reject(picture) : Promise.resolve(picture);
         },
         onCallEnded: (hook) => {
             callEndedHooks.push(hook);
@@ -107,7 +107,7 @@ export async function installedParticipation(installOn?: typeof install) {
             });
         },
         pictureBounds,
-        cameraGives: (base64: string | null) => {
+        cameraGives: (base64: string | Error | null) => {
             picture = base64;
         },
         hear: (stream: MediaStream | null) => {

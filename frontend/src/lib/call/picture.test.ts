@@ -124,6 +124,14 @@ describe("the picture of the camera", () => {
         expect(await takePicture(BOUNDS)).toBe("AAAA");
     });
 
+    it("is none when the canvas gives no drawing context, and stops the playing element", async () => {
+        const devices = installDevices({ width: 640, height: 480 }, {});
+        devices.canvas.getContext = () => null as never;
+
+        expect(await takePicture(BOUNDS)).toBeNull();
+        expect(devices.video.srcObject).toBeNull();
+    });
+
     it("stops the playing element, holding the camera's track no longer", async () => {
         const devices = installDevices({ width: 640, height: 480 }, {});
 

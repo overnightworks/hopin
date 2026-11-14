@@ -114,6 +114,16 @@ describe("a look at the person's camera", () => {
         expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_LOOK_NONE, request_id: "r1" }]);
     });
 
+    it("CALL-63: answers that there is no camera when the camera fails", async () => {
+        const page = await pageWithAgent();
+        page.cameraGives(new Error("the camera is gone"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
+        await answered();
+
+        expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_LOOK_NONE, request_id: "r1" }]);
+    });
+
     it("CALL-63: answers that there is none when the picture is empty", async () => {
         const page = await pageWithAgent();
         page.cameraGives("");
@@ -133,6 +143,25 @@ describe("a look at the person's camera", () => {
         await answered();
 
         expect(page.sentTransient).toHaveLength(1);
+    });
+
+    it("CALL-63: remembers only the newest requests it answered, so the oldest one is answered again", async () => {
+        const page = await pageWithAgent();
+        page.cameraGives("AAAA");
+        const request = (index: number) => {
+            page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: `r${String(index)}` });
+        };
+        for (let index = 0; index <= 32; index += 1) request(index);
+        await answered();
+        const afterTheRequests = page.sentTransient.length;
+
+        request(32);
+        await answered();
+        const afterTheNewest = page.sentTransient.length;
+        request(0);
+        await answered();
+
+        expect([afterTheRequests, afterTheNewest, page.sentTransient.length]).toEqual([33, 33, 34]);
     });
 
     it("CALL-63: shows the mark on the agent's tile at a look and takes it away after a while", async () => {

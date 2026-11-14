@@ -214,8 +214,8 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
             frame.agent_id,
             setTimeout(() => {
                 markTimers.delete(frame.agent_id);
-                const current = shown.get(frame.agent_id);
-                if (current !== undefined) setLooking(current, false);
+                // An agent that left clears the timer, so the agent is still shown.
+                setLooking(shown.get(frame.agent_id) as ShownAgent, false);
             }, LOOK_MARK_MILLISECONDS),
         );
     }
