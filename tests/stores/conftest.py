@@ -6,14 +6,14 @@ import pytest
 from redis import Redis
 
 from hopin.config.constants import HEALTH_PATH
-from tests.pods.support.pod_pair import serving_pod_pair
-from tests.pods.support.redis_gate import RedisGate
+from tests.stores.support.pod_pair import serving_pod_pair
+from tests.stores.support.redis_gate import RedisGate
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
 
-    from tests.pods.support.pod_pair import Pod
+    from tests.stores.support.pod_pair import Pod
     from tests.support.sign_in_settings import SignInSettings
 
 REDIS_URL_VARIABLE = "HOPIN_TEST_REDIS_URL"
