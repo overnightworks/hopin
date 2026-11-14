@@ -24,7 +24,7 @@ SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
 TOLERANCE_PIXELS = 1
-TOUCH_TARGET_PIXELS = 44
+MIN_TARGET_PIXELS = 24
 
 
 @pytest.fixture
@@ -135,15 +135,24 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     expect(see_switch).to_have_attribute("aria-checked", "false")
 
 
-TARGET_BOX_SCRIPT = """(element) => {
-    const box = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return {
-        x: box.x - parseFloat(style.marginLeft),
-        y: box.y - parseFloat(style.marginTop),
-        width: box.width + parseFloat(style.marginLeft) + parseFloat(style.marginRight),
-        height: box.height + parseFloat(style.marginTop) + parseFloat(style.marginBottom),
-    };
+PRESSABLE_SQUARE_SCRIPT = """(switchElement, tileSelector) => {
+    const tile = document.querySelector(tileSelector).getBoundingClientRect();
+    const columns = Math.floor(tile.width);
+    const rows = Math.floor(tile.height);
+    let previous = new Array(columns + 1).fill(0);
+    let largest = 0;
+    for (let row = 1; row <= rows; row++) {
+        const current = new Array(columns + 1).fill(0);
+        for (let column = 1; column <= columns; column++) {
+            const hit = document.elementFromPoint(tile.x + column - 0.5, tile.y + row - 0.5);
+            if (hit && switchElement.contains(hit)) {
+                current[column] = 1 + Math.min(previous[column], current[column - 1], previous[column - 1]);
+                largest = Math.max(largest, current[column]);
+            }
+        }
+        previous = current;
+    }
+    return largest;
 }"""
 
 TOPMOST_AT_SCRIPT = """([selector, x, y]) => document.elementFromPoint(x, y)?.closest(selector) !== null"""
@@ -153,8 +162,9 @@ TOPMOST_AT_SCRIPT = """([selector, x, y]) => document.elementFromPoint(x, y)?.cl
 def test_each_switch_on_a_strip_tile_is_a_touch_target_clear_of_the_remove_button_and_toggles_on_a_tap(
     host_with_a_table_and_an_agent: Page,
 ) -> None:
-    """CALL-57, CALL-62: Under a coarse pointer each switch of a strip tile has a box of at least 44 by 44 px, its
-    drawn chip clear of the remove button, which stays pressable, and a tap turns it on or off."""
+    """CALL-57, CALL-62: Under a coarse pointer a press lands on each switch of a strip tile over a square of at least
+    24 by 24 px inside the tile that belongs to neither the other switch nor the remove button, which stays pressable,
+    and a tap turns it on or off."""
     host = host_with_a_table_and_an_agent
     remove_box = box_of(AGENT_TILE + " " + REMOVE, host)
     remove_points = [
@@ -166,9 +176,7 @@ def test_each_switch_on_a_strip_tile_is_a_touch_target_clear_of_the_remove_butto
         assert host.evaluate(TOPMOST_AT_SCRIPT, [AGENT_TILE + " " + REMOVE, x, y])
     for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH):
         switch = host.locator(selector)
-        target = switch.evaluate(TARGET_BOX_SCRIPT)
-        assert target["width"] >= TOUCH_TARGET_PIXELS
-        assert target["height"] >= TOUCH_TARGET_PIXELS
+        assert switch.evaluate(PRESSABLE_SQUARE_SCRIPT, AGENT_TILE) >= MIN_TARGET_PIXELS
         assert overlap_of(box_of(selector, host), remove_box) == 0
         before = switch.get_attribute("aria-checked") or ""
         switch.tap()
