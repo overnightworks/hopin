@@ -33,8 +33,10 @@ AGENT_NAME = "Mozart"
 SECOND_AGENT_NAME = "Leonardo"
 AGENT_TILE = '#stage [id^="container-agent-"]'
 # The tile also holds the see switch; the hearing switch is the one that is not the see chip.
-HEARING_SWITCH_ON_A_TILE = '[role="switch"]:not(.see-switch)'
+SEE_SWITCH_ON_A_TILE = ".see-switch"
+HEARING_SWITCH_ON_A_TILE = f'[role="switch"]:not({SEE_SWITCH_ON_A_TILE})'
 AGENT_HEARING_SWITCH = AGENT_TILE + " " + HEARING_SWITCH_ON_A_TILE
+AGENT_SEE_SWITCH = AGENT_TILE + " " + SEE_SWITCH_ON_A_TILE
 REMOVE = ".agent-remove"
 COUNT = "#participantCount .num"
 REQUEST_SECONDS = 30
