@@ -104,29 +104,13 @@ describe("a look at the person's camera", () => {
         );
     });
 
-    it("CALL-63: answers that there is no camera when the camera gives no picture", async () => {
+    it.each([
+        ["gives no picture", null],
+        ["fails", new Error("the camera is gone")],
+        ["gives an empty picture", ""],
+    ])("CALL-63: answers that there is no camera when the camera %s", async (_case, gives) => {
         const page = await pageWithAgent();
-        page.cameraGives(null);
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
-        await answered();
-
-        expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_LOOK_NONE, request_id: "r1" }]);
-    });
-
-    it("CALL-63: answers that there is no camera when the camera fails", async () => {
-        const page = await pageWithAgent();
-        page.cameraGives(new Error("the camera is gone"));
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
-        await answered();
-
-        expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_LOOK_NONE, request_id: "r1" }]);
-    });
-
-    it("CALL-63: answers that there is none when the picture is empty", async () => {
-        const page = await pageWithAgent();
-        page.cameraGives("");
+        page.cameraGives(gives);
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
         await answered();
