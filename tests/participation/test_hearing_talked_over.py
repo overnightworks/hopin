@@ -12,7 +12,7 @@ from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.fake_speech import ITEM, WAIT_SECONDS, FakeSpeech, completed
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, silent_wav, speaking
+from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, silent_wav, speaking
 
 pytestmark = pytest.mark.integration
 
@@ -35,6 +35,7 @@ def hearing_service(fake_speech):
 @pytest.fixture
 def speech_origin():
     origin = Origin()
+    offering(origin, *VoiceId)
     speaking(origin, chunked_wav(silent_wav(SENTENCE_SECONDS)))
     yield origin
     origin.close()

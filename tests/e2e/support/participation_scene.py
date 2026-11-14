@@ -6,7 +6,7 @@ from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press
 from tests.e2e.support.dialed_agent import OWNER_USERNAME
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from playwright.sync_api import Locator, Page
 
@@ -62,13 +62,18 @@ class Scene:
         self.agent.listen()
         assert self.agent.standings() == []
 
-    def member_adds_and_the_agent_accepts(self, figure: dict[str, str] | None = None) -> None:
-        self.member_adds_and_accepts(self.agent, figure)
+    def member_adds_and_the_agent_accepts(
+        self, figure: dict[str, str] | None = None, voices: Sequence[str] | None = None
+    ) -> None:
+        self.member_adds_and_accepts(self.agent, figure, voices)
 
-    def member_adds_and_accepts(self, agent: OwnAccountAgent, figure: dict[str, str] | None = None) -> None:
-        """The member adds the agent from its offer and the agent accepts the invitation."""
+    def member_adds_and_accepts(
+        self, agent: OwnAccountAgent, figure: dict[str, str] | None = None, voices: Sequence[str] | None = None
+    ) -> None:
+        """The member adds the agent from its offer and the agent accepts the invitation, naming the voices it would
+        speak with if it has some."""
         self.member_adds(agent)
-        accepted = agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure)
+        accepted = agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure, voices)
         assert accepted["name"] == agent.name
 
     def member_adds(self, agent: OwnAccountAgent) -> None:

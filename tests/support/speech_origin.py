@@ -5,7 +5,19 @@ import struct
 import wave
 from http import HTTPStatus
 
-from speech_client.wire import SPEECH_PATH, ResponseFormat, SpeechRequest, refusal
+from speech_client.wire import (
+    HEALTH_PATH,
+    SPEECH_PATH,
+    VOICES,
+    Health,
+    HearingHealth,
+    ResponseFormat,
+    SpeakingHealth,
+    SpeechRequest,
+    VoiceHealth,
+    VoiceId,
+    refusal,
+)
 
 from tests.support.loopback_origin import Origin, http_response
 
@@ -13,6 +25,7 @@ SPOKEN_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
 WAV_MEDIA_TYPE = ResponseFormat.WAV.media_type
 AUDIENCE_SCOPE = "speech-service-audience"
 SAMPLE_RATE_OFFSET = 24  # in a canonical 44-byte header, after the format, channel count
+SAMPLE_RATE = 22050
 DATA_SIZE_OFFSET = 40  # in a canonical 44-byte header, the size field of the data chunk
 
 
@@ -64,6 +77,37 @@ def not_chunked_answer() -> bytes:
 
 def speaking(origin: Origin, answer: bytes) -> None:
     origin.serve(SPEECH_PATH, answer)
+
+
+def health_answer(*offered: VoiceId, unready: tuple[VoiceId, ...] = ()) -> bytes:
+    """A health answer that offers the voices as ready, and the `unready` ones as offered but not ready."""
+    voices = {
+        voice.value: VoiceHealth(
+            model=VOICES[voice].model,
+            name=VOICES[voice].name,
+            languages=VOICES[voice].languages,
+            takes_instructions=VOICES[voice].takes_instructions,
+            ready=voice not in unready,
+            sample_rate=SAMPLE_RATE,
+        )
+        for voice in (*offered, *unready)
+    }
+    health = Health(
+        speaking=SpeakingHealth(ready=bool(offered), voices=voices),
+        hearing=HearingHealth(model="speech", ready=True),
+        card_memory_mb=0,
+    )
+    return http_response(f"{HTTPStatus.OK.value} OK", health.model_dump_json().encode())
+
+
+def offering(origin: Origin, *offered: VoiceId, unready: tuple[VoiceId, ...] = ()) -> None:
+    """From now on the origin's health offers exactly these voices."""
+    origin.serve(HEALTH_PATH, health_answer(*offered, unready=unready))
+
+
+def speech_requests(origin: Origin) -> list:
+    """The requests the origin got to speak a sentence, not those that read its health."""
+    return [request for request in origin.requests if request[1] == SPEECH_PATH]
 
 
 def header_of(request, name: str) -> str:

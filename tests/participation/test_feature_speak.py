@@ -16,6 +16,7 @@ from hopin.participation.vocabulary import (
     LINES_PER_WINDOW,
     AgentRefusal,
     ParticipationSignal,
+    SpeakStarted,
     SpeakStop,
 )
 from tests.participation.support.people import person_named, room_of
@@ -80,12 +81,12 @@ async def nine_waiting(participation, call, scheduler):
 
 
 class TestASentenceStarts:
-    async def test_call_60_it_answers_the_length_of_the_sound(self, participation, call):
+    async def test_call_60_it_answers_that_the_sentence_plays(self, participation, call):
         host, *_ = call
 
         answered = await speak(participation, room_id=room_of(host))
 
-        assert answered == SENTENCE_MS
+        assert answered == SpeakStarted.SPOKEN
 
     async def test_call_60_every_seat_is_told_one_voice_of_the_agent_with_the_sound_stored_under_it(
         self, participation, call, voices
@@ -142,7 +143,7 @@ class TestASentenceStarts:
         await scheduler.advance(SENTENCE_MS / 1000)
 
         assert (answer, [participation.read_window(person, room_id).lines for person in (GUEST, HOST)]) == (
-            SENTENCE_MS,
+            SpeakStarted.SPOKEN,
             [(), ()],
         )
 
@@ -164,7 +165,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
 
         assert (done, [first, second.result(), third.result()]) == (
             [[False, False], [False, False], [True, False], [True, False], [True, True]],
-            [SENTENCE_MS] * 3,
+            [SpeakStarted.SPOKEN] * 3,
         )
 
     async def test_call_60_a_sentence_whose_speaker_gave_up_waiting_still_starts_in_order_and_the_queue_goes_on(
@@ -188,8 +189,8 @@ class TestTheAnswerComesWhenTheSentenceStarts:
 
         assert ([frame["text"] for frame in host.frames(LINE)], behind.result(), later) == (
             ["one", "two", "three", "four"],
-            SENTENCE_MS,
-            SENTENCE_MS,
+            SpeakStarted.SPOKEN,
+            SpeakStarted.SPOKEN,
         )
 
     async def test_call_60_an_idle_agents_first_sentence_answers_while_a_browser_write_blocks(
@@ -405,7 +406,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         await scheduler.advance(SENTENCE_MS / 1000)
 
         assert (again, window_texts(participation, GUEST, room_id)) == (
-            SENTENCE_MS,
+            SpeakStarted.SPOKEN,
             [("Eins", True, True), ("Zwei", True, False)],
         )
 
@@ -529,7 +530,7 @@ class TestTheBounds:
 
         await scheduler.advance(LINE_WINDOW_SECONDS)
 
-        assert await speak(participation, room_id=room_id) == SENTENCE_MS
+        assert await speak(participation, room_id=room_id) == SpeakStarted.SPOKEN
 
     async def test_call_60_a_line_the_agent_said_takes_a_slot_the_sentences_share(self, participation, call):
         host, *_ = call

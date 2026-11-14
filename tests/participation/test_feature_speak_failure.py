@@ -9,9 +9,11 @@ import structlog.testing
 
 from hopin.participation.chat_window import WindowVoice
 from hopin.participation.vocabulary import (
+    VOICE_RECOVERY_SECONDS,
     AgentRefusal,
     ParticipationSignal,
     SpeakFallback,
+    SpeakStarted,
     SpeakStop,
     VoiceFailure,
 )
@@ -102,7 +104,7 @@ class TestAVoiceThatFails:
 
         await scheduler.advance(SENTENCE_MS / 1000)
 
-        assert (await written, await spoken) == (SpeakFallback.WRITTEN, SENTENCE_MS)
+        assert (await written, await spoken) == (SpeakFallback.WRITTEN, SpeakStarted.SPOKEN)
 
     @pytest.mark.parametrize("speaker_gave_up", [False, True])
     async def test_call_61_a_line_that_cannot_be_written_fails_its_speaker_and_the_queue_goes_on(
@@ -129,7 +131,7 @@ class TestAVoiceThatFails:
 
         with pytest.raises(asyncio.CancelledError if speaker_gave_up else RuntimeError):
             await unwritten
-        assert await spoken == SENTENCE_MS
+        assert await spoken == SpeakStarted.SPOKEN
 
     async def test_call_61_a_stop_drops_a_written_sentence_waiting_and_the_playing_one_stays_a_cut_spoken_line(
         self, participation, call
@@ -254,3 +256,87 @@ class TestTheVoiceState:
             [{"reason": "busy", "room_id": room_id}],
             [{"reason": "busy", "room_id": room_id}] * 2,
         )
+
+
+class TestTheVoiceComesBackWithoutASentence:
+    @staticmethod
+    def offering(*answers):
+        """A probe that answers each ask in turn and records the voices it was asked about."""
+        asked = []
+        remaining = list(answers)
+
+        async def offered(voices):
+            asked.append(voices)
+            return remaining.pop(0)
+
+        offered.asked = asked
+        return offered
+
+    async def test_call_61_the_window_turns_available_once_the_voice_is_offered_again_and_tells_the_agent_once(
+        self, participation, call, scheduler, window_changes
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        offered = self.offering(False, True)
+        await speak(participation, render=renders_failing, room_id=room_id, offered=offered)
+        window_changes.clear()
+
+        await scheduler.advance(VOICE_RECOVERY_SECONDS)
+        still = voice_of(participation, GUEST, room_id)
+        await scheduler.advance(VOICE_RECOVERY_SECONDS)
+
+        assert (still, voice_of(participation, GUEST, room_id), window_changes) == (
+            WindowVoice.UNAVAILABLE,
+            WindowVoice.AVAILABLE,
+            [(GUEST, room_id)],
+        )
+
+    async def test_call_61_the_voice_is_asked_for_nothing_while_no_window_states_it_unavailable(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        offered = self.offering()
+
+        await speak(participation, room_id=room_id, offered=offered)
+        await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
+
+        assert (offered.asked, recovery_timers(scheduler)) == ([], [])
+
+    async def test_call_61_the_asking_stops_once_every_window_is_available_again(self, participation, call, scheduler):
+        host, *_ = call
+        room_id = room_of(host)
+        offered = self.offering(True)
+        await speak(participation, render=renders_failing, room_id=room_id, offered=offered)
+
+        await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
+
+        assert (len(offered.asked), recovery_timers(scheduler)) == (1, [])
+
+    async def test_call_61_a_sound_turns_the_window_available_and_nothing_is_asked_any_more(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        offered = self.offering()
+        await speak(participation, render=renders_failing, room_id=room_id, offered=offered)
+        await speak(participation, room_id=room_id, offered=offered)
+
+        await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
+
+        assert (voice_of(participation, GUEST, room_id), offered.asked) == (WindowVoice.AVAILABLE, [])
+
+    async def test_call_61_an_agent_that_left_is_not_asked_about(self, participation, call, scheduler):
+        host, guest, mozart, _ = call
+        room_id = room_of(host)
+        offered = self.offering()
+        await speak(participation, render=renders_failing, room_id=room_id, offered=offered)
+        await removed_by_the_host(participation, host, guest, mozart)
+
+        await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
+
+        assert offered.asked == []
+
+
+def recovery_timers(scheduler):
+    return [timer for timer in scheduler.pending_timers() if timer.delay == VOICE_RECOVERY_SECONDS]

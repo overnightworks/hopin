@@ -1,6 +1,7 @@
 import asyncio
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from typing import NamedTuple
@@ -9,6 +10,7 @@ import pytest
 import pytest_asyncio
 from agents.mcp_server.hearing import MemberHearing
 from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECONDS, STANDING_URI
+from speech_client.wire import VoiceId
 
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.participation.feature import Participation
@@ -18,10 +20,14 @@ from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.participation.support.people import person_named, room_of
+from tests.participation.support.speaking_scene import SOUND
 from tests.signaling.support.browsers import Link, host_and_guest
+from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.loopback_origin import Origin
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
+from tests.support.speech_origin import chunked_wav, offering, speaking
 
 HOST = person_named("host")
 GUEST = person_named("guest")
@@ -338,13 +344,14 @@ def scene(scene_of):
 
 
 @pytest.fixture
-def accepted_voice():
-    """The voice the owner's agent names in its accept; none until a module about voices names one."""
-    return
+def accepted_voices():
+    """The voices, first choice first, the owner's agent names in its accept; none until a module about voices names
+    some."""
+    return ()
 
 
 @pytest.fixture
-def joined_agent(scene, accepted_voice):
+def joined_agent(scene, accepted_voices):
     """The scene with its owner's agent added from the owner's own seat and accepted, so the agent holds a joined place
     in the owner's call; `agent_id` is the id the seats are told."""
     owner = scene.owner
@@ -352,7 +359,7 @@ def joined_agent(scene, accepted_voice):
         pass
     owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
     owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
-    scene.accept(scene.standings()[0], **({} if accepted_voice is None else {"voice": accepted_voice}))
+    scene.accept(scene.standings()[0], **({"voices": list(accepted_voices)} if accepted_voices else {}))
     scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
     return scene
 
@@ -364,3 +371,30 @@ async def call(link, participation):
     mozart = await participation.dial_in(GUEST, room_of(guest), "Mozart")
     salieri = await participation.dial_in(HOST, room_of(host), "Salieri")
     return host, guest, mozart, salieri
+
+
+@pytest.fixture
+def speech_origin():
+    origin = Origin()
+    offering(origin, *VoiceId)
+    speaking(origin, chunked_wav(SOUND))
+    yield origin
+    origin.close()
+
+
+@pytest.fixture
+def speaking_behind(joined_agent):
+    """The agent's `speak` call that waits behind its playing sentence, on a worker thread of its own because a call
+    answers only when its sentence starts. It returns the call's future once the speaking path has queued the sentence;
+    the end of the lease at teardown answers a call still waiting, so no thread stays blocked."""
+    pool = ThreadPoolExecutor(max_workers=1)
+
+    def behind():
+        stored = joined_agent.call.voices.stored
+        waiting = pool.submit(speak, joined_agent)
+        joined_agent.call.after_sounds_stored(stored + 1)
+        return waiting
+
+    yield behind
+    joined_agent.call.pass_time(LEASE_SECONDS)
+    pool.shutdown(wait=True)
