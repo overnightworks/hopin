@@ -10,12 +10,14 @@ from http import HTTPStatus
 import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
-from speech_client.relay import HopClose
+from speech_client.hearing import OPENING_SECONDS
+from speech_client.relay import HOP_FRAME_SAMPLES, HopClose
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
     WORKLOAD_TOKEN_HEADER,
     Language,
     RefusalCode,
+    SessionInput,
     SessionUpdate,
     VoiceId,
 )
@@ -430,6 +432,29 @@ class TestWhatTheServiceAnswers:
             fake_speech.opening.set()
 
         assert closed == HearingClose.OVER_CAP
+
+    def test_call_58_sound_spoken_while_the_service_opens_slowly_is_held_and_its_sentence_still_enters_the_window(
+        self, sponsored, fake_speech
+    ):
+        """CALL-58: The hold covers the client's opening bound, so a session that opens late, after the sound of that
+        whole bound has been sent, does not end the hop."""
+        frames_of_the_opening_bound = int(OPENING_SECONDS * SessionInput().format.rate) // HOP_FRAME_SAMPLES
+        fake_speech.opening.clear()
+        try:
+            with hop(sponsored) as socket:
+                for _ in range(frames_of_the_opening_bound):
+                    socket.send_bytes(bytes(hearing_route.HOP_FRAME_BYTES))
+                fake_speech.opening.set()
+                session = fake_speech.next_session()
+                for event in a_sentence("Guten Tag"):
+                    session.say(event)
+                session.hang_up()
+                closed = closed_with(socket)
+        finally:
+            fake_speech.opening.set()
+
+        [entry] = entries_of(sponsored)
+        assert (closed, entry["text"]) == (HearingClose.NORMAL, "Guten Tag")
 
 
 def _send_from_the_loop(socket, frame):

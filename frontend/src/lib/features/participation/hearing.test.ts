@@ -12,7 +12,8 @@ const streamsOf = () => live().map((started) => started.options.stream);
 const freshCapture = () => createHearingCapture(() => "ws://page/hop", captures.startCapture);
 const PAST_DEADLINE = { kind: "hop", close: HopClose.PAST_DEADLINE } as const;
 const ENDED_IN_ORDER = { kind: "hop", close: HopClose.NORMAL } as const;
-const ENDS_THAT_REOPEN = [PAST_DEADLINE, ENDED_IN_ORDER] as const;
+const OVER_THE_HOLD = { kind: "hop", close: HopClose.OVER_CAP } as const;
+const ENDS_THAT_REOPEN = [PAST_DEADLINE, ENDED_IN_ORDER, OVER_THE_HOLD] as const;
 
 beforeEach(captures.clear);
 
