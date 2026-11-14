@@ -6,7 +6,7 @@ from playwright.sync_api import Page, expect
 from tests.e2e.skat.skat_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_TILE, REMOVE
-from tests.e2e.support.people import FORM_FACTORS
+from tests.e2e.support.people import FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,6 +24,7 @@ SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
 TOLERANCE_PIXELS = 1
+MIN_TARGET_PIXELS = 24
 
 
 @pytest.fixture
@@ -132,3 +133,53 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     expect(see_switch).to_have_attribute("aria-checked", "true")
     see_switch.click()
     expect(see_switch).to_have_attribute("aria-checked", "false")
+
+
+PRESSABLE_SQUARE_SCRIPT = """(switchElement, tileSelector) => {
+    const tile = document.querySelector(tileSelector).getBoundingClientRect();
+    const columns = Math.floor(tile.width);
+    const rows = Math.floor(tile.height);
+    let previous = new Array(columns + 1).fill(0);
+    let largest = 0;
+    for (let row = 1; row <= rows; row++) {
+        const current = new Array(columns + 1).fill(0);
+        for (let column = 1; column <= columns; column++) {
+            const hit = document.elementFromPoint(tile.x + column - 0.5, tile.y + row - 0.5);
+            if (hit && switchElement.contains(hit)) {
+                current[column] = 1 + Math.min(previous[column], current[column - 1], previous[column - 1]);
+                largest = Math.max(largest, current[column]);
+            }
+        }
+        previous = current;
+    }
+    return largest;
+}"""
+
+TOPMOST_AT_SCRIPT = """([selector, x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))"""
+
+
+@pytest.mark.parametrize("form_factor", [pytest.param(PHONE, id="phone")])
+def test_each_switch_on_a_strip_tile_is_a_touch_target_clear_of_the_remove_button_and_toggles_on_a_tap(
+    host_with_a_table_and_an_agent: Page,
+) -> None:
+    """CALL-57, CALL-62: Under a coarse pointer a press lands on each switch of a strip tile over a square of at least
+    24 by 24 px inside the tile that belongs to neither the other switch nor the remove button, which stays pressable,
+    and a tap turns it on or off."""
+    host = host_with_a_table_and_an_agent
+    remove_box = box_of(AGENT_TILE + " " + REMOVE, host)
+    remove_points = [
+        (remove_box["x"] + remove_box["width"] * fx, remove_box["y"] + remove_box["height"] * fy)
+        for fx in (0.2, 0.5, 0.8)
+        for fy in (0.2, 0.5, 0.8)
+    ]
+    for x, y in remove_points:
+        assert host.evaluate(TOPMOST_AT_SCRIPT, [AGENT_TILE + " " + REMOVE, x, y])
+    for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH):
+        switch = host.locator(selector)
+        assert switch.evaluate(PRESSABLE_SQUARE_SCRIPT, AGENT_TILE) >= MIN_TARGET_PIXELS
+        assert overlap_of(box_of(selector, host), remove_box) == 0
+        before = switch.get_attribute("aria-checked") or ""
+        switch.tap()
+        expect(switch).not_to_have_attribute("aria-checked", before)
+        switch.tap()
+        expect(switch).to_have_attribute("aria-checked", before)
