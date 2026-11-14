@@ -3,6 +3,7 @@
 import asyncio
 
 from hopin.participation.speaking import RenderedSentence
+from hopin.participation.vocabulary import ParticipationSignal, VoiceFailure
 from tests.participation.support.people import person_named
 
 GUEST = person_named("guest")
@@ -50,3 +51,23 @@ async def answers_so_far(scheduler, seconds, *answers):
 
 
 LONG = rendering(duration_ms=LONG_MS)
+
+
+async def renders_nothing(sentence, voice):
+    return None
+
+
+async def renders_failing(sentence, voice):
+    return VoiceFailure.BUSY
+
+
+async def renders_cancelled(sentence, voice):
+    raise asyncio.CancelledError
+
+
+async def renders_broken(sentence, voice):
+    raise RuntimeError("the speech service broke")
+
+
+async def removed_by_the_host(participation, host, guest, agent):
+    await host.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
