@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
+from tests.support.game_environment import GAME_ENVIRONMENT
 from tests.support.page_build import FIXTURE_DIRECTORY
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -28,12 +29,6 @@ START_WAIT_SECONDS = 60
 REQUEST_WAIT_SECONDS = 10
 POLL_SECONDS = 0.2
 DIE_WITH_PYTEST = ["setpriv", "--pdeathsig", "TERM", "timeout", "-k", str(KILL_AFTER_SECONDS), str(RUN_CAP_SECONDS)]
-GAME_SETTINGS = {
-    "HOPIN_AGENT__BACKEND": "litellm",
-    "HOPIN_AGENT__GATEWAY__ORIGIN": "http://gateway.test:4000",
-    "HOPIN_AGENT__GATEWAY__KEY_FILE": "/nonexistent/gateway-key",
-    "HOPIN_AGENT__API_GROUP": "/services/scenario/api",
-}
 
 
 def _free_port() -> int:
@@ -101,7 +96,7 @@ def serving_pod_pair(
         "PATH": os.environ["PATH"],
         "PYTHONPATH": str(SOURCE_DIRECTORY),
         **sign_in_environment,
-        **GAME_SETTINGS,
+        **GAME_ENVIRONMENT,
         "HOPIN_REDIS_URL": redis_url,
     }
     pods: list[Pod] = []

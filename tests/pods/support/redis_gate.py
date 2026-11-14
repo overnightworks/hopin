@@ -27,7 +27,7 @@ class RedisGate:
         self._listener.listen()
         self._connections: list[socket.socket] = []
         self._lock = threading.Lock()
-        self.url = f"redis://{LOCALHOST}:{self._listener.getsockname()[1]}"
+        self.url = f"redis://{LOCALHOST}:{self._listener.getsockname()[1]}{target.path}"
         threading.Thread(target=self._accept, daemon=True).start()
 
     def _accept(self) -> None:
