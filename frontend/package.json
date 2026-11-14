@@ -31,7 +31,7 @@
         "globals": "^17.14.0",
         "jsdom": "^30.1.3",
         "monocart-coverage-reports": "^3.2.0",
-        "overnightworks-design": "https://github.com/overnightworks/design/releases/download/v0.29.0/overnightworks-design-0.29.0.tgz",
+        "overnightworks-design": "https://github.com/overnightworks/design/releases/download/v0.33.0/overnightworks-design-0.33.0.tgz",
         "overnightworks-figure": "https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz",
         "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.13.0/overnightworks-speech-browser-0.13.0.tgz",
         "prettier": "^3.9.10",
