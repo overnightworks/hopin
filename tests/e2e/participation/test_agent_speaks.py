@@ -249,6 +249,8 @@ def test_a_sentence_whose_voice_fails_is_written_in_every_chat_and_the_window_st
     line and states the voice unavailable, and the agent's next sentence that sounds states it available again."""
     everyone = speaker.scene.everyone
     for person in everyone:
+        if person.locator("#moreMenu").is_visible():
+            person.keyboard.press("Escape")
         person.click("#chatBtn")
 
     answered = speaker.speak_with_a_failing_voice("Guten Tag")
