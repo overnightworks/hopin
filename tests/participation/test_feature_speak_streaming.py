@@ -3,8 +3,9 @@
 import asyncio
 
 import pytest
+import structlog.testing
 
-from hopin.participation.vocabulary import SpeakStarted
+from hopin.participation.vocabulary import AgentRefusal, SpeakStarted
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     LONG_MS,
@@ -12,6 +13,7 @@ from tests.participation.support.speaking import (
     StreamedSentence,
     answers_so_far,
     leaving,
+    renders_failing,
     speak,
     voice_ids,
     waiting_to_speak,
@@ -22,6 +24,22 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 HOST = person_named("host")
 GUEST = person_named("guest")
+
+
+def stopping_after(participation, room_id, hops):
+    """Stops the agent's sentence once the loop has run `hops` more turns than the stream's next piece needs to settle
+    its sentence's end, so the stop lands between the end's settling and what follows it."""
+    loop = asyncio.get_running_loop()
+    stops = []
+
+    def hop(remaining):
+        if remaining:
+            loop.call_soon(hop, remaining - 1)
+        else:
+            stops.append(asyncio.ensure_future(participation.stop_speaking(GUEST, room_id)))
+
+    loop.call_soon(hop, hops)
+    return stops
 
 
 async def first_chunk_of(voices, voice_id):
@@ -98,6 +116,44 @@ class TestASentenceThatPlaysWhileItRenders:
             SpeakStarted.SPOKEN,
             ("Eins", True, True),
         )
+
+    @pytest.mark.parametrize(
+        ("hops", "arrival"),
+        [(0, "ends_after"), (1, "breaks_off")],
+        ids=["before_the_end_is_set", "before_the_cut_is_shown"],
+    )
+    async def test_call_60_a_stop_in_the_turns_after_a_stream_ended_cuts_the_sentence_once_and_sets_no_timer(
+        self, participation, call, scheduler, hops, arrival
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        streamed = StreamedSentence()
+        await speak(participation, "Eins", room_id=room_id, render=streamed.render)
+        timers_before = len(scheduler.pending_timers())
+
+        with structlog.testing.capture_logs() as logs:
+            stops = stopping_after(participation, room_id, hops)
+            await (streamed.ends_after(SENTENCE_MS) if arrival == "ends_after" else streamed.breaks_off())
+            await asyncio.sleep(0)
+
+        assert (
+            len(stops),
+            window_texts(participation, GUEST, room_id),
+            len(scheduler.pending_timers()) - timers_before,
+            [log["event"] for log in logs if log["log_level"] == "error"],
+        ) == (1, [("Eins", True, True)], 0, [])
+
+    async def test_call_60_an_end_of_the_agent_answers_a_written_sentence_waiting_behind_its_sound_as_gone(
+        self, participation, call
+    ):
+        host, guest, mozart, _ = call
+        room_id = room_of(host)
+        await speak(participation, room_id=room_id)
+        written = await waiting_to_speak(participation, "Zwei", render=renders_failing, room_id=room_id)
+
+        await leaving(participation, host, guest, mozart)
+
+        assert await written == AgentRefusal.GONE
 
     async def test_call_61_a_sentence_whose_stream_broke_off_while_it_waited_is_cut_at_its_turn(
         self, participation, call, scheduler

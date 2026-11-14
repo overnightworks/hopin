@@ -340,14 +340,13 @@ async def _fill(
                 case SoundLength(duration_ms=duration_ms):
                     voice.finish()
                     ended.set_result(duration_ms)
-                case VoiceFailure():
+                case _:
                     voice.break_off()
                     ended.set_result(piece)
     except Exception:
         logger.exception("agent_voice_stream_failed", code=VoiceFailure.CUT)
         voice.break_off()
-        if not ended.done():
-            ended.set_result(VoiceFailure.CUT)
+        ended.set_result(VoiceFailure.CUT)
 
 
 def _cancel_timer(queue: _Queue) -> None:
