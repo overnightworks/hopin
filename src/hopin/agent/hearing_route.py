@@ -52,10 +52,10 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 HEARING_LANGUAGES: Final = (Language.DE, Language.EN)
 HEARING_DEADLINE_SECONDS: Final = 60 * 60
 # The client holds the sound it is sent until the service's session is open and reads it, and waits up to
-# `OPENING_SECONDS` for that opening; a smaller hold ends the hop with `OverCap` on a session that opens slowly or stalls
-# for a moment, and the person goes unheard. So the hold covers the opening bound. Audio held when a hop ends may still
-# be written to the service (speech#311): sound spoken while the switch was on, and CALL-58 keeps any sentence that
-# ends after a switch-off out of every window.
+# `OPENING_SECONDS` for that opening; a smaller hold ends the hop with `OverCap` on a session that opens slowly or
+# stalls for a moment, and the person goes unheard. So the hold covers the opening bound. Audio held when a hop ends may
+# still be written to the service (speech#311): sound spoken while the switch was on, and CALL-58 keeps any sentence
+# that ends after a switch-off out of every window.
 HELD_FRAMES: Final = math.ceil(OPENING_SECONDS * SessionInput().format.rate / HOP_FRAME_SAMPLES)
 HELD_LIMIT_BYTES: Final = HOP_FRAME_BYTES * HELD_FRAMES
 MILLISECONDS_PER_SECOND: Final = 1000
