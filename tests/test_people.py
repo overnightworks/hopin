@@ -109,6 +109,19 @@ class Scene:
     sensitive: list[str] = field(repr=False)
 
 
+def an_older_session(stores, anna, refresh_token, id_token):
+    """A session of anna's that began an hour before her current one and ends two hours before it."""
+    return stores.sessions.create(
+        "anna",
+        session_id=new_session_id(),
+        now=anna.session.created_at - timedelta(hours=1),
+        expires_at=anna.session.expires_at - timedelta(hours=2),
+        refresh_token=SecretStr(refresh_token),
+        id_token=id_token,
+        account_language=None,
+    )
+
+
 @pytest.fixture
 def scene(client, stores, person):
     anna = person("anna")
@@ -116,15 +129,7 @@ def scene(client, stores, person):
     ben = person(ben_subject)
     refresh_token = secrets.token_urlsafe()
     older_id_token = new_id_token()
-    older = stores.sessions.create(
-        "anna",
-        session_id=new_session_id(),
-        now=anna.session.created_at - timedelta(hours=1),
-        expires_at=anna.session.expires_at - timedelta(hours=2),
-        refresh_token=SecretStr(refresh_token),
-        id_token=older_id_token,
-        account_language=None,
-    )
+    older = an_older_session(stores, anna, refresh_token, older_id_token)
     chat_text = secrets.token_urlsafe()
     ben_chat_text = secrets.token_urlsafe()
     with ExitStack() as open_sockets:
