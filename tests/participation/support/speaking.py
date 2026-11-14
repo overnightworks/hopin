@@ -9,6 +9,7 @@ from tests.participation.support.people import person_named
 GUEST = person_named("guest")
 SENTENCE_MS = 1500
 LONG_MS = 60 * 60 * 1000
+FILLING_TASK = "_fill"
 
 
 def a_sentence(wav=b"sound", duration_ms=SENTENCE_MS):
@@ -18,6 +19,43 @@ def a_sentence(wav=b"sound", duration_ms=SENTENCE_MS):
         yield SoundLength(duration_ms)
 
     return RenderedSentence(wav, after_the_first_chunk())
+
+
+class StreamedSentence:
+    """A sentence whose pieces the test hands out: it begins with its first chunk, and `closed` says whether the
+    rendering was ended before the stream was."""
+
+    def __init__(self, first=b"first"):
+        self._pieces = asyncio.Queue()
+        self.closed = False
+        self._sentence = RenderedSentence(first, self._stream())
+
+    async def render(self, text, voice):
+        return self._sentence
+
+    async def _stream(self):
+        try:
+            while True:
+                piece = await self._pieces.get()
+                yield piece
+                if not isinstance(piece, bytes):
+                    return
+        finally:
+            self.closed = True
+
+    async def chunk(self, wav):
+        await self._arrive(wav)
+
+    async def ends_after(self, duration_ms):
+        await self._arrive(SoundLength(duration_ms))
+
+    async def breaks_off(self, failure=VoiceFailure.CUT):
+        await self._arrive(failure)
+
+    async def _arrive(self, piece):
+        self._pieces.put_nowait(piece)
+        for _ in range(3):
+            await asyncio.sleep(0)
 
 
 def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
@@ -39,7 +77,12 @@ async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room
             known.update(asyncio.all_tasks())
 
     answer = await participation.speak(who, room_id, text, render_and_note_the_running_tasks, offered)
-    announcements = asyncio.all_tasks() - known - {asyncio.current_task()}
+    # A stream still being read is no announcement.
+    announcements = {
+        task
+        for task in asyncio.all_tasks() - known - {asyncio.current_task()}
+        if task.get_coro().__name__ != FILLING_TASK
+    }
     if announcements:
         await asyncio.wait(announcements)
     return answer
