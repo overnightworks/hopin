@@ -57,6 +57,9 @@ MILLISECONDS_PER_SECOND: Final = 1000
 type StreamSpeaker = Callable[..., Generator[PreferenceStreamItem]]
 """Opens the speech service's stream of a sentence, as the speech client's `speak_stream_with_preference` does."""
 
+SPEECH_STREAM: Final[StreamSpeaker] = speak_stream_with_preference
+"""The stream the composition roots give a renderer; the speech client is named in this module alone."""
+
 
 class StyleUnavailableError(Exception):
     """The voice refuses the style of a sentence: it takes no style, or the style is too long, has no letter or is one
@@ -73,7 +76,7 @@ class SpeechRenderer:
     cap_bytes: int
     relying_party: OidcRelyingParty
     failed_event: str
-    speak_stream: StreamSpeaker = speak_stream_with_preference
+    speak_stream: StreamSpeaker
 
     async def wav(self, text: str, person_token: str, language: Language) -> bytes | VoiceFailure:
         """The WAV of the text spoken in `language` in the service's configured voice on the person's token and HopIn's

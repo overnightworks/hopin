@@ -138,15 +138,17 @@ class Speaker:
 
     def speak_while_speech_pauses(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
         """Say a sentence whose second half speech renders only once `finish_rendering` says so."""
-        first, rest = chunked_wav_in_two(silent_wav(seconds))
-        self.speech_origin.serve(SPEECH_PATH, first, later=rest)
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+        return self._speak_with_second_half(seconds, text, lambda rest: rest)
 
     def speak_while_speech_breaks(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
         """Say a sentence whose stream speech breaks in its second half once `finish_rendering` says so."""
+        return self._speak_with_second_half(seconds, text, lambda rest: rest[: len(rest) // 2])
+
+    def _speak_with_second_half(
+        self, seconds: float, text: str, later_body: Callable[[bytes], bytes]
+    ) -> Future[dict[str, Any]]:
         first, rest = chunked_wav_in_two(silent_wav(seconds))
-        self.speech_origin.serve(SPEECH_PATH, first, later=rest[: len(rest) // 2])
+        self.speech_origin.serve(SPEECH_PATH, first, later=later_body(rest))
         place = PlaceRef(kind=CALL_KIND, id=self.room)
         return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
 
