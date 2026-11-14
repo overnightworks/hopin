@@ -84,16 +84,13 @@ class Looking:
             LOOK_ANSWER_SECONDS, partial(self._stop, request, LookRefusal.NO_ANSWER)
         )
         try:
-            picture = await request.running
-        except asyncio.CancelledError:
-            if request.refusal is None:
-                raise
-            return request.refusal
+            await asyncio.wait({request.running})
         finally:
             request.timer.cancel()
+            request.running.cancel()
             request.parts.clear()
             del self._requests[request_id]
-        return picture if request.refusal is None else request.refusal
+        return request.running.result() if request.refusal is None else request.refusal
 
     async def _run(self, request: _Request, request_id: str, show: Callable[[], Awaitable[None]]) -> Picture:
         await self._ask(request.agent, request_id)
