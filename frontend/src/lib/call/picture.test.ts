@@ -8,7 +8,7 @@ interface Frame {
     height: number;
 }
 
-const BOUNDS = { maxPixels: 1280, maxBytes: 3000 };
+const BOUNDS = { maxPixels: 1280, maxBytes: 3000, maxMilliseconds: 10_000 };
 
 function cameraTrack(overrides: Partial<{ enabled: boolean; readyState: string }> = {}) {
     return { kind: "video", enabled: true, readyState: "live", ...overrides };
@@ -147,5 +147,48 @@ describe("the picture of the camera", () => {
 
         await expect(takePicture(BOUNDS)).rejects.toThrow("blocked");
         expect(devices.video.srcObject).toBeNull();
+    });
+
+    describe("a frame that never arrives", () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+        });
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it.each([
+            [
+                "the camera never plays",
+                (video: { play: ReturnType<typeof vi.fn> }) => video.play.mockReturnValue(new Promise(() => {})),
+            ],
+            [
+                "the camera plays but gives no frame",
+                (video: { videoWidth: number }) => {
+                    video.videoWidth = 0;
+                },
+            ],
+        ])("is none and stops the playing element within the bound when %s", async (_cause, arrange) => {
+            const devices = installDevices({ width: 640, height: 480 }, {});
+            arrange(devices.video);
+
+            const taken = takePicture(BOUNDS);
+            await vi.advanceTimersByTimeAsync(BOUNDS.maxMilliseconds);
+
+            expect(await taken).toBeNull();
+            expect(devices.video.pause).toHaveBeenCalled();
+            expect(devices.video.srcObject).toBeNull();
+        });
+
+        it("keeps waiting until the bound has passed", async () => {
+            const devices = installDevices({ width: 640, height: 480 }, {});
+            devices.video.play.mockReturnValue(new Promise(() => {}));
+
+            void takePicture(BOUNDS);
+            await vi.advanceTimersByTimeAsync(BOUNDS.maxMilliseconds - 1);
+
+            expect(devices.video.pause).not.toHaveBeenCalled();
+            expect(devices.video.srcObject).not.toBeNull();
+        });
     });
 });

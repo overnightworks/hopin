@@ -33,6 +33,7 @@ from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
 from hopin.participation.vocabulary import (  # noqa: E402
     HEARING_PATH,
+    LOOK_ANSWER_SECONDS,
     LOOK_MAX_BYTES,
     LOOK_MAX_PIXELS,
     LOOK_PART_CHARACTERS,
@@ -201,6 +202,7 @@ def render_participation() -> str:
     constants = (
         f'export const HEARING_PATH = "{HEARING_PATH}";\nexport const VOICE_PATH = "{VOICE_PATH}";\n'
         f"export const LOOK_MAX_PIXELS = {LOOK_MAX_PIXELS};\n"
+        f"export const LOOK_ANSWER_SECONDS = {LOOK_ANSWER_SECONDS};\n"
         f"export const LOOK_MAX_BYTES = {LOOK_MAX_BYTES};\n"
         f"export const LOOK_PART_CHARACTERS = {LOOK_PART_CHARACTERS};\n"
     )

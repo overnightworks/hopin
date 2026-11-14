@@ -21,7 +21,7 @@ export async function installedParticipation(installOn?: typeof install) {
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
     // What the camera gives: a picture's base64 text, none or an error it fails with; the bounds each request named.
-    let picture: string | Error | null = null;
+    let picture: string | Error | null | Promise<string | null> = null;
     const pictureBounds: PictureBounds[] = [];
     const microphoneHandlers: ((stream: MediaStream | null) => void)[] = [];
     const more = document.createElement("dialog");
@@ -106,6 +106,14 @@ export async function installedParticipation(installOn?: typeof install) {
         pictureBounds,
         cameraGives: (base64: string | Error | null) => {
             picture = base64;
+        },
+        // The camera gives its picture only when the returned function is called.
+        cameraGivesLater: () => {
+            let give: (base64: string | null) => void = () => {};
+            picture = new Promise<string | null>((resolve) => {
+                give = resolve;
+            });
+            return give;
         },
         hear: (stream: MediaStream | null) => {
             microphoneHandlers.forEach((handler) => {

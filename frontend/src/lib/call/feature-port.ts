@@ -59,10 +59,11 @@ export interface AgentTile {
 /** The key of the tile a feature shows without naming one: a feature with several agents gives each its own. */
 export const DEFAULT_AGENT_KEY = "agent";
 
-/** What a still picture of the person's camera may be: the longer side in pixels and the encoded picture's bytes. */
+/** What a still picture of the person's camera may be: the longer side in pixels, the encoded picture's bytes and the time the camera may take for its frame. */
 export interface PictureBounds {
     maxPixels: number;
     maxBytes: number;
+    maxMilliseconds: number;
 }
 
 export interface FeatureCore {
