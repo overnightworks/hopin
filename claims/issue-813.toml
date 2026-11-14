@@ -1,0 +1,8 @@
+claim_id = "9a90f46ac6fe47e191c49cc9ef7735b1"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "1ad88aeb81b0da0cd62eb59061ac5aaf213bc1e8"
+branch = "claude/issue-813-agent-speaks-first-ready-voice"
+scope = ["README.md", "docs/call.md", "pyproject.toml", "src/hopin/agent", "src/hopin/participation", "tests", "uv.lock"]
+opened_commit = "694d9916011cfb3168ab3957a6feb0d70e6d247e"
+whole_reason = "The bump of agents and speech's client and the voice list run from the accept through the agent's speaking path to its window, with their tests, in one change."
