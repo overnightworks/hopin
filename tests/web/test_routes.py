@@ -182,6 +182,11 @@ class TestPageShell:
         stylesheet = stylesheet_path.read_text()
         assert untokened_motion_durations(stylesheet) == []
 
+    @pytest.mark.parametrize("stylesheet_path", OWN_STYLESHEETS, ids=lambda path: path.name)
+    def test_closes_every_block_it_opens(self, stylesheet_path):
+        stylesheet = CSS_COMMENT.sub("", stylesheet_path.read_text())
+        assert stylesheet.count("{") == stylesheet.count("}")
+
     @pytest.mark.parametrize(
         "motion_declaration",
         [
