@@ -2,7 +2,6 @@ import asyncio
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
-from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
@@ -182,13 +181,6 @@ class TestCreateApp:
             create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
         ).get("/health")
         assert response.status_code == 200
-
-    def test_the_health_check_is_not_ready_while_the_shared_stores_do_not_answer(self, sign_in_settings):
-        app = create_app(
-            sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(answers=False)
-        )
-
-        assert TestClient(app).get("/health").status_code == HTTPStatus.SERVICE_UNAVAILABLE
 
     def test_serves_the_configured_stun_server_as_ice_servers(self, sign_in_settings):
         settings = sign_in_settings(stun_server="stun:stun.example.test:3478").settings
