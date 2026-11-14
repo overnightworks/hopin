@@ -681,14 +681,19 @@ class TestAnEndWhileTheSentenceIsAnnounced:
             1,
         )
 
-    async def test_call_60_a_failed_announcement_is_logged(self, participation, call):
+    async def test_call_60_a_failed_announcement_is_logged_with_no_text_of_the_failure(self, participation, call):
         host, *_ = call
 
         async def refuse(text):
-            raise RuntimeError("closed")
+            raise RuntimeError("the failure carries the sentence")
 
         host.socket.send_text = refuse
         with structlog.testing.capture_logs() as logs:
             await speak(participation, room_id=room_of(host))
 
-        assert [log["agent_id"] is not None for log in logs if log["event"] == "agent_announcement_failed"] == [True]
+        [failure] = [log for log in logs if log["event"] == "agent_announcement_failed"]
+        assert (failure["agent_id"] is not None, "exc_info" in failure, "carries the sentence" in str(failure)) == (
+            True,
+            False,
+            False,
+        )
