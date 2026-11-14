@@ -29,8 +29,9 @@ from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
+from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.dialed_call import join_arguments
-from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
+from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
 from tests.support.fake_speech import WAIT_SECONDS, FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
 
@@ -38,7 +39,6 @@ pytestmark = pytest.mark.integration
 
 AUDIENCE_SCOPE = "speech-audience"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
-CLIENT_CREDENTIALS_GRANT = "client_credentials"
 
 
 @pytest.fixture
@@ -84,10 +84,6 @@ def lose_the_held_token(scene):
         scene.standings()
 
 
-def grants(scene, grant_type):
-    return [request for request, _ in scene.call.issuer.exchanges if request.form["grant_type"] == grant_type]
-
-
 def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1, **sentence):
     """A hop in which the service hears one sentence and ends in order; the code the browser's socket closed with.
     The hop is the service's `session_number`-th session."""
@@ -98,6 +94,50 @@ def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1,
             session.say(event)
         session.hang_up()
         return closed_with(socket)
+
+
+class TestTheWorkloadToken:
+    def test_call_58_hops_within_one_tokens_lifetime_post_one_grant_and_carry_the_same_token(
+        self, sponsored, fake_speech
+    ):
+        """CALL-58: HopIn's token for the service is fetched once for the hops that follow within its lifetime."""
+        for session_number in (1, 2):
+            hear_one_sentence(sponsored, fake_speech, session_number=session_number)
+
+        assert (
+            len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)),
+            {header_of(session, WORKLOAD_TOKEN_HEADER) for session in fake_speech.sessions},
+        ) == (1, set(sponsored.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)))
+
+    @pytest.mark.parametrize(
+        ("passed_seconds", "granted"),
+        [
+            pytest.param(TOKEN_LIFETIME_SECONDS // 2, 1, id="well_within_its_lifetime"),
+            pytest.param(TOKEN_LIFETIME_SECONDS, 2, id="at_the_end_of_its_lifetime"),
+        ],
+    )
+    def test_call_58_a_token_near_its_end_is_fetched_anew_before_the_next_hop(
+        self, sponsored, fake_speech, issuer_clock, passed_seconds, granted
+    ):
+        hear_one_sentence(sponsored, fake_speech, session_number=1)
+        issuer_clock.advance(passed_seconds)
+        hear_one_sentence(sponsored, fake_speech, session_number=2)
+
+        assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == granted
+
+    def test_call_58_a_refusal_is_not_reused_for_the_next_hop(self, sponsored, fake_speech):
+        sponsored.call.issuer.refuses_client_credentials_grants = True
+        with hop(sponsored) as socket:
+            refused = closed_with(socket)
+        sponsored.call.issuer.refuses_client_credentials_grants = False
+
+        heard = hear_one_sentence(sponsored, fake_speech)
+
+        assert (refused, heard, len(grants(sponsored, CLIENT_CREDENTIALS_GRANT))) == (
+            HearingClose.SERVICE_FAILED,
+            HearingClose.NORMAL,
+            2,
+        )
 
 
 class TestAFinishedSentence:

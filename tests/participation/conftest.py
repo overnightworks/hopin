@@ -1,6 +1,7 @@
 import asyncio
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
@@ -213,8 +214,28 @@ def figure_transport():
     return
 
 
+class MonotonicClock:
+    """The clock the relying party measures a token's lifetime on, which a test moves on by hand."""
+
+    def __init__(self) -> None:
+        self._seconds = time.monotonic()
+
+    def __call__(self) -> float:
+        return self._seconds
+
+    def advance(self, seconds: float) -> None:
+        self._seconds += seconds
+
+
+@pytest.fixture
+def issuer_clock():
+    """The relying party's monotonic clock; it stands still until a test advances it."""
+    return MonotonicClock()
+
+
 @pytest.fixture
 def adding_call(
+    issuer_clock,
     sign_in_settings,
     seat_changes,
     adding_call_adders,
@@ -234,6 +255,7 @@ def adding_call(
         figure_transport=figure_transport,
         hearing=hearing_service,
         speaking=speaking_service,
+        monotonic_clock=issuer_clock,
     ) as call:
         yield call
 

@@ -393,6 +393,7 @@ def serving_dialed_call(
     figure_transport=None,
     hearing=None,
     speaking=None,
+    monotonic_clock=time.monotonic,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test. `hearing` is the speech service agents hear through and `speaking` the one they speak through, none with
@@ -422,6 +423,7 @@ def serving_dialed_call(
             *more_call_features,
             participation,
         ),
+        monotonic_clock=monotonic_clock,
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]
