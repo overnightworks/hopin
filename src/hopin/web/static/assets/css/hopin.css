@@ -550,6 +550,9 @@ button, input, textarea { font-family: inherit; }
     -webkit-backdrop-filter: blur(12px);
 }
 .look-mark .icon {
+    width: 24px;
+    height: 24px;
+}
 /* Under 131px the narrowest chip no longer fits beside the remove button (8px, the chip, the button's 32px and its
    10px), so it moves into the tile's lower right corner, clear of the button; its icon may be cut, its switch stays
    whole and pressable. */
