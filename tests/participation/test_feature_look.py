@@ -30,7 +30,7 @@ from tests.participation.support.ends import (
 )
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import HeldWrite, host_and_guest
-from tests.support.pictures import jpeg_of, parts_of
+from tests.support.pictures import jpeg_of, part, parts_of
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -47,16 +47,6 @@ async def settle():
 
 def seeing(agent_id, *, on):
     return {"type": ParticipationSignal.AGENT_SEEING.value, "agent_id": agent_id, "on": on}
-
-
-def part(request_id, text, index=0, count=1):
-    return {
-        "type": ParticipationSignal.AGENT_LOOK_PART.value,
-        "request_id": request_id,
-        "index": index,
-        "count": count,
-        "data": text,
-    }
 
 
 def no_camera(request_id):

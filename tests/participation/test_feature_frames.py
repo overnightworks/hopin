@@ -76,9 +76,9 @@ class TestASwitchOfASense:
 
         assert refusals(host) == [AgentRefusal.GONE.value]
 
-    @pytest.mark.parametrize(("signal", "sense", "_starts_on"), SENSES)
+    @pytest.mark.parametrize(("signal", "sense"), [pytest.param(*param.values[:2], id=param.id) for param in SENSES])
     async def test_call_57_62_a_switch_after_the_agent_left_is_refused_and_records_nothing(
-        self, participation, member_hearing, call, signal, sense, _starts_on
+        self, participation, member_hearing, call, signal, sense
     ):
         """CALL-57 and CALL-62: A switch frame for an agent that has left is refused and records nothing."""
         host, guest, agent, _host_agent = call

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { REMEMBERED_REQUESTS } from "./looking.ts";
 import { ME, installedParticipation } from "./page.fixture.ts";
 import { LOOK_MAX_BYTES, LOOK_MAX_PIXELS, LOOK_PART_CHARACTERS, PARTICIPATION_SIGNAL } from "./wire.ts";
 
@@ -135,17 +136,21 @@ describe("a look at the person's camera", () => {
         const request = (index: number) => {
             page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: `r${String(index)}` });
         };
-        for (let index = 0; index <= 32; index += 1) request(index);
+        for (let index = 0; index <= REMEMBERED_REQUESTS; index += 1) request(index);
         await answered();
         const afterTheRequests = page.sentTransient.length;
 
-        request(32);
+        request(REMEMBERED_REQUESTS);
         await answered();
         const afterTheNewest = page.sentTransient.length;
         request(0);
         await answered();
 
-        expect([afterTheRequests, afterTheNewest, page.sentTransient.length]).toEqual([33, 33, 34]);
+        expect([afterTheRequests, afterTheNewest, page.sentTransient.length]).toEqual([
+            REMEMBERED_REQUESTS + 1,
+            REMEMBERED_REQUESTS + 1,
+            REMEMBERED_REQUESTS + 2,
+        ]);
     });
 
     it("CALL-63: shows the mark on the agent's tile at a look and takes it away after a while", async () => {

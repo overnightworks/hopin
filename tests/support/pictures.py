@@ -3,6 +3,8 @@ for. No decoder reads them; the server reads the start-of-image marker and the f
 
 import base64
 
+from hopin.participation.vocabulary import ParticipationSignal
+
 START_OF_IMAGE = b"\xff\xd8"
 END_OF_IMAGE = b"\xff\xd9"
 START_OF_SCAN = bytes.fromhex("ffda000c03010002110311003f00")
@@ -22,3 +24,14 @@ def parts_of(picture, characters):
     """The base64 text of the picture cut into parts of at most `characters` characters."""
     encoded = base64.b64encode(picture).decode("ascii")
     return [encoded[start : start + characters] for start in range(0, len(encoded), characters)]
+
+
+def part(request_id, text, index=0, count=1):
+    """The browser's frame that carries one part of the picture it answers a look with."""
+    return {
+        "type": ParticipationSignal.AGENT_LOOK_PART.value,
+        "request_id": request_id,
+        "index": index,
+        "count": count,
+        "data": text,
+    }

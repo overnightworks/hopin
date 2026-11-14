@@ -21,7 +21,7 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
 )
 from tests.participation.support.tool_calls import call_in
-from tests.support.pictures import jpeg_of, parts_of
+from tests.support.pictures import jpeg_of, part, parts_of
 
 pytestmark = pytest.mark.integration
 
@@ -32,16 +32,6 @@ ANSWER_SECONDS = 30
 
 
 look = partial(call_in, tool=LOOK)
-
-
-def part(request_id, text, index=0, count=1):
-    return {
-        "type": ParticipationSignal.AGENT_LOOK_PART.value,
-        "request_id": request_id,
-        "index": index,
-        "count": count,
-        "data": text,
-    }
 
 
 @pytest.fixture

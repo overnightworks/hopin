@@ -74,11 +74,24 @@ afterEach(() => {
 });
 
 describe("connecting", () => {
-    it("refuses to send before connect", async () => {
-        const { send } = await freshSignaling();
+    it.each([
+        [
+            "a frame",
+            (signaling: Signaling) => {
+                signaling.send({ type: SIGNAL_TYPE.CHAT });
+            },
+        ],
+        [
+            "a transient frame",
+            (signaling: Signaling) => {
+                signaling.sendFeatureFrame({ type: "game_picture" }, { transient: true });
+            },
+        ],
+    ])("refuses to send %s before connect", async (_kind, sending) => {
+        const signaling = await freshSignaling();
 
         expect(() => {
-            send({ type: SIGNAL_TYPE.CHAT });
+            sending(signaling);
         }).toThrow("No signaling session");
     });
 
@@ -189,14 +202,6 @@ describe("sending a transient frame", () => {
         latestSocket().open();
 
         expect(latestSocket().sent).toEqual([{ type: SIGNAL_TYPE.JOIN }]);
-    });
-
-    it("refuses to send before connect", async () => {
-        const { sendFeatureFrame } = await freshSignaling();
-
-        expect(() => {
-            sendFeatureFrame({ type: "game_picture" }, { transient: true });
-        }).toThrow("No signaling session");
     });
 });
 

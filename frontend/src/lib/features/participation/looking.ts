@@ -4,7 +4,7 @@ import { LOOK_MAX_BYTES, LOOK_MAX_PIXELS, LOOK_PART_CHARACTERS, PARTICIPATION_SI
 export const PICTURE_BOUNDS: PictureBounds = { maxPixels: LOOK_MAX_PIXELS, maxBytes: LOOK_MAX_BYTES };
 
 // Requests answered or being answered, so a replayed request is not answered twice; a request id is 128 random bits.
-const REMEMBERED_REQUESTS = 32;
+export const REMEMBERED_REQUESTS = 32;
 
 export interface Looks {
     /** Answers the server's request: the picture in parts of at most LOOK_PART_CHARACTERS each, or the word that there is none when the camera gives no picture. */
