@@ -155,7 +155,7 @@ PRESSABLE_SQUARE_SCRIPT = """(switchElement, tileSelector) => {
     return largest;
 }"""
 
-TOPMOST_AT_SCRIPT = """([selector, x, y]) => document.elementFromPoint(x, y)?.closest(selector) !== null"""
+TOPMOST_AT_SCRIPT = """([selector, x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))"""
 
 
 @pytest.mark.parametrize("form_factor", [pytest.param(PHONE, id="phone")])

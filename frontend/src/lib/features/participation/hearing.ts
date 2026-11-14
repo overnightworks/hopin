@@ -1,7 +1,7 @@
 import { HopClose, type Capture, type CaptureOptions } from "overnightworks-speech-browser";
 import workletUrl from "overnightworks-speech-browser/capture-worklet.js?url&no-inline";
 
-const REOPENED_ENDS: ReadonlySet<HopClose> = new Set([HopClose.PAST_DEADLINE, HopClose.NORMAL]);
+const REOPENED_ENDS: ReadonlySet<HopClose> = new Set([HopClose.PAST_DEADLINE, HopClose.NORMAL, HopClose.OVER_CAP]);
 
 type StartCapture = (options: CaptureOptions) => Capture;
 
@@ -12,7 +12,7 @@ export interface HearingCapture {
     setStream(stream: MediaStream | null): void;
 }
 
-/** `hopUrl` is read when a capture starts and `startCapture` starts it; the stream's capture stops the moment either input ends. A hop that ends past its deadline or in order, as it does with the agent that serves it, is opened once more; every other end leaves the capture closed until the next change of the switch or the stream. Each change of the number of agents that hear the person allows one more reopening, and opens a capture that an earlier end left closed while an agent still hears the person. */
+/** `hopUrl` is read when a capture starts and `startCapture` starts it; the stream's capture stops the moment either input ends. A hop that ends past its deadline, over the server's hold of sound or in order, as it does with the agent that serves it, is opened once more; every other end leaves the capture closed until the next change of the switch or the stream. Each change of the number of agents that hear the person allows one more reopening, and opens a capture that an earlier end left closed while an agent still hears the person. */
 export function createHearingCapture(hopUrl: () => string, startCapture: StartCapture): HearingCapture {
     let hearers = 0;
     let stream: MediaStream | null = null;
