@@ -1,0 +1,8 @@
+claim_id = "1e6021794ab34e44882d897b8003892c"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "329cb5691732f7901cf0f1e1a3388a1e1bc7c244"
+branch = "claude/issue-830-request-budget-shared-through-redis"
+scope = [".github/workflows/ci.yml", "README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/config/settings.py", "src/hopin/main.py", "src/hopin/stores", "src/hopin/web/routes.py", "tests", "uv.lock"]
+opened_commit = "9bd546e8b94b4c05b32c6cdefb14de44616190da"
+whole_reason = "The required Redis URL, its one client owner, the rate-limit port and its two-process proof are one invariant: no budget is granted twice."
