@@ -15,6 +15,7 @@
     type="button"
     role="switch"
     aria-checked={on}
+    aria-label={words["tile.seeSwitchLabel"]}
     onclick={() => {
         onChange(!on);
     }}
@@ -26,6 +27,6 @@
             {#if !on}<path d="M4 4l16 16" />{/if}
         </svg>
     </span>
-    <span class="label">{words["tile.seeSwitchLabel"]}</span>
+    <span class="label">{words["tile.seeSwitchShortLabel"]}</span>
     <span class="track" aria-hidden="true"></span>
 </button>

@@ -68,6 +68,14 @@ def test_the_switch_starts_off_on_the_sponsors_tile_of_the_agent_and_no_other_pa
         expect(other.get_by_role("switch", name=SWITCH_NAME)).to_have_count(0)
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_the_see_switchs_visible_label_is_whole_on_the_sponsors_tile(sponsor: Sponsor) -> None:
+    """CALL-62: The sponsor's consent control reads whole on a phone and on a desktop, its label never cut."""
+    label = sponsor.switch.locator(".label")
+    expect(label).to_be_visible()
+    assert label.evaluate("element => element.scrollWidth <= element.clientWidth")
+
+
 @pytest.mark.parametrize("form_factor", [DESKTOP])
 def test_a_look_without_consent_is_refused_and_the_sponsors_camera_is_not_read(sponsor: Sponsor) -> None:
     """CALL-63: With the switch off the agent's look is refused as not_allowed and no page shows a mark."""
