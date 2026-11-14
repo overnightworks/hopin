@@ -1,7 +1,6 @@
 """CALL-54 and CALL-58: a person talking over an agent's sentence through HopIn's real `/ws` hearing route, with fake
 speech services on loopback ports, and the talked-over record read through the real `/mcp`."""
 
-import json
 import time
 
 import pytest
@@ -54,19 +53,14 @@ def agent_speaking(joined_agent):
     return joined_agent
 
 
-def window_of(scene):
-    answer = scene.call.window(scene.token, scene.owner.room_id)
-    return json.loads(answer["result"]["contents"][0]["text"])
-
-
 def window_when(scene, condition):
     """The agent's window once `condition` holds of it; the server handles the service's events on its own thread."""
     deadline = time.monotonic() + WAIT_SECONDS
-    window = window_of(scene)
+    window = scene.window()
     while not condition(window):
         assert time.monotonic() < deadline, f"the window never came to hold what was awaited: {window}"
         time.sleep(POLL_SECONDS)
-        window = window_of(scene)
+        window = scene.window()
     return window
 
 
@@ -134,7 +128,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
             session.hang_up()
             closed_with(socket)
 
-        assert "talked_over" not in window_of(agent_speaking)
+        assert "talked_over" not in agent_speaking.window()
 
     def test_call_54_the_record_says_the_sentence_plays_no_more_once_it_ended(self, agent_speaking, fake_speech):
         with hop(agent_speaking) as socket:
@@ -144,7 +138,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
             window_when(agent_speaking, lambda window: "talked_over" in window)
 
             agent_speaking.call.pass_time(SENTENCE_SECONDS)
-            window = window_of(agent_speaking)
+            window = agent_speaking.window()
             session.hang_up()
             closed_with(socket)
 
