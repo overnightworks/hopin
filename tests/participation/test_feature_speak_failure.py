@@ -104,8 +104,9 @@ class TestAVoiceThatFails:
 
         assert (await written, await spoken) == (SpeakFallback.WRITTEN, SENTENCE_MS)
 
+    @pytest.mark.parametrize("speaker_gave_up", [False, True])
     async def test_call_61_a_line_that_cannot_be_written_fails_its_speaker_and_the_queue_goes_on(
-        self, participation, call, scheduler
+        self, participation, call, scheduler, speaker_gave_up
     ):
         host, *_ = call
         room_id = room_of(host)
@@ -121,10 +122,12 @@ class TestAVoiceThatFails:
         await speak(participation, "Eins", room_id=room_id)
         unwritten = await waiting_to_speak(participation, "Zwei", render=renders_failing, room_id=room_id)
         spoken = await waiting_to_speak(participation, "Drei", room_id=room_id)
+        if speaker_gave_up:
+            unwritten.cancel()
 
         await scheduler.advance(SENTENCE_MS / 1000)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(asyncio.CancelledError if speaker_gave_up else RuntimeError):
             await unwritten
         assert await spoken == SENTENCE_MS
 
