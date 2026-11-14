@@ -306,6 +306,16 @@ class TestTheVoicesOfAnAgent:
 
         assert spoken_voices(speech_origin) == [VoiceId.THORSTEN]
 
+    def test_call_60_a_voice_of_the_list_that_takes_no_style_speaks_the_sentence_without_it(
+        self, joined_agent, speech_origin
+    ):
+        offering(speech_origin, VoiceId.THORSTEN)
+
+        dialed = speak(joined_agent, style="louder")
+
+        [request] = speech_requests(speech_origin)
+        assert (dialed.is_error, spoken_request(request).instructions) == (False, None)
+
     def test_call_61_a_list_with_no_voice_offered_is_written_and_the_window_states_the_voice_unavailable(
         self, joined_agent, speech_origin
     ):
