@@ -72,6 +72,37 @@ describe("whether an agent is speaking", () => {
         ]);
     });
 
+    it("reports the agent silent where a sound that streams in breaks off", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        const [sound] = players.created[0]?.sounds ?? [];
+
+        await sound?.start();
+        await sound?.end({ kind: "failed" });
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", false],
+        ]);
+    });
+
+    it("starts the agent's next sound after a sound that broke off, which then plays", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a1", "second");
+        const [first, second] = players.created[0]?.sounds ?? [];
+        await first?.start();
+
+        await first?.end({ kind: "failed" });
+        await second?.start();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", false],
+            ["a1", true],
+        ]);
+    });
+
     it("reports nothing for a sound that ends without having started", async () => {
         const { players, reported, agentVoices } = voices();
         agentVoices.play("a1", "first");

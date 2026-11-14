@@ -10,7 +10,6 @@ import structlog.testing
 
 from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
-from hopin.participation.speaking import RenderedSentence
 from hopin.participation.vocabulary import (
     LINE_WINDOW_SECONDS,
     LINES_PER_WINDOW,
@@ -23,17 +22,22 @@ from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     LONG,
     SENTENCE_MS,
+    a_sentence,
     answers_so_far,
+    leaving,
     removed_by_the_host,
     rendering,
     renders_broken,
     renders_cancelled,
     renders_nothing,
     speak,
+    voice_ids,
     waiting_to_speak,
+    window_texts,
 )
 from tests.signaling.support.browsers import HeldWrite
 from tests.support.speech_origin import failures_in
+from tests.support.stores import sound_of
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -43,10 +47,6 @@ VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
 FAILED = "agent_speak_failed"
 OUTAGE = "agent_voice_unavailable"
-
-
-def voice_ids(browser):
-    return [frame["voice_id"] for frame in browser.frames(VOICE)]
 
 
 async def a_full_window(participation, room_id, scheduler):
@@ -97,7 +97,7 @@ class TestASentenceStarts:
 
         for seat in (host, guest):
             [frame] = seat.frames(VOICE)
-            assert (frame["agent_id"], voices.get(frame["voice_id"])) == (mozart.agent_id, b"the sound")
+            assert (frame["agent_id"], await sound_of(voices.get(frame["voice_id"]))) == (mozart.agent_id, b"the sound")
 
     async def test_call_60_every_seat_reads_it_once_as_the_agents_line(self, participation, call):
         host, guest, mozart, _ = call
@@ -240,7 +240,7 @@ class TestTheOrder:
             started.append(len(voice_ids(host)))
 
         assert started == [1, 1, 2, 2, 3]
-        assert [voices.get(voice_id) for voice_id in voice_ids(host)] == [None, None, b"three"]
+        assert [await sound_of(voices.get(voice_id)) for voice_id in voice_ids(host)] == [None, None, b"three"]
         assert [frame["text"] for frame in host.frames(LINE)] == ["one", "two", "three"]
 
     async def test_call_60_a_sentence_waits_for_the_previous_ones_whole_length_even_when_it_is_longer(
@@ -274,10 +274,6 @@ class TestTheOrder:
         await speak(participation, room_id=room_of(host), who=HOST)
 
         assert [frame["agent_id"] for frame in host.frames(VOICE)] == [mozart.agent_id, salieri.agent_id]
-
-
-async def leaving(participation, host, guest, agent):
-    await participation.leave(GUEST, room_of(host))
 
 
 async def parked_with_its_sponsors_seat(participation, host, guest, agent):
@@ -326,10 +322,6 @@ class TestEveryEndDropsTheQueue:
 
 def stop_frames(browser):
     return [frame["agent_id"] for frame in browser.frames(ParticipationSignal.AGENT_STOP)]
-
-
-def window_texts(participation, person, room_id):
-    return [(line.text, line.own, line.cut) for line in participation.read_window(person, room_id).lines]
 
 
 class TestAStopCutsTheSentenceAndDropsTheQueue:
@@ -385,7 +377,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
 
         async def renders_late(sentence, voice):
             await release.wait()
-            return RenderedSentence(b"late", SENTENCE_MS)
+            return a_sentence(b"late", SENTENCE_MS)
 
         rendering_now = await waiting_to_speak(participation, room_id=room_id, render=renders_late)
 
@@ -512,7 +504,7 @@ class TestASentenceThatIsNotSpoken:
 
         async def render_while_removed(sentence, voice):
             await removed_by_the_host(participation, host, guest, mozart)
-            return RenderedSentence(b"sound", SENTENCE_MS)
+            return a_sentence(b"sound", SENTENCE_MS)
 
         refused = await speak(participation, render=render_while_removed, room_id=room_of(host))
         await scheduler.advance(10)
@@ -608,7 +600,7 @@ class TestAnEndWhileTheSentenceRenders:
         async def render_while_replaced(sentence, voice):
             await removed_by_the_host(participation, host, guest, mozart)
             await participation.dial_in(GUEST, room_of(host), "Mozart")
-            return RenderedSentence(b"sound", SENTENCE_MS)
+            return a_sentence(b"sound", SENTENCE_MS)
 
         refused = await speak(participation, render=render_while_replaced, room_id=room_of(host))
         await scheduler.advance(10)
@@ -623,7 +615,7 @@ class TestAnEndWhileTheSentenceRenders:
         async def render_while_paused(sentence, voice):
             await guest.drop()
             await guest.resume()
-            return RenderedSentence(b"sound", SENTENCE_MS)
+            return a_sentence(b"sound", SENTENCE_MS)
 
         refused = await speak(participation, render=render_while_paused, room_id=room_of(host))
         await scheduler.advance(10)
@@ -661,7 +653,7 @@ class TestAnEndWhileTheSentenceIsAnnounced:
 
         async def render_then_end_next_turn(sentence, voice):
             ending.append(asyncio.ensure_future(end_the_agent()))
-            return RenderedSentence(b"sound", SENTENCE_MS)
+            return a_sentence(b"sound", SENTENCE_MS)
 
         await speak(participation, render=render_then_end_next_turn, room_id=room_id)
         await asyncio.gather(*ending)

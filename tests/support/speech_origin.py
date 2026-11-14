@@ -21,7 +21,7 @@ from speech_client.wire import (
 
 from tests.support.loopback_origin import Origin, http_response
 
-SPOKEN_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
+NOT_A_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
 WAV_MEDIA_TYPE = ResponseFormat.WAV.media_type
 AUDIENCE_SCOPE = "speech-service-audience"
 SAMPLE_RATE_OFFSET = 24  # in a canonical 44-byte header, after the format, channel count
@@ -38,6 +38,9 @@ def silent_wav(seconds: float = 0.2, rate: int = 8000) -> bytes:
         writer.setframerate(rate)
         writer.writeframes(bytes(int(seconds * rate) * 2))
     return buffer.getvalue()
+
+
+SPOKEN_WAV = silent_wav(0.1)
 
 
 def with_sample_rate(wav: bytes, rate: int) -> bytes:
@@ -62,6 +65,15 @@ def chunked_wav(wav: bytes, *, terminated: bool = True) -> bytes:
     return head + body + (b"0\r\n\r\n" if terminated else b"")
 
 
+def chunked_wav_in_two(wav: bytes) -> tuple[bytes, bytes]:
+    """A chunked WAV answer split where a service pauses while it renders: the head with the first half of the sound,
+    and the second half with the end of the body."""
+    header_bytes = DATA_SIZE_OFFSET + 4
+    middle = header_bytes + (len(wav) - header_bytes) // 4 * 2
+    rest = f"{len(wav) - middle:x}\r\n".encode() + wav[middle:] + b"\r\n0\r\n\r\n"
+    return chunked_wav(wav[:middle], terminated=False), rest
+
+
 def refusal_answer(code, param=None, *, retry_after_seconds=None) -> bytes:
     wired = refusal(code, param)
     status = wired.status
@@ -71,7 +83,7 @@ def refusal_answer(code, param=None, *, retry_after_seconds=None) -> bytes:
 
 def not_chunked_answer() -> bytes:
     return http_response(
-        f"{HTTPStatus.OK.value} OK", SPOKEN_WAV, extra_header=f"Content-Type: {WAV_MEDIA_TYPE}\r\n".encode()
+        f"{HTTPStatus.OK.value} OK", NOT_A_WAV, extra_header=f"Content-Type: {WAV_MEDIA_TYPE}\r\n".encode()
     )
 
 

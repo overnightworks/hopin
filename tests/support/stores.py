@@ -56,22 +56,40 @@ class WatchedSessions:
 
 
 class WatchedVoices(VoiceStore):
-    """The voice store, counting the sounds put into it: the speaking path puts a sentence's sound just before it queues
-    the sentence, in the same step of the app's loop, so a step run on the loop after the count rose finds it queued."""
+    """The voice store, counting the sounds opened in it: the speaking path opens a sentence's sound just before it
+    queues the sentence, in the same step of the app's loop, so a step run on the loop after the count rose finds it
+    queued. A sound is released in the step that ends its sentence, which the count of releases also tells."""
 
     def __init__(self) -> None:
         super().__init__()
         self._count = threading.Condition()
         self.stored = 0
+        self.released = 0
 
-    def put(self, room_id: str, speaker: str, wav: bytes) -> StoredVoice:
-        stored = super().put(room_id, speaker, wav)
+    def open(self, room_id: str, speaker: str) -> StoredVoice:
+        stored = super().open(room_id, speaker)
         with self._count:
             self.stored += 1
             self._count.notify_all()
         return stored
 
+    def release(self, voice_id: str) -> None:
+        super().release(voice_id)
+        with self._count:
+            self.released += 1
+            self._count.notify_all()
+
     def wait_for(self, stored: int, timeout_seconds: float) -> None:
         with self._count:
             if not self._count.wait_for(lambda: self.stored >= stored, timeout_seconds):
                 raise TimeoutError(f"{stored} sounds were not stored in {timeout_seconds} seconds")
+
+    def wait_for_released(self, released: int, timeout_seconds: float) -> None:
+        with self._count:
+            if not self._count.wait_for(lambda: self.released >= released, timeout_seconds):
+                raise TimeoutError(f"{released} sounds were not released in {timeout_seconds} seconds")
+
+
+async def sound_of(voice: StoredVoice | None) -> bytes | None:
+    """What a reader of the voice gets from its start to its end, or nothing for no voice."""
+    return None if voice is None else b"".join([chunk async for chunk in voice.read()])
