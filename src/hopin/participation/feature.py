@@ -178,8 +178,8 @@ class Participation:
     async def speak(self, person: Person, room_id: str, text: str, render: Renderer | None) -> SpeakResult:
         """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer how long
         it plays when the sentence starts, not when it is queued; the refusal when the agent holds no active place
-        there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, no
-        sound, or an end of its speaking meanwhile."""
+        there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, or an
+        end of its speaking meanwhile; a sound that could not be made is written as a line instead."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
