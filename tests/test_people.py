@@ -29,6 +29,7 @@ from hopin.config.constants import (
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, export_path, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -51,7 +52,9 @@ def stores():
 
 @pytest.fixture
 def app(sign_in_settings, stores):
-    return create_app(sign_in_settings().settings, page_build=fixture_page_build(), stores=stores)
+    return create_app(
+        sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
+    )
 
 
 @pytest.fixture
@@ -375,7 +378,11 @@ def issuer_browser(sign_in_settings, stores):
     sign_in = sign_in_settings()
     issuer = FakeIssuer(sign_in)
     app = create_app(
-        sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports, stores=stores
+        sign_in.settings,
+        page_build=fixture_page_build(),
+        shared_stores=in_thread_stores(),
+        issuer_transports=issuer.transports,
+        stores=stores,
     )
 
     def sign_in_with(groups):

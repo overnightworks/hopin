@@ -40,6 +40,7 @@ from hopin.config.constants import (
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
 from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import new_id_token
@@ -128,7 +129,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         sign_in.settings.oidc_client_secret_file.write_text(
             sign_in.client_secret + ("\r\n" if windows_line_ending else "\n")
         )
-        configs = build_sign_in_configs(sign_in.settings, ())
+        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
         issuer = FakeIssuer(sign_in)
         transports = issuer.transports
         if key_set_of is not None:

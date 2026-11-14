@@ -19,6 +19,7 @@ from hopin.game.vocabulary import GamePhase, GameSignal
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from tests.game.support.fake_agent_backend import DEFAULT_QUESTION
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
@@ -144,6 +145,7 @@ def serving_call(
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
+        shared_stores=in_thread_stores(),
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),

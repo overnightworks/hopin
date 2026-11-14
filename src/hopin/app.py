@@ -60,6 +60,7 @@ if TYPE_CHECKING:
 
     from hopin.config.settings import ServerSettings
     from hopin.signaling.features import FeatureFactory
+    from hopin.stores.shared import SharedStores
     from hopin.web.page_build import PageBuild
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -221,6 +222,7 @@ def create_app(
     settings: ServerSettings,
     *,
     page_build: PageBuild,
+    shared_stores: SharedStores,
     issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
     stores: SingleProcessStores | None = None,
     scheduler: Scheduler | None = None,
@@ -228,7 +230,9 @@ def create_app(
     call_features: Sequence[CallFeatureBuilder] = (),
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(
-        settings, tuple(scope for builder in call_features for scope in builder.sign_in_scopes)
+        settings,
+        tuple(scope for builder in call_features for scope in builder.sign_in_scopes),
+        shared_stores.rate_limits,
     )
     turn_relay = build_turn_relay(settings, turn_transport)
 
@@ -262,7 +266,7 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
-    app.include_router(create_router(signaling_handler, page_build))
+    app.include_router(create_router(signaling_handler, page_build, shared_stores.answers))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))
     _include_feature_routes(app, built_features, settings.oidc_issuer)

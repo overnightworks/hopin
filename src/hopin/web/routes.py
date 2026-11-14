@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,6 +20,7 @@ from hopin.web.page_build import built_page_response
 
 if TYPE_CHECKING:
     import os
+    from collections.abc import Callable
 
     from starlette.types import Scope
 
@@ -42,11 +44,15 @@ class _PageBuildFiles(StaticFiles):
         return response
 
 
-def create_router(signaling_handler: SignalingHandler, page_build: PageBuild) -> APIRouter:
+def create_router(
+    signaling_handler: SignalingHandler, page_build: PageBuild, stores_answer: Callable[[], bool]
+) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
+        if not stores_answer():
+            return JSONResponse({"status": "unavailable"}, status_code=HTTPStatus.SERVICE_UNAVAILABLE)
         return JSONResponse({"status": "ok"})
 
     def shell() -> Response:

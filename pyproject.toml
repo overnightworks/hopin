@@ -7,9 +7,10 @@ dependencies = [
     "fastapi>=0.123.7",
     "overnightworks-agents[backend,mcp-server] @ git+https://github.com/overnightworks/agents@v0.43.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.14.0#subdirectory=packages/client",
-    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.38.0",
+    "overnightworks-webauth[redis] @ git+https://github.com/overnightworks/webauth@v0.38.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
+    "redis>=5.0,<9",
     "structlog>=24.4",
     "urllib3>=2.6.3,<3",
     "uvicorn>=0.54.0",
@@ -185,7 +186,7 @@ containers = ["hopin"]
 # Sign-in sits above the web routes it guards, the routes above the signaling and
 # room services they are handed, and `config` and `words` (the catalog's generated sentences) are the floor every package reads.
 exhaustive = true
-layers = ["main", "app", "(agent)", "(game) | (participation) | (skat)", "people", "auth", "web", "signaling", "rooms", "errors", "config | words"]
+layers = ["main", "app", "(agent)", "(game) | (participation) | (skat)", "people", "auth", "web", "signaling", "rooms", "errors", "stores", "config | words"]
 
 [[tool.importlinter.contracts]]
 id = "signaling-layers"

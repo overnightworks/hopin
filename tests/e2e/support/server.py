@@ -24,6 +24,7 @@ from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.voice import VoiceStore
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.sign_in_settings import build_sign_in_settings
 from tests.support.stores import single_process_stores
 
@@ -192,6 +193,7 @@ def running_hopin(
     app = create_app(
         loopback.sign_in.settings,
         page_build=PageBuild.load(page_build_directory),
+        shared_stores=in_thread_stores(),
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_features=(

@@ -12,6 +12,7 @@ from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
 from hopin.skat.feature import configured_skat_feature  # skat
+from hopin.stores.redis import connect_shared_stores
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
 if TYPE_CHECKING:
@@ -54,6 +55,7 @@ def build_application(settings: ServerSettings) -> FastAPI:
     return create_app(
         settings,
         page_build=PageBuild.load(BUILD_DIRECTORY),
+        shared_stores=connect_shared_stores(str(settings.redis_url)),
         call_features=(
             configured_game_feature(voices),  # game
             ParticipationFeature(

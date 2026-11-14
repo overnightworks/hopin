@@ -20,6 +20,7 @@ from hopin.config.constants import (
     NO_ACCESS_PATH,
 )
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -106,7 +107,12 @@ def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch
         sign_in = sign_in_settings(**overrides)
         issuer = FakeIssuer(sign_in)
         return Deployment(
-            create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports),
+            create_app(
+                sign_in.settings,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+                issuer_transports=issuer.transports,
+            ),
             issuer,
             clock,
         )
@@ -260,7 +266,7 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings(trusted_proxies=value).settings
 
         with pytest.raises(SignInConfigurationError, match="trusted_proxies") as refusal:
-            build_sign_in_configs(settings, ())
+            build_sign_in_configs(settings, (), in_thread_stores().rate_limits)
 
         assert value not in str(refusal.value)
         assert "session_secret_file" not in str(refusal.value)
@@ -269,4 +275,4 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings().settings
 
         assert settings.trusted_proxies == ""
-        assert not build_sign_in_configs(settings, ()).web_auth.trusted_proxies.networks
+        assert not build_sign_in_configs(settings, (), in_thread_stores().rate_limits).web_auth.trusted_proxies.networks

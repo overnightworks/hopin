@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Self
 
-from pydantic import AfterValidator, Field, model_validator
+from pydantic import AfterValidator, Field, RedisDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.constants import (
@@ -55,6 +55,8 @@ class ServerSettings(BaseSettings):
     session_secret_file: AbsolutePath = Field(repr=False)
     # Addresses and CIDR blocks, comma-separated, of the proxies allowed to name the client in X-Forwarded-For.
     trusted_proxies: str = ""
+    # May carry a password, so it never shows in a repr.
+    redis_url: RedisDsn = Field(repr=False)
     turn_provider: TurnProvider = TurnProvider.OFF
     turn_key_id_file: AbsolutePath | None = Field(default=None, repr=False)
     turn_api_token_file: AbsolutePath | None = Field(default=None, repr=False)
