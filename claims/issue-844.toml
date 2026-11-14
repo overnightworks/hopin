@@ -1,0 +1,8 @@
+claim_id = "a1035e1bdfd141da991ec64c361ceefb"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "4d65b30fe543e6e82bcaf98be986c83fa6296035"
+branch = "claude/issue-844-malformed-accept-logged"
+scope = ["docs/call.md", "src/hopin/agent/tools.py", "tests/participation"]
+opened_commit = "bdb981d21aab35ac93bd856e5c7216634b591773"
+whole_reason = "The log line, its test and CALL-52 are one change."
