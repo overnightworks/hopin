@@ -18,7 +18,7 @@ def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
     return render
 
 
-async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
+async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id, offered=None):
     """The agent's answer once the sentence started and the announcement of it that follows the answer was sent."""
     render = rendering() if render is None else render
     known = asyncio.all_tasks()
@@ -29,7 +29,7 @@ async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room
         finally:
             known.update(asyncio.all_tasks())
 
-    answer = await participation.speak(who, room_id, text, render_and_note_the_running_tasks)
+    answer = await participation.speak(who, room_id, text, render_and_note_the_running_tasks, offered)
     announcements = asyncio.all_tasks() - known - {asyncio.current_task()}
     if announcements:
         await asyncio.wait(announcements)

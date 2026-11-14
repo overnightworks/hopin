@@ -367,7 +367,9 @@ async def _spoken(
         None if voice is None else partial(voice.render, caller.person, language=request.language, style=request.style)
     )
     try:
-        outcome = await participation.speak(caller.person, request.place.id, request.text, render)
+        outcome = await participation.speak(
+            caller.person, request.place.id, request.text, render, None if voice is None else voice.offers
+        )
     except LanguageUnavailableError:
         return _speak_refused(SpeakRefusal.LANGUAGE_UNAVAILABLE)
     except StyleUnavailableError:

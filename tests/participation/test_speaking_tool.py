@@ -23,7 +23,7 @@ from hopin.agent.speaking import SPEAK_MAX_BYTES
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, SPEAK_MAX_CHARACTERS
 from hopin.participation.feature import Participation
-from hopin.participation.vocabulary import VOICE_PATH, ParticipationSignal
+from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS, ParticipationSignal
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.dialed_call import join_arguments
@@ -317,6 +317,23 @@ class TestTheVoicesOfAnAgent:
             {"written": True},
             [],
             "unavailable",
+        )
+
+    def test_call_61_the_window_turns_available_again_without_a_sentence_once_a_voice_of_the_list_is_offered(
+        self, joined_agent, speech_origin
+    ):
+        offering(speech_origin, VoiceId.KERSTIN)
+        speak(joined_agent)
+        joined_agent.call.pass_time(VOICE_RECOVERY_SECONDS)
+        still = joined_agent.window()["voice_state"]
+        offering(speech_origin, VoiceId.KERSTIN, VoiceId.THORSTEN)
+
+        joined_agent.call.pass_time(VOICE_RECOVERY_SECONDS)
+
+        assert (still, joined_agent.window()["voice_state"], spoken_voices(speech_origin)) == (
+            "unavailable",
+            "available",
+            [],
         )
 
     def test_call_60_an_agent_whose_accept_named_no_voice_speaks_with_the_configured_voice_whatever_the_others_name(

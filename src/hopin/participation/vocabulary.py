@@ -8,6 +8,8 @@ AGENT_LINE_MAX_CHARACTERS = 600
 LINES_PER_WINDOW = 10
 LINE_WINDOW_SECONDS = 60
 SENTENCES_WAITING_PER_AGENT = 10
+# How often the speech service is asked whether a voice is back while a window states its voice unavailable.
+VOICE_RECOVERY_SECONDS = 5
 SPEAK_FAILED_EVENT = "agent_speak_failed"
 VOICE_UNAVAILABLE_EVENT = "agent_voice_unavailable"
 AGENT_ID_BYTES = 16

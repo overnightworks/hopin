@@ -53,6 +53,11 @@ type Renderer = Callable[[str, tuple[str, ...]], Awaitable[RenderedSentence | Vo
 no failure of the voice explains."""
 
 
+type VoicesOffered = Callable[[tuple[str, ...]], Awaitable[bool]]
+"""Whether the speech service offers one of the voices an agent kept at accept, the configured one for none, ready
+now."""
+
+
 @dataclass(frozen=True)
 class QueuedSentence:
     """A sentence that waits or plays: its text, its sound's place in the store, how long it plays and its speaker's

@@ -4,15 +4,20 @@ people talking over a sentence of the agent stand in its window as a record unti
 The record is the agents library's talked-over record. HopIn opens it for each agent that hears a person who starts
 speaking while a sentence of that agent plays, updates it with the words heard, and removes it with the last person's
 turn. Every change tells the agent whose window changed once.
+
+While a window states its agent's voice unavailable, the speech service is asked at a fixed interval whether a voice of
+the agent is offered again, and the window turns available once it is, with no sentence needed; with no such window
+nothing is asked.
 """
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
 
 from hopin.participation.chat_window import LineKind
 from hopin.participation.speaking import RenderedSentence, SentenceEnd
-from hopin.participation.vocabulary import VOICE_UNAVAILABLE_EVENT, VoiceFailure
+from hopin.participation.vocabulary import VOICE_RECOVERY_SECONDS, VOICE_UNAVAILABLE_EVENT, VoiceFailure
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -20,9 +25,10 @@ if TYPE_CHECKING:
     from hopin.participation.hearing import Hearing
     from hopin.participation.participants import DialedAgent, Person
     from hopin.participation.places import Places
-    from hopin.participation.speaking import QueuedSentence, Renderer
+    from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import PeerId
+    from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -37,11 +43,14 @@ class SpeechInWindows:
         hearing: Hearing,
         rooms: CallRooms,
         on_window_changed: Callable[[Person, str], None],
+        scheduler: Scheduler,
     ) -> None:
         self._places = places
         self._hearing = hearing
         self._rooms = rooms
         self._on_window_changed = on_window_changed
+        self._scheduler = scheduler
+        self._recovery: TimerHandle | None = None
 
     def line_said(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
         """Add a written line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
@@ -50,20 +59,29 @@ class SpeechInWindows:
             if window.append(kind, name, text, own=person == sayer):
                 self._on_window_changed(person, room_id)
 
-    def watching_voice(self, agent: DialedAgent, render: Renderer) -> Renderer:
+    def watching_voice(self, agent: DialedAgent, render: Renderer, offered: VoicesOffered | None) -> Renderer:
         """The renderer, and every sound or failure of the agent's voice it makes shown in the agent's window: a
-        failure turns the voice unavailable and logs that once until a sound turns it available again. A sentence that
-        was refused for a reason that is no failure of the voice changes nothing."""
+        failure turns the voice unavailable and logs that once until a sound, or `offered` saying that a voice of the
+        agent is back, turns it available again. A sentence that was refused for a reason that is no failure of the
+        voice changes nothing."""
 
         async def watched(text: str, voices: tuple[str, ...]) -> RenderedSentence | VoiceFailure | None:
             rendered = await render(text, voices)
             if rendered is not None:
-                self._voice_rendered(agent, rendered)
+                self._voice_rendered(agent, rendered, offered)
             return rendered
 
         return watched
 
-    def _voice_rendered(self, agent: DialedAgent, rendered: RenderedSentence | VoiceFailure) -> None:
+    def stop_recovery(self) -> None:
+        """Stop asking whether a voice is back."""
+        if self._recovery is not None:
+            self._recovery.cancel()
+            self._recovery = None
+
+    def _voice_rendered(
+        self, agent: DialedAgent, rendered: RenderedSentence | VoiceFailure, offered: VoicesOffered | None
+    ) -> None:
         window = self._places.window_of(agent.person, agent.room_id)
         if window is None:
             return
@@ -71,10 +89,32 @@ class SpeechInWindows:
             turned = window.voice_failed()
             if turned:
                 logger.info(VOICE_UNAVAILABLE_EVENT, reason=rendered.value, room_id=agent.room_id)
+            if offered is not None:
+                self._ask_again_later(offered)
         else:
             turned = window.voice_worked()
         if turned:
             self._on_window_changed(agent.person, agent.room_id)
+
+    def _ask_again_later(self, offered: VoicesOffered) -> None:
+        if self._recovery is None:
+            self._recovery = self._scheduler.call_later(
+                VOICE_RECOVERY_SECONDS, partial(self._ask_whether_voices_are_back, offered)
+            )
+
+    async def _ask_whether_voices_are_back(self, offered: VoicesOffered) -> None:
+        self._recovery = None
+        for agent in self._places.joined():
+            if self._voice_unavailable(agent) and await offered(agent.voices):
+                window = self._places.window_of(agent.person, agent.room_id)
+                if window is not None and window.voice_worked():
+                    self._on_window_changed(agent.person, agent.room_id)
+        if any(self._voice_unavailable(agent) for agent in self._places.joined()):
+            self._ask_again_later(offered)
+
+    def _voice_unavailable(self, agent: DialedAgent) -> bool:
+        window = self._places.window_of(agent.person, agent.room_id)
+        return window is not None and window.voice_unavailable
 
     def sentence_started(self, agent: DialedAgent) -> None:
         """A sentence of the agent plays: the record that stands says so."""
