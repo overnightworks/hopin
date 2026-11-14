@@ -22,6 +22,7 @@ from hopin.participation.vocabulary import VOICE_RECOVERY_SECONDS, VOICE_UNAVAIL
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from hopin.participation.chat_window import ChatWindow
     from hopin.participation.hearing import Hearing
     from hopin.participation.participants import DialedAgent, Person
     from hopin.participation.places import Places
@@ -105,16 +106,15 @@ class SpeechInWindows:
     async def _ask_whether_voices_are_back(self, offered: VoicesOffered) -> None:
         self._recovery = None
         for agent in self._places.joined():
-            if self._voice_unavailable(agent) and await offered(agent.voices):
-                window = self._places.window_of(agent.person, agent.room_id)
-                if window is not None and window.voice_worked():
-                    self._on_window_changed(agent.person, agent.room_id)
-        if any(self._voice_unavailable(agent) for agent in self._places.joined()):
+            window = self._places.window_of(agent.person, agent.room_id)
+            if window and window.voice_unavailable and await offered(agent.voices) and window.voice_worked():
+                self._on_window_changed(agent.person, agent.room_id)
+        if any(window.voice_unavailable for window in self._windows()):
             self._ask_again_later(offered)
 
-    def _voice_unavailable(self, agent: DialedAgent) -> bool:
-        window = self._places.window_of(agent.person, agent.room_id)
-        return window is not None and window.voice_unavailable
+    def _windows(self) -> list[ChatWindow]:
+        windows = (self._places.window_of(agent.person, agent.room_id) for agent in self._places.joined())
+        return [window for window in windows if window is not None]
 
     def sentence_started(self, agent: DialedAgent) -> None:
         """A sentence of the agent plays: the record that stands says so."""
