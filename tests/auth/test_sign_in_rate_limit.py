@@ -265,8 +265,9 @@ class TestTrustedProxiesSetting:
     def test_a_malformed_list_stops_the_start_naming_the_setting_and_never_the_value(self, sign_in_settings, value):
         settings = sign_in_settings(trusted_proxies=value).settings
 
+        rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="trusted_proxies") as refusal:
-            build_sign_in_configs(settings, (), in_thread_stores().rate_limits)
+            build_sign_in_configs(settings, (), rate_limits)
 
         assert value not in str(refusal.value)
         assert "session_secret_file" not in str(refusal.value)
