@@ -65,6 +65,15 @@ def chunked_wav(wav: bytes, *, terminated: bool = True) -> bytes:
     return head + body + (b"0\r\n\r\n" if terminated else b"")
 
 
+def chunked_wav_in_two(wav: bytes) -> tuple[bytes, bytes]:
+    """A chunked WAV answer split where a service pauses while it renders: the head with the first half of the sound,
+    and the second half with the end of the body."""
+    header_bytes = DATA_SIZE_OFFSET + 4
+    middle = header_bytes + (len(wav) - header_bytes) // 4 * 2
+    rest = f"{len(wav) - middle:x}\r\n".encode() + wav[middle:] + b"\r\n0\r\n\r\n"
+    return chunked_wav(wav[:middle], terminated=False), rest
+
+
 def refusal_answer(code, param=None, *, retry_after_seconds=None) -> bytes:
     wired = refusal(code, param)
     status = wired.status

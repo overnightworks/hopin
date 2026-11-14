@@ -121,7 +121,7 @@ class TestTheStore:
             [b"whole"],
         )
 
-    async def test_call_60_a_released_sound_is_gone_and_its_unfinished_reader_fails(self):
+    async def test_call_60_a_released_sound_is_gone_and_its_reader_ends_where_the_sound_stood(self):
         store = VoiceStore()
         voice = store.open(ROOM, SPEAKER)
         voice.append(b"one")
@@ -131,7 +131,7 @@ class TestTheStore:
 
         store.release(voice.id)
 
-        with pytest.raises(VoiceBrokenError):
+        with pytest.raises(StopAsyncIteration):
             await waiting
         assert (store.get(voice.id), store.room_of(voice.id)) == (None, None)
 

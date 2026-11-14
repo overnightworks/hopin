@@ -76,6 +76,9 @@ class Origin:
     release: dict[str, threading.Event] = field(default_factory=dict)
     scripts: dict[str, bytes] = field(default_factory=dict)
     drips: dict[str, tuple[bytes, float]] = field(default_factory=dict)
+    later: dict[str, bytes] = field(default_factory=dict)
+    resume: dict[str, threading.Event] = field(default_factory=dict)
+    resumed: dict[str, threading.Event] = field(default_factory=dict)
     stopped: threading.Event = field(default_factory=threading.Event)
     listener: socket.socket = field(default_factory=socket.socket)
     threads: list[threading.Thread] = field(default_factory=list)
@@ -90,9 +93,22 @@ class Origin:
         self._accepting = threading.Thread(target=self._accept)
         self._accepting.start()
 
-    def serve(self, path: str, answer: bytes, *, held: bool = False, dripped: bytes = b"", every: float = 0.0) -> str:
-        """Answer the path with `answer`, then with `dripped` one byte at a time, a byte `every` seconds."""
+    def serve(
+        self,
+        path: str,
+        answer: bytes,
+        *,
+        held: bool = False,
+        dripped: bytes = b"",
+        every: float = 0.0,
+        later: bytes = b"",
+    ) -> str:
+        """Answer the path with `answer`, then with `later` once `resume[path]` is set or the arrival cap has passed
+        (`resumed[path]` is set when it went out), then with `dripped` one byte at a time, a byte `every` seconds."""
         self.scripts[path] = answer
+        self.later[path] = later
+        self.resume[path] = threading.Event()
+        self.resumed[path] = threading.Event()
         self.drips[path] = (dripped, every)
         self.received[path] = threading.Event()
         self.release[path] = threading.Event()
@@ -105,7 +121,7 @@ class Origin:
 
     def close(self) -> None:
         self.stopped.set()
-        for release in self.release.values():
+        for release in (*self.release.values(), *self.resume.values()):
             release.set()
         self.listener.shutdown(socket.SHUT_RDWR)
         self.listener.close()
@@ -164,6 +180,10 @@ class Origin:
         dripped, every = self.drips[path]
         try:
             connection.sendall(self.scripts[path])
+            if self.later[path]:
+                self.resume[path].wait(ARRIVAL_CAP_SECONDS)
+                connection.sendall(self.later[path])
+                self.resumed[path].set()
             for byte in dripped:
                 if self.stopped.wait(every):
                     return

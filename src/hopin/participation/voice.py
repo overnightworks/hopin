@@ -21,7 +21,7 @@ WAV_MEDIA_TYPE: Final = "audio/wav"
 
 
 class VoiceBrokenError(Exception):
-    """A sound ended before its whole was kept: its stream failed or its sentence was cut."""
+    """A sound's stream failed before the whole of it was kept."""
 
 
 class StoredVoice:
@@ -42,13 +42,13 @@ class StoredVoice:
             self._wake_readers()
 
     def finish(self) -> None:
-        """The sound is whole."""
+        """The sound ends here: whole, or dropped, which stops every reader without a failure, unless it broke off."""
         if not self._broken:
             self._finished = True
             self._wake_readers()
 
     def break_off(self) -> None:
-        """The sound will not be whole, unless it already is."""
+        """The sound's stream failed: every reader fails where it stands, unless the sound ended."""
         if not self._finished:
             self._broken = True
             self._wake_readers()
@@ -109,9 +109,9 @@ class VoiceStore:
         return None if stored is None else stored.room_id
 
     def release(self, voice_id: str) -> None:
-        """Drop the sound: no one fetches it again, and a reader of it fails where it stood unless it was whole."""
+        """Drop the sound: no one fetches it again, and a reader of it ends where the sound stands."""
         stored = self._by_id.pop(voice_id)
-        stored.voice.break_off()
+        stored.voice.finish()
         held = self._ids_of_speaker[stored.room_id, stored.speaker]
         held.discard(voice_id)
         if not held:
@@ -119,7 +119,7 @@ class VoiceStore:
 
     def forget_speaker(self, room_id: str, speaker: str) -> None:
         for voice_id in self._ids_of_speaker.pop((room_id, speaker), set()):
-            self._by_id.pop(voice_id).voice.break_off()
+            self._by_id.pop(voice_id).voice.finish()
 
 
 def voice_endpoint(
