@@ -20,6 +20,7 @@ pytestmark = pytest.mark.e2e
 SWITCH = AGENT_HEARING_SWITCH
 TRACK = SWITCH + ' > span[aria-hidden="true"]'
 SEE_TRACK = AGENT_SEE_SWITCH + ' > span[aria-hidden="true"]'
+SEE_ICON = AGENT_SEE_SWITCH + " > .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
 TOLERANCE_PIXELS = 1
@@ -99,7 +100,8 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     host_with_a_table_and_an_agent: Page,
 ) -> None:
     """CALL-62: The sponsor can always withdraw the consent: on a strip tile the see switch's track lies wholly inside
-    the tile, clear of the remove button and of the hearing switch, and a press turns it on and off again."""
+    the tile, clear of the remove button and of the hearing switch, and a press turns it on and off again. Its eye
+    icon shows on the switch, so a sighted sponsor tells it from the hearing switch."""
     host = host_with_a_table_and_an_agent
     see_switch = host.locator(AGENT_SEE_SWITCH)
     expect(see_switch).to_be_visible()
@@ -108,6 +110,11 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     assert lies_inside(see_box, tile_box)
     assert overlap_of(see_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
     assert overlap_of(see_box, box_of(TRACK, host)) == 0
+    expect(host.locator(SEE_ICON)).to_be_visible()
+    icon_box = box_of(SEE_ICON, host)
+    assert lies_inside(icon_box, tile_box)
+    assert overlap_of(icon_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
+    assert lies_inside(icon_box, box_of(AGENT_SEE_SWITCH, host))
     see_switch.click()
     expect(see_switch).to_have_attribute("aria-checked", "true")
     see_switch.click()
