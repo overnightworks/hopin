@@ -72,7 +72,7 @@ GROUPS_READ_TASK_NAME = "participation-groups-read"
 
 class Participation:
     """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group,
-    whichever seat sponsors them; each takes a place of the call like a person, and the process holds 32."""
+    whichever seat sponsors them; each takes a place of the call like a person."""
 
     def __init__(
         self,
