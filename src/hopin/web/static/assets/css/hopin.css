@@ -530,7 +530,7 @@ button, input, textarea { font-family: inherit; }
     }
 }
 /* The mark of a look: an eye in a glass disc ringed in the stage accent, over the agent's avatar, calm because it
-      shows one moment and not a state. */
+   shows one moment and not a state. */
 .look-mark {
     position: absolute;
     left: 50%;
