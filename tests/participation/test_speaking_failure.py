@@ -176,29 +176,6 @@ class TestWhenTheVoiceFails:
             [],
         )
 
-    def test_call_61_a_stream_that_crashes_after_the_sound_began_cuts_the_sentence_and_logs_only_a_closed_code(
-        self, joined_agent, monkeypatch
-    ):
-        def crashing_stream(*_arguments, **_named):
-            yield SOUND
-            message = "the crash carries the sentence"
-            raise RuntimeError(message)
-
-        monkeypatch.setattr("hopin.agent.speaking.speak_stream_with_preference", crashing_stream)
-
-        with structlog.testing.capture_logs() as logs:
-            spoken = speak(joined_agent, seconds=None)
-            joined_agent.call.after_sounds_released(1)
-        drained(joined_agent)
-
-        [entry] = joined_agent.entries()
-        assert (spoken.outcome, entry["cut"], failures_in(logs, "agent_voice_stream_failed")) == (
-            {"spoken": True},
-            True,
-            [{"code": "cut"}],
-        )
-        assert "exc_info" not in [key for log in logs for key in log]
-
     def test_call_61_the_window_states_the_voice_unavailable(self, joined_agent, speech_origin):
         speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
 

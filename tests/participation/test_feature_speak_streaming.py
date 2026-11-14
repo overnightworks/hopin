@@ -19,6 +19,7 @@ from tests.participation.support.speaking import (
     waiting_to_speak,
     window_texts,
 )
+from tests.support.speech_origin import failures_in
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -87,19 +88,29 @@ class TestASentenceThatPlaysWhileItRenders:
             len(voice_ids(host)),
         ) == (SpeakStarted.SPOKEN, [[("Eins", True, True)], [("Eins", False, True)]], 2)
 
-    async def test_call_61_a_stream_that_crashes_cuts_the_sentence_and_the_queue_goes_on(self, participation, call):
+    async def test_call_61_a_stream_that_crashes_cuts_the_sentence_logs_only_a_closed_code_and_the_queue_goes_on(
+        self, participation, call
+    ):
         host, *_ = call
         room_id = room_of(host)
         streamed = StreamedSentence()
         await speak(participation, "Eins", room_id=room_id, render=streamed.render)
         behind = await waiting_to_speak(participation, "Zwei", room_id=room_id)
 
-        await streamed.crashes()
+        with structlog.testing.capture_logs() as logs:
+            await streamed.crashes()
+            answer = await behind
 
-        assert (await behind, window_texts(participation, GUEST, room_id)[0]) == (
+        assert (
+            answer,
+            window_texts(participation, GUEST, room_id)[0],
+            failures_in(logs, "agent_voice_stream_failed"),
+        ) == (
             SpeakStarted.SPOKEN,
             ("Eins", True, True),
+            [{"code": "cut"}],
         )
+        assert "exc_info" not in [key for log in logs for key in log]
 
     @pytest.mark.parametrize(
         ("arrive", "behind_the_due_callbacks"),
