@@ -92,7 +92,8 @@ describe("a look at the person's camera", () => {
         await answered();
 
         expect(page.pictureBounds).toEqual([{ maxPixels: LOOK_MAX_PIXELS, maxBytes: LOOK_MAX_BYTES }]);
-        expect(page.sent).toEqual(
+        expect(page.sent).toEqual([]);
+        expect(page.sentTransient).toEqual(
             [0, 1, 2].map((index) => ({
                 type: PARTICIPATION_SIGNAL.AGENT_LOOK_PART,
                 request_id: "r1",
@@ -131,7 +132,7 @@ describe("a look at the person's camera", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
         await answered();
 
-        expect(page.sent).toHaveLength(1);
+        expect(page.sentTransient).toHaveLength(1);
     });
 
     it("CALL-63: shows the mark on the agent's tile at a look and takes it away after a while", async () => {

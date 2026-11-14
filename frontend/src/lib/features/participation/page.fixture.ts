@@ -13,6 +13,8 @@ export async function installedParticipation(installOn?: typeof install) {
     const players = fakePlayers();
     const handlers = new Map<string, (frame: never) => void>();
     const sent: unknown[] = [];
+    // The frames sent as transient: the parts of a look's picture, which nothing keeps.
+    const sentTransient: unknown[] = [];
     const tiles = new Map<string, AgentTile>();
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
@@ -31,6 +33,9 @@ export async function installedParticipation(installOn?: typeof install) {
         },
         send: (frame) => {
             sent.push(frame);
+        },
+        sendTransient: (frame) => {
+            sentTransient.push(frame);
         },
         isConnected: vi.fn().mockReturnValue(true),
         showToast: (text) => {
@@ -80,6 +85,7 @@ export async function installedParticipation(installOn?: typeof install) {
         emit,
         players,
         sent,
+        sentTransient,
         tiles,
         toasts,
         lines,

@@ -31,10 +31,15 @@ export class SentLog {
         return this.#floor;
     }
 
+    /** Numbers a frame the server may lose and keeps nothing of it: it is never replayed, so what it carries leaves the page with its write. */
+    transient(message: LoggedMessage): SentFrame {
+        this.#lastSeq += 1;
+        return { ...message, seq: this.#lastSeq };
+    }
+
     append(message: LoggedMessage): SentFrame {
         if (descriptionTypes.has(message.type)) this.#dropSupersededBy(message);
-        this.#lastSeq += 1;
-        const frame = { ...message, seq: this.#lastSeq };
+        const frame = this.transient(message);
         this.#frames.push(frame);
         while (this.#frames.length > this.#limit) {
             this.#floor = (this.#frames.shift() as SentFrame).seq;

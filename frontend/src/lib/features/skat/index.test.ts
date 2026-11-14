@@ -25,6 +25,7 @@ async function installedSkat() {
     const core: FeatureCore = {
         on: (type, handler) => void handlers.set(type, handler),
         send: (frame) => void sent.push(frame),
+        sendTransient: () => undefined,
         isConnected: () => true,
         showToast: (text) => void toasts.push(text),
         toastKind: TOAST_KIND,

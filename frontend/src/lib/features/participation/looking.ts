@@ -11,10 +11,11 @@ export interface Looks {
     answer(requestId: string): Promise<void>;
 }
 
-/** `takePicture` takes one picture of the person's own camera within the bounds, and `send` hands a frame to the server. A request already answered is ignored. A camera that cannot be read answers as none, so the agent is not left waiting. */
+/** `takePicture` takes one picture of the person's own camera within the bounds, `send` hands a frame to the server and `sendTransient` one that nothing keeps, as the parts of a picture are sent. A request already answered is ignored. A camera that cannot be read answers as none, so the agent is not left waiting. */
 export function createLooks(
     takePicture: (bounds: PictureBounds) => Promise<string | null>,
     send: (frame: OutgoingFrame) => void,
+    sendTransient: (frame: OutgoingFrame) => void,
 ): Looks {
     const answered = new Set<string>();
 
@@ -34,7 +35,7 @@ export function createLooks(
             }
             const count = Math.ceil(picture.length / LOOK_PART_CHARACTERS);
             for (let index = 0; index < count; index += 1) {
-                send({
+                sendTransient({
                     type: PARTICIPATION_SIGNAL.AGENT_LOOK_PART,
                     request_id: requestId,
                     index,

@@ -65,6 +65,8 @@ export interface FeatureCore {
     /** The handler declares the fields of the frames it registers for; the server it trusts sends them. */
     on(type: string, handler: (frame: never) => void): void;
     send(frame: OutgoingFrame): void;
+    /** Sends a frame once and keeps nothing of it: a reconnect does not replay it and one sent while the session is not live is dropped, so a payload that must not outlast its use is not retained. */
+    sendTransient(frame: OutgoingFrame): void;
     isConnected(): boolean;
     showToast(text: string, kind: ToastKind, action: ToastAction | null): void;
     toastKind: typeof TOAST_KIND;

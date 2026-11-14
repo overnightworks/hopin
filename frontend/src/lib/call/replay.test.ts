@@ -49,3 +49,17 @@ describe("SentLog", () => {
         ]);
     });
 });
+
+describe("a transient frame", () => {
+    it("is numbered in order and never kept for a replay", () => {
+        const log = new SentLog();
+
+        log.append({ type: "chat" });
+        const transient = log.transient({ type: "game_move", cell: 4 });
+        log.append({ type: "chat" });
+
+        expect(transient).toEqual({ type: "game_move", cell: 4, seq: 2 });
+        expect(log.unacknowledged().map((frame) => frame.seq)).toEqual([1, 3]);
+        expect(log.floor).toBe(0);
+    });
+});

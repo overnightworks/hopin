@@ -113,6 +113,9 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         (frame) => {
             core.send(frame);
         },
+        (frame) => {
+            core.sendTransient(frame);
+        },
     );
     // Agents whose sound plays now: their tile shows them speaking.
     const speaking = new Set<string>();

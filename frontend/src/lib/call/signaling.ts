@@ -69,12 +69,23 @@ export function sendFeatureFrame(message: LoggedMessage) {
     sendLogged(message);
 }
 
-function sendLogged(message: LoggedMessage) {
+/** Sends a frame once and keeps nothing of it: a resume does not replay it and a frame sent before the session is live is dropped, so a payload that must not outlast its use leaves the page with the write. */
+export function sendTransientFeatureFrame(message: LoggedMessage) {
+    const open = openSocket();
+    if (socketIsLive) open.send(JSON.stringify(sentLog.transient(message)));
+}
+
+function openSocket(): WebSocket {
     if (socket === null) {
         throw new Error("No signaling session: connect() before send()");
     }
+    return socket;
+}
+
+function sendLogged(message: LoggedMessage) {
+    const open = openSocket();
     const frame = sentLog.append(message);
-    if (socketIsLive) socket.send(JSON.stringify(frame));
+    if (socketIsLive) open.send(JSON.stringify(frame));
 }
 
 export function isConnected() {

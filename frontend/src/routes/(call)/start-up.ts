@@ -36,6 +36,7 @@ import {
     onSessionEnded,
     onSessionLost,
     sendFeatureFrame,
+    sendTransientFeatureFrame,
 } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
@@ -55,6 +56,7 @@ const callEndedHooks: (() => void)[] = [];
 const FEATURE_CORE: FeatureCore = Object.freeze({
     on: onFeatureFrame,
     send: sendFeatureFrame,
+    sendTransient: sendTransientFeatureFrame,
     isConnected,
     showToast,
     toastKind: TOAST_KIND,
