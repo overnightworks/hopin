@@ -124,8 +124,9 @@ class SignalingHandler:
         await self._seats.close_socket(websocket, POLICY_VIOLATION_CLOSE_CODE)
 
     async def _process_messages(self, connection: Connection) -> None:
-        while await self._process_next_message(connection):
-            pass
+        serving = True
+        while serving:
+            serving = await self._process_next_message(connection)
 
     async def _process_next_message(self, connection: Connection) -> bool:
         """Serve the next frame of the socket, and say whether to go on. The frame is a local of this call alone, so no
