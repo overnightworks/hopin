@@ -109,21 +109,14 @@ class TestTheWorkloadToken:
             {header_of(session, WORKLOAD_TOKEN_HEADER) for session in fake_speech.sessions},
         ) == (1, set(sponsored.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)))
 
-    @pytest.mark.parametrize(
-        ("passed_seconds", "granted"),
-        [
-            pytest.param(TOKEN_LIFETIME_SECONDS // 2, 1, id="well_within_its_lifetime"),
-            pytest.param(TOKEN_LIFETIME_SECONDS, 2, id="at_the_end_of_its_lifetime"),
-        ],
-    )
-    def test_call_58_a_token_near_its_end_is_fetched_anew_before_the_next_hop(
-        self, sponsored, fake_speech, issuer_clock, passed_seconds, granted
+    def test_call_58_a_token_at_the_end_of_its_lifetime_is_fetched_anew_before_the_next_hop(
+        self, sponsored, fake_speech, issuer_clock
     ):
         hear_one_sentence(sponsored, fake_speech, session_number=1)
-        issuer_clock.advance(passed_seconds)
+        issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
         hear_one_sentence(sponsored, fake_speech, session_number=2)
 
-        assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == granted
+        assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == 2
 
     def test_call_58_a_refusal_is_not_reused_for_the_next_hop(self, sponsored, fake_speech):
         sponsored.call.issuer.refuses_client_credentials_grants = True

@@ -244,7 +244,7 @@ class Speaking:
 
     def _announced(self, agent_id: str, task: asyncio.Task[None]) -> None:
         if not task.cancelled() and task.exception() is not None:
-            logger.error("agent_announcement_failed", agent_id=agent_id, exc_info=task.exception())
+            logger.error("agent_announcement_failed", agent_id=agent_id)
         pending = self._announcements.get(agent_id)
         if pending is not None:
             pending.discard(task)

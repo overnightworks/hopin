@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Final
 
 from hopin.agent.backend import StarterRefusedError
-from hopin.agent.speaking import SpeechRenderer
+from hopin.agent.speaking import SPEECH_STREAM, SpeechRenderer
 from hopin.agent.speech_settings import PAGE_LANGUAGE
 from hopin.participation.vocabulary import VoiceFailure
 
@@ -26,7 +26,9 @@ class SpeechVoice:
         relying_party: OidcRelyingParty,
         starter_person: StarterPerson,
     ) -> None:
-        self._renderer = SpeechRenderer(service, deadline_seconds, cap_bytes, relying_party, GAME_VOICE_FAILED_EVENT)
+        self._renderer = SpeechRenderer(
+            service, deadline_seconds, cap_bytes, relying_party, GAME_VOICE_FAILED_EVENT, SPEECH_STREAM
+        )
         self._starter_person = starter_person
 
     async def speak(self, starter: HTTPConnection, text: str) -> bytes | None:

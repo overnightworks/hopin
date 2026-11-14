@@ -54,6 +54,13 @@ HEALTH_MAX_BYTES: Final = 64 * 1024
 MILLISECONDS_PER_SECOND: Final = 1000
 
 
+type StreamSpeaker = Callable[..., Generator[PreferenceStreamItem]]
+"""Opens the speech service's stream of a sentence, as the speech client's `speak_stream_with_preference` does."""
+
+SPEECH_STREAM: Final[StreamSpeaker] = speak_stream_with_preference
+"""The stream the composition roots give a renderer; the speech client is named in this module alone."""
+
+
 class StyleUnavailableError(Exception):
     """The voice refuses the style of a sentence: it takes no style, or the style is too long, has no letter or is one
     the service does not support."""
@@ -62,13 +69,14 @@ class StyleUnavailableError(Exception):
 @dataclass(frozen=True)
 class SpeechRenderer:
     """Renders text to a WAV at the speech service, within a deadline and a size cap; `failed_event` names the log line
-    that carries a failure's closed code."""
+    that carries a failure's closed code and `speak_stream` opens the stream of a sentence."""
 
     service: SpeechService
     deadline_seconds: float
     cap_bytes: int
     relying_party: OidcRelyingParty
     failed_event: str
+    speak_stream: StreamSpeaker
 
     async def wav(self, text: str, person_token: str, language: Language) -> bytes | VoiceFailure:
         """The WAV of the text spoken in `language` in the service's configured voice on the person's token and HopIn's
@@ -115,7 +123,7 @@ class SpeechRenderer:
         if isinstance(workload, VoiceFailure):
             return workload
         try:
-            items = speak_stream_with_preference(
+            items = self.speak_stream(
                 self.service.origin,
                 text,
                 voices,

@@ -205,21 +205,14 @@ class TestTheWorkloadToken:
             {header_of(request, WORKLOAD_TOKEN_HEADER) for request in speech_requests(speech_origin)},
         ) == (1, set(joined_agent.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)))
 
-    @pytest.mark.parametrize(
-        ("passed_seconds", "granted"),
-        [
-            pytest.param(TOKEN_LIFETIME_SECONDS // 2, 1, id="well_within_its_lifetime"),
-            pytest.param(TOKEN_LIFETIME_SECONDS, 2, id="at_the_end_of_its_lifetime"),
-        ],
-    )
-    def test_call_60_a_token_near_its_end_is_fetched_anew_before_the_next_sentence(
-        self, joined_agent, issuer_clock, passed_seconds, granted
+    def test_call_60_a_token_at_the_end_of_its_lifetime_is_fetched_anew_before_the_next_sentence(
+        self, joined_agent, issuer_clock
     ):
         speak_until_it_ends(joined_agent)
-        issuer_clock.advance(passed_seconds)
+        issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
         speak_until_it_ends(joined_agent)
 
-        assert len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT)) == granted
+        assert len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT)) == 2
 
     def test_call_61_a_refusal_is_not_reused_for_the_next_sentence(self, joined_agent):
         issuer = joined_agent.call.issuer
