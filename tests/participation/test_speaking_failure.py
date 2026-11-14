@@ -197,6 +197,7 @@ class TestWhenTheVoiceFails:
             True,
             [{"code": "cut"}],
         )
+        assert "exc_info" not in [key for log in logs for key in log]
 
     def test_call_61_the_window_states_the_voice_unavailable(self, joined_agent, speech_origin):
         speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))

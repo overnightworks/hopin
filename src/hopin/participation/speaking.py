@@ -344,7 +344,7 @@ async def _fill(
                     voice.break_off()
                     ended.set_result(piece)
     except Exception:
-        logger.exception("agent_voice_stream_failed", code=VoiceFailure.CUT)
+        logger.error("agent_voice_stream_failed", code=VoiceFailure.CUT)
         voice.break_off()
         ended.set_result(VoiceFailure.CUT)
 
