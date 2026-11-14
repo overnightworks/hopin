@@ -5,7 +5,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.skat.skat_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
-from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REMOVE
 from tests.e2e.support.people import FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-SWITCH = AGENT_TILE + ' [role="switch"]'
+SWITCH = AGENT_HEARING_SWITCH
 TRACK = SWITCH + ' > span[aria-hidden="true"]'
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131

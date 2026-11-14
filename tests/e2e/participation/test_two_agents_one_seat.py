@@ -10,7 +10,14 @@ from hopin.agent.tools import LEAVE_CALL
 from hopin.participation.vocabulary import AgentRefusal
 from hopin.words import text
 from tests.e2e.support.calls import join_by_link, open_more
-from tests.e2e.support.dialed_agent import AGENT_TILE, COUNT, OWNER_SUBJECT, OwnAccountAgent, room_of_link
+from tests.e2e.support.dialed_agent import (
+    AGENT_TILE,
+    COUNT,
+    HEARING_SWITCH_ON_A_TILE,
+    OWNER_SUBJECT,
+    OwnAccountAgent,
+    room_of_link,
+)
 from tests.e2e.support.hearing_hops import Hops, settle, until
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
@@ -25,7 +32,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-OWN_SWITCH = '[role="switch"]'
+OWN_SWITCH = HEARING_SWITCH_ON_A_TILE
 SENTENCE = "Guten Tag"
 LATER_SENTENCE = "Auf Wiedersehen"
 THIRD_AGENT_NAME = "Raphael"

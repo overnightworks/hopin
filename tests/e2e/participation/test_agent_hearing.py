@@ -6,7 +6,7 @@ from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import join, open_call
-from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REMOVE
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-SWITCH = AGENT_TILE + ' [role="switch"]'
+SWITCH = AGENT_HEARING_SWITCH
 SWITCH_NAME = kit_text("de", "hearing.agentMayHearMe")
 CHIP_INSET_PIXELS = 8
 REMOVE_CLEARANCE_PIXELS = 64
