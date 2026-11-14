@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 
     from fastapi import FastAPI
 
+    from hopin.stores.shared import SharedStores
+
 
 class UvicornOptions(TypedDict):
     host: str
@@ -48,14 +50,14 @@ def command_line_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_application(settings: ServerSettings) -> FastAPI:
+def build_application(settings: ServerSettings, page_build: PageBuild, shared_stores: SharedStores) -> FastAPI:
     participation = ParticipationSettings()
     speech = SpeechSettings()
     voices = VoiceStore()
     return create_app(
         settings,
-        page_build=PageBuild.load(BUILD_DIRECTORY),
-        shared_stores=connect_shared_stores(str(settings.redis_url)),
+        page_build=page_build,
+        shared_stores=shared_stores,
         call_features=(
             configured_game_feature(voices),  # game
             ParticipationFeature(
@@ -74,7 +76,10 @@ def build_application(settings: ServerSettings) -> FastAPI:
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
     settings = ServerSettings()
-    uvicorn.run(build_application(settings), **uvicorn_options(settings))
+    application = build_application(
+        settings, PageBuild.load(BUILD_DIRECTORY), connect_shared_stores(str(settings.redis_url))
+    )
+    uvicorn.run(application, **uvicorn_options(settings))
 
 
 if __name__ == "__main__":

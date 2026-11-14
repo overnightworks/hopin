@@ -13,7 +13,6 @@ from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
-from tests.support.in_thread_stores import in_thread_stores  # noqa: E402
 from tests.support.page_build import FIXTURE_DIRECTORY  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
 from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
@@ -30,10 +29,8 @@ def sign_in_settings(tmp_path: Path) -> Callable[..., SignInSettings]:
 
 @pytest.fixture
 def fixture_build_directory(monkeypatch: pytest.MonkeyPatch) -> Path:
-    """`hopin.main` loads the committed fixture build, because the unit job has no Node and no build, and runs over
-    the in-thread stores, because it would otherwise reach for the Redis its settings name."""
+    """`hopin.main` loads the committed fixture build, because the unit job has no Node and no build."""
     monkeypatch.setattr("hopin.main.BUILD_DIRECTORY", FIXTURE_DIRECTORY)
-    monkeypatch.setattr("hopin.main.connect_shared_stores", lambda _redis_url: in_thread_stores())
     monkeypatch.setenv("HOPIN_AGENT__BACKEND", "litellm")  # game
     monkeypatch.setenv("HOPIN_AGENT__GATEWAY__ORIGIN", "http://gateway.test:4000")  # game
     monkeypatch.setenv("HOPIN_AGENT__GATEWAY__KEY_FILE", "/nonexistent/gateway-key")  # game

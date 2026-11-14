@@ -6,7 +6,15 @@ The first argument is the page build's directory.
 import sys
 from pathlib import Path
 
-import hopin.main
+import uvicorn
 
-hopin.main.BUILD_DIRECTORY = Path(sys.argv[1])
-hopin.main.main(["serve"])
+from hopin.config.settings import ServerSettings
+from hopin.main import build_application, uvicorn_options
+from hopin.stores.redis import connect_shared_stores
+from hopin.web.page_build import PageBuild
+
+settings = ServerSettings()
+application = build_application(
+    settings, PageBuild.load(Path(sys.argv[1])), connect_shared_stores(str(settings.redis_url))
+)
+uvicorn.run(application, **uvicorn_options(settings))

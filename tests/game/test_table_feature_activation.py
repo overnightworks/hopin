@@ -1,4 +1,3 @@
-from functools import partial
 from unittest.mock import patch
 
 import pytest
@@ -9,6 +8,7 @@ from hopin.app import create_app
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.game.vocabulary import FEATURE_NAME
 from hopin.main import main
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 from tests.support.stores import single_process_stores
@@ -23,7 +23,11 @@ def test_the_app_main_starts_offers_a_member_the_game_as_the_calls_feature(
     for name, value in sign_in_settings().environment.items():
         monkeypatch.setenv(name, value)
     stores = single_process_stores()
-    with patch("hopin.main.create_app", partial(create_app, stores=stores)):
+
+    def create_app_over_test_stores(*arguments, **options):
+        return create_app(*arguments, **{**options, "stores": stores, "shared_stores": in_thread_stores()})
+
+    with patch("hopin.main.create_app", create_app_over_test_stores):
         main(["serve"])
     served_app = mock_run.call_args[0][0]
     member = seed_member(stores, installed_web_auth_config(served_app))

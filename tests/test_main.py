@@ -11,6 +11,8 @@ from hopin.config.settings import ServerSettings
 from hopin.main import build_application, main
 from hopin.participation.vocabulary import HEARING_PATH
 from tests.support.dialed_call import METADATA_PATH
+from tests.support.in_thread_stores import in_thread_stores
+from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 pytestmark = pytest.mark.usefixtures("fixture_build_directory")
@@ -53,7 +55,9 @@ class TestMain:
     def test_serves_participation_at_the_mcp_endpoint_for_agents_to_dial_in(self, sign_in_settings, monkeypatch):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
-        served = TestClient(build_application(ServerSettings()), base_url=TEST_PUBLIC_ORIGIN)
+        served = TestClient(
+            build_application(ServerSettings(), fixture_page_build(), in_thread_stores()), base_url=TEST_PUBLIC_ORIGIN
+        )
 
         assert served.get(METADATA_PATH).status_code == 200
         assert served.post("/mcp").status_code == 401
@@ -69,7 +73,9 @@ class TestMain:
         monkeypatch.setenv("HOPIN_SPEECH__ORIGIN", "http://speech.test:8090")
         monkeypatch.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
         monkeypatch.setenv("HOPIN_SPEECH__HEARING", hearing)
-        served = TestClient(build_application(ServerSettings()), base_url=TEST_PUBLIC_ORIGIN)
+        served = TestClient(
+            build_application(ServerSettings(), fixture_page_build(), in_thread_stores()), base_url=TEST_PUBLIC_ORIGIN
+        )
 
         with pytest.raises(WebSocketDisconnect) as refused, served.websocket_connect(f"{HEARING_PATH}/a-seat"):
             pass
@@ -85,7 +91,7 @@ class TestMain:
         monkeypatch.setenv(setting, "true")
 
         with pytest.raises(ValidationError):
-            build_application(ServerSettings())
+            build_application(ServerSettings(), fixture_page_build(), in_thread_stores())
 
     @patch("hopin.main.uvicorn.run")
     def test_refuses_to_start_without_the_page_build_and_names_the_build_command(
