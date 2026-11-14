@@ -523,10 +523,10 @@ button, input, textarea { font-family: inherit; }
 }
 @media (prefers-reduced-motion: no-preference) {
     .see-switch .track {
-        transition: background 0.2s;
+        transition: background var(--motion-fade);
     }
     .see-switch .track::after {
-        transition: transform 0.2s;
+        transition: transform var(--motion-fade);
     }
 }
 /* The mark of a look: an eye in a glass disc ringed in the stage accent, over the agent's avatar, calm because it
