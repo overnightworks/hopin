@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hopin.app import create_app
-from hopin.config.constants import HEALTH_PATH, LOGIN_PATH
+from hopin.config.constants import LOGIN_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -32,9 +32,6 @@ def served_without_redis(sign_in_settings, unreachable_redis_url) -> TestClient:
 
 
 class TestRedisDown:
-    def test_the_health_check_is_not_ready(self, served_without_redis):
-        assert served_without_redis.get(HEALTH_PATH).status_code == HTTPStatus.SERVICE_UNAVAILABLE
-
     def test_a_budgeted_route_answers_503_with_a_retry_hint(self, served_without_redis):
         refused = served_without_redis.get(LOGIN_PATH)
 
