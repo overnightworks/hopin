@@ -280,10 +280,14 @@ class Scene:
     def standings(self):
         return self.call.standing(self.token)
 
+    def window(self):
+        """The agent's chat window in the owner's call, as the agent reads it."""
+        answer = self.call.window(self.token, self.owner.room_id)
+        return json.loads(answer["result"]["contents"][0]["text"])
+
     def entries(self):
         """The lines of the agent's chat window in the owner's call."""
-        answer = self.call.window(self.token, self.owner.room_id)
-        return json.loads(answer["result"]["contents"][0]["text"])["entries"]
+        return self.window()["entries"]
 
     def accept(self, standing, **more):
         """The agent accepts the invitation; `more` is what else its accept names, such as its voice."""

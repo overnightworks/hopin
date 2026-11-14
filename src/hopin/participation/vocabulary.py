@@ -9,6 +9,7 @@ LINES_PER_WINDOW = 10
 LINE_WINDOW_SECONDS = 60
 SENTENCES_WAITING_PER_AGENT = 10
 SPEAK_FAILED_EVENT = "agent_speak_failed"
+VOICE_UNAVAILABLE_EVENT = "agent_voice_unavailable"
 AGENT_ID_BYTES = 16
 AGENTS_PER_PROCESS = 32
 FIGURE_PATH = "/api/participation/figures"
@@ -75,6 +76,27 @@ class SpeakStop(StrEnum):
 
     STOPPED = "stopped"
     NOTHING_PLAYING = "nothing_playing"
+
+
+class SpeakFallback(StrEnum):
+    """How a sentence whose voice failed before it started was said instead: as a line of the chat."""
+
+    WRITTEN = "written"
+
+
+class VoiceFailure(StrEnum):
+    """Why the speech service made no sound for a sentence, a failure of its voice; the code its log carries."""
+
+    WORKLOAD_TOKEN_REFUSED = "workload_token_refused"
+    INPUT_REFUSED = "input_refused"
+    REFUSED = "refused"
+    BUSY = "busy"
+    CUT = "cut"
+    PAST_DEADLINE = "past_deadline"
+    OVER_CAP = "over_cap"
+    MALFORMED = "malformed"
+    UNREACHABLE = "unreachable"
+    UNREADABLE_AUDIO = "unreadable_audio"
 
 
 class SpeakFailure(StrEnum):

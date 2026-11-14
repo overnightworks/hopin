@@ -8,8 +8,11 @@ turn. Every change tells the agent whose window changed once.
 
 from typing import TYPE_CHECKING
 
+import structlog
+
 from hopin.participation.chat_window import LineKind
-from hopin.participation.speaking import SentenceEnd
+from hopin.participation.speaking import RenderedSentence, SentenceEnd
+from hopin.participation.vocabulary import VOICE_UNAVAILABLE_EVENT, VoiceFailure
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -17,9 +20,11 @@ if TYPE_CHECKING:
     from hopin.participation.hearing import Hearing
     from hopin.participation.participants import DialedAgent, Person
     from hopin.participation.places import Places
-    from hopin.participation.speaking import QueuedSentence
+    from hopin.participation.speaking import QueuedSentence, Renderer
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import PeerId
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 class SpeechInWindows:
@@ -37,6 +42,39 @@ class SpeechInWindows:
         self._hearing = hearing
         self._rooms = rooms
         self._on_window_changed = on_window_changed
+
+    def line_said(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
+        """Add a written line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
+        agent said it, whose window marks it own."""
+        for person, window in self._places.windows_in(room_id).items():
+            if window.append(kind, name, text, own=person == sayer):
+                self._on_window_changed(person, room_id)
+
+    def watching_voice(self, agent: DialedAgent, render: Renderer) -> Renderer:
+        """The renderer, and every sound or failure of the agent's voice it makes shown in the agent's window: a
+        failure turns the voice unavailable and logs that once until a sound turns it available again. A sentence that
+        was refused for a reason that is no failure of the voice changes nothing."""
+
+        async def watched(text: str, voice: str | None) -> RenderedSentence | VoiceFailure | None:
+            rendered = await render(text, voice)
+            if rendered is not None:
+                self._voice_rendered(agent, rendered)
+            return rendered
+
+        return watched
+
+    def _voice_rendered(self, agent: DialedAgent, rendered: RenderedSentence | VoiceFailure) -> None:
+        window = self._places.window_of(agent.person, agent.room_id)
+        if window is None:
+            return
+        if isinstance(rendered, VoiceFailure):
+            turned = window.voice_failed()
+            if turned:
+                logger.info(VOICE_UNAVAILABLE_EVENT, reason=rendered.value, room_id=agent.room_id)
+        else:
+            turned = window.voice_worked()
+        if turned:
+            self._on_window_changed(agent.person, agent.room_id)
 
     def sentence_started(self, agent: DialedAgent) -> None:
         """A sentence of the agent plays: the record that stands says so."""

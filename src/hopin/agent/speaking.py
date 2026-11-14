@@ -30,6 +30,7 @@ from webauth.oidc import OidcRefusal
 from hopin.agent.issuer_error import issuer_error
 from hopin.agent.speech_settings import PAGE_LANGUAGE, SpeechService
 from hopin.participation.speaking import RenderedSentence
+from hopin.participation.vocabulary import VoiceFailure
 
 if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
@@ -69,9 +70,10 @@ class SpeechRenderer:
         language: Language,
         voice: VoiceId | None = None,
         style: str | None = None,
-    ) -> bytes | None:
+    ) -> bytes | VoiceFailure:
         """The WAV of the text spoken in `language` on the person's token and HopIn's workload token in `voice`, the
-        service's configured one when none, in the `style` handed to the service unchanged, or nothing for any reason.
+        service's configured one when none, in the `style` handed to the service unchanged, or why the service made
+        none.
 
         Raises `StyleUnavailableError` when the voice refuses the style, and otherwise nothing but `CancelledError`; a
         cancelled call's worker ends within the deadline.
@@ -80,8 +82,7 @@ class SpeechRenderer:
             self.relying_party.workload_access_token, scopes=(self.service.audience_scope,)
         )
         if isinstance(workload, OidcRefusal):
-            self.log_failure("workload_token_refused", idp_error=issuer_error(workload))
-            return None
+            return self._failed(VoiceFailure.WORKLOAD_TOKEN_REFUSED, idp_error=issuer_error(workload))
         try:
             # A worker thread ends by its deadline, also when this call is cancelled.
             outcome = await asyncio.to_thread(
@@ -100,36 +101,38 @@ class SpeechRenderer:
         except ValidationError as refusal:
             if any(error["loc"] == ("instructions",) for error in refusal.errors()):
                 raise StyleUnavailableError from None
-            self.log_failure("input_refused")
-            return None
+            return self._failed(VoiceFailure.INPUT_REFUSED)
         return self._wav_of(outcome)
 
     def log_failure(self, outcome: str, **codes: str | None) -> None:
         logger.info(self.failed_event, outcome=outcome, **{name: code for name, code in codes.items() if code})
 
-    def _wav_of(self, outcome: SpeakOutcome) -> bytes | None:
+    def _failed(self, failure: VoiceFailure, **codes: str | None) -> VoiceFailure:
+        self.log_failure(failure.value, **codes)
+        return failure
+
+    def _wav_of(self, outcome: SpeakOutcome) -> bytes | VoiceFailure:
         match outcome:
             case Spoken(audio=audio):
                 return audio
             case Refused(code=RefusalCode.INVALID_REQUEST, param="instructions"):
                 raise StyleUnavailableError
             case Refused(code=code):
-                self.log_failure("refused", code=code.value)
+                return self._failed(VoiceFailure.REFUSED, code=code.value)
             case Busy():
-                self.log_failure("busy")
+                return self._failed(VoiceFailure.BUSY)
             case Cut():
-                self.log_failure("cut")
+                return self._failed(VoiceFailure.CUT)
             case PastDeadline():
-                self.log_failure("past_deadline")
+                return self._failed(VoiceFailure.PAST_DEADLINE)
             case OverCap():
-                self.log_failure("over_cap")
+                return self._failed(VoiceFailure.OVER_CAP)
             case Malformed():
-                self.log_failure("malformed")
+                return self._failed(VoiceFailure.MALFORMED)
             case Unreachable():
-                self.log_failure("unreachable")
+                return self._failed(VoiceFailure.UNREACHABLE)
             case _:  # pragma: no cover - the type checker proves the match exhaustive
                 assert_never(outcome)
-        return None
 
 
 def duration_ms_of(wav: bytes) -> int | None:
@@ -169,10 +172,11 @@ class AgentVoice:
 
     async def render(
         self, agent: Person, text: str, voice: str | None, *, language: str | None = None, style: str | None = None
-    ) -> RenderedSentence | None:
+    ) -> RenderedSentence | VoiceFailure | None:
         """The sentence's sound and length in the agent's `voice`, a catalogue voice its accept named or none for the
         configured one, spoken in the `language` it names or in the page's when it names none and in the `style` it
-        names, which speech alone checks, or nothing when no token is held, speech fails or its WAV cannot be read.
+        names, which speech alone checks; why the voice failed when speech fails or its WAV cannot be read; nothing
+        when no token is held, which is no failure of the voice.
 
         Raises `LanguageUnavailableError`, before any request to speech, for a language the voice does not speak, and
         `StyleUnavailableError` for a style the voice refuses."""
@@ -183,12 +187,12 @@ class AgentVoice:
             self._renderer.log_failure("no_token")
             return None
         wav = await self._renderer.wav(text, token.get_secret_value(), spoken_language, spoken_voice, style)
-        if wav is None:
-            return None
+        if isinstance(wav, VoiceFailure):
+            return wav
         duration_ms = duration_ms_of(wav)
         if duration_ms is None:
-            self._renderer.log_failure("unreadable_audio")
-            return None
+            self._renderer.log_failure(VoiceFailure.UNREADABLE_AUDIO.value)
+            return VoiceFailure.UNREADABLE_AUDIO
         return RenderedSentence(wav, duration_ms)
 
 
