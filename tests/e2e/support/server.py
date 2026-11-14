@@ -32,10 +32,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
     from pathlib import Path
 
+    from fastapi import FastAPI
     from webauth.config import WebAuthConfig
     from webauth.single_process_stores import SingleProcessStores
 
     from hopin.app import CallFeatureBuilder
+    from hopin.config.settings import ServerSettings
     from hopin.participation.figures import FigureSource, FigureTransport
     from tests.support.sign_in_settings import SignInSettings
 
@@ -162,6 +164,13 @@ def participation_feature(
     )
 
 
+def tls_server(app: FastAPI, settings: ServerSettings, certificate: tuple[Path, Path]) -> uvicorn.Server:
+    key_file, certificate_file = certificate
+    return uvicorn.Server(
+        uvicorn.Config(app, **uvicorn_options(settings), ssl_keyfile=str(key_file), ssl_certfile=str(certificate_file))
+    )
+
+
 @contextmanager
 def running_hopin(
     loopback: LoopbackSignIn,
@@ -210,16 +219,9 @@ def running_hopin(
             ),
         ),
     )
-    key_file, certificate_file = certificate or write_self_signed_certificate(tls_directory)
-    server = uvicorn.Server(
-        uvicorn.Config(
-            app,
-            **uvicorn_options(loopback.sign_in.settings),
-            ssl_keyfile=str(key_file),
-            ssl_certfile=str(certificate_file),
-        )
-    )
-    with serving(server):
+    with serving(
+        tls_server(app, loopback.sign_in.settings, certificate or write_self_signed_certificate(tls_directory))
+    ):
         yield RunningServer(
             f"https://{loopback.host}:{loopback.port}", installed_web_auth_config(app), loopback.stores, loopback.issuer
         )
