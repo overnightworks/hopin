@@ -1,6 +1,7 @@
 """An agent's spoken sentences: one queue per joined agent, in memory only. A sentence starts when the previous one's
 length has run out on the scheduler's clock, its speaker is answered then, and its sound is kept only while it waits or
-plays. A stop cuts the playing sentence and drops every other one of the agent."""
+plays. A sentence whose voice failed takes its turn in the same queue and is written as a chat line instead. A stop cuts
+the playing sentence and drops every other one of the agent."""
 
 import asyncio
 from collections import deque
@@ -11,7 +12,13 @@ from typing import TYPE_CHECKING, Final
 
 import structlog
 
-from hopin.participation.vocabulary import SENTENCES_WAITING_PER_AGENT, AgentRefusal, SpeakStop
+from hopin.participation.vocabulary import (
+    SENTENCES_WAITING_PER_AGENT,
+    AgentRefusal,
+    SpeakFallback,
+    SpeakStop,
+    VoiceFailure,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -33,15 +40,15 @@ class RenderedSentence:
     duration_ms: int
 
 
-type SpeakResult = int | AgentRefusal | SpeakStop
-"""How long a sentence plays once it starts, or why it never does."""
+type SpeakResult = int | AgentRefusal | SpeakStop | SpeakFallback
+"""How long a sentence plays once it starts, that it was written instead, or why it never is said."""
 
 type StopResult = str | AgentRefusal | SpeakStop
 """The text of the line a stop cut, or why nothing was cut."""
 
-type Renderer = Callable[[str, str | None], Awaitable[RenderedSentence | None]]
-"""Makes the sound of a sentence in the voice its agent kept at accept (none for the configured one), or nothing when
-it cannot."""
+type Renderer = Callable[[str, str | None], Awaitable[RenderedSentence | VoiceFailure | None]]
+"""Makes the sound of a sentence in the voice its agent kept at accept (none for the configured one); why the voice
+failed when it cannot; nothing when the agent may not speak, which no failure of the voice explains."""
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,17 @@ class QueuedSentence:
     voice: StoredVoice
     duration_ms: int
     answer: asyncio.Future[SpeakResult] = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class WrittenSentence:
+    """A sentence whose voice failed: it waits for its turn like a spoken one and is then written as a line."""
+
+    text: str
+    answer: asyncio.Future[SpeakResult] = field(repr=False, compare=False)
+
+
+type WaitingSentence = QueuedSentence | WrittenSentence
 
 
 class SentenceEnd(StrEnum):
@@ -70,15 +88,15 @@ class _Queue:
     `stops` counts the stops that dropped sentences, which a sentence still being rendered finds when it is done."""
 
     playing: QueuedSentence | None = None
-    waiting: deque[QueuedSentence] = field(default_factory=deque)
+    waiting: deque[WaitingSentence] = field(default_factory=deque)
     rendering: int = 0
     timer: TimerHandle | None = None
     stops: int = 0
 
 
 class Speaking:
-    """The queues of the joined agents' sentences. `start` shows a sentence that begins to play and `ended` tells how
-    the playing one ended, before the next one starts."""
+    """The queues of the joined agents' sentences. `start` shows a sentence that begins to play, `ended` tells how
+    the playing one ended, before the next one starts, and `write` posts a sentence that takes its turn as a line."""
 
     def __init__(
         self,
@@ -86,19 +104,21 @@ class Speaking:
         scheduler: Scheduler,
         start: Callable[[DialedAgent, QueuedSentence], Awaitable[None]],
         ended: Callable[[DialedAgent, QueuedSentence, SentenceEnd], None],
+        write: Callable[[DialedAgent, str], Awaitable[None]],
     ) -> None:
         self._voices = voices
         self._scheduler = scheduler
         self._start = start
         self._ended = ended
+        self._write = write
         self._queues: dict[str, _Queue] = {}
         self._announcements: dict[str, set[asyncio.Task[None]]] = {}
 
     async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> SpeakResult:
         """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
-        before it. Answers when it starts how long it plays, or why it never does: no sound came, a stop dropped it
-        while it was rendered or waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does
-        not undo."""
+        before it. Answers when it starts how long it plays, that it was written when its voice failed, or why it never
+        does: no sound came for a reason that is no failure of the voice, a stop dropped it while it was rendered or
+        waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue())
         stops = queue.stops
         queue.rendering += 1
@@ -112,17 +132,21 @@ class Speaking:
             return AgentRefusal.GONE
         if queue.stops != stops:
             return SpeakStop.STOPPED
-        sentence = QueuedSentence(
-            text,
-            self._voices.put(agent.room_id, agent.agent_id, rendered.wav),
-            rendered.duration_ms,
-            asyncio.get_running_loop().create_future(),
+        answer: asyncio.Future[SpeakResult] = asyncio.get_running_loop().create_future()
+        sentence: WaitingSentence = (
+            WrittenSentence(text, answer)
+            if isinstance(rendered, VoiceFailure)
+            else QueuedSentence(
+                text, self._voices.put(agent.room_id, agent.agent_id, rendered.wav), rendered.duration_ms, answer
+            )
         )
-        if queue.playing is None:
-            self._announce_in_background(agent, self._begin(agent, queue, sentence))
-        else:
+        if queue.playing is not None or queue.waiting:
             queue.waiting.append(sentence)
-        return await sentence.answer
+        elif isinstance(sentence, WrittenSentence):
+            await self._written(agent, sentence)
+        else:
+            self._announce_in_background(agent, self._begin(agent, queue, sentence))
+        return await answer
 
     def stop(self, agent: DialedAgent) -> str | None:
         """Cut the sentence the agent plays and drop every other sentence of it, rendered or waiting, each answered as
@@ -136,7 +160,8 @@ class Speaking:
         queue.playing = None
         queue.stops += 1
         for sentence in queue.waiting:
-            self._voices.release(sentence.voice.id)
+            if isinstance(sentence, QueuedSentence):
+                self._voices.release(sentence.voice.id)
             _answer(sentence, SpeakStop.STOPPED)
         queue.waiting.clear()
         self._voices.release(cut.voice.id)
@@ -198,10 +223,30 @@ class Speaking:
             return
         self._voices.release(sentence.voice.id)
         queue.playing = None
-        following = queue.waiting.popleft() if queue.waiting else None
-        self._ended(agent, sentence, SentenceEnd.PLAYED if following is None else SentenceEnd.CONTINUED)
-        if following is not None:
-            await self._begin(agent, queue, following)
+        continues = any(isinstance(waiting, QueuedSentence) for waiting in queue.waiting)
+        self._ended(agent, sentence, SentenceEnd.CONTINUED if continues else SentenceEnd.PLAYED)
+        await self._advance(agent, queue)
+
+    async def _advance(self, agent: DialedAgent, queue: _Queue) -> None:
+        """Take the waiting sentences in turn: write each one whose voice failed and start the first that has a sound,
+        unless an end or a stop dropped them meanwhile."""
+        while queue.waiting and self._queues.get(agent.agent_id) is queue:
+            following = queue.waiting.popleft()
+            if isinstance(following, QueuedSentence):
+                await self._begin(agent, queue, following)
+                return
+            await self._written(agent, following)
+
+    async def _written(self, agent: DialedAgent, sentence: WrittenSentence) -> None:
+        """Post the sentence as a line, then answer its speaker; a write that fails fails the speaker's call instead,
+        so the answer never claims a line that did not stand, and the queue goes on."""
+        try:
+            await self._write(agent, sentence.text)
+        except Exception as failure:
+            if not sentence.answer.done():
+                sentence.answer.set_exception(failure)
+            return
+        _answer(sentence, SpeakFallback.WRITTEN)
 
 
 def _cancel_timer(queue: _Queue) -> None:
@@ -209,7 +254,7 @@ def _cancel_timer(queue: _Queue) -> None:
         queue.timer.cancel()
 
 
-def _answer(sentence: QueuedSentence, answer: SpeakResult) -> None:
+def _answer(sentence: WaitingSentence, answer: SpeakResult) -> None:
     """Tell the sentence's speaker, unless the speaker gave up waiting."""
     if not sentence.answer.done():
         sentence.answer.set_result(answer)

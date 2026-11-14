@@ -102,7 +102,9 @@ class Participation:
         self._hearing = hearing
         self._places = Places()
         self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed)
-        self._speaking = Speaking(voices, scheduler, self._sentence_started, self.speech.sentence_ended)
+        self._speaking = Speaking(
+            voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
+        )
         self._live = LiveAgents()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
         self._abandoned: dict[PeerId, list[AbandonedInvitation]] = {}
@@ -170,15 +172,14 @@ class Participation:
             return AgentRefusal.BAD_LINE
         if not self._places.take_line(person, room_id, self._scheduler.now()):
             return AgentRefusal.TOO_FAST
-        self._append_to_windows(room_id, LineKind.AGENT, agent.name, line, sayer=person)
-        await self._tell(room_id, self._recipients(room_id), line_frame(agent, line))
+        await self._write_line(agent, line)
         return None
 
     async def speak(self, person: Person, room_id: str, text: str, render: Renderer | None) -> SpeakResult:
         """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer how long
         it plays when the sentence starts, not when it is queued; the refusal when the agent holds no active place
-        there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, no
-        sound, or an end of its speaking meanwhile."""
+        there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, or an
+        end of its speaking meanwhile; a sound that could not be made is written as a line instead."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -188,7 +189,7 @@ class Participation:
         failure = self._no_room_to_speak(agent)
         if failure is not None:
             return await self._unavailable(failure)
-        return await self._speaking.speak(agent, sentence, render)
+        return await self._speaking.speak(agent, sentence, self.speech.watching_voice(agent, render))
 
     async def stop_speaking(self, person: Person, room_id: str) -> StopResult:
         """Cut the sentence the person's agent plays in every seat and drop its others; the text of the cut sentence's
@@ -353,7 +354,7 @@ class Participation:
 
     def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
         """Add a person's line to the window of every agent joined in its room, under the name the call shows."""
-        self._append_to_windows(room_id, LineKind.PERSON, self._rooms.name_of(peer_id), message, sayer=None)
+        self.speech.line_said(room_id, LineKind.PERSON, self._rooms.name_of(peer_id), message, sayer=None)
 
     def seat_changed(self, peer_id: PeerId) -> None:
         """A seat that left its room takes its places out of the state at once and holds its agents for `seat_left`;
@@ -602,12 +603,10 @@ class Participation:
         state = PlaceState.PAUSED if self._rooms.is_parked(place.sponsor) else PlaceState.ACTIVE
         return PlaceStanding(room_id, state)
 
-    def _append_to_windows(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
-        """Add the line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
-        agent said it, whose window marks it own."""
-        for person, window in self._places.windows_in(room_id).items():
-            if window.append(kind, name, text, own=person == sayer):
-                self._on_window_changed(person, room_id)
+    async def _write_line(self, agent: DialedAgent, line: str) -> None:
+        """Show the agent's written line to every joined agent's window and every seat in its room."""
+        self.speech.line_said(agent.room_id, LineKind.AGENT, agent.name, line, sayer=agent.person)
+        await self._tell(agent.room_id, self._recipients(agent.room_id), line_frame(agent, line))
 
     def _active_agent(self, person: Person, room_id: str) -> DialedAgent | AgentRefusal:
         """The person's agent in the room when it is joined and its sponsor's seat is connected, else why it is not."""

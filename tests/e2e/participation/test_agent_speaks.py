@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from agents.member import SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
 from playwright.sync_api import Page, expect
-from speech_client.wire import VoiceId
+from speech_client.wire import RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
@@ -12,8 +12,9 @@ from hopin.participation.speaking import MILLISECONDS_PER_SECOND
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
+from tests.support.dialed_call import window_uri
 from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, silent_wav, speaking
+from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, refusal_answer, silent_wav, speaking
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
+AGENT_LINE = "#chatMessages .chat-msg:has(.participation-agent-sender)"
 SOUND_SECONDS = 1.0
 LONGER_SOUND_SECONDS = 5.0
 LATER_SOUND_SECONDS = (1.5, 1.25)
@@ -109,6 +111,15 @@ class Speaker:
         return (self.scene.agent if agent is None else agent).call_unawaited(
             SPEAK_TOOL, {"place": place.model_dump(), "text": text}
         )
+
+    def speak_with_a_failing_voice(self, text: str) -> dict[str, Any]:
+        """Say a sentence while the speech service is busy; it answers at once, for the sentence is written."""
+        speaking(self.speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
+        place = PlaceRef(kind=CALL_KIND, id=self.room)
+        return self.scene.agent.call(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+
+    def window(self) -> dict[str, Any]:
+        return self.scene.agent.read(window_uri(self.room))
 
     def stop(self) -> dict[str, Any]:
         place = PlaceRef(kind=CALL_KIND, id=self.room)
@@ -227,3 +238,37 @@ def test_a_stop_cuts_the_sentence_and_drops_the_queue_in_every_browser_and_the_a
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert speaker.started(person)[1] == SOUND_SECONDS
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_sentence_whose_voice_fails_is_written_in_every_chat_and_the_window_states_the_voice(
+    speaker: Speaker,
+) -> None:
+    """CALL-61: When the speech service cannot voice a sentence, `speak` answers written, every seat reads the sentence
+    as the agent's line and hears nothing, its tile never shows speaking, the agent's window holds it as an unspoken
+    line and states the voice unavailable, and the agent's next sentence that sounds states it available again."""
+    everyone = speaker.scene.everyone
+    for person in everyone:
+        if person.locator("#moreMenu").is_visible():
+            person.keyboard.press("Escape")
+        person.click("#chatBtn")
+
+    answered = speaker.speak_with_a_failing_voice("Guten Tag")
+
+    assert answered == {"written": True}
+    for person in everyone:
+        expect(person.locator(AGENT_LINE)).to_have_count(1)
+        expect(person.locator(AGENT_LINE)).to_contain_text("Guten Tag")
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+        assert speaker.started(person) == []
+    window = speaker.window()
+    assert (window["voice_state"], [(line["text"], line["spoken"]) for line in window["entries"]]) == (
+        "unavailable",
+        [("Guten Tag", False)],
+    )
+
+    speaker.speak(SOUND_SECONDS)
+
+    for person in everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    assert speaker.window()["voice_state"] == "available"

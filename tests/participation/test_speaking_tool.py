@@ -52,6 +52,7 @@ SOUND = silent_wav(SENTENCE_SECONDS)
 STREAMING_DATA_SIZE = 0xFFFFFFFF
 CLIENT_CREDENTIALS_GRANT = "client_credentials"
 FAILED = "agent_speak_failed"
+VOICE_UNAVAILABLE = "agent_voice_unavailable"
 UNKNOWN_VOICE = "de_DE-nobody-medium"
 UNKNOWN_VOICE_EVENT = "agent_voice_unknown"
 ANSWER_SECONDS = 30
@@ -517,20 +518,7 @@ class TestWhenTheSentenceCannotBeSpoken:
 
         assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "too_long"}), [])
 
-    @pytest.mark.parametrize(("answer", "logged"), SPEECH_FAILS)
-    def test_call_60_what_speech_does_not_answer_whole_is_unavailable_with_one_closed_code_logged(
-        self, joined_agent, speech_origin, answer, logged
-    ):
-        speaking(speech_origin, answer)
-
-        with structlog.testing.capture_logs() as logs:
-            dialed = speak(joined_agent)
-        drained(joined_agent)
-
-        assert (refusal_of(dialed), failures_of(logs)) == ((True, {"refused": "unavailable"}), [logged])
-        assert frames_of(joined_agent.member, VOICE) == []
-
-    def test_call_60_an_agent_with_no_held_token_is_unavailable_and_no_workload_token_is_asked_for(
+    def test_call_61_an_agent_with_no_held_token_is_unavailable_and_nothing_is_written(
         self, adding_call, joined_agent, speech_origin
     ):
         adding_call.issuer.refuses_token_exchange_grants = True
@@ -541,27 +529,96 @@ class TestWhenTheSentenceCannotBeSpoken:
 
         with structlog.testing.capture_logs() as logs:
             dialed = speak(joined_agent)
+        drained(joined_agent)
 
         assert (
             refusal_of(dialed),
             failures_of(logs),
+            failures_in(logs, VOICE_UNAVAILABLE),
             len(adding_call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)) - grants_before,
             speech_origin.requests,
-        ) == ((True, {"refused": "unavailable"}), [{"outcome": "no_token"}], 0, [])
+            joined_agent.entries(),
+            "voice_state" in joined_agent.window(),
+            frames_of(joined_agent.member, LINE),
+        ) == ((True, {"refused": "unavailable"}), [{"outcome": "no_token"}], [], 0, [], [], False, [])
 
-    def test_call_60_a_workload_token_the_issuer_refuses_is_unavailable_and_speech_is_not_called(
+
+class TestWhenTheVoiceFails:
+    @pytest.mark.parametrize(("answer", "logged"), SPEECH_FAILS)
+    def test_call_61_a_sentence_speech_does_not_answer_whole_is_written_as_the_agents_line_with_one_closed_code_logged(
+        self, joined_agent, speech_origin, answer, logged
+    ):
+        speaking(speech_origin, answer)
+
+        with structlog.testing.capture_logs() as logs:
+            written = speak(joined_agent)
+        drained(joined_agent)
+
+        [entry] = joined_agent.entries()
+        assert (written.is_error, written.outcome, failures_of(logs), failures_in(logs, VOICE_UNAVAILABLE)) == (
+            False,
+            {"written": True},
+            [logged],
+            [{"reason": logged["outcome"], "room_id": joined_agent.owner.room_id}],
+        )
+        assert (entry["text"], entry["own"], entry["spoken"]) == (TEXT, True, False)
+        assert [frames_of(seat, VOICE) for seat in (joined_agent.owner, joined_agent.member)] == [[], []]
+        assert [len(frames_of(seat, LINE)) for seat in (joined_agent.owner, joined_agent.member)] == [1, 1]
+
+    def test_call_61_a_workload_token_the_issuer_refuses_writes_the_sentence_and_speech_is_not_called(
         self, adding_call, joined_agent, speech_origin
     ):
         adding_call.issuer.refuses_client_credentials_grants = True
 
         with structlog.testing.capture_logs() as logs:
-            dialed = speak(joined_agent)
+            written = speak(joined_agent)
 
-        assert (refusal_of(dialed), [log["outcome"] for log in failures_of(logs)], speech_origin.requests) == (
-            (True, {"refused": "unavailable"}),
+        assert (written.outcome, [log["outcome"] for log in failures_of(logs)], speech_origin.requests) == (
+            {"written": True},
             ["workload_token_refused"],
             [],
         )
+
+    def test_call_61_the_window_states_the_voice_unavailable(self, joined_agent, speech_origin):
+        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
+
+        speak(joined_agent)
+
+        assert joined_agent.window()["voice_state"] == "unavailable"
+
+    def test_call_61_the_outage_is_logged_once_and_the_voice_is_available_again_at_the_next_sound(
+        self, joined_agent, speech_origin
+    ):
+        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
+        with structlog.testing.capture_logs() as logs:
+            speak(joined_agent)
+            speak(joined_agent)
+        speaking(speech_origin, chunked_wav(SOUND))
+        recovered = speak(joined_agent)
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
+        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
+        with structlog.testing.capture_logs() as later_logs:
+            speak(joined_agent)
+
+        assert (
+            len(failures_in(logs, VOICE_UNAVAILABLE)),
+            recovered.outcome,
+            len(failures_in(later_logs, VOICE_UNAVAILABLE)),
+        ) == (1, {"duration_ms": SENTENCE_MS}, 1)
+
+    def test_call_61_the_voice_is_stated_available_once_a_sound_follows_the_outage(self, joined_agent, speech_origin):
+        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
+        speak(joined_agent)
+        speaking(speech_origin, chunked_wav(SOUND))
+
+        speak(joined_agent)
+
+        assert joined_agent.window()["voice_state"] == "available"
+
+    def test_call_61_a_voice_that_never_failed_states_nothing(self, joined_agent):
+        speak(joined_agent)
+
+        assert "voice_state" not in joined_agent.window()
 
 
 class TestASentenceWithNoText:
@@ -604,14 +661,11 @@ class TestAServiceThatIsNotThere:
         gone.close()
         return SpeechService(origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
-    def test_call_60_it_is_unavailable_and_logs_unreachable(self, joined_agent):
+    def test_call_61_the_sentence_is_written_and_unreachable_is_logged(self, joined_agent):
         with structlog.testing.capture_logs() as logs:
-            dialed = speak(joined_agent)
+            written = speak(joined_agent)
 
-        assert (refusal_of(dialed), failures_of(logs)) == (
-            (True, {"refused": "unavailable"}),
-            [{"outcome": "unreachable"}],
-        )
+        assert (written.outcome, failures_of(logs)) == ({"written": True}, [{"outcome": "unreachable"}])
 
 
 class TestEveryEndAtTheRoute:

@@ -26,6 +26,7 @@ from agents.member import (
     Standing,
     StandingState,
     TalkedOver,
+    VoiceState,
     place_ref_from_window_uri,
     place_window_uri,
 )
@@ -247,6 +248,7 @@ def _window_of(window: WindowRead) -> PlaceWindow:
             for line in window.lines
         ),
         talked_over=None if window.talked_over is None else _talked_over_of(window.talked_over),
+        voice_state=None if window.voice is None else VoiceState(window.voice.value),
     )
 
 

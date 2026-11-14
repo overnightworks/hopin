@@ -17,10 +17,14 @@ from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
-from tests.signaling.support.browsers import Link
+from tests.participation.support.people import person_named, room_of
+from tests.signaling.support.browsers import Link, host_and_guest
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
+
+HOST = person_named("host")
+GUEST = person_named("guest")
 
 
 class Change(NamedTuple):
@@ -280,10 +284,14 @@ class Scene:
     def standings(self):
         return self.call.standing(self.token)
 
+    def window(self):
+        """The agent's chat window in the owner's call, as the agent reads it."""
+        answer = self.call.window(self.token, self.owner.room_id)
+        return json.loads(answer["result"]["contents"][0]["text"])
+
     def entries(self):
         """The lines of the agent's chat window in the owner's call."""
-        answer = self.call.window(self.token, self.owner.room_id)
-        return json.loads(answer["result"]["contents"][0]["text"])["entries"]
+        return self.window()["entries"]
 
     def accept(self, standing, **more):
         """The agent accepts the invitation; `more` is what else its accept names, such as its voice."""
@@ -347,3 +355,12 @@ def joined_agent(scene, accepted_voice):
     scene.accept(scene.standings()[0], **({} if accepted_voice is None else {"voice": accepted_voice}))
     scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
     return scene
+
+
+@pytest_asyncio.fixture
+async def call(link, participation):
+    """A host and a guest in one call, each with an agent of their own dialed in."""
+    host, guest = await host_and_guest(link)
+    mozart = await participation.dial_in(GUEST, room_of(guest), "Mozart")
+    salieri = await participation.dial_in(HOST, room_of(host), "Salieri")
+    return host, guest, mozart, salieri

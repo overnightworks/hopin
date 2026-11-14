@@ -23,11 +23,15 @@ from tests.participation.support.speaking import (
     LONG,
     SENTENCE_MS,
     answers_so_far,
+    removed_by_the_host,
     rendering,
+    renders_broken,
+    renders_cancelled,
+    renders_nothing,
     speak,
     waiting_to_speak,
 )
-from tests.signaling.support.browsers import HeldWrite, host_and_guest
+from tests.signaling.support.browsers import HeldWrite
 from tests.support.speech_origin import failures_in
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -37,31 +41,11 @@ GUEST = person_named("guest")
 VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
 FAILED = "agent_speak_failed"
-
-
-async def renders_nothing(sentence, voice):
-    return None
-
-
-async def renders_cancelled(sentence, voice):
-    raise asyncio.CancelledError
-
-
-async def renders_broken(sentence, voice):
-    raise RuntimeError("the speech service broke")
+OUTAGE = "agent_voice_unavailable"
 
 
 def voice_ids(browser):
     return [frame["voice_id"] for frame in browser.frames(VOICE)]
-
-
-@pytest_asyncio.fixture
-async def call(link, participation):
-    """A host and a guest in one call, each with an agent of their own dialed in."""
-    host, guest = await host_and_guest(link)
-    mozart = await participation.dial_in(GUEST, room_of(guest), "Mozart")
-    salieri = await participation.dial_in(HOST, room_of(host), "Salieri")
-    return host, guest, mozart, salieri
 
 
 async def a_full_window(participation, room_id, scheduler):
@@ -289,10 +273,6 @@ class TestTheOrder:
         await speak(participation, room_id=room_of(host), who=HOST)
 
         assert [frame["agent_id"] for frame in host.frames(VOICE)] == [mozart.agent_id, salieri.agent_id]
-
-
-async def removed_by_the_host(participation, host, guest, agent):
-    await host.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
 
 
 async def leaving(participation, host, guest, agent):

@@ -28,6 +28,7 @@ from agents.member import (
     StopSpeakingArguments,
     StopSpeakingRefusal,
     StopSpeakingRefused,
+    Written,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
@@ -41,6 +42,7 @@ from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AgentRefusal,
     InvitationOutcome,
+    SpeakFallback,
     SpeakStop,
 )
 
@@ -198,7 +200,9 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
         "It is refused as not_active when you are not joined there or your person's seat is away, as too_long above "
         "the bound, as language_unavailable when your voice does not speak the language, as style_unavailable when "
         "your voice refuses the style, as stopped when a stop_speaking dropped it while it waited and as unavailable "
-        "when no voice can be made."
+        "when speaking is off or not allowed to you or you have reached a limit. When the voice fails, the sentence is "
+        "written in the chat as your line instead, after the sentences before it have played, and the answer is "
+        "written: true; the window's voice_state says whether your voice works there."
     ),
     parameters=SpeakArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
@@ -336,6 +340,8 @@ async def _spoken(
         return _speak_refused(SpeakRefusal.STYLE_UNAVAILABLE)
     if isinstance(outcome, AgentRefusal | SpeakStop):
         return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
+    if outcome is SpeakFallback.WRITTEN:
+        return ToolOutcome(Written(written=True).model_dump_json(), is_error=False)
     return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)
 
 

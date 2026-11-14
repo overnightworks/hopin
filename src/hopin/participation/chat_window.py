@@ -21,6 +21,13 @@ class LineKind(StrEnum):
     AGENT = "agent"
 
 
+class WindowVoice(StrEnum):
+    """Whether the agent's voice at the place works: it fails for the app's own reasons only, never for a social one."""
+
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+
+
 @dataclass(frozen=True)
 class WindowLine:
     seq: int
@@ -58,6 +65,7 @@ class WindowRead:
     starts_at: int
     lines: tuple[WindowLine, ...]
     talked_over: WindowTalkedOver | None = None
+    voice: WindowVoice | None = None
 
 
 def utf8_length(text: str) -> int | None:
@@ -79,6 +87,7 @@ class ChatWindow:
         self._playing = False
         self._talked_over: _TalkedOver | None = None
         self._talked_over_count = 0
+        self._voice: WindowVoice | None = None
 
     def append(
         self, kind: LineKind, name: str, text: str, *, own: bool, spoken: bool = False, cut: bool = False
@@ -142,13 +151,26 @@ class ChatWindow:
         record.playing = playing
         return True
 
+    def voice_failed(self) -> bool:
+        """The agent's voice failed; say whether it turned unavailable just now."""
+        turned = self._voice is not WindowVoice.UNAVAILABLE
+        self._voice = WindowVoice.UNAVAILABLE
+        return turned
+
+    def voice_worked(self) -> bool:
+        """The agent's voice made a sound; say whether that turned an unavailable voice available again."""
+        turned = self._voice is WindowVoice.UNAVAILABLE
+        if turned:
+            self._voice = WindowVoice.AVAILABLE
+        return turned
+
     def read(self) -> WindowRead:
         lines = tuple(line for line, _ in self._lines)
         record = self._talked_over
         talked_over = (
             None if record is None else WindowTalkedOver(record.id, record.playing, tuple(record.partials.values()))
         )
-        return WindowRead(self._generation, lines[0].seq if lines else self._next_seq, lines, talked_over)
+        return WindowRead(self._generation, lines[0].seq if lines else self._next_seq, lines, talked_over, self._voice)
 
 
 @dataclass
