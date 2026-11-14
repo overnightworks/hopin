@@ -7,8 +7,7 @@ from playwright.sync_api import expect
 
 from hopin.participation.jpeg import size_of
 from hopin.participation.vocabulary import LOOK_MAX_PIXELS
-from hopin.words import text
-from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, SEE_SWITCH_ON_A_TILE, room_of_link
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -18,7 +17,6 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-SWITCH_NAME = text("de", "tile.seeSwitchLabel")
 CAMERA_BUTTON = "#videoBtn"
 LOOK_MARK = AGENT_TILE + " .look-mark"
 JPEG_MEDIA_TYPE = "image/jpeg"
@@ -37,7 +35,7 @@ class Sponsor:
 
     @property
     def switch(self) -> Any:
-        return self.page.get_by_role("switch", name=SWITCH_NAME)
+        return self.page.locator(SEE_SWITCH_ON_A_TILE)
 
     def switch_on(self) -> None:
         self.switch.click()
@@ -65,7 +63,7 @@ def test_the_switch_starts_off_on_the_sponsors_tile_of_the_agent_and_no_other_pa
     expect(sponsor.switch).to_have_attribute("aria-checked", "false")
     for other in (sponsor.scene.host, sponsor.scene.member):
         expect(other.locator(AGENT_TILE)).to_have_count(1)
-        expect(other.get_by_role("switch", name=SWITCH_NAME)).to_have_count(0)
+        expect(other.locator(SEE_SWITCH_ON_A_TILE)).to_have_count(0)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

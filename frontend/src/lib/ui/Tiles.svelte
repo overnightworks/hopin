@@ -5,7 +5,6 @@
     import { words } from "#lib/words/de.ts";
     import { sourceLanguage } from "#lib/words/index.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
-    import SeeSwitch from "#lib/ui/SeeSwitch.svelte";
     import { agentFigure, agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
@@ -15,7 +14,13 @@
         [AGENT_ACTIVITY.PRESENT]: words["tile.agentPresentLabel"],
     };
 
+    // Under this width the narrowest hearing chip no longer fits beside the remove button; hopin.css moves the chips
+    // into the tile's corners and the see chip shrinks to its track.
+    // A tile not yet measured has no width, and Number(undefined) is NaN, which is never narrow.
+    const NARROW_TILE_WIDTH = 131;
+
     let kitWords = $state<KitWords>();
+    let agentTileWidths = $state<Record<string, number>>({});
     onMount(async () => {
         kitWords = await loadKitWords(sourceLanguage);
     });
@@ -57,7 +62,9 @@
     {@const tileClass = "tile agent activity-" + agent.activity}
     {@const tileId = "container-" + key}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
+    {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
     <div
+        bind:clientWidth={agentTileWidths[key]}
         class={tileClass}
         class:speaking={agent.activity === AGENT_ACTIVITY.SPEAKING}
         id={tileId}
@@ -82,9 +89,9 @@
             >
             <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
-        {#if (agent.hearing !== undefined && kitWords !== undefined) || agent.seeing !== undefined}
-            <div class="hear-set">
-                {#if agent.hearing !== undefined && kitWords !== undefined}
+        {#if kitWords !== undefined && (agent.hearing !== undefined || agent.seeing !== undefined)}
+            <div class="hear-set" class:narrow>
+                {#if agent.hearing !== undefined}
                     <HearingSwitch
                         kind="hear"
                         on={agent.hearing.on}
@@ -93,7 +100,13 @@
                     />
                 {/if}
                 {#if agent.seeing !== undefined}
-                    <SeeSwitch on={agent.seeing.on} onChange={agent.seeing.onChange} />
+                    <HearingSwitch
+                        kind="see"
+                        on={agent.seeing.on}
+                        onChange={agent.seeing.onChange}
+                        words={kitWords}
+                        compact={narrow}
+                    />
                 {/if}
             </div>
         {/if}
