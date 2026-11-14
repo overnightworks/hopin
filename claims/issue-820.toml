@@ -1,0 +1,8 @@
+claim_id = "30b6848b399d4df2b27e1f5641e5f715"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "4c3e3d963d00decc03c513dee3e76962e6c1bd23"
+branch = "claude/issue-820-look-releases-camera"
+scope = ["frontend/src/lib/call/picture.ts", "frontend/src/lib/features/participation", "src/hopin/web/static/assets/css/hopin.css", "tests/e2e/skat/test_skat_agent_hearing.py"]
+opened_commit = "1fbc1ec293c58ced8a944ef22154f4ba5865b392"
+whole_reason = "The three are the browser half of one look and share its answer window and tile."
