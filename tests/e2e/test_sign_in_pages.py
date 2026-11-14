@@ -6,7 +6,15 @@ import pytest
 from design.words import text as kit_text
 from playwright.sync_api import Page, Route, expect
 
-from hopin.config.constants import AUTH_CALLBACK_PATH, AUTH_START_PATH, LOGIN_PATH, LOGOUT_PATH, NO_ACCESS_PATH
+from hopin.config.constants import (
+    APP_ASSET_PATH,
+    AUTH_CALLBACK_PATH,
+    AUTH_START_PATH,
+    IMMUTABLE_ASSET_DIRECTORY,
+    LOGIN_PATH,
+    LOGOUT_PATH,
+    NO_ACCESS_PATH,
+)
 from tests.e2e.support.calls import record_page_errors
 from tests.e2e.support.page_assertions import (
     LEGAL_LINKS,
@@ -247,7 +255,7 @@ def test_a_built_sign_in_page_runs_no_script_and_carries_no_inline_style_handler
 
 
 @pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)
-def test_a_built_sign_in_page_links_the_built_kit_stylesheet_before_hopin_css(
+def test_a_built_sign_in_page_links_every_stylesheet_and_icon_from_the_builds_immutable_files(
     open_person: Callable[..., Page], e2e_server: RunningServer, page_errors: list[str], path: str
 ) -> None:
     person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
@@ -255,10 +263,12 @@ def test_a_built_sign_in_page_links_the_built_kit_stylesheet_before_hopin_css(
     assert response is not None
 
     inventory = inventory_of(response.body().decode("utf-8"))
-    hopin_position = next(i for i, href in enumerate(inventory.stylesheets) if href.endswith("/hopin.css"))
-    kit_positions = [i for i, href in enumerate(inventory.stylesheets) if href.startswith("/_app/")]
-    assert kit_positions
-    assert max(kit_positions) < hopin_position
+    assert inventory.stylesheets
+    assert inventory.icons
+    assert all(
+        href.startswith(f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/")
+        for href in [*inventory.stylesheets, *inventory.icons]
+    )
 
 
 @pytest.mark.parametrize("path", BUILT_SIGN_IN_PAGES)

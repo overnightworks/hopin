@@ -14,12 +14,11 @@ from hopin.web.ice_servers import (
     TurnRelayUnavailableError,
     create_ice_servers_router,
 )
-from hopin.web.routes import STATIC_DIR
 
 pytestmark = pytest.mark.integration
 
 ICE_URL_PATTERN = re.compile(r"\b(stuns?|turns?):", re.IGNORECASE)
-PAGE_SOURCE_DIRECTORIES = (STATIC_DIR, Path(__file__).parents[2] / "frontend" / "src")
+PAGE_SOURCE_DIRECTORIES = (Path(__file__).parents[2] / "frontend" / "src",)
 
 
 STUN_SERVER = "stun:stun.example.test:3478"

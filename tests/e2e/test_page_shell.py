@@ -1,9 +1,11 @@
 """The home page's static guards, judged on the DOM the browser built from the SvelteKit shell and its layout."""
 
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
+import design
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -12,9 +14,7 @@ from hopin.config.constants import (
     APP_ASSET_PATH,
     IMMUTABLE_ASSET_DIRECTORY,
     LOGOUT_PATH,
-    STATIC_PATH,
 )
-from hopin.web.routes import STATIC_DIR
 from hopin.words import text
 from tests.e2e.support.people import DESKTOP
 from tests.support.page_inventory import (
@@ -30,7 +30,8 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-HOPIN_STYLESHEET = STATIC_DIR / "assets" / "css" / "hopin.css"
+HOPIN_STYLESHEET = Path(__file__).parents[2] / "frontend" / "src" / "lib" / "assets" / "hopin.css"
+KIT_STYLESHEET = Path(design.__file__).parent / "static" / "design.css"
 CSS_CUSTOM_PROPERTY_DEFINITION = re.compile(r"(--[\w-]+)\s*:")
 CSS_COLOR_SCHEME_DECLARATION = re.compile(r"(?<![\w-])color-scheme\s*:")
 ANNOUNCER_STYLE_AS_COMPUTED = """
@@ -69,24 +70,21 @@ def test_the_home_page_posts_one_same_origin_form_to_log_out_from_the_account_me
     assert home_inventory.submit_buttons == 1
 
 
-def test_the_home_page_loads_the_built_kit_then_hopin_then_the_built_component_styles(
+def test_the_home_page_links_every_stylesheet_and_icon_from_the_builds_immutable_files(
     home_inventory: PageInventory,
 ) -> None:
-    kit, hopin, *built = home_inventory.stylesheets
-    assert hopin == f"{STATIC_PATH}/css/hopin.css"
+    assert home_inventory.stylesheets
+    assert home_inventory.icons
     assert all(
         urlsplit(href).path.startswith(f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/assets/")
-        for href in [kit, *built]
+        for href in [*home_inventory.stylesheets, *home_inventory.icons]
     )
 
 
 def test_hopin_defines_no_token_and_no_color_scheme_the_built_kit_owns(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
-    page = open_person(**DESKTOP)
-    page.goto(f"{base_url}/")
-    served = [page.request.get(f"{base_url}{href}").text() for href in inventory_of(page.content()).stylesheets[:1]]
-    kit_tokens = {token for css in served for token in CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", css))}
+    kit_tokens = set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(CSS_COMMENT.sub("", KIT_STYLESHEET.read_text())))
     hopin = CSS_COMMENT.sub("", HOPIN_STYLESHEET.read_text())
     assert kit_tokens
     assert set(CSS_CUSTOM_PROPERTY_DEFINITION.findall(hopin)) & kit_tokens == set()

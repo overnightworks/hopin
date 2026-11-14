@@ -13,7 +13,6 @@ from hopin.config.constants import (
     IMMUTABLE_ASSET_CACHE_CONTROL,
     IMMUTABLE_ASSET_DIRECTORY,
     READ_METHODS,
-    STATIC_PATH,
     WEBSOCKET_PATH,
 )
 from hopin.web.page_build import built_page_response
@@ -25,9 +24,6 @@ if TYPE_CHECKING:
 
     from hopin.signaling.handler import SignalingHandler
     from hopin.web.page_build import PageBuild
-
-STATIC_DIR = Path(__file__).parent / "static"
-ASSETS_DIR = STATIC_DIR / "assets"
 
 
 class _PageBuildFiles(StaticFiles):
@@ -65,7 +61,6 @@ def create_router(signaling_handler: SignalingHandler, page_build: PageBuild) ->
     def call_page() -> Response:
         return shell()
 
-    router.mount(STATIC_PATH, StaticFiles(directory=ASSETS_DIR), name="assets")
     router.mount(APP_ASSET_PATH, _PageBuildFiles(page_build.app_directory), name="page-build")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)
     return router

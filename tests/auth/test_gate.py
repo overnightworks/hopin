@@ -43,6 +43,7 @@ from tests.support.page_build import (
     FIXTURE_SCRIPT_HASH,
     IMMUTABLE_FILE,
     SIGN_IN_FONT,
+    SIGN_IN_ICON,
     SIGN_IN_STYLESHEET,
     VERSION_FILE,
     fixture_page_build,
@@ -60,9 +61,6 @@ if TYPE_CHECKING:
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
-STYLESHEETS = ["/static/css/hopin.css"]
-FAVICON = "/static/img/hopin.svg"
-STATIC_FILES = [*STYLESHEETS, FAVICON]
 LOOKALIKE_PATHS = [
     "/health/",
     "/HEALTH",
@@ -72,9 +70,8 @@ LOOKALIKE_PATHS = [
     "/login/",
     "/LOGIN",
     "/no-access/x",
-    "/static/img/hopin.svg/",
-    "/static/img/hopin.svgx",
-    "/static/img/other.svg",
+    f"{SIGN_IN_ICON}/",
+    f"{SIGN_IN_ICON}x",
     f"{SIGN_IN_STYLESHEET}/",
     f"{SIGN_IN_STYLESHEET}x",
     f"{SIGN_IN_FONT}/",
@@ -190,7 +187,7 @@ class TestSignedOut:
         assert response.status_code == 303
         assert response.headers["location"].startswith(TEST_ISSUER)
 
-    @pytest.mark.parametrize("path", [*STYLESHEETS, SIGN_IN_STYLESHEET, *SIGN_IN_PAGES])
+    @pytest.mark.parametrize("path", [SIGN_IN_STYLESHEET, *SIGN_IN_PAGES])
     def test_the_sign_in_pages_and_their_stylesheets_are_public(self, application, path):
         assert application.get(path, **BROWSER_ACCEPT).status_code == 200
 
@@ -207,7 +204,7 @@ class TestSignedOut:
         assert (response.status_code, response.headers["content-type"]) == (200, "font/woff2")
 
     def test_the_favicon_loads_signed_out_as_an_svg(self, application):
-        response = application.get(FAVICON, **BROWSER_ACCEPT)
+        response = application.get(SIGN_IN_ICON, **BROWSER_ACCEPT)
         assert (response.status_code, response.headers["content-type"]) == (200, "image/svg+xml")
 
     @pytest.mark.parametrize("path", LOOKALIKE_PATHS)
@@ -427,18 +424,12 @@ class TestBackchannelLogout:
 
 
 class TestRevalidation:
-    @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access", VERSION_FILE, *STATIC_FILES])
-    def test_every_page_and_static_file_answers_no_cache_with_its_etag(self, application, path):
+    @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access", VERSION_FILE])
+    def test_every_page_and_the_version_file_answers_no_cache_with_its_etag(self, application, path):
         member = application.seed()
         with hosted_room(application, member) as room_id:
             response = application.get(path.replace("abc", room_id), member, **BROWSER_ACCEPT)
         assert (response.headers["cache-control"], "etag" in response.headers) == ("no-cache", True)
-
-    @pytest.mark.parametrize("path", STATIC_FILES)
-    def test_a_static_file_still_answers_304_to_its_etag(self, application, path):
-        member = application.seed()
-        etag = application.get(path, member).headers["etag"]
-        assert application.get(path, member, **{"if-none-match": etag}).status_code == 304
 
     def test_the_admitted_callback_that_sets_the_session_cookie_is_never_stored(self, application):
         start = application.get(AUTH_START_PATH, **BROWSER_ACCEPT)
@@ -549,7 +540,7 @@ class TestSecurityHeaders:
             ("GET", AUTH_CALLBACK_PATH, False, {}, 403),
             *[
                 ("GET", path, False, BROWSER_ACCEPT, 200)
-                for path in [*STYLESHEETS, *SIGN_IN_PAGES, SIGN_IN_STYLESHEET, SIGN_IN_FONT]
+                for path in [*SIGN_IN_PAGES, SIGN_IN_STYLESHEET, SIGN_IN_FONT, SIGN_IN_ICON]
             ],
             ("POST", LOGOUT_PATH, False, CROSS_SITE_FORM_POST, 403),
             *[("GET", path, False, BROWSER_ACCEPT, 302) for path in LOOKALIKE_PATHS],
