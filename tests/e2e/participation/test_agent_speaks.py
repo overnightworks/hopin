@@ -1,5 +1,6 @@
 import re
 import time
+from contextlib import ExitStack
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -10,7 +11,7 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from hopin.participation.vocabulary import VOICE_RECOVERY_SECONDS
+from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
@@ -39,6 +40,8 @@ pytestmark = pytest.mark.e2e
 
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
 AGENT_LINE = "#chatMessages .chat-msg:has(.participation-agent-sender)"
+ABORTED_VOICE_FAILURE = "net::ERR_INCOMPLETE_CHUNKED_ENCODING"
+ABORTED_VOICE_CONSOLE_LINE = f"Failed to load resource: {ABORTED_VOICE_FAILURE}"
 SOUND_SECONDS = 1.0
 LONGER_SOUND_SECONDS = 5.0
 POLL_SECONDS = 0.2
@@ -140,6 +143,13 @@ class Speaker:
         place = PlaceRef(kind=CALL_KIND, id=self.room)
         return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
 
+    def speak_while_speech_breaks(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
+        """Say a sentence whose stream speech breaks in its second half once `finish_rendering` says so."""
+        first, rest = chunked_wav_in_two(silent_wav(seconds))
+        self.speech_origin.serve(SPEECH_PATH, first, later=rest[: len(rest) // 2])
+        place = PlaceRef(kind=CALL_KIND, id=self.room)
+        return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+
     def speech_has_rendered_the_rest(self) -> bool:
         return self.speech_origin.resumed[SPEECH_PATH].is_set()
 
@@ -216,6 +226,45 @@ def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_render
     for person in everyone:
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
         assert speaker.started(person) == [SOUND_SECONDS]
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS[:1])
+def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_only_the_aborted_voice(
+    speaker: Speaker, e2e_server: RunningServer, expected_request_failures: list[str]
+) -> None:
+    """CALL-61: A stream that breaks after its first chunk ends the sentence that already sounds: every browser's voice
+    response aborts, which is the one error its console logs, the tile shows present again and the agent's window holds
+    the sentence as a cut line."""
+    everyone = speaker.scene.everyone
+    expected_request_failures.append(f"{e2e_server.base_url}{VOICE_PATH}/")
+    console_errors: list[str] = []
+    aborted_voices: list[str] = []
+    for person in everyone:
+        person.on("console", lambda message: message.type == "error" and console_errors.append(message.text))
+        person.on("requestfailed", lambda request: aborted_voices.append(f"{request.url}: {request.failure}"))
+
+    answered = speaker.speak_while_speech_breaks(SOUND_SECONDS)
+
+    assert answered.result(REQUEST_SECONDS) == {"spoken": True}
+    for person in everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    with ExitStack() as aborts:
+        for person in everyone:
+            aborts.enter_context(person.expect_event("requestfailed"))
+            aborts.enter_context(person.expect_console_message(lambda message: message.type == "error"))
+        speaker.finish_rendering()
+
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+    assert (
+        console_errors,
+        [failure.partition(": ")[2] for failure in aborted_voices if VOICE_PATH in failure],
+        [(line["text"], line["spoken"], line["cut"]) for line in speaker.window()["entries"]],
+    ) == (
+        [ABORTED_VOICE_CONSOLE_LINE] * len(everyone),
+        [ABORTED_VOICE_FAILURE] * len(everyone),
+        [("Guten Tag", True, True)],
+    )
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
