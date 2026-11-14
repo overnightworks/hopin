@@ -16,6 +16,7 @@ from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     SpeakFallback,
+    SpeakStarted,
     SpeakStop,
     VoiceFailure,
 )
@@ -40,21 +41,22 @@ class RenderedSentence:
     duration_ms: int
 
 
-type SpeakResult = int | AgentRefusal | SpeakStop | SpeakFallback
-"""How long a sentence plays once it starts, that it was written instead, or why it never is said."""
+type SpeakResult = SpeakStarted | AgentRefusal | SpeakStop | SpeakFallback
+"""That a sentence started to play, that it was written instead, or why it never is said."""
 
 type StopResult = str | AgentRefusal | SpeakStop
 """The text of the line a stop cut, or why nothing was cut."""
 
-type Renderer = Callable[[str, str | None], Awaitable[RenderedSentence | VoiceFailure | None]]
-"""Makes the sound of a sentence in the voice its agent kept at accept (none for the configured one); why the voice
-failed when it cannot; nothing when the agent may not speak, which no failure of the voice explains."""
+type Renderer = Callable[[str, tuple[str, ...]], Awaitable[RenderedSentence | VoiceFailure | None]]
+"""Makes the sound of a sentence in the first of the voices its agent kept at accept that the speech service offers
+(none kept for the configured voice); why the voice failed when it cannot; nothing when the agent may not speak, which
+no failure of the voice explains."""
 
 
 @dataclass(frozen=True)
 class QueuedSentence:
     """A sentence that waits or plays: its text, its sound's place in the store, how long it plays and its speaker's
-    answer, which is how long it plays once it starts, or why it never does."""
+    answer, which is that it started, or why it never does."""
 
     text: str
     voice: StoredVoice
@@ -116,14 +118,14 @@ class Speaking:
 
     async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> SpeakResult:
         """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
-        before it. Answers when it starts how long it plays, that it was written when its voice failed, or why it never
+        before it. Answers when it starts that it plays, that it was written when its voice failed, or why it never
         does: no sound came for a reason that is no failure of the voice, a stop dropped it while it was rendered or
         waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue())
         stops = queue.stops
         queue.rendering += 1
         try:
-            rendered = await render(text, agent.voice)
+            rendered = await render(text, agent.voices)
         finally:
             queue.rendering -= 1
         if rendered is None:
@@ -212,7 +214,7 @@ class Speaking:
     def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> Awaitable[None]:
         """Start the sentence's length and answer its speaker now; the returned announcement shows it."""
         queue.playing = sentence
-        _answer(sentence, sentence.duration_ms)
+        _answer(sentence, SpeakStarted.SPOKEN)
         delay = sentence.duration_ms / MILLISECONDS_PER_SECOND
         queue.timer = self._scheduler.call_later(delay, partial(self._played, agent, sentence))
         return self._start(agent, sentence)

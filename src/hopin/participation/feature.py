@@ -181,7 +181,7 @@ class Participation:
         return None
 
     async def speak(self, person: Person, room_id: str, text: str, render: Renderer | None) -> SpeakResult:
-        """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer how long
+        """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer that
         it plays when the sentence starts, not when it is queued; the refusal when the agent holds no active place
         there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, or an
         end of its speaking meanwhile; a sound that could not be made is written as a line instead."""
@@ -272,10 +272,10 @@ class Participation:
         invitation_id: str,
         epoch: int,
         figure: Figure | None,
-        voice: str | None = None,
+        voices: tuple[str, ...] = (),
     ) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
-        shows the figure only when an allowed source holds it, and the agent keeps `voice` for its sentences."""
+        shows the figure only when an allowed source holds it, and the agent keeps `voices` for its sentences."""
         live = self._live.by_person.get(person)
         invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
         if live is None or invitation is None:
@@ -292,7 +292,7 @@ class Participation:
             invitation.sponsor,
             room_id,
             figure if refusal is None else None,
-            voice,
+            voices,
         )
         if not self._takes_place(agent):
             return AgentRefusal.BUSY

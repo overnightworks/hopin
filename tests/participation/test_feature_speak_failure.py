@@ -12,6 +12,7 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     ParticipationSignal,
     SpeakFallback,
+    SpeakStarted,
     SpeakStop,
     VoiceFailure,
 )
@@ -102,7 +103,7 @@ class TestAVoiceThatFails:
 
         await scheduler.advance(SENTENCE_MS / 1000)
 
-        assert (await written, await spoken) == (SpeakFallback.WRITTEN, SENTENCE_MS)
+        assert (await written, await spoken) == (SpeakFallback.WRITTEN, SpeakStarted.SPOKEN)
 
     @pytest.mark.parametrize("speaker_gave_up", [False, True])
     async def test_call_61_a_line_that_cannot_be_written_fails_its_speaker_and_the_queue_goes_on(
@@ -129,7 +130,7 @@ class TestAVoiceThatFails:
 
         with pytest.raises(asyncio.CancelledError if speaker_gave_up else RuntimeError):
             await unwritten
-        assert await spoken == SENTENCE_MS
+        assert await spoken == SpeakStarted.SPOKEN
 
     async def test_call_61_a_stop_drops_a_written_sentence_waiting_and_the_playing_one_stays_a_cut_spoken_line(
         self, participation, call

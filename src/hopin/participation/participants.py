@@ -37,8 +37,8 @@ class Caller:
 @dataclass(frozen=True)
 class DialedAgent:
     """An agent in a call. Its person is whose token it uses; its sponsor is the seat that decides where it may be and
-    when it goes. Today both are the one person who dialed it in. Its voice is the speech voice its accept named and
-    the connector knows, or none, which keeps the configured one."""
+    when it goes. Today both are the one person who dialed it in. Its voices are the speech voices its accept named
+    and the connector knows, first choice first, or none, which keeps the configured one."""
 
     agent_id: str
     name: str
@@ -46,7 +46,7 @@ class DialedAgent:
     sponsor: PeerId
     room_id: str
     figure: Figure | None = None
-    voice: str | None = None
+    voices: tuple[str, ...] = ()
 
 
 type DialOutcome = DialedAgent | AgentRefusal

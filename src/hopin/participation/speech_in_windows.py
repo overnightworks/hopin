@@ -55,8 +55,8 @@ class SpeechInWindows:
         failure turns the voice unavailable and logs that once until a sound turns it available again. A sentence that
         was refused for a reason that is no failure of the voice changes nothing."""
 
-        async def watched(text: str, voice: str | None) -> RenderedSentence | VoiceFailure | None:
-            rendered = await render(text, voice)
+        async def watched(text: str, voices: tuple[str, ...]) -> RenderedSentence | VoiceFailure | None:
+            rendered = await render(text, voices)
             if rendered is not None:
                 self._voice_rendered(agent, rendered)
             return rendered

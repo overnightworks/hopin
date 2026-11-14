@@ -8,13 +8,12 @@ from speech_client.wire import RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from hopin.participation.speaking import MILLISECONDS_PER_SECOND
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.dialed_call import window_uri
 from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, refusal_answer, silent_wav, speaking
+from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, refusal_answer, silent_wav, speaking
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -58,6 +57,7 @@ RECORD_PLAYBACK = """
 @pytest.fixture(scope="module")
 def speech_origin() -> Iterator[Origin]:
     origin = Origin()
+    offering(origin, *VoiceId)
     yield origin
     origin.close()
 
@@ -161,7 +161,7 @@ def test_an_agents_sentences_sound_once_each_in_order_in_every_browser_and_its_t
         person.wait_for_function("() => window.soundsStarted.length === 3", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert speaker.started(person) == [SOUND_SECONDS, *LATER_SOUND_SECONDS]
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
-    assert behind_answer.result(REQUEST_SECONDS) == {"duration_ms": round(behind_it * MILLISECONDS_PER_SECOND)}
+    assert behind_answer.result(REQUEST_SECONDS) == {"spoken": True}
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

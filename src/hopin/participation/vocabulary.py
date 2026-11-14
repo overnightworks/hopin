@@ -113,6 +113,12 @@ class SpeakStop(StrEnum):
     NOTHING_PLAYING = "nothing_playing"
 
 
+class SpeakStarted(StrEnum):
+    """How a sentence whose sound was made was said: it started to play."""
+
+    SPOKEN = "spoken"
+
+
 class SpeakFallback(StrEnum):
     """How a sentence whose voice failed before it started was said instead: as a line of the chat."""
 

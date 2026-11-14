@@ -36,9 +36,11 @@ from tests.support.speech_origin import (
     failures_in,
     header_of,
     not_chunked_answer,
+    offering,
     refusal_answer,
     silent_wav,
     speaking,
+    speech_requests,
     spoken_request,
     with_data_size,
     with_sample_rate,
@@ -63,6 +65,7 @@ failures_of = partial(failures_in, event=FAILED)
 @pytest.fixture
 def speech_origin():
     origin = Origin()
+    offering(origin, *VoiceId)
     speaking(origin, chunked_wav(SOUND))
     yield origin
     origin.close()
@@ -148,7 +151,7 @@ class TestSpeaking:
         return speak(joined_agent)
 
     def test_call_60_it_answers_spoken_with_the_length_of_the_sound(self, spoken):
-        assert (spoken.is_error, spoken.outcome) == (False, {"duration_ms": SENTENCE_MS})
+        assert (spoken.is_error, spoken.outcome) == (False, {"spoken": True})
 
     def test_call_60_a_sentence_behind_the_playing_one_answers_when_the_clock_has_run_out_its_length(
         self, joined_agent, speaking_behind
@@ -166,7 +169,7 @@ class TestSpeaking:
             True,
             True,
             False,
-            {"duration_ms": SENTENCE_MS},
+            {"spoken": True},
         )
 
     def test_call_60_every_seat_gets_one_voice_and_the_sound_is_served_no_store_to_a_seat_of_the_room(
@@ -202,7 +205,7 @@ class TestSpeaking:
     ):
         issuer = joined_agent.call.issuer
 
-        [request] = speech_origin.requests
+        [request] = speech_requests(speech_origin)
         [held] = issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT)
         [workload] = issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)
         assert (
@@ -219,7 +222,7 @@ class TestSpeaking:
 
         dialed = speak(joined_agent)
 
-        assert (dialed.is_error, dialed.outcome) == (False, {"duration_ms": SENTENCE_MS})
+        assert (dialed.is_error, dialed.outcome) == (False, {"spoken": True})
 
     @pytest.mark.parametrize(
         "text",
@@ -239,8 +242,8 @@ class TestSpeaking:
 
 class TestTheVoiceOfASentence:
     @pytest.fixture
-    def accepted_voice(self):
-        return VoiceId.KERSTIN
+    def accepted_voices(self):
+        return (VoiceId.KERSTIN,)
 
     def test_call_60_each_agent_speaks_with_the_voice_its_accept_named_and_one_that_named_none_with_the_configured_one(
         self, joined_agent, speech_origin
@@ -250,7 +253,7 @@ class TestTheVoiceOfASentence:
         speak(joined_agent)
         speak(joined_agent, token=joined_agent.second_token)
 
-        assert [spoken_request(request).voice for request in speech_origin.requests] == [
+        assert [spoken_request(request).voice for request in speech_requests(speech_origin)] == [
             VoiceId.KERSTIN,
             VoiceId.THORSTEN,
         ]
@@ -263,7 +266,78 @@ class TestTheVoiceOfASentence:
         joined_agent.call.pass_time(SENTENCE_SECONDS)
         second.result(timeout=ANSWER_SECONDS)
 
-        assert [spoken_request(request).voice for request in speech_origin.requests] == [VoiceId.KERSTIN] * 2
+        assert [spoken_request(request).voice for request in speech_requests(speech_origin)] == [VoiceId.KERSTIN] * 2
+
+
+def spoken_voices(origin):
+    return [spoken_request(request).voice for request in speech_requests(origin)]
+
+
+class TestTheVoicesOfAnAgent:
+    @pytest.fixture
+    def accepted_voices(self):
+        return (VoiceId.RYAN, VoiceId.THORSTEN)
+
+    def test_call_60_the_sentence_is_spoken_with_the_first_voice_of_the_list_that_speech_offers(
+        self, joined_agent, speech_origin
+    ):
+        speak(joined_agent)
+
+        assert spoken_voices(speech_origin) == [VoiceId.RYAN]
+
+    def test_call_60_the_next_voice_of_the_list_speaks_once_the_first_is_not_offered_and_no_restart_is_needed(
+        self, joined_agent, speech_origin
+    ):
+        first = speak(joined_agent)
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
+        offering(speech_origin, VoiceId.THORSTEN)
+
+        second = speak(joined_agent)
+
+        assert ((first.is_error, second.is_error), spoken_voices(speech_origin)) == (
+            (False, False),
+            [VoiceId.RYAN, VoiceId.THORSTEN],
+        )
+
+    def test_call_60_a_voice_that_is_offered_but_not_ready_is_passed_over(self, joined_agent, speech_origin):
+        offering(speech_origin, VoiceId.THORSTEN, unready=(VoiceId.RYAN,))
+
+        speak(joined_agent)
+
+        assert spoken_voices(speech_origin) == [VoiceId.THORSTEN]
+
+    def test_call_61_a_list_with_no_voice_offered_is_written_and_the_window_states_the_voice_unavailable(
+        self, joined_agent, speech_origin
+    ):
+        offering(speech_origin, VoiceId.KERSTIN)
+
+        dialed = speak(joined_agent)
+
+        assert (dialed.outcome, spoken_voices(speech_origin), joined_agent.window()["voice_state"]) == (
+            {"written": True},
+            [],
+            "unavailable",
+        )
+
+    def test_call_60_an_agent_whose_accept_named_no_voice_speaks_with_the_configured_voice_whatever_the_others_name(
+        self, joined_agent, speech_origin
+    ):
+        joined_agent.add_second_agent()
+
+        speak(joined_agent, token=joined_agent.second_token)
+
+        assert spoken_voices(speech_origin) == [VoiceId.THORSTEN]
+
+    def test_call_60_an_agent_whose_accept_names_a_voice_speech_does_not_know_first_speaks_with_the_next_one(
+        self, scene, speech_origin
+    ):
+        scene.invite()
+        scene.accept(scene.standings()[0], voices=[UNKNOWN_VOICE, VoiceId.KERSTIN])
+        scene.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)
+
+        speak(scene)
+
+        assert spoken_voices(speech_origin) == [VoiceId.KERSTIN]
 
 
 class TestTheLanguageOfASentence:
@@ -284,7 +358,7 @@ class TestTheLanguageOfASentence:
     ):
         dialed = speak(joined_agent, **named)
 
-        [request] = speech_origin.requests
+        [request] = speech_requests(speech_origin)
         assert (dialed.is_error, spoken_request(request).language) == (False, spoken_in)
 
     @pytest.mark.parametrize("language", ["fr", "zz", "DE", "german", ""])
@@ -293,7 +367,7 @@ class TestTheLanguageOfASentence:
     ):
         dialed = speak(joined_agent, language=language)
 
-        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "language_unavailable"}), [])
+        assert (refusal_of(dialed), speech_requests(speech_origin)) == ((True, {"refused": "language_unavailable"}), [])
         assert joined_agent.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT) == []
 
     def test_call_60_a_refused_language_leaves_the_agent_able_to_speak(self, joined_agent, speech_origin):
@@ -301,14 +375,14 @@ class TestTheLanguageOfASentence:
 
         dialed = speak(joined_agent, language="en")
 
-        assert (dialed.is_error, len(speech_origin.requests)) == (False, 1)
+        assert (dialed.is_error, len(speech_requests(speech_origin))) == (False, 1)
 
     def test_call_60_a_sentence_for_an_inactive_agent_is_not_active_whatever_language_it_names(
         self, joined_agent, speech_origin
     ):
         dialed = speak(joined_agent, room_id="no-such-room", language="zz")
 
-        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "not_active"}), [])
+        assert (refusal_of(dialed), speech_requests(speech_origin)) == ((True, {"refused": "not_active"}), [])
 
 
 class TestTheStyleOfASentence:
@@ -319,13 +393,13 @@ class TestTheStyleOfASentence:
     def test_call_60_the_style_reaches_speech_as_the_instructions_unchanged(self, joined_agent, speech_origin):
         dialed = speak(joined_agent, style="louder and angrier")
 
-        [request] = speech_origin.requests
+        [request] = speech_requests(speech_origin)
         assert (dialed.is_error, spoken_request(request).instructions) == (False, "louder and angrier")
 
     def test_call_60_a_sentence_without_a_style_asks_speech_for_no_instructions(self, joined_agent, speech_origin):
         speak(joined_agent)
 
-        [request] = speech_origin.requests
+        [request] = speech_requests(speech_origin)
         assert spoken_request(request).instructions is None
 
     @pytest.mark.parametrize("style", ["x" * 501, "!!!", "", "   "], ids=["too_long", "no_letter", "empty", "blank"])
@@ -335,7 +409,7 @@ class TestTheStyleOfASentence:
         refused = speak(joined_agent, style=style)
 
         after = speak(joined_agent)
-        assert (refusal_of(refused), after.is_error, len(speech_origin.requests)) == (
+        assert (refusal_of(refused), after.is_error, len(speech_requests(speech_origin))) == (
             (True, {"refused": "style_unavailable"}),
             False,
             1,
@@ -355,7 +429,7 @@ class TestAVoiceThatTakesNoStyle:
     ):
         dialed = speak(joined_agent, style="louder")
 
-        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "style_unavailable"}), [])
+        assert (refusal_of(dialed), speech_requests(speech_origin)) == ((True, {"refused": "style_unavailable"}), [])
 
 
 class TestStoppingASentence:
@@ -406,13 +480,13 @@ class TestStoppingASentence:
 
         again = speak(joined_agent)
 
-        assert (again.is_error, again.outcome) == (False, {"duration_ms": SENTENCE_MS})
+        assert (again.is_error, again.outcome) == (False, {"spoken": True})
 
 
 class TestTheLanguageOfAnAgentWithAVoiceOfItsOwn:
     @pytest.fixture
-    def accepted_voice(self):
-        return VoiceId.NORMAN
+    def accepted_voices(self):
+        return (VoiceId.NORMAN,)
 
     def test_call_60_a_voice_the_accept_named_decides_which_language_it_speaks_not_the_configured_one(
         self, joined_agent, speech_origin
@@ -420,7 +494,11 @@ class TestTheLanguageOfAnAgentWithAVoiceOfItsOwn:
         german = speak(joined_agent)
         english = speak(joined_agent, language="en")
 
-        assert (refusal_of(german), english.is_error, [spoken_request(r).language for r in speech_origin.requests]) == (
+        assert (
+            refusal_of(german),
+            english.is_error,
+            [spoken_request(r).language for r in speech_requests(speech_origin)],
+        ) == (
             (True, {"refused": "language_unavailable"}),
             False,
             [Language.EN],
@@ -429,15 +507,15 @@ class TestTheLanguageOfAnAgentWithAVoiceOfItsOwn:
 
 class TestAVoiceSpeechDoesNotName:
     @pytest.fixture
-    def accepted_voice(self):
-        return UNKNOWN_VOICE
+    def accepted_voices(self):
+        return (UNKNOWN_VOICE,)
 
     def test_call_60_the_agent_joins_and_speaks_with_the_configured_voice_and_the_log_holds_a_closed_code_and_no_name(
         self, scene, speech_origin
     ):
         scene.invite()
         with structlog.testing.capture_logs() as logs:
-            accepted = scene.accept(scene.standings()[0], voice=UNKNOWN_VOICE)
+            accepted = scene.accept(scene.standings()[0], voices=[UNKNOWN_VOICE])
             scene.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)
         spoken = speak(scene)
 
@@ -445,7 +523,7 @@ class TestAVoiceSpeechDoesNotName:
         assert (
             accepted.is_error,
             spoken.is_error,
-            [spoken_request(request).voice for request in speech_origin.requests],
+            [spoken_request(request).voice for request in speech_requests(speech_origin)],
             [{key: value for key, value in log.items() if key not in {"event", "log_level"}} for log in unknown],
             UNKNOWN_VOICE in repr(logs),
         ) == (False, False, [VoiceId.THORSTEN], [{"room_id": scene.owner.room_id}], False)
@@ -514,7 +592,7 @@ class TestWhenTheSentenceCannotBeSpoken:
     ):
         dialed = speak(joined_agent, "x" * (SPEAK_MAX_CHARACTERS + 1))
 
-        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "too_long"}), [])
+        assert (refusal_of(dialed), speech_requests(speech_origin)) == ((True, {"refused": "too_long"}), [])
 
     def test_call_61_an_agent_with_no_held_token_is_unavailable_and_nothing_is_written(
         self, adding_call, joined_agent, speech_origin
@@ -534,7 +612,7 @@ class TestWhenTheSentenceCannotBeSpoken:
             failures_of(logs),
             failures_in(logs, VOICE_UNAVAILABLE),
             len(adding_call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)) - grants_before,
-            speech_origin.requests,
+            speech_requests(speech_origin),
             joined_agent.entries(),
             "voice_state" in joined_agent.window(),
             frames_of(joined_agent.member, LINE),
@@ -571,7 +649,7 @@ class TestWhenTheVoiceFails:
         with structlog.testing.capture_logs() as logs:
             written = speak(joined_agent)
 
-        assert (written.outcome, [log["outcome"] for log in failures_of(logs)], speech_origin.requests) == (
+        assert (written.outcome, [log["outcome"] for log in failures_of(logs)], speech_requests(speech_origin)) == (
             {"written": True},
             ["workload_token_refused"],
             [],
@@ -602,7 +680,7 @@ class TestWhenTheVoiceFails:
             len(failures_in(logs, VOICE_UNAVAILABLE)),
             recovered.outcome,
             len(failures_in(later_logs, VOICE_UNAVAILABLE)),
-        ) == (1, {"duration_ms": SENTENCE_MS}, 1)
+        ) == (1, {"spoken": True}, 1)
 
     def test_call_61_the_voice_is_stated_available_once_a_sound_follows_the_outage(self, joined_agent, speech_origin):
         speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
@@ -630,7 +708,7 @@ class TestASentenceWithNoText:
         with structlog.testing.capture_logs() as logs:
             dialed = joined_agent.call.call(joined_agent.token, SPEAK_TOOL, arguments)
 
-        assert (refusal_of(dialed), failures_of(logs), speech_origin.requests) == (
+        assert (refusal_of(dialed), failures_of(logs), speech_requests(speech_origin)) == (
             (True, {"refused": "unavailable"}),
             [{"outcome": "no_text"}],
             [],
@@ -648,7 +726,7 @@ class TestAPersonsOwnAgent:
 
         dialed = call.call(token, SPEAK_TOOL, {"place": place, "text": TEXT})
 
-        assert (refusal_of(dialed), speech_origin.requests) == ((True, {"refused": "unavailable"}), [])
+        assert (refusal_of(dialed), speech_requests(speech_origin)) == ((True, {"refused": "unavailable"}), [])
 
 
 class TestAServiceThatIsNotThere:

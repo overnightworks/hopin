@@ -33,7 +33,7 @@ from agents.member import (
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voice
+from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voices
 from hopin.participation.figures import Figure
 from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
@@ -322,19 +322,20 @@ def _text_of(arguments: JsonObject, name: str) -> str:
 
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
-        accepted = AcceptInvitationArguments.model_validate(arguments)
+        # The strict model reads a list of voices only as JSON, which the arguments are.
+        accepted = AcceptInvitationArguments.model_validate_json(json.dumps(arguments))
     except ValidationError:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
-    voice = known_voice(accepted.voice)
+    voices = known_voices(accepted.voices)
     outcome = await participation.accept(
-        caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voice
+        caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voices
     )
     if isinstance(outcome, AgentRefusal):
         return _accept_refused(AcceptInvitationRefusal(outcome.value))
-    if accepted.voice is not None and voice is None:
+    if len(voices) < len(accepted.voices or ()):
         await logger.ainfo(AGENT_VOICE_UNKNOWN_EVENT, room_id=accepted.place.id)
     return _joined_or_refused(outcome)
 
@@ -375,7 +376,7 @@ async def _spoken(
         return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
     if outcome is SpeakFallback.WRITTEN:
         return ToolOutcome(Written(written=True).model_dump_json(), is_error=False)
-    return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)
+    return ToolOutcome(Spoken(spoken=True).model_dump_json(), is_error=False)
 
 
 async def _stopped(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
