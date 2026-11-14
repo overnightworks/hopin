@@ -9,7 +9,7 @@ import math
 import threading
 from contextlib import closing
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, Protocol, assert_never, cast
+from typing import TYPE_CHECKING, Final, assert_never, cast
 
 import structlog
 from pydantic import ValidationError
@@ -54,22 +54,8 @@ HEALTH_MAX_BYTES: Final = 64 * 1024
 MILLISECONDS_PER_SECOND: Final = 1000
 
 
-class StreamSpeaker(Protocol):
-    """Opens the speech service's stream of a sentence, as the speech client's `speak_stream_with_preference` does."""
-
-    def __call__(
-        self,
-        base_url: str,
-        text: str,
-        preference: Sequence[VoiceId],
-        *,
-        language: Language | None,
-        instructions: str | None,
-        workload_token: str,
-        person_token: str,
-        deadline_seconds: float,
-        cap_bytes: int,
-    ) -> Generator[PreferenceStreamItem]: ...
+type StreamSpeaker = Callable[..., Generator[PreferenceStreamItem]]
+"""Opens the speech service's stream of a sentence, as the speech client's `speak_stream_with_preference` does."""
 
 
 class StyleUnavailableError(Exception):
