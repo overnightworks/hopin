@@ -22,7 +22,7 @@ Only members of the Keycloak group `/apps/hopin` use it. Why HopIn exists and wh
 
 You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the five required settings and the four required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
-Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start.
+Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start. `HOPIN_REDIS_URL` names a Redis that every HopIn process shares for its request budgets; a local `redis-server` is enough, and HopIn has no in-memory fallback.
 
 Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
 
