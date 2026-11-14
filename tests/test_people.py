@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.admission import AppRole
 from webauth.config import install_web_auth_config, installed_web_auth_config
+from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
 from hopin.app import create_app
@@ -117,6 +118,7 @@ def scene(client, stores, person):
     older_id_token = new_id_token()
     older = stores.sessions.create(
         "anna",
+        session_id=new_session_id(),
         now=anna.session.created_at - timedelta(hours=1),
         expires_at=anna.session.expires_at - timedelta(hours=2),
         refresh_token=SecretStr(refresh_token),
@@ -202,6 +204,7 @@ class TestExportOfAPerson:
         anna = person("anna")
         stores.sessions.create(
             "anna",
+            session_id=new_session_id(),
             now=anna.session.created_at,
             expires_at=anna.session.expires_at,
             refresh_token=None,

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
+from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
 from hopin.app import create_app
@@ -246,6 +247,7 @@ class TestExpiredSessionSweep:
         created_at = now - timedelta(hours=2)
         expired = stores.sessions.create(
             account.id,
+            session_id=new_session_id(),
             now=created_at,
             expires_at=now - timedelta(hours=1),
             refresh_token=None,
@@ -254,6 +256,7 @@ class TestExpiredSessionSweep:
         )
         live = stores.sessions.create(
             account.id,
+            session_id=new_session_id(),
             now=created_at,
             expires_at=now + timedelta(hours=1),
             refresh_token=None,
@@ -275,6 +278,7 @@ class TestExpiredSessionSweep:
             now = datetime.now(UTC)
             later = sessions.create(
                 "subject",
+                session_id=new_session_id(),
                 now=now - timedelta(hours=2),
                 expires_at=now - timedelta(hours=1),
                 refresh_token=None,
@@ -324,6 +328,7 @@ class TestExpiredSessionSweep:
         account = stores.accounts.create_for_subject("subject", "name", "user", kind=AccountKind.PERSON)
         expired = stores.sessions.create(
             account.id,
+            session_id=new_session_id(),
             now=now - timedelta(hours=2),
             expires_at=now - timedelta(hours=1),
             refresh_token=None,

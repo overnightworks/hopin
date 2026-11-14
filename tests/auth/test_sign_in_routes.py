@@ -16,6 +16,7 @@ from pydantic import SecretStr
 from webauth.admission import AppRole
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.oidc_login import new_session_id
 from webauth.ports import AccountEventKind, AccountKind
 
 from hopin.auth.sign_in import (
@@ -507,6 +508,7 @@ class TestBackchannelLogout:
         now = datetime.now(UTC)
         session = harness.sessions.create(
             account.id,
+            session_id=new_session_id(),
             now=now,
             expires_at=now + timedelta(hours=1),
             refresh_token=None,
