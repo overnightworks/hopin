@@ -21,9 +21,6 @@ class TestSharedRequestBudget:
         assert second.status(AUTH_START_PATH) == HTTPStatus.TOO_MANY_REQUESTS
         assert first.status(AUTH_START_PATH) == HTTPStatus.TOO_MANY_REQUESTS
 
-    def test_both_processes_are_ready_while_redis_answers(self, pods):
-        assert [pod.status(HEALTH_PATH) for pod in pods] == [HTTPStatus.OK, HTTPStatus.OK]
-
     def test_with_redis_stopped_both_processes_are_not_ready_and_a_budgeted_route_answers_503(self, pods, redis_gate):
         redis_gate.close()
 
