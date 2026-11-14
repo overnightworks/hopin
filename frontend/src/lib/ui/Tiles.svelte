@@ -16,6 +16,7 @@
 
     // Under this width the narrowest hearing chip no longer fits beside the remove button; hopin.css moves the chips
     // into the tile's corners and the see chip shrinks to its track.
+    // A tile not yet measured has no width, and Number(undefined) is NaN, which is never narrow.
     const NARROW_TILE_WIDTH = 131;
 
     let kitWords = $state<KitWords>();
@@ -61,7 +62,7 @@
     {@const tileClass = "tile agent activity-" + agent.activity}
     {@const tileId = "container-" + key}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
-    {@const narrow = (agentTileWidths[key] ?? NARROW_TILE_WIDTH) < NARROW_TILE_WIDTH}
+    {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
     <div
         bind:clientWidth={agentTileWidths[key]}
         class={tileClass}
