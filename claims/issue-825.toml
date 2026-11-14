@@ -1,0 +1,8 @@
+claim_id = "ff5e54d78a5048e0a93b225f82613d62"
+agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
+role = "builder"
+base = "fa5a64b96502fb21dc0bfc8f4d0ab05823734265"
+branch = "claude/issue-825-see-switch-is-kit-chip"
+scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src", "pyproject.toml", "src/hopin/words.py", "tests", "uv.lock"]
+opened_commit = "59f1121602421a11aed4afb49a775571014fdfee"
+whole_reason = "The design bump and the swap of hopin's see switch for the kit's chip touch the pins, the tile, the stylesheet, the catalog and their tests together."
