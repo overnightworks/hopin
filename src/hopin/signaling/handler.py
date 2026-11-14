@@ -124,19 +124,25 @@ class SignalingHandler:
         await self._seats.close_socket(websocket, POLICY_VIOLATION_CLOSE_CODE)
 
     async def _process_messages(self, connection: Connection) -> None:
-        while True:
-            frame = await connection.websocket.receive()
-            if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
-                if frame["code"] not in NORMAL_CLOSE_CODES and not self._seats.closed_by_server(connection.websocket):
-                    connection.dropped = True
-                    await logger.aerror("websocket_error", peer_id=connection.peer_id, code=frame["code"])
-                return
-            text = frame.get("text")
-            if text is not None:
-                if not await self._session_admits(connection):
-                    return
-                if self._serves_seat(connection):
-                    await self._handle_message(connection, text)
+        while await self._process_next_message(connection):
+            pass
+
+    async def _process_next_message(self, connection: Connection) -> bool:
+        """Serve the next frame of the socket, and say whether to go on. The frame is a local of this call alone, so no
+        frame's text outlives its handling while the loop awaits the next one."""
+        frame = await connection.websocket.receive()
+        if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
+            if frame["code"] not in NORMAL_CLOSE_CODES and not self._seats.closed_by_server(connection.websocket):
+                connection.dropped = True
+                await logger.aerror("websocket_error", peer_id=connection.peer_id, code=frame["code"])
+            return False
+        text = frame.get("text")
+        if text is not None:
+            if not await self._session_admits(connection):
+                return False
+            if self._serves_seat(connection):
+                await self._handle_message(connection, text)
+        return True
 
     def _schedule_recheck(self, connection: Connection) -> TimerHandle:
         return self._scheduler.call_later(SESSION_RECHECK_SECONDS, partial(self._recheck_on_tick, connection))
