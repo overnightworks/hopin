@@ -1,8 +1,0 @@
-claim_id = "9a65605ed37e4799bd0f2dfcc67258b9"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "4d65b30fe543e6e82bcaf98be986c83fa6296035"
-branch = "claude/issue-840-streamed-sentence-tests-wait-on-producti"
-scope = ["docs/call.md", "src/hopin/agent/mcp.py", "src/hopin/agent/speaking.py", "src/hopin/agent/speech.py", "src/hopin/participation/speaking.py", "tests/agent/test_speech_renderer.py", "tests/e2e/participation", "tests/participation"]
-opened_commit = "c7bebd401c30d69aa9bbb17987bdc55de134f5a5"
-whole_reason = "The production seam and the tests that wait on it change together."
