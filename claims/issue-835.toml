@@ -1,8 +1,0 @@
-claim_id = "46f6656e5b094295abd20ce33502d1db"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "ed450a25a2fbb9b599cb3d7e124cf25538629485"
-branch = "claude/issue-835-person-stays-heard-on-slow-speech"
-scope = ["docs/call.md", "frontend/src/lib/features/participation/hearing.test.ts", "frontend/src/lib/features/participation/hearing.ts", "src/hopin/agent/hearing_route.py", "tests/participation/test_hearing_route.py"]
-opened_commit = "cd09637cf2e2e85edaafb2b28b315c8bebd63c0b"
-whole_reason = "The hold on the server and the reopen in the browser fix one failure together."
