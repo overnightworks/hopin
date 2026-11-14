@@ -109,11 +109,9 @@ export async function installedParticipation(installOn?: typeof install) {
         },
         // The camera gives its picture only when the returned function is called.
         cameraGivesLater: () => {
-            let give: (base64: string | null) => void = () => {};
-            picture = new Promise<string | null>((resolve) => {
-                give = resolve;
-            });
-            return give;
+            const { promise, resolve } = Promise.withResolvers<string | null>();
+            picture = promise;
+            return resolve;
         },
         hear: (stream: MediaStream | null) => {
             microphoneHandlers.forEach((handler) => {
