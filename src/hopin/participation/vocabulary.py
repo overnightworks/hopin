@@ -87,7 +87,7 @@ class SpeakFallback(StrEnum):
 class VoiceFailure(StrEnum):
     """Why the speech service made no sound for a sentence, a failure of its voice; the code its log carries."""
 
-    WORKLOAD_TOKEN_REFUSED = "workload_token_refused"
+    WORKLOAD_TOKEN_REFUSED = "workload_token_refused"  # noqa: S105 - name of a failure kind and no credential
     INPUT_REFUSED = "input_refused"
     REFUSED = "refused"
     BUSY = "busy"
