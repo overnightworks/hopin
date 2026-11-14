@@ -3,6 +3,7 @@ the sponsor's browser, its answer in parts, the refusals and the bounds."""
 
 import asyncio
 import logging
+from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
@@ -86,6 +87,24 @@ def looking(participation, seen):
         return look
 
     return start
+
+
+@pytest.fixture
+def shown(seen, looking):
+    """Starts the agent's look and lets the sponsor's browser send its picture while the host's socket holds the write
+    of the mark; returns the look, the request id, the held write and the picture."""
+    host, guest, _agent = seen
+
+    async def show():
+        picture = jpeg_of()
+        look = await looking()
+        request_id = request_ids(guest)[-1]
+        stalled = HeldWrite(host.socket)
+        await guest.say(part(request_id, parts_of(picture, 10**6)[0]))
+        await stalled.reached()
+        return SimpleNamespace(look=look, request_id=request_id, stalled=stalled, picture=picture)
+
+    return show
 
 
 async def answer_with(looking, guest, *messages):
@@ -272,20 +291,13 @@ class TestASlowSocket:
 
         assert await asyncio.wait_for(look, timeout=1) is LookRefusal.NO_ANSWER
 
-    async def test_call_63_a_mark_a_seat_does_not_take_in_time_yields_no_answer_and_no_picture(
-        self, scheduler, seen, looking
-    ):
+    async def test_call_63_a_mark_a_seat_does_not_take_in_time_yields_no_answer_and_no_picture(self, scheduler, shown):
         """CALL-63: One deadline bounds the whole look, the showing of the look to the seats among it."""
-        host, guest, _agent = seen
-        look = await looking()
-        request_id = request_ids(guest)[-1]
-        stalled = HeldWrite(host.socket)
-        await guest.say(part(request_id, parts_of(jpeg_of(), 10**6)[0]))
-        await stalled.reached()
+        held = await shown()
 
         await scheduler.advance(LOOK_ANSWER_SECONDS)
 
-        assert await asyncio.wait_for(look, timeout=1) is LookRefusal.NO_ANSWER
+        assert await asyncio.wait_for(held.look, timeout=1) is LookRefusal.NO_ANSWER
 
     @pytest.mark.parametrize(
         ("end", "refusal"),
@@ -295,40 +307,31 @@ class TestASlowSocket:
         ],
     )
     async def test_call_63_an_end_while_the_mark_is_shown_yields_no_picture(
-        self, participation, seen, looking, end, refusal
+        self, participation, seen, shown, end, refusal
     ):
         """CALL-63: The sponsor's turning the switch off or the agent's leaving stops a look at the step it is on, the
         showing of the look included, and the picture is not released."""
         host, guest, agent = seen
-        look = await looking()
-        request_id = request_ids(guest)[-1]
-        stalled = HeldWrite(host.socket)
-        await guest.say(part(request_id, parts_of(jpeg_of(), 10**6)[0]))
-        await stalled.reached()
+        held = await shown()
 
         ending = asyncio.create_task(end(participation, host, guest, agent))
-        result = await asyncio.wait_for(look, timeout=1)
-        stalled.release.set()
+        result = await asyncio.wait_for(held.look, timeout=1)
+        held.stalled.release.set()
         await ending
 
         assert result is refusal
 
 
 class TestAnswersWhileTheLookIsShown:
-    async def test_call_63_a_second_answer_while_the_look_is_shown_changes_nothing(self, seen, looking):
+    async def test_call_63_a_second_answer_while_the_look_is_shown_changes_nothing(self, seen, shown):
         """CALL-63: A look is answered once: what the browser sends after its picture came is dropped."""
-        host, guest, _agent = seen
-        picture = jpeg_of()
-        look = await looking()
-        request_id = request_ids(guest)[-1]
-        stalled = HeldWrite(host.socket)
-        await guest.say(part(request_id, parts_of(picture, 10**6)[0]))
-        await stalled.reached()
+        _host, guest, _agent = seen
+        held = await shown()
 
-        await guest.say(no_camera(request_id))
-        stalled.release.set()
+        await guest.say(no_camera(held.request_id))
+        held.stalled.release.set()
 
-        assert await asyncio.wait_for(look, timeout=1) == picture
+        assert await asyncio.wait_for(held.look, timeout=1) == held.picture
 
     async def test_call_63_a_cancelled_look_stays_cancelled(self, seen, looking):
         """CALL-63: A caller that gives up its look is not answered with a refusal."""
