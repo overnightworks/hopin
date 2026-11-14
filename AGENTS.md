@@ -20,7 +20,6 @@
 
 ## Owners
 
-- The `Release` workflow runs only on the operator's own word, given for that release.
 - The platform repository owns hopin's deployment.
 - overnightworks/quality's README owns the quality gate's semantics.
 
