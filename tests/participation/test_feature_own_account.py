@@ -101,6 +101,59 @@ class TestAcceptingInTheSharedShape:
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
 
+MALFORMED = {
+    "a_forbidden_key": (lambda valid: {**valid, "voice": "secret-voice-value"}, ["voice"]),
+    "a_bad_epoch": (lambda valid: {**valid, "epoch": "secret-epoch-value"}, ["epoch"]),
+    "a_bad_epoch_and_a_forbidden_key": (
+        lambda valid: {**valid, "epoch": -1, "voice": "x", "room": "y"},
+        ["epoch", "room", "voice"],
+    ),
+}
+
+
+class TestLoggingAMalformedCall:
+    @pytest.mark.parametrize(
+        ("event", "tool", "arguments_of"),
+        [
+            ("agent_accept_malformed", ACCEPT_INVITATION_TOOL, accept_arguments),
+            (
+                "agent_decline_malformed",
+                DECLINE_INVITATION_TOOL,
+                lambda standing: accept_arguments(standing) | {"reason": "busy"},
+            ),
+        ],
+        ids=["accept", "decline"],
+    )
+    @pytest.mark.parametrize(("malform", "fields"), MALFORMED.values(), ids=MALFORMED.keys())
+    def test_arguments_the_contract_refuses_log_their_closed_event_with_the_field_names_only(
+        self, scene, event, tool, arguments_of, malform, fields
+    ):
+        """CALL-52: A malformed accept or decline is logged once at warning with the refused field names only."""
+        scene.invite()
+        [standing] = scene.standings()
+
+        with structlog.testing.capture_logs() as logs:
+            dialed = scene.call.call(scene.token, tool, malform(arguments_of(standing)))
+
+        malformed = [entry for entry in logs if entry["event"] == event]
+        assert dialed.outcome == {"refused": AgentRefusal.STALE_INVITATION.value}
+        assert [(entry["log_level"], entry["fields"]) for entry in malformed] == [("warning", fields)]
+        assert "secret" not in str(logs)
+
+    def test_a_well_formed_accept_that_is_stale_logs_no_malformed_event(self, scene):
+        scene.invite()
+        [standing] = scene.standings()
+
+        with structlog.testing.capture_logs() as logs:
+            scene.call.call(
+                scene.token,
+                ACCEPT_INVITATION_TOOL,
+                accept_arguments(standing) | {"epoch": accept_arguments(standing)["epoch"] + 1},
+            )
+
+        assert [entry for entry in logs if str(entry["event"]).endswith("_malformed")] == []
+
+
 def _another_epoch(scene, arguments, seat_changes):
     return {**arguments, "epoch": arguments["epoch"] + 1}
 
