@@ -19,7 +19,6 @@ from hopin.config.constants import (
     LOGOUT_PATH,
     NO_ACCESS_PATH,
     PEOPLE_PATH,
-    STATIC_PATH,
 )
 
 SIGN_IN_PATHS = SignInPaths(
@@ -35,6 +34,6 @@ PEOPLE_PATH_RULES = PathRules(prefixes=(f"{PEOPLE_PATH}/",))
 # stamp it onto the 401, 429 and 404 that the same path can answer. Every other build file is revalidated.
 NO_CACHE_PATH_RULES = PathRules(
     exact=frozenset({HOME_PATH, LOGIN_PATH, NO_ACCESS_PATH, CALL_FEATURES_PATH}),
-    prefixes=(f"{STATIC_PATH}/", f"{CALL_PATH}/"),
+    prefixes=(f"{CALL_PATH}/",),
     patterns=(re.compile(rf"^{APP_ASSET_PATH}/(?!{IMMUTABLE_ASSET_DIRECTORY}/)"),),
 )

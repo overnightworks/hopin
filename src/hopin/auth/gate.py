@@ -11,7 +11,6 @@ from hopin.config.constants import (
     LOGIN_GROUP,
     LOGIN_PATH,
     NO_ACCESS_PATH,
-    STATIC_PATH,
 )
 from hopin.config.web_policy import SIGN_IN_PATHS
 
@@ -25,8 +24,6 @@ PUBLIC_PATHS = frozenset(
         HEALTH_PATH,
         LOGIN_PATH,
         NO_ACCESS_PATH,
-        f"{STATIC_PATH}/css/hopin.css",
-        f"{STATIC_PATH}/img/hopin.svg",
     }
 )
 

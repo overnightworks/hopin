@@ -25,6 +25,7 @@ class PageInventory(HTMLParser):
         self.forms: list[dict[str, str | None]] = []
         self.submit_buttons = 0
         self.stylesheets: list[str] = []
+        self.icons: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         self._inspect(tag, attrs)
@@ -45,6 +46,8 @@ class PageInventory(HTMLParser):
             self.inline_scripts += 1
         if tag == "link" and attributes.get("rel") == "stylesheet":
             self.stylesheets.append(attributes["href"])
+        if tag == "link" and attributes.get("rel") == "icon":
+            self.icons.append(attributes["href"])
 
     def _inspect_body(self, tag, attributes):
         if tag == "form":

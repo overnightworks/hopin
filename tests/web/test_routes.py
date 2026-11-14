@@ -11,13 +11,14 @@ from hopin.config.constants import (
     CALL_PATH,
     HEALTH_PATH,
     HOME_PATH,
-    STATIC_PATH,
+    IMMUTABLE_ASSET_CACHE_CONTROL,
+    IMMUTABLE_ASSET_DIRECTORY,
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
-from hopin.web.routes import STATIC_DIR, create_router
-from tests.support.page_build import fixture_page_build
+from hopin.web.routes import create_router
+from tests.support.page_build import FIXTURE_DIRECTORY, SIGN_IN_PAGE_FILES, fixture_page_build
 from tests.support.page_inventory import (
     CSS_COMMENT,
     inventory_of,
@@ -45,13 +46,9 @@ def client(app):
 
 
 class TestCreateRoutes:
-    def test_returns_four_routes_and_the_static_and_app_mounts(self, signaling_handler):
+    def test_returns_four_routes_and_the_app_mount(self, signaling_handler):
         router = create_router(signaling_handler, fixture_page_build())
-        assert len(router.routes) == 6
-
-    def test_static_dir_points_to_web_static(self):
-        assert STATIC_DIR.name == "static"
-        assert STATIC_DIR.parent.name == "web"
+        assert len(router.routes) == 5
 
 
 class TestHealthEndpoint:
@@ -101,25 +98,6 @@ class TestCallPage:
         assert client.get(path).status_code == 404
 
 
-class TestStaticAssets:
-    @pytest.mark.parametrize(
-        ("asset", "content_type"),
-        [
-            ("css/hopin.css", "text/css"),
-        ],
-    )
-    def test_serves_asset_with_its_content_type(self, client, asset, content_type):
-        response = client.get(f"{STATIC_PATH}/{asset}")
-        assert response.status_code == 200
-        assert content_type in response.headers["content-type"]
-
-    def test_does_not_serve_the_page_from_the_static_mount(self, client):
-        assert client.get(f"{STATIC_PATH}/index.html").status_code == 404
-
-    def test_does_not_serve_the_page_code_the_bundle_owns(self, client):
-        assert client.get(f"{STATIC_PATH}/js/app.js").status_code == 404
-
-
 class TestAppAssets:
     @pytest.mark.parametrize(("asset", "content_type"), [("immutable/x.js", "javascript"), ("version.json", "json")])
     def test_serves_the_build_files_under_the_app_path(self, client, asset, content_type):
@@ -127,22 +105,29 @@ class TestAppAssets:
         assert response.status_code == 200
         assert content_type in response.headers["content-type"]
 
+    @pytest.mark.parametrize("page", SIGN_IN_PAGE_FILES)
+    def test_every_stylesheet_and_icon_a_sign_in_page_links_is_a_hashed_file_answered_immutable(self, client, page):
+        inventory = inventory_of((FIXTURE_DIRECTORY / page).read_text())
+
+        linked = [*inventory.stylesheets, *inventory.icons]
+        assert inventory.stylesheets
+        assert inventory.icons
+        for href in linked:
+            response = client.get(href)
+            assert href.startswith(f"{APP_ASSET_PATH}/{IMMUTABLE_ASSET_DIRECTORY}/")
+            assert (response.status_code, response.headers["cache-control"]) == (200, IMMUTABLE_ASSET_CACHE_CONTROL)
+
 
 class TestHeadRequests:
-    @pytest.mark.parametrize("path", [HOME_PATH, HEALTH_PATH, f"{STATIC_PATH}/css/hopin.css"])
+    @pytest.mark.parametrize("path", [HOME_PATH, HEALTH_PATH])
     def test_head_answers_ok(self, client, path):
         assert client.head(path).status_code == 200
 
 
-STYLESHEETS_DIR = STATIC_DIR / "assets" / "css"
 REPOSITORY = Path(__file__).parents[2]
+FRONTEND_ASSETS = REPOSITORY / "frontend" / "src" / "lib" / "assets"
 # HopIn's own stylesheets: the page's and each one a feature's frontend module loads.
-OWN_STYLESHEETS = sorted(
-    {
-        *(STATIC_DIR / "assets").rglob("*.css"),
-        *(REPOSITORY / "frontend" / "src" / "lib").rglob("*.css"),
-    }
-)
+OWN_STYLESHEETS = sorted((REPOSITORY / "frontend" / "src" / "lib").rglob("*.css"))
 CSS_MOTION_DECLARATION = re.compile(r"(?:transition|animation)(?:-duration)?\s*:([^;}]*)")
 CSS_MOTION_TOKEN_REFERENCE = re.compile(r"var\(--motion-[\w-]+\)")
 CSS_LITERAL_DURATION = re.compile(r"(?<![\w.-])\d*\.?\d+m?s\b")
@@ -151,7 +136,7 @@ CSS_ROOT_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:")
 CSS_ZEROED_MOTION_TOKEN = re.compile(r"(--motion-[\w-]+)\s*:\s*0s\b")
 CSS_REDUCED_MOTION_BLOCK = re.compile(r"@media \(prefers-reduced-motion: reduce\)\s*\{(.*?\})\s*\}", re.DOTALL)
 CSS_ROOT_BLOCK = re.compile(r":root\s*\{([^{}]*)\}")
-FAVICON_FILE = STATIC_DIR / "assets" / "img" / "hopin.svg"
+FAVICON_FILE = FRONTEND_ASSETS / "hopin.svg"
 
 
 def untokened_motion_durations(stylesheet: str) -> list[str]:
@@ -206,7 +191,7 @@ class TestPageShell:
         assert untokened_motion_durations(motion_declaration) == []
 
     def test_zeroes_every_motion_token_when_reduced_motion_is_asked_for(self):
-        stylesheet = (STYLESHEETS_DIR / "hopin.css").read_text()
+        stylesheet = (FRONTEND_ASSETS / "hopin.css").read_text()
         assert CSS_ROOT_BLOCK.search(stylesheet)
         assert motion_tokens_left_running_under_reduced_motion(stylesheet) == set()
 

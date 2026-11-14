@@ -62,7 +62,8 @@ async function sourcesWithCode() {
             segmentCounts.set(name, (segmentCounts.get(name) ?? 0) + 1);
         }
     }
-    return new Set([...segmentCounts.keys()].filter((name) => name.startsWith("frontend/src/")));
+    // A source with a query is Vite's URL module of an asset (hopin.svg?no-inline): the hashed file, no code of ours.
+    return new Set([...segmentCounts.keys()].filter((name) => name.startsWith("frontend/src/") && !name.includes("?")));
 }
 
 const reported = new Set(
