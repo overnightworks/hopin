@@ -20,7 +20,6 @@ from tests.participation.support.speaking_scene import (
     CLIENT_CREDENTIALS_GRANT,
     LINE,
     SOUND,
-    STREAMING_DATA_SIZE,
     VOICE,
     drained,
     frames_of,
@@ -34,7 +33,7 @@ from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
-    SPOKEN_WAV,
+    NOT_A_WAV,
     chunked_wav,
     failures_in,
     not_chunked_answer,
@@ -42,7 +41,6 @@ from tests.support.speech_origin import (
     silent_wav,
     speaking,
     speech_requests,
-    with_data_size,
     with_sample_rate,
 )
 
@@ -62,16 +60,18 @@ def speaking_service(speech_origin):
 SPEECH_FAILS = [
     pytest.param(refusal_answer(RefusalCode.FORBIDDEN), {"outcome": "refused", "code": "forbidden"}, id="refused"),
     pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), {"outcome": "busy"}, id="busy"),
+    pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
+]
+"""A speech service that fails before any sound."""
+
+STREAM_BREAKS = [
     pytest.param(chunked_wav(SOUND, terminated=False), {"outcome": "cut"}, id="cut"),
     pytest.param(chunked_wav(SOUND + bytes(SPEAK_MAX_BYTES)), {"outcome": "over_cap"}, id="over-cap"),
-    pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
-    pytest.param(chunked_wav(SPOKEN_WAV), {"outcome": "malformed"}, id="unreadable-sound"),
+    pytest.param(chunked_wav(NOT_A_WAV), {"outcome": "malformed"}, id="unreadable-sound"),
     pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), {"outcome": "malformed"}, id="zero-sample-rate"),
-    pytest.param(chunked_wav(SOUND[:-2]), {"outcome": UNREADABLE}, id="fewer-frames-than-declared"),
-    pytest.param(
-        chunked_wav(with_data_size(SOUND, STREAMING_DATA_SIZE // 2)), {"outcome": UNREADABLE}, id="size-beyond-the-body"
-    ),
+    pytest.param(chunked_wav(silent_wav(0)), {"outcome": UNREADABLE}, id="no-sound-at-all"),
 ]
+"""A speech service whose stream breaks off after the sound began."""
 
 
 class TestWhenTheSentenceCannotBeSpoken:
@@ -127,6 +127,27 @@ class TestWhenTheVoiceFails:
         )
         assert (entry["text"], entry["own"], entry["spoken"]) == (TEXT, True, False)
         assert [frames_of(seat, VOICE) for seat in (joined_agent.owner, joined_agent.member)] == [[], []]
+        assert [len(frames_of(seat, LINE)) for seat in (joined_agent.owner, joined_agent.member)] == [1, 1]
+
+    @pytest.mark.parametrize(("answer", "logged"), STREAM_BREAKS)
+    def test_call_61_a_stream_that_breaks_off_after_the_sound_began_cuts_the_sentence_with_one_closed_code_logged(
+        self, joined_agent, speech_origin, answer, logged
+    ):
+        speaking(speech_origin, answer)
+
+        with structlog.testing.capture_logs() as logs:
+            spoken = speak(joined_agent, seconds=None)
+            joined_agent.call.after_sounds_released(1)
+        drained(joined_agent)
+
+        [entry] = joined_agent.entries()
+        assert (spoken.is_error, spoken.outcome, failures_of(logs), failures_in(logs, VOICE_UNAVAILABLE)) == (
+            False,
+            {"spoken": True},
+            [logged],
+            [],
+        )
+        assert (entry["text"], entry["own"], entry["spoken"], entry["cut"]) == (TEXT, True, True, True)
         assert [len(frames_of(seat, LINE)) for seat in (joined_agent.owner, joined_agent.member)] == [1, 1]
 
     def test_call_61_a_workload_token_the_issuer_refuses_writes_the_sentence_and_speech_is_not_called(
@@ -237,7 +258,7 @@ class TestEveryEndAtTheRoute:
         self, joined_agent, speech_origin, speaking_behind
     ):
         speaking(speech_origin, chunked_wav(silent_wav(LEASE_SECONDS + 1)))
-        speak(joined_agent)
+        speak(joined_agent, seconds=LEASE_SECONDS + 1)
         waiting = speaking_behind()
         waiting_before = still_waiting(joined_agent, waiting)
         path = f"{VOICE_PATH}/{joined_agent.member.frame_of_type(VOICE)['voice_id']}"

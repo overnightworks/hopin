@@ -21,7 +21,7 @@ from speech_client.wire import (
 
 from tests.support.loopback_origin import Origin, http_response
 
-SPOKEN_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
+NOT_A_WAV = b"RIFF\x00\x00\x00\x00WAVE-spoken-by-the-fake-service"
 WAV_MEDIA_TYPE = ResponseFormat.WAV.media_type
 AUDIENCE_SCOPE = "speech-service-audience"
 SAMPLE_RATE_OFFSET = 24  # in a canonical 44-byte header, after the format, channel count
@@ -38,6 +38,9 @@ def silent_wav(seconds: float = 0.2, rate: int = 8000) -> bytes:
         writer.setframerate(rate)
         writer.writeframes(bytes(int(seconds * rate) * 2))
     return buffer.getvalue()
+
+
+SPOKEN_WAV = silent_wav(0.1)
 
 
 def with_sample_rate(wav: bytes, rate: int) -> bytes:
@@ -71,7 +74,7 @@ def refusal_answer(code, param=None, *, retry_after_seconds=None) -> bytes:
 
 def not_chunked_answer() -> bytes:
     return http_response(
-        f"{HTTPStatus.OK.value} OK", SPOKEN_WAV, extra_header=f"Content-Type: {WAV_MEDIA_TYPE}\r\n".encode()
+        f"{HTTPStatus.OK.value} OK", NOT_A_WAV, extra_header=f"Content-Type: {WAV_MEDIA_TYPE}\r\n".encode()
     )
 
 

@@ -8,9 +8,14 @@ SENTENCE_SECONDS = 1.5
 TEXT = "Ein geheimer Satz"
 
 
-def speak(scene, text=TEXT, room_id=None, token=None, **named):
-    """The agent's `speak` call; `named` is what else the call names, such as its `language`."""
+def speak(scene, text=TEXT, room_id=None, token=None, *, seconds=SENTENCE_SECONDS, **named):
+    """The agent's `speak` call; `named` is what else the call names, such as its `language`. The call is answered at
+    the sentence's first chunk, so a sentence that plays has its end set once the stream has told its length, which
+    this waits for, unless the sentence's stream breaks off, which `seconds` of `None` says."""
     place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
-    return scene.call.call(
+    dialed = scene.call.call(
         scene.token if token is None else token, SPEAK_TOOL, {"place": place.model_dump(), "text": text, **named}
     )
+    if seconds is not None and dialed.outcome == {"spoken": True}:
+        assert scene.call.scheduler.wait_for_timer(seconds), "the sentence's length never came"
+    return dialed

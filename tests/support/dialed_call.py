@@ -300,6 +300,12 @@ class DialedCall:
         self.voices.wait_for(stored, timeout_seconds)
         self.client.portal.call(asyncio.sleep, 0)
 
+    def after_sounds_released(self, released, timeout_seconds=LISTEN_TIMEOUT_SECONDS):
+        """Return once `released` sounds were dropped from the voice store and the app's loop has run on past the step
+        that dropped the last one: the sentence of that sound has ended and entered the windows by then."""
+        self.voices.wait_for_released(released, timeout_seconds)
+        self.client.portal.call(asyncio.sleep, 0)
+
     def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
         return route.endpoint

@@ -2,7 +2,7 @@
 
 import asyncio
 
-from hopin.participation.speaking import RenderedSentence
+from hopin.participation.speaking import RenderedSentence, SoundLength
 from hopin.participation.vocabulary import ParticipationSignal, VoiceFailure
 from tests.participation.support.people import person_named
 
@@ -11,9 +11,18 @@ SENTENCE_MS = 1500
 LONG_MS = 60 * 60 * 1000
 
 
+def a_sentence(wav=b"sound", duration_ms=SENTENCE_MS):
+    """A sentence whose whole sound is its first chunk and which then ends after `duration_ms`."""
+
+    async def after_the_first_chunk():
+        yield SoundLength(duration_ms)
+
+    return RenderedSentence(wav, after_the_first_chunk())
+
+
 def rendering(wav=b"sound", duration_ms=SENTENCE_MS):
     async def render(text, voice):
-        return RenderedSentence(wav, duration_ms)
+        return a_sentence(wav, duration_ms)
 
     return render
 
@@ -37,8 +46,10 @@ async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room
 
 
 async def waiting_to_speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id):
-    """A `speak` waiting in the agent's queue for its sentence to start; the task holds its answer."""
+    """A `speak` waiting in the agent's queue for its sentence to start; the task holds its answer. The second turn of
+    the loop lets the sentence's stream settle its length."""
     answer = asyncio.create_task(participation.speak(who, room_id, text, rendering() if render is None else render))
+    await asyncio.sleep(0)
     await asyncio.sleep(0)
     return answer
 

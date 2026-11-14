@@ -1,7 +1,9 @@
-"""An agent's spoken sentences: one queue per joined agent, in memory only. A sentence starts when the previous one's
-length has run out on the scheduler's clock, its speaker is answered then, and its sound is kept only while it waits or
-plays. A sentence whose voice failed takes its turn in the same queue and is written as a chat line instead. A stop cuts
-the playing sentence and drops every other one of the agent."""
+"""An agent's spoken sentences: one queue per joined agent, in memory only. A sentence starts when the previous one has
+ended, its speaker is answered then, and its sound is kept only while it waits or plays. A sentence's sound grows as its
+renderer streams it, so a sentence plays while it is rendered; it ends when its length has run out on the scheduler's
+clock, counted from its start, or when its stream fails, which cuts it. A sentence whose voice failed before any sound
+takes its turn in the same queue and is written as a chat line instead. A stop cuts the playing sentence and drops every
+other one of the agent."""
 
 import asyncio
 from collections import deque
@@ -22,7 +24,7 @@ from hopin.participation.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable
 
     from hopin.participation.participants import DialedAgent
     from hopin.participation.voice import StoredVoice, VoiceStore
@@ -34,11 +36,23 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
-class RenderedSentence:
-    """A sentence's sound, as the renderer made it, and how long it plays."""
+class SoundLength:
+    """The last piece of a sound that came whole: how long it plays."""
 
-    wav: bytes = field(repr=False)
     duration_ms: int
+
+
+type SoundPiece = bytes | SoundLength | VoiceFailure
+"""A chunk of the sound, then exactly one last piece: its length when the sound came whole, or why it broke off."""
+
+
+@dataclass(frozen=True)
+class RenderedSentence:
+    """A sentence whose sound has begun: its first chunk, and the pieces after it, which end with the sound's length or
+    the failure that broke it off. Closing `rest` ends the rendering."""
+
+    first: bytes = field(repr=False)
+    rest: AsyncGenerator[SoundPiece] = field(repr=False)
 
 
 type SpeakResult = SpeakStarted | AgentRefusal | SpeakStop | SpeakFallback
@@ -48,9 +62,9 @@ type StopResult = str | AgentRefusal | SpeakStop
 """The text of the line a stop cut, or why nothing was cut."""
 
 type Renderer = Callable[[str, tuple[str, ...]], Awaitable[RenderedSentence | VoiceFailure | None]]
-"""Makes the sound of a sentence in the first of the voices its agent kept at accept that the speech service offers
-(none kept for the configured voice); why the voice failed when it cannot; nothing when the agent may not speak, which
-no failure of the voice explains."""
+"""Begins the sound of a sentence in the first of the voices its agent kept at accept that the speech service offers
+(none kept for the configured voice) and answers with its first chunk; why the voice failed when it makes none; nothing
+when the agent may not speak, which no failure of the voice explains."""
 
 
 type VoicesOffered = Callable[[tuple[str, ...]], Awaitable[bool]]
@@ -60,12 +74,14 @@ now."""
 
 @dataclass(frozen=True)
 class QueuedSentence:
-    """A sentence that waits or plays: its text, its sound's place in the store, how long it plays and its speaker's
+    """A sentence that waits or plays: its text, its sound's place in the store, which grows while `filling` reads the
+    renderer's stream, how long it plays or why its stream broke off once that is known (`ended`), and its speaker's
     answer, which is that it started, or why it never does."""
 
     text: str
     voice: StoredVoice
-    duration_ms: int
+    ended: asyncio.Future[int | VoiceFailure] = field(repr=False, compare=False)
+    filling: asyncio.Task[None] = field(repr=False, compare=False)
     answer: asyncio.Future[SpeakResult] = field(repr=False, compare=False)
 
 
@@ -122,10 +138,11 @@ class Speaking:
         self._announcements: dict[str, set[asyncio.Task[None]]] = {}
 
     async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> SpeakResult:
-        """Render the sentence and keep its sound, starting it at once when the agent is silent, else after the ones
-        before it. Answers when it starts that it plays, that it was written when its voice failed, or why it never
-        does: no sound came for a reason that is no failure of the voice, a stop dropped it while it was rendered or
-        waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does not undo."""
+        """Begin the sentence's sound and keep it as it grows, starting the sentence at once when the agent is silent,
+        else after the ones before it. Answers when it starts that it plays, that it was written when its voice failed
+        before any sound, or why it never does: no sound came for a reason that is no failure of the voice, a stop
+        dropped it while it was rendered or waited, or an end dropped the agent's queue meanwhile, which a rejoin or a
+        resume does not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue())
         stops = queue.stops
         queue.rendering += 1
@@ -135,25 +152,40 @@ class Speaking:
             queue.rendering -= 1
         if rendered is None:
             return AgentRefusal.UNAVAILABLE
-        if self._queues.get(agent.agent_id) is not queue:
-            return AgentRefusal.GONE
-        if queue.stops != stops:
-            return SpeakStop.STOPPED
+        dropped = self._dropped(agent, queue, stops)
+        if dropped is not None:
+            if isinstance(rendered, RenderedSentence):
+                await rendered.rest.aclose()
+            return dropped
         answer: asyncio.Future[SpeakResult] = asyncio.get_running_loop().create_future()
         sentence: WaitingSentence = (
             WrittenSentence(text, answer)
             if isinstance(rendered, VoiceFailure)
-            else QueuedSentence(
-                text, self._voices.put(agent.room_id, agent.agent_id, rendered.wav), rendered.duration_ms, answer
-            )
+            else self._queued(agent, text, rendered, answer)
         )
         if queue.playing is not None or queue.waiting:
             queue.waiting.append(sentence)
         elif isinstance(sentence, WrittenSentence):
             await self._written(agent, sentence)
         else:
-            self._announce_in_background(agent, self._begin(agent, queue, sentence))
+            self._run_in_background(agent, self._begin(agent, queue, sentence))
         return await answer
+
+    def _dropped(self, agent: DialedAgent, queue: _Queue, stops: int) -> AgentRefusal | SpeakStop | None:
+        if self._queues.get(agent.agent_id) is not queue:
+            return AgentRefusal.GONE
+        if queue.stops != stops:
+            return SpeakStop.STOPPED
+        return None
+
+    def _queued(
+        self, agent: DialedAgent, text: str, rendered: RenderedSentence, answer: asyncio.Future[SpeakResult]
+    ) -> QueuedSentence:
+        voice = self._voices.open(agent.room_id, agent.agent_id)
+        voice.append(rendered.first)
+        ended: asyncio.Future[int | VoiceFailure] = asyncio.get_running_loop().create_future()
+        filling = asyncio.ensure_future(_fill(voice, ended, rendered.rest))
+        return QueuedSentence(text, voice, ended, filling, answer)
 
     def stop(self, agent: DialedAgent) -> str | None:
         """Cut the sentence the agent plays and drop every other sentence of it, rendered or waiting, each answered as
@@ -168,10 +200,10 @@ class Speaking:
         queue.stops += 1
         for sentence in queue.waiting:
             if isinstance(sentence, QueuedSentence):
-                self._voices.release(sentence.voice.id)
+                self._discard(sentence)
             _answer(sentence, SpeakStop.STOPPED)
         queue.waiting.clear()
-        self._voices.release(cut.voice.id)
+        self._discard(cut)
         self._ended(agent, cut, SentenceEnd.CUT)
         return cut.text
 
@@ -192,16 +224,19 @@ class Speaking:
         if queue is not None:
             _cancel_timer(queue)
             for sentence in queue.waiting:
+                if isinstance(sentence, QueuedSentence):
+                    sentence.filling.cancel()
                 _answer(sentence, AgentRefusal.GONE)
             if queue.playing is not None:
+                queue.playing.filling.cancel()
                 self._ended(agent, queue.playing, SentenceEnd.CUT)
         for announcement in self._announcements.pop(agent.agent_id, ()):
             announcement.cancel()
         self._voices.forget_speaker(agent.room_id, agent.agent_id)
 
-    def _announce_in_background(self, agent: DialedAgent, announcement: Awaitable[None]) -> None:
-        """Show a started sentence without holding its speaker's answer back behind a browser's blocked write; the
-        agent's end cancels the announcement."""
+    def _run_in_background(self, agent: DialedAgent, announcement: Awaitable[None]) -> None:
+        """Run a step of the agent's queue, such as showing a started sentence, without holding its speaker's answer
+        back behind a browser's blocked write; the agent's end cancels it."""
         task = asyncio.ensure_future(announcement)
         pending = self._announcements.setdefault(agent.agent_id, set())
         pending.add(task)
@@ -217,22 +252,59 @@ class Speaking:
                 del self._announcements[agent_id]
 
     def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> Awaitable[None]:
-        """Start the sentence's length and answer its speaker now; the returned announcement shows it."""
+        """Answer the sentence's speaker now and set its end once its sound's length or failure is known; the returned
+        announcement shows it."""
         queue.playing = sentence
         _answer(sentence, SpeakStarted.SPOKEN)
-        delay = sentence.duration_ms / MILLISECONDS_PER_SECOND
-        queue.timer = self._scheduler.call_later(delay, partial(self._played, agent, sentence))
+        ending = partial(self._set_end, agent, queue, sentence, self._scheduler.now())
+        if sentence.ended.done():
+            ending(sentence.ended)
+        else:
+            sentence.ended.add_done_callback(ending)
         return self._start(agent, sentence)
+
+    def _set_end(
+        self,
+        agent: DialedAgent,
+        queue: _Queue,
+        sentence: QueuedSentence,
+        began_at: float,
+        ended: asyncio.Future[int | VoiceFailure],
+    ) -> None:
+        """A sound that came whole ends when its length has run out since the sentence began; one that broke off ends,
+        cut, at once."""
+        if self._queues.get(agent.agent_id) is not queue or queue.playing is not sentence:
+            return
+        outcome = ended.result()
+        if isinstance(outcome, VoiceFailure):
+            self._run_in_background(agent, self._cut(agent, sentence))
+            return
+        remaining = began_at + outcome / MILLISECONDS_PER_SECOND - self._scheduler.now()
+        queue.timer = self._scheduler.call_later(max(remaining, 0), partial(self._played, agent, sentence))
 
     async def _played(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
         queue = self._queues.get(agent.agent_id)
         if queue is None or queue.playing is not sentence:
             return
+        continues = any(isinstance(waiting, QueuedSentence) for waiting in queue.waiting)
+        await self._finish(agent, queue, sentence, SentenceEnd.CONTINUED if continues else SentenceEnd.PLAYED)
+
+    async def _cut(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
+        queue = self._queues.get(agent.agent_id)
+        if queue is None or queue.playing is not sentence:
+            return
+        await self._finish(agent, queue, sentence, SentenceEnd.CUT)
+
+    async def _finish(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence, end: SentenceEnd) -> None:
         self._voices.release(sentence.voice.id)
         queue.playing = None
-        continues = any(isinstance(waiting, QueuedSentence) for waiting in queue.waiting)
-        self._ended(agent, sentence, SentenceEnd.CONTINUED if continues else SentenceEnd.PLAYED)
+        self._ended(agent, sentence, end)
         await self._advance(agent, queue)
+
+    def _discard(self, sentence: QueuedSentence) -> None:
+        """Stop rendering the sentence and drop its sound."""
+        sentence.filling.cancel()
+        self._voices.release(sentence.voice.id)
 
     async def _advance(self, agent: DialedAgent, queue: _Queue) -> None:
         """Take the waiting sentences in turn: write each one whose voice failed and start the first that has a sound,
@@ -254,6 +326,22 @@ class Speaking:
                 sentence.answer.set_exception(failure)
             return
         _answer(sentence, SpeakFallback.WRITTEN)
+
+
+async def _fill(
+    voice: StoredVoice, ended: asyncio.Future[int | VoiceFailure], pieces: AsyncGenerator[SoundPiece]
+) -> None:
+    """Keep each chunk of the sound as it arrives, and settle how it ended: whole with its length, or broken off."""
+    async for piece in pieces:
+        match piece:
+            case bytes():
+                voice.append(piece)
+            case SoundLength(duration_ms=duration_ms):
+                voice.finish()
+                ended.set_result(duration_ms)
+            case VoiceFailure():
+                voice.break_off()
+                ended.set_result(piece)
 
 
 def _cancel_timer(queue: _Queue) -> None:

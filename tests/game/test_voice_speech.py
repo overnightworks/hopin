@@ -201,7 +201,7 @@ class TestWithoutAVoice:
 
         secrets_seen = [
             TEXT,
-            SPOKEN_WAV.decode(),
+            repr(SPOKEN_WAV),
             *world.issuer.access_tokens_issued("refresh_token"),
             *world.issuer.access_tokens_issued("client_credentials"),
         ]
