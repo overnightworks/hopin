@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 SWITCH = AGENT_HEARING_SWITCH
-TRACK = SWITCH + ' > span[aria-hidden="true"]'
-SEE_TRACK = AGENT_SEE_SWITCH + ' > span[aria-hidden="true"]'
-SEE_ICON = AGENT_SEE_SWITCH + " > .icon svg"
+TRACK = SWITCH + ' >> span[aria-hidden="true"]'
+SEE_TRACK = AGENT_SEE_SWITCH + ' >> span[aria-hidden="true"]'
+SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
 TOLERANCE_PIXELS = 1

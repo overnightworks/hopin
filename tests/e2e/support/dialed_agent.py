@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx2
 from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef
+from design.words import text as kit_text
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from playwright.sync_api import Page, expect
@@ -32,11 +33,11 @@ ADDERS_GROUP = "/apps/hopin/agent-adders"
 AGENT_NAME = "Mozart"
 SECOND_AGENT_NAME = "Leonardo"
 AGENT_TILE = '#stage [id^="container-agent-"]'
-# The tile also holds the see switch; the hearing switch is the one that is not the see chip.
-SEE_SWITCH_ON_A_TILE = ".see-switch"
-HEARING_SWITCH_ON_A_TILE = f'[role="switch"]:not({SEE_SWITCH_ON_A_TILE})'
-AGENT_HEARING_SWITCH = AGENT_TILE + " " + HEARING_SWITCH_ON_A_TILE
-AGENT_SEE_SWITCH = AGENT_TILE + " " + SEE_SWITCH_ON_A_TILE
+# The tile holds the kit's hearing chip and its see chip; each is told by its accessible name.
+SEE_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.agentMaySeeMe")}"]'
+HEARING_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.agentMayHearMe")}"]'
+AGENT_HEARING_SWITCH = f"{AGENT_TILE} >> {HEARING_SWITCH_ON_A_TILE}"
+AGENT_SEE_SWITCH = f"{AGENT_TILE} >> {SEE_SWITCH_ON_A_TILE}"
 REMOVE = ".agent-remove"
 COUNT = "#participantCount .num"
 REQUEST_SECONDS = 30

@@ -419,14 +419,6 @@ msgctxt "tile.aiBadge"
 msgid "KI"
 msgstr ""
 
-msgctxt "tile.seeSwitchLabel"
-msgid "Agent darf mich sehen"
-msgstr ""
-
-msgctxt "tile.seeSwitchShortLabel"
-msgid "Sehen"
-msgstr ""
-
 msgctxt "tile.lookMarkLabel"
 msgid "{name} schaut hin"
 msgstr ""
