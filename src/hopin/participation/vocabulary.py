@@ -20,6 +20,15 @@ FIGURE_MAX_BYTES = 12 * 1024 * 1024
 FIGURE_CACHE_BYTES = 48 * 1024 * 1024
 FIGURE_FETCH_WORKERS = 2
 FIGURE_REDIRECTS = 1
+# A look: one JPEG of the sponsor's camera, which the sponsor's browser sends back in parts of the signaling frame's
+# size. The decoded picture is bounded so that, as base64, it stays within the connector's tool-result cap.
+LOOK_MAX_PIXELS = 1280
+LOOK_MAX_BYTES = 512 * 1024
+LOOK_PART_CHARACTERS = 32 * 1024
+LOOK_MAX_PARTS = 24
+LOOK_ANSWER_SECONDS = 10
+LOOKS_PER_WINDOW = 6
+LOOK_WINDOW_SECONDS = 60
 # The hearing socket of a seat is this path and the seat's id.
 HEARING_PATH = "/ws/hearing"
 # A voice is fetched at this path and the voice's id; the game's lines and an agent's sentences are served alike.
@@ -37,6 +46,11 @@ class ParticipationSignal(StrEnum):
     AGENT_HEARING = "agent_hearing"
     AGENT_VOICE = "agent_voice"
     AGENT_STOP = "agent_stop"
+    AGENT_SEEING = "agent_seeing"
+    AGENT_LOOK_REQUEST = "agent_look_request"
+    AGENT_LOOK_PART = "agent_look_part"
+    AGENT_LOOK_NONE = "agent_look_none"
+    AGENT_LOOKED = "agent_looked"
     AGENT_INVITATION_ENDED = "agent_invitation_ended"
 
 
@@ -68,6 +82,27 @@ class InvitationOutcome(StrEnum):
     NO_ANSWER = "no_answer"
     BUSY = "busy"
     OWNER_ABSENT = "owner_absent"
+
+
+class Sense(StrEnum):
+    """What a sponsor's switch lets a joined agent do with them: hear their sound or see their camera."""
+
+    HEARING = "hearing"
+    SEEING = "seeing"
+
+
+class LookRefusal(StrEnum):
+    """Why a look yields no picture; the tool answers with it. `not_active`: the agent is not joined there, its person's
+    seat is away or went; `not_allowed`: the sponsor's see switch is off, or was turned off meanwhile; `no_camera`: the
+    sponsor's browser has none on; `too_fast`: past the looks a minute allows; `no_answer`: the browser did not answer
+    in time; `unavailable`: the answer was no picture within the bounds."""
+
+    NOT_ACTIVE = "not_active"
+    NOT_ALLOWED = "not_allowed"
+    NO_CAMERA = "no_camera"
+    TOO_FAST = "too_fast"
+    NO_ANSWER = "no_answer"
+    UNAVAILABLE = "unavailable"
 
 
 class SpeakStop(StrEnum):

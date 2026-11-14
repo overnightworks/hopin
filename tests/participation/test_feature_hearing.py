@@ -14,6 +14,13 @@ from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.chat_window import LINES_PER_WINDOW, LineKind, WindowLine
 from hopin.participation.hearing import Hearing, HearingHandle
 from hopin.participation.vocabulary import AgentRefusal, HearingRefusal, ParticipationSignal
+from tests.participation.support.ends import (
+    end_by_the_host,
+    leave_by_the_agent,
+    leave_by_the_sponsor,
+    remove_by_the_host,
+    shut_down,
+)
 from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
@@ -472,26 +479,6 @@ class TestWhatIsHeard:
         assert (len(window.lines), window.starts_at) == (LINES_PER_WINDOW, 2)
 
 
-async def leave_by_the_agent(participation, host, guest, agent):
-    await participation.leave(GUEST, room_of(host))
-
-
-async def remove_by_the_host(participation, host, guest, agent):
-    await host.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-
-
-async def leave_by_the_sponsor(participation, host, guest, agent):
-    await guest.drop(1000)
-
-
-async def end_by_the_host(participation, host, guest, agent):
-    await host.say({"type": SignalType.END_ROOM.value})
-
-
-async def shut_down(participation, host, guest, agent):
-    await participation.shut_down()
-
-
 class RecordedEnds:
     """The record behind the port, with the decisions and ends participation reports to it, in order."""
 
@@ -503,9 +490,9 @@ class RecordedEnds:
     def __getattr__(self, name):
         return getattr(self._record, name)
 
-    def allow(self, room_id, seat, agent, *, allowed):
+    def allow(self, room_id, seat, agent, sense, *, allowed):
         self.decisions.append(allowed)
-        self._record.allow(room_id, seat, agent, allowed=allowed)
+        self._record.allow(room_id, seat, agent, sense, allowed=allowed)
 
     def member_ended(self, room_id, agent):
         self.reported.append("member_ended")

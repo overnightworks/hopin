@@ -30,7 +30,8 @@ from agents.member import (
     StopSpeakingRefused,
     Written,
 )
-from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
+from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
+from agents.turn import StrictModel
 from pydantic import ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voice
@@ -40,8 +41,10 @@ from hopin.participation.text import one_line
 from hopin.participation.vocabulary import (
     AGENT_LINE_MAX_CHARACTERS,
     AGENT_NAME_MAX_CHARACTERS,
+    LOOKS_PER_WINDOW,
     AgentRefusal,
     InvitationOutcome,
+    LookRefusal,
     SpeakFallback,
     SpeakStop,
 )
@@ -59,6 +62,7 @@ AGENT_VOICE_UNKNOWN_EVENT: Final = "agent_voice_unknown"
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
 SAY: Final = "say"
+LOOK: Final = "look"
 
 # The longest sentence an agent speaks at once: the chat's line bound, since the sentence also stands there as a line.
 SPEAK_MAX_CHARACTERS: Final = AGENT_LINE_MAX_CHARACTERS
@@ -87,6 +91,7 @@ AUDIENCE_OF_TOOL: Final = {
     SAY: Audience.EVERY_AGENT,
     SPEAK_TOOL: Audience.EVERY_AGENT,
     STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
+    LOOK: Audience.EVERY_AGENT,
 }
 
 # The row's outcome a decline's reason shows to the seat that made the invitation.
@@ -220,6 +225,29 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
 )
 
 
+class LookArguments(StrictModel):
+    """The arguments of `look`: the place whose person's camera the agent looks at."""
+
+    place: PlaceRef
+
+
+_LOOK_DECLARATION: Final = ToolDeclaration(
+    name=LOOK,
+    description=(
+        "Take one still picture of your person's camera in the call you joined, and see it. Nobody else's camera is "
+        "ever shown to you. You see a picture only after your person has turned on the switch that lets you see them, "
+        "which starts off in every call; your person's browser takes the picture when you ask, and nothing keeps it. "
+        "The answer is the picture alone. It is refused as not_active when you are not joined there or your person's "
+        "seat is away, as not_allowed when your person has not let you see them, as no_camera when their camera is "
+        f"off, as too_fast above {LOOKS_PER_WINDOW} looks a minute, as no_answer when their browser does not answer in "
+        "a few seconds and "
+        "as unavailable when the picture could not be used. Your person can see on your tile each time you look."
+    ),
+    parameters=LookArguments.model_json_schema(),
+    effect=ToolEffect.SIDE_EFFECTING,
+)
+
+
 @dataclass(frozen=True)
 class CallerTool:
     """A tool and the handler that serves it to the caller the connector admitted."""
@@ -242,6 +270,10 @@ def _decline_refused(refusal: DeclineInvitationRefusal) -> ToolOutcome:
 
 def _speak_refused(refusal: SpeakRefusal) -> ToolOutcome:
     return ToolOutcome(SpeakRefused(refused=refusal).model_dump_json(), is_error=True)
+
+
+def _look_refused(refusal: LookRefusal) -> ToolOutcome:
+    return ToolOutcome(json.dumps({"refused": refusal.value}), is_error=True)
 
 
 def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
@@ -358,6 +390,19 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
 
+async def _looked(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    try:
+        looking = LookArguments.model_validate(arguments)
+    except ValidationError:
+        return _look_refused(LookRefusal.NOT_ACTIVE)
+    if looking.place.kind != CALL_KIND:
+        return _look_refused(LookRefusal.NOT_ACTIVE)
+    picture = await participation.look(caller.person, looking.place.id)
+    if isinstance(picture, LookRefusal):
+        return _look_refused(picture)
+    return ToolOutcome("", is_error=False, image=ToolImage(content=picture))
+
+
 def participation_tools(participation: Callable[[], Participation], voice: AgentVoice | None) -> tuple[CallerTool, ...]:
     """The tools on the participation the call's handler builds; `participation` is read at each call. `voice` speaks
     an agent's sentences, none while speaking is off."""
@@ -390,6 +435,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def stop_speaking(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _stopped(participation(), caller, arguments)
 
+    async def look(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _looked(participation(), caller, arguments)
+
     return (
         CallerTool(_JOIN_CALL_DECLARATION, join_call),
         CallerTool(_ACCEPT_INVITATION_DECLARATION, accept_invitation),
@@ -398,4 +446,5 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_SAY_DECLARATION, say),
         CallerTool(_SPEAK_DECLARATION, speak),
         CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
+        CallerTool(_LOOK_DECLARATION, look),
     )
