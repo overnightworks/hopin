@@ -94,7 +94,7 @@ def test_a_look_returns_one_jpeg_of_the_sponsors_camera_and_marks_the_agents_til
     assert not result.is_error
     [block] = result.content
     assert block.type == "image"
-    assert block.mimeType == JPEG_MEDIA_TYPE
+    assert block.mime_type == JPEG_MEDIA_TYPE
     width, height = size_of(base64.b64decode(block.data)) or (0, 0)
     assert 0 < max(width, height) <= LOOK_MAX_PIXELS
     for page in sponsor.scene.everyone:
