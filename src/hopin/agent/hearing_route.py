@@ -6,13 +6,14 @@ finished-utterance helper keep the sound's relay and the service's session. The 
 the code its socket closes with (`HearingClose`), and nothing here logs sound, text or a token."""
 
 import asyncio
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
-from speech_client.hearing import Closed, Refused
+from speech_client.hearing import OPENING_SECONDS, Closed, Refused
 from speech_client.outcomes import Busy, Cut, Malformed, OverCap, PastDeadline, Unreachable
-from speech_client.relay import HOP_FRAME_BYTES, AppEnded, BrowserLeft, RuleBroken
+from speech_client.relay import HOP_FRAME_BYTES, HOP_FRAME_SAMPLES, AppEnded, BrowserLeft, RuleBroken
 from speech_client.utterances import (
     Partial,
     ServiceFailed,
@@ -22,7 +23,7 @@ from speech_client.utterances import (
     UtteranceOutcome,
     hear_utterances,
 )
-from speech_client.wire import Language
+from speech_client.wire import Language, SessionInput
 from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 from webauth.oidc import OidcRefusal
 
@@ -50,9 +51,12 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 # A guest may speak English in a German call; the service decodes each sentence in the language it hears.
 HEARING_LANGUAGES: Final = (Language.DE, Language.EN)
 HEARING_DEADLINE_SECONDS: Final = 60 * 60
-# Audio the relay accepted and the service has not read may still be written to the service after a hop ends, up to
-# this many bytes (speech#311); a few frames keep that tail short.
-HELD_FRAMES: Final = 5
+# The client holds the sound it is sent until the service's session is open and reads it, and waits up to
+# `OPENING_SECONDS` for that opening; a smaller hold ends the hop with `OverCap` on a session that opens slowly or stalls
+# for a moment, and the person goes unheard. So the hold covers the opening bound. Audio held when a hop ends may still
+# be written to the service (speech#311): sound spoken while the switch was on, and CALL-58 keeps any sentence that
+# ends after a switch-off out of every window.
+HELD_FRAMES: Final = math.ceil(OPENING_SECONDS * SessionInput().format.rate / HOP_FRAME_SAMPLES)
 HELD_LIMIT_BYTES: Final = HOP_FRAME_BYTES * HELD_FRAMES
 MILLISECONDS_PER_SECOND: Final = 1000
 
