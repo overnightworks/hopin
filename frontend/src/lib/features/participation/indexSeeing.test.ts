@@ -2,7 +2,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REMEMBERED_REQUESTS } from "./looking.ts";
 import { ME, installedParticipation } from "./page.fixture.ts";
-import { LOOK_MAX_BYTES, LOOK_MAX_PIXELS, LOOK_PART_CHARACTERS, PARTICIPATION_SIGNAL } from "./wire.ts";
+import {
+    LOOK_ANSWER_SECONDS,
+    LOOK_MAX_BYTES,
+    LOOK_MAX_PIXELS,
+    LOOK_PART_CHARACTERS,
+    PARTICIPATION_SIGNAL,
+} from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -92,7 +98,9 @@ describe("a look at the person's camera", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
         await answered();
 
-        expect(page.pictureBounds).toEqual([{ maxPixels: LOOK_MAX_PIXELS, maxBytes: LOOK_MAX_BYTES }]);
+        expect(page.pictureBounds).toEqual([
+            { maxPixels: LOOK_MAX_PIXELS, maxBytes: LOOK_MAX_BYTES, maxMilliseconds: LOOK_ANSWER_SECONDS * 1000 },
+        ]);
         expect(page.sent).toEqual([]);
         expect(page.sentTransient).toEqual(
             [0, 1, 2].map((index) => ({
@@ -117,6 +125,21 @@ describe("a look at the person's camera", () => {
         await answered();
 
         expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_LOOK_NONE, request_id: "r1" }]);
+    });
+
+    it.each([
+        ["a picture", "AAAA"],
+        ["no picture", null],
+    ])("CALL-63: drops the answer of %s that the camera gives after the call ended", async (_case, gives) => {
+        const page = await pageWithAgent();
+        const give = page.cameraGivesLater();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, { request_id: "r1" });
+
+        page.endCall();
+        give(gives);
+        await answered();
+
+        expect([...page.sent, ...page.sentTransient]).toEqual([]);
     });
 
     it("CALL-63: answers a request once, though the server repeats it", async () => {

@@ -335,6 +335,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         capture.setStream(stream);
     });
     core.onCallEnded(() => {
+        looks.end();
         for (const agentId of shown.keys()) hide(agentId);
         clearOffers();
     });

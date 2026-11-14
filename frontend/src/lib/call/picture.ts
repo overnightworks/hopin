@@ -27,6 +27,28 @@ function firstFrame(video: HTMLVideoElement): Promise<void> {
     });
 }
 
+// Resolves false once `milliseconds` have passed; `cancel` ends the wait.
+function deadline(milliseconds: number): { passed: Promise<false>; cancel: () => void } {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const passed = new Promise<false>((resolve) => {
+        timer = setTimeout(() => {
+            resolve(false);
+        }, milliseconds);
+    });
+    return {
+        passed,
+        cancel: () => {
+            clearTimeout(timer);
+        },
+    };
+}
+
+async function frameReady(video: HTMLVideoElement): Promise<true> {
+    await video.play();
+    await firstFrame(video);
+    return true;
+}
+
 function encodedBytes(base64: string): number {
     return (base64.length / CHARACTERS_PER_BASE64_GROUP) * BYTES_PER_BASE64_GROUP;
 }
@@ -40,7 +62,7 @@ function encode(canvas: HTMLCanvasElement, maxBytes: number): string {
     return base64;
 }
 
-/** Takes one still picture of the camera: a frame drawn on a canvas, scaled so its longer side is at most `maxPixels`, and encoded as JPEG at the best quality that stays within `maxBytes`; the last quality's picture when none does. Nothing keeps the frame, the canvas or the playing element. */
+/** Takes one still picture of the camera: a frame drawn on a canvas, scaled so its longer side is at most `maxPixels`, and encoded as JPEG at the best quality that stays within `maxBytes`; the last quality's picture when none does. None when the camera gives no frame within `maxMilliseconds`; the playing element is stopped then too. Nothing keeps the frame, the canvas or the playing element. */
 export async function takePicture(bounds: PictureBounds): Promise<string | null> {
     const track = liveCamera();
     if (track === null) return null;
@@ -48,9 +70,9 @@ export async function takePicture(bounds: PictureBounds): Promise<string | null>
     video.muted = true;
     video.playsInline = true;
     video.srcObject = new MediaStream([track]);
+    const frameDeadline = deadline(bounds.maxMilliseconds);
     try {
-        await video.play();
-        await firstFrame(video);
+        if (!(await Promise.race([frameReady(video), frameDeadline.passed]))) return null;
         const scale = Math.min(1, bounds.maxPixels / Math.max(video.videoWidth, video.videoHeight));
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(video.videoWidth * scale);
@@ -60,6 +82,7 @@ export async function takePicture(bounds: PictureBounds): Promise<string | null>
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         return encode(canvas, bounds.maxBytes);
     } finally {
+        frameDeadline.cancel();
         video.pause();
         video.srcObject = null;
     }

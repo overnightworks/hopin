@@ -556,7 +556,8 @@ button, input, textarea { font-family: inherit; }
 /* Under 131px the narrowest chip no longer fits beside the remove button (8px, the chip, the button's 32px and its
    10px), so the hearing chip moves into the tile's lower right corner, clear of the button; its icon may be cut, its
    switch stays whole and pressable. The see switch shrinks to its track in the upper left corner, its label kept for
-   assistive technology, so the sponsor can still take the consent back. */
+   assistive technology, and its eye sits on the knob where a beside-the-track icon would not fit, so the sponsor can
+   still tell it from the hearing switch and take the consent back. */
 @container (max-width: 130.99px) {
     .hear-set {
         display: contents;
@@ -580,7 +581,21 @@ button, input, textarea { font-family: inherit; }
         justify-content: center;
     }
     .hear-set .see-switch .icon {
-        display: none;
+        position: absolute;
+        top: 50%;
+        left: 4px;
+        margin-top: -6px;
+        z-index: 1;
+        color: #0d1013;
+        pointer-events: none;
+    }
+    .hear-set .see-switch .icon svg {
+        width: 12px;
+        height: 12px;
+    }
+    .hear-set .see-switch[aria-checked="true"] .icon {
+        color: var(--accent);
+        transform: translateX(6px);
     }
     .hear-set .see-switch .label {
         position: absolute;
