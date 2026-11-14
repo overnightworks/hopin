@@ -18,8 +18,8 @@ from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import create_router
-from tests.support.page_build import FIXTURE_DIRECTORY, SIGN_IN_PAGE_FILES, fixture_page_build
 from tests.support.in_thread_stores import in_thread_stores
+from tests.support.page_build import FIXTURE_DIRECTORY, SIGN_IN_PAGE_FILES, fixture_page_build
 from tests.support.page_inventory import (
     CSS_COMMENT,
     inventory_of,
