@@ -13,7 +13,6 @@ VOICE_RECOVERY_SECONDS = 5
 SPEAK_FAILED_EVENT = "agent_speak_failed"
 VOICE_UNAVAILABLE_EVENT = "agent_voice_unavailable"
 AGENT_ID_BYTES = 16
-AGENTS_PER_PROCESS = 32
 FIGURE_PATH = "/api/participation/figures"
 FIGURE_FETCH_SECONDS = 30
 # A server bound at least as large as the figure profile's file budget (12 MiB in figure v0.1.0), so every figure

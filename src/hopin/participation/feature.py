@@ -30,7 +30,6 @@ from hopin.participation.switches import Switches
 from hopin.participation.text import clean_line, clean_name, one_line
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
-    AGENTS_PER_PROCESS,
     FEATURE_NAME,
     FIGURE_MODULE,
     SIGNAL_TYPES,
@@ -663,8 +662,8 @@ class Participation:
         return seats[0]
 
     def _is_busy(self, room_id: str) -> bool:
-        """The call has no place left for an agent, or the process holds its 32."""
-        return len(self._places.joined()) >= AGENTS_PER_PROCESS or not self._rooms.has_free_place(room_id)
+        """The call has no place left for an agent."""
+        return not self._rooms.has_free_place(room_id)
 
     def _takes_place(self, agent: DialedAgent) -> bool:
         if self._is_busy(agent.room_id):
