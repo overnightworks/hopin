@@ -658,8 +658,8 @@ textarea {
 }
 /* Under a coarse pointer the kit gives each chip a margin (8px above and below, and 9px at the sides of the compact one)
    that is part of its 44px target. The offsets give that margin back, so the drawn chips keep the place they had (8px
-   from the top on a wide tile, 2px on the narrow one); the narrow tile is too small for two whole targets, so they overlap a little and are clipped by the tile, each
-   centre in its own part. The remove button stays above them. */
+   from the top on a wide tile, 2px on the narrow one); the narrow tile is too small for two whole targets, so they
+   overlap a little and are clipped by the tile, each centre in its own part. The remove button stays above them. */
 @media (any-pointer: coarse) {
     .hear-set:not(.narrow) {
         top: 0;
