@@ -7,13 +7,13 @@ from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
-from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from playwright.sync_api import Page, expect
 
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
-from hopin.agent.tools import JOIN_CALL, SAY
+from hopin.agent.tools import CALL_KIND, JOIN_CALL, LOOK, SAY
 from hopin.config.constants import LOGIN_GROUP
 from tests.e2e.support.calls import INVITE_LINK_PATTERN
 from tests.e2e.support.people import PHONE
@@ -21,6 +21,8 @@ from tests.e2e.support.people import PHONE
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from concurrent.futures import Future
+
+    from mcp.types import CallToolResult
 
     from tests.e2e.support.server import RunningServer
 
@@ -157,6 +159,12 @@ class SdkAgent:
 
     def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return self.call_unawaited(tool, arguments).result(REQUEST_SECONDS)
+
+    def look_unawaited(self, room: str) -> Future[CallToolResult]:
+        """Start the agent's `look` in the room and return its raw answer to come, since the answer is a picture and not
+        the JSON of the other tools; the sponsor's browser answers while the test keeps driving its pages."""
+        place = PlaceRef(kind=CALL_KIND, id=room).model_dump()
+        return asyncio.run_coroutine_threadsafe(self._client.call_tool(LOOK, {"place": place}), self._loop)
 
     def call_unawaited(self, tool: str, arguments: dict[str, Any]) -> Future[dict[str, Any]]:
         """Send the call and return at once with its answer to come, for a tool that answers later while the test

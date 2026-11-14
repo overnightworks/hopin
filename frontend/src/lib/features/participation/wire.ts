@@ -60,3 +60,6 @@ export enum HEARING_CLOSE {
 
 export const HEARING_PATH = "/ws/hearing";
 export const VOICE_PATH = "/api/game/voice";
+export const LOOK_MAX_PIXELS = 1280;
+export const LOOK_MAX_BYTES = 524288;
+export const LOOK_PART_CHARACTERS = 32768;

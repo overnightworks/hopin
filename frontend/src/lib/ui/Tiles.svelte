@@ -5,6 +5,7 @@
     import { words } from "#lib/words/de.ts";
     import { sourceLanguage } from "#lib/words/index.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
+    import SeeSwitch from "#lib/ui/SeeSwitch.svelte";
     import { agentFigure, agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
@@ -81,10 +82,39 @@
             >
             <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
-        {#if agent.hearing !== undefined && kitWords !== undefined}
+        {#if (agent.hearing !== undefined && kitWords !== undefined) || agent.seeing !== undefined}
             <div class="hear-set">
-                <HearingSwitch kind="hear" on={agent.hearing.on} onChange={agent.hearing.onChange} words={kitWords} />
+                {#if agent.hearing !== undefined && kitWords !== undefined}
+                    <HearingSwitch
+                        kind="hear"
+                        on={agent.hearing.on}
+                        onChange={agent.hearing.onChange}
+                        words={kitWords}
+                    />
+                {/if}
+                {#if agent.seeing !== undefined}
+                    <SeeSwitch on={agent.seeing.on} onChange={agent.seeing.onChange} />
+                {/if}
             </div>
+        {/if}
+        {#if agent.looking === true}
+            <span class="look-mark" role="img" aria-label={words["tile.lookMarkLabel"]({ name: agent.name })}
+                ><svg
+                    class="icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    ><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" /><circle
+                        cx="12"
+                        cy="12"
+                        r="2.8"
+                    /></svg
+                ></span
+            >
         {/if}
         {#if agent.onRemove !== undefined}
             <button class="agent-remove" type="button" aria-label={words["tile.removeButton"]} onclick={agent.onRemove}>

@@ -31,7 +31,13 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER  # noqa: E402
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
-from hopin.participation.vocabulary import HEARING_PATH, VOICE_PATH  # noqa: E402
+from hopin.participation.vocabulary import (  # noqa: E402
+    HEARING_PATH,
+    LOOK_MAX_BYTES,
+    LOOK_MAX_PIXELS,
+    LOOK_PART_CHARACTERS,
+    VOICE_PATH,
+)
 from hopin.signaling.frames import (  # noqa: E402
     SENDER_KEY,
     SEQUENCE_KEY,
@@ -192,8 +198,13 @@ def render_core() -> str:
 
 
 def render_participation() -> str:
-    paths = f'export const HEARING_PATH = "{HEARING_PATH}";\nexport const VOICE_PATH = "{VOICE_PATH}";\n'
-    return _generated_file(f"{_enums(PARTICIPATION_BROWSER_ENUMS)}\n{paths}")
+    constants = (
+        f'export const HEARING_PATH = "{HEARING_PATH}";\nexport const VOICE_PATH = "{VOICE_PATH}";\n'
+        f"export const LOOK_MAX_PIXELS = {LOOK_MAX_PIXELS};\n"
+        f"export const LOOK_MAX_BYTES = {LOOK_MAX_BYTES};\n"
+        f"export const LOOK_PART_CHARACTERS = {LOOK_PART_CHARACTERS};\n"
+    )
+    return _generated_file(f"{_enums(PARTICIPATION_BROWSER_ENUMS)}\n{constants}")
 
 
 def outputs(root: Path) -> dict[Path, str]:
