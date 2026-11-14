@@ -4,10 +4,10 @@ refusals, and what no seat but the sponsor's is asked."""
 import base64
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 import pytest
 import structlog.testing
-from agents.member import PlaceRef
 from agents.tools import ToolImage
 from agents.turn import is_within_event_bound
 
@@ -20,6 +20,7 @@ from hopin.participation.vocabulary import (
     LOOKS_PER_WINDOW,
     ParticipationSignal,
 )
+from tests.participation.support.tool_calls import call_in
 from tests.support.pictures import jpeg_of, parts_of
 
 pytestmark = pytest.mark.integration
@@ -30,10 +31,7 @@ SEEING = ParticipationSignal.AGENT_SEEING.value
 ANSWER_SECONDS = 30
 
 
-def look(scene, room_id=None, **named):
-    """The agent's `look` call."""
-    place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
-    return scene.call.call(scene.token, LOOK, {"place": place.model_dump(), **named})
+look = partial(call_in, tool=LOOK)
 
 
 def part(request_id, text, index=0, count=1):
@@ -178,16 +176,15 @@ class TestRefusals:
 
         assert refusal_of(waiting.result(timeout=ANSWER_SECONDS)) == (True, {"refused": "unavailable"})
 
-    @pytest.mark.parametrize(
-        "arguments",
-        [
-            pytest.param({"place": {"kind": "chat", "id": "x"}}, id="another_kind_of_place"),
-            pytest.param({}, id="no_place"),
-            pytest.param({"place": {"kind": CALL_KIND, "id": "no-such-call"}}, id="a_call_the_agent_is_not_in"),
-        ],
-    )
-    def test_call_63_a_place_that_is_no_call_of_the_agent_is_refused_as_not_active(self, seeing_agent, arguments):
-        """CALL-63: A look names the call the agent joined."""
-        dialed = seeing_agent.call.call(seeing_agent.token, LOOK, arguments)
+    def test_call_63_a_place_that_is_no_call_of_the_agent_is_refused_as_not_active(self, seeing_agent):
+        """CALL-63: A look names the call the agent joined: another kind of place, no place and a call the agent is not
+        in are each refused as not_active."""
+        arguments = [
+            {"place": {"kind": "chat", "id": "x"}},
+            {},
+            {"place": {"kind": CALL_KIND, "id": "no-such-call"}},
+        ]
 
-        assert refusal_of(dialed) == (True, {"refused": "not_active"})
+        answers = [refusal_of(seeing_agent.call.call(seeing_agent.token, LOOK, named)) for named in arguments]
+
+        assert answers == [(True, {"refused": "not_active"})] * len(arguments)

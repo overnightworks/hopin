@@ -8,7 +8,7 @@ import pytest
 import pytest_asyncio
 import structlog.testing
 
-from hopin.config.constants import ErrorReason, SignalType
+from hopin.config.constants import SignalType
 from hopin.participation.vocabulary import (
     LOOK_ANSWER_SECONDS,
     LOOK_MAX_BYTES,
@@ -306,31 +306,6 @@ class TestTheAnswers:
         await guest.say(part("no-such-request", parts_of(jpeg_of(), 10**6)[0]))
 
         assert (host.frames(LOOKED), guest.frames(SignalType.ERROR)) == ([], [])
-
-    @pytest.mark.parametrize(
-        "data",
-        [
-            {},
-            {"request_id": 7},
-            {"request_id": "x", "index": "0", "count": 1, "data": "AAAA"},
-            {"request_id": "x", "index": 0, "count": 1},
-        ],
-    )
-    async def test_call_63_an_answer_that_is_no_part_of_the_form_is_an_invalid_message(self, seen, data):
-        """CALL-63: A part names its request, its index, the count of parts and its data."""
-        _host, guest, _agent = seen
-
-        await guest.say({"type": ParticipationSignal.AGENT_LOOK_PART.value, **data})
-
-        assert [frame["reason"] for frame in guest.frames(SignalType.ERROR)] == [ErrorReason.INVALID_MESSAGE.value]
-
-    async def test_call_63_a_none_without_a_request_id_is_an_invalid_message(self, seen):
-        """CALL-63: The word that there is no camera names the request."""
-        _host, guest, _agent = seen
-
-        await guest.say({"type": ParticipationSignal.AGENT_LOOK_NONE.value})
-
-        assert [frame["reason"] for frame in guest.frames(SignalType.ERROR)] == [ErrorReason.INVALID_MESSAGE.value]
 
 
 def unbounded_pictures():

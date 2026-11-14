@@ -24,6 +24,7 @@ from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, SPEAK_MAX_CHARACTERS
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import VOICE_PATH, ParticipationSignal
+from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
@@ -72,10 +73,7 @@ def speaking_service(speech_origin):
     return SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
-def stop(scene, room_id=None):
-    """The agent's `stop_speaking` call."""
-    place = PlaceRef(kind=CALL_KIND, id=scene.owner.room_id if room_id is None else room_id)
-    return scene.call.call(scene.token, STOP_SPEAKING_TOOL, {"place": place.model_dump()})
+stop = partial(call_in, tool=STOP_SPEAKING_TOOL)
 
 
 @pytest.fixture

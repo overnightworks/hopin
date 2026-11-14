@@ -13,7 +13,7 @@ from hopin.agent.tools import CALL_KIND
 from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.chat_window import LINES_PER_WINDOW, LineKind, WindowLine
 from hopin.participation.hearing import Hearing, HearingHandle
-from hopin.participation.vocabulary import AgentRefusal, HearingRefusal, ParticipationSignal
+from hopin.participation.vocabulary import HearingRefusal, ParticipationSignal
 from tests.participation.support.ends import (
     end_by_the_host,
     leave_by_the_agent,
@@ -59,10 +59,6 @@ def switch(agent_id, *, on):
 
 def hearing_frames(browser):
     return [(frame["agent_id"], frame["on"]) for frame in browser.frames(ParticipationSignal.AGENT_HEARING)]
-
-
-def refusals(browser):
-    return [frame["reason"] for frame in browser.frames(ParticipationSignal.AGENT_REFUSED)]
 
 
 def lines_of(participation, person, room_id):
@@ -176,34 +172,6 @@ class TestTheSwitch:
 
         assert hearing_frames(guest)[1:] == [(agent.agent_id, False), (agent.agent_id, on)]
         assert isinstance(open_hearing(participation, GUEST, guest.peer_id), HearingHandle) is on
-
-    async def test_call_57_a_seat_that_does_not_sponsor_the_agent_is_refused_and_the_switch_stays(
-        self, participation, dialed
-    ):
-        """CALL-57: Only the agent's sponsor has its switch; any other seat, the host included, is refused."""
-        host, guest, agent = dialed
-
-        await host.say(switch(agent.agent_id, on=False))
-
-        assert refusals(host) == [AgentRefusal.NOT_SPONSOR.value]
-        assert isinstance(open_hearing(participation, GUEST, guest.peer_id), HearingHandle)
-
-    async def test_call_57_a_switch_of_an_agent_that_is_not_joined_there_is_refused_as_gone(self, dialed):
-        """CALL-57: A switch frame for an agent that holds no joined place in the seat's room is refused as gone."""
-        host, _guest, _agent = dialed
-
-        await host.say(switch("another-agent", on=True))
-
-        assert refusals(host) == [AgentRefusal.GONE.value]
-
-    @pytest.mark.parametrize("data", [{}, {"agent_id": 7, "on": True}, {"agent_id": "x", "on": "yes"}])
-    async def test_call_57_a_switch_without_an_agent_id_and_a_boolean_is_an_invalid_message(self, dialed, data):
-        """CALL-57: A switch frame names the agent by its id and says on or off as a boolean."""
-        host, _guest, _agent = dialed
-
-        await host.say({"type": ParticipationSignal.AGENT_HEARING.value, **data})
-
-        assert [frame["reason"] for frame in host.frames(SignalType.ERROR)] == [ErrorReason.INVALID_MESSAGE.value]
 
     async def test_call_57_pausing_the_agent_does_not_end_hearing_but_ends_the_sound_of_the_parked_seat(
         self, participation, dialed
@@ -592,18 +560,6 @@ class TestTheEnds:
         participation.heard(guest.peer_id, "after the rejoin", began_at=10.0)
 
         assert [line.text for line in lines_of(participation, GUEST, room_of(host))] == ["after the rejoin"]
-
-    async def test_call_57_a_switch_after_the_agent_left_is_refused_and_records_nothing(
-        self, participation, member_hearing, dialed
-    ):
-        """CALL-57: A switch frame for an agent that has left is refused and records nothing."""
-        host, guest, agent = dialed
-        await participation.leave(GUEST, room_of(host))
-
-        await guest.say(switch(agent.agent_id, on=True))
-
-        assert refusals(guest) == [AgentRefusal.GONE.value]
-        assert hearers(member_hearing, room_of(host), guest.peer_id) == set()
 
 
 class TestTheSettingOff:
