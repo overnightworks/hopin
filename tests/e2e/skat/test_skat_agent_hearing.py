@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.e2e
 
 SWITCH = AGENT_HEARING_SWITCH
-TRACK = SWITCH + ' > span[aria-hidden="true"]'
-SEE_TRACK = AGENT_SEE_SWITCH + ' > span[aria-hidden="true"]'
-SEE_ICON = AGENT_SEE_SWITCH + " > .icon svg"
+TRACK = SWITCH + ' >> span[aria-hidden="true"]'
+SEE_TRACK = AGENT_SEE_SWITCH + ' >> span[aria-hidden="true"]'
+SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
 TOLERANCE_PIXELS = 1
@@ -53,6 +53,18 @@ def overlap_of(first: dict[str, float], second: dict[str, float]) -> float:
     return max(width, 0) * max(height, 0)
 
 
+LAYOUT_SETTLED_SCRIPT = """([tileSelector, fitsFrom]) => {
+    const tile = document.querySelector(tileSelector);
+    const chips = tile && tile.querySelector(".hear-set");
+    return chips !== null && (tile.clientWidth < fitsFrom) === chips.classList.contains("narrow");
+}"""
+
+
+def wait_for_chips_to_follow_the_tile_width(host: Page) -> None:
+    """The chips switch layout a frame after their tile changes width; a box read in between is of the old layout."""
+    host.wait_for_function(LAYOUT_SETTLED_SCRIPT, arg=[AGENT_TILE, WHOLE_CHIP_FITS_FROM_PIXELS])
+
+
 @pytest.fixture
 def host_with_a_table_and_an_agent(
     open_person: Callable[..., Page],
@@ -66,6 +78,7 @@ def host_with_a_table_and_an_agent(
     agent_of(host).dial_in("Claude")
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
+    wait_for_chips_to_follow_the_tile_width(host)
     return host
 
 

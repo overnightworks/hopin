@@ -611,91 +611,6 @@ textarea {
     align-items: flex-start;
     gap: 4px;
 }
-/* The switch that lets an agent see: drawn like the kit's hearing chip, which has no seeing kind. */
-.see-switch {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    max-width: 100%;
-    height: 28px;
-    padding: 0 5px 0 10px;
-    border: 0;
-    border-radius: 999px;
-    background: rgba(12, 14, 17, 0.55);
-    color: #f4f6f8;
-    font-family: var(--font-body);
-    font-size: 12.5px;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-}
-.see-switch:hover {
-    background: rgba(255, 255, 255, 0.15);
-}
-.see-switch:focus-visible {
-    outline: 2.5px solid var(--accent);
-    outline-offset: 2px;
-}
-.see-switch .icon {
-    display: inline-flex;
-    color: rgba(244, 246, 248, 0.72);
-}
-.see-switch .icon svg {
-    width: 16px;
-    height: 16px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.see-switch .label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: rgba(244, 246, 248, 0.72);
-}
-.see-switch .track {
-    position: relative;
-    flex: none;
-    width: 34px;
-    height: 20px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.15);
-}
-.see-switch .track::after {
-    content: "";
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #f4f6f8;
-}
-.see-switch[aria-checked="true"] .icon {
-    color: var(--accent);
-}
-.see-switch[aria-checked="true"] .label {
-    color: inherit;
-}
-.see-switch[aria-checked="true"] .track {
-    background: var(--accent);
-}
-.see-switch[aria-checked="true"] .track::after {
-    transform: translateX(14px);
-    background: #0d1013;
-}
-@media (prefers-reduced-motion: no-preference) {
-    .see-switch .track {
-        transition: background var(--motion-fade);
-    }
-    .see-switch .track::after {
-        transition: transform var(--motion-fade);
-    }
-}
 /* The mark of a look: an eye in a glass disc ringed in the stage accent, over the agent's avatar, calm because it
    shows one moment and not a state. */
 .look-mark {
@@ -720,62 +635,26 @@ textarea {
     width: 24px;
     height: 24px;
 }
-/* Under 131px the narrowest chip no longer fits beside the remove button (8px, the chip, the button's 32px and its
-   10px), so the hearing chip moves into the tile's lower right corner, clear of the button; its icon may be cut, its
-   switch stays whole and pressable. The see switch shrinks to its track in the upper left corner, its label kept for
-   assistive technology, and its eye sits on the knob where a beside-the-track icon would not fit, so the sponsor can
-   still tell it from the hearing switch and take the consent back. */
-@container (max-width: 130.99px) {
-    .hear-set {
-        display: contents;
-    }
-    .tile .hear-set > :not(.see-switch) {
-        position: absolute;
-        right: 2px;
-        bottom: 2px;
-        z-index: 7;
-        width: var(--hear-narrowest);
-        max-width: none;
-    }
-    .tile .hear-set > .see-switch {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        z-index: 7;
-        width: 26px;
-        padding: 0;
-        gap: 0;
-        justify-content: center;
-    }
-    .hear-set .see-switch .icon {
-        position: absolute;
-        top: 50%;
-        left: 4px;
-        margin-top: -6px;
-        z-index: 1;
-        color: #0d1013;
-        pointer-events: none;
-    }
-    .hear-set .see-switch .icon svg {
-        width: 12px;
-        height: 12px;
-    }
-    .hear-set .see-switch[aria-checked="true"] .icon {
-        color: var(--accent);
-        transform: translateX(6px);
-    }
-    .hear-set .see-switch .label {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        clip-path: inset(50%);
-    }
-    .hear-set .see-switch .track {
-        width: 26px;
-    }
-    .hear-set .see-switch[aria-checked="true"] .track::after {
-        transform: translateX(6px);
-    }
+/* On a narrow tile (Tiles.svelte decides) the narrowest chip no longer fits beside the remove button (8px, the chip,
+   the button's 32px and its 10px), so the hearing chip moves into the tile's lower right corner, clear of the button;
+   its icon may be cut, its switch stays whole and pressable. The see chip is the kit's compact one there: its track
+   alone in the upper left corner. */
+.hear-set.narrow {
+    display: contents;
+}
+.tile .hear-set.narrow > :not(.compact) {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    z-index: 7;
+    width: var(--hear-narrowest);
+    max-width: none;
+}
+.tile .hear-set.narrow > .compact {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    z-index: 7;
 }
 .tile.agent .av {
     color: var(--accent-stage);
