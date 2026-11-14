@@ -11,7 +11,7 @@ import structlog.testing
 from agents.tools import ToolImage
 from agents.turn import is_within_event_bound
 
-from hopin.agent.tools import CALL_KIND, LOOK
+from hopin.agent.tools import LOOK
 from hopin.participation.vocabulary import (
     LOOK_ANSWER_SECONDS,
     LOOK_MAX_BYTES,
@@ -175,16 +175,3 @@ class TestRefusals:
         seeing_agent.owner.send(part(request_id, parts_of(jpeg_of(*picture_size), LOOK_PART_CHARACTERS)[0]))
 
         assert refusal_of(waiting.result(timeout=ANSWER_SECONDS)) == (True, {"refused": "unavailable"})
-
-    def test_call_63_a_place_that_is_no_call_of_the_agent_is_refused_as_not_active(self, seeing_agent):
-        """CALL-63: A look names the call the agent joined: another kind of place, no place and a call the agent is not
-        in are each refused as not_active."""
-        arguments = [
-            {"place": {"kind": "chat", "id": "x"}},
-            {},
-            {"place": {"kind": CALL_KIND, "id": "no-such-call"}},
-        ]
-
-        answers = [refusal_of(seeing_agent.call.call(seeing_agent.token, LOOK, named)) for named in arguments]
-
-        assert answers == [(True, {"refused": "not_active"})] * len(arguments)

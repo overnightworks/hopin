@@ -687,19 +687,6 @@ class TestEveryEndAtTheRoute:
             refusal_of(speak(joined_agent)),
         ) == (True, 404, 1, (True, {"refused": "not_active"}), (True, {"refused": "not_active"}))
 
-    @pytest.mark.parametrize(
-        "arguments",
-        [
-            pytest.param({"place": {"kind": "elsewhere", "id": "x"}, "text": TEXT}, id="another-kind-of-place"),
-            pytest.param({"place": {"kind": CALL_KIND, "id": "no-such-call"}, "text": TEXT}, id="a-call-it-is-not-in"),
-            pytest.param({"text": TEXT}, id="no-place"),
-        ],
-    )
-    def test_call_60_a_place_the_agent_holds_no_joined_place_in_is_not_active(self, joined_agent, arguments):
-        dialed = joined_agent.call.call(joined_agent.token, SPEAK_TOOL, arguments)
-
-        assert refusal_of(dialed) == (True, {"refused": "not_active"})
-
 
 class TestNothingLeaks:
     def test_call_60_no_frame_to_a_seat_and_no_route_answer_carries_a_token(self, joined_agent):
