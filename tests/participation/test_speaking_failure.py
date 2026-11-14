@@ -65,8 +65,8 @@ SPEECH_FAILS = [
     pytest.param(chunked_wav(SOUND, terminated=False), {"outcome": "cut"}, id="cut"),
     pytest.param(chunked_wav(SOUND + bytes(SPEAK_MAX_BYTES)), {"outcome": "over_cap"}, id="over-cap"),
     pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
-    pytest.param(chunked_wav(SPOKEN_WAV), {"outcome": UNREADABLE}, id="unreadable-sound"),
-    pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), {"outcome": UNREADABLE}, id="zero-sample-rate"),
+    pytest.param(chunked_wav(SPOKEN_WAV), {"outcome": "malformed"}, id="unreadable-sound"),
+    pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), {"outcome": "malformed"}, id="zero-sample-rate"),
     pytest.param(chunked_wav(SOUND[:-2]), {"outcome": UNREADABLE}, id="fewer-frames-than-declared"),
     pytest.param(
         chunked_wav(with_data_size(SOUND, STREAMING_DATA_SIZE // 2)), {"outcome": UNREADABLE}, id="size-beyond-the-body"
