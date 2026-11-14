@@ -73,13 +73,14 @@ def build_application(settings: ServerSettings, page_build: PageBuild, shared_st
     )
 
 
+def serve(settings: ServerSettings, page_build: PageBuild) -> None:
+    application = build_application(settings, page_build, connect_shared_stores(str(settings.redis_url)))
+    uvicorn.run(application, **uvicorn_options(settings))
+
+
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
-    settings = ServerSettings()
-    application = build_application(
-        settings, PageBuild.load(BUILD_DIRECTORY), connect_shared_stores(str(settings.redis_url))
-    )
-    uvicorn.run(application, **uvicorn_options(settings))
+    serve(ServerSettings(), PageBuild.load(BUILD_DIRECTORY))
 
 
 if __name__ == "__main__":
