@@ -221,11 +221,13 @@ class OwnAccountAgent(SdkAgent):
         [invited] = [standing for standing in self.standings() if standing["state"] == "invited"]
         return invited
 
-    def accept(self, standing: dict[str, Any], figure: dict[str, str] | None = None) -> dict[str, Any]:
-        """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one."""
-        return self.call(
-            ACCEPT_INVITATION_TOOL, self._acceptance(standing) | ({} if figure is None else {"figure": figure})
-        )
+    def accept(
+        self, standing: dict[str, Any], figure: dict[str, str] | None = None, voices: Sequence[str] | None = None
+    ) -> dict[str, Any]:
+        """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one and the voices
+        it would speak with, first choice first."""
+        named = ({} if figure is None else {"figure": figure}) | ({} if voices is None else {"voices": list(voices)})
+        return self.call(ACCEPT_INVITATION_TOOL, self._acceptance(standing) | named)
 
     def decline_busy(self, standing: dict[str, Any]) -> None:
         """Decline the invitation because the agent is at its own limit of places."""
