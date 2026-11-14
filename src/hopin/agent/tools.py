@@ -31,8 +31,7 @@ from agents.member import (
     Written,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
-from agents.turn import StrictModel
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voice
 from hopin.participation.figures import Figure
@@ -225,8 +224,10 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
 )
 
 
-class LookArguments(StrictModel):
+class LookArguments(BaseModel):
     """The arguments of `look`: the place whose person's camera the agent looks at."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
     place: PlaceRef
 
