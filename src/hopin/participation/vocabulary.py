@@ -35,6 +35,7 @@ class ParticipationSignal(StrEnum):
     AGENT_LINE = "agent_line"
     AGENT_HEARING = "agent_hearing"
     AGENT_VOICE = "agent_voice"
+    AGENT_STOP = "agent_stop"
     AGENT_INVITATION_ENDED = "agent_invitation_ended"
 
 
@@ -66,6 +67,14 @@ class InvitationOutcome(StrEnum):
     NO_ANSWER = "no_answer"
     BUSY = "busy"
     OWNER_ABSENT = "owner_absent"
+
+
+class SpeakStop(StrEnum):
+    """What a stop leaves of a sentence or of the agent's speaking: a sentence dropped before it started, and a stop
+    that found nothing playing."""
+
+    STOPPED = "stopped"
+    NOTHING_PLAYING = "nothing_playing"
 
 
 class SpeakFailure(StrEnum):

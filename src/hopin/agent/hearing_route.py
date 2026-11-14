@@ -13,7 +13,15 @@ import structlog
 from speech_client.hearing import Closed, Refused
 from speech_client.outcomes import Busy, Cut, Malformed, OverCap, PastDeadline, Unreachable
 from speech_client.relay import HOP_FRAME_BYTES, AppEnded, BrowserLeft, RuleBroken
-from speech_client.utterances import ServiceFailed, Utterance, UtteranceOutcome, hear_utterances
+from speech_client.utterances import (
+    Partial,
+    ServiceFailed,
+    SpeechStart,
+    TurnEnd,
+    Utterance,
+    UtteranceOutcome,
+    hear_utterances,
+)
 from speech_client.wire import Language
 from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 from webauth.oidc import OidcRefusal
@@ -153,6 +161,7 @@ class HearingRoute:
             await self._hear(websocket, handle, person_token)
         finally:
             recheck.close()
+            self._participation().speech.turn_ended(handle.room_id, handle.seat)
 
     async def _hear(self, websocket: WebSocket, handle: HearingHandle, person_token: SecretStr) -> None:
         workload = await self._workload_token_unless(handle.ended)
@@ -170,6 +179,18 @@ class HearingRoute:
             self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance))
             return asyncio.sleep(0)  # the client awaits its callback; hearing is synchronous
 
+        def on_speech_started(_: SpeechStart) -> Awaitable[None]:
+            self._participation().speech.person_started(handle.room_id, handle.seat)
+            return asyncio.sleep(0)
+
+        def on_partial(partial: Partial) -> Awaitable[None]:
+            self._participation().speech.words_heard(handle.room_id, handle.seat, partial.text)
+            return asyncio.sleep(0)
+
+        def on_turn_ended(_: TurnEnd) -> Awaitable[None]:
+            self._participation().speech.turn_ended(handle.room_id, handle.seat)
+            return asyncio.sleep(0)
+
         outcome = await hear_utterances(
             websocket,
             self._service.origin,
@@ -180,6 +201,9 @@ class HearingRoute:
             held_limit_bytes=HELD_LIMIT_BYTES,
             ended=handle.ended,
             on_utterance=on_utterance,
+            on_partial=on_partial,
+            on_speech_started=on_speech_started,
+            on_turn_ended=on_turn_ended,
         )
         _log_ended(outcome)
 

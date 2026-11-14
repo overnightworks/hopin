@@ -24,7 +24,7 @@ from speech_client.speak import (
     Unreachable,
     speak,
 )
-from speech_client.wire import VOICES, Language, ResponseFormat, VoiceId
+from speech_client.wire import VOICES, Language, RefusalCode, ResponseFormat, VoiceId
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import issuer_error
@@ -46,6 +46,11 @@ MILLISECONDS_PER_SECOND: Final = 1000
 STREAMING_DATA_SIZE: Final = 0xFFFFFFFF
 
 
+class StyleUnavailableError(Exception):
+    """The voice refuses the style of a sentence: it takes no style, or the style is too long, has no letter or is one
+    the service does not support."""
+
+
 @dataclass(frozen=True)
 class SpeechRenderer:
     """Renders text to a WAV at the speech service, within a deadline and a size cap; `failed_event` names the log line
@@ -57,11 +62,19 @@ class SpeechRenderer:
     relying_party: OidcRelyingParty
     failed_event: str
 
-    async def wav(self, text: str, person_token: str, language: Language, voice: VoiceId | None = None) -> bytes | None:
+    async def wav(
+        self,
+        text: str,
+        person_token: str,
+        language: Language,
+        voice: VoiceId | None = None,
+        style: str | None = None,
+    ) -> bytes | None:
         """The WAV of the text spoken in `language` on the person's token and HopIn's workload token in `voice`, the
-        service's configured one when none, or nothing for any reason.
+        service's configured one when none, in the `style` handed to the service unchanged, or nothing for any reason.
 
-        Raises nothing but `CancelledError`; a cancelled call's worker ends within the deadline.
+        Raises `StyleUnavailableError` when the voice refuses the style, and otherwise nothing but `CancelledError`; a
+        cancelled call's worker ends within the deadline.
         """
         workload = await asyncio.to_thread(
             self.relying_party.workload_access_token, scopes=(self.service.audience_scope,)
@@ -77,13 +90,16 @@ class SpeechRenderer:
                 text,
                 self.service.voice if voice is None else voice,
                 language=language,
+                instructions=style,
                 response_format=ResponseFormat.WAV,
                 workload_token=workload.get_secret_value(),
                 person_token=person_token,
                 deadline_seconds=self.deadline_seconds,
                 cap_bytes=self.cap_bytes,
             )
-        except ValidationError:
+        except ValidationError as refusal:
+            if any(error["loc"] == ("instructions",) for error in refusal.errors()):
+                raise StyleUnavailableError from None
             self.log_failure("input_refused")
             return None
         return self._wav_of(outcome)
@@ -95,6 +111,8 @@ class SpeechRenderer:
         match outcome:
             case Spoken(audio=audio):
                 return audio
+            case Refused(code=RefusalCode.INVALID_REQUEST, param="instructions"):
+                raise StyleUnavailableError
             case Refused(code=code):
                 self.log_failure("refused", code=code.value)
             case Busy():
@@ -150,20 +168,21 @@ class AgentVoice:
         self._tokens = tokens
 
     async def render(
-        self, agent: Person, text: str, voice: str | None, *, language: str | None = None
+        self, agent: Person, text: str, voice: str | None, *, language: str | None = None, style: str | None = None
     ) -> RenderedSentence | None:
         """The sentence's sound and length in the agent's `voice`, a catalogue voice its accept named or none for the
-        configured one, spoken in the `language` it names or in the page's when it names none, or nothing when no token
-        is held, speech fails or its WAV cannot be read.
+        configured one, spoken in the `language` it names or in the page's when it names none and in the `style` it
+        names, which speech alone checks, or nothing when no token is held, speech fails or its WAV cannot be read.
 
-        Raises `LanguageUnavailableError`, before any request to speech, for a language the voice does not speak."""
+        Raises `LanguageUnavailableError`, before any request to speech, for a language the voice does not speak, and
+        `StyleUnavailableError` for a style the voice refuses."""
         spoken_voice = self._renderer.service.voice if voice is None else VoiceId(voice)
         spoken_language = _spoken_language(language, spoken_voice)
         token = self._tokens.held(agent)
         if token is None:
             self._renderer.log_failure("no_token")
             return None
-        wav = await self._renderer.wav(text, token.get_secret_value(), spoken_language, spoken_voice)
+        wav = await self._renderer.wav(text, token.get_secret_value(), spoken_language, spoken_voice, style)
         if wav is None:
             return None
         duration_ms = duration_ms_of(wav)

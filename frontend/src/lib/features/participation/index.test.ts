@@ -425,13 +425,28 @@ describe("an agent's voice", () => {
         const before = tileActivities(page);
         await sound?.start();
         const whilePlaying = [...page.tiles.values()].map(({ activity, name, sponsor }) => [activity, name, sponsor]);
-        await sound?.end({ kind: "played" });
+        await sound?.end({ kind: "played", playedSeconds: 1 });
 
         expect([before, whilePlaying, tileActivities(page)]).toEqual([
             [AGENT_ACTIVITY.PRESENT],
             [[AGENT_ACTIVITY.SPEAKING, "Claude", "Ada"]],
             [AGENT_ACTIVITY.PRESENT],
         ]);
+    });
+
+    it("CALL-60: shows the agent present again when the server stops its voice, and plays the voice that follows", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_STOP, { agent_id: "a1" });
+        await Promise.resolve();
+        await Promise.resolve();
+        const afterStop = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "later"));
+        await page.players.created[0]?.sounds[1]?.start();
+
+        expect([afterStop, tileActivities(page)]).toEqual([[AGENT_ACTIVITY.PRESENT], [AGENT_ACTIVITY.SPEAKING]]);
     });
 
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {
@@ -441,7 +456,7 @@ describe("an agent's voice", () => {
 
         await page.players.created[0]?.sounds[0]?.start();
         await page.players.created[1]?.sounds[0]?.start();
-        await page.players.created[0]?.sounds[0]?.end({ kind: "played" });
+        await page.players.created[0]?.sounds[0]?.end({ kind: "played", playedSeconds: 1 });
 
         expect([...page.tiles.entries()].map(([key, { activity }]) => [key, activity])).toEqual([
             ["agent-a1", AGENT_ACTIVITY.PRESENT],

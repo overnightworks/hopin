@@ -61,7 +61,7 @@ describe("whether an agent is speaking", () => {
 
         await sound?.start();
         const whilePlaying = [...reported];
-        await sound?.end({ kind: "played" });
+        await sound?.end({ kind: "played", playedSeconds: 1 });
 
         expect([whilePlaying, reported]).toEqual([
             [["a1", true]],
@@ -89,7 +89,7 @@ describe("whether an agent is speaking", () => {
         await first?.start();
 
         const next = second?.start();
-        await first?.end({ kind: "played" });
+        await first?.end({ kind: "played", playedSeconds: 1 });
         await next;
 
         expect(reported).toEqual([["a1", true]]);
@@ -104,13 +104,73 @@ describe("whether an agent is speaking", () => {
 
         await first?.start();
         await second?.start();
-        await first?.end({ kind: "played" });
+        await first?.end({ kind: "played", playedSeconds: 1 });
 
         expect(reported).toEqual([
             ["a1", true],
             ["a2", true],
             ["a1", false],
         ]);
+    });
+});
+
+describe("stopping an agent's voice", () => {
+    it("ends the playing sound and the waiting ones of the agent and reports it silent", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a1", "second");
+        await players.created[0]?.sounds[0]?.start();
+
+        agentVoices.stop("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", false],
+        ]);
+    });
+
+    it("stops only the player of the agent it names", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a2", "second");
+        await players.created[0]?.sounds[0]?.start();
+        await players.created[1]?.sounds[0]?.start();
+
+        agentVoices.stop("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a2", true],
+            ["a1", false],
+        ]);
+    });
+
+    it("plays the voices that arrive after the stop", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        await players.created[0]?.sounds[0]?.start();
+        agentVoices.stop("a1");
+
+        agentVoices.play("a1", "later");
+        await players.created[0]?.sounds[1]?.start();
+
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", false],
+            ["a1", true],
+        ]);
+    });
+
+    it("stops nothing for an agent that never spoke", () => {
+        const { players, agentVoices } = voices();
+
+        agentVoices.stop("a1");
+
+        expect(players.created).toEqual([]);
     });
 });
 
@@ -122,7 +182,7 @@ describe("closing an agent's player", () => {
         await players.created[1]?.sounds[0]?.start();
 
         agentVoices.close("a1");
-        await players.created[1]?.sounds[0]?.end({ kind: "played" });
+        await players.created[1]?.sounds[0]?.end({ kind: "played", playedSeconds: 1 });
 
         expect([players.created.map((player) => player.closed), reported]).toEqual([
             [true, false],
@@ -139,7 +199,7 @@ describe("closing an agent's player", () => {
         await players.created[0]?.sounds[0]?.start();
 
         agentVoices.close("a1");
-        await players.created[0]?.sounds[0]?.end({ kind: "stopped" });
+        await players.created[0]?.sounds[0]?.end({ kind: "stopped", playedSeconds: 1 });
 
         expect(reported).toEqual([["a1", true]]);
     });

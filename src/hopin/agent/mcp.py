@@ -19,11 +19,13 @@ from agents.member import (
     STANDING_URI,
     Invitation,
     MemberStanding,
+    PartialSpeech,
     PlaceEntry,
     PlaceRef,
     PlaceWindow,
     Standing,
     StandingState,
+    TalkedOver,
     place_ref_from_window_uri,
     place_window_uri,
 )
@@ -61,7 +63,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.agent.speech_settings import SpeechService
-    from hopin.participation.chat_window import WindowRead
+    from hopin.participation.chat_window import WindowRead, WindowTalkedOver
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
     from hopin.signaling.scheduler import Scheduler
@@ -234,10 +236,25 @@ def _window_of(window: WindowRead) -> PlaceWindow:
         starts_at=window.starts_at,
         entries=tuple(
             PlaceEntry(
-                seq=line.seq, kind=line.kind.value, name=line.name, text=line.text, own=line.own, spoken=line.spoken
+                seq=line.seq,
+                kind=line.kind.value,
+                name=line.name,
+                text=line.text,
+                own=line.own,
+                spoken=line.spoken,
+                cut=line.cut,
             )
             for line in window.lines
         ),
+        talked_over=None if window.talked_over is None else _talked_over_of(window.talked_over),
+    )
+
+
+def _talked_over_of(record: WindowTalkedOver) -> TalkedOver:
+    return TalkedOver(
+        id=record.id,
+        playing=record.playing,
+        speech=tuple(PartialSpeech(name=partial.name, text=partial.text) for partial in record.speech),
     )
 
 

@@ -1,6 +1,6 @@
 import pytest
 from agents.mcp_wire import PROTOCOL_VERSION_HEADER
-from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, SPEAK_TOOL, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, SPEAK_TOOL, STANDING_URI, STOP_SPEAKING_TOOL
 from mcp_types import UNSUPPORTED_PROTOCOL_VERSION
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY
@@ -54,7 +54,7 @@ class TestAPersonsOwnAgent:
 
 
 class TestTheEndpoint:
-    def test_tools_list_holds_the_six_tools_and_no_wait(self, dialed_call):
+    def test_tools_list_holds_the_seven_tools_and_no_wait(self, dialed_call):
         token = dialed_call.token(dialed_call.member()[0])
 
         tools = dialed_call.request(token, "tools/list").json()["result"]["tools"]
@@ -66,6 +66,7 @@ class TestTheEndpoint:
             LEAVE_CALL,
             SAY,
             SPEAK_TOOL,
+            STOP_SPEAKING_TOOL,
         }
 
     def test_a_call_of_wait_is_an_unknown_tool(self, dialed_call):

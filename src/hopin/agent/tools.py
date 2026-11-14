@@ -11,6 +11,7 @@ from agents.member import (
     ACCEPT_INVITATION_TOOL,
     DECLINE_INVITATION_TOOL,
     SPEAK_TOOL,
+    STOP_SPEAKING_TOOL,
     AcceptInvitationArguments,
     AcceptInvitationRefusal,
     AcceptInvitationRefused,
@@ -23,11 +24,15 @@ from agents.member import (
     SpeakRefusal,
     SpeakRefused,
     Spoken,
+    StoppedSpeaking,
+    StopSpeakingArguments,
+    StopSpeakingRefusal,
+    StopSpeakingRefused,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolOutcome
 from pydantic import ValidationError
 
-from hopin.agent.speaking import LanguageUnavailableError, known_voice
+from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voice
 from hopin.participation.figures import Figure
 from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
@@ -36,6 +41,7 @@ from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AgentRefusal,
     InvitationOutcome,
+    SpeakStop,
 )
 
 if TYPE_CHECKING:
@@ -78,6 +84,7 @@ AUDIENCE_OF_TOOL: Final = {
     DECLINE_INVITATION_TOOL: Audience.OWN_ACCOUNT,
     SAY: Audience.EVERY_AGENT,
     SPEAK_TOOL: Audience.EVERY_AGENT,
+    STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
 }
 
 # The row's outcome a decline's reason shows to the seat that made the invitation.
@@ -87,6 +94,13 @@ _SPEAK_REFUSAL_OF: Final = {
     AgentRefusal.GONE: SpeakRefusal.NOT_ACTIVE,
     AgentRefusal.SPONSOR_AWAY: SpeakRefusal.NOT_ACTIVE,
     AgentRefusal.UNAVAILABLE: SpeakRefusal.UNAVAILABLE,
+    SpeakStop.STOPPED: SpeakRefusal.STOPPED,
+}
+
+_STOP_REFUSAL_OF: Final = {
+    AgentRefusal.GONE: StopSpeakingRefusal.NOT_ACTIVE,
+    AgentRefusal.SPONSOR_AWAY: StopSpeakingRefusal.NOT_ACTIVE,
+    SpeakStop.NOTHING_PLAYING: StopSpeakingRefusal.NOTHING_PLAYING,
 }
 
 
@@ -180,11 +194,24 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
         "which can be after the ones before it have played, so allow for that in your timeout; it is how long yours "
         "plays. "
         "Name the language of the sentence as a two-letter code such as de or en; without one it is spoken in German. "
+        "Name a style, such as louder and angrier, to have it spoken that way; the voice decides whether it can. "
         "It is refused as not_active when you are not joined there or your person's seat is away, as too_long above "
-        "the bound, as language_unavailable when your voice does not speak the language and as unavailable when no "
-        "voice can be made."
+        "the bound, as language_unavailable when your voice does not speak the language, as style_unavailable when "
+        "your voice refuses the style, as stopped when a stop_speaking dropped it while it waited and as unavailable "
+        "when no voice can be made."
     ),
     parameters=SpeakArguments.model_json_schema(),
+    effect=ToolEffect.SIDE_EFFECTING,
+)
+_STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
+    name=STOP_SPEAKING_TOOL,
+    description=(
+        "Cut the sentence you are saying aloud in the call you joined, in every seat, and drop every sentence of yours "
+        "that waits behind it; each of those speak calls answers stopped. You may speak again at once. It answers the "
+        "text of the line the cut sentence left, nothing_playing when no sentence of yours plays and not_active when "
+        "you are not joined there or your person's seat is away."
+    ),
+    parameters=StopSpeakingArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 
@@ -213,29 +240,36 @@ def _speak_refused(refusal: SpeakRefusal) -> ToolOutcome:
     return ToolOutcome(SpeakRefused(refused=refusal).model_dump_json(), is_error=True)
 
 
+def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
+    return ToolOutcome(StopSpeakingRefused(refused=refusal).model_dump_json(), is_error=True)
+
+
 @dataclass(frozen=True)
 class _SpeakRequest:
     place: PlaceRef
     text: str
     language: str | None
+    style: str | None
 
 
 def _speak_request(arguments: JsonObject) -> _SpeakRequest | None:
-    """The place, the sentence and the language a `speak` call names, or nothing when the arguments name no place. A
-    sentence the schema refuses, a missing or an empty one, is no text, which participation answers once the place holds
-    an agent; a language it refuses is one no voice speaks, which the voice answers once the sentence is rendered."""
+    """The place, the sentence, the language and the style a `speak` call names, or nothing when the arguments name no
+    place. A sentence the schema refuses, a missing or an empty one, is no text, which participation answers once the
+    place holds an agent; a language or a style it refuses is one no voice speaks or takes, which the voice answers once
+    the sentence is rendered."""
     try:
         spoken = SpeakArguments.model_validate(arguments)
     except ValidationError as invalid:
         refused = {error["loc"][:1] for error in invalid.errors()}
-        if not refused <= {("text",), ("language",)}:
+        if not refused <= {("text",), ("language",), ("style",)}:
             return None
         return _SpeakRequest(
             PlaceRef.model_validate(arguments["place"]),
             "" if ("text",) in refused else _text_of(arguments, "text"),
             _text_of(arguments, "language") if ("language",) in refused else None,
+            _text_of(arguments, "style") if ("style",) in refused else None,
         )
-    return _SpeakRequest(spoken.place, spoken.text, spoken.language)
+    return _SpeakRequest(spoken.place, spoken.text, spoken.language, spoken.style)
 
 
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
@@ -291,14 +325,31 @@ async def _spoken(
         return _speak_refused(SpeakRefusal.NOT_ACTIVE)
     if len(one_line(request.text)) > SPEAK_MAX_CHARACTERS:
         return _speak_refused(SpeakRefusal.TOO_LONG)
-    render = None if voice is None else partial(voice.render, caller.person, language=request.language)
+    render = (
+        None if voice is None else partial(voice.render, caller.person, language=request.language, style=request.style)
+    )
     try:
         outcome = await participation.speak(caller.person, request.place.id, request.text, render)
     except LanguageUnavailableError:
         return _speak_refused(SpeakRefusal.LANGUAGE_UNAVAILABLE)
-    if isinstance(outcome, AgentRefusal):
+    except StyleUnavailableError:
+        return _speak_refused(SpeakRefusal.STYLE_UNAVAILABLE)
+    if isinstance(outcome, AgentRefusal | SpeakStop):
         return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
     return ToolOutcome(Spoken(duration_ms=outcome).model_dump_json(), is_error=False)
+
+
+async def _stopped(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    try:
+        stopping = StopSpeakingArguments.model_validate(arguments)
+    except ValidationError:
+        return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
+    if stopping.place.kind != CALL_KIND:
+        return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
+    outcome = await participation.stop_speaking(caller.person, stopping.place.id)
+    if isinstance(outcome, AgentRefusal | SpeakStop):
+        return _stop_refused(_STOP_REFUSAL_OF[outcome])
+    return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
 
 def participation_tools(participation: Callable[[], Participation], voice: AgentVoice | None) -> tuple[CallerTool, ...]:
@@ -330,6 +381,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def speak(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _spoken(participation(), voice, caller, arguments)
 
+    async def stop_speaking(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _stopped(participation(), caller, arguments)
+
     return (
         CallerTool(_JOIN_CALL_DECLARATION, join_call),
         CallerTool(_ACCEPT_INVITATION_DECLARATION, accept_invitation),
@@ -337,4 +391,5 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_LEAVE_CALL_DECLARATION, leave_call),
         CallerTool(_SAY_DECLARATION, say),
         CallerTool(_SPEAK_DECLARATION, speak),
+        CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
     )

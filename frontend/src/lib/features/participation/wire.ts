@@ -10,6 +10,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_LINE = "agent_line",
     AGENT_HEARING = "agent_hearing",
     AGENT_VOICE = "agent_voice",
+    AGENT_STOP = "agent_stop",
     AGENT_INVITATION_ENDED = "agent_invitation_ended",
 }
 

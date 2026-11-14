@@ -107,6 +107,10 @@ class Hearing:
         self._handles[seat] = handle
         return handle
 
+    def hearers(self, room_id: str, seat: PeerId) -> frozenset[Person]:
+        """The agents that hear the seat now."""
+        return self._record.sensing(room_id, seat)
+
     def heard(self, room_id: str, seat: PeerId, name: str, text: str, began_at: float) -> HeardLine | None:
         """The agents that hear the sentence with its line; nothing for a sentence the record refuses."""
         return self._record.heard(room_id, seat, name, text, began_at)
