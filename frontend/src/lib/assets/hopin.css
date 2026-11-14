@@ -656,6 +656,22 @@ textarea {
     left: 2px;
     z-index: 7;
 }
+/* Under a coarse pointer the kit gives each chip a margin (8px above and below, 9px at the sides of the compact one)
+   that is part of its 44px target. The offsets give that margin back, so the drawn chips keep the 2px they had; the
+   narrow tile is too small for two whole targets, so they overlap a little and are clipped by the tile, each
+   centre in its own part. The remove button stays above them. */
+@media (any-pointer: coarse) {
+    .tile .hear-set.narrow > :not(.compact) {
+        bottom: -6px;
+    }
+    .tile .hear-set.narrow > .compact {
+        top: -6px;
+        left: -7px;
+    }
+    .stage[data-surface] .agent-remove {
+        z-index: 8;
+    }
+}
 .tile.agent .av {
     color: var(--accent-stage);
     background: var(--stage-2);
