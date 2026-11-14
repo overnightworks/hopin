@@ -5,7 +5,6 @@ look: the request's write, the browser's answer and the showing of the look."""
 
 import asyncio
 import base64
-import binascii
 import secrets
 from dataclasses import dataclass, field
 from functools import partial
@@ -158,7 +157,7 @@ def _picture_of(encoded: str) -> Picture:
     """The JPEG the base64 text carries when it is within the bounds of a look, else why there is none."""
     try:
         picture = base64.b64decode(encoded, validate=True)
-    except binascii.Error, ValueError:
+    except ValueError:
         return LookRefusal.UNAVAILABLE
     size = size_of(picture)
     if size is None or len(picture) > LOOK_MAX_BYTES or not all(0 < side <= LOOK_MAX_PIXELS for side in size):
