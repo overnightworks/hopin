@@ -30,6 +30,7 @@ from tests.game.support.table_world import (
     wait_within_cap,
     yield_until,
 )
+from tests.support.stores import sound_of
 
 pytestmark = pytest.mark.asyncio
 
@@ -104,7 +105,7 @@ class TestTheVoiceOfALine:
         [spoken] = voice.calls
         assert (spoken.starter, spoken.text) == (starter.socket, DEFAULT_QUESTION)
         [shared_id] = {voice_id for browser in call for voice_id in voice_ids(browser)}
-        assert voices.get(shared_id) == DEFAULT_WAV
+        assert await sound_of(voices.get(shared_id)) == DEFAULT_WAV
 
     async def test_a_seat_that_joined_after_the_line_is_sent_no_voice(self, link, voice):
         """GM-32: A seat that joined after the line is sent no voice."""
@@ -198,7 +199,7 @@ class TestAVoiceThatTheTextDoesNotWaitFor:
         await voice_sent([host, guest], 2 * QUIZ_ROUNDS + 1)
 
         assert shown(guest)[-3:] == [line(FINAL_LINE), IDLE, {"type": VOICE_TYPE}]
-        assert voices.get(voice_ids(guest)[-1]) == DEFAULT_WAV
+        assert await sound_of(voices.get(voice_ids(guest)[-1])) == DEFAULT_WAV
 
     @pytest.mark.parametrize(
         "ending",

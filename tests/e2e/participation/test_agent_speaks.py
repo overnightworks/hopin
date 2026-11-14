@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from agents.member import SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
 from playwright.sync_api import Page, expect
-from speech_client.wire import RefusalCode, VoiceId
+from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
@@ -19,6 +19,7 @@ from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     chunked_wav,
+    chunked_wav_in_two,
     offering,
     refusal_answer,
     silent_wav,
@@ -132,6 +133,19 @@ class Speaker:
             SPEAK_TOOL, {"place": place.model_dump(), "text": text}
         )
 
+    def speak_while_speech_pauses(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
+        """Say a sentence whose second half speech renders only once `finish_rendering` says so."""
+        first, rest = chunked_wav_in_two(silent_wav(seconds))
+        self.speech_origin.serve(SPEECH_PATH, first, later=rest)
+        place = PlaceRef(kind=CALL_KIND, id=self.room)
+        return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+
+    def speech_has_rendered_the_rest(self) -> bool:
+        return self.speech_origin.resumed[SPEECH_PATH].is_set()
+
+    def finish_rendering(self) -> None:
+        self.speech_origin.resume[SPEECH_PATH].set()
+
     def speak_with_a_failing_voice(self, text: str) -> dict[str, Any]:
         """Say a sentence while the speech service is busy; it answers at once, for the sentence is written."""
         speaking(self.speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
@@ -182,6 +196,26 @@ def test_an_agents_sentences_sound_once_each_in_order_in_every_browser_and_its_t
         assert speaker.started(person) == [SOUND_SECONDS, *LATER_SOUND_SECONDS]
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
     assert behind_answer.result(REQUEST_SECONDS) == {"spoken": True}
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_rendering_it(speaker: Speaker) -> None:
+    """CALL-60: A sentence starts when its first chunk arrives: `speak` answers and every browser plays and shows the
+    tile speaking while speech has rendered only the first half, and the sound goes on as one sound when the rest
+    arrives, until the tile shows present again."""
+    everyone = speaker.scene.everyone
+
+    answered = speaker.speak_while_speech_pauses(SOUND_SECONDS)
+
+    assert answered.result(REQUEST_SECONDS) == {"spoken": True}
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+        person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    assert not speaker.speech_has_rendered_the_rest()
+    speaker.finish_rendering()
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+        assert speaker.started(person) == [SOUND_SECONDS]
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

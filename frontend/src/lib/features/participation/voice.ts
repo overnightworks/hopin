@@ -3,7 +3,7 @@ import { VOICE_PATH } from "./wire.ts";
 
 export type PlayerFactory = () => Player;
 
-/** What the person's browser plays of the agents' sentences: each agent's voices go to a player of its own, in the order they arrive, and the agent counts as speaking from the start of one of its sounds to its end. */
+/** What the person's browser plays of the agents' sentences: each agent's voices go to a player of its own, in the order they arrive, and the agent counts as speaking from the start of one of its sounds to its end. A sound plays while its route's body still arrives, and one whose body breaks off ends where it broke. */
 export interface AgentVoices {
     /** Queues the voice of the route's id behind the agent's earlier ones; the agent's first voice creates its player. */
     play(agentId: string, voiceId: string): void;
