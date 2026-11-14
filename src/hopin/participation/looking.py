@@ -124,9 +124,7 @@ class Looking:
             if request.agent.agent_id == agent.agent_id:
                 _stop_request(request, refusal)
 
-    async def _stop(
-        self, request: _Request, refusal: LookRefusal
-    ) -> None:  # NOSONAR(S7503) a scheduler callback is async
+    async def _stop(self, request: _Request, refusal: LookRefusal) -> None:  # NOSONAR(S7503) the scheduler awaits it
         _stop_request(request, refusal)
 
     def _take_part(self, request: _Request, taken: _Part) -> None:
