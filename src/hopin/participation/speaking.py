@@ -238,8 +238,14 @@ class Speaking:
             await self._written(agent, following)
 
     async def _written(self, agent: DialedAgent, sentence: WrittenSentence) -> None:
-        """Post the sentence as a line, then answer its speaker."""
-        await self._write(agent, sentence.text)
+        """Post the sentence as a line, then answer its speaker; a write that fails fails the speaker's call instead,
+        so the answer never claims a line that did not stand, and the queue goes on."""
+        try:
+            await self._write(agent, sentence.text)
+        except Exception as failure:
+            if not sentence.answer.done():
+                sentence.answer.set_exception(failure)
+            return
         _answer(sentence, SpeakFallback.WRITTEN)
 
 

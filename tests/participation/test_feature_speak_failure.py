@@ -104,6 +104,30 @@ class TestAVoiceThatFails:
 
         assert (await written, await spoken) == (SpeakFallback.WRITTEN, SENTENCE_MS)
 
+    async def test_call_61_a_line_that_cannot_be_written_fails_its_speaker_and_the_queue_goes_on(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+
+        send = host.socket.send_text
+
+        async def refuse_the_written_line(frame):
+            if "Zwei" in frame:
+                raise RuntimeError("closed")
+            await send(frame)
+
+        host.socket.send_text = refuse_the_written_line
+        await speak(participation, "Eins", room_id=room_id)
+        unwritten = await waiting_to_speak(participation, "Zwei", render=renders_failing, room_id=room_id)
+        spoken = await waiting_to_speak(participation, "Drei", room_id=room_id)
+
+        await scheduler.advance(SENTENCE_MS / 1000)
+
+        with pytest.raises(RuntimeError):
+            await unwritten
+        assert await spoken == SENTENCE_MS
+
     async def test_call_61_a_stop_drops_a_written_sentence_waiting_and_the_playing_one_stays_a_cut_spoken_line(
         self, participation, call
     ):
