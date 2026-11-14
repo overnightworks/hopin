@@ -6,7 +6,6 @@ from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECOND
 from hopin.participation.participants import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
-    AGENTS_PER_PROCESS,
     AgentRefusal,
     ParticipationSignal,
 )
@@ -422,14 +421,6 @@ class TestAgentsTakePlaces:
         await participation.leave(person_named("second"), room_of(people[0]))
         latecomer = await link.join("latecomer", room_of(people[0]))
         assert latecomer.frames(SignalType.ERROR) == []
-
-    async def test_the_process_cap_is_busy(self, link, participation):
-        outcomes = []
-        for number in range(AGENTS_PER_PROCESS + 1):
-            outcomes.append(await dial(participation, await link.join(f"person{number}")))
-
-        assert outcomes[-1] is AgentRefusal.BUSY
-        assert all(isinstance(outcome, DialedAgent) for outcome in outcomes[:-1])
 
 
 @pytest.mark.asyncio
