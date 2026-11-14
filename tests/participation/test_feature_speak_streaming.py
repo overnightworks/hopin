@@ -11,8 +11,8 @@ from tests.participation.support.speaking import (
     LONG_MS,
     SENTENCE_MS,
     StreamedSentence,
+    announced_since,
     answers_so_far,
-    leaving,
     renders_failing,
     speak,
     voice_ids,
@@ -24,22 +24,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 HOST = person_named("host")
 GUEST = person_named("guest")
-
-
-def stopping_after(participation, room_id, hops):
-    """Stops the agent's sentence once the loop has run `hops` more turns than the stream's next piece needs to settle
-    its sentence's end, so the stop lands between the end's settling and what follows it."""
-    loop = asyncio.get_running_loop()
-    stops = []
-
-    def hop(remaining):
-        if remaining:
-            loop.call_soon(hop, remaining - 1)
-        else:
-            stops.append(asyncio.ensure_future(participation.stop_speaking(GUEST, room_id)))
-
-    loop.call_soon(hop, hops)
-    return stops
 
 
 async def first_chunk_of(voices, voice_id):
@@ -118,23 +102,32 @@ class TestASentenceThatPlaysWhileItRenders:
         )
 
     @pytest.mark.parametrize(
-        ("hops", "arrival"),
-        [(0, "ends_after"), (1, "breaks_off")],
-        ids=["before_the_end_is_set", "before_the_cut_is_shown"],
+        ("arrive", "behind_the_due_callbacks"),
+        [
+            pytest.param(
+                lambda streamed, then: streamed.ends_after(SENTENCE_MS, then=then), False, id="before_the_end_is_set"
+            ),
+            pytest.param(lambda streamed, then: streamed.breaks_off(then=then), True, id="before_the_cut_is_shown"),
+        ],
     )
     async def test_call_60_a_stop_in_the_turns_after_a_stream_ended_cuts_the_sentence_once_and_sets_no_timer(
-        self, participation, call, scheduler, hops, arrival
+        self, participation, call, scheduler, arrive, behind_the_due_callbacks
     ):
         host, *_ = call
         room_id = room_of(host)
         streamed = StreamedSentence()
         await speak(participation, "Eins", room_id=room_id, render=streamed.render)
+        known = asyncio.all_tasks()
         timers_before = len(scheduler.pending_timers())
+        loop = asyncio.get_running_loop()
+        stops = []
+
+        def stop():
+            stops.append(asyncio.create_task(participation.stop_speaking(GUEST, room_id), eager_start=True))
 
         with structlog.testing.capture_logs() as logs:
-            stops = stopping_after(participation, room_id, hops)
-            await (streamed.ends_after(SENTENCE_MS) if arrival == "ends_after" else streamed.breaks_off())
-            await asyncio.sleep(0)
+            await arrive(streamed, (lambda: loop.call_soon(stop)) if behind_the_due_callbacks else stop)
+            await announced_since(known)
 
         assert (
             len(stops),
@@ -146,12 +139,12 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_an_end_of_the_agent_answers_a_written_sentence_waiting_behind_its_sound_as_gone(
         self, participation, call
     ):
-        host, guest, mozart, _ = call
+        host, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id)
         written = await waiting_to_speak(participation, "Zwei", render=renders_failing, room_id=room_id)
 
-        await leaving(participation, host, guest, mozart)
+        await participation.leave(GUEST, room_id)
 
         assert await written == AgentRefusal.GONE
 
@@ -162,13 +155,15 @@ class TestASentenceThatPlaysWhileItRenders:
         room_id = room_of(host)
         streamed = StreamedSentence()
         await speak(participation, "Eins", room_id=room_id)
-        waiting = asyncio.create_task(participation.speak(GUEST, room_id, "Zwei", streamed.render))
-        await asyncio.sleep(0)
+        waiting = await waiting_to_speak(participation, "Zwei", room_id=room_id, render=streamed.render)
         await streamed.breaks_off()
+        known = asyncio.all_tasks()
 
         await scheduler.advance(SENTENCE_MS / 1000)
+        answer = await waiting
+        await announced_since(known)
 
-        assert (await waiting, window_texts(participation, GUEST, room_id)) == (
+        assert (answer, window_texts(participation, GUEST, room_id)) == (
             SpeakStarted.SPOKEN,
             [("Eins", True, False), ("Zwei", True, True)],
         )
@@ -180,18 +175,18 @@ class TestASentenceThatPlaysWhileItRenders:
         await speak(participation, room_id=room_id, render=streamed.render)
 
         await participation.stop_speaking(GUEST, room_id)
-        await asyncio.sleep(0)
+        await streamed.until_closed()
 
         assert streamed.closed
 
     async def test_call_60_an_end_of_the_agent_ends_the_rendering_of_its_sentences(self, participation, call):
-        host, guest, mozart, _ = call
+        host, *_ = call
         room_id = room_of(host)
         playing, waiting = StreamedSentence(), StreamedSentence()
         await speak(participation, room_id=room_id, render=playing.render)
         await waiting_to_speak(participation, room_id=room_id, render=waiting.render)
 
-        await leaving(participation, host, guest, mozart)
-        await asyncio.sleep(0)
+        await participation.leave(GUEST, room_id)
+        await asyncio.gather(playing.until_closed(), waiting.until_closed())
 
         assert (playing.closed, waiting.closed) == (True, True)

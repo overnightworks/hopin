@@ -18,13 +18,13 @@ from hopin.participation.vocabulary import (
     SpeakStarted,
     SpeakStop,
 )
+from tests.participation.support.ends import leave_by_the_agent
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     LONG,
     SENTENCE_MS,
     a_sentence,
     answers_so_far,
-    leaving,
     removed_by_the_host,
     rendering,
     renders_broken,
@@ -293,7 +293,7 @@ class TestEveryEndDropsTheQueue:
         ("end", "next_refusal"),
         [
             pytest.param(removed_by_the_host, AgentRefusal.GONE, id="removal"),
-            pytest.param(leaving, AgentRefusal.GONE, id="leave"),
+            pytest.param(leave_by_the_agent, AgentRefusal.GONE, id="leave"),
             pytest.param(parked_with_its_sponsors_seat, AgentRefusal.SPONSOR_AWAY, id="pause"),
             pytest.param(left_with_its_sponsors_seat, AgentRefusal.GONE, id="sponsor_leaves"),
             pytest.param(ended_with_the_call, AgentRefusal.GONE, id="call_end"),
@@ -373,13 +373,15 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
-        release = asyncio.Event()
+        entered, release = asyncio.Event(), asyncio.Event()
 
         async def renders_late(sentence, voice):
+            entered.set()
             await release.wait()
             return a_sentence(b"late", SENTENCE_MS)
 
-        rendering_now = await waiting_to_speak(participation, room_id=room_id, render=renders_late)
+        rendering_now = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", renders_late))
+        await entered.wait()
 
         await participation.stop_speaking(GUEST, room_id)
         release.set()
@@ -567,9 +569,10 @@ class TestTheBounds:
             await asyncio.Event().wait()
 
         with structlog.testing.capture_logs() as logs:
-            await waiting_to_speak(participation, render=render_held, room_id=room_id)
+            held = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", render_held))
             await entered.wait()
             second = await speak(participation, render=LONG, room_id=room_id)
+        held.cancel()
 
         assert (second, failures_in(logs, FAILED)) == (AgentRefusal.UNAVAILABLE, [{"outcome": "queue_full"}])
 
@@ -584,7 +587,7 @@ class TestTheBounds:
 
         async def render_noting(sentence, voice):
             rendered.append(sentence)
-            return await LONG(sentence)
+            return await LONG(sentence, voice)
 
         await waiting_to_speak(participation, render=render_noting, room_id=room_id)
 
@@ -655,7 +658,7 @@ class TestAnEndWhileTheSentenceIsAnnounced:
             ending.append(asyncio.ensure_future(end_the_agent()))
             return a_sentence(b"sound", SENTENCE_MS)
 
-        await speak(participation, render=render_then_end_next_turn, room_id=room_id)
+        await participation.speak(GUEST, room_id, "Guten Tag", render_then_end_next_turn)
         await asyncio.gather(*ending)
 
         assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])
