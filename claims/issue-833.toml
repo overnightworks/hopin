@@ -1,8 +1,0 @@
-claim_id = "a7d79fffb64e430e8528ad60162eae63"
-agent = "Claude f4cf6b24-107a-4934-83f6-bc0f1f1055b0"
-role = "builder"
-base = "7c6a92d6d764c2077f3c0e3cb129323508c5871b"
-branch = "claude/issue-833-design-v0-33-1-touch-tile-switches"
-scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/assets/hopin.css", "pyproject.toml", "tests/e2e", "uv.lock"]
-opened_commit = "d3fc4215a287ad44e86cfb4d67cb04ed8ccee207"
-whole_reason = "One library bump on both sides and the strip tile proof it needs."
