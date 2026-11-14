@@ -218,6 +218,25 @@ def _bearer_of(
     return (relying_party, resources[0]) if resources else None
 
 
+def _build_features(
+    call_features: Sequence[CallFeatureBuilder],
+    relying_party: OidcRelyingParty,
+    sign_in_stores: SingleProcessStores,
+    auth_config: WebAuthConfig,
+    timers: Scheduler,
+) -> list[BuiltCallFeature]:
+    return [
+        builder(
+            relying_party=relying_party,
+            sessions=sign_in_stores.sessions,
+            auth_config=auth_config,
+            scheduler=timers,
+            transaction=sign_in_stores.transaction,
+        )
+        for builder in call_features
+    ]
+
+
 def create_app(
     settings: ServerSettings,
     *,
@@ -242,16 +261,7 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    built_features = [
-        builder(
-            relying_party=relying_party,
-            sessions=sign_in_stores.sessions,
-            auth_config=sign_in_configs.web_auth,
-            scheduler=timers,
-            transaction=sign_in_stores.transaction,
-        )
-        for builder in call_features
-    ]
+    built_features = _build_features(call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers)
     bearer = _bearer_of(built_features, relying_party)
     signaling_handler = SignalingHandler(
         room_manager,
