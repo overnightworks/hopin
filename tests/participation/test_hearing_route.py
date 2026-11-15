@@ -2,10 +2,8 @@
 issuer, and the agent's window read through the real `/mcp`."""
 
 import base64
-import json
 import logging
 import threading
-from contextlib import contextmanager
 from http import HTTPStatus
 
 import pytest
@@ -30,24 +28,21 @@ from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
+from tests.participation.support.hearing_scene import (
+    AUDIENCE_SCOPE,
+    entries_of,
+    header_of,
+    lose_the_held_token,
+)
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
-from tests.support.fake_speech import WAIT_SECONDS, FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
+from tests.support.fake_speech import WAIT_SECONDS, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
 
 pytestmark = pytest.mark.integration
 
-AUDIENCE_SCOPE = "speech-audience"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
-
-
-@pytest.fixture
-def fake_speech():
-    service = FakeSpeech()
-    service.start()
-    yield service
-    service.stop()
 
 
 @pytest.fixture
@@ -55,34 +50,8 @@ def hearing_service(fake_speech):
     return SpeechService(fake_speech.origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
-@pytest.fixture
-def sponsored(joined_agent):
-    """The scene with its owner's agent joined, so the agent hears the owner; the sponsor's switch is told on."""
-    joined_agent.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
-    return joined_agent
-
-
-def entries_of(scene, token=None, room_id=None):
-    answer = scene.call.window(
-        scene.token if token is None else token, scene.owner.room_id if room_id is None else room_id
-    )
-    return json.loads(answer["result"]["contents"][0]["text"])["entries"]
-
-
-def header_of(session, name):
-    return next(value for header, value in session.headers.items() if header.lower() == name.lower())
-
-
 def switch_off(scene):
     scene.owner.send({"type": ParticipationSignal.AGENT_HEARING.value, "agent_id": scene.agent_id, "on": False})
-
-
-def lose_the_held_token(scene):
-    """The agent keeps calling within its lease, the issuer refuses each new exchange, and the token it held lapses."""
-    scene.call.issuer.refuses_token_exchange_grants = True
-    for _ in range(3):
-        scene.call.pass_time(LEASE_SECONDS - 1)
-        scene.standings()
 
 
 def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1, **sentence):
@@ -717,20 +686,6 @@ def the_browser_leaves(_session, socket):
     socket.close()
 
 
-@contextmanager
-def logged_endings():
-    """The outcomes the route logs as a hop's ending, filled while the block runs."""
-    endings = []
-
-    def note_the_ending(_logger, _method, event):
-        if event["event"] == "agent_hearing_ended":
-            endings.append(event["outcome"])
-        return event
-
-    with structlog.testing.capture_logs(processors=[note_the_ending]):
-        yield endings
-
-
 class TestHowAHopEndsInTheLog:
     def test_call_58_a_hop_the_browser_leaves_is_logged_with_that_ending(self, sponsored, fake_speech):
         endings = []
@@ -750,88 +705,6 @@ class TestHowAHopEndsInTheLog:
             assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
 
         assert endings == ["browser_left"]
-
-
-class TestAReopenedSession:
-    """CALL-58: The speech client reopens a hearing the service drained or cut; the route hands it a token source that
-    answers afresh on every opening."""
-
-    def test_call_58_a_session_the_service_cut_is_reopened_and_each_sentence_enters_the_window_once(
-        self, sponsored, fake_speech
-    ):
-        with hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            first = fake_speech.next_session(1)
-            for event in a_sentence("erster Satz"):
-                first.say(event)
-            first.drop()
-            second = fake_speech.next_session(2)
-            for event in a_sentence("zweiter Satz"):
-                second.say(event)
-            second.hang_up()
-            closed = closed_with(socket)
-
-        assert (closed, [entry["text"] for entry in entries_of(sponsored)]) == (
-            HearingClose.NORMAL,
-            ["erster Satz", "zweiter Satz"],
-        )
-
-    def test_call_58_the_reopening_carries_the_workload_token_fetched_anew_once_the_first_lapsed(
-        self, sponsored, fake_speech, issuer_clock
-    ):
-        with hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            fake_speech.next_session(1).wait_for_audio(1)
-            issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
-            fake_speech.next_session(1).drop()
-            second = fake_speech.next_session(2)
-            second.hang_up()
-            closed_with(socket)
-
-        assert {header_of(session, WORKLOAD_TOKEN_HEADER) for session in fake_speech.sessions} == set(
-            sponsored.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)
-        )
-        assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == 2
-
-    def test_call_58_a_reopening_the_issuer_refuses_ends_the_hearing_in_order_with_no_token_logged(
-        self, sponsored, fake_speech, issuer_clock
-    ):
-        with logged_endings() as endings, hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            first = fake_speech.next_session(1)
-            first.wait_for_audio(1)
-            issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
-            sponsored.call.issuer.refuses_client_credentials_grants = True
-            first.drop()
-            closed = closed_with(socket)
-
-        assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
-
-    def test_call_58_a_reopening_after_the_agents_token_is_gone_ends_the_hearing_in_order_with_no_token_logged(
-        self, sponsored, fake_speech
-    ):
-        with logged_endings() as endings, hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            first = fake_speech.next_session(1)
-            first.wait_for_audio(1)
-            lose_the_held_token(sponsored)
-            first.drop()
-            closed = closed_with(socket)
-
-        assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
-
-    def test_call_58_a_service_that_stays_unavailable_ends_the_hearing_with_a_service_code_logged_as_reconnect_failed(
-        self, sponsored, fake_speech
-    ):
-        with logged_endings() as endings, hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            first = fake_speech.next_session(1)
-            first.wait_for_audio(1)
-            fake_speech.refusal = refused_with(RefusalCode.UNAVAILABLE)
-            first.drop()
-            closed = closed_with(socket)
-
-        assert (closed, endings) == (HearingClose.SERVICE_FAILED, ["reconnect_failed"])
 
 
 class TestNothingIsLogged:

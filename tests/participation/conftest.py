@@ -26,6 +26,7 @@ from tests.signaling.support.browsers import Link, host_and_guest
 from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.fake_speech import FakeSpeech
 from tests.support.loopback_origin import Origin
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
 from tests.support.speech_origin import chunked_wav, offering, speaking
@@ -420,3 +421,18 @@ def speaking_behind(joined_agent):
     yield behind
     joined_agent.call.pass_time(LEASE_SECONDS)
     pool.shutdown(wait=True)
+
+
+@pytest.fixture
+def fake_speech():
+    service = FakeSpeech()
+    service.start()
+    yield service
+    service.stop()
+
+
+@pytest.fixture
+def sponsored(joined_agent):
+    """The scene with its owner's agent joined, so the agent hears the owner; the sponsor's switch is told on."""
+    joined_agent.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
+    return joined_agent
