@@ -11,6 +11,7 @@ nothing is asked.
 """
 
 from contextlib import AbstractContextManager, contextmanager, nullcontext
+from enum import StrEnum
 from functools import partial
 from typing import TYPE_CHECKING, NamedTuple
 from weakref import WeakKeyDictionary
@@ -39,6 +40,13 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+class EntryKind(StrEnum):
+    """How a line reached a window: a sentence a person said aloud, or a line someone wrote."""
+
+    HEARD = "heard"
+    WRITTEN = "written"
 
 
 class _PulsedTurn(NamedTuple):
@@ -83,7 +91,9 @@ class SpeechInWindows:
         agent said it, whose window marks it own."""
         for person, window in self._places.windows_in(room_id).items():
             if window.append(kind, name, text, own=person == sayer):
+                self._line_entered(person, room_id, window, EntryKind.WRITTEN)
                 self._on_window_changed(person, room_id)
+                self._pulse_sent(person, room_id, window)
 
     @contextmanager
     def speak_step(self, agent: DialedAgent, text: str) -> Iterator[StepTimer]:
@@ -151,8 +161,14 @@ class SpeechInWindows:
                 self._ask_again_later(offered)
         else:
             turned = window.voice_worked()
+            if turned:
+                self._voice_returned(agent)
         if turned:
             self._on_window_changed(agent.person, agent.room_id)
+
+    @staticmethod
+    def _voice_returned(agent: DialedAgent) -> None:
+        logger.info("agent_voice.returned", room_ref=room_reference(agent.room_id), agent_id=agent.agent_id)
 
     def _ask_again_later(self, offered: VoicesOffered) -> None:
         if self._recovery is None:
@@ -165,6 +181,7 @@ class SpeechInWindows:
         for agent in self._places.joined():
             window = self._places.window_of(agent.person, agent.room_id)
             if window and window.voice_unavailable and await offered(agent.voices) and window.voice_worked():
+                self._voice_returned(agent)
                 self._on_window_changed(agent.person, agent.room_id)
         if any(window.voice_unavailable for window in self._windows()):
             self._ask_again_later(offered)
@@ -205,22 +222,26 @@ class SpeechInWindows:
             )
             turn_ended = window.turn_ended(seat)
             if appended:
-                self._line_entered(person, room_id, window)
+                self._line_entered(person, room_id, window, EntryKind.HEARD)
             if turn_ended or appended:
                 self._on_window_changed(person, room_id)
             if appended:
                 self._pulse_sent(person, room_id, window)
+                self._remember_turn(window)
 
-    def _line_entered(self, person: Person, room_id: str, window: ChatWindow) -> None:
+    def _line_entered(self, person: Person, room_id: str, window: ChatWindow, kind: EntryKind) -> None:
         logger.info(
             "line.entered",
             room_ref=room_reference(room_id),
             agent_id=self._agent_id_of(person, room_id),
             seq=window.last_seq,
+            kind=kind,
         )
 
     def _pulse_sent(self, person: Person, room_id: str, window: ChatWindow) -> None:
         logger.info("pulse.sent", agent_id=self._agent_id_of(person, room_id), seq=window.last_seq)
+
+    def _remember_turn(self, window: ChatWindow) -> None:
         turn_trace = current_traceparent()
         if turn_trace is not None:
             self._turn_traces[window] = _PulsedTurn(window.last_seq, turn_trace)

@@ -389,8 +389,9 @@ class TestWhatIsHeard:
             await speak(participation, room_id=room_of(host))
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
 
-        trace_of = {line["event"]: line["trace_id"] for line in lines}
-        assert trace_of["speak.ended"] != trace_of["pulse.sent"]
+        heard_pulse = next(line for line in lines if line["event"] == "pulse.sent")
+        spoken = next(line for line in lines if line["event"] == "speak.ended")
+        assert spoken["trace_id"] != heard_pulse["trace_id"]
 
     async def test_call_57_the_agent_reads_a_heard_sentence_as_a_spoken_entry_of_its_window(
         self, participation, dialed
