@@ -61,14 +61,9 @@ type StreamSpeaker = Callable[..., Generator[PreferenceStreamItem]]
 SPEECH_STREAM: Final[StreamSpeaker] = speak_stream_with_preference
 """The stream the composition roots give a renderer; the speech client is named in this module alone."""
 
-_HEALTH_REFUSALS: Final[dict[type, str]] = {
-    UnexpectedStatus: "unexpected_status",
-    Malformed: VoiceFailure.MALFORMED.value,
-    OverCap: VoiceFailure.OVER_CAP.value,
-    PastDeadline: VoiceFailure.PAST_DEADLINE.value,
-    Cut: VoiceFailure.CUT.value,
-    Unreachable: VoiceFailure.UNREACHABLE.value,
-}
+type HealthRefusal = UnexpectedStatus | Malformed | OverCap | PastDeadline | Cut | Unreachable
+"""What speech's health read answers when it gives no `Health`: a new refusal of the client fails the type check at
+`_health_refusal`'s call."""
 
 
 class StyleUnavailableError(VoiceRefusedError):
@@ -216,6 +211,24 @@ def _failure_of(outcome: StreamFailure) -> VoiceFailure:
             assert_never(outcome)
 
 
+def _health_refusal(outcome: HealthRefusal) -> str:
+    match outcome:
+        case UnexpectedStatus():
+            return "unexpected_status"
+        case Malformed():
+            return VoiceFailure.MALFORMED.value
+        case OverCap():
+            return VoiceFailure.OVER_CAP.value
+        case PastDeadline():
+            return VoiceFailure.PAST_DEADLINE.value
+        case Cut():
+            return VoiceFailure.CUT.value
+        case Unreachable():
+            return VoiceFailure.UNREACHABLE.value
+        case _:  # pragma: no cover - the type checker proves the match exhaustive
+            assert_never(outcome)
+
+
 def _read(
     items: Generator[PreferenceStreamItem],
     deliver: Callable[[PreferenceStreamItem | Exception], object],
@@ -291,7 +304,7 @@ class AgentVoice:
                 cap_bytes=HEALTH_MAX_BYTES,
             )
             if not isinstance(health, Health):
-                step.refuse(_HEALTH_REFUSALS[type(health)])
+                step.refuse(_health_refusal(health))
         return isinstance(health, Health) and any(
             (offered := health.speaking.voices.get(voice)) is not None and offered.ready
             for voice in self._preference(voices)
