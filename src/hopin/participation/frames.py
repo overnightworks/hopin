@@ -57,6 +57,10 @@ def stop_frame(agent: DialedAgent) -> JsonObject:
     return frame(ParticipationSignal.AGENT_STOP, agent_id=agent.agent_id)
 
 
+def gesture_frame(agent: DialedAgent, gesture: str) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_GESTURE, agent_id=agent.agent_id, gesture=gesture)
+
+
 def left_frame(agent: DialedAgent) -> JsonObject:
     return frame(ParticipationSignal.AGENT_LEFT, agent_id=agent.agent_id)
 

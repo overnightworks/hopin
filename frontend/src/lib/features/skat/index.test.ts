@@ -31,6 +31,7 @@ async function installedSkat() {
         showAgentTile: () => undefined,
         showStage: (view) => void stage.push(view),
         drawAgentFigures: () => undefined,
+        gestureAgentFigure: () => undefined,
         closeMore: () => void closed.push(true),
         addMoreItems: (...items) => void moreItems.push(...items),
         receiveChatLine: () => undefined,

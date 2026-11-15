@@ -11,6 +11,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_HEARING = "agent_hearing",
     AGENT_VOICE = "agent_voice",
     AGENT_STOP = "agent_stop",
+    AGENT_GESTURE = "agent_gesture",
     AGENT_SEEING = "agent_seeing",
     AGENT_LOOK_REQUEST = "agent_look_request",
     AGENT_LOOK_PART = "agent_look_part",
@@ -56,6 +57,10 @@ export enum HEARING_CLOSE {
     BUSY = 4429,
     PAST_DEADLINE = 4504,
     SERVICE_FAILED = 4502,
+}
+
+export enum FIGURE_GESTURE {
+    WAVE = "wave",
 }
 
 export const HEARING_PATH = "/ws/hearing";

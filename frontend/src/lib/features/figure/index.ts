@@ -1,10 +1,21 @@
-import { AGENT_FIGURE, type AgentFigure, type AgentFigureDrawer, type FeatureCore } from "#lib/call/feature-port.ts";
-import type { FigureHandle, FigureSignal } from "overnightworks-figure/draw";
+import {
+    AGENT_FIGURE,
+    type AgentFigure,
+    type AgentFigureDrawer,
+    type AgentFigureHandle,
+    type FeatureCore,
+} from "#lib/call/feature-port.ts";
+import type { FigureGesture, FigureHandle, FigureSignal } from "overnightworks-figure/draw";
 
 type FigureDrawing = Promise<typeof import("overnightworks-figure/draw")>;
 
 // One figure on one tile: the bytes come over a stoppable fetch, and only then does a fresh canvas join the host.
-function drawFigure(host: HTMLElement, path: string, show: (figure: AgentFigure) => void, drawing: FigureDrawing) {
+function drawFigure(
+    host: HTMLElement,
+    path: string,
+    show: (figure: AgentFigure) => void,
+    drawing: FigureDrawing,
+): AgentFigureHandle {
     const fetching = new AbortController();
     let canvas: HTMLCanvasElement | undefined;
     let handle: FigureHandle | undefined;
@@ -50,8 +61,14 @@ function drawFigure(host: HTMLElement, path: string, show: (figure: AgentFigure)
     run().catch(() => {
         end(AGENT_FIGURE.ENDED);
     });
-    return () => {
-        end(null);
+    return {
+        stop: () => {
+            end(null);
+        },
+        // The handle drops a name that is no gesture of figure's, so the page checks none.
+        gesture: (name) => {
+            handle?.gesture(name as FigureGesture);
+        },
     };
 }
 

@@ -10,6 +10,7 @@ interface Mounting {
     give: (signal: Signal) => void;
     resolve: () => void;
     dispose: ReturnType<typeof vi.fn>;
+    gesture: ReturnType<typeof vi.fn>;
 }
 
 // The package draws with WebGL, which jsdom has none of: a fake `mount` stands in and the test decides what it signals and when it resolves.
@@ -18,14 +19,16 @@ const drawing = vi.hoisted(() => ({ mounts: [] as Mounting[] }));
 function fakeMount(canvas: HTMLCanvasElement, bytes: Uint8Array, options: { onSignal: (signal: Signal) => void }) {
     return new Promise((resolve) => {
         const dispose = vi.fn();
+        const gesture = vi.fn();
         drawing.mounts.push({
             canvas,
             bytes,
             give: options.onSignal,
             resolve: () => {
-                resolve({ signal: "drawn", dispose });
+                resolve({ signal: "drawn", dispose, gesture });
             },
             dispose,
+            gesture,
         });
     });
 }
@@ -74,8 +77,8 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
 function draw(drawer: AgentFigureDrawer) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
-    const stop = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure));
-    return { host, shown, stop };
+    const { stop, gesture } = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure));
+    return { host, shown, stop, gesture };
 }
 
 // The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
@@ -264,5 +267,27 @@ describe("a figure on an agent's tile", () => {
         }
 
         expect(unhandled).toEqual([]);
+    });
+
+    it("CALL-64: plays a gesture through the mounted figure's handle", async () => {
+        fetchedBytes();
+        const { gesture, mounting } = await mounted(await installedDrawer());
+        mounting.resolve();
+        await settled();
+
+        gesture("wave");
+
+        expect(mounting.gesture.mock.calls).toEqual([["wave"]]);
+    });
+
+    it("CALL-64: drops a gesture while the figure is still loading", async () => {
+        fetchedBytes();
+        const { gesture, mounting } = await mounted(await installedDrawer());
+
+        gesture("wave");
+        mounting.resolve();
+        await settled();
+
+        expect(mounting.gesture).not.toHaveBeenCalled();
     });
 });

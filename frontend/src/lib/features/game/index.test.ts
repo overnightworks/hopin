@@ -26,10 +26,7 @@ const ME = "me";
 const master = { name: words["game.masterName"] };
 const roundOfThree = (round: number) => words["game.questionProgress"]({ round: String(round), rounds: "3" });
 
-interface HandedOver {
-    component: unknown;
-    props: unknown;
-}
+type HandedOver = { component: unknown; props: unknown };
 
 function handedOver(view: FeatureView | null): HandedOver | null {
     return view === null ? null : (views.get(view) ?? null);
@@ -64,6 +61,7 @@ async function installedGame({ connected = true } = {}) {
         showAgentTile: (tile) => void agentTiles.push(tile),
         showStage: () => undefined,
         drawAgentFigures: () => undefined,
+        gestureAgentFigure: () => undefined,
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
         onMicrophone: () => undefined,

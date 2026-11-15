@@ -7,7 +7,7 @@ import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
-from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
+from hopin.participation.figures import Figure, FigureSource, figure_refusal
 from hopin.participation.frames import (
     Offer,
     invitation_ended_frame,
@@ -24,6 +24,7 @@ from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
 from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.seeing import Seeing
+from hopin.participation.shown_figures import ShownFigures
 from hopin.participation.speaking import Speaking, SpeakResult, StopResult
 from hopin.participation.speech_in_windows import SpeechInWindows
 from hopin.participation.switches import Switches
@@ -107,6 +108,7 @@ class Participation:
         self._speaking = Speaking(
             voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
+        self.figures = ShownFigures(self._places, self._active_agent, self._tell, self._recipients)
         self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients)
         self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
         self._live = LiveAgents()
@@ -258,14 +260,6 @@ class Participation:
     def is_live_agent(self, person: Person) -> bool:
         """Whether the person is an agent with an account of its own whose lease is registered."""
         return person in self._live.by_person
-
-    def figures_named(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest."""
-        return tuple(
-            NamedFigure(agent.room_id, agent.figure.url)
-            for agent in self._places.joined()
-            if agent.figure is not None and agent.figure.sha256 == sha256
-        )
 
     async def accept(
         self,

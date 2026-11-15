@@ -16,6 +16,8 @@ export async function installedParticipation(installOn?: typeof install) {
     // The frames sent as transient: the parts of a look's picture, which nothing keeps.
     const sentTransient: unknown[] = [];
     const tiles = new Map<string, AgentTile>();
+    // The tile key and gesture of each call the page made to an agent's figure.
+    const gestures: [string, string][] = [];
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
@@ -41,6 +43,9 @@ export async function installedParticipation(installOn?: typeof install) {
         toastKind: TOAST_KIND,
         showStage: vi.fn(),
         drawAgentFigures: vi.fn(),
+        gestureAgentFigure: (key, gesture) => {
+            gestures.push([key, gesture]);
+        },
         closeMore: vi.fn(),
         showAgentTile: (tile, key = "agent") => {
             if (tile === null) tiles.delete(key);
@@ -84,6 +89,7 @@ export async function installedParticipation(installOn?: typeof install) {
         sent,
         sentTransient,
         tiles,
+        gestures,
         toasts,
         lines,
         offers: () => onThePage().flatMap((item) => [...item.querySelectorAll("li")]),
