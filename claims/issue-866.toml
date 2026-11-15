@@ -1,8 +1,0 @@
-claim_id = "52499e3287e54bdca84df54724eb4675"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "13f80c6fd6a408ddf696c4339b933a6fadc0a0a8"
-branch = "claude/issue-866-quality-literal-text"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "frontend/src/lib/catalogs/de.po", "frontend/src/lib/features/participation/AgentLine.svelte", "frontend/src/lib/words/de.ts", "frontend/src/routes/(call)/+layout.svelte", "quality/baseline.toml", "src/hopin/words.py"]
-opened_commit = "5e8cbc6446812b7c1f66478834a45fcbec595fbe"
-whole_reason = "The two texts, the catalog with its generated modules and the pin move with its baseline change land together, or the gate goes red."
