@@ -214,7 +214,7 @@ class HearingRoute:
             on_speech_started=on_speech_started,
             on_turn_ended=on_turn_ended,
         )
-        _log_ended(outcome)
+        log_ended(outcome)
 
     async def _workload_token_unless(self, ended: asyncio.Event) -> SecretStr | OidcRefusal | None:
         """HopIn's own token for the service, or none when the hop ended while the issuer was still answering."""
@@ -235,7 +235,22 @@ async def _close_unopened(websocket: WebSocket, code: HearingClose) -> None:
     await websocket.close(code=code)
 
 
-def _log_ended(outcome: UtteranceOutcome) -> None:
+type CodelessOutcome = (
+    Closed
+    | Busy
+    | OverCap
+    | Malformed
+    | PastDeadline
+    | Cut
+    | Unreachable
+    | NoToken
+    | ReconnectFailed
+    | BrowserLeft
+    | AppEnded
+)
+
+
+def log_ended(outcome: UtteranceOutcome) -> None:
     ended, code = _ending_of(outcome)
     # Only closed codes: the sound, the text and a token never reach a log.
     logger.info("agent_hearing_ended", outcome=ended, **({} if code is None else {"code": code}))
@@ -249,27 +264,33 @@ def _ending_of(outcome: UtteranceOutcome) -> tuple[str, str | None]:
             return "service_failed", failure_code.value
         case RuleBroken(close=hop_close):
             return "rule_broken", hop_close.name.lower()
-        case Closed():
-            return "closed", None
-        case Busy():
-            return "busy", None
-        case OverCap():
-            return "over_cap", None
-        case Malformed():
-            return "malformed", None
-        case PastDeadline():
-            return "past_deadline", None
-        case Cut():
-            return "cut", None
-        case Unreachable():
-            return "unreachable", None
-        case NoToken():
-            return "no_token", None
-        case ReconnectFailed():
-            return "reconnect_failed", None
-        case BrowserLeft():
-            return "browser_left", None
-        case AppEnded():
-            return "app_ended", None
         case _:
+            return _codeless_ending_of(outcome), None
+
+
+def _codeless_ending_of(outcome: CodelessOutcome) -> str:
+    match outcome:
+        case Closed():
+            return "closed"
+        case Busy():
+            return "busy"
+        case OverCap():
+            return "over_cap"
+        case Malformed():
+            return "malformed"
+        case PastDeadline():
+            return "past_deadline"
+        case Cut():
+            return "cut"
+        case Unreachable():
+            return "unreachable"
+        case NoToken():
+            return "no_token"
+        case ReconnectFailed():
+            return "reconnect_failed"
+        case BrowserLeft():
+            return "browser_left"
+        case AppEnded():
+            return "app_ended"
+        case _:  # pragma: no cover - the type checker proves the match exhaustive
             assert_never(outcome)

@@ -10,6 +10,7 @@ import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
 from speech_client.hearing import OPENING_SECONDS
+from speech_client.outcomes import Cut, Unreachable
 from speech_client.relay import HOP_FRAME_SAMPLES, HopClose
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
@@ -697,6 +698,13 @@ class TestHowAHopEndsInTheLog:
             assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
 
         assert endings == ["browser_left"]
+
+    @pytest.mark.parametrize(("outcome", "ending"), [(Cut(), "cut"), (Unreachable(), "unreachable")])
+    def test_call_58_an_outcome_that_carries_no_code_is_logged_by_its_name_alone(self, outcome, ending):
+        with structlog.testing.capture_logs() as logs:
+            hearing_route.log_ended(outcome)
+
+        assert logs == [{"event": "agent_hearing_ended", "outcome": ending, "log_level": "info"}]
 
 
 class TestNothingIsLogged:
