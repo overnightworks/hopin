@@ -1,0 +1,8 @@
+claim_id = "e892cfc67db34c39836c5bd9a7fcca02"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "58ebea1f68ce5844f7d7d2f07a9ad6cf386afbea"
+branch = "claude/issue-857-speech-v0-17-0"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "pyproject.toml", "src/hopin/agent", "tests", "uv.lock"]
+opened_commit = "c9d8ae385b86fe139572a785d118dbc2f48b88f8"
+whole_reason = "One dependency bump and the hearing API change it forces, through the hearing route's one owner."
