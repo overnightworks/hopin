@@ -10,6 +10,7 @@ import structlog
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
     DECLINE_INVITATION_TOOL,
+    GESTURE_TOOL,
     SPEAK_TOOL,
     STOP_SPEAKING_TOOL,
     AcceptInvitationArguments,
@@ -19,7 +20,11 @@ from agents.member import (
     DeclineInvitationReason,
     DeclineInvitationRefusal,
     DeclineInvitationRefused,
+    GestureArguments,
+    GestureRefusal,
+    GestureRefused,
     PlaceRef,
+    Relayed,
     SpeakArguments,
     SpeakRefusal,
     SpeakRefused,
@@ -29,6 +34,7 @@ from agents.member import (
     StopSpeakingRefusal,
     StopSpeakingRefused,
     Written,
+    gesture_tool,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -59,6 +65,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 AGENT_VOICE_UNKNOWN_EVENT: Final = "agent_voice_unknown"
 AGENT_ACCEPT_MALFORMED_EVENT: Final = "agent_accept_malformed"
 AGENT_DECLINE_MALFORMED_EVENT: Final = "agent_decline_malformed"
+AGENT_GESTURE_MALFORMED_EVENT: Final = "agent_gesture_malformed"
 
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
@@ -92,6 +99,7 @@ AUDIENCE_OF_TOOL: Final = {
     SAY: Audience.EVERY_AGENT,
     SPEAK_TOOL: Audience.EVERY_AGENT,
     STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
+    GESTURE_TOOL: Audience.EVERY_AGENT,
     LOOK: Audience.EVERY_AGENT,
 }
 
@@ -279,6 +287,10 @@ def _look_refused(refusal: LookRefusal) -> ToolOutcome:
     return ToolOutcome(json.dumps({"refused": refusal.value}), is_error=True)
 
 
+def _gesture_refused() -> ToolOutcome:
+    return ToolOutcome(GestureRefused(refused=GestureRefusal.NOT_ACTIVE).model_dump_json(), is_error=True)
+
+
 def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
     return ToolOutcome(StopSpeakingRefused(refused=refusal).model_dump_json(), is_error=True)
 
@@ -403,6 +415,19 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
 
+async def _gestured(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    try:
+        gesturing = GestureArguments.model_validate(arguments)
+    except ValidationError as invalid:
+        await _log_malformed(AGENT_GESTURE_MALFORMED_EVENT, invalid)
+        return _gesture_refused()
+    if gesturing.place.kind != CALL_KIND:
+        return _gesture_refused()
+    if await participation.gesture(caller.person, gesturing.place.id, gesturing.gesture) is not None:
+        return _gesture_refused()
+    return ToolOutcome(Relayed(relayed=True).model_dump_json(), is_error=False)
+
+
 async def _looked(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         looking = LookArguments.model_validate(arguments)
@@ -448,6 +473,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def stop_speaking(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _stopped(participation(), caller, arguments)
 
+    async def gesture(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _gestured(participation(), caller, arguments)
+
     async def look(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _looked(participation(), caller, arguments)
 
@@ -459,5 +487,6 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_SAY_DECLARATION, say),
         CallerTool(_SPEAK_DECLARATION, speak),
         CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
+        CallerTool(gesture_tool(), gesture),
         CallerTool(_LOOK_DECLARATION, look),
     )

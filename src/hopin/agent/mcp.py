@@ -14,6 +14,7 @@ from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, Resourc
 from agents.mcp_server.hearing import MemberHearing
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
+    GESTURE_TOOL,
     INVITATION_SECONDS,
     LEASE_SECONDS,
     STANDING_URI,
@@ -145,6 +146,14 @@ class _BuiltParticipation:
 
     def _tell_changed(self, person: Person) -> None:
         self.changes.changed(_principal_of_person(person), STANDING_URI)
+        self.changes.tools_changed(_principal_of_person(person))
+
+    async def offered_tools(  # NOSONAR(S7503) OfferedTools is async
+        self, declared: Collection[str], principal: Principal
+    ) -> Collection[str]:
+        """Every declared tool, and the gesture tool only while the principal's agent shows a figure in some call."""
+        shown = self.participation.shows_figure(Person(principal.iss, principal.sub))
+        return tuple(name for name in declared if name != GESTURE_TOOL or shown)
 
     def _tell_window_changed(self, person: Person, room_id: str) -> None:
         self.changes.changed(_principal_of_person(person), _call_window_uri(room_id))
@@ -352,11 +361,13 @@ class ParticipationFeature:
         hearing_tokens = self._hearing_tokens(scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
+        tools = [_as_person_tool(tool) for tool in participation_tools(built.current, voice)]
         front = McpPersonFront(
-            [_as_person_tool(tool) for tool in participation_tools(built.current, voice)],
+            tools,
             resolve_person=partial(_principal_of, relying_party.issuer),
             resources=_MemberResources(built.current),
             changes=built.changes,
+            offered_tools=partial(built.offered_tools, [tool.declaration.name for tool in tools]),
         )
 
         @asynccontextmanager

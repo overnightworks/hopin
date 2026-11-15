@@ -11,6 +11,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_HEARING = "agent_hearing",
     AGENT_VOICE = "agent_voice",
     AGENT_STOP = "agent_stop",
+    AGENT_GESTURE = "agent_gesture",
     AGENT_SEEING = "agent_seeing",
     AGENT_LOOK_REQUEST = "agent_look_request",
     AGENT_LOOK_PART = "agent_look_part",

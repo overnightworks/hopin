@@ -10,6 +10,7 @@ from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
 from hopin.participation.frames import (
     Offer,
+    gesture_frame,
     invitation_ended_frame,
     joined_frame,
     left_frame,
@@ -47,6 +48,7 @@ from hopin.signaling.frames import JsonObject, PeerId
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 
+    from agents.figure_vocabulary import FigureGesture
     from starlette.requests import HTTPConnection
 
     from hopin.participation.hearing import Hearing, HearingHandle
@@ -209,6 +211,23 @@ class Participation:
             return SpeakStop.NOTHING_PLAYING
         await self._tell(room_id, self._recipients(room_id), stop_frame(agent))
         return cut
+
+    async def gesture(self, person: Person, room_id: str, gesture: FigureGesture) -> AgentRefusal | None:
+        """Tell every seat the person's agent makes the gesture with its figure; why not when the agent holds no active
+        place there or shows no figure. A seat that joins later is told no past gesture."""
+        agent = self._active_agent(person, room_id)
+        if isinstance(agent, AgentRefusal):
+            return agent
+        if agent.figure is None:
+            return AgentRefusal.GONE
+        await self._tell(room_id, self._recipients(room_id), gesture_frame(agent, gesture))
+        return None
+
+    def shows_figure(self, person: Person) -> bool:
+        """Whether the person's agent shows a figure in some call, which the gesture tool is offered for."""
+        return any(
+            isinstance(place, DialedAgent) and place.figure is not None for _, place in self._places.of_person(person)
+        )
 
     async def look(self, person: Person, room_id: str) -> Picture:
         """The JPEG of the camera of the person's agent's sponsor, which the sponsor's seeing switch lets it take; why

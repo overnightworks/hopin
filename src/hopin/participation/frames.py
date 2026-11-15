@@ -10,6 +10,8 @@ from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from agents.figure_vocabulary import FigureGesture
+
     from hopin.participation.participants import DialedAgent
 
 
@@ -55,6 +57,10 @@ def voice_frame(agent: DialedAgent, voice_id: str) -> JsonObject:
 
 def stop_frame(agent: DialedAgent) -> JsonObject:
     return frame(ParticipationSignal.AGENT_STOP, agent_id=agent.agent_id)
+
+
+def gesture_frame(agent: DialedAgent, gesture: FigureGesture) -> JsonObject:
+    return frame(ParticipationSignal.AGENT_GESTURE, agent_id=agent.agent_id, gesture=gesture.value)
 
 
 def left_frame(agent: DialedAgent) -> JsonObject:

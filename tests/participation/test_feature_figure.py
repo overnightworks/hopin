@@ -3,7 +3,7 @@ told, and the route that serves the verified file while a joined agent names it.
 
 import pytest
 import structlog.testing
-from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, GESTURE_TOOL, LEASE_SECONDS, STANDING_URI
 
 from hopin.agent.tools import LEAVE_CALL
 from hopin.config.constants import CALL_FEATURES_PATH
@@ -27,6 +27,7 @@ from tests.participation.support.figures import (
     ok,
 )
 from tests.participation.support.own_accounts import ADDERS
+from tests.participation.support.tool_calls import call_in
 from tests.support.dialed_call import accept_arguments
 from tests.support.signed_in import cookie_header
 
@@ -34,6 +35,7 @@ pytestmark = pytest.mark.integration
 
 JOINED = ParticipationSignal.AGENT_JOINED.value
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
+GESTURED = ParticipationSignal.AGENT_GESTURE.value
 SECOND_OWNER = "subject-second-owner"
 FILE = glb(b"mozart" * 8)
 REFUSED_EVENT = "agent_figure_refused"
@@ -332,3 +334,70 @@ class TestTheRoute:
         assert not accept_with(scene, figure_of(second_url), token=second, name="Haydn").is_error
 
         assert read_figure(scene, path).content == FILE
+
+
+def offered_tools(scene):
+    answer = scene.call.request(scene.token, "tools/list").json()
+    return {tool["name"] for tool in answer["result"]["tools"]}
+
+
+class TestTheGestureTool:
+    @pytest.fixture
+    def gesturing(self, scene, figure_origin):
+        """The scene with the agent joined with a shown figure."""
+        joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
+        scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
+        return scene
+
+    def test_call_65_an_agent_with_a_shown_figure_is_offered_the_gesture_tool(self, gesturing):
+        assert GESTURE_TOOL in offered_tools(gesturing)
+
+    def test_call_65_an_agent_whose_figure_was_refused_is_not_offered_it(self, scene):
+        accept_with(scene, figure_of(figure_url().replace("figures.", "other.")))
+
+        assert GESTURE_TOOL not in offered_tools(scene)
+
+    def test_call_65_an_agent_without_a_figure_is_not_offered_it(self, scene):
+        accept_with(scene, None)
+
+        assert GESTURE_TOOL not in offered_tools(scene)
+
+    def test_call_65_a_gesture_is_relayed_and_every_seat_is_told_it_with_the_agent_s_id(self, gesturing):
+        gestured = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+
+        assert (gestured.is_error, gestured.outcome) == (False, {"relayed": True})
+        for seat in (gesturing.owner, gesturing.member):
+            told = seat.frame_of_type(GESTURED)
+            assert (told["agent_id"], told["gesture"]) == (gesturing.agent_id, "wave")
+
+    def test_call_65_a_seat_that_joins_later_is_told_no_past_gesture(self, gesturing):
+        call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+        gesturing.owner.frame_of_type(GESTURED)
+        _, later_login = gesturing.call.member()
+        later = gesturing.call.seat(later_login, gesturing.owner.room_id)
+        later.frame_of_type(JOINED)
+
+        assert [frame for frame in later.received if frame["type"] == GESTURED] == []
+
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            pytest.param({"gesture": "wave", "place": {"kind": "call", "id": "no-such-room"}}, id="another room"),
+            pytest.param({"gesture": "wave", "place": {"kind": "table", "id": "any"}}, id="a place of another kind"),
+            pytest.param({"gesture": "wave"}, id="no place"),
+        ],
+    )
+    def test_call_65_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
+        dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, arguments)
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+
+    def test_call_65_a_gesture_figure_does_not_know_is_not_active(self, gesturing):
+        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="no-such-gesture")
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+
+    def test_call_65_a_gesture_after_the_agent_left_is_not_offered_and_is_not_made(self, gesturing):
+        gesturing.call.call(gesturing.token, LEAVE_CALL, {"room": gesturing.owner.room_id})
+
+        assert GESTURE_TOOL not in offered_tools(gesturing)
