@@ -743,7 +743,11 @@ class TestTheTranscriptRelay:
             1,
             1,
         )
-        assert (entered["agent_id"], isinstance(relay["duration_ms"], float)) == (pulse["agent_id"], True)
+        assert (entered["agent_id"], entered["kind"], isinstance(relay["duration_ms"], float)) == (
+            pulse["agent_id"],
+            "heard",
+            True,
+        )
         assert (text in repr(lines), sponsored.owner.room_id in repr(lines)) == (False, False)
 
 

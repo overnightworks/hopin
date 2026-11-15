@@ -389,8 +389,24 @@ class TestWhatIsHeard:
             await speak(participation, room_id=room_of(host))
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
 
-        trace_of = {line["event"]: line["trace_id"] for line in lines}
-        assert trace_of["speak.ended"] != trace_of["pulse.sent"]
+        heard_pulse = next(line for line in lines if line["event"] == "pulse.sent")
+        spoken = next(line for line in lines if line["event"] == "speak.ended")
+        assert spoken["trace_id"] != heard_pulse["trace_id"]
+
+    async def test_the_agents_sentence_after_a_written_line_in_a_trace_does_not_join_the_trace_of_that_line(
+        self, participation, dialed, capsys
+    ):
+        host, _guest, _agent = dialed
+
+        with configured("hopin"):
+            with unit_trace(None):
+                participation.chat_said(host.peer_id, room_of(host), "written")
+            await speak(participation, room_id=room_of(host))
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+        written_pulse = next(line for line in lines if line["event"] == "pulse.sent")
+        spoken = next(line for line in lines if line["event"] == "speak.ended")
+        assert (written_pulse["trace_id"] is None, spoken["trace_id"] != written_pulse["trace_id"]) == (False, True)
 
     async def test_call_57_the_agent_reads_a_heard_sentence_as_a_spoken_entry_of_its_window(
         self, participation, dialed
