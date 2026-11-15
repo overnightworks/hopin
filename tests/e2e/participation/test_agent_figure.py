@@ -3,6 +3,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 import pytest
 from playwright.sync_api import expect
@@ -78,6 +79,42 @@ def figures_on() -> bool:
 @pytest.fixture
 def e2e_server(figures_on: bool, figure_server: RunningServer, participation_server: RunningServer) -> RunningServer:
     return figure_server if figures_on else participation_server
+
+
+@pytest.fixture
+def clock_faked() -> bool:
+    return False
+
+
+@pytest.fixture
+def clip_answers() -> dict[Page, list[int]]:
+    """The statuses each page got for the clips it asked the server for. A faked page clock fakes the page's resource
+    timing, so they are taken from the responses."""
+    return {}
+
+
+@pytest.fixture
+def open_person(
+    open_person: Callable[..., Page], clock_faked: bool, clip_answers: dict[Page, list[int]]
+) -> Callable[..., Page]:
+    """Opens each page recording its clip answers and, when `clock_faked`, with the page clock faked from its first
+    load, so the figure's animation keeps one time base when the test later holds the clock; the faked clock runs with
+    real time until then."""
+
+    def open_recording(**options: Any) -> Page:
+        page = open_person(**options)
+        answers = clip_answers.setdefault(page, [])
+        page.on(
+            "response",
+            lambda response: (
+                answers.append(response.status) if urlsplit(response.url).path.startswith(CLIP_PATH) else None
+            ),
+        )
+        if clock_faked:
+            page.clock.install()
+        return page
+
+    return open_recording
 
 
 def figure_chunk_urls(base_url: str) -> set[str]:
@@ -158,7 +195,7 @@ WAIT_FOR_THE_GESTURE_SECONDS = 30
 # The held page clock advances by a step to each picture; a step is far shorter than the wave, so no picture skips it.
 STEP_MILLISECONDS = 100
 WAVE_MILLISECONDS = 20_000
-CLOCK_LEAD_MILLISECONDS = 100
+CLOCK_LEAD_MILLISECONDS = 5_000
 # The arm's top at rest moves by the pixel grid and the idle sway, a few thousandths of the picture between two figures;
 # an arm still easing back one step before it settles stands about 0.05 off.
 REST_TOLERANCE = 0.02
@@ -179,16 +216,6 @@ def drawn_at_rest(person: Page) -> float:
     return top
 
 
-def clip_answers(person: Page) -> list[int]:
-    """The statuses the person's page got for the clips it asked the server for."""
-    return person.evaluate(
-        """(path) => performance.getEntriesByType("resource")
-            .filter((entry) => new URL(entry.name).pathname.startsWith(path))
-            .map((entry) => entry.responseStatus)""",
-        CLIP_PATH,
-    )
-
-
 def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
     """Whether the persona's clip holds the arm of the person's figure up. A gesture that plays is not started again and
     one made before the clip is parsed plays the neutral wave, so the gesture is made again with each picture."""
@@ -203,7 +230,6 @@ def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
 
 def hold_the_page_clock(person: Page) -> None:
     """The page's clock, and with it the figure's animation, stands until the test advances it."""
-    person.clock.install()
     person.clock.pause_at(timedelta(milliseconds=CLOCK_LEAD_MILLISECONDS) + datetime.now(tz=UTC))
 
 
@@ -244,7 +270,7 @@ def everyone_with_the_figure_drawn(scene: Scene, clip: dict[str, str]) -> dict[P
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_included(
-    scene_of: Callable[..., Scene], form_factor: dict[str, Any]
+    scene_of: Callable[..., Scene], clip_answers: dict[Page, list[int]], form_factor: dict[str, Any]
 ) -> None:
     """CALL-65: A clip the agent brings plays for its gesture on its tile in every browser of the call, late joiners
     included."""
@@ -255,10 +281,11 @@ def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_in
     assert [persona_clip_plays(person, lambda: scene.agent.gesture(WAVE)) for person in everyone] == [True] * len(
         everyone
     )
-    assert [clip_answers(person) for person in everyone] == [[200]] * len(everyone)
+    assert [clip_answers[person] for person in everyone] == [[200]] * len(everyone)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
+@pytest.mark.parametrize("clock_faked", [True])
 @pytest.mark.parametrize(
     ("clip", "answer"),
     [
@@ -267,15 +294,18 @@ def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_in
     ],
 )
 def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
-    scene_of: Callable[..., Scene], form_factor: dict[str, Any], clip: dict[str, str], answer: int
+    scene_of: Callable[..., Scene],
+    clip_answers: dict[Page, list[int]],
+    form_factor: dict[str, Any],
+    clip: dict[str, str],
+    answer: int,
 ) -> None:
     """CALL-65: A clip that cannot be fetched, or that figure refuses, leaves the neutral gesture and the figure is
     drawn all the same."""
     scene = scene_of(form_factor)
 
     at_rest = everyone_with_the_figure_drawn(scene, clip)
-    # The held clock fakes the page's resource timing, so the answers are read first.
-    answers = [clip_answers(person) for person in at_rest]
+    answers = [clip_answers[person] for person in at_rest]
     for person in at_rest:
         hold_the_page_clock(person)
     waves = [tops_of_one_wave(person, rest, lambda: scene.agent.gesture(WAVE)) for person, rest in at_rest.items()]
