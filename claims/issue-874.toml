@@ -1,8 +1,0 @@
-claim_id = "8f9aae2d702a4f1ca0ca70710c2871ef"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "b88feffd15803e56edbdf434a593b14a004dafe3"
-branch = "claude/issue-874-voice-return-and-written-line-logged"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/participation/feature.py", "src/hopin/participation/speech_in_windows.py", "tests/participation"]
-opened_commit = "66f09d2f37932c682d40fd1c28bd716bc40628d2"
-whole_reason = "Two logging gaps of one window's lines, with their tests and the Logging paragraph."
