@@ -33,16 +33,16 @@ pytestmark = pytest.mark.e2e
 
 QUESTION = "Welcher Fluss fließt durch Lissabon?"
 REVEAL = "Der Tejo."
-# A page records each blob audio it is asked to play and whether the browser allowed it.
+# A page records each voice its speech player starts: the player plays a voice as buffer sources, the chunks of a
+# streamed body beginning where the one before ends, so the chunks that join up are one voice.
 RECORD_VOICES = """
 window.voicesPlayed = [];
-const play = HTMLMediaElement.prototype.play;
-HTMLMediaElement.prototype.play = function () {
-    const started = play.call(this);
-    if (this.src.startsWith("blob:")) {
-        started.then(() => window.voicesPlayed.push("started"), () => window.voicesPlayed.push("refused"));
-    }
-    return started;
+let joinsAt = NaN;
+const start = AudioBufferSourceNode.prototype.start;
+AudioBufferSourceNode.prototype.start = function (when, ...args) {
+    if (when !== joinsAt) window.voicesPlayed.push("started");
+    joinsAt = when + this.buffer.duration;
+    return start.call(this, when, ...args);
 };
 """
 
