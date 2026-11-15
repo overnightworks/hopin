@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import threading
+from contextlib import contextmanager
 from http import HTTPStatus
 
 import pytest
@@ -127,7 +128,7 @@ class TestTheWorkloadToken:
         heard = hear_one_sentence(sponsored, fake_speech)
 
         assert (refused, heard, len(grants(sponsored, CLIENT_CREDENTIALS_GRANT))) == (
-            HearingClose.SERVICE_FAILED,
+            HearingClose.NORMAL,
             HearingClose.NORMAL,
             2,
         )
@@ -370,13 +371,15 @@ class TestARefusedHop:
             [],
         )
 
-    def test_call_58_a_refused_workload_token_gets_a_service_code_and_no_service_session(self, sponsored, fake_speech):
+    def test_call_58_a_refused_workload_token_ends_the_hearing_in_order_and_opens_no_service_session(
+        self, sponsored, fake_speech
+    ):
         sponsored.call.issuer.refuses_client_credentials_grants = True
 
         with hop(sponsored) as socket:
             closed = closed_with(socket)
 
-        assert (closed, fake_speech.sessions) == (HearingClose.SERVICE_FAILED, [])
+        assert (closed, fake_speech.sessions) == (HearingClose.NORMAL, [])
 
     def test_call_58_a_socket_without_a_session_is_refused_before_it_is_accepted(self, sponsored, fake_speech):
         with pytest.raises(WebSocketDisconnect) as refused, hop(sponsored, login=None):
@@ -710,26 +713,26 @@ class TestHearingOff:
         )
 
 
-def the_service_drops(session, socket):
-    session.drop()
-    closed_with(socket)
-
-
 def the_browser_leaves(_session, socket):
     socket.close()
 
 
+@contextmanager
+def logged_endings():
+    """The outcomes the route logs as a hop's ending, filled while the block runs."""
+    endings = []
+
+    def note_the_ending(_logger, _method, event):
+        if event["event"] == "agent_hearing_ended":
+            endings.append(event["outcome"])
+        return event
+
+    with structlog.testing.capture_logs(processors=[note_the_ending]):
+        yield endings
+
+
 class TestHowAHopEndsInTheLog:
-    @pytest.mark.parametrize(
-        ("action", "ending"),
-        [
-            pytest.param(the_service_drops, "cut", id="the_service_drops"),
-            pytest.param(the_browser_leaves, "browser_left", id="the_browser_leaves"),
-        ],
-    )
-    def test_call_58_a_hop_the_service_drops_or_the_browser_leaves_is_logged_with_that_ending(
-        self, sponsored, fake_speech, action, ending
-    ):
+    def test_call_58_a_hop_the_browser_leaves_is_logged_with_that_ending(self, sponsored, fake_speech):
         endings = []
         logged = threading.Event()
 
@@ -743,10 +746,79 @@ class TestHowAHopEndsInTheLog:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
             session.wait_for_audio(1)
-            action(session, socket)
+            the_browser_leaves(session, socket)
             assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
 
-        assert endings == [ending]
+        assert endings == ["browser_left"]
+
+
+class TestAReopenedSession:
+    """CALL-58: The speech client reopens a hearing the service drained or cut; the route hands it a token source that
+    answers afresh on every opening."""
+
+    def test_call_58_a_session_the_service_cut_is_reopened_and_each_sentence_enters_the_window_once(
+        self, sponsored, fake_speech
+    ):
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            first = fake_speech.next_session(1)
+            for event in a_sentence("erster Satz"):
+                first.say(event)
+            first.drop()
+            second = fake_speech.next_session(2)
+            for event in a_sentence("zweiter Satz"):
+                second.say(event)
+            second.hang_up()
+            closed = closed_with(socket)
+
+        assert (closed, [entry["text"] for entry in entries_of(sponsored)]) == (
+            HearingClose.NORMAL,
+            ["erster Satz", "zweiter Satz"],
+        )
+
+    def test_call_58_the_reopening_carries_the_workload_token_fetched_anew_once_the_first_lapsed(
+        self, sponsored, fake_speech, issuer_clock
+    ):
+        with hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            fake_speech.next_session(1).wait_for_audio(1)
+            issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
+            fake_speech.next_session(1).drop()
+            second = fake_speech.next_session(2)
+            second.hang_up()
+            closed_with(socket)
+
+        assert {header_of(session, WORKLOAD_TOKEN_HEADER) for session in fake_speech.sessions} == set(
+            sponsored.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)
+        )
+        assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == 2
+
+    def test_call_58_a_reopening_the_issuer_refuses_ends_the_hearing_in_order_with_no_token_logged(
+        self, sponsored, fake_speech, issuer_clock
+    ):
+        with logged_endings() as endings, hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            first = fake_speech.next_session(1)
+            first.wait_for_audio(1)
+            issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
+            sponsored.call.issuer.refuses_client_credentials_grants = True
+            first.drop()
+            closed = closed_with(socket)
+
+        assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
+
+    def test_call_58_a_service_that_stays_unavailable_ends_the_hearing_with_a_service_code_logged_as_reconnect_failed(
+        self, sponsored, fake_speech
+    ):
+        with logged_endings() as endings, hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            first = fake_speech.next_session(1)
+            first.wait_for_audio(1)
+            fake_speech.refusal = refused_with(RefusalCode.UNAVAILABLE)
+            first.drop()
+            closed = closed_with(socket)
+
+        assert (closed, endings) == (HearingClose.SERVICE_FAILED, ["reconnect_failed"])
 
 
 class TestNothingIsLogged:

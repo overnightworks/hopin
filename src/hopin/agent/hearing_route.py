@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
-from speech_client.hearing import OPENING_SECONDS, Closed, Refused
+from speech_client.hearing import NEEDED_HOLD_BYTES, Closed, NoToken, ReconnectFailed, Refused, SessionTokens
 from speech_client.outcomes import Busy, Cut, Malformed, OverCap, PastDeadline, Unreachable
-from speech_client.relay import HOP_FRAME_BYTES, HOP_FRAME_SAMPLES, AppEnded, BrowserLeft, RuleBroken
+from speech_client.relay import HOP_FRAME_BYTES, AppEnded, BrowserLeft, RuleBroken
 from speech_client.utterances import (
     Partial,
     ServiceFailed,
@@ -23,7 +23,7 @@ from speech_client.utterances import (
     UtteranceOutcome,
     hear_utterances,
 )
-from speech_client.wire import Language, SessionInput
+from speech_client.wire import Language
 from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 from webauth.oidc import OidcRefusal
 
@@ -51,12 +51,13 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 # A guest may speak English in a German call; the service decodes each sentence in the language it hears.
 HEARING_LANGUAGES: Final = (Language.DE, Language.EN)
 HEARING_DEADLINE_SECONDS: Final = 60 * 60
-# The client holds the sound it is sent until the service's session is open and reads it, and waits up to
-# `OPENING_SECONDS` for that opening; a smaller hold ends the hop with `OverCap` on a session that opens slowly or
-# stalls for a moment, and the person goes unheard. So the hold covers the opening bound. Audio held when a hop ends may
+# The client holds the sound it is sent until the service's session is open and reads it, and waits up to its opening
+# bound for that opening, or its reconnect bound while it reopens a drained or cut session; a smaller hold ends the hop
+# with `OverCap` on a session that opens slowly or stalls for a moment, and the person goes unheard. So the hold is the
+# client's own `NEEDED_HOLD_BYTES`, which covers both bounds. Audio held when a hop ends may
 # still be written to the service (speech#311): sound spoken while the switch was on, and CALL-58 keeps any sentence
 # that ends after a switch-off out of every window.
-HELD_FRAMES: Final = math.ceil(OPENING_SECONDS * SessionInput().format.rate / HOP_FRAME_SAMPLES)
+HELD_FRAMES: Final = math.ceil(NEEDED_HOLD_BYTES / HOP_FRAME_BYTES)
 HELD_LIMIT_BYTES: Final = HOP_FRAME_BYTES * HELD_FRAMES
 MILLISECONDS_PER_SECOND: Final = 1000
 
@@ -121,7 +122,7 @@ class _SessionRecheck:
 
 
 class HearingRoute:
-    """Serves the hearing socket of a seat: admission, the seat's hop, the two tokens and the speech session."""
+    """Serves the hearing socket of a seat: admission, the seat's hop, each opening's tokens, the speech session."""
 
     def __init__(
         self,
@@ -154,29 +155,34 @@ class HearingRoute:
         if isinstance(handle, HearingRefusal):
             await _close_unopened(websocket, HearingClose[handle.name])
             return
-        person_token = self._tokens.held(handle.agent)
-        if person_token is None:
+        if self._tokens.held(handle.agent) is None:
             await _close_unopened(websocket, HearingClose.NO_TOKEN)
             return
         # The hop ends when its record ends it or its session is revoked; both set `handle.ended`, watched from the
         # grant on.
         recheck = _SessionRecheck(self._resolver, self._scheduler, websocket, handle.ended)
         try:
-            await self._hear(websocket, handle, person_token)
+            await self._hear(websocket, handle)
         finally:
             recheck.close()
             self._participation().speech.turn_ended(handle.room_id, handle.seat)
 
-    async def _hear(self, websocket: WebSocket, handle: HearingHandle, person_token: SecretStr) -> None:
+    async def _tokens_for_opening(self, handle: HearingHandle) -> SessionTokens | None:
+        """The tokens of one opening of the service's session, the first and each reopening: the agent's held token as
+        it stands now and HopIn's workload token. None once the hop ended, the agent holds none or the issuer
+        refuses."""
+        person_token = self._tokens.held(handle.agent)
+        if person_token is None:
+            return None
         workload = await self._workload_token_unless(handle.ended)
         if workload is None:
-            _log_ended(AppEnded())
-            await websocket.close(code=HearingClose.NORMAL)
-            return
+            return None
         if isinstance(workload, OidcRefusal):
             logger.info("agent_hearing_workload_token_refused", idp_error=issuer_error(workload))
-            await _close_unopened(websocket, HearingClose.SERVICE_FAILED)
-            return
+            return None
+        return SessionTokens(workload_token=workload.get_secret_value(), person_token=person_token.get_secret_value())
+
+    async def _hear(self, websocket: WebSocket, handle: HearingHandle) -> None:
         clock = _AudioClock(self._scheduler.now())
 
         def on_utterance(utterance: Utterance) -> Awaitable[None]:
@@ -198,8 +204,7 @@ class HearingRoute:
         outcome = await hear_utterances(
             websocket,
             self._service.origin,
-            workload_token=workload.get_secret_value(),
-            person_token=person_token.get_secret_value(),
+            token_source=lambda: self._tokens_for_opening(handle),
             languages=HEARING_LANGUAGES,
             deadline_seconds=HEARING_DEADLINE_SECONDS,
             held_limit_bytes=HELD_LIMIT_BYTES,
@@ -256,6 +261,10 @@ def _ending_of(outcome: UtteranceOutcome) -> tuple[str, str | None]:
             return "cut", None
         case Unreachable():
             return "unreachable", None
+        case NoToken():
+            return "no_token", None
+        case ReconnectFailed():
+            return "reconnect_failed", None
         case BrowserLeft():
             return "browser_left", None
         case AppEnded():
