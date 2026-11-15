@@ -2,10 +2,9 @@ import asyncio
 import secrets
 
 import pytest
-import structlog.testing
 from agents.agent_file import load_agent
-from agents.backend import TurnStopKind
 from agents.turn import FailureCode, Principal, RejectionCode, RunFile
+from logline import Outcome
 from webauth.admission import AppRole
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
@@ -21,12 +20,14 @@ from tests.game.support.fake_agent_backend import (
     Succeeds,
 )
 from tests.game.support.world import OPENING, build_world, cancelled, connection_with, wait_in_a_worker
+from tests.support.log_lines import captured_lines
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 # The log shows no more of a secret than this many leading characters.
 SHOWN_PREFIX_LENGTH = 16
-TURN_REFUSED = "game_master_turn_refused"
+TURN_ENDED = "game_master_turn.ended"
+GROUPS_READ = "group_read.ended"
 PARTIAL_BY_ENDING = [
     pytest.param(Rejects(RejectionCode.NOT_ENABLED), Refused(GameRefusal.NO_ACCESS), id="refused-not-enabled"),
     pytest.param(Rejects(RejectionCode.BUSY, retry_after_s=9), Refused(GameRefusal.BUSY, 9), id="refused-busy"),
@@ -77,14 +78,12 @@ class TestThePerson:
         starter, member = world.starter()
         world.stores.sessions.delete(member.session.id)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.SIGN_IN_AGAIN)
         assert (world.issuer.exchanges, world.backend.runs) == ([], [])
-        assert [log for log in logs if log["event"] == "game_master_groups_refused"] == [
-            {"event": "game_master_groups_refused", "log_level": "info", "reason": "session-ended"}
-        ]
+        assert [log["reason"] for log in logs if log["event"] == TURN_ENDED] == ["sign_in_again"]
 
     async def test_ask_is_for_the_starters_verified_identity_never_for_the_apps_own_run(self, world):
         """GM-08: Ask is for the starters verified identity never for the apps own run."""
@@ -134,20 +133,12 @@ class TestThePerson:
         world.issuer.refuses_refresh_grants = True
         world.issuer.refresh_refusal_error = idp_error
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         assert world.backend.runs == []
-        assert [log for log in logs if log["event"] == "game_master_groups_refused"] == [
-            {
-                "event": "game_master_groups_refused",
-                "log_level": "info",
-                "reason": "issuer-unavailable",
-                "issuer_reason": "token-request-refused",
-                "idp_error": logged,
-            }
-        ]
+        assert [log["reason"] for log in logs if log["event"] == GROUPS_READ] == [logged]
 
 
 class TestHeldGrants:
@@ -235,11 +226,11 @@ class TestEndings:
         starter, _ = world.starter()
         world.backend.answer_next(Rejects(RejectionCode.BUDGET_SPENT))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.BUDGET_SPENT)
-        assert [log["code"] for log in logs if log["event"] == TURN_REFUSED] == [RejectionCode.BUDGET_SPENT.value]
+        assert [log["reason"] for log in logs if log["event"] == TURN_ENDED] == [RejectionCode.BUDGET_SPENT.value]
 
     @pytest.mark.parametrize(("retry_after_s", "expected_wait"), [(17, 17), (None, 30), (0, 1), (600, 600)], ids=str)
     async def test_a_busy_turn_waits_as_told_with_a_fallback_and_a_floor(self, world, retry_after_s, expected_wait):
@@ -255,11 +246,11 @@ class TestEndings:
         starter, _ = world.starter()
         world.backend.answer_next(Fails(code))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
-        assert [log["code"] for log in logs if log["event"] == TURN_REFUSED] == [code.value]
+        assert [log["reason"] for log in logs if log["event"] == TURN_ENDED] == [code.value]
 
     @pytest.mark.parametrize(
         "answer",
@@ -285,7 +276,7 @@ class TestEndings:
         partial = f"Halbe Frage {secrets.token_hex(8)}"
         world.backend.answer_next(SaysThenStops(partial, stop))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == expected
@@ -338,7 +329,7 @@ class TestNothingLeaksIntoLogs:
         world.issuer.grant_groups(member.account.id, (group,))
         world.backend.answer_next(_with_sentinel(answer, sentinel))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, (*OPENING, Turn(Speaker.GAME_MASTER, sentinel)))
 
         refresh_token = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
@@ -346,31 +337,24 @@ class TestNothingLeaksIntoLogs:
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         for secret in (refresh_token, group, sentinel):
             assert secret[:SHOWN_PREFIX_LENGTH] not in shown
-        assert [log["event"] for log in logs if log["event"] == TURN_REFUSED] == [TURN_REFUSED]
+        assert [log["event"] for log in logs if log["event"] == TURN_ENDED] == [TURN_ENDED]
 
     async def test_a_refusal_is_logged_by_its_closed_values_only(self, world):
         starter, _ = world.starter()
         world.backend.answer_next(Rejects(RejectionCode.FORBIDDEN, detail="transport_lost"))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await world.game_master.ask(starter, OPENING)
 
-        assert [log for log in logs if log["event"] == TURN_REFUSED] == [
-            {
-                "event": TURN_REFUSED,
-                "log_level": "info",
-                "kind": TurnStopKind.REFUSED.value,
-                "code": RejectionCode.FORBIDDEN.value,
-                "detail": "transport_lost",
-            }
-        ]
+        [ended] = [log for log in logs if log["event"] == TURN_ENDED]
+        assert (ended["outcome"], ended["reason"]) == (Outcome.REFUSED, "transport_lost")
 
     async def test_a_successful_answer_carries_the_question_and_logs_nothing_of_it(self, world, stdlib_records):
         starter, _ = world.starter()
         question = f"Sentinel-Frage {secrets.token_hex(8)}?"
         world.backend.answer_next(Succeeds(question, said=(question,)))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             outcome = await world.game_master.ask(starter, OPENING)
 
         assert outcome == Line(question)

@@ -7,6 +7,7 @@ parameter.
 
 import asyncio
 import hashlib
+import logging
 import string
 import struct
 from collections import OrderedDict
@@ -15,7 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Protocol
 from urllib.parse import urljoin, urlsplit
 
-import structlog
+from logline import StepTimer
 
 from hopin.participation.vocabulary import (
     FIGURE_CACHE_BYTES,
@@ -26,12 +27,13 @@ from hopin.participation.vocabulary import (
     FIGURE_REDIRECTS,
     FigureRefusal,
 )
+from hopin.rooms.reference import room_reference
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Sequence
     from contextlib import AbstractContextManager
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 HTTPS_SCHEME: Final = "https"
 PATH_CHARACTERS: Final = frozenset(string.ascii_letters + string.digits + "-._~/")
@@ -245,11 +247,13 @@ class FigureStore:
         loop = asyncio.get_running_loop()
         try:
             for figure in named:
-                outcome = await loop.run_in_executor(self._executor, self._fetch_one, Figure(figure.url, sha256))
+                async with StepTimer("figure_fetch.ended", _STEPS, room_ref=room_reference(figure.room_id)) as step:
+                    outcome = await loop.run_in_executor(self._executor, self._fetch_one, Figure(figure.url, sha256))
+                    if isinstance(outcome, FigureRefusal):
+                        step.refuse(outcome.value)
                 if isinstance(outcome, bytes):
                     self._keep(sha256, outcome)
                     return outcome
-                await logger.ainfo("agent_figure_fetch_failed", room_id=figure.room_id, reason=outcome.value)
             return None
         finally:
             del self._fetches[sha256]

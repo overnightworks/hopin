@@ -111,11 +111,11 @@ class TestASentenceThatPlaysWhileItRenders:
         assert (
             answer,
             window_texts(participation, GUEST, streaming.room_id)[0],
-            failures_in(logs, "agent_voice_stream_failed"),
+            failures_in(logs, "voice_stream.failed"),
         ) == (
             SpeakStarted.SPOKEN,
             ("Eins", True, True),
-            [{"code": "cut"}],
+            [{"reason": "cut"}],
         )
         assert "exc_info" not in [key for log in logs for key in log]
 

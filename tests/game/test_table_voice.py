@@ -254,10 +254,10 @@ class TestAVoiceThatFails:
         with structlog.testing.capture_logs() as logs:
             await host.say(START)
             await sent_to_all([host, guest], answering(host))
-            await yield_until(lambda: [log for log in logs if log["event"] == "game_voice_raised"])
+            await yield_until(lambda: [log for log in logs if log["event"] == "game_voice.failed"])
 
-        assert [log for log in logs if log["event"] == "game_voice_raised"] == [
-            {"event": "game_voice_raised", "log_level": "error", "error": "RuntimeError"}
+        assert [log for log in logs if log["event"] == "game_voice.failed"] == [
+            {"event": "game_voice.failed", "log_level": "error", "error_type": "RuntimeError"}
         ]
 
     async def test_a_voice_past_its_deadline_is_cancelled_and_the_quiz_goes_on(
@@ -277,8 +277,8 @@ class TestAVoiceThatFails:
             await host.say(REVEAL)
             await sent_to_all([host, guest], answering(host, 2))
 
-        assert [log for log in logs if log["event"] == "game_voice_failed"] == [
-            {"event": "game_voice_failed", "log_level": "info", "outcome": "past_deadline"}
+        assert [log for log in logs if log["event"] == "game_voice.refused"] == [
+            {"event": "game_voice.refused", "log_level": "info", "reason": "past_deadline"}
         ]
         assert spoken.cancelled
         assert shown(guest)[:6] == [*asked(host, "Frage?"), {"type": VOICE_TYPE}, thinking(host), line(REVEAL_LINE)]

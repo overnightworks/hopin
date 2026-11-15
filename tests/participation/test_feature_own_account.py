@@ -16,7 +16,7 @@ from tests.support.dialed_call import accept_arguments
 
 pytestmark = pytest.mark.integration
 
-RECOMPUTE_FAILED_EVENT = "agent_offers_recompute_failed"
+RECOMPUTE_FAILED_EVENT = "agent_offers_recompute.failed"
 
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 JOINED = ParticipationSignal.AGENT_JOINED.value
@@ -120,8 +120,8 @@ class TestLoggingAMalformedCall:
     @pytest.mark.parametrize(
         ("event", "tool", "arguments_of"),
         [
-            ("agent_accept_malformed", ACCEPT_INVITATION_TOOL, accept_arguments),
-            ("agent_decline_malformed", DECLINE_INVITATION_TOOL, decline_arguments),
+            ("invitation_accept.refused", ACCEPT_INVITATION_TOOL, accept_arguments),
+            ("invitation_decline.refused", DECLINE_INVITATION_TOOL, decline_arguments),
         ],
         ids=["accept", "decline"],
     )
@@ -153,7 +153,7 @@ class TestLoggingAMalformedCall:
                 accept_arguments(standing) | {"epoch": accept_arguments(standing)["epoch"] + 1},
             )
 
-        assert [entry for entry in logs if str(entry["event"]).endswith("_malformed")] == []
+        assert [entry for entry in logs if entry.get("reason") == "malformed"] == []
 
 
 def _another_epoch(scene, arguments, seat_changes):

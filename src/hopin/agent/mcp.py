@@ -2,6 +2,7 @@
 serve it."""
 
 import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ from agents.member import (
 )
 from agents.tools import JsonObject, Principal, ToolOutcome
 from fastapi import APIRouter, HTTPException, Response
+from logline import StepTimer
 from starlette.requests import HTTPConnection
 from starlette.routing import Route
 from webauth.middleware import ProtectedResource, resource_person
@@ -51,7 +53,7 @@ from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
 from hopin.participation.hearing import Hearing
 from hopin.participation.participants import Caller, OwnAccount, Person
-from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, SPEAK_FAILED_EVENT, VOICE_PATH
+from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, VOICE_PATH
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
 
@@ -71,6 +73,7 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 # The realm's objects for HopIn's MCP path: the scope and audience a token carries, the group whose members the
 # gate admits, the group of agents' own accounts it admits from any client, and the public client an agent signs in
@@ -121,11 +124,11 @@ class _BuiltParticipation:
         return self.participation
 
     async def _groups_of(self, connection: HTTPConnection) -> frozenset[str] | None:
-        groups = await self.groups.of_connection(connection)
-        if isinstance(groups, AccessTokenRefusal):
-            logger.info("agent_adders_group_read_refused", reason=groups.reason.value)
-            return None
-        return groups
+        async with StepTimer("group_read.ended", _STEPS) as step:
+            groups = await self.groups.of_connection(connection)
+            if isinstance(groups, AccessTokenRefusal):
+                step.refuse(groups.reason.value)
+        return None if isinstance(groups, AccessTokenRefusal) else groups
 
     def _listens_to_standing(self, person: Person) -> bool:
         return self.changes.listens_to(_principal_of_person(person), STANDING_URI)
@@ -142,7 +145,7 @@ class _BuiltParticipation:
     def _recompute_ended(self, recompute: asyncio.Task[None]) -> None:
         self._recomputes.discard(recompute)
         if not recompute.cancelled() and (error := recompute.exception()) is not None:
-            logger.error("agent_offers_recompute_failed", exc_info=error)
+            logger.error("agent_offers_recompute.failed", exc_info=error)
 
     def _tell_changed(self, person: Person) -> None:
         self.changes.changed(_principal_of_person(person), STANDING_URI)
@@ -433,7 +436,6 @@ class ParticipationFeature:
             SPEAK_DEADLINE_SECONDS,
             SPEAK_MAX_BYTES,
             relying_party,
-            SPEAK_FAILED_EVENT,
             SPEECH_STREAM,
         )
         return AgentVoice(renderer, tokens)

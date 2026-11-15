@@ -3,9 +3,9 @@ import secrets
 from pathlib import Path
 
 import pytest
-import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from logline import Outcome
 
 from hopin.web.ice_servers import (
     IceServer,
@@ -14,6 +14,7 @@ from hopin.web.ice_servers import (
     TurnRelayUnavailableError,
     create_ice_servers_router,
 )
+from tests.support.log_lines import captured_lines, ended_steps
 
 pytestmark = pytest.mark.integration
 
@@ -78,15 +79,16 @@ def test_with_no_relay_the_route_answers_stun_only():
     assert response.json() == {"iceServers": [{"urls": [STUN_SERVER]}]}
 
 
-@pytest.mark.parametrize("status", [None, 403])
+TURN_CREDENTIALS_EVENT = "turn_credentials.ended"
+
+
 @pytest.mark.parametrize("reason", list(TurnRelayFailure))
-def test_a_relay_that_is_unavailable_gives_stun_only_and_one_warning_with_its_reason(reason, status):
-    relay = RelayFake(failure=TurnRelayUnavailableError(reason, status))
-    with structlog.testing.capture_logs() as records:
+def test_a_relay_that_is_unavailable_gives_stun_only_and_one_warning_with_its_reason(reason):
+    relay = RelayFake(failure=TurnRelayUnavailableError(reason))
+    with captured_lines() as records:
         response = client_for(STUN_SERVER, relay).get("/api/ice-servers")
-    expected = {"event": "turn_relay_unavailable", "log_level": "warning", "reason": reason}
     assert (response.status_code, response.json()) == (200, {"iceServers": [{"urls": [STUN_SERVER]}]})
-    assert records == [expected if status is None else {**expected, "status": status}]
+    assert ended_steps(records, TURN_CREDENTIALS_EVENT) == [("warning", Outcome.REFUSED, reason)]
 
 
 def test_page_sources_name_no_ice_server_url():

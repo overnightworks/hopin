@@ -361,14 +361,14 @@ class TestExpiredSessionSweep:
         sessions.delete(expired.id)
         with structlog.testing.capture_logs() as logs, TestClient(app):
             asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
-        assert [entry["event"] for entry in logs if entry["event"] == "expired_sessions_swept"] == []
+        assert [entry["event"] for entry in logs if entry["event"] == "sessions.swept"] == []
 
     def test_a_sweep_that_removed_sessions_logs_only_the_count(self, swept, scheduler):
         app, *_ = swept
         with structlog.testing.capture_logs() as logs, TestClient(app):
             asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
-        assert [entry for entry in logs if entry["event"] == "expired_sessions_swept"] == [
-            {"event": "expired_sessions_swept", "log_level": "info", "removed": 1}
+        assert [entry for entry in logs if entry["event"] == "sessions.swept"] == [
+            {"event": "sessions.swept", "log_level": "info", "removed_count": 1}
         ]
 
 

@@ -6,7 +6,6 @@ import secrets
 from functools import partial
 
 import pytest
-import structlog.testing
 from agents.member import STOP_SPEAKING_TOOL
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
@@ -21,6 +20,7 @@ from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import SPEAK_MAX_CHARACTERS
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS, ParticipationSignal
+from hopin.rooms.reference import room_reference
 from tests.participation.support.speaking_scene import (
     ANSWER_SECONDS,
     CLIENT_CREDENTIALS_GRANT,
@@ -38,13 +38,14 @@ from tests.participation.support.speaking_scene import (
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
+from tests.support.log_lines import captured_lines
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     chunked_wav,
-    failures_in,
     header_of,
     offering,
     refusal_answer,
+    speak_failures,
     speaking,
     speech_requests,
     spoken_request,
@@ -54,10 +55,9 @@ from tests.support.speech_origin import (
 pytestmark = pytest.mark.integration
 
 SENTENCE_MS = 1500
-FAILED = "agent_speak_failed"
 UNKNOWN_VOICE = "de_DE-nobody-medium"
-UNKNOWN_VOICE_EVENT = "agent_voice_unknown"
-failures_of = partial(failures_in, event=FAILED)
+UNKNOWN_VOICE_EVENT = "voice_list.refused"
+failures_of = speak_failures
 
 
 @pytest.fixture
@@ -76,13 +76,13 @@ class TestSpeakingOff:
     def test_call_60_with_the_setting_off_speak_is_unavailable_logs_speaking_off_and_nobody_is_called(
         self, joined_agent
     ):
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             dialed = speak(joined_agent)
         drained(joined_agent)
 
         issuer = joined_agent.call.issuer
         assert refusal_of(dialed) == (True, {"refused": "unavailable"})
-        assert failures_of(logs) == [{"outcome": "speaking_off"}]
+        assert failures_of(logs) == ["speaking_off"]
         assert (
             issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT),
             issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT),
@@ -530,7 +530,7 @@ class TestAVoiceSpeechDoesNotName:
         self, scene, speech_origin
     ):
         scene.invite()
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             accepted = scene.accept(scene.standings()[0], voices=[UNKNOWN_VOICE])
             scene.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)
         spoken = speak(scene)
@@ -542,7 +542,13 @@ class TestAVoiceSpeechDoesNotName:
             [spoken_request(request).voice for request in speech_requests(speech_origin)],
             [{key: value for key, value in log.items() if key not in {"event", "log_level"}} for log in unknown],
             UNKNOWN_VOICE in repr(logs),
-        ) == (False, False, [VoiceId.THORSTEN], [{"room_id": scene.owner.room_id}], False)
+        ) == (
+            False,
+            False,
+            [VoiceId.THORSTEN],
+            [{"reason": "unknown_voice", "room_ref": room_reference(scene.owner.room_id)}],
+            False,
+        )
 
 
 class TestTheVoiceRoute:

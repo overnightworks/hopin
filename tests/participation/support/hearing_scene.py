@@ -2,9 +2,7 @@
 endings the route logs."""
 
 import json
-from contextlib import contextmanager
 
-import structlog.testing
 from agents.member import LEASE_SECONDS
 
 AUDIENCE_SCOPE = "speech-audience"
@@ -29,15 +27,6 @@ def lose_the_held_token(scene):
         scene.standings()
 
 
-@contextmanager
-def logged_endings():
-    """The outcomes the route logs as a hop's ending, filled while the block runs."""
-    endings = []
-
-    def note_the_ending(_logger, _method, event):
-        if event["event"] == "agent_hearing_ended":
-            endings.append(event["outcome"])
-        return event
-
-    with structlog.testing.capture_logs(processors=[note_the_ending]):
-        yield endings
+def endings_of(lines):
+    """How each hop ended, as the line of its ending says: the reason of a hop that served nobody, else the outcome."""
+    return [line.get("reason", line["outcome"]) for line in lines if line["event"] == "hearing.ended"]

@@ -1,8 +1,7 @@
 import secrets
-from functools import partial
 
 import pytest
-import structlog.testing
+from logline import Outcome
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
@@ -17,12 +16,12 @@ from hopin.agent.speech import SpeechVoice
 from hopin.agent.speech_settings import SpeechService
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
 from tests.game.support.world import build_world
+from tests.support.log_lines import captured_lines
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     SPOKEN_WAV,
     chunked_wav,
-    failures_in,
     header_of,
     not_chunked_answer,
     refusal_answer,
@@ -34,14 +33,29 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 TEXT = f"Wie heißt die Hauptstadt {secrets.token_hex(8)}?"
 VOICE_NAME = VoiceId.THORSTEN
-FAILED = "game_voice_failed"
-failures_of = partial(failures_in, event=FAILED)
+
+
+def failures_of(lines):
+    """The closed reason of each game voice step that ended refused, in order."""
+    return [
+        line["reason"] for line in lines if line["event"] == "game_voice.ended" and line["outcome"] == Outcome.REFUSED
+    ]
+
+
+def workload_refusals_of(lines):
+    return [
+        line["reason"]
+        for line in lines
+        if line["event"] == "workload_token.ended" and line["outcome"] == Outcome.REFUSED
+    ]
+
+
 OUTCOMES = [
-    pytest.param(refusal_answer(RefusalCode.FORBIDDEN), {"outcome": "refused", "code": "forbidden"}, id="refused"),
-    pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), {"outcome": "busy"}, id="busy"),
-    pytest.param(chunked_wav(SPOKEN_WAV, terminated=False), {"outcome": "cut"}, id="cut"),
-    pytest.param(chunked_wav(SPOKEN_WAV + bytes(VOICE_MAX_BYTES)), {"outcome": "over_cap"}, id="over-cap"),
-    pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
+    pytest.param(refusal_answer(RefusalCode.FORBIDDEN), "refused", id="refused"),
+    pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), "busy", id="busy"),
+    pytest.param(chunked_wav(SPOKEN_WAV, terminated=False), "cut", id="cut"),
+    pytest.param(chunked_wav(SPOKEN_WAV + bytes(VOICE_MAX_BYTES)), "over_cap", id="over-cap"),
+    pytest.param(not_chunked_answer(), "malformed", id="malformed"),
 ]
 
 
@@ -120,7 +134,7 @@ class TestWithoutAVoice:
         speaking(origin, answer)
         starter, _ = world.starter()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             wav = await voice_of(world, origin).speak(starter, TEXT)
 
         assert (wav, failures_of(logs)) == (None, [logged])
@@ -132,20 +146,20 @@ class TestWithoutAVoice:
         voice = voice_of(world, gone)
         starter, _ = world.starter()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             wav = await voice.speak(starter, TEXT)
 
-        assert (wav, failures_of(logs)) == (None, [{"outcome": "unreachable"}])
+        assert (wav, failures_of(logs)) == (None, ["unreachable"])
 
     async def test_an_answer_past_the_deadline_is_nothing_and_logs_past_deadline(self, world, origin):
         """GM-34: An answer past the deadline is nothing and logs past deadline."""
         origin.serve(SPEECH_PATH, chunked_wav(SPOKEN_WAV), held=True)
         starter, _ = world.starter()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             wav = await voice_of(world, origin, deadline_seconds=0.2).speak(starter, TEXT)
 
-        assert (wav, failures_of(logs)) == (None, [{"outcome": "past_deadline"}])
+        assert (wav, failures_of(logs)) == (None, ["past_deadline"])
 
     async def test_a_starter_without_a_standing_session_is_nothing_and_no_workload_token_is_asked_for(
         self, world, origin
@@ -154,12 +168,12 @@ class TestWithoutAVoice:
         speaking(origin, chunked_wav(SPOKEN_WAV))
         starter, _ = world.starter(with_refresh_token=False)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             wav = await voice_of(world, origin).speak(starter, TEXT)
 
         assert (wav, failures_of(logs), world.grant_types(), origin.requests) == (
             None,
-            [{"outcome": "starter_token_refused"}],
+            ["starter_token_refused"],
             [],
             [],
         )
@@ -170,12 +184,13 @@ class TestWithoutAVoice:
         world.issuer.refuses_client_credentials_grants = True
         starter, _ = world.starter()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             wav = await voice_of(world, origin).speak(starter, TEXT)
 
-        assert (wav, failures_of(logs), origin.requests) == (
+        assert (wav, failures_of(logs), workload_refusals_of(logs), origin.requests) == (
             None,
-            [{"outcome": "workload_token_refused", "idp_error": "unauthorized_client"}],
+            ["workload_token_refused"],
+            ["unauthorized_client"],
             [],
         )
 
@@ -184,17 +199,17 @@ class TestWithoutAVoice:
         speaking(origin, chunked_wav(SPOKEN_WAV))
         starter, _ = world.starter()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             wav = await voice_of(world, origin).speak(starter, "…!?")
 
-        assert (wav, failures_of(logs), origin.requests) == (None, [{"outcome": "input_refused"}], [])
+        assert (wav, failures_of(logs), origin.requests) == (None, ["input_refused"], [])
 
     async def test_no_log_holds_the_text_a_token_or_the_audio(self, world, origin):
         """GM-34: No log holds the text, a token or the audio."""
         speaking(origin, chunked_wav(SPOKEN_WAV))
         starter, _ = world.starter()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await voice_of(world, origin).speak(starter, TEXT)
             speaking(origin, refusal_answer(RefusalCode.FORBIDDEN))
             await voice_of(world, origin).speak(starter, TEXT)

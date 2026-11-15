@@ -53,6 +53,7 @@ from hopin.participation.vocabulary import (
     SpeakFallback,
     SpeakStop,
 )
+from hopin.rooms.reference import room_reference
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -62,10 +63,6 @@ if TYPE_CHECKING:
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
-AGENT_VOICE_UNKNOWN_EVENT: Final = "agent_voice_unknown"
-AGENT_ACCEPT_MALFORMED_EVENT: Final = "agent_accept_malformed"
-AGENT_DECLINE_MALFORMED_EVENT: Final = "agent_decline_malformed"
-AGENT_GESTURE_MALFORMED_EVENT: Final = "agent_gesture_malformed"
 
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
@@ -335,9 +332,9 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-async def _log_malformed(event: str, invalid: ValidationError) -> None:
-    """Logs the names of the refused fields only: the error carries the input, which can hold anything."""
-    await logger.awarning(event, fields=sorted({str(error["loc"][0]) for error in invalid.errors() if error["loc"]}))
+def _refused_fields(invalid: ValidationError) -> list[str]:
+    """The names of the refused fields only: the error carries the input, which can hold anything."""
+    return sorted({str(error["loc"][0]) for error in invalid.errors() if error["loc"]})
 
 
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
@@ -345,7 +342,7 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
         # The strict model reads a list of voices only as JSON, which the arguments are.
         accepted = AcceptInvitationArguments.model_validate_json(json.dumps(arguments))
     except ValidationError as invalid:
-        await _log_malformed(AGENT_ACCEPT_MALFORMED_EVENT, invalid)
+        await logger.awarning("invitation_accept.refused", reason="malformed", fields=_refused_fields(invalid))
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
@@ -357,7 +354,7 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
     if isinstance(outcome, AgentRefusal):
         return _accept_refused(AcceptInvitationRefusal(outcome.value))
     if len(voices) < len(accepted.voices or ()):
-        await logger.ainfo(AGENT_VOICE_UNKNOWN_EVENT, room_id=accepted.place.id)
+        await logger.ainfo("voice_list.refused", reason="unknown_voice", room_ref=room_reference(accepted.place.id))
     return _joined_or_refused(outcome)
 
 
@@ -365,7 +362,7 @@ async def _declined(participation: Participation, caller: Caller, arguments: Jso
     try:
         declined = DeclineInvitationArguments.model_validate(arguments)
     except ValidationError as invalid:
-        await _log_malformed(AGENT_DECLINE_MALFORMED_EVENT, invalid)
+        await logger.awarning("invitation_decline.refused", reason="malformed", fields=_refused_fields(invalid))
         return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
     if declined.place.kind != CALL_KIND:
         return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
@@ -420,7 +417,7 @@ async def _gestured(participation: Participation, caller: Caller, arguments: Jso
     try:
         gesturing = GestureArguments.model_validate(arguments)
     except ValidationError:
-        await logger.awarning(AGENT_GESTURE_MALFORMED_EVENT)
+        await logger.awarning("gesture.refused", reason="malformed")
         return _gesture_refused()
     if gesturing.place.kind != CALL_KIND:
         return _gesture_refused()

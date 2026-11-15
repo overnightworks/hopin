@@ -223,7 +223,7 @@ def push_unsettled(browser, data):
 
 
 def assert_no_driver_failed(logs):
-    assert [log for log in logs if log["event"] == "game_driver_failed"] == []
+    assert [log for log in logs if log["event"] == "game_driver.failed"] == []
 
 
 def assert_no_game_frame_after_room_closed(browsers):

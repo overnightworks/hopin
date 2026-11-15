@@ -1,4 +1,5 @@
 from enum import IntEnum, StrEnum
+from typing import ClassVar
 
 FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
@@ -10,8 +11,8 @@ LINE_WINDOW_SECONDS = 60
 SENTENCES_WAITING_PER_AGENT = 10
 # How often the speech service is asked whether a voice is back while a window states its voice unavailable.
 VOICE_RECOVERY_SECONDS = 5
-SPEAK_FAILED_EVENT = "agent_speak_failed"
-VOICE_UNAVAILABLE_EVENT = "agent_voice_unavailable"
+# The speak line's reason when the voice has nothing to ask a speech service with.
+NO_VOICE_REASON = "no_voice"
 AGENT_ID_BYTES = 16
 FIGURE_PATH = "/api/participation/figures"
 FIGURE_FETCH_SECONDS = 30
@@ -140,6 +141,12 @@ class VoiceFailure(StrEnum):
     MALFORMED = "malformed"
     UNREACHABLE = "unreachable"
     UNREADABLE_AUDIO = "unreadable_audio"
+
+
+class VoiceRefusedError(Exception):
+    """The voice refuses a sentence before any sound is asked for; `reason` is the code its speak line carries."""
+
+    reason: ClassVar[str]
 
 
 class SpeakFailure(StrEnum):

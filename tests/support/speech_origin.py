@@ -5,6 +5,7 @@ import struct
 import wave
 from http import HTTPStatus
 
+from logline import Outcome
 from speech_client.wire import (
     HEALTH_PATH,
     SPEECH_PATH,
@@ -131,6 +132,14 @@ def spoken_request(request) -> SpeechRequest:
     """The request parsed with the client's own model, never rebuilt."""
     _, _, _, body = request
     return SpeechRequest.model_validate_json(body)
+
+
+SPEAK_EVENT = "speak.ended"
+
+
+def speak_failures(lines) -> list[str]:
+    """The closed reason of each speak step that ended refused, in order."""
+    return [line["reason"] for line in lines if line["event"] == SPEAK_EVENT and line["outcome"] == Outcome.REFUSED]
 
 
 def failures_in(logs, event: str) -> list[dict]:

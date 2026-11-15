@@ -17,6 +17,7 @@ from hopin.participation.vocabulary import (
     FigureRefusal,
     ParticipationSignal,
 )
+from hopin.rooms.reference import room_reference
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
     Answer,
@@ -38,7 +39,7 @@ OFFERS = ParticipationSignal.AGENT_OFFERS.value
 GESTURED = ParticipationSignal.AGENT_GESTURE.value
 SECOND_OWNER = "subject-second-owner"
 FILE = glb(b"mozart" * 8)
-REFUSED_EVENT = "agent_figure_refused"
+REFUSED_EVENT = "agent_figure.refused"
 
 
 @pytest.fixture
@@ -182,7 +183,12 @@ class TestTheFigureAtAccept:
         assert accepted.outcome == {"room": scene.owner.room_id, "name": scene.agent_name}
         assert "figure" not in scene.owner.frame_of_type(JOINED)
         assert refusals_in(logs) == [
-            {"event": REFUSED_EVENT, "room_id": scene.owner.room_id, "reason": code.value, "log_level": "info"}
+            {
+                "event": REFUSED_EVENT,
+                "room_ref": room_reference(scene.owner.room_id),
+                "reason": code.value,
+                "log_level": "info",
+            }
         ]
         assert figure_origin.requested == []
 
@@ -427,7 +433,7 @@ class TestTheGestureTool:
         with structlog.testing.capture_logs() as logs:
             dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, {"place": place} | arguments)
 
-        malformed = [entry for entry in logs if entry["event"] == "agent_gesture_malformed"]
+        malformed = [entry for entry in logs if entry["event"] == "gesture.refused"]
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-        assert malformed == [{"event": "agent_gesture_malformed", "log_level": "warning"}]
+        assert malformed == [{"event": "gesture.refused", "reason": "malformed", "log_level": "warning"}]
         assert "secret" not in str(logs)

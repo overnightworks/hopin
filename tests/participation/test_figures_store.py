@@ -7,11 +7,13 @@ from dataclasses import dataclass, field
 
 import pytest
 import pytest_asyncio
-import structlog.testing
+from logline import Outcome
 
 from hopin.participation.figures import FigureStore, NamedFigure
 from hopin.participation.vocabulary import FIGURE_CACHE_BYTES, FIGURE_FETCH_WORKERS, FIGURE_MAX_BYTES, FigureRefusal
+from hopin.rooms.reference import room_reference
 from tests.participation.support.figures import WAIT_SECONDS, figure_url
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.asyncio
 
@@ -103,14 +105,18 @@ class TestOneFetchPerDigest:
         url = figure_url()
         fetches.outcomes[url] = FigureRefusal.UNREACHABLE
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as lines:
             first = await store.bytes_of(digest(1), named(url))
         second = await store.bytes_of(digest(1), named(url))
 
         assert (first, second, fetches.fetched) == (None, None, [url, url])
-        assert logs == [
-            {"event": "agent_figure_fetch_failed", "room_id": ROOM, "reason": "unreachable", "log_level": "info"}
-        ]
+        [fetch] = [line for line in lines if line["event"] == "figure_fetch.ended"]
+        assert (fetch["outcome"], fetch["reason"], fetch["room_ref"]) == (
+            Outcome.REFUSED,
+            FigureRefusal.UNREACHABLE.value,
+            room_reference(ROOM),
+        )
+        assert isinstance(fetch["duration_ms"], float)
 
 
 class TestTheCache:

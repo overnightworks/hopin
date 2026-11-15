@@ -16,15 +16,19 @@ from typing import TYPE_CHECKING
 import structlog
 
 from hopin.participation.chat_window import LineKind
-from hopin.participation.speaking import RenderedSentence, SentenceEnd
-from hopin.participation.vocabulary import VOICE_RECOVERY_SECONDS, VOICE_UNAVAILABLE_EVENT, VoiceFailure
+from hopin.participation.participants import DialedAgent
+from hopin.participation.speaking import RenderedSentence, SentenceEnd, speak_timer
+from hopin.participation.vocabulary import NO_VOICE_REASON, VOICE_RECOVERY_SECONDS, VoiceFailure, VoiceRefusedError
+from hopin.rooms.reference import room_reference
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from logline import StepTimer
+
     from hopin.participation.chat_window import ChatWindow
     from hopin.participation.hearing import Hearing
-    from hopin.participation.participants import DialedAgent, Person
+    from hopin.participation.participants import Person
     from hopin.participation.places import Places
     from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
     from hopin.signaling.features import CallRooms
@@ -32,6 +36,16 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+def _note_rendering(step: StepTimer, rendered: RenderedSentence | VoiceFailure | None) -> None:
+    """End the speak step for what the render made: its first sound, the failure of the voice, or no voice to ask."""
+    if rendered is None:
+        step.refuse(NO_VOICE_REASON)
+    elif isinstance(rendered, VoiceFailure):
+        step.refuse(rendered.value)
+    else:
+        step.first_output()
 
 
 class SpeechInWindows:
@@ -67,7 +81,18 @@ class SpeechInWindows:
         voice changes nothing."""
 
         async def watched(text: str, voices: tuple[str, ...]) -> RenderedSentence | VoiceFailure | None:
-            rendered = await render(text, voices)
+            rendered: RenderedSentence | VoiceFailure | None = None
+            refused: VoiceRefusedError | None = None
+            with speak_timer(agent, text) as step:
+                try:
+                    rendered = await render(text, voices)
+                except VoiceRefusedError as refusal:
+                    refused = refusal
+                    step.refuse(refusal.reason)
+                else:
+                    _note_rendering(step, rendered)
+            if refused is not None:
+                raise refused
             if rendered is not None:
                 self._voice_rendered(agent, rendered, offered)
             return rendered
@@ -89,7 +114,12 @@ class SpeechInWindows:
         if isinstance(rendered, VoiceFailure):
             turned = window.voice_failed()
             if turned:
-                logger.info(VOICE_UNAVAILABLE_EVENT, reason=rendered.value, room_id=agent.room_id)
+                logger.info(
+                    "agent_voice.lost",
+                    reason=rendered.value,
+                    room_ref=room_reference(agent.room_id),
+                    agent_id=agent.agent_id,
+                )
             if offered is not None:
                 self._ask_again_later(offered)
         else:
@@ -146,8 +176,27 @@ class SpeechInWindows:
             appended = person in heard.hearers and window.append(
                 heard.kind, heard.name, heard.text, own=False, spoken=True
             )
+            if appended:
+                self._line_entered(person, room_id, window)
             if window.turn_ended(seat) or appended:
                 self._on_window_changed(person, room_id)
+                if appended:
+                    self._pulse_sent(person, room_id, window)
+
+    def _line_entered(self, person: Person, room_id: str, window: ChatWindow) -> None:
+        logger.info(
+            "line.entered",
+            room_ref=room_reference(room_id),
+            agent_id=self._agent_id_of(person, room_id),
+            seq=window.last_seq,
+        )
+
+    def _pulse_sent(self, person: Person, room_id: str, window: ChatWindow) -> None:
+        logger.info("pulse.sent", agent_id=self._agent_id_of(person, room_id), seq=window.last_seq)
+
+    def _agent_id_of(self, person: Person, room_id: str) -> str | None:
+        agent = self._places.get(person, room_id)
+        return agent.agent_id if isinstance(agent, DialedAgent) else None
 
     def person_started(self, room_id: str, seat: PeerId) -> None:
         """A person starts speaking: each agent that hears the seat is talked over while one of its sentences plays."""

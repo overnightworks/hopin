@@ -1,9 +1,11 @@
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Final, Protocol
 
 import structlog
+from logline import StepTimer
 
 from hopin.errors import InvalidMessageError
 from hopin.game.quiz import QUIZ_ROUNDS, Quiz
@@ -18,6 +20,7 @@ from hopin.game.vocabulary import (
     GameSignal,
 )
 from hopin.game.voice import GAME_SPEAKER
+from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
 if TYPE_CHECKING:
@@ -32,8 +35,9 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
-MILLISECONDS_PER_SECOND: Final = 1000
+RUN_ENDED_REASON: Final = "ended"
 IDLE_FRAME: Final[JsonObject] = {TYPE_KEY: GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
 ENDED_FRAME: Final[JsonObject] = {TYPE_KEY: GameSignal.GAME_ENDED.value}
 
@@ -145,7 +149,6 @@ class _Run:
     ask: asyncio.Task[GameOutcome]
     broken_writes: list[Exception] = field(default_factory=list)
     ended: bool = False
-    started_at: float = field(init=False)
     driver: asyncio.Task[None] = field(init=False)
     deadline: TimerHandle = field(init=False)
     voice: _VoiceRun | None = None
@@ -255,7 +258,7 @@ class Game:
                 )
                 for error in broken_writes:
                     # Only the type is logged, never a name or an answer.
-                    logger.error("game_end_failed", error=type(error).__name__)
+                    logger.error("game_end.failed", error_type=type(error).__name__)
         finally:
             if self._quizzes.get(room_id) is ended:
                 del self._quizzes[room_id]
@@ -295,7 +298,7 @@ class Game:
         )
         for error in broken_writes:
             # The sender's connection and the reveal check go on; only the type is logged, never the text.
-            logger.error("game_answer_count_failed", error=type(error).__name__)
+            logger.error("game_answer_count.failed", error_type=type(error).__name__)
 
     def _reveal_is_due(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> bool:
         return (
@@ -376,12 +379,14 @@ class Game:
         try:
             if run.previous is not None:
                 await asyncio.wait({run.previous})
-            run.started_at = self._scheduler.now()
-            await self._announce_thinking(room_id, run)
-            await asyncio.wait({run.ask})
-            outcome = _outcome_of(run.ask)
-            run.deadline.cancel()
-            self._log_run(room_id, run, outcome)
+            with StepTimer("game_master_run.ended", _STEPS, room_ref=room_reference(room_id)) as step:
+                await self._announce_thinking(room_id, run)
+                await asyncio.wait({run.ask})
+                outcome = _outcome_of(run.ask)
+                run.deadline.cancel()
+                reason = _refusal_reason(run, outcome)
+                if reason is not None:
+                    step.refuse(reason)
             await self._deliver(room_id, run, outcome)
         finally:
             await self._stop_voice(run)
@@ -444,7 +449,7 @@ class Game:
         await asyncio.wait({run.voice.task})
         run.voice.deadline.cancel()
         if run.voice.expired and run.voice.task.cancelled():
-            logger.info("game_voice_failed", outcome="past_deadline")
+            logger.info("game_voice.refused", reason="past_deadline")
         wav = _voice_of(run.voice.task)
         if not self._is_live(room_id, run):
             return
@@ -526,17 +531,17 @@ class Game:
                 broken_writes.append(error)
         return broken_writes
 
-    def _log_run(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
-        shown = "line" if isinstance(outcome, Line) else outcome.reason.value
-        if run.ended:
-            shown = "ended"
-        duration_ms = round((self._scheduler.now() - run.started_at) * MILLISECONDS_PER_SECOND)
-        logger.info("game_master_run", room_id=room_id, outcome=shown, duration_ms=duration_ms)
-
     def _driver_finished(self, driver: asyncio.Task[None]) -> None:
         self._drivers.discard(driver)
         if not driver.cancelled() and (error := driver.exception()) is not None:
-            logger.error("game_driver_failed", error=type(error).__name__)
+            logger.error("game_driver.failed", error_type=type(error).__name__)
+
+
+def _refusal_reason(run: _Run, outcome: GameOutcome) -> str | None:
+    """Why the run showed no line, a code from a closed set: an end that cancelled it, else the refusal's own reason."""
+    if run.ended:
+        return RUN_ENDED_REASON
+    return None if isinstance(outcome, Line) else outcome.reason.value
 
 
 async def _expire(run: _Run) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
@@ -550,7 +555,7 @@ def _voice_of(voice: asyncio.Task[bytes | None]) -> bytes | None:
     error = voice.exception()
     if error is not None:
         # The port raises nothing but cancellation; anything else is logged by its type, never its text.
-        logger.error("game_voice_raised", error=type(error).__name__)
+        logger.error("game_voice.failed", error_type=type(error).__name__)
         return None
     return voice.result()
 
@@ -561,6 +566,6 @@ def _outcome_of(ask: asyncio.Task[GameOutcome]) -> GameOutcome:
     error = ask.exception()
     if error is not None:
         # The port raises nothing but cancellation; anything else is logged by its type, never its text.
-        logger.error("game_master_raised", error=type(error).__name__)
+        logger.error("game_master.failed", error_type=type(error).__name__)
         return Refused(GameRefusal.UNAVAILABLE)
     return ask.result()

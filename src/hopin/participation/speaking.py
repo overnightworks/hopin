@@ -6,6 +6,7 @@ takes its turn in the same queue and is written as a chat line instead. A stop c
 other one of the agent."""
 
 import asyncio
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -13,7 +14,9 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
+from logline import StepTimer
 
+from hopin.participation.chat_window import utf8_length
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
@@ -22,6 +25,7 @@ from hopin.participation.vocabulary import (
     SpeakStop,
     VoiceFailure,
 )
+from hopin.rooms.reference import room_reference
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -33,6 +37,18 @@ if TYPE_CHECKING:
 MILLISECONDS_PER_SECOND: Final = 1000
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
+
+
+def speak_timer(agent: DialedAgent, text: str) -> StepTimer:
+    """The timer of the `speak.ended` line of one sentence the agent's speaking asked for, started now."""
+    return StepTimer(
+        "speak.ended",
+        _STEPS,
+        room_ref=room_reference(agent.room_id),
+        agent_id=agent.agent_id,
+        text_bytes=utf8_length(text),
+    )
 
 
 @dataclass(frozen=True)
@@ -244,7 +260,7 @@ class Speaking:
 
     def _announced(self, agent_id: str, task: asyncio.Task[None]) -> None:
         if not task.cancelled() and task.exception() is not None:
-            logger.error("agent_announcement_failed", agent_id=agent_id)
+            logger.error("agent_announcement.failed", agent_id=agent_id)
         pending = self._announcements.get(agent_id)
         if pending is not None:
             pending.discard(task)
@@ -343,8 +359,9 @@ async def _fill(
                 case _:
                     voice.break_off()
                     ended.set_result(piece)
+                    logger.info("voice_stream.broken", reason=piece.value)
     except Exception:
-        logger.error("agent_voice_stream_failed", code=VoiceFailure.CUT)
+        logger.error("voice_stream.failed", reason=VoiceFailure.CUT.value)
         voice.break_off()
         ended.set_result(VoiceFailure.CUT)
 

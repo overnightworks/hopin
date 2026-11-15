@@ -3,15 +3,15 @@ issuer, and the agent's window read through the real `/mcp`."""
 
 import base64
 import logging
-import threading
 from http import HTTPStatus
 
 import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
-from speech_client.hearing import OPENING_SECONDS
+from logline import Outcome
+from speech_client.hearing import OPENING_SECONDS, Closed, Refused
 from speech_client.outcomes import Cut, Unreachable
-from speech_client.relay import HOP_FRAME_SAMPLES, HopClose
+from speech_client.relay import HOP_FRAME_SAMPLES, BrowserLeft, HopClose
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
     WORKLOAD_TOKEN_HEADER,
@@ -27,6 +27,7 @@ from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
+from hopin.rooms.reference import room_reference
 from tests.participation.support.hearing_scene import (
     entries_of,
     header_of,
@@ -37,6 +38,7 @@ from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
 from tests.support.fake_speech import WAIT_SECONDS, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -680,31 +682,55 @@ def the_browser_leaves(_session, socket):
 
 
 class TestHowAHopEndsInTheLog:
-    def test_call_58_a_hop_the_browser_leaves_is_logged_with_that_ending(self, sponsored, fake_speech):
-        endings = []
-        logged = threading.Event()
-
-        def note_the_ending(_logger, _method, event):
-            if event["event"] == "agent_hearing_ended":
-                endings.append(event["outcome"])
-                logged.set()
-            return event
-
-        with structlog.testing.capture_logs(processors=[note_the_ending]), hop(sponsored) as socket:
+    def test_call_58_a_hop_the_browser_leaves_ends_its_step_line_ok(self, sponsored, fake_speech):
+        with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
             session.wait_for_audio(1)
             the_browser_leaves(session, socket)
-            assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
+            assert lines.wait_for_event("hearing.ended", WAIT_SECONDS), "the hop's ending was never logged"
 
-        assert endings == ["browser_left"]
+        [ending] = [line for line in lines if line["event"] == "hearing.ended"]
+        assert (ending["outcome"], ending["room_ref"], isinstance(ending["duration_ms"], float)) == (
+            Outcome.OK,
+            room_reference(sponsored.owner.room_id),
+            True,
+        )
 
-    @pytest.mark.parametrize(("outcome", "ending"), [(Cut(), "cut"), (Unreachable(), "unreachable")])
-    def test_call_58_an_outcome_that_carries_no_code_is_logged_by_its_name_alone(self, outcome, ending):
-        with structlog.testing.capture_logs() as logs:
-            hearing_route.log_ended(outcome)
+    @pytest.mark.parametrize(
+        ("outcome", "reason"),
+        [
+            (Cut(), "cut"),
+            (Unreachable(), "unreachable"),
+            (Refused(HTTPStatus.BAD_REQUEST, None), "refused"),
+            (Closed(), None),
+            (BrowserLeft(), None),
+        ],
+    )
+    def test_call_58_an_outcome_that_served_nobody_is_named_by_its_closed_reason(self, outcome, reason):
+        assert hearing_route.ending_reason(outcome) == reason
 
-        assert logs == [{"event": "agent_hearing_ended", "outcome": ending, "log_level": "info"}]
+
+class TestTheTranscriptRelay:
+    def test_call_58_a_sentence_writes_its_relay_hop_its_line_and_its_pulse_with_the_room_reference_and_no_content(
+        self, sponsored, fake_speech
+    ):
+        text = "ein geheimer Satz"
+        with captured_lines() as lines:
+            hear_one_sentence(sponsored, fake_speech, text)
+
+        by_event = {line["event"]: line for line in lines}
+        relay, entered, pulse = (by_event[name] for name in ("transcript_relay.ended", "line.entered", "pulse.sent"))
+        room_ref = room_reference(sponsored.owner.room_id)
+        assert (relay["outcome"], relay["room_ref"], entered["room_ref"], entered["seq"], pulse["seq"]) == (
+            Outcome.OK,
+            room_ref,
+            room_ref,
+            1,
+            1,
+        )
+        assert (entered["agent_id"], isinstance(relay["duration_ms"], float)) == (pulse["agent_id"], True)
+        assert (text in repr(lines), sponsored.owner.room_id in repr(lines)) == (False, False)
 
 
 class TestNothingIsLogged:

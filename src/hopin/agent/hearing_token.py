@@ -1,15 +1,16 @@
 """The token HopIn holds for an agent with an account of its own, exchanged for the scopes of the service it hears
 through, inside the agent's own admitted requests."""
 
+import logging
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
-import structlog
+from logline import StepTimer
 from webauth.middleware import exchanged_access_token
 from webauth.oidc import OidcRefusal
 
-from hopin.agent.issuer_error import issuer_error
+from hopin.agent.issuer_error import refusal_reason
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from hopin.participation.participants import Person
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -71,12 +72,14 @@ class HearingTokens:
             return
         self._in_flight.add(person)
         try:
-            exchanged = await exchanged_access_token(connection, scopes=self._scopes)
+            async with StepTimer("token_exchange.ended", _STEPS) as step:
+                exchanged = await exchanged_access_token(connection, scopes=self._scopes)
+                if isinstance(exchanged, OidcRefusal):
+                    step.refuse(refusal_reason(exchanged))
         finally:
             self._in_flight.discard(person)
         if isinstance(exchanged, OidcRefusal):
             self._refused_until[person] = self._scheduler.now() + self._lease_seconds
-            _log_refusal(exchanged)
             return
         self._hold(person, exchanged.access_token, max(0.0, exchanged.expires_at - self._wall_clock()))
 
@@ -102,13 +105,3 @@ class HearingTokens:
     def _forget_lapsed_refusals(self) -> None:
         now = self._scheduler.now()
         self._refused_until = {person: until for person, until in self._refused_until.items() if until > now}
-
-
-def _log_refusal(refusal: OidcRefusal) -> None:
-    # Only closed codes: a token never reaches a log.
-    idp_error = issuer_error(refusal)
-    logger.info(
-        "agent_hearing_token_refused",
-        reason=refusal.reason.value,
-        **({} if idp_error is None else {"idp_error": idp_error}),
-    )

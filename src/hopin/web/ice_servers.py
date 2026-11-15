@@ -1,13 +1,14 @@
+import logging
 from enum import StrEnum
-from typing import Protocol
+from typing import Final, Protocol
 
-import structlog
 from fastapi import APIRouter
+from logline import StepTimer
 from pydantic import BaseModel, Field
 
 from hopin.config.constants import ICE_SERVERS_PATH, READ_METHODS
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 
 class IceServer(BaseModel):
@@ -40,14 +41,14 @@ class TurnRelay(Protocol):
 
 
 def _relay_servers_or_none(turn_relay: TurnRelay) -> list[IceServer]:
-    try:
-        return turn_relay.relay_servers()
-    except TurnRelayUnavailableError as unavailable:
-        fields: dict[str, str | int] = {"reason": unavailable.reason}
-        if unavailable.status is not None:
-            fields["status"] = unavailable.status
-        logger.warning("turn_relay_unavailable", **fields)
-        return []
+    servers: list[IceServer] = []
+    with StepTimer("turn_credentials.ended", _STEPS) as step:
+        try:
+            servers = turn_relay.relay_servers()
+        except TurnRelayUnavailableError as unavailable:
+            step.refuse(unavailable.reason)
+            step.degraded()
+    return servers
 
 
 def create_ice_servers_router(stun_server: str, turn_relay: TurnRelay | None) -> APIRouter:

@@ -131,7 +131,7 @@ class _ExpiredSessionSweep:
             self._sessions.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)
         )
         if removed:
-            logger.info("expired_sessions_swept", removed=removed)
+            logger.info("sessions.swept", removed_count=removed)
         self._schedule_next_unless_stopped()
 
     def _schedule_next_unless_stopped(self) -> None:
@@ -153,10 +153,12 @@ def _lifespan(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         sweep = _ExpiredSessionSweep(sessions, wall_clock, scheduler)
         try:
+            logger.info("process.ready")
             yield
         finally:
             sweep.stop()
             await signaling_handler.shut_down()
+            logger.info("process.stopped")
 
     return lifespan
 

@@ -55,7 +55,7 @@ class LoggingAuditSink:
     """Logs each account event by its kind, the issuer's subject and the role, never a username."""
 
     def account_event(self, event: AccountEvent) -> None:
-        logger.info("account_event", kind=event.kind.value, subject_id=event.subject_id, role=event.role)
+        logger.info("account.changed", kind=event.kind.value, sub=event.subject_id, role=event.role)
 
 
 class SignInConfigurationError(StartRefusedError):
@@ -194,10 +194,10 @@ def _refusal_response(refusal: SignInRefusal, page_build: PageBuild) -> Response
 
 def _log_refusal(refusal: OidcRefusal | AdmissionRefusal) -> None:
     if isinstance(refusal, AdmissionRefusal):
-        logger.info("sign_in_refused", reason=refusal.value)
+        logger.info("sign_in.refused", reason=refusal.value)
         return
     codes = {
         "idp_error": refusal.idp_error,
         "token_rejection": None if refusal.token_rejection is None else refusal.token_rejection.value,
     }
-    logger.info("sign_in_refused", reason=refusal.reason.value, **{name: code for name, code in codes.items() if code})
+    logger.info("sign_in.refused", reason=refusal.reason.value, **{name: code for name, code in codes.items() if code})

@@ -2,7 +2,7 @@
 caller's own token, whole for the game master and as a stream for an agent's renderer, which speaks on the token HopIn
 holds for the agent.
 
-The text, the sound and a token reach no log: a failure logs one closed code."""
+The text, the sound and a token reach no log: the callers' step lines carry one closed code."""
 
 import asyncio
 import math
@@ -11,7 +11,6 @@ from contextlib import closing
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, assert_never, cast
 
-import structlog
 from pydantic import ValidationError
 from speech_client.health import fetch_health
 from speech_client.speak import (
@@ -30,10 +29,10 @@ from speech_client.voice_preference import VoiceChosen, speak_stream_with_prefer
 from speech_client.wire import VOICES, Health, Language, RefusalCode, ResponseFormat, VoiceId
 from webauth.oidc import OidcRefusal
 
-from hopin.agent.issuer_error import issuer_error
 from hopin.agent.speech_settings import PAGE_LANGUAGE, SpeechService
+from hopin.agent.workload_token import workload_token
 from hopin.participation.speaking import RenderedSentence, SoundLength, SoundPiece
-from hopin.participation.vocabulary import VoiceFailure
+from hopin.participation.vocabulary import VoiceFailure, VoiceRefusedError
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Generator, Sequence
@@ -44,8 +43,6 @@ if TYPE_CHECKING:
 
     from hopin.agent.hearing_token import HearingTokens
     from hopin.participation.participants import Person
-
-logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 SPEAK_DEADLINE_SECONDS: Final = 20
 SPEAK_MAX_BYTES: Final = 4 * 1024 * 1024
@@ -61,21 +58,22 @@ SPEECH_STREAM: Final[StreamSpeaker] = speak_stream_with_preference
 """The stream the composition roots give a renderer; the speech client is named in this module alone."""
 
 
-class StyleUnavailableError(Exception):
+class StyleUnavailableError(VoiceRefusedError):
     """The voice refuses the style of a sentence: it takes no style, or the style is too long, has no letter or is one
     the service does not support."""
+
+    reason = "style_unavailable"
 
 
 @dataclass(frozen=True)
 class SpeechRenderer:
-    """Renders text to a WAV at the speech service, within a deadline and a size cap; `failed_event` names the log line
-    that carries a failure's closed code and `speak_stream` opens the stream of a sentence."""
+    """Renders text to a WAV at the speech service, within a deadline and a size cap; `speak_stream` opens the stream of
+    a sentence. A failure is answered as a `VoiceFailure`, which the caller's step line carries."""
 
     service: SpeechService
     deadline_seconds: float
     cap_bytes: int
     relying_party: OidcRelyingParty
-    failed_event: str
     speak_stream: StreamSpeaker
 
     async def wav(self, text: str, person_token: str, language: Language) -> bytes | VoiceFailure:
@@ -101,8 +99,8 @@ class SpeechRenderer:
                 cap_bytes=self.cap_bytes,
             )
         except ValidationError:
-            return self._failed(VoiceFailure.INPUT_REFUSED)
-        return outcome.audio if isinstance(outcome, Spoken) else self._failed_by(outcome)
+            return VoiceFailure.INPUT_REFUSED
+        return outcome.audio if isinstance(outcome, Spoken) else _failure_of(outcome)
 
     async def stream(
         self,
@@ -137,21 +135,16 @@ class SpeechRenderer:
         except ValidationError as refusal:
             if any(error["loc"] == ("instructions",) for error in refusal.errors()):
                 raise StyleUnavailableError from None
-            return self._failed(VoiceFailure.INPUT_REFUSED)
+            return VoiceFailure.INPUT_REFUSED
         pieces = self._pieces(items)
         first = await anext(pieces)
         # The client ends a stream with a length only after a chunk.
         return first if isinstance(first, VoiceFailure) else RenderedSentence(cast("bytes", first), pieces)
 
-    def log_failure(self, outcome: str, **codes: str | None) -> None:
-        logger.info(self.failed_event, outcome=outcome, **{name: code for name, code in codes.items() if code})
-
     async def _workload_token(self) -> str | VoiceFailure:
-        workload = await asyncio.to_thread(
-            self.relying_party.workload_access_token, scopes=(self.service.audience_scope,)
-        )
+        workload = await workload_token(self.relying_party, self.service.audience_scope)
         if isinstance(workload, OidcRefusal):
-            return self._failed(VoiceFailure.WORKLOAD_TOKEN_REFUSED, idp_error=issuer_error(workload))
+            return VoiceFailure.WORKLOAD_TOKEN_REFUSED
         return workload.get_secret_value()
 
     async def _pieces(self, items: Generator[PreferenceStreamItem]) -> AsyncGenerator[SoundPiece]:
@@ -179,7 +172,7 @@ class SpeechRenderer:
     def _end_of(self, ending: Finished | StreamFailure) -> SoundLength | VoiceFailure:
         if isinstance(ending, Finished):
             duration_ms = math.ceil(ending.seconds * MILLISECONDS_PER_SECOND)
-            return SoundLength(duration_ms) if duration_ms > 0 else self._failed(VoiceFailure.UNREADABLE_AUDIO)
+            return SoundLength(duration_ms) if duration_ms > 0 else VoiceFailure.UNREADABLE_AUDIO
         if (
             isinstance(ending, Refused)
             and ending.code is RefusalCode.INVALID_REQUEST
@@ -187,30 +180,27 @@ class SpeechRenderer:
         ):
             # A refusal comes before any sound, so only a sentence's first piece raises.
             raise StyleUnavailableError
-        return self._failed_by(ending)
+        return _failure_of(ending)
 
-    def _failed(self, failure: VoiceFailure, **codes: str | None) -> VoiceFailure:
-        self.log_failure(failure.value, **codes)
-        return failure
 
-    def _failed_by(self, outcome: StreamFailure) -> VoiceFailure:
-        match outcome:
-            case Refused(code=code):
-                return self._failed(VoiceFailure.REFUSED, code=code.value)
-            case Busy():
-                return self._failed(VoiceFailure.BUSY)
-            case Cut():
-                return self._failed(VoiceFailure.CUT)
-            case PastDeadline():
-                return self._failed(VoiceFailure.PAST_DEADLINE)
-            case OverCap():
-                return self._failed(VoiceFailure.OVER_CAP)
-            case Malformed():
-                return self._failed(VoiceFailure.MALFORMED)
-            case Unreachable():
-                return self._failed(VoiceFailure.UNREACHABLE)
-            case _:  # pragma: no cover - the type checker proves the match exhaustive
-                assert_never(outcome)
+def _failure_of(outcome: StreamFailure) -> VoiceFailure:
+    match outcome:
+        case Refused():
+            return VoiceFailure.REFUSED
+        case Busy():
+            return VoiceFailure.BUSY
+        case Cut():
+            return VoiceFailure.CUT
+        case PastDeadline():
+            return VoiceFailure.PAST_DEADLINE
+        case OverCap():
+            return VoiceFailure.OVER_CAP
+        case Malformed():
+            return VoiceFailure.MALFORMED
+        case Unreachable():
+            return VoiceFailure.UNREACHABLE
+        case _:  # pragma: no cover - the type checker proves the match exhaustive
+            assert_never(outcome)
 
 
 def _read(
@@ -236,8 +226,10 @@ def known_voices(names: Sequence[str] | None) -> tuple[str, ...]:
     return tuple(VoiceId(name).value for name in names or () if name in VoiceId)
 
 
-class LanguageUnavailableError(Exception):
+class LanguageUnavailableError(VoiceRefusedError):
     """The language of a sentence is none the voice that would speak it speaks, or none the speech service knows."""
+
+    reason = "language_unavailable"
 
 
 class AgentVoice:
@@ -272,7 +264,6 @@ class AgentVoice:
             raise StyleUnavailableError
         token = self._tokens.held(agent)
         if token is None:
-            self._renderer.log_failure("no_token")
             return None
         return await self._renderer.stream(text, token.get_secret_value(), spoken_language, preference, style)
 

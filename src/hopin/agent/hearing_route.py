@@ -6,11 +6,13 @@ finished-utterance helper keep the sound's relay and the service's session. The 
 the code its socket closes with (`HearingClose`), and nothing here logs sound, text or a token."""
 
 import asyncio
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
+from logline import StepTimer, unit_trace
 from speech_client.hearing import NEEDED_HOLD_BYTES, Closed, NoToken, ReconnectFailed, Refused, SessionTokens
 from speech_client.outcomes import Busy, Cut, Malformed, OverCap, PastDeadline, Unreachable
 from speech_client.relay import HOP_FRAME_BYTES, AppEnded, BrowserLeft, RuleBroken
@@ -27,10 +29,11 @@ from speech_client.wire import Language
 from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 from webauth.oidc import OidcRefusal
 
-from hopin.agent.issuer_error import issuer_error
+from hopin.agent.workload_token import workload_token
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS
 from hopin.participation.participants import Person
 from hopin.participation.vocabulary import HearingClose, HearingRefusal
+from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
@@ -47,6 +50,7 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 # A guest may speak English in a German call; the service decodes each sentence in the language it hears.
 HEARING_LANGUAGES: Final = (Language.DE, Language.EN)
@@ -175,10 +179,7 @@ class HearingRoute:
         if person_token is None:
             return None
         workload = await self._workload_token_unless(handle.ended)
-        if workload is None:
-            return None
-        if isinstance(workload, OidcRefusal):
-            logger.info("agent_hearing_workload_token_refused", idp_error=issuer_error(workload))
+        if workload is None or isinstance(workload, OidcRefusal):
             return None
         return SessionTokens(workload_token=workload.get_secret_value(), person_token=person_token.get_secret_value())
 
@@ -186,7 +187,12 @@ class HearingRoute:
         clock = _AudioClock(self._scheduler.now())
 
         def on_utterance(utterance: Utterance) -> Awaitable[None]:
-            self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance))
+            # The turn starts here: the speech client hands over no trace, and the socket's task outlives the turn.
+            with (
+                unit_trace(None),
+                StepTimer("transcript_relay.ended", _STEPS, room_ref=room_reference(handle.room_id)),
+            ):
+                self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance))
             return asyncio.sleep(0)  # the client awaits its callback; hearing is synchronous
 
         def on_speech_started(_: SpeechStart) -> Awaitable[None]:
@@ -201,26 +207,29 @@ class HearingRoute:
             self._participation().speech.turn_ended(handle.room_id, handle.seat)
             return asyncio.sleep(0)
 
-        outcome = await hear_utterances(
-            websocket,
-            self._service.origin,
-            token_source=lambda: self._tokens_for_opening(handle),
-            languages=HEARING_LANGUAGES,
-            deadline_seconds=HEARING_DEADLINE_SECONDS,
-            held_limit_bytes=HELD_LIMIT_BYTES,
-            ended=handle.ended,
-            on_utterance=on_utterance,
-            on_partial=on_partial,
-            on_speech_started=on_speech_started,
-            on_turn_ended=on_turn_ended,
-        )
-        log_ended(outcome)
+        async with StepTimer(
+            "hearing.ended", _STEPS, room_ref=room_reference(handle.room_id), peer_id=handle.seat
+        ) as step:
+            outcome = await hear_utterances(
+                websocket,
+                self._service.origin,
+                token_source=lambda: self._tokens_for_opening(handle),
+                languages=HEARING_LANGUAGES,
+                deadline_seconds=HEARING_DEADLINE_SECONDS,
+                held_limit_bytes=HELD_LIMIT_BYTES,
+                ended=handle.ended,
+                on_utterance=on_utterance,
+                on_partial=on_partial,
+                on_speech_started=on_speech_started,
+                on_turn_ended=on_turn_ended,
+            )
+            reason = ending_reason(outcome)
+            if reason is not None:
+                step.refuse(reason)
 
     async def _workload_token_unless(self, ended: asyncio.Event) -> SecretStr | OidcRefusal | None:
         """HopIn's own token for the service, or none when the hop ended while the issuer was still answering."""
-        grant = asyncio.ensure_future(
-            asyncio.to_thread(self._relying_party.workload_access_token, scopes=(self._service.audience_scope,))
-        )
+        grant = asyncio.ensure_future(workload_token(self._relying_party, self._service.audience_scope))
         stopped = asyncio.ensure_future(ended.wait())
         try:
             await asyncio.wait({grant, stopped}, return_when=asyncio.FIRST_COMPLETED)
@@ -231,47 +240,23 @@ class HearingRoute:
 
 
 async def _close_unopened(websocket: WebSocket, code: HearingClose) -> None:
-    logger.info("agent_hearing_refused", close=code.name.lower())
+    logger.info("hearing.refused", reason=code.name.lower())
     await websocket.close(code=code)
 
 
-type CodelessOutcome = (
-    Closed
-    | Busy
-    | OverCap
-    | Malformed
-    | PastDeadline
-    | Cut
-    | Unreachable
-    | NoToken
-    | ReconnectFailed
-    | BrowserLeft
-    | AppEnded
-)
-
-
-def log_ended(outcome: UtteranceOutcome) -> None:
-    ended, code = _ending_of(outcome)
-    # Only closed codes: the sound, the text and a token never reach a log.
-    logger.info("agent_hearing_ended", outcome=ended, **({} if code is None else {"code": code}))
-
-
-def _ending_of(outcome: UtteranceOutcome) -> tuple[str, str | None]:
+def ending_reason(outcome: UtteranceOutcome) -> str | None:
+    """Why a hop ended in a way that served nobody, a code from a closed set: the service's refusal or failure code, the
+    rule the browser broke, or the ending's own name. Nothing for a hop that ended as designed, because it closed, the
+    browser left or the app ended it."""
     match outcome:
         case Refused(code=refusal_code):
-            return "refused", None if refusal_code is None else refusal_code.value
+            return "refused" if refusal_code is None else refusal_code.value
         case ServiceFailed(code=failure_code):
-            return "service_failed", failure_code.value
+            return failure_code.value
         case RuleBroken(close=hop_close):
-            return "rule_broken", hop_close.name.lower()
-        case _:
-            return _codeless_ending_of(outcome), None
-
-
-def _codeless_ending_of(outcome: CodelessOutcome) -> str:
-    match outcome:
-        case Closed():
-            return "closed"
+            return hop_close.name.lower()
+        case Closed() | BrowserLeft() | AppEnded():
+            return None
         case Busy():
             return "busy"
         case OverCap():
@@ -288,9 +273,5 @@ def _codeless_ending_of(outcome: CodelessOutcome) -> str:
             return "no_token"
         case ReconnectFailed():
             return "reconnect_failed"
-        case BrowserLeft():
-            return "browser_left"
-        case AppEnded():
-            return "app_ended"
         case _:  # pragma: no cover - the type checker proves the match exhaustive
             assert_never(outcome)
