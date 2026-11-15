@@ -2,6 +2,7 @@
 issuer, and the agent's window read through the real `/mcp`."""
 
 import base64
+import json
 import logging
 from http import HTTPStatus
 
@@ -9,6 +10,7 @@ import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
 from logline import Outcome
+from logline.testing import configured
 from speech_client.hearing import OPENING_SECONDS, Closed, Refused
 from speech_client.outcomes import Cut, Unreachable
 from speech_client.relay import HOP_FRAME_SAMPLES, BrowserLeft, HopClose
@@ -118,6 +120,18 @@ class TestAFinishedSentence:
                 "spoken": True,
             },
         )
+
+    def test_call_58_the_lines_of_a_heard_sentence_share_one_trace_that_the_next_line_does_not_carry(
+        self, sponsored, fake_speech, capsys
+    ):
+        with configured("hopin"):
+            hear_one_sentence(sponsored, fake_speech)
+            logging.getLogger("hopin.after").info("later.ended")
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+        by_event = {line["event"]: line for line in lines}
+        turn = {by_event[event]["trace_id"] for event in ("transcript_relay.ended", "line.entered", "pulse.sent")}
+        assert (len(turn), None in turn, by_event["later.ended"]["trace_id"]) == (1, False, None)
 
     def test_call_58_it_is_asked_for_german_and_english(self, sponsored, fake_speech):
         with hop(sponsored) as socket:
