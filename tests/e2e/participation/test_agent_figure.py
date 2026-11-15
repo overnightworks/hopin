@@ -194,18 +194,32 @@ def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
 
 
 def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]) -> list[float]:
-    """The tops of the arm in the pictures from the first with the arm raised to the first with it down again."""
+    """The tops of the arm in the pictures from the first with the arm raised to the first with the arm drawn at rest
+    again. Fails when the arm is not seen raised, or not seen back at rest, within the wait."""
     raised: list[float] = []
     deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
     while time.monotonic() < deadline:
         if not raised:
             gesture()
         top = arm_top(person)
-        if top is not None and top < at_rest - RAISED_SHARE:
+        if top is None:
+            continue
+        if top < at_rest - RAISED_SHARE:
             raised.append(top)
         elif raised:
-            break
-    return raised
+            return raised
+    pytest.fail(
+        f"the arm was seen raised {len(raised)} times and not back at rest within {WAIT_FOR_THE_GESTURE_SECONDS} s"
+    )
+
+
+def everyone_with_the_figure_drawn(scene: Scene, clip: dict[str, str]) -> dict[Page, float]:
+    """The persona's figure with `clip` as its wave is accepted and a late joiner is in: each browser of the call with
+    the arm's top at rest."""
+    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: clip}}
+    scene.member_adds_and_the_agent_accepts(figure)
+    late = scene.person_joins_late()
+    return {person: drawn_at_rest(person) for person in [*scene.everyone, late]}
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -215,13 +229,8 @@ def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_in
     """CALL-65: A clip the agent brings plays for its gesture on its tile in every browser of the call, late joiners
     included."""
     scene = scene_of(form_factor)
-    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: figure_of(HOLDING_WAVE_URL, HOLDING_WAVE)}}
 
-    scene.member_adds_and_the_agent_accepts(figure)
-    late = scene.person_joins_late()
-    everyone = [*scene.everyone, late]
-    for person in everyone:
-        drawn_at_rest(person)
+    everyone = list(everyone_with_the_figure_drawn(scene, figure_of(HOLDING_WAVE_URL, HOLDING_WAVE)))
 
     assert [persona_clip_plays(person, lambda: scene.agent.gesture(WAVE)) for person in everyone] == [True] * len(
         everyone
@@ -243,15 +252,9 @@ def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
     """CALL-65: A clip that cannot be fetched, or that figure refuses, leaves the neutral gesture and the figure is
     drawn all the same."""
     scene = scene_of(form_factor)
-    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: clip}}
 
-    scene.member_adds_and_the_agent_accepts(figure)
-    late = scene.person_joins_late()
-    everyone = [*scene.everyone, late]
-    at_rest = {person: drawn_at_rest(person) for person in everyone}
+    at_rest = everyone_with_the_figure_drawn(scene, clip)
+    waves = [tops_of_one_wave(person, rest, lambda: scene.agent.gesture(WAVE)) for person, rest in at_rest.items()]
 
-    waves = [tops_of_one_wave(person, at_rest[person], lambda: scene.agent.gesture(WAVE)) for person in everyone]
-
-    assert [clip_answers(person) for person in everyone] == [[answer]] * len(everyone)
-    assert all(waves)
+    assert [clip_answers(person) for person in at_rest] == [[answer]] * len(at_rest)
     assert min(top for wave in waves for top in wave) > PERSONA_ARM_SHARE
