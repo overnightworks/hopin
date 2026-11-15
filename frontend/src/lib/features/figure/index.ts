@@ -13,6 +13,12 @@ type FigureDrawing = Promise<typeof import("overnightworks-figure/draw")>;
 // How long the figure waits for its clips: a clip the server cannot fetch has the server's own deadline of seconds, and the figure is not held for it.
 const CLIP_WAIT_MS = 10_000;
 
+async function fetchBytes(from: string, signal: AbortSignal) {
+    const response = await fetch(from, { signal });
+    if (!response.ok) throw new Error(`${from} answered ${String(response.status)}`);
+    return new Uint8Array(await response.arrayBuffer());
+}
+
 // One figure on one tile: the bytes come over a stoppable fetch, and only then does a fresh canvas join the host.
 function drawFigure(
     host: HTMLElement,
@@ -41,12 +47,6 @@ function drawFigure(
         if (over) return;
         if (signal === "drawn") show(AGENT_FIGURE.DRAWN);
         else end(AGENT_FIGURE.ENDED);
-    }
-
-    async function fetchBytes(from: string, signal: AbortSignal) {
-        const response = await fetch(from, { signal });
-        if (!response.ok) throw new Error(`${from} answered ${String(response.status)}`);
-        return new Uint8Array(await response.arrayBuffer());
     }
 
     // A clip that cannot be fetched is left out: the figure plays its own gesture.
