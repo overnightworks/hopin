@@ -145,20 +145,16 @@ async (base64) => {
 }
 """
 RAISED_SHARE = 0.1
-SAMPLE_PAUSE_SECONDS = 0.2
-# Figure's neutral wave is over well within this, the persona's clip holds the arm much longer.
-AFTER_THE_NEUTRAL_WAVE_SECONDS = 5
+# Figure's neutral wave lifts the arm's top no higher than a third of the picture, the persona's clip holds it straight
+# up and out of the picture's top.
+PERSONA_ARM_SHARE = 0.15
 WAIT_FOR_THE_FIGURE_MILLISECONDS = 30_000
+WAIT_FOR_THE_GESTURE_SECONDS = 30
 
 
 def arm_top(person: Page) -> float | None:
     picture = person.locator(f"{AGENT_TILE} canvas").screenshot()
     return person.evaluate(ARM_TOP_SHARE, base64.b64encode(picture).decode())
-
-
-def arm_is_raised(person: Page, at_rest: float) -> bool:
-    top = arm_top(person)
-    return top is not None and top < at_rest - RAISED_SHARE
 
 
 def drawn_at_rest(person: Page) -> float:
@@ -181,14 +177,31 @@ def clip_answers(person: Page) -> list[int]:
     )
 
 
-def raised_within(people: list[Page], at_rest: dict[Page, float], seconds: float) -> bool:
-    """Whether every person sees the arm raised at some moment of the next `seconds`."""
-    seen = set()
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline and len(seen) < len(people):
-        seen |= {person for person in people if arm_is_raised(person, at_rest[person])}
-        time.sleep(SAMPLE_PAUSE_SECONDS)
-    return len(seen) == len(people)
+def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
+    """Whether the persona's clip holds the arm of the person's figure up. A gesture that plays is not started again and
+    one made before the clip is parsed plays the neutral wave, so the gesture is made again with each picture."""
+    deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
+    while time.monotonic() < deadline:
+        gesture()
+        top = arm_top(person)
+        if top is not None and top < PERSONA_ARM_SHARE:
+            return True
+    return False
+
+
+def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]) -> list[float]:
+    """The tops of the arm in the pictures from the first with the arm raised to the first with it down again."""
+    raised: list[float] = []
+    deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
+    while time.monotonic() < deadline:
+        if not raised:
+            gesture()
+        top = arm_top(person)
+        if top is not None and top < at_rest - RAISED_SHARE:
+            raised.append(top)
+        elif raised:
+            break
+    return raised
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -203,12 +216,13 @@ def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_in
     scene.member_adds_and_the_agent_accepts(figure)
     late = scene.person_joins_late()
     everyone = [*scene.everyone, late]
-    at_rest = {person: drawn_at_rest(person) for person in everyone}
-    scene.agent.gesture(WAVE)
-    time.sleep(AFTER_THE_NEUTRAL_WAVE_SECONDS)
+    for person in everyone:
+        drawn_at_rest(person)
 
+    assert [persona_clip_plays(person, lambda: scene.agent.gesture(WAVE)) for person in everyone] == [True] * len(
+        everyone
+    )
     assert [clip_answers(person) for person in everyone] == [[200]] * len(everyone)
-    assert [arm_is_raised(person, at_rest[person]) for person in everyone] == [True] * len(everyone)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -223,10 +237,9 @@ def test_a_clip_the_server_cannot_verify_leaves_the_neutral_wave_and_the_figure_
     late = scene.person_joins_late()
     everyone = [*scene.everyone, late]
     at_rest = {person: drawn_at_rest(person) for person in everyone}
-    scene.agent.gesture(WAVE)
-    waved = raised_within(everyone, at_rest, 3)
-    time.sleep(AFTER_THE_NEUTRAL_WAVE_SECONDS)
+
+    waves = [tops_of_one_wave(person, at_rest[person], lambda: scene.agent.gesture(WAVE)) for person in everyone]
 
     assert [clip_answers(person) for person in everyone] == [[502]] * len(everyone)
-    assert waved
-    assert [arm_is_raised(person, at_rest[person]) for person in everyone] == [False] * len(everyone)
+    assert all(waves)
+    assert min(top for wave in waves for top in wave) > PERSONA_ARM_SHARE
