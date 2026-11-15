@@ -54,6 +54,9 @@ class FakeGameMaster:
             held.release.set()
             held.cleanup_release.set()
 
+    async def aclose(self):
+        pass
+
     async def ask(self, starter, transcript):
         call = AskCall(starter, transcript)
         self.calls.append(call)

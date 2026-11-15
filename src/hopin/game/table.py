@@ -65,6 +65,9 @@ class GameMaster(Protocol):
         Raises nothing but `CancelledError`; a cancelled call has closed its connection when it ends.
         """
 
+    async def aclose(self) -> None:
+        """Release what the game master holds; called once, when the game shuts down."""
+
 
 def _quiz_phase_frame(phase: GamePhase, quiz: Quiz) -> JsonObject:
     return {
@@ -365,6 +368,7 @@ class Game:
             self.room_ended(room_id)
         if self._drivers:
             await asyncio.wait(self._drivers)
+        await self._game_master.aclose()
 
     async def _drive(self, room_id: str, run: _Run) -> None:
         # Never cancelled, so no socket write is cut short; the room's end only cancels `ask`. A seat's
