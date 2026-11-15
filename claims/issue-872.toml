@@ -1,8 +1,0 @@
-claim_id = "0ee81c85417c47b58055ab94504db71a"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "b88feffd15803e56edbdf434a593b14a004dafe3"
-branch = "claude/issue-872-malformed-accept-tool-error"
-scope = ["docs/call.md", "src/hopin/agent/tools.py", "tests/agent", "tests/participation/test_feature_figure.py", "tests/participation/test_feature_own_account.py", "tests/support/dialed_call.py"]
-opened_commit = "cb34ac09216b5ec51b1a75b406c020e80bfd6c89"
-whole_reason = "One refusal path, its tests and its rule line in docs/call.md change together."
