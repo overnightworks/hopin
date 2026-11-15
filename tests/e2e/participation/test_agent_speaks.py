@@ -48,19 +48,21 @@ LONGER_SOUND_SECONDS = 5.0
 POLL_SECONDS = 0.2
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
-# Each page records the length of every sound its player starts and how many sources it stopped. The player starts a
-# sound as the chunks of its body arrive, each chunk beginning where the one before it ends, so the chunks that join
-# up are one sound.
+# Each page records the length of every sound its players start and how many sources it stopped. A player starts a
+# sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its own context's clock,
+# so the chunks of one context that join up are one sound, whichever other player starts between them.
 RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
     window.soundsStopped = 0;
-    let joinsAt = NaN;
+    const lastSoundOf = new WeakMap();
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (when, ...args) {
-        if (when === joinsAt) window.soundsStarted[window.soundsStarted.length - 1] += this.buffer.duration;
-        else window.soundsStarted.push(this.buffer.duration);
-        joinsAt = when + this.buffer.duration;
+        const last = lastSoundOf.get(this.context);
+        let index = last?.index;
+        if (last?.joinsAt === when) window.soundsStarted[index] += this.buffer.duration;
+        else index = window.soundsStarted.push(this.buffer.duration) - 1;
+        lastSoundOf.set(this.context, { index, joinsAt: when + this.buffer.duration });
         return start.call(this, when, ...args);
     };
     const stop = AudioBufferSourceNode.prototype.stop;
@@ -331,6 +333,33 @@ def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_t
     for person, tiles in tiles_of.items():
         expect(tiles[0]).not_to_have_class(SPEAKING_TILE)
         assert sorted(speaker.started(person)) == [SOUND_SECONDS, LONGER_SOUND_SECONDS]
+
+
+def test_the_recording_counts_the_chunks_of_one_player_as_one_sound_whatever_another_player_starts_between(
+    page: Page,
+) -> None:
+    """The chunks that join up count as one sound even when another player starts its sound between them."""
+    page.evaluate(RECORD_PLAYBACK)
+
+    started = page.evaluate(
+        """
+        () => {
+            const [first, second] = [new AudioContext(), new AudioContext()];
+            const play = (context, seconds, when) => {
+                const source = context.createBufferSource();
+                source.buffer = context.createBuffer(1, Math.round(seconds * context.sampleRate), context.sampleRate);
+                source.start(when);
+                return when + seconds;
+            };
+            const joinsAt = play(first, 0.25, 0);
+            play(second, 5, 0);
+            play(first, 0.75, joinsAt);
+            return window.soundsStarted;
+        }
+        """
+    )
+
+    assert sorted(started) == [SOUND_SECONDS, LONGER_SOUND_SECONDS]
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
