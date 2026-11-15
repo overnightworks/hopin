@@ -3,6 +3,7 @@ import json
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
@@ -381,9 +382,46 @@ class TestRequestLine:
 
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
         (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
-        assert (request["service"], request["status"], isinstance(request["duration_ms"], int | float)) == (
-            "hopin",
-            200,
-            True,
-        )
+        assert request["service"] == "hopin"
+        assert request["route"] == HEALTH_PATH
+        assert request["status"] == HTTPStatus.OK
+        assert isinstance(request["duration_ms"], int | float)
         assert probe not in json.dumps(request)
+
+    def test_a_trusted_proxy_makes_the_forwarded_client_the_address_and_the_admitted_person_the_sub(
+        self, sign_in_settings, capsys
+    ):
+        proxy = "172.31.250.1"
+        settings = sign_in_settings(trusted_proxies=proxy).settings
+        stores = single_process_stores()
+        app = create_app(settings, page_build=fixture_page_build(), stores=stores)
+        member = seed_member(stores, installed_web_auth_config(app))
+        headers = {"cookie": cookie_header(member.set_cookie_headers), "x-forwarded-for": "198.51.100.7"}
+        client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, client=(proxy, 50000))
+
+        with configured("hopin"):
+            client.get(ACCOUNT_PATH)
+
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
+        assert request["ip"] == "198.51.100.7"
+        assert request["sub"] == member.account.id
+
+    def test_a_refused_request_still_carries_its_address_and_no_sub(self, sign_in_settings, capsys):
+        proxy = "172.31.250.1"
+        app = create_app(sign_in_settings(trusted_proxies=proxy).settings, page_build=fixture_page_build())
+        client = TestClient(
+            app,
+            base_url=TEST_PUBLIC_ORIGIN,
+            follow_redirects=False,
+            headers={"x-forwarded-for": "203.0.113.5"},
+            client=(proxy, 50000),
+        )
+
+        with configured("hopin"):
+            client.get(ACCOUNT_PATH)
+
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
+        assert request["ip"] == "203.0.113.5"
+        assert request["sub"] is None
