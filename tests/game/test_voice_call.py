@@ -101,7 +101,7 @@ class TestTheVoiceInARealCall:
     def test_the_voice_of_a_line_is_fetchable_after_the_next_and_replaced_by_the_one_after_and_gone_with_the_call(
         self, call
     ):
-        """GM-32: The voice of a line is fetchable after the next, replaced by the one after and gone with the call."""
+        """GM-38: The voice of a line is fetchable after the next, replaced by the one after and gone with the call."""
         host, guest, guest_member = call.host_and_guest()
         guest.start()
         first_path = voice_path_of(guest.frames(4)[3])

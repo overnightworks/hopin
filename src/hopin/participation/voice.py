@@ -119,7 +119,8 @@ class VoiceStore:
 
     def keep_latest(self, room_id: str, speaker: str, count: int) -> None:
         """Release the speaker's sounds in the room but the `count` it kept last."""
-        for voice_id in self._ids_of_speaker.get((room_id, speaker), [])[:-count]:
+        held = self._ids_of_speaker.get((room_id, speaker), [])
+        for voice_id in held[: max(len(held) - count, 0)]:
             self.release(voice_id)
 
     def forget_speaker(self, room_id: str, speaker: str) -> None:
