@@ -156,6 +156,8 @@ type Key = Literal[
     'skat.frameTitle',
     'skat.removeButton',
     'agent.notRemovedToast',
+    'agent.badge',
+    'chat.closeGlyph',
 ]
 type Language = Literal[
     'de',
@@ -330,6 +332,8 @@ WORDS: Mapping[Language, Mapping[Key, str | Mapping[Category, str]]] = {
         'skat.frameTitle': 'Skat-Tisch',
         'skat.removeButton': 'Tisch entfernen',
         'agent.notRemovedToast': 'Nur wer die KI geholt hat oder der Host kann sie entfernen.',
+        'agent.badge': 'AI',
+        'chat.closeGlyph': 'x',
     },
 }
 
