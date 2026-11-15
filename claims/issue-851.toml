@@ -1,0 +1,8 @@
+claim_id = "952ac95f26384d7bade236b7e7e3445b"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "65264cc6f15d94a44938218ce662ec14c32bd9f3"
+branch = "claude/issue-851-agents-v0-45-0"
+scope = ["pyproject.toml", "src/hopin/agent", "src/hopin/app.py", "src/hopin/main.py", "tests", "uv.lock"]
+opened_commit = "beb093cf349f49b3b4fd61e5e16781aa006948d5"
+whole_reason = "One dependency bump and the one close it demands, through the backend's owner and the lifespan; splitting leaves a pooled client unclosed."
