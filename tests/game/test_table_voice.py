@@ -319,7 +319,7 @@ class TestAVoiceThatFails:
         await host.say(REVEAL)
         await sent_to_all([host, guest], answering(host, 2))
 
-        assert spoken.cancelled
+        assert (spoken.cancelled, spoken.cut_by_deadline) == (True, True)
         assert shown(guest)[:6] == [*asked(host, "Frage?"), {"type": VOICE_TYPE}, thinking(host), line(REVEAL_LINE)]
 
 

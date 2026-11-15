@@ -19,7 +19,7 @@ from hopin.game.vocabulary import (
     GameRefusal,
     GameSignal,
 )
-from hopin.game.voice import GAME_SPEAKER
+from hopin.game.voice import GAME_SPEAKER, VOICE_DEADLINE_CUT
 from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
@@ -134,7 +134,7 @@ class _VoiceRun:
         self.task.cancel()
 
     async def expire(self) -> None:  # NOSONAR(S7503) the scheduler awaits it
-        self.task.cancel()
+        self.task.cancel(VOICE_DEADLINE_CUT)
 
 
 @dataclass(eq=False)

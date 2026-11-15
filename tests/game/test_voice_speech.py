@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 
 import pytest
@@ -15,9 +16,10 @@ from hopin.agent.backend import StarterPerson
 from hopin.agent.speech import SpeechVoice
 from hopin.agent.speech_settings import SpeechService
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
+from hopin.game.voice import VOICE_DEADLINE_CUT
 from tests.game.support.world import build_world
 from tests.support.log_lines import captured_lines
-from tests.support.loopback_origin import Origin
+from tests.support.loopback_origin import ARRIVAL_CAP_SECONDS, Origin
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     SPOKEN_WAV,
@@ -160,6 +162,41 @@ class TestWithoutAVoice:
             wav = await voice_of(world, origin, deadline_seconds=0.2).speak(starter, TEXT)
 
         assert (wav, failures_of(logs)) == (None, ["past_deadline"])
+
+    async def test_a_call_cut_at_the_games_deadline_is_nothing_and_ends_its_one_line_refused_past_deadline(
+        self, world, origin
+    ):
+        """GM-34: A call cut at the game's deadline is nothing and ends its one line refused past deadline."""
+        origin.serve(SPEECH_PATH, chunked_wav(SPOKEN_WAV), held=True)
+        starter, _ = world.starter()
+
+        with captured_lines() as logs:
+            call = asyncio.create_task(voice_of(world, origin).speak(starter, TEXT))
+            assert await asyncio.to_thread(origin.received[SPEECH_PATH].wait, ARRIVAL_CAP_SECONDS)
+            call.cancel(VOICE_DEADLINE_CUT)
+            wav = await call
+
+        ended = [line for line in logs if line["event"] == "game_voice.ended"]
+        assert (wav, [(line["outcome"], line.get("reason")) for line in ended]) == (
+            None,
+            [(Outcome.REFUSED, "past_deadline")],
+        )
+
+    async def test_a_call_cancelled_by_the_end_of_its_run_stays_cancelled_and_ends_its_one_line_cancelled(
+        self, world, origin
+    ):
+        """GM-34: A call cancelled by the end of its run stays cancelled and ends its one line cancelled."""
+        origin.serve(SPEECH_PATH, chunked_wav(SPOKEN_WAV), held=True)
+        starter, _ = world.starter()
+
+        with captured_lines() as logs:
+            call = asyncio.create_task(voice_of(world, origin).speak(starter, TEXT))
+            assert await asyncio.to_thread(origin.received[SPEECH_PATH].wait, ARRIVAL_CAP_SECONDS)
+            call.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await call
+
+        assert [line["outcome"] for line in logs if line["event"] == "game_voice.ended"] == [Outcome.CANCELLED]
 
     async def test_a_starter_without_a_standing_session_is_nothing_and_no_workload_token_is_asked_for(
         self, world, origin
