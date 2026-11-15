@@ -3,11 +3,21 @@ import {
     type AgentFigure,
     type AgentFigureDrawer,
     type AgentFigureHandle,
+    type AgentGestureClips,
     type FeatureCore,
 } from "#lib/call/feature-port.ts";
-import type { FigureGesture, FigureHandle, FigureSignal } from "overnightworks-figure/draw";
+import type { FigureGesture, FigureHandle, FigureSignal, MountOptions } from "overnightworks-figure/draw";
 
 type FigureDrawing = Promise<typeof import("overnightworks-figure/draw")>;
+
+// How long the figure waits for its clips: a clip the server cannot fetch has the server's own deadline of seconds, and the figure is not held for it.
+const CLIP_WAIT_MS = 10_000;
+
+async function fetchBytes(from: string, signal: AbortSignal) {
+    const response = await fetch(from, { signal });
+    if (!response.ok) throw new Error(`${from} answered ${String(response.status)}`);
+    return new Uint8Array(await response.arrayBuffer());
+}
 
 // One figure on one tile: the bytes come over a stoppable fetch, and only then does a fresh canvas join the host.
 function drawFigure(
@@ -15,6 +25,7 @@ function drawFigure(
     path: string,
     show: (figure: AgentFigure) => void,
     drawing: FigureDrawing,
+    clipPaths: AgentGestureClips,
 ): AgentFigureHandle {
     const fetching = new AbortController();
     let canvas: HTMLCanvasElement | undefined;
@@ -38,14 +49,33 @@ function drawFigure(
         else end(AGENT_FIGURE.ENDED);
     }
 
-    async function fetchBytes() {
-        const response = await fetch(path, { signal: fetching.signal });
-        if (!response.ok) throw new Error(`${path} answered ${String(response.status)}`);
-        return new Uint8Array(await response.arrayBuffer());
+    // A clip that cannot be fetched is left out: the figure plays its own gesture.
+    async function fetchClips(): Promise<NonNullable<MountOptions["gestures"]>> {
+        const waiting = new AbortController();
+        const giveUp = () => {
+            waiting.abort();
+        };
+        const timer = setTimeout(giveUp, CLIP_WAIT_MS);
+        fetching.signal.addEventListener("abort", giveUp);
+        const fetched = await Promise.all(
+            Object.entries(clipPaths).map(([name, clipPath]) =>
+                fetchBytes(clipPath, waiting.signal).then(
+                    (bytes) => [name, bytes] as const,
+                    () => null,
+                ),
+            ),
+        );
+        clearTimeout(timer);
+        fetching.signal.removeEventListener("abort", giveUp);
+        return Object.fromEntries(fetched.filter((clip) => clip !== null));
     }
 
     async function run() {
-        const [bytes, { mount }] = await Promise.all([fetchBytes(), drawing]);
+        const [bytes, gestures, { mount }] = await Promise.all([
+            fetchBytes(path, fetching.signal),
+            fetchClips(),
+            drawing,
+        ]);
         if (hasEnded()) return;
         canvas = document.createElement("canvas");
         canvas.className = "figure-canvas";
@@ -53,7 +83,7 @@ function drawFigure(
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         host.prepend(canvas);
-        const mounted = await mount(canvas, bytes, { onSignal: heard });
+        const mounted = await mount(canvas, bytes, { onSignal: heard, gestures });
         if (hasEnded()) mounted.dispose();
         else handle = mounted;
     }
@@ -76,7 +106,8 @@ export function install(core: FeatureCore): Promise<void> {
     const drawing: FigureDrawing = import("overnightworks-figure/draw");
     // A failed import is reported by each figure that awaits it; one that fails before the first drawer awaits it is no unhandled rejection.
     drawing.catch(() => undefined);
-    const draws: AgentFigureDrawer = (host, path, show) => drawFigure(host, path, show, drawing);
+    const draws: AgentFigureDrawer = (host, path, show, gestures = {}) =>
+        drawFigure(host, path, show, drawing, gestures);
     core.drawAgentFigures(draws);
     return Promise.resolve();
 }

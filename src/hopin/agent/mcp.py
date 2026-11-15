@@ -48,10 +48,18 @@ from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusa
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Participation
 from hopin.participation.figure_transport import get_figure_over_https
-from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
+from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, NamedFigure, fetch_figure
 from hopin.participation.hearing import Hearing
 from hopin.participation.participants import Caller, OwnAccount, Person
-from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, SPEAK_FAILED_EVENT, VOICE_PATH
+from hopin.participation.vocabulary import (
+    CLIP_CACHE_BYTES,
+    CLIP_MAX_BYTES,
+    CLIP_PATH,
+    FIGURE_PATH,
+    HEARING_PATH,
+    SPEAK_FAILED_EVENT,
+    VOICE_PATH,
+)
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
 
@@ -296,14 +304,14 @@ class _MemberResources:
         return None if window is None else _window_of(window)
 
 
-def _figure_endpoint(
-    store: FigureStore, participation: Callable[[], Participation]
+def _file_endpoint(
+    store: FigureStore, named_by: Callable[[str], tuple[NamedFigure, ...]]
 ) -> Callable[[str], Awaitable[Response]]:
-    """The route of a figure: any signed-in member reads the verified file of a digest a joined agent names, since the
-    file is a public release asset."""
+    """The route of a figure or of a clip, by the store and the names of its kind: any signed-in member reads the
+    verified file of a digest a joined agent names, since the file is a public release asset."""
 
     async def figure(sha256: str) -> Response:
-        named = participation().figures.named(sha256)
+        named = named_by(sha256)
         if not named:
             raise HTTPException(status_code=404)
         body = await store.bytes_of(sha256, named)
@@ -361,6 +369,7 @@ class ParticipationFeature:
         hearing_tokens = self._hearing_tokens(scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
+        clip_store = self._clip_store()
         front = self._front(built, relying_party, voice)
 
         @asynccontextmanager
@@ -370,6 +379,7 @@ class ParticipationFeature:
                     yield
             finally:
                 store.shut_down()
+                clip_store.shut_down()
 
         router = APIRouter(lifespan=lifespan)
         # No methods named, so every method reaches the front, which refuses all but POST itself.
@@ -379,20 +389,56 @@ class ParticipationFeature:
                 endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current, hearing_tokens),
             )
         )
-        router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
+        router.add_api_route(
+            f"{FIGURE_PATH}/{{sha256}}",
+            _file_endpoint(store, lambda sha256: built.current().figures.named(sha256)),
+            methods=READ_METHODS,
+        )
+        router.add_api_route(
+            f"{CLIP_PATH}/{{sha256}}",
+            _file_endpoint(clip_store, lambda sha256: built.current().figures.named_clips(sha256)),
+            methods=READ_METHODS,
+        )
         self._add_voice_route(router, built.current)
-        if self.hearing is not None:
-            hearing_route = HearingRoute(
-                service=self.hearing,
-                issuer=relying_party.issuer,
-                resolver=SessionIdentityResolver(sessions),
-                participation=built.current,
-                tokens=hearing_tokens,
-                relying_party=relying_party,
-                scheduler=scheduler,
-            )
-            router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
+        self._add_hearing_route(router, built.current, relying_party, sessions, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+
+    def _clip_store(self) -> FigureStore:
+        """The store of the clips, with its own byte bound, cache and failure event apart from the figure's."""
+        return FigureStore(
+            partial(
+                fetch_figure,
+                self.figure_transport,
+                monotonic=time.monotonic,
+                max_bytes=CLIP_MAX_BYTES,
+                redirect_sources=self.figure_sources,
+            ),
+            cache_bytes=CLIP_CACHE_BYTES,
+            failure_event="agent_clip_fetch_failed",
+        )
+
+    def _add_hearing_route(
+        self,
+        router: APIRouter,
+        participation: Callable[[], Participation],
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        scheduler: Scheduler,
+        hearing_tokens: HearingTokens,
+    ) -> None:
+        """Serve the hearing socket when a hearing service is wired."""
+        if self.hearing is None:
+            return
+        hearing_route = HearingRoute(
+            service=self.hearing,
+            issuer=relying_party.issuer,
+            resolver=SessionIdentityResolver(sessions),
+            participation=participation,
+            tokens=hearing_tokens,
+            relying_party=relying_party,
+            scheduler=scheduler,
+        )
+        router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
 
     def _front(
         self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None

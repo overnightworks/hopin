@@ -40,6 +40,16 @@ class ShownFigures:
             if agent.figure is not None and agent.figure.sha256 == sha256
         )
 
+    def named_clips(self, sha256: str) -> tuple[NamedFigure, ...]:
+        """The URLs the joined agents name for the digest of a clip."""
+        return tuple(
+            NamedFigure(agent.room_id, clip.url)
+            for agent in self._places.joined()
+            if agent.figure is not None
+            for clip in agent.figure.clips
+            if clip.sha256 == sha256
+        )
+
     def shown_by(self, person: Person) -> bool:
         """Whether the person's agent shows a figure in some call, which the gesture tool is offered for."""
         return any(

@@ -35,11 +35,15 @@ export interface AgentFigureHandle {
     gesture: (name: string) => void;
 }
 
-/** Draws the figure at the same-origin `path` into `host` and reports whether it is `DRAWN` or `ENDED`; the tile shows its symbol until `DRAWN`. */
+/** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */
+export type AgentGestureClips = Readonly<Record<string, string>>;
+
+/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, and reports whether it is `DRAWN` or `ENDED`; the tile shows its symbol until `DRAWN`. */
 export type AgentFigureDrawer = (
     host: HTMLElement,
     path: string,
     show: (figure: AgentFigure) => void,
+    gestures?: AgentGestureClips,
 ) => AgentFigureHandle;
 
 /** The switch on an agent's tile that lets the agent hear the person: the tile shows `on` and hands each press, as the value it asks for, to `onChange`; it holds no state of its own. */
@@ -54,12 +58,13 @@ export interface AgentSeeing {
     onChange: (on: boolean) => void;
 }
 
-/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it; a tile with `hearing` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it and the paths of the clips it brings; a tile with `hearing` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
 export interface AgentTile {
     name: string;
     activity: AgentActivity;
     sponsor?: string;
     figure?: string;
+    gestures?: AgentGestureClips;
     hearing?: AgentHearing;
     seeing?: AgentSeeing;
     looking?: boolean;

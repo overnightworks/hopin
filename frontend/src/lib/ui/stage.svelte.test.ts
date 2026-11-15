@@ -386,14 +386,20 @@ describe("an agent tile's figure", () => {
         const started: {
             host: HTMLElement;
             path: string;
+            gestures: Record<string, string> | undefined;
             show: (figure: AgentFigure) => void;
             stop: ReturnType<typeof vi.fn>;
             gesture: ReturnType<typeof vi.fn>;
         }[] = [];
-        const drawer = (host: HTMLElement, path: string, show: (figure: AgentFigure) => void) => {
+        const drawer = (
+            host: HTMLElement,
+            path: string,
+            show: (figure: AgentFigure) => void,
+            gestures?: Record<string, string>,
+        ) => {
             const stop = vi.fn();
             const gesture = vi.fn();
-            started.push({ host, path, show, stop, gesture });
+            started.push({ host, path, gestures, show, stop, gesture });
             return { stop, gesture };
         };
         return { drawer, started };
@@ -415,6 +421,20 @@ describe("an agent tile's figure", () => {
             host,
             PATH,
         ]);
+    });
+
+    it("CALL-65: hands the paths of the persona's clips to the drawer with the figure's", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+
+        agentFigure(document.createElement("div"), {
+            key: KEY,
+            path: PATH,
+            gestures: { wave: "/api/participation/clips/def" },
+        });
+
+        expect(started[0]?.gestures).toEqual({ wave: "/api/participation/clips/def" });
     });
 
     it("CALL-56: brings the symbol back when the drawer ends the figure", async () => {

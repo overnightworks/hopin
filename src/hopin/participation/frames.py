@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from hopin.participation.figures import figure_path
+from hopin.participation.figures import clip_path, figure_path
 from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue
 
@@ -18,7 +18,11 @@ def frame(signal: ParticipationSignal, **fields: JsonValue) -> JsonObject:
 
 
 def joined_frame(agent: DialedAgent, sponsor_name: str) -> JsonObject:
-    figure: dict[str, JsonValue] = {} if agent.figure is None else {"figure": figure_path(agent.figure.sha256)}
+    figure: dict[str, JsonValue] = {}
+    if agent.figure is not None:
+        figure["figure"] = figure_path(agent.figure.sha256)
+        if agent.figure.clips:
+            figure["gestures"] = {clip.gesture: clip_path(clip.sha256) for clip in agent.figure.clips}
     return frame(
         ParticipationSignal.AGENT_JOINED,
         agent_id=agent.agent_id,
