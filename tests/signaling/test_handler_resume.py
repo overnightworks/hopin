@@ -87,7 +87,7 @@ class TestEndedRoomSeats:
             for browser in (host, guest):
                 await browser.drop(SEAT_CLOSED_BY_SERVER_CODE)
 
-        assert [log for log in logs if log["event"] == "websocket_error"] == []
+        assert [log for log in logs if log["event"] == "websocket.failed"] == []
 
 
 @pytest_asyncio.fixture
@@ -658,7 +658,7 @@ class TestTokenStaysSecret:
             await guest.drop()
             await guest.resume(token=first_token)
 
-        assert {"seat_parked", "seat_resumed", "resume_refused"} <= {log["event"] for log in logs}
+        assert {"seat.parked", "seat.resumed", "resume.refused"} <= {log["event"] for log in logs}
         for secret in (first_token, guest.token, host.token):
             assert secret not in json.dumps(logs, default=str)
 

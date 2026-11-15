@@ -84,7 +84,7 @@ class TestAsyncioScheduler:
             await wait_for(raised)
             await asyncio.sleep(0)
 
-        [failure] = [log for log in logs if log["event"] == "timer_failed"]
+        [failure] = [log for log in logs if log["event"] == "timer.failed"]
         assert failure["log_level"] == "error"
         assert isinstance(failure["exc_info"], TimerError)
 
@@ -104,4 +104,4 @@ class TestAsyncioScheduler:
             await asyncio.sleep(0)
             await asyncio.sleep(0)
 
-        assert [log for log in logs if log["event"] == "timer_failed"] == []
+        assert [log for log in logs if log["event"] == "timer.failed"] == []

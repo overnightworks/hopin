@@ -31,9 +31,9 @@ class TestConnect:
         code = refused_with_code(client, handshake_headers(None), "/ws?id=someone")
 
         assert code == POLICY_VIOLATION_CODE
-        assert [entry for entry in logs if entry["event"] != "handshake_refused"] == []
-        assert events_named(logs, "handshake_refused") == [
-            {"event": "handshake_refused", "reason": "no-session", "log_level": "info"}
+        assert [entry for entry in logs if entry["event"] != "handshake.refused"] == []
+        assert events_named(logs, "handshake.refused") == [
+            {"event": "handshake.refused", "reason": "no-session", "log_level": "info"}
         ]
 
     def test_connect_after_the_session_ended_is_refused(self, client, stores, seed, logs):
@@ -41,7 +41,7 @@ class TestConnect:
         stores.sessions.delete(member.session.id)
 
         assert refused_with_code(client, handshake_headers(member)) == POLICY_VIOLATION_CODE
-        assert events_named(logs, "handshake_refused")[0]["reason"] == "session-ended-or-expired"
+        assert events_named(logs, "handshake.refused")[0]["reason"] == "session-ended-or-expired"
 
     @pytest.mark.parametrize(
         ("origin", "reason"),
@@ -58,7 +58,7 @@ class TestConnect:
 
         assert refused_with_code(client, handshake_headers(member, origin)) == POLICY_VIOLATION_CODE
 
-        assert events_named(logs, "handshake_refused")[0]["reason"] == reason
+        assert events_named(logs, "handshake.refused")[0]["reason"] == reason
         assert expires_at(stores, member) == before
 
     def test_connect_with_a_session_admits_the_member_as_its_account_and_renews_the_session(
@@ -70,7 +70,7 @@ class TestConnect:
         room = joined_room(client, member)
 
         assert (room["type"], room["is_host"]) == (SignalType.ROOM_CREATED.value, True)
-        [connected] = events_named(logs, "client_connected")
+        [connected] = events_named(logs, "client.connected")
         assert "account" not in connected
         assert expires_at(stores, member) > before
 
@@ -106,8 +106,8 @@ class TestConnect:
         secrets_in_logs = [member.account.username, member.session.id, cookie_header(member.set_cookie_headers)]
         assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
         permitted_fields = {
-            "refused": ("handshake_refused", {"event", "reason", "log_level"}),
-            "admitted": ("client_connected", {"event", "peer_id", "log_level"}),
+            "refused": ("handshake.refused", {"event", "reason", "log_level"}),
+            "admitted": ("client.connected", {"event", "peer_id", "log_level"}),
         }
         event, fields = permitted_fields[scenario]
         assert [set(entry) for entry in events_named(logs, event)] == [fields]
@@ -128,5 +128,5 @@ class TestConnect:
         cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
         secrets_in_logs = [member.account.username, member.account.id, member.session.id]
         assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
-        assert [set(entry) for entry in events_named(logs, "handshake_refused")] == [{"event", "reason", "log_level"}]
-        assert [set(entry) for entry in events_named(logs, "session_ended")] == [{"event", "peer_id", "log_level"}]
+        assert [set(entry) for entry in events_named(logs, "handshake.refused")] == [{"event", "reason", "log_level"}]
+        assert [set(entry) for entry in events_named(logs, "session.expired")] == [{"event", "peer_id", "log_level"}]

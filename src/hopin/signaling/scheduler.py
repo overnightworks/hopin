@@ -47,4 +47,4 @@ class AsyncioScheduler:
             return
         exception = task.exception()
         if exception is not None:
-            logger.error("timer_failed", exc_info=exception)
+            logger.error("timer.failed", exc_info=exception)

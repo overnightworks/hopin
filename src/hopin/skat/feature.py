@@ -6,6 +6,7 @@ import structlog
 from fastapi import APIRouter
 
 from hopin.errors import InvalidMessageError
+from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 from hopin.skat.settings import SkatSettings, check_origin_differs, table_source
 from hopin.skat.stage import Stages
@@ -99,7 +100,11 @@ class Skat:
         elif not self._stages.attach(room_id, table=address.table, source=address.source, opener=peer_id):
             await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BUSY))
         else:
-            await logger.ainfo("skat_attached", room_id=room_id, attachment=self._stages.state_of(room_id).revision)
+            await logger.ainfo(
+                "skat.attached",
+                room_ref=room_reference(room_id),
+                attachment=self._stages.state_of(room_id).revision,
+            )
             await self._tell_room(room_id)
 
     async def _on_detach(self, peer_id: PeerId, frame: ForeignFrame) -> None:
@@ -114,7 +119,7 @@ class Skat:
             await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.NOT_OPENER_OR_HOST))
             return
         self._stages.detach(room_id)
-        await logger.ainfo("skat_detached", room_id=room_id, attachment=attachment)
+        await logger.ainfo("skat.detached", room_ref=room_reference(room_id), attachment=attachment)
         await self._tell_room(room_id)
 
     def _table_frame(self, room_id: str) -> JsonObject:
