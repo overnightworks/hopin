@@ -1,0 +1,7 @@
+claim_id = "86cfe7466e574cf79b59ddfc40addd92"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "eb14b8399790e085f5379930302e5209dde43f91"
+branch = "claude/issue-868-say-description"
+scope = ["src/hopin/agent/tools.py", "tests/participation/test_feature_tool_kinds.py"]
+opened_commit = "93156b71e52c36f6853134da12a93e0fe2b078c2"
