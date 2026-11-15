@@ -26,7 +26,6 @@ async def test_call_61_a_stream_that_crashes_after_the_first_chunk_ends_the_piec
         deadline_seconds=1,
         cap_bytes=1024,
         relying_party=StubRelyingParty(),
-        failed_event="voice_failed",
         speak_stream=crashing_stream,
     )
 
