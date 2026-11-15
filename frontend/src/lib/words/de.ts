@@ -154,6 +154,8 @@ export type Words = {
     readonly "skat.frameTitle": string;
     readonly "skat.removeButton": string;
     readonly "agent.notRemovedToast": string;
+    readonly "agent.badge": string;
+    readonly "chat.closeGlyph": string;
 };
 // prettier-ignore
 export const words: Words = {
@@ -320,5 +322,7 @@ export const words: Words = {
     "skat.frameTitle": "Skat-Tisch",
     "skat.removeButton": "Tisch entfernen",
     "agent.notRemovedToast": "Nur wer die KI geholt hat oder der Host kann sie entfernen.",
+    "agent.badge": "AI",
+    "chat.closeGlyph": "x",
 };
 export type Key = keyof Words;

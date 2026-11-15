@@ -606,3 +606,11 @@ msgstr ""
 msgctxt "agent.notRemovedToast"
 msgid "Nur wer die KI geholt hat oder der Host kann sie entfernen."
 msgstr ""
+
+msgctxt "agent.badge"
+msgid "AI"
+msgstr ""
+
+msgctxt "chat.closeGlyph"
+msgid "x"
+msgstr ""
