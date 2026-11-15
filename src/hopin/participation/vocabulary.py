@@ -19,6 +19,12 @@ FIGURE_FETCH_SECONDS = 30
 # the profile admits fits.
 FIGURE_MAX_BYTES = 12 * 1024 * 1024
 FIGURE_CACHE_BYTES = 48 * 1024 * 1024
+# A persona's clip for a gesture is read at this path and its digest; a clip has its own bound and cache, apart from
+# the figure's.
+CLIP_PATH = "/api/participation/clips"
+# A server bound at least as large as the clip profile's file budget (512 KiB in figure v0.8.0).
+CLIP_MAX_BYTES = 512 * 1024
+CLIP_CACHE_BYTES = 8 * 1024 * 1024
 FIGURE_FETCH_WORKERS = 2
 FIGURE_REDIRECTS = 1
 # A look: one JPEG of the sponsor's camera, which the sponsor's browser sends back in parts of the signaling frame's

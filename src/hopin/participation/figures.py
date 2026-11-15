@@ -18,6 +18,7 @@ from urllib.parse import urljoin, urlsplit
 import structlog
 
 from hopin.participation.vocabulary import (
+    CLIP_PATH,
     FIGURE_CACHE_BYTES,
     FIGURE_FETCH_SECONDS,
     FIGURE_FETCH_WORKERS,
@@ -43,11 +44,22 @@ FETCH_THREAD_PREFIX: Final = "participation-figure"
 
 
 @dataclass(frozen=True)
+class Clip:
+    """A persona's clip as its accept names it: the gesture of figure's base set it replaces, the URL and the sha256
+    its bytes must have."""
+
+    gesture: str
+    url: str
+    sha256: str
+
+
+@dataclass(frozen=True)
 class Figure:
-    """An agent's figure as its accept names it: the URL and the sha256 its bytes must have."""
+    """An agent's figure as its accept names it: the URL and the sha256 its bytes must have, and the clips it brings."""
 
     url: str
     sha256: str
+    clips: tuple[Clip, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -93,6 +105,11 @@ class FigureTransport(Protocol):
 def figure_path(sha256: str) -> str:
     """Where the browser reads the figure of this digest."""
     return f"{FIGURE_PATH}/{sha256}"
+
+
+def clip_path(sha256: str) -> str:
+    """Where the browser reads the clip of this digest."""
+    return f"{CLIP_PATH}/{sha256}"
 
 
 def path_refusal(path: str) -> FigureRefusal | None:
@@ -149,20 +166,43 @@ def figure_refusal(sources: Collection[FigureSource], url: str) -> FigureRefusal
 
 
 @dataclass(frozen=True)
+class FigureVerdict:
+    """What an accept's figure comes to: the figure to show, with the clips an allowed source holds, or none; why the
+    figure is refused, and why each dropped clip's gesture is."""
+
+    shown: Figure | None
+    refusal: FigureRefusal | None
+    clip_refusals: dict[str, FigureRefusal]
+
+
+def judge_figure(sources: Collection[FigureSource], figure: Figure | None) -> FigureVerdict:
+    """A refused figure takes its clips with it; a refused clip leaves its gesture to figure's own."""
+    if figure is None:
+        return FigureVerdict(None, None, {})
+    refusal = figure_refusal(sources, figure.url)
+    if refusal is not None:
+        return FigureVerdict(None, refusal, {})
+    clip_refusals = {clip.gesture: why for clip in figure.clips if (why := figure_refusal(sources, clip.url))}
+    allowed = tuple(clip for clip in figure.clips if clip.gesture not in clip_refusals)
+    return FigureVerdict(Figure(figure.url, figure.sha256, allowed), None, clip_refusals)
+
+
+@dataclass(frozen=True)
 class _Redirect:
     location: str
 
 
 def fetch_figure(
-    transport: FigureTransport, figure: Figure, *, monotonic: Callable[[], float]
+    transport: FigureTransport, figure: Figure, *, monotonic: Callable[[], float], max_bytes: int = FIGURE_MAX_BYTES
 ) -> bytes | FigureRefusal:
-    """The figure's verified bytes, or why there are none. One deadline spans the whole fetch, and at most one redirect
-    to https is followed."""
+    """The verified bytes of the file the figure's URL and digest name (a clip is fetched alike, within its own
+    `max_bytes`), or why there are none. One deadline spans the whole fetch, and at most one redirect to https is
+    followed."""
     deadline = monotonic() + FIGURE_FETCH_SECONDS
     url, redirects = figure.url, 0
     while True:
         try:
-            outcome = _get_once(transport, url, figure.sha256, deadline, monotonic)
+            outcome = _get_once(transport, url, figure.sha256, deadline, monotonic, max_bytes)
         except FigureFetchError as error:
             return error.refusal
         if not isinstance(outcome, _Redirect):
@@ -178,7 +218,7 @@ def fetch_figure(
 
 
 def _get_once(
-    transport: FigureTransport, url: str, sha256: str, deadline: float, monotonic: Callable[[], float]
+    transport: FigureTransport, url: str, sha256: str, deadline: float, monotonic: Callable[[], float], max_bytes: int
 ) -> bytes | FigureRefusal | _Redirect:
     remaining = deadline - monotonic()
     if remaining <= 0:
@@ -188,19 +228,21 @@ def _get_once(
             return _Redirect(answer.location)
         if answer.status != 200:
             return FigureRefusal.NOT_OK
-        if answer.content_length is not None and answer.content_length > FIGURE_MAX_BYTES:
+        if answer.content_length is not None and answer.content_length > max_bytes:
             return FigureRefusal.TOO_LARGE
-        body = _read_within(answer.body, deadline, monotonic)
+        body = _read_within(answer.body, deadline, monotonic, max_bytes)
     return body if isinstance(body, FigureRefusal) else _verified(body, sha256)
 
 
-def _read_within(chunks: Iterable[bytes], deadline: float, monotonic: Callable[[], float]) -> bytes | FigureRefusal:
+def _read_within(
+    chunks: Iterable[bytes], deadline: float, monotonic: Callable[[], float], max_bytes: int
+) -> bytes | FigureRefusal:
     body = bytearray()
     for chunk in chunks:
         if monotonic() >= deadline:
             return FigureRefusal.PAST_DEADLINE
         body += chunk
-        if len(body) > FIGURE_MAX_BYTES:
+        if len(body) > max_bytes:
             return FigureRefusal.TOO_LARGE
     return bytes(body)
 
@@ -214,12 +256,20 @@ def _verified(body: bytes, sha256: str) -> bytes | FigureRefusal:
 
 
 class FigureStore:
-    """The verified figures by digest, least recently used first, within `FIGURE_CACHE_BYTES`. A digest has one fetch
-    at a time, and fetches run on two workers of their own, so stalled ones cannot starve the loop's default
-    executor."""
+    """The verified files of one kind by digest (figures, or clips), least recently used first, within `cache_bytes`. A
+    digest has one fetch at a time, and fetches run on two workers of their own, so stalled ones cannot starve the
+    loop's default executor. A failed fetch is logged as `failure_event`."""
 
-    def __init__(self, fetch: Callable[[Figure], bytes | FigureRefusal]) -> None:
+    def __init__(
+        self,
+        fetch: Callable[[Figure], bytes | FigureRefusal],
+        *,
+        cache_bytes: int = FIGURE_CACHE_BYTES,
+        failure_event: str = "agent_figure_fetch_failed",
+    ) -> None:
         self._fetch_one = fetch
+        self._cache_bytes = cache_bytes
+        self._failure_event = failure_event
         self._executor = ThreadPoolExecutor(max_workers=FIGURE_FETCH_WORKERS, thread_name_prefix=FETCH_THREAD_PREFIX)
         self._cache: OrderedDict[str, bytes] = OrderedDict()
         self._fetches: dict[str, asyncio.Task[bytes | None]] = {}
@@ -249,12 +299,12 @@ class FigureStore:
                 if isinstance(outcome, bytes):
                     self._keep(sha256, outcome)
                     return outcome
-                await logger.ainfo("agent_figure_fetch_failed", room_id=figure.room_id, reason=outcome.value)
+                await logger.ainfo(self._failure_event, room_id=figure.room_id, reason=outcome.value)
             return None
         finally:
             del self._fetches[sha256]
 
     def _keep(self, sha256: str, body: bytes) -> None:
         self._cache[sha256] = body
-        while sum(map(len, self._cache.values())) > FIGURE_CACHE_BYTES:
+        while sum(map(len, self._cache.values())) > self._cache_bytes:
             self._cache.popitem(last=False)

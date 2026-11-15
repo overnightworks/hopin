@@ -20,6 +20,7 @@ from agents.member import (
     DeclineInvitationReason,
     DeclineInvitationRefusal,
     DeclineInvitationRefused,
+    FigureRef,
     GestureArguments,
     GestureRefusal,
     GestureRefused,
@@ -40,7 +41,7 @@ from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, Too
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voices
-from hopin.participation.figures import Figure
+from hopin.participation.figures import Clip, Figure
 from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
 from hopin.participation.vocabulary import (
@@ -339,6 +340,11 @@ async def _log_malformed(event: str, invalid: ValidationError) -> None:
     await logger.awarning(event, fields=sorted({str(error["loc"][0]) for error in invalid.errors() if error["loc"]}))
 
 
+def _figure_of(ref: FigureRef) -> Figure:
+    clips = tuple(Clip(gesture.value, clip.url, clip.sha256) for gesture, clip in ref.gestures.items())
+    return Figure(ref.url, ref.sha256, clips)
+
+
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         # The strict model reads a list of voices only as JSON, which the arguments are.
@@ -348,7 +354,7 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
-    figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
+    figure = None if accepted.figure is None else _figure_of(accepted.figure)
     voices = known_voices(accepted.voices)
     outcome = await participation.accept(
         caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voices
