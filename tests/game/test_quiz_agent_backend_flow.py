@@ -358,3 +358,11 @@ async def test_the_run_deadline_during_a_held_refresh_grant_ends_the_run_unavail
 
     assert runs_logged == [GameRefusal.UNAVAILABLE.value]
     assert server.backend.runs == []
+
+
+def test_stopping_the_app_closes_the_game_masters_backend_once(sign_in_settings):
+    sign_in = sign_in_settings()
+    backend = FakeAgentBackend()
+    with serving_call(sign_in, FakeIssuer(sign_in), backend):
+        assert backend.closes == 0
+    assert backend.closes == 1

@@ -2,7 +2,7 @@ import asyncio
 from contextlib import aclosing, nullcontext
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, assert_never
+from typing import TYPE_CHECKING, Final, Protocol, assert_never
 
 import structlog
 from agents.agent_file import load_agent
@@ -33,7 +33,13 @@ if TYPE_CHECKING:
 
     from hopin.agent.settings import AgentSettings
 
-type QuizBackend = AgentBackend
+
+class QuizBackend(AgentBackend, Protocol):
+    """The backend the game master asks; its host closes it once with `aclose`."""
+
+    async def aclose(self) -> None:
+        """Release the backend's connections."""
+
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -131,6 +137,9 @@ class QuizGameMaster:
             return _refusal_of_stop(stopped)
         _log_refusal(failure="no_final_event")
         return UNAVAILABLE
+
+    async def aclose(self) -> None:
+        await self._backend.aclose()
 
 
 def _turn_messages(transcript: tuple[Turn, ...]) -> list[TurnMessage]:

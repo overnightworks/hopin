@@ -123,6 +123,10 @@ class FakeAgentBackend(AgentBackend):
         self._guard = threading.Lock()
         self._script: deque[Answer] = deque()
         self._runs: list[SeenRun] = []
+        self.closes = 0
+
+    async def aclose(self) -> None:
+        self.closes += 1
 
     def answer_next(self, *answers: Answer) -> None:
         with self._guard:
