@@ -24,7 +24,7 @@ from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable, Iterator
+    from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 
 LOCALHOST = "127.0.0.1"
 UVICORN_LOGGER_NAMES = ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi")
@@ -36,6 +36,7 @@ class Output:
     port: int
     read: Callable[[], str]
     member: SeededMember
+    stop: Callable[[], Awaitable[None]]
 
 
 def _logger_state() -> list[tuple[list[logging.Handler], int, bool, bool]]:
@@ -90,9 +91,12 @@ async def started_server(
         captured = capfd.readouterr()
         return written.getvalue() + captured.out + captured.err
 
-    yield Output(listening.getsockname()[1], read, member)
-    server.should_exit = True
-    await serving
+    async def stop() -> None:
+        server.should_exit = True
+        await serving
+
+    yield Output(listening.getsockname()[1], read, member, stop)
+    await stop()
 
 
 async def _send_raw(port: int, request: bytes) -> None:
@@ -158,6 +162,14 @@ class TestServerLogging:
         assert {line["service"] for line in lines} == {"hopin"}
         (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
         assert request["trace_id"]
+
+    @pytest.mark.asyncio
+    async def test_process_lines_come_in_the_order_started_ready_stopped(self, started_server: Output) -> None:
+        await started_server.stop()
+
+        events = [json.loads(line)["event"] for line in started_server.read().splitlines()]
+        process_events = [event for event in events if event.startswith("process.")]
+        assert process_events == ["process.started", "process.ready", "process.stopped"]
 
     @pytest.mark.asyncio
     async def test_invalid_request_still_leaves_a_warning(self, started_server: Output) -> None:
