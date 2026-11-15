@@ -28,11 +28,6 @@ def fake_speech():
 
 
 @pytest.fixture
-def hearing_service(fake_speech):
-    return SpeechService(fake_speech.origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
-
-
-@pytest.fixture
 def speech_origin():
     origin = Origin()
     offering(origin, *VoiceId)

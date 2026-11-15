@@ -14,11 +14,13 @@ from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECO
 from speech_client.wire import VoiceId
 
 from hopin.agent.hearing import MemberHearingRecord
+from hopin.agent.speech_settings import SpeechService
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.support.hearing_scene import AUDIENCE_SCOPE
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking_scene import SOUND
@@ -26,6 +28,7 @@ from tests.signaling.support.browsers import Link, host_and_guest
 from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.fake_speech import FakeSpeech
 from tests.support.loopback_origin import Origin
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
 from tests.support.speech_origin import chunked_wav, offering, speaking
@@ -95,10 +98,12 @@ def hears():
 
 
 @pytest.fixture
-def hearing_service():
+def hearing_service(request):
     """The speech service agents hear through, which also names the scope of the token HopIn exchanges for an agent
-    that hears; none until a module about hearing names one."""
-    return
+    that hears; the fake speech service in a test that asks for it, else none until a module names one."""
+    if "fake_speech" not in request.fixturenames:
+        return None
+    return SpeechService(request.getfixturevalue("fake_speech").origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
 @pytest.fixture
@@ -420,3 +425,18 @@ def speaking_behind(joined_agent):
     yield behind
     joined_agent.call.pass_time(LEASE_SECONDS)
     pool.shutdown(wait=True)
+
+
+@pytest.fixture
+def fake_speech():
+    service = FakeSpeech()
+    service.start()
+    yield service
+    service.stop()
+
+
+@pytest.fixture
+def sponsored(joined_agent):
+    """The scene with its owner's agent joined, so the agent hears the owner; the sponsor's switch is told on."""
+    joined_agent.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
+    return joined_agent

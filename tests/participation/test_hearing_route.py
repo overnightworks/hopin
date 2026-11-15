@@ -2,7 +2,6 @@
 issuer, and the agent's window read through the real `/mcp`."""
 
 import base64
-import json
 import logging
 import threading
 from http import HTTPStatus
@@ -11,6 +10,7 @@ import pytest
 import structlog.testing
 from agents.member import LEASE_SECONDS
 from speech_client.hearing import OPENING_SECONDS
+from speech_client.outcomes import Cut, Unreachable
 from speech_client.relay import HOP_FRAME_SAMPLES, HopClose
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
@@ -19,69 +19,32 @@ from speech_client.wire import (
     RefusalCode,
     SessionInput,
     SessionUpdate,
-    VoiceId,
 )
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.agent import hearing_route
-from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
+from tests.participation.support.hearing_scene import (
+    entries_of,
+    header_of,
+    lose_the_held_token,
+)
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
-from tests.support.fake_speech import WAIT_SECONDS, FakeSpeech, Refusal, a_sentence, completed, failing, refused_with
+from tests.support.fake_speech import WAIT_SECONDS, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
 
 pytestmark = pytest.mark.integration
 
-AUDIENCE_SCOPE = "speech-audience"
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
-
-
-@pytest.fixture
-def fake_speech():
-    service = FakeSpeech()
-    service.start()
-    yield service
-    service.stop()
-
-
-@pytest.fixture
-def hearing_service(fake_speech):
-    return SpeechService(fake_speech.origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
-
-
-@pytest.fixture
-def sponsored(joined_agent):
-    """The scene with its owner's agent joined, so the agent hears the owner; the sponsor's switch is told on."""
-    joined_agent.owner.frame_of_type(ParticipationSignal.AGENT_HEARING.value)
-    return joined_agent
-
-
-def entries_of(scene, token=None, room_id=None):
-    answer = scene.call.window(
-        scene.token if token is None else token, scene.owner.room_id if room_id is None else room_id
-    )
-    return json.loads(answer["result"]["contents"][0]["text"])["entries"]
-
-
-def header_of(session, name):
-    return next(value for header, value in session.headers.items() if header.lower() == name.lower())
 
 
 def switch_off(scene):
     scene.owner.send({"type": ParticipationSignal.AGENT_HEARING.value, "agent_id": scene.agent_id, "on": False})
-
-
-def lose_the_held_token(scene):
-    """The agent keeps calling within its lease, the issuer refuses each new exchange, and the token it held lapses."""
-    scene.call.issuer.refuses_token_exchange_grants = True
-    for _ in range(3):
-        scene.call.pass_time(LEASE_SECONDS - 1)
-        scene.standings()
 
 
 def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1, **sentence):
@@ -127,7 +90,7 @@ class TestTheWorkloadToken:
         heard = hear_one_sentence(sponsored, fake_speech)
 
         assert (refused, heard, len(grants(sponsored, CLIENT_CREDENTIALS_GRANT))) == (
-            HearingClose.SERVICE_FAILED,
+            HearingClose.NORMAL,
             HearingClose.NORMAL,
             2,
         )
@@ -370,13 +333,15 @@ class TestARefusedHop:
             [],
         )
 
-    def test_call_58_a_refused_workload_token_gets_a_service_code_and_no_service_session(self, sponsored, fake_speech):
+    def test_call_58_a_refused_workload_token_ends_the_hearing_in_order_and_opens_no_service_session(
+        self, sponsored, fake_speech
+    ):
         sponsored.call.issuer.refuses_client_credentials_grants = True
 
         with hop(sponsored) as socket:
             closed = closed_with(socket)
 
-        assert (closed, fake_speech.sessions) == (HearingClose.SERVICE_FAILED, [])
+        assert (closed, fake_speech.sessions) == (HearingClose.NORMAL, [])
 
     def test_call_58_a_socket_without_a_session_is_refused_before_it_is_accepted(self, sponsored, fake_speech):
         with pytest.raises(WebSocketDisconnect) as refused, hop(sponsored, login=None):
@@ -710,26 +675,12 @@ class TestHearingOff:
         )
 
 
-def the_service_drops(session, socket):
-    session.drop()
-    closed_with(socket)
-
-
 def the_browser_leaves(_session, socket):
     socket.close()
 
 
 class TestHowAHopEndsInTheLog:
-    @pytest.mark.parametrize(
-        ("action", "ending"),
-        [
-            pytest.param(the_service_drops, "cut", id="the_service_drops"),
-            pytest.param(the_browser_leaves, "browser_left", id="the_browser_leaves"),
-        ],
-    )
-    def test_call_58_a_hop_the_service_drops_or_the_browser_leaves_is_logged_with_that_ending(
-        self, sponsored, fake_speech, action, ending
-    ):
+    def test_call_58_a_hop_the_browser_leaves_is_logged_with_that_ending(self, sponsored, fake_speech):
         endings = []
         logged = threading.Event()
 
@@ -743,10 +694,17 @@ class TestHowAHopEndsInTheLog:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
             session.wait_for_audio(1)
-            action(session, socket)
+            the_browser_leaves(session, socket)
             assert logged.wait(WAIT_SECONDS), "the hop's ending was never logged"
 
-        assert endings == [ending]
+        assert endings == ["browser_left"]
+
+    @pytest.mark.parametrize(("outcome", "ending"), [(Cut(), "cut"), (Unreachable(), "unreachable")])
+    def test_call_58_an_outcome_that_carries_no_code_is_logged_by_its_name_alone(self, outcome, ending):
+        with structlog.testing.capture_logs() as logs:
+            hearing_route.log_ended(outcome)
+
+        assert logs == [{"event": "agent_hearing_ended", "outcome": ending, "log_level": "info"}]
 
 
 class TestNothingIsLogged:
