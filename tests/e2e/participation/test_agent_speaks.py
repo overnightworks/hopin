@@ -2,6 +2,7 @@ import re
 import time
 from contextlib import ExitStack
 from functools import partial
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -230,20 +231,26 @@ def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_render
         assert speaker.started(person) == [SOUND_SECONDS]
 
 
-@pytest.mark.parametrize("form_factor", FORM_FACTORS[:1])
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_only_the_aborted_voice(
-    speaker: Speaker, e2e_server: RunningServer, expected_request_failures: list[str]
+    speaker: Speaker, e2e_server: RunningServer, expected_request_failures: list[str], page_errors: list[str]
 ) -> None:
     """CALL-61: A stream that breaks after its first chunk ends the sentence that already sounds: every browser's voice
-    response aborts, which is the one error its console logs, the tile shows present again and the agent's window holds
-    the sentence as a cut line."""
+    response aborts, which is the one error its console logs, the tile shows present again, the agent's window holds
+    the sentence as a cut line, the agent's next sentence plays, and a seat that loads the cut voice later gets 404
+    with no page error."""
     everyone = speaker.scene.everyone
     expected_request_failures.append(f"{e2e_server.base_url}{VOICE_PATH}/")
     console_errors: list[str] = []
     aborted_voices: list[str] = []
+    cut_voice_urls: dict[Page, str] = {}
     for person in everyone:
         person.on("console", lambda message: message.type == "error" and console_errors.append(message.text))
         person.on("requestfailed", lambda request: aborted_voices.append(f"{request.url}: {request.failure}"))
+        person.on(
+            "request",
+            lambda request, seat=person: VOICE_PATH in request.url and cut_voice_urls.setdefault(seat, request.url),
+        )
 
     answered = speaker.speak_while_speech_breaks(SOUND_SECONDS)
 
@@ -267,6 +274,16 @@ def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_o
         [ABORTED_VOICE_FAILURE] * len(everyone),
         [("Guten Tag", True, True)],
     )
+
+    after_the_cut, _ = LATER_SOUND_SECONDS
+    speaker.speak(after_the_cut)
+    for person in everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        assert speaker.started(person)[-1] == after_the_cut
+    late_statuses = [
+        person.evaluate("async url => (await fetch(url)).status", cut_voice_urls[person]) for person in everyone
+    ]
+    assert (late_statuses, page_errors) == ([HTTPStatus.NOT_FOUND] * len(everyone), [])
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
