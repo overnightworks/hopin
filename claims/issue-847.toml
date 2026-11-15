@@ -1,0 +1,8 @@
+claim_id = "9f91e532abcd47d781d55d112426b4f4"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "3d8a8717b71cbf497ad4c5cc045ec3f2a5f48a57"
+branch = "claude/issue-847-speak-tests-count-no-loop-turns-and-the"
+scope = ["tests/e2e/participation", "tests/participation"]
+opened_commit = "cdd27a651382243dcff4248ff976f5f0a0c247d7"
+whole_reason = "Test-only hygiene of the speak and invitation tests, one reviewer sitting."
