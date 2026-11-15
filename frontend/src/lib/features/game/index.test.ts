@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND, type ToastAction, type ToastKind } from "#lib/ui/toast.svelte.ts";
@@ -7,7 +7,8 @@ import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wi
 import { words } from "#lib/words/de.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
-import { install } from "./index.ts";
+import { fakePlayers } from "../participation/player.fixture.ts";
+import { install, installWith } from "./index.ts";
 import QuestionCard from "./QuestionCard.svelte";
 import type { QuestionCardProps } from "./quiz.svelte.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
@@ -38,7 +39,11 @@ interface Toast {
     action: ToastAction | null;
 }
 
-async function installedGame({ connected = true } = {}) {
+async function installedGame({
+    connected = true,
+    installOn,
+}: { connected?: boolean; installOn?: typeof install } = {}) {
+    const players = fakePlayers();
     const handlers = new Map<string, (frame: never) => void>();
     const sent: unknown[] = [];
     const lines: (HandedOver | null)[] = [];
@@ -67,7 +72,7 @@ async function installedGame({ connected = true } = {}) {
         onMicrophone: () => undefined,
         takePicture: () => Promise.resolve(null),
     };
-    await install(core);
+    await (installOn ?? ((on) => installWith(on, players.createPlayer)))(core);
     const emit = (type: string, frame: object) => {
         const handler = handlers.get(type);
         if (handler === undefined) throw new Error(`no handler for ${type}`);
@@ -79,6 +84,7 @@ async function installedGame({ connected = true } = {}) {
     const voiceButton = moreItems.find((item) => item.id === "gameVoiceBtn");
     if (!(voiceButton instanceof HTMLButtonElement)) throw new Error("no voice button");
     return {
+        players,
         voiceButton,
         emit,
         sent,
@@ -112,61 +118,17 @@ function lastCardProps(game: Game) {
     return card.props as QuestionCardProps;
 }
 
-afterEach(() => {
-    vi.unstubAllGlobals();
-});
-
-class FakeAudio {
-    static readonly instances: FakeAudio[] = [];
-    readonly listeners = new Map<string, () => void>();
-    static playResult: () => Promise<void> = () => Promise.resolve();
-    paused = false;
-
-    constructor(readonly source: string) {
-        FakeAudio.instances.push(this);
-    }
-
-    addEventListener(type: string, listener: () => void) {
-        this.listeners.set(type, listener);
-    }
-
-    pause() {
-        this.paused = true;
-    }
-
-    play() {
-        return FakeAudio.playResult();
-    }
-}
-
-/** A page whose voices come from `fetchVoice`, with the browser's audio and blob URLs replaced by fakes. */
-function stubbedVoicePlayback(fetchVoice: (url: string) => Promise<Response>) {
-    FakeAudio.instances.length = 0;
-    const urls = { created: [] as Blob[], revoked: [] as string[] };
-    // jsdom has no blob URLs, so the test supplies them and takes them away again.
-    const createObjectURL = (blob: Blob) => {
-        urls.created.push(blob);
-        return `blob:voice-${String(urls.created.length)}`;
-    };
-    const revokeObjectURL = (url: string) => void urls.revoked.push(url);
-    Object.assign(URL, { createObjectURL, revokeObjectURL });
-    onTestFinished(() => {
-        Reflect.deleteProperty(URL, "createObjectURL");
-        Reflect.deleteProperty(URL, "revokeObjectURL");
-    });
-    vi.stubGlobal("Audio", FakeAudio);
-    const requested: string[] = [];
-    vi.stubGlobal("fetch", (url: string) => {
-        requested.push(url);
-        return fetchVoice(url);
-    });
-    return { urls, requested };
-}
-
-/** A voice frame as the server sends it; the page fetches the path the frame names. */
+/** A voice frame as the server sends it; the page plays the path the frame names. */
 const voiceFrame = (id: string) => ({ id, path: `/voices-of-the-server/${id}` });
 
-const wavResponse = () => Promise.resolve(new Response(new Blob(["wav"]), { status: 200 }));
+const PLAYED = { kind: "played", playedSeconds: 1 } as const;
+
+/** The nth voice the game handed to its player, which the test starts and ends by hand. */
+function voiceAt(game: Game, index = 0) {
+    const sound = game.players.created[0]?.sounds[index];
+    if (sound === undefined) throw new Error(`no voice ${String(index)} was handed to the player`);
+    return sound;
+}
 
 /** Lets every pending fetch and promise of the page run to its end. */
 async function settled() {
@@ -402,148 +364,76 @@ describe("a call that is not connected", () => {
 });
 
 describe("the game master's voice", () => {
-    it("GM-32: fetches a voice from the game's route and starts playing it", async () => {
-        const voices = stubbedVoicePlayback(wavResponse);
+    it("GM-32: hands the game's route to the player and speaks once it plays", async () => {
         const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        await voiceAt(game).start();
 
-        expect(voices.requested).toEqual([voiceFrame("voice-one").path]);
-        expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1"]);
+        expect([voiceAt(game).sound, lastTile(game)]).toEqual([
+            voiceFrame("voice-one").path,
+            tileOf(AGENT_ACTIVITY.SPEAKING),
+        ]);
     });
 
     it("GM-32: plays a voice once, so a replayed frame after a resume starts nothing", async () => {
-        const voices = stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
         game.seat();
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
 
-        expect(voices.requested).toEqual([voiceFrame("voice-one").path]);
+        expect(game.players.created[0]?.sounds).toHaveLength(1);
     });
 
-    it("GM-33: stops a playing voice when the quiz ends", async () => {
-        stubbedVoicePlayback(wavResponse);
+    it("GM-32: plays the voices of two lines one after the other, each from its own route", async () => {
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
+
+        expect(game.players.created).toHaveLength(1);
+        expect(game.players.created[0]?.sounds.map(({ sound }) => sound)).toEqual([
+            voiceFrame("voice-one").path,
+            voiceFrame("voice-two").path,
+        ]);
+    });
+
+    it("GM-33: stops a playing voice and a waiting one when the quiz ends", async () => {
         const game = await installedGame();
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
+        await voiceAt(game).start();
 
         game.emit(GAME_SIGNAL.GAME_ENDED, {});
 
-        expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true]);
-    });
-
-    it("GM-33: starts no voice that arrives from the network after the quiz ended", async () => {
-        let deliver: (response: Response) => void = () => undefined;
-        stubbedVoicePlayback(() => new Promise<Response>((resolve) => void (deliver = resolve)));
-        const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-
-        game.emit(GAME_SIGNAL.GAME_ENDED, {});
-        deliver(new Response(new Blob(["wav"]), { status: 200 }));
-        await settled();
-
-        expect(FakeAudio.instances).toEqual([]);
+        expect(await Promise.all([voiceAt(game, 0).ended, voiceAt(game, 1).ended])).toEqual([
+            { kind: "stopped", playedSeconds: 0 },
+            { kind: "stopped", playedSeconds: 0 },
+        ]);
     });
 
     it("GM-33: stops a playing voice when the call ends", async () => {
-        stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        await voiceAt(game).start();
 
         game.endCall();
 
-        expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true]);
+        expect(await voiceAt(game).ended).toEqual({ kind: "stopped", playedSeconds: 0 });
     });
 
-    it("stops the voice that plays when the next one starts", async () => {
-        stubbedVoicePlayback(wavResponse);
+    it("GM-34: leaves the line as text when the voice never plays", async () => {
         const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
-
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
-        await settled();
-
-        expect(FakeAudio.instances.map((audio) => audio.paused)).toEqual([true, false]);
-    });
-
-    it("GM-32: starts a voice whose fetch was still pending when the next voice arrived", async () => {
-        const deliveries = new Map<string, (response: Response) => void>();
-        stubbedVoicePlayback((url) => new Promise<Response>((resolve) => void deliveries.set(url, resolve)));
-        const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
-
-        deliveries.get(voiceFrame("voice-one").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
-        deliveries.get(voiceFrame("voice-two").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
-        await settled();
-
-        expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1", "blob:voice-2"]);
-    });
-
-    it("GM-32: starts a voice whose fetch finished after a newer voice's fetch", async () => {
-        const deliveries = new Map<string, (response: Response) => void>();
-        stubbedVoicePlayback((url) => new Promise<Response>((resolve) => void deliveries.set(url, resolve)));
-        const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
-
-        deliveries.get(voiceFrame("voice-two").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
-        deliveries.get(voiceFrame("voice-one").path)?.(new Response(new Blob(["wav"]), { status: 200 }));
-        await settled();
-
-        expect(FakeAudio.instances.map((audio) => audio.source)).toEqual(["blob:voice-1", "blob:voice-2"]);
-    });
-
-    it("GM-34: leaves the line as text when the voice is missing", async () => {
-        stubbedVoicePlayback(() => Promise.resolve(new Response(null, { status: 404 })));
-        const game = await installedGame();
+        game.seat();
+        startRound(game, 1);
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        await voiceAt(game).end({ kind: "failed" });
 
-        expect(FakeAudio.instances).toEqual([]);
-    });
-
-    it("GM-34: leaves the line as text when the voice cannot be fetched", async () => {
-        stubbedVoicePlayback(() => Promise.reject(new Error("offline")));
-        const game = await installedGame();
-
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
-
-        expect(FakeAudio.instances).toEqual([]);
-    });
-
-    it("GM-34: lets go of the voice when the browser refuses to play it", async () => {
-        const voices = stubbedVoicePlayback(wavResponse);
-        const game = await installedGame();
-        FakeAudio.playResult = () => Promise.reject(new Error("autoplay"));
-        onTestFinished(() => {
-            FakeAudio.playResult = () => Promise.resolve();
-        });
-
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
-
-        expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
-    });
-
-    it("lets go of the voice when it has played to its end", async () => {
-        const voices = stubbedVoicePlayback(wavResponse);
-        const game = await installedGame();
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
-
-        FakeAudio.instances[0]?.listeners.get("ended")?.();
-
-        expect(voices.urls.revoked).toEqual(["blob:voice-1"]);
+        expect(lastTile(game)).toEqual(tileOf(AGENT_ACTIVITY.WAITING));
     });
 });
 
@@ -552,20 +442,18 @@ describe("muting the game master's voice", () => {
         game.seat();
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.ANSWERING, round: 1, rounds: 3, starter: ME });
         game.emit(GAME_SIGNAL.GAME_LINE, { text: "Question 1?", round: 1, voiced: true });
-        game.voiceButton.click();
     };
 
-    it("GM-37: fetches no voice while muted, and the tile never speaks", async () => {
-        const voices = stubbedVoicePlayback(wavResponse);
+    it("GM-37: hands the player a voice that ends muted while muted, and the tile never speaks", async () => {
         const game = await installedGame();
         voicedQuiz(game);
+        game.voiceButton.click();
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         await settled();
 
-        expect([voices.requested, FakeAudio.instances, lastTile(game)]).toEqual([
-            [],
-            [],
+        expect([await voiceAt(game).ended, lastTile(game)]).toEqual([
+            { kind: "muted", playedSeconds: 0 },
             tileOf(AGENT_ACTIVITY.WAITING),
         ]);
         expect(game.voiceButton).toMatchObject({
@@ -576,31 +464,50 @@ describe("muting the game master's voice", () => {
     });
 
     it("GM-37: stops a playing voice at once on mute", async () => {
-        stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         voicedQuiz(game);
-        game.voiceButton.click();
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        await voiceAt(game).start();
+
+        game.voiceButton.click();
         await settled();
 
-        game.voiceButton.click();
-
-        expect([FakeAudio.instances[0]?.paused, lastTile(game)]).toEqual([true, tileOf(AGENT_ACTIVITY.WAITING)]);
+        expect([await voiceAt(game).ended, lastTile(game)]).toEqual([
+            { kind: "muted", playedSeconds: 0 },
+            tileOf(AGENT_ACTIVITY.WAITING),
+        ]);
     });
 
     it("GM-37: plays from the next line on after unmuting, never a line already gone", async () => {
-        const voices = stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         voicedQuiz(game);
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        await voiceAt(game).start();
 
+        game.voiceButton.click();
         game.voiceButton.click();
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
-        await settled();
+        await voiceAt(game, 1).start();
 
-        expect(voices.requested).toEqual([voiceFrame("voice-two").path]);
+        expect(game.players.created[0]?.sounds.map(({ sound }) => sound)).toEqual([
+            voiceFrame("voice-one").path,
+            voiceFrame("voice-two").path,
+        ]);
+        expect(lastTile(game)).toEqual(tileOf(AGENT_ACTIVITY.SPEAKING));
+    });
+
+    it("GM-37: a new call starts with the voice on", async () => {
+        const game = await installedGame();
+        voicedQuiz(game);
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
+        game.voiceButton.click();
+
+        game.endCall();
+        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-two"));
+        await voiceAt(game, 1).start();
+
+        expect(lastTile(game)).toEqual(tileOf(AGENT_ACTIVITY.SPEAKING));
     });
 });
 
@@ -650,15 +557,14 @@ describe("the game master's tile", () => {
     });
 
     it("GM-35: speaks while a voice plays, then waits again", async () => {
-        stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         game.seat();
         startRound(game, 1);
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        await voiceAt(game).start();
         const whilePlaying = lastTile(game);
-        FakeAudio.instances[0]?.listeners.get("ended")?.();
+        await voiceAt(game).end(PLAYED);
 
         expect([whilePlaying, lastTile(game)]).toEqual([
             tileOf(AGENT_ACTIVITY.SPEAKING),
@@ -667,7 +573,6 @@ describe("the game master's tile", () => {
     });
 
     it("GM-36: keeps the tile through the gap after the final line's idle until its voice has played", async () => {
-        stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         game.seat();
         startRound(game, 1);
@@ -677,9 +582,9 @@ describe("the game master's tile", () => {
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
         const whileFetching = lastTile(game);
-        await settled();
+        await voiceAt(game).start();
         const whilePlaying = lastTile(game);
-        FakeAudio.instances[0]?.listeners.get("ended")?.();
+        await voiceAt(game).end(PLAYED);
 
         expect([inTheGap, whileFetching, whilePlaying, lastTile(game)]).toEqual([
             tileOf(AGENT_ACTIVITY.WAITING),
@@ -715,62 +620,41 @@ describe("the game master's tile", () => {
     });
 
     it("GM-36: ends the tile when the browser refuses the final voice's playback", async () => {
-        stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         game.seat();
         startRound(game, 1);
         game.emit(GAME_SIGNAL.GAME_LINE, { text: "Final score", voiced: true });
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
-        FakeAudio.playResult = () => Promise.reject(new Error("autoplay"));
-        onTestFinished(() => {
-            FakeAudio.playResult = () => Promise.resolve();
-        });
 
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
-        await settled();
+        await voiceAt(game).end({ kind: "refused" });
 
         expect(lastTile(game)).toBeNull();
     });
 
     it("GM-35: goes when the final voice cannot be fetched", async () => {
-        stubbedVoicePlayback(() => Promise.reject(new Error("offline")));
         const game = await installedGame();
         game.seat();
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("score"));
 
-        await settled();
+        await voiceAt(game).end({ kind: "failed" });
 
         expect(lastTile(game)).toBeNull();
     });
 
     it("GM-35: stops speaking when the quiz ends and goes with the idle that follows", async () => {
-        stubbedVoicePlayback(wavResponse);
         const game = await installedGame();
         game.seat();
         startRound(game, 1);
         game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-        await settled();
+        await voiceAt(game).start();
 
         game.emit(GAME_SIGNAL.GAME_ENDED, {});
+        await settled();
         const afterEnded = lastTile(game);
         game.emit(GAME_SIGNAL.GAME_PHASE, { phase: GAME_PHASE.IDLE });
 
         expect([afterEnded, lastTile(game)]).toEqual([tileOf(AGENT_ACTIVITY.WAITING), null]);
-    });
-
-    it("GM-35: shows no tile again when a voice starts late, after the call ended", async () => {
-        let deliver: (response: Response) => void = () => undefined;
-        stubbedVoicePlayback(() => new Promise<Response>((resolve) => void (deliver = resolve)));
-        const game = await installedGame();
-        game.seat();
-        startRound(game, 1);
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-
-        game.endCall();
-        deliver(new Response(new Blob(["wav"]), { status: 200 }));
-        await settled();
-
-        expect(lastTile(game)).toBeNull();
     });
 
     it("GM-35: carries no tile into the next call after a call ended with the quiz running", async () => {
@@ -793,5 +677,16 @@ describe("the game master's tile", () => {
         game.seat();
 
         expect(lastTile(game)).toBeNull();
+    });
+});
+
+describe("the page's installation", () => {
+    it("starts a round through the module the page installs", async () => {
+        const game = await installedGame({ installOn: install });
+        game.seat();
+
+        startRound(game, 1);
+
+        expect(lastTile(game)).not.toBeNull();
     });
 });

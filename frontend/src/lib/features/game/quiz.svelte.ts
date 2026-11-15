@@ -195,7 +195,6 @@ export class Quiz {
     }
 
     voiceStarted(voiceId: string) {
-        if (!this.#voicesOutstanding.has(voiceId)) return;
         this.#voicesPlaying.add(voiceId);
         this.#changed();
     }

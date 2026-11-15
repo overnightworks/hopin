@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OutgoingFrame } from "#lib/call/feature-port.ts";
+import { type OutgoingFrame } from "#lib/call/feature-port.ts";
 import { words } from "#lib/words/de.ts";
 import { Quiz, type PhaseFrame } from "./quiz.svelte.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
