@@ -369,17 +369,7 @@ class ParticipationFeature:
         hearing_tokens = self._hearing_tokens(scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
-        clip_store = FigureStore(
-            partial(
-                fetch_figure,
-                self.figure_transport,
-                monotonic=time.monotonic,
-                max_bytes=CLIP_MAX_BYTES,
-                redirect_sources=self.figure_sources,
-            ),
-            cache_bytes=CLIP_CACHE_BYTES,
-            failure_event="agent_clip_fetch_failed",
-        )
+        clip_store = self._clip_store()
         front = self._front(built, relying_party, voice)
 
         @asynccontextmanager
@@ -410,18 +400,45 @@ class ParticipationFeature:
             methods=READ_METHODS,
         )
         self._add_voice_route(router, built.current)
-        if self.hearing is not None:
-            hearing_route = HearingRoute(
-                service=self.hearing,
-                issuer=relying_party.issuer,
-                resolver=SessionIdentityResolver(sessions),
-                participation=built.current,
-                tokens=hearing_tokens,
-                relying_party=relying_party,
-                scheduler=scheduler,
-            )
-            router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
+        self._add_hearing_route(router, built.current, relying_party, sessions, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+
+    def _clip_store(self) -> FigureStore:
+        """The store of the clips, with its own byte bound, cache and failure event apart from the figure's."""
+        return FigureStore(
+            partial(
+                fetch_figure,
+                self.figure_transport,
+                monotonic=time.monotonic,
+                max_bytes=CLIP_MAX_BYTES,
+                redirect_sources=self.figure_sources,
+            ),
+            cache_bytes=CLIP_CACHE_BYTES,
+            failure_event="agent_clip_fetch_failed",
+        )
+
+    def _add_hearing_route(
+        self,
+        router: APIRouter,
+        participation: Callable[[], Participation],
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        scheduler: Scheduler,
+        hearing_tokens: HearingTokens,
+    ) -> None:
+        """Serve the hearing socket when a hearing service is wired."""
+        if self.hearing is None:
+            return
+        hearing_route = HearingRoute(
+            service=self.hearing,
+            issuer=relying_party.issuer,
+            resolver=SessionIdentityResolver(sessions),
+            participation=participation,
+            tokens=hearing_tokens,
+            relying_party=relying_party,
+            scheduler=scheduler,
+        )
+        router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
 
     def _front(
         self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None
