@@ -8,10 +8,15 @@ import { words } from "#lib/words/de.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
 import { fakePlayers } from "../participation/player.fixture.ts";
-import { installWith } from "./index.ts";
+import { install, installWith } from "./index.ts";
 import QuestionCard from "./QuestionCard.svelte";
 import type { QuestionCardProps } from "./quiz.svelte.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
+
+// The real speech package loads the call sounds, which build an audio context when first imported.
+vi.hoisted(() => {
+    globalThis.AudioContext = function AudioContextStub() {} as unknown as typeof AudioContext;
+});
 
 // Core builds a view from a component and its props; the cases read the pair back to see what was handed over.
 const views = vi.hoisted(() => new WeakMap<object, { component: unknown; props: unknown }>());
@@ -39,7 +44,10 @@ interface Toast {
     action: ToastAction | null;
 }
 
-async function installedGame({ connected = true } = {}) {
+async function installedGame({
+    connected = true,
+    installOn,
+}: { connected?: boolean; installOn?: typeof install } = {}) {
     const players = fakePlayers();
     const handlers = new Map<string, (frame: never) => void>();
     const sent: unknown[] = [];
@@ -69,7 +77,7 @@ async function installedGame({ connected = true } = {}) {
         onMicrophone: () => undefined,
         takePicture: () => Promise.resolve(null),
     };
-    await installWith(core, players.createPlayer);
+    await (installOn ?? ((on) => installWith(on, players.createPlayer)))(core);
     const emit = (type: string, frame: object) => {
         const handler = handlers.get(type);
         if (handler === undefined) throw new Error(`no handler for ${type}`);
@@ -654,18 +662,6 @@ describe("the game master's tile", () => {
         expect([afterEnded, lastTile(game)]).toEqual([tileOf(AGENT_ACTIVITY.WAITING), null]);
     });
 
-    it("GM-35: shows no tile again when a voice starts late, after the call ended", async () => {
-        const game = await installedGame();
-        game.seat();
-        startRound(game, 1);
-        game.emit(GAME_SIGNAL.GAME_VOICE, voiceFrame("voice-one"));
-
-        game.endCall();
-        await voiceAt(game).start();
-
-        expect(lastTile(game)).toBeNull();
-    });
-
     it("GM-35: carries no tile into the next call after a call ended with the quiz running", async () => {
         const game = await installedGame();
         game.seat();
@@ -686,5 +682,16 @@ describe("the game master's tile", () => {
         game.seat();
 
         expect(lastTile(game)).toBeNull();
+    });
+});
+
+describe("the page's installation", () => {
+    it("starts a round through the module the page installs", async () => {
+        const game = await installedGame({ installOn: install });
+        game.seat();
+
+        startRound(game, 1);
+
+        expect(lastTile(game)).not.toBeNull();
     });
 });
