@@ -5,14 +5,16 @@ holds for the agent.
 The text, the sound and a token reach no log: the callers' step lines carry one closed code."""
 
 import asyncio
+import logging
 import math
 import threading
 from contextlib import closing
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, assert_never, cast
 
+from logline import StepTimer
 from pydantic import ValidationError
-from speech_client.health import fetch_health
+from speech_client.health import UnexpectedStatus, fetch_health
 from speech_client.speak import (
     Busy,
     Cut,
@@ -44,6 +46,8 @@ if TYPE_CHECKING:
     from hopin.agent.hearing_token import HearingTokens
     from hopin.participation.participants import Person
 
+_STEPS: Final = logging.getLogger(__name__)
+
 SPEAK_DEADLINE_SECONDS: Final = 20
 SPEAK_MAX_BYTES: Final = 4 * 1024 * 1024
 HEALTH_DEADLINE_SECONDS: Final = 5
@@ -56,6 +60,15 @@ type StreamSpeaker = Callable[..., Generator[PreferenceStreamItem]]
 
 SPEECH_STREAM: Final[StreamSpeaker] = speak_stream_with_preference
 """The stream the composition roots give a renderer; the speech client is named in this module alone."""
+
+_HEALTH_REFUSALS: Final[dict[type, str]] = {
+    UnexpectedStatus: "unexpected_status",
+    Malformed: VoiceFailure.MALFORMED.value,
+    OverCap: VoiceFailure.OVER_CAP.value,
+    PastDeadline: VoiceFailure.PAST_DEADLINE.value,
+    Cut: VoiceFailure.CUT.value,
+    Unreachable: VoiceFailure.UNREACHABLE.value,
+}
 
 
 class StyleUnavailableError(VoiceRefusedError):
@@ -270,12 +283,15 @@ class AgentVoice:
     async def offers(self, voices: tuple[str, ...]) -> bool:
         """Whether speech's health offers one of the agent's `voices`, the configured voice for none, ready now; no
         when health cannot be read."""
-        health = await asyncio.to_thread(
-            fetch_health,
-            self._renderer.service.origin,
-            deadline_seconds=HEALTH_DEADLINE_SECONDS,
-            cap_bytes=HEALTH_MAX_BYTES,
-        )
+        async with StepTimer("speech_health.ended", _STEPS) as step:
+            health = await asyncio.to_thread(
+                fetch_health,
+                self._renderer.service.origin,
+                deadline_seconds=HEALTH_DEADLINE_SECONDS,
+                cap_bytes=HEALTH_MAX_BYTES,
+            )
+            if not isinstance(health, Health):
+                step.refuse(_HEALTH_REFUSALS[type(health)])
         return isinstance(health, Health) and any(
             (offered := health.speaking.voices.get(voice)) is not None and offered.ready
             for voice in self._preference(voices)

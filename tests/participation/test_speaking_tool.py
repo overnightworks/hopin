@@ -7,8 +7,10 @@ from functools import partial
 
 import pytest
 from agents.member import STOP_SPEAKING_TOOL
+from logline import Outcome
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
+    HEALTH_PATH,
     SPEECH_PATH,
     WORKLOAD_TOKEN_HEADER,
     Language,
@@ -39,6 +41,7 @@ from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
 from tests.support.log_lines import captured_lines
+from tests.support.loopback_origin import http_response
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     chunked_wav,
@@ -317,6 +320,20 @@ class TestTheVoicesOfAnAgent:
             [],
             "unavailable",
         )
+
+    def test_call_61_a_health_that_cannot_be_read_ends_the_health_step_refused_with_its_cause(
+        self, joined_agent, speech_origin
+    ):
+        offering(speech_origin, VoiceId.KERSTIN)
+        speak(joined_agent)
+        speech_origin.serve(HEALTH_PATH, http_response("500 Internal Server Error", b""))
+
+        with captured_lines() as logs:
+            joined_agent.call.pass_time(VOICE_RECOVERY_SECONDS)
+            assert logs.wait_for_event("speech_health.ended", 5)
+
+        [health] = [log for log in logs if log["event"] == "speech_health.ended"]
+        assert (health["outcome"], health["reason"]) == (Outcome.REFUSED, "unexpected_status")
 
     def test_call_61_the_window_turns_available_again_without_a_sentence_once_a_voice_of_the_list_is_offered(
         self, joined_agent, speech_origin
