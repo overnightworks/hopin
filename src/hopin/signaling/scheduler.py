@@ -40,7 +40,7 @@ class AsyncioScheduler:
 
     @staticmethod
     async def _run(callback: Callable[[], Awaitable[None]]) -> None:
-        # The timer is a unit of its own: the context it copied at scheduling carries the trace of whatever scheduled it.
+        # A timer is a unit of its own: the context it copied at scheduling carries the scheduler's trace.
         with unit_trace(None):
             await callback()
 

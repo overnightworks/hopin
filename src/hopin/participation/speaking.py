@@ -349,7 +349,9 @@ class Speaking:
 
 async def _answered_after_waiting(agent: DialedAgent, answer: asyncio.Future[SpeakResult]) -> SpeakResult:
     """The speaker's answer to a sentence that waits behind others, which its caller waits on."""
-    with StepTimer("sentence_wait.ended", _STEPS, room_ref=room_reference(agent.room_id), agent_id=agent.agent_id) as step:
+    with StepTimer(
+        "sentence_wait.ended", _STEPS, room_ref=room_reference(agent.room_id), agent_id=agent.agent_id
+    ) as step:
         result = await answer
         if isinstance(result, AgentRefusal | SpeakStop):
             step.refuse(result.value)
