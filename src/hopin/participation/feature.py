@@ -7,7 +7,7 @@ import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
-from hopin.participation.figures import Figure, FigureSource, figure_refusal
+from hopin.participation.figures import Figure, FigureSource, judge_figure
 from hopin.participation.frames import (
     Offer,
     invitation_ended_frame,
@@ -281,14 +281,14 @@ class Participation:
             return AgentRefusal.TWO_SEATS
         if self._rooms.is_parked(invitation.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        refusal = None if figure is None else figure_refusal(self._figure_sources, figure.url)
+        verdict = judge_figure(self._figure_sources, figure)
         agent = DialedAgent(
             secrets.token_hex(AGENT_ID_BYTES),
             live.name,
             person,
             invitation.sponsor,
             room_id,
-            figure if refusal is None else None,
+            verdict.shown,
             voices,
         )
         if not self._takes_place(agent):
@@ -297,8 +297,12 @@ class Participation:
         self._hearing.joined(agent, brought_by_sponsor=invitation.adder == invitation.sponsor)
         self._on_changed(person)
         await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
-        if refusal is not None:
-            await logger.ainfo("agent_figure.refused", room_ref=room_reference(room_id), reason=refusal.value)
+        if verdict.refusal is not None:
+            await logger.ainfo("agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value)
+        for gesture, clip_refusal in verdict.clip_refusals.items():
+            await logger.ainfo(
+                "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
+            )
         await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(invitation.sponsor))
         await self._switches.tell(agent)
         await self._update_offers(room_id)

@@ -26,6 +26,7 @@ interface AgentJoinedFrame {
     sponsor: string;
     sponsor_id: string;
     figure?: string;
+    gestures?: Readonly<Record<string, string>>;
 }
 
 interface AgentLeftFrame {
@@ -147,6 +148,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
                 activity: speaking.has(frame.agent_id) ? AGENT_ACTIVITY.SPEAKING : AGENT_ACTIVITY.PRESENT,
                 sponsor: frame.sponsor,
                 figure: frame.figure,
+                gestures: frame.gestures,
                 hearing:
                     hearing === undefined
                         ? undefined
