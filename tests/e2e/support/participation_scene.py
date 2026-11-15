@@ -35,6 +35,9 @@ class Scene:
         owner_adds: bool = False,
     ):
         self.agent = agent
+        self._open_person = open_person
+        self._page_errors = page_errors
+        self._form_factor = form_factor
         self.host = record_page_errors(open_person(**form_factor), page_errors)
         press_start_call(self.host, server.base_url)
         self.link = call_link_of(self.host)
@@ -47,6 +50,12 @@ class Scene:
         join_by_link(self.member, self.link)
         self.adder = self.owner if owner_adds else self.member
         self.everyone = (self.host, self.owner, self.member)
+
+    def person_joins_late(self) -> Page:
+        """A signed-in person who joins the call by its link after the agent has its place."""
+        late = record_page_errors(self._open_person(**self._form_factor), self._page_errors)
+        join_by_link(late, self.link)
+        return late
 
     def offers_on(self, page: Page) -> Locator:
         return page.locator(OFFER)

@@ -1,24 +1,38 @@
+import base64
+import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import expect
 
 from hopin.participation.settings import ParticipationSettings
-from hopin.participation.vocabulary import FIGURE_MODULE
+from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE
 from tests.e2e.support.client_manifest import urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT
-from tests.e2e.support.people import DESKTOP
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from playwright.sync_api import Page
+
     from tests.e2e.support.participation_scene import Scene
 
 pytestmark = pytest.mark.e2e
 
 LOADED_FILES = "() => performance.getEntriesByType('resource').map((entry) => entry.name)"
+FIGURE_FILES = Path(__file__).parent / "figure_files"
+# Both files pass figure v0.8.0's own checks: the figure is its conformant synthetic one, with green arms, and the
+# clip holds the right upper arm straight up for eight seconds, far past the length of figure's own wave.
+DRAWABLE = (FIGURE_FILES / "drawable.vrm").read_bytes()
+HOLDING_WAVE = (FIGURE_FILES / "holding_wave.vrma").read_bytes()
+DRAWABLE_URL = figure_url("drawable.vrm")
+HOLDING_WAVE_URL = figure_url("holding_wave.vrma")
+MISSING_WAVE_URL = figure_url("missing_wave.vrma")
+WAVE = "wave"
 UNDRAWABLE = glb(b"mozart" * 8)
 UNDRAWABLE_URL = figure_url("undrawable.glb")
 MISSING_URL = figure_url("missing.glb")
@@ -30,6 +44,9 @@ def figure_origin() -> FigureOrigin:
     origin = FigureOrigin()
     origin.serve(UNDRAWABLE_URL, ok(UNDRAWABLE))
     origin.serve(MISSING_URL, Answer(404))
+    origin.serve(DRAWABLE_URL, ok(DRAWABLE))
+    origin.serve(HOLDING_WAVE_URL, ok(HOLDING_WAVE))
+    origin.serve(MISSING_WAVE_URL, Answer(404))
     return origin
 
 
@@ -105,3 +122,111 @@ def test_with_figures_off_no_file_that_holds_the_figure_code_is_requested(
         expect(person.locator(AGENT_TILE)).to_have_count(1)
         assert person.locator(AGENT_TILE + " .vid[data-figure]").count() == 0
         assert not figure_chunks & set(person.evaluate(LOADED_FILES))
+
+
+# The topmost pixel of the arm, as a share of the picture's height: the synthetic figure's arms are the only green in
+# the tile, a darker green where the page's controls dim it.
+ARM_TOP_SHARE = """
+async (base64) => {
+    // The page's policy forbids fetching a data URL, so the bytes become a blob without one.
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    context.drawImage(bitmap, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    for (let row = 0; row < height; row++) {
+        for (let column = 0; column < width; column++) {
+            const [red, green, blue, alpha] = data.subarray(4 * (row * width + column));
+            if (alpha >= 200 && green > red + 40 && green > blue + 25) return row / height;
+        }
+    }
+    return null;
+}
+"""
+RAISED_SHARE = 0.1
+SAMPLE_PAUSE_SECONDS = 0.2
+# Figure's neutral wave is over well within this, the persona's clip holds the arm much longer.
+AFTER_THE_NEUTRAL_WAVE_SECONDS = 5
+WAIT_FOR_THE_FIGURE_MILLISECONDS = 30_000
+
+
+def arm_top(person: Page) -> float | None:
+    picture = person.locator(f"{AGENT_TILE} canvas").screenshot()
+    return person.evaluate(ARM_TOP_SHARE, base64.b64encode(picture).decode())
+
+
+def arm_is_raised(person: Page, at_rest: float) -> bool:
+    top = arm_top(person)
+    return top is not None and top < at_rest - RAISED_SHARE
+
+
+def drawn_at_rest(person: Page) -> float:
+    """The arm's top once the person's tile shows the figure drawn, at rest."""
+    expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
+        "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
+    )
+    top = arm_top(person)
+    assert top is not None
+    return top
+
+
+def clip_answers(person: Page) -> list[int]:
+    """The statuses the person's page got for the clips it asked the server for."""
+    return person.evaluate(
+        """(path) => performance.getEntriesByType("resource")
+            .filter((entry) => new URL(entry.name).pathname.startsWith(path))
+            .map((entry) => entry.responseStatus)""",
+        CLIP_PATH,
+    )
+
+
+def raised_within(people: list[Page], at_rest: dict[Page, float], seconds: float) -> bool:
+    """Whether every person sees the arm raised at some moment of the next `seconds`."""
+    seen = set()
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and len(seen) < len(people):
+        seen |= {person for person in people if arm_is_raised(person, at_rest[person])}
+        time.sleep(SAMPLE_PAUSE_SECONDS)
+    return len(seen) == len(people)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_included(
+    scene_of: Callable[..., Scene], form_factor: dict[str, Any]
+) -> None:
+    """CALL-65: A clip the agent brings plays for its gesture on its tile in every browser of the call, late joiners
+    included."""
+    scene = scene_of(form_factor)
+    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: figure_of(HOLDING_WAVE_URL, HOLDING_WAVE)}}
+
+    scene.member_adds_and_the_agent_accepts(figure)
+    late = scene.person_joins_late()
+    everyone = [*scene.everyone, late]
+    at_rest = {person: drawn_at_rest(person) for person in everyone}
+    scene.agent.gesture(WAVE)
+    time.sleep(AFTER_THE_NEUTRAL_WAVE_SECONDS)
+
+    assert [clip_answers(person) for person in everyone] == [[200]] * len(everyone)
+    assert [arm_is_raised(person, at_rest[person]) for person in everyone] == [True] * len(everyone)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_clip_the_server_cannot_verify_leaves_the_neutral_wave_and_the_figure_drawn(
+    scene_of: Callable[..., Scene], form_factor: dict[str, Any]
+) -> None:
+    """CALL-65: A clip that cannot be fetched leaves the neutral gesture and the figure is drawn all the same."""
+    scene = scene_of(form_factor)
+    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: figure_of(MISSING_WAVE_URL, b"")}}
+
+    scene.member_adds_and_the_agent_accepts(figure)
+    late = scene.person_joins_late()
+    everyone = [*scene.everyone, late]
+    at_rest = {person: drawn_at_rest(person) for person in everyone}
+    scene.agent.gesture(WAVE)
+    waved = raised_within(everyone, at_rest, 3)
+    time.sleep(AFTER_THE_NEUTRAL_WAVE_SECONDS)
+
+    assert [clip_answers(person) for person in everyone] == [[502]] * len(everyone)
+    assert waved
+    assert [arm_is_raised(person, at_rest[person]) for person in everyone] == [False] * len(everyone)

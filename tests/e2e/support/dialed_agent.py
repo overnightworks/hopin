@@ -7,7 +7,7 @@ from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
-from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef
+from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, GESTURE_TOOL, STANDING_URI, PlaceRef
 from design.words import text as kit_text
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
@@ -229,6 +229,11 @@ class OwnAccountAgent(SdkAgent):
         it would speak with, first choice first."""
         named = ({} if figure is None else {"figure": figure}) | ({} if voices is None else {"voices": list(voices)})
         return self.call(ACCEPT_INVITATION_TOOL, self._acceptance(standing) | named)
+
+    def gesture(self, name: str) -> dict[str, Any]:
+        """Make the gesture with the figure at the one place the agent holds."""
+        [active] = [standing for standing in self.standings() if standing["state"] == "active"]
+        return self.call(GESTURE_TOOL, {"place": active["place"], "gesture": name})
 
     def decline_busy(self, standing: dict[str, Any]) -> None:
         """Decline the invitation because the agent is at its own limit of places."""
