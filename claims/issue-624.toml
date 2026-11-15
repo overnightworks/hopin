@@ -1,8 +1,0 @@
-claim_id = "0a10b488088a4080b78cbedd5c63c376"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "723b653a62f35443244a85ef7a6ea75900e7c792"
-branch = "claude/issue-624-game-master-voice-speech-player"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/game/index.ts", "frontend/src/lib/features/game/quiz.svelte.test.ts", "frontend/src/lib/features/game/quiz.svelte.ts", "frontend/src/lib/features/participation/player.fixture.ts", "tests/e2e/game/test_game_voice.py"]
-opened_commit = "667f89cd3b3fa7148086d91fa7e7d1065062d64b"
-whole_reason = "Swapping the player moves the game feature, its tests, the shared test player fixture and the browser voice recorder together; a split would leave one of them broken."
