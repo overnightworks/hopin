@@ -181,7 +181,8 @@ class Speaking:
         )
         if queue.playing is not None or queue.waiting:
             queue.waiting.append(sentence)
-        elif isinstance(sentence, WrittenSentence):
+            return await _answered_after_waiting(agent, answer)
+        if isinstance(sentence, WrittenSentence):
             await self._written(agent, sentence)
         else:
             self._run_in_background(agent, self._begin(agent, queue, sentence))
@@ -342,6 +343,15 @@ class Speaking:
                 sentence.answer.set_exception(failure)
             return
         _answer(sentence, SpeakFallback.WRITTEN)
+
+
+async def _answered_after_waiting(agent: DialedAgent, answer: asyncio.Future[SpeakResult]) -> SpeakResult:
+    """The speaker's answer to a sentence that waits behind others, which its caller waits on."""
+    with StepTimer("sentence_wait.ended", _STEPS, room_ref=room_reference(agent.room_id), agent_id=agent.agent_id) as step:
+        result = await answer
+        if isinstance(result, AgentRefusal | SpeakStop):
+            step.refuse(result.value)
+    return result
 
 
 async def _fill(

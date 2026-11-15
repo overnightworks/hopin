@@ -6,6 +6,7 @@ import contextlib
 
 import pytest
 import pytest_asyncio
+from logline import Outcome
 
 from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
@@ -17,6 +18,7 @@ from hopin.participation.vocabulary import (
     SpeakStarted,
     SpeakStop,
 )
+from hopin.rooms.reference import room_reference
 from tests.participation.support.ends import leave_by_the_agent
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
@@ -164,6 +166,25 @@ class TestTheAnswerComesWhenTheSentenceStarts:
         assert (done, [first, second.result(), third.result()]) == (
             [[False, False], [False, False], [True, False], [True, False], [True, True]],
             [SpeakStarted.SPOKEN] * 3,
+        )
+
+    async def test_a_sentence_that_waits_behind_another_writes_its_wait_when_it_starts(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+
+        with captured_lines() as logs:
+            await speak(participation, room_id=room_id)
+            second = await waiting_to_speak(participation, room_id=room_id)
+            waits_while_waiting = [log for log in logs if log["event"] == "sentence_wait.ended"]
+            await answers_so_far(scheduler, SENTENCE_MS / 1000, second)
+
+        [wait] = [log for log in logs if log["event"] == "sentence_wait.ended"]
+        assert (waits_while_waiting, wait["outcome"], wait["room_ref"]) == (
+            [],
+            Outcome.OK,
+            room_reference(room_id),
         )
 
     async def test_call_60_a_sentence_whose_speaker_gave_up_waiting_still_starts_in_order_and_the_queue_goes_on(

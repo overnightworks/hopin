@@ -377,9 +377,9 @@ class Game:
         # Never cancelled, so no socket write is cut short; the room's end only cancels `ask`. A seat's
         # broken write is held until the run is delivered, so the room keeps the run until `ask` has ended.
         try:
-            if run.previous is not None:
-                await asyncio.wait({run.previous})
             with StepTimer("game_master_run.ended", _STEPS, room_ref=room_reference(room_id)) as step:
+                step.handled()  # the driver's done callback writes the error once
+                await self._wait_for_previous(room_id, run)
                 await self._announce_thinking(room_id, run)
                 await asyncio.wait({run.ask})
                 outcome = _outcome_of(run.ask)
@@ -387,13 +387,19 @@ class Game:
                 reason = _refusal_reason(run, outcome)
                 if reason is not None:
                     step.refuse(reason)
-            await self._deliver(room_id, run, outcome)
+                await self._deliver(room_id, run, outcome)
         finally:
             await self._stop_voice(run)
             if self._holds(room_id, run):
                 self._forget(room_id, run)
         if run.broken_writes:
             raise run.broken_writes[0]
+
+    @staticmethod
+    async def _wait_for_previous(room_id: str, run: _Run) -> None:
+        if run.previous is not None:
+            with StepTimer("run_wait.ended", _STEPS, room_ref=room_reference(room_id)):
+                await asyncio.wait({run.previous})
 
     async def _deliver(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
         if not self._is_live(room_id, run):
@@ -446,7 +452,8 @@ class Game:
         """Wait for the run's voice and send its one frame, made or empty, to the recipients still seated, if live."""
         if run.voice is None:
             return
-        await asyncio.wait({run.voice.task})
+        with StepTimer("voice_wait.ended", _STEPS, room_ref=room_reference(room_id)):
+            await asyncio.wait({run.voice.task})
         run.voice.deadline.cancel()
         if run.voice.expired and run.voice.task.cancelled():
             logger.info("game_voice.refused", reason="past_deadline")
