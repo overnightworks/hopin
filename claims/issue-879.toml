@@ -1,0 +1,8 @@
+claim_id = "1cb59752392c438c839f7e714e427661"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "aa1a3e14d62ac0c87af4f173f41829054766b47a"
+branch = "claude/issue-879-two-agents-sound-flake"
+scope = ["frontend/src/lib/features/participation", "frontend/src/lib/ui", "tests/e2e/participation"]
+opened_commit = "032c82f7214eaf921a41f7a7e4ac12ff37ab59ea"
+whole_reason = "One playback path, from the agent's player in the page to the e2e helper that records its starts."
