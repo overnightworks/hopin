@@ -126,7 +126,7 @@ class TestJoiningOneLiveSeat:
         if reason == "sponsor_away":
             await guest.drop()
 
-        refused = await participation.gesture(person, room_id, "wave")
+        refused = await participation.figures.gesture(person, room_id, "wave")
 
         expected = AgentRefusal.SPONSOR_AWAY if reason == "sponsor_away" else AgentRefusal.GONE
         assert refused is expected

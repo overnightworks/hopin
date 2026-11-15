@@ -7,10 +7,9 @@ import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
-from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
+from hopin.participation.figures import Figure, FigureSource, figure_refusal
 from hopin.participation.frames import (
     Offer,
-    gesture_frame,
     invitation_ended_frame,
     joined_frame,
     left_frame,
@@ -25,6 +24,7 @@ from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
 from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.seeing import Seeing
+from hopin.participation.shown_figures import ShownFigures
 from hopin.participation.speaking import Speaking, SpeakResult, StopResult
 from hopin.participation.speech_in_windows import SpeechInWindows
 from hopin.participation.switches import Switches
@@ -48,7 +48,6 @@ from hopin.signaling.frames import JsonObject, PeerId
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 
-    from agents.figure_vocabulary import FigureGesture
     from starlette.requests import HTTPConnection
 
     from hopin.participation.hearing import Hearing, HearingHandle
@@ -109,6 +108,7 @@ class Participation:
         self._speaking = Speaking(
             voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
+        self.figures = ShownFigures(self._places, self._active_agent, self._tell, self._recipients)
         self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients)
         self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
         self._live = LiveAgents()
@@ -212,23 +212,6 @@ class Participation:
         await self._tell(room_id, self._recipients(room_id), stop_frame(agent))
         return cut
 
-    async def gesture(self, person: Person, room_id: str, gesture: FigureGesture) -> AgentRefusal | None:
-        """Tell every seat the person's agent makes the gesture with its figure; why not when the agent holds no active
-        place there or shows no figure. A seat that joins later is told no past gesture."""
-        agent = self._active_agent(person, room_id)
-        if isinstance(agent, AgentRefusal):
-            return agent
-        if agent.figure is None:
-            return AgentRefusal.GONE
-        await self._tell(room_id, self._recipients(room_id), gesture_frame(agent, gesture))
-        return None
-
-    def shows_figure(self, person: Person) -> bool:
-        """Whether the person's agent shows a figure in some call, which the gesture tool is offered for."""
-        return any(
-            isinstance(place, DialedAgent) and place.figure is not None for _, place in self._places.of_person(person)
-        )
-
     async def look(self, person: Person, room_id: str) -> Picture:
         """The JPEG of the camera of the person's agent's sponsor, which the sponsor's seeing switch lets it take; why
         there is none otherwise."""
@@ -277,14 +260,6 @@ class Participation:
     def is_live_agent(self, person: Person) -> bool:
         """Whether the person is an agent with an account of its own whose lease is registered."""
         return person in self._live.by_person
-
-    def figures_named(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest."""
-        return tuple(
-            NamedFigure(agent.room_id, agent.figure.url)
-            for agent in self._places.joined()
-            if agent.figure is not None and agent.figure.sha256 == sha256
-        )
 
     async def accept(
         self,

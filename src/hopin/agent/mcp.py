@@ -152,7 +152,7 @@ class _BuiltParticipation:
         self, declared: Collection[str], principal: Principal
     ) -> Collection[str]:
         """Every declared tool, and the gesture tool only while the principal's agent shows a figure in some call."""
-        shown = self.participation.shows_figure(Person(principal.iss, principal.sub))
+        shown = self.participation.figures.shown_by(Person(principal.iss, principal.sub))
         return tuple(name for name in declared if name != GESTURE_TOOL or shown)
 
     def _tell_window_changed(self, person: Person, room_id: str) -> None:
@@ -303,7 +303,7 @@ def _figure_endpoint(
     file is a public release asset."""
 
     async def figure(sha256: str) -> Response:
-        named = participation().figures_named(sha256)
+        named = participation().figures.named(sha256)
         if not named:
             raise HTTPException(status_code=404)
         body = await store.bytes_of(sha256, named)
@@ -361,14 +361,7 @@ class ParticipationFeature:
         hearing_tokens = self._hearing_tokens(scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
-        tools = [_as_person_tool(tool) for tool in participation_tools(built.current, voice)]
-        front = McpPersonFront(
-            tools,
-            resolve_person=partial(_principal_of, relying_party.issuer),
-            resources=_MemberResources(built.current),
-            changes=built.changes,
-            offered_tools=partial(built.offered_tools, [tool.declaration.name for tool in tools]),
-        )
+        front = self._front(built, relying_party, voice)
 
         @asynccontextmanager
         async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -400,6 +393,18 @@ class ParticipationFeature:
             )
             router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+
+    def _front(
+        self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None
+    ) -> McpPersonFront:
+        tools = [_as_person_tool(tool) for tool in participation_tools(built.current, voice)]
+        return McpPersonFront(
+            tools,
+            resolve_person=partial(_principal_of, relying_party.issuer),
+            resources=_MemberResources(built.current),
+            changes=built.changes,
+            offered_tools=partial(built.offered_tools, [tool.declaration.name for tool in tools]),
+        )
 
     def _add_voice_route(self, router: APIRouter, participation: Callable[[], Participation]) -> None:
         """Serve the stored sounds to the signed-in accounts that hold a seat in the sound's room."""

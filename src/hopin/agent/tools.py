@@ -423,7 +423,7 @@ async def _gestured(participation: Participation, caller: Caller, arguments: Jso
         return _gesture_refused()
     if gesturing.place.kind != CALL_KIND:
         return _gesture_refused()
-    if await participation.gesture(caller.person, gesturing.place.id, gesturing.gesture) is not None:
+    if await participation.figures.gesture(caller.person, gesturing.place.id, gesturing.gesture) is not None:
         return _gesture_refused()
     return ToolOutcome(Relayed(relayed=True).model_dump_json(), is_error=False)
 
