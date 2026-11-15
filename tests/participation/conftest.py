@@ -14,11 +14,13 @@ from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECO
 from speech_client.wire import VoiceId
 
 from hopin.agent.hearing import MemberHearingRecord
+from hopin.agent.speech_settings import SpeechService
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.support.hearing_scene import AUDIENCE_SCOPE
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking_scene import SOUND
@@ -96,10 +98,12 @@ def hears():
 
 
 @pytest.fixture
-def hearing_service():
+def hearing_service(request):
     """The speech service agents hear through, which also names the scope of the token HopIn exchanges for an agent
-    that hears; none until a module about hearing names one."""
-    return
+    that hears; the fake speech service in a test that asks for it, else none until a module names one."""
+    if "fake_speech" not in request.fixturenames:
+        return None
+    return SpeechService(request.getfixturevalue("fake_speech").origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
 @pytest.fixture

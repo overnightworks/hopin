@@ -18,18 +18,15 @@ from speech_client.wire import (
     RefusalCode,
     SessionInput,
     SessionUpdate,
-    VoiceId,
 )
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.agent import hearing_route
-from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
 from tests.participation.support.hearing_scene import (
-    AUDIENCE_SCOPE,
     entries_of,
     header_of,
     lose_the_held_token,
@@ -43,11 +40,6 @@ from tests.support.hearing_socket import SOUND, closed_with, hop
 pytestmark = pytest.mark.integration
 
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
-
-
-@pytest.fixture
-def hearing_service(fake_speech):
-    return SpeechService(fake_speech.origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
 def switch_off(scene):

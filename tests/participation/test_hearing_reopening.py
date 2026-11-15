@@ -1,16 +1,16 @@
 """CALL-58: the reopened hearing session, at HopIn's real `/ws` with a fake speech service and issuer."""
 
 import pytest
-from speech_client.wire import WORKLOAD_TOKEN_HEADER, RefusalCode, VoiceId
+from speech_client.wire import WORKLOAD_TOKEN_HEADER, RefusalCode
 
-from hopin.agent.speech_settings import SpeechService
 from hopin.participation.vocabulary import HearingClose
 from tests.participation.support.hearing_scene import (
-    AUDIENCE_SCOPE,
     entries_of,
     header_of,
     logged_endings,
-    lose_the_held_token,
+)
+from tests.participation.support.hearing_scene import (
+    lose_the_held_token as _lose_the_held_token,
 )
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.fake_issuer import TOKEN_LIFETIME_SECONDS
@@ -20,9 +20,15 @@ from tests.support.hearing_socket import SOUND, closed_with, hop
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def hearing_service(fake_speech):
-    return SpeechService(fake_speech.origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
+def refuse_the_workload_grant(scene, issuer_clock):
+    """HopIn's own token lapses and the issuer refuses the next one."""
+    issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
+    scene.call.issuer.refuses_client_credentials_grants = True
+
+
+def lose_the_held_token(scene, _issuer_clock):
+    """The agent's token lapses after the issuer refuses its exchanges."""
+    _lose_the_held_token(scene)
 
 
 class TestAReopenedSession:
@@ -66,28 +72,17 @@ class TestAReopenedSession:
         )
         assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == 2
 
-    def test_call_58_a_reopening_the_issuer_refuses_ends_the_hearing_in_order_with_no_token_logged(
-        self, sponsored, fake_speech, issuer_clock
+    @pytest.mark.parametrize(
+        "token_lost", [refuse_the_workload_grant, lose_the_held_token], ids=["issuer", "held_token"]
+    )
+    def test_call_58_a_reopening_without_a_token_ends_the_hearing_in_order_with_no_token_logged(
+        self, sponsored, fake_speech, issuer_clock, token_lost
     ):
         with logged_endings() as endings, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)
             first.wait_for_audio(1)
-            issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
-            sponsored.call.issuer.refuses_client_credentials_grants = True
-            first.drop()
-            closed = closed_with(socket)
-
-        assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
-
-    def test_call_58_a_reopening_after_the_agents_token_is_gone_ends_the_hearing_in_order_with_no_token_logged(
-        self, sponsored, fake_speech
-    ):
-        with logged_endings() as endings, hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            first = fake_speech.next_session(1)
-            first.wait_for_audio(1)
-            lose_the_held_token(sponsored)
+            token_lost(sponsored, issuer_clock)
             first.drop()
             closed = closed_with(socket)
 

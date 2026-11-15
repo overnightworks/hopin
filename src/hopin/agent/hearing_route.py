@@ -8,7 +8,7 @@ the code its socket closes with (`HearingClose`), and nothing here logs sound, t
 import asyncio
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, assert_never
 
 import structlog
 from speech_client.hearing import NEEDED_HOLD_BYTES, Closed, NoToken, ReconnectFailed, Refused, SessionTokens
@@ -241,21 +241,6 @@ def _log_ended(outcome: UtteranceOutcome) -> None:
     logger.info("agent_hearing_ended", outcome=ended, **({} if code is None else {"code": code}))
 
 
-_PLAIN_ENDINGS: dict[type, str] = {
-    Closed: "closed",
-    Busy: "busy",
-    OverCap: "over_cap",
-    Malformed: "malformed",
-    PastDeadline: "past_deadline",
-    Cut: "cut",
-    Unreachable: "unreachable",
-    NoToken: "no_token",
-    ReconnectFailed: "reconnect_failed",
-    BrowserLeft: "browser_left",
-    AppEnded: "app_ended",
-}
-
-
 def _ending_of(outcome: UtteranceOutcome) -> tuple[str, str | None]:
     match outcome:
         case Refused(code=refusal_code):
@@ -264,5 +249,27 @@ def _ending_of(outcome: UtteranceOutcome) -> tuple[str, str | None]:
             return "service_failed", failure_code.value
         case RuleBroken(close=hop_close):
             return "rule_broken", hop_close.name.lower()
+        case Closed():
+            return "closed", None
+        case Busy():
+            return "busy", None
+        case OverCap():
+            return "over_cap", None
+        case Malformed():
+            return "malformed", None
+        case PastDeadline():
+            return "past_deadline", None
+        case Cut():
+            return "cut", None
+        case Unreachable():
+            return "unreachable", None
+        case NoToken():
+            return "no_token", None
+        case ReconnectFailed():
+            return "reconnect_failed", None
+        case BrowserLeft():
+            return "browser_left", None
+        case AppEnded():
+            return "app_ended", None
         case _:
-            return _PLAIN_ENDINGS[type(outcome)], None
+            assert_never(outcome)
