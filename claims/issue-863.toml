@@ -1,0 +1,8 @@
+claim_id = "2fbc8ad5dcae40a1be49d525aadac5d4"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "a8b1424532c1dcad3892cd3ef55bf0df965d9dbb"
+branch = "claude/issue-863-logline-fleet-standard"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin", "tests", "uv.lock"]
+opened_commit = "2e67103b57b51ff73e7dcc43350766bc7ed228c5"
+whole_reason = "One rename of every event and one step timer across all of hopin's units must land together, or the server writes two naming schemes."
