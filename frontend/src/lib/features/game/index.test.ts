@@ -13,11 +13,6 @@ import QuestionCard from "./QuestionCard.svelte";
 import type { QuestionCardProps } from "./quiz.svelte.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
 
-// The real speech package loads the call sounds, which build an audio context when first imported.
-vi.hoisted(() => {
-    globalThis.AudioContext = function AudioContextStub() {} as unknown as typeof AudioContext;
-});
-
 // Core builds a view from a component and its props; the cases read the pair back to see what was handed over.
 const views = vi.hoisted(() => new WeakMap<object, { component: unknown; props: unknown }>());
 vi.mock("#lib/ui/chat.svelte.ts", () => ({

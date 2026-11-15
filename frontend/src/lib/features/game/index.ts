@@ -159,7 +159,6 @@ function listen(core: FeatureCore, quiz: Quiz, createPlayer: () => Player) {
     core.onCallEnded(() => {
         voice.stop();
         quiz.reset();
-        voice.syncMuted();
     });
     return voice;
 }

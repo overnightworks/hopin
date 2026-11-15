@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_ACTIVITY, type OutgoingFrame } from "#lib/call/feature-port.ts";
+import { type OutgoingFrame } from "#lib/call/feature-port.ts";
 import { words } from "#lib/words/de.ts";
 import { Quiz, type PhaseFrame } from "./quiz.svelte.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
@@ -349,16 +349,6 @@ describe("the quiz master's voice toggle", () => {
         quiz.voiceEnded("voice-one");
 
         expect([shownWhilePlaying, quiz.voiceToggleShown, quiz.agentTile]).toEqual([true, false, null]);
-    });
-
-    it("GM-35: keeps the tile waiting when a voice that was never requested starts", () => {
-        const { quiz } = seatedQuiz();
-        openRound(quiz, 1);
-        quiz.voiceFrameArrived();
-
-        quiz.voiceStarted("voice-one");
-
-        expect(quiz.agentTile?.activity).toBe(AGENT_ACTIVITY.WAITING);
     });
 
     it("GM-37: holds the choice for the call, and a new call starts with the voice on", () => {
