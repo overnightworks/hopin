@@ -1,8 +1,0 @@
-claim_id = "38e82fa97b4741cb95143a986059d60d"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "58ebea1f68ce5844f7d7d2f07a9ad6cf386afbea"
-branch = "claude/issue-797-an-agent-gestures-with-its-figure-during"
-scope = [".github/workflows/ci.yml", "Makefile", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/figure", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat/index.test.ts", "frontend/src/lib/ui/Tiles.svelte", "frontend/src/lib/ui/stage.svelte.test.ts", "frontend/src/lib/ui/stage.svelte.ts", "frontend/src/routes/(call)/start-up.ts", "scripts", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation", "tests"]
-opened_commit = "71a1f0cbced500625f19b1895da29e74c7e7cb37"
-whole_reason = "An agent's gesture goes from agents' tool to every seat's figure in one change: the offer, the frame and the tile land together."
