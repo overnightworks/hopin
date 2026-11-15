@@ -101,6 +101,11 @@ class TestAcceptingInTheSharedShape:
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
 
+def decline_arguments(standing):
+    """The shared arguments of declining, as busy, the invitation a read standing carries."""
+    return accept_arguments(standing) | {"reason": "busy"}
+
+
 MALFORMED = {
     "a_forbidden_key": (lambda valid: {**valid, "voice": "secret-voice-value"}, ["voice"]),
     "a_bad_epoch": (lambda valid: {**valid, "epoch": "secret-epoch-value"}, ["epoch"]),
@@ -116,11 +121,7 @@ class TestLoggingAMalformedCall:
         ("event", "tool", "arguments_of"),
         [
             ("agent_accept_malformed", ACCEPT_INVITATION_TOOL, accept_arguments),
-            (
-                "agent_decline_malformed",
-                DECLINE_INVITATION_TOOL,
-                lambda standing: accept_arguments(standing) | {"reason": "busy"},
-            ),
+            ("agent_decline_malformed", DECLINE_INVITATION_TOOL, decline_arguments),
         ],
         ids=["accept", "decline"],
     )
@@ -141,6 +142,7 @@ class TestLoggingAMalformedCall:
         assert "secret" not in str(logs)
 
     def test_a_well_formed_accept_that_is_stale_logs_no_malformed_event(self, scene):
+        """CALL-52: A well-formed accept that is stale logs no malformed event."""
         scene.invite()
         [standing] = scene.standings()
 
@@ -194,11 +196,6 @@ class TestRefusingTheAcceptance:
         dialed = scene.call.call(scene.token, ACCEPT_INVITATION_TOOL, arguments)
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": code})
-
-
-def decline_arguments(standing):
-    """The shared arguments of declining, as busy, the invitation a read standing carries."""
-    return accept_arguments(standing) | {"reason": "busy"}
 
 
 class TestDecliningTheInvitation:
