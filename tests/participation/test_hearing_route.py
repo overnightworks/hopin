@@ -807,6 +807,19 @@ class TestAReopenedSession:
 
         assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
 
+    def test_call_58_a_reopening_after_the_agents_token_is_gone_ends_the_hearing_in_order_with_no_token_logged(
+        self, sponsored, fake_speech
+    ):
+        with logged_endings() as endings, hop(sponsored) as socket:
+            socket.send_bytes(SOUND)
+            first = fake_speech.next_session(1)
+            first.wait_for_audio(1)
+            lose_the_held_token(sponsored)
+            first.drop()
+            closed = closed_with(socket)
+
+        assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
+
     def test_call_58_a_service_that_stays_unavailable_ends_the_hearing_with_a_service_code_logged_as_reconnect_failed(
         self, sponsored, fake_speech
     ):
