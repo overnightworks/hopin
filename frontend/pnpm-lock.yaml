@@ -213,8 +213,8 @@ importers:
         specifier: https://github.com/overnightworks/design/releases/download/v0.33.1/overnightworks-design-0.33.1.tgz
         version: https://github.com/overnightworks/design/releases/download/v0.33.1/overnightworks-design-0.33.1.tgz(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       overnightworks-figure:
-        specifier: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz
-        version: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz
+        specifier: https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz
+        version: https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz
       overnightworks-speech-browser:
         specifier: https://github.com/overnightworks/speech/releases/download/v0.16.0/overnightworks-speech-browser-0.16.0.tgz
         version: https://github.com/overnightworks/speech/releases/download/v0.16.0/overnightworks-speech-browser-0.16.0.tgz
@@ -371,6 +371,11 @@ packages:
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
 
+  '@pixiv/three-vrm-animation@3.5.5':
+    resolution: {integrity: sha512-Q0kEtmftxfv0iCUHQkJH2jAr1zmT9ywYXnAzhxnLPMYCsx0Kken3J3U2GJF9PdGZmLlKpoK0LFEXVdD/L7ZA4Q==}
+    peerDependencies:
+      three: '>=0.137'
+
   '@pixiv/three-vrm-core@3.5.5':
     resolution: {integrity: sha512-jjaXZbMVRsk2HAGVxqDLmSJyGOJqbMcJpuTHR1TY/TN1FxiKdAzSqdr/ZUcczYipNf8IL9vDT9NX2XmWj+ybRQ==}
     peerDependencies:
@@ -426,6 +431,9 @@ packages:
 
   '@pixiv/types-vrmc-vrm-1.0@3.5.5':
     resolution: {integrity: sha512-WnemHHo2375BcBdumEhvrupZzsMSzTfdWlokmV9sUX2oC+OAQqJFfBjLF8ppkOhzHpl4MAPJqEfuhBJtNPm9ww==}
+
+  '@pixiv/types-vrmc-vrm-animation-1.0@3.5.5':
+    resolution: {integrity: sha512-pyow6wBLdRZbLQbtHqu8uvYG+NXJbwIiLVK6pM6UvtaYotecOv43t6qIdMLYuieV+F+bEJcdfOLFZZVolrOOcQ==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -1238,9 +1246,9 @@ packages:
     peerDependencies:
       svelte: ^5.20.0
 
-  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz:
-    resolution: {integrity: sha512-1eTIGs9vI8wTxu0/ccogZxJqJRgim4fYt+5I9XIYtv4VOu1XVoHH/4lDP6OY/juh8Jb7bAgxkslfJ0FcQn6UKw==, tarball: https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz}
-    version: 0.3.0
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz:
+    resolution: {integrity: sha512-DwM8bSy/QiFjJgif7jCJ2XGHg/9Fuag72auwn780wmaXanKpWNeLC8ixLz6lxObw6KLu0aXThrEpg/Zx6zRqlQ==, tarball: https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz}
+    version: 0.8.0
     hasBin: true
 
   overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.16.0/overnightworks-speech-browser-0.16.0.tgz:
@@ -1769,6 +1777,13 @@ snapshots:
 
   '@oxc-project/types@0.156.0': {}
 
+  '@pixiv/three-vrm-animation@3.5.5(three@0.187.0)':
+    dependencies:
+      '@pixiv/three-vrm-core': 3.5.5(three@0.187.0)
+      '@pixiv/types-vrmc-vrm-1.0': 3.5.5
+      '@pixiv/types-vrmc-vrm-animation-1.0': 3.5.5
+      three: 0.187.0
+
   '@pixiv/three-vrm-core@3.5.5(three@0.187.0)':
     dependencies:
       '@pixiv/types-vrm-0.0': 3.5.5
@@ -1827,6 +1842,10 @@ snapshots:
   '@pixiv/types-vrmc-springbone-extended-collider-1.0@3.5.5': {}
 
   '@pixiv/types-vrmc-vrm-1.0@3.5.5': {}
+
+  '@pixiv/types-vrmc-vrm-animation-1.0@3.5.5':
+    dependencies:
+      '@pixiv/types-vrmc-vrm-1.0': 3.5.5
 
   '@polka/url@1.0.0-next.29': {}
 
@@ -2586,9 +2605,10 @@ snapshots:
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.72.1)
 
-  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.3.0/overnightworks-figure-0.3.0.tgz:
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz:
     dependencies:
       '@pixiv/three-vrm': 3.5.5(three@0.187.0)
+      '@pixiv/three-vrm-animation': 3.5.5(three@0.187.0)
       three: 0.187.0
 
   overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.16.0/overnightworks-speech-browser-0.16.0.tgz: {}
