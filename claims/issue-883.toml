@@ -1,0 +1,8 @@
+claim_id = "7635b317cff0429cbf92b47a70b18880"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "aa1a3e14d62ac0c87af4f173f41829054766b47a"
+branch = "claude/issue-883-agents-049"
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/agent", "tests/agent", "uv.lock"]
+opened_commit = "524ca2af2e980fbf443f22e71417d94f020132bb"
+whole_reason = "One library raise: the pin, the code its breaking notes touch, and the test of the line it brings."
