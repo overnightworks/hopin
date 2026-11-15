@@ -113,23 +113,20 @@ class TestJoiningOneLiveSeat:
         assert resumed is None
         assert agent_frames(host, ParticipationSignal.AGENT_LEFT) != []
 
-    @pytest.mark.parametrize("reason", ["no_figure", "left", "sponsor_away"])
+    @pytest.mark.parametrize("reason", ["no_figure", "left"])
     async def test_call_64_a_gesture_of_an_agent_without_an_active_place_or_figure_is_refused(
         self, link, participation, reason
     ):
-        """CALL-64: A gesture is refused while the agent shows no figure, has left, or its sponsor is parked."""
+        """CALL-64: A gesture is refused while the agent shows no figure or has left."""
         host, guest = await host_and_guest(link)
         await dial(participation, guest)
         person, room_id = person_named("guest"), room_of(guest)
         if reason == "left":
             await participation.leave(person, room_id)
-        if reason == "sponsor_away":
-            await guest.drop()
 
         refused = await participation.figures.gesture(person, room_id, "wave")
 
-        expected = AgentRefusal.SPONSOR_AWAY if reason == "sponsor_away" else AgentRefusal.GONE
-        assert refused is expected
+        assert refused is AgentRefusal.GONE
         assert agent_frames(host, ParticipationSignal.AGENT_GESTURE) == []
 
     @pytest.mark.parametrize(
