@@ -351,7 +351,7 @@ describe("the quiz master's voice toggle", () => {
         expect([shownWhilePlaying, quiz.voiceToggleShown, quiz.agentTile]).toEqual([true, false, null]);
     });
 
-    it("GM-35: shows no tile for a voice that is not outstanding, as one starting after the call ended", () => {
+    it("GM-35: keeps the tile waiting when a voice that was never requested starts", () => {
         const { quiz } = seatedQuiz();
         openRound(quiz, 1);
         quiz.voiceFrameArrived();
