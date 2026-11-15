@@ -1,5 +1,7 @@
 from enum import IntEnum, StrEnum
 
+from agents.figure_vocabulary import FigureGesture
+
 FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
 FIGURE_MODULE = "figure"
@@ -219,4 +221,5 @@ BROWSER_ENUMS = {
     "AGENT_REFUSAL": AgentRefusal,
     "INVITATION_OUTCOME": InvitationOutcome,
     "HEARING_CLOSE": HearingClose,
+    "FIGURE_GESTURE": FigureGesture,
 }

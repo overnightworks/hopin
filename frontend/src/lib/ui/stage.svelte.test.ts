@@ -500,7 +500,7 @@ describe("an agent tile's figure", () => {
 
         expect([started[0]?.stop.mock.calls.length, started.length, host.dataset.figure]).toEqual([1, 1, undefined]);
     });
-    it("CALL-65: plays a gesture on the figure drawn for the tile key", async () => {
+    it("CALL-64: plays a gesture on the figure drawn for the tile key", async () => {
         const { agentFigure, drawAgentFigures, gestureAgentFigure } = await freshStage();
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);
@@ -512,7 +512,7 @@ describe("an agent tile's figure", () => {
         expect([started[0]?.gesture.mock.calls, started[1]?.gesture.mock.calls]).toEqual([[["wave"]], []]);
     });
 
-    it("CALL-65: drops a gesture for a tile that has no figure and for one whose figure went", async () => {
+    it("CALL-64: drops a gesture for a tile that has no figure and for one whose figure went", async () => {
         const { agentFigure, drawAgentFigures, gestureAgentFigure } = await freshStage();
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);

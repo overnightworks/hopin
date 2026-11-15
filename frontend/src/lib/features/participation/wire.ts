@@ -59,6 +59,10 @@ export enum HEARING_CLOSE {
     SERVICE_FAILED = 4502,
 }
 
+export enum FIGURE_GESTURE {
+    WAVE = "wave",
+}
+
 export const HEARING_PATH = "/ws/hearing";
 export const VOICE_PATH = "/api/game/voice";
 export const LOOK_MAX_PIXELS = 1280;

@@ -269,7 +269,7 @@ describe("a figure on an agent's tile", () => {
         expect(unhandled).toEqual([]);
     });
 
-    it("CALL-65: plays a gesture through the mounted figure's handle", async () => {
+    it("CALL-64: plays a gesture through the mounted figure's handle", async () => {
         fetchedBytes();
         const { gesture, mounting } = await mounted(await installedDrawer());
         mounting.resolve();
@@ -280,7 +280,7 @@ describe("a figure on an agent's tile", () => {
         expect(mounting.gesture.mock.calls).toEqual([["wave"]]);
     });
 
-    it("CALL-65: drops a gesture while the figure is still loading", async () => {
+    it("CALL-64: drops a gesture while the figure is still loading", async () => {
         fetchedBytes();
         const { gesture, mounting } = await mounted(await installedDrawer());
 
