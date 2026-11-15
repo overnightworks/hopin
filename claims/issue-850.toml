@@ -1,0 +1,7 @@
+claim_id = "c1166742327a49c18154943f941d27f7"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "65264cc6f15d94a44938218ce662ec14c32bd9f3"
+branch = "claude/issue-850-hopin-s-figure-tile-takes-figure-v0-8-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml"]
+opened_commit = "56dddca5dd2f58e98c2c1829163d40e2e3307b48"
