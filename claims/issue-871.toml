@@ -1,0 +1,8 @@
+claim_id = "dd6a7dbe4145441fa91b59fc4bbce5f7"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "65cc5f3fea30c665087a0857a4f629ee78f8d08b"
+branch = "claude/issue-871-speech-trace"
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin", "tests", "uv.lock"]
+opened_commit = "5f532fae7a175a8c78bd8f3dcf3e0c6d1ae3fe36"
+whole_reason = "One pin raise whose two fields touch the speech adapter, the window logging and their tests together."
