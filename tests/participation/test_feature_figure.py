@@ -246,10 +246,11 @@ class TestTheFigureAtAccept:
             pytest.param({"url": figure_url(), "sha256": digest_of(FILE).upper()}, id="an uppercase digest"),
         ],
     )
-    def test_a_figure_the_accept_record_refuses_refuses_the_accept_as_a_malformed_argument(self, scene, figure):
+    def test_a_figure_the_accept_record_refuses_is_a_tool_error_naming_the_figure(self, scene, figure):
         accepted = accept_with(scene, figure)
 
-        assert (accepted.is_error, accepted.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
+        assert (accepted.is_error, accepted.outcome) == (True, None)
+        assert accepted.text.startswith("Invalid arguments: figure")
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
 

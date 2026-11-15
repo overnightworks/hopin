@@ -338,6 +338,12 @@ def _refused_fields(invalid: ValidationError) -> list[str]:
     return sorted({str(error["loc"][0]) for error in invalid.errors() if error["loc"]})
 
 
+def _invalid_arguments(invalid: ValidationError) -> ToolOutcome:
+    """A tool error naming the invalid field paths, so the agent can correct the call; never the input values."""
+    paths = sorted({".".join(str(part) for part in error["loc"]) for error in invalid.errors() if error["loc"]})
+    return ToolOutcome(f"Invalid arguments: {', '.join(paths)}", is_error=True)
+
+
 def _figure_of(ref: FigureRef) -> Figure:
     clips = tuple(Clip(gesture.value, clip.url, clip.sha256) for gesture, clip in ref.gestures.items())
     return Figure(ref.url, ref.sha256, clips)
@@ -349,7 +355,7 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
         accepted = AcceptInvitationArguments.model_validate_json(json.dumps(arguments))
     except ValidationError as invalid:
         await logger.awarning("invitation_accept.refused", reason="malformed", fields=_refused_fields(invalid))
-        return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
+        return _invalid_arguments(invalid)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     figure = None if accepted.figure is None else _figure_of(accepted.figure)
@@ -369,7 +375,7 @@ async def _declined(participation: Participation, caller: Caller, arguments: Jso
         declined = DeclineInvitationArguments.model_validate(arguments)
     except ValidationError as invalid:
         await logger.awarning("invitation_decline.refused", reason="malformed", fields=_refused_fields(invalid))
-        return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
+        return _invalid_arguments(invalid)
     if declined.place.kind != CALL_KIND:
         return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
     refusal = await participation.decline(

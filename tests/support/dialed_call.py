@@ -102,6 +102,7 @@ class Dialed:
     outcome: dict | None
     is_error: bool | None
     response: object
+    text: str | None = None
 
 
 @dataclass
@@ -337,7 +338,11 @@ class DialedCall:
             return Dialed(response.status_code, None, None, response)
         result = response.json()["result"]
         text = next((block["text"] for block in result["content"] if block["type"] == "text"), None)
-        return Dialed(200, None if text is None else json.loads(text), result["isError"], response)
+        try:
+            outcome = None if text is None else json.loads(text)
+        except json.JSONDecodeError:
+            outcome = None  # a tool error that is plain text
+        return Dialed(200, outcome, result["isError"], response, text)
 
 
 class _ParticipationBuilt:

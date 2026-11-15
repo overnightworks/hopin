@@ -92,10 +92,6 @@ class TestAddingTheAgent:
 
 STALE_ARGUMENTS = {
     "another_place_kind": lambda valid: {**valid, "place": {**valid["place"], "kind": "quiz"}},
-    "a_missing_field": lambda valid: {key: value for key, value in valid.items() if key != "invitation"},
-    "an_extra_field": lambda valid: {**valid, "room": valid["place"]["id"]},
-    "a_bool_epoch": lambda valid: {**valid, "epoch": True},
-    "a_negative_epoch": lambda valid: {**valid, "epoch": -1},
     "another_invitation_id": lambda valid: {**valid, "invitation": "another"},
     "another_epoch": lambda valid: {**valid, "epoch": valid["epoch"] + 1},
 }
@@ -149,7 +145,7 @@ class TestLoggingAMalformedCall:
             dialed = scene.call.call(scene.token, tool, malform(arguments_of(standing)))
 
         malformed = [entry for entry in logs if entry["event"] == event]
-        assert dialed.outcome == {"refused": AgentRefusal.STALE_INVITATION.value}
+        assert (dialed.is_error, dialed.outcome) == (True, None)
         assert [(entry["log_level"], entry["fields"]) for entry in malformed] == [("warning", fields)]
         assert "secret" not in str(logs)
 
