@@ -7,7 +7,6 @@ from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL
 
 from hopin.agent.tools import _accepted, _declined
 from hopin.participation.participants import Caller, DialedAgent, Person
-from hopin.participation.vocabulary import AgentRefusal
 
 pytestmark = pytest.mark.asyncio
 
@@ -28,7 +27,7 @@ class _StandingInvitation:
 
     async def decline(self, person, room_id, invitation, epoch, outcome):
         self.taken.append(invitation)
-        return None
+        return
 
 
 def _joined(room_id):

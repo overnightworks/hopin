@@ -15,7 +15,6 @@ from hopin.participation.vocabulary import (
     FEATURE_NAME,
     FIGURE_MODULE,
     FIGURE_PATH,
-    AgentRefusal,
     FigureRefusal,
     ParticipationSignal,
 )
