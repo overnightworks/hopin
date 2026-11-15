@@ -8,12 +8,12 @@ from starlette.websockets import WebSocketDisconnect
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
-from hopin.main import build_application, main
+from hopin.main import build_application, main, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
-pytestmark = pytest.mark.usefixtures("fixture_build_directory")
+pytestmark = pytest.mark.usefixtures("fixture_build_directory", "logging_restored")
 
 
 class TestMain:
@@ -42,6 +42,9 @@ class TestMain:
         main(["serve"])
         assert mock_run.call_args[1]["access_log"] is False
         assert mock_run.call_args[1]["log_level"] == UVICORN_LOG_LEVEL
+
+    def test_leaves_uvicorn_no_logging_setup_of_its_own(self, sign_in_settings):
+        assert uvicorn_options(sign_in_settings().settings)["log_config"] is None
 
     @patch("hopin.main.uvicorn.run")
     def test_leaves_the_client_address_to_the_trusted_proxy_setting(self, mock_run, sign_in_settings, monkeypatch):

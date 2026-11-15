@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import structlog
 from fastapi import FastAPI
+from logline import RequestLineMiddleware
 from webauth.config import install_web_auth_config
 from webauth.middleware import install_resource_metadata, install_web_auth_middleware
 from webauth.policies import (
@@ -20,6 +21,7 @@ from webauth.single_process_stores import SingleProcessStores
 
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import bearer_gate, session_gate
+from hopin.auth.request_identity import RequestIdentityMiddleware
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
@@ -159,17 +161,6 @@ def _lifespan(
     return lifespan
 
 
-def _configure_logging() -> None:
-    structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.add_log_level,
-            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
-            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
-        ],
-    )
-
-
 def _install_web_auth(
     app: FastAPI,
     sessions: SingleProcessSessionStore,
@@ -234,8 +225,6 @@ def create_app(
     )
     turn_relay = build_turn_relay(settings, turn_transport)
 
-    _configure_logging()
-
     sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
     relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
@@ -274,5 +263,7 @@ def create_app(
     install_web_auth_config(app, sign_in_configs.web_auth)
     install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
+    app.add_middleware(RequestIdentityMiddleware)
+    app.add_middleware(RequestLineMiddleware)
 
     return app
