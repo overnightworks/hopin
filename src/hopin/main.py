@@ -2,6 +2,7 @@ import argparse
 from typing import TYPE_CHECKING, TypedDict
 
 import uvicorn
+from logline import configure
 
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import ParticipationFeature
@@ -27,6 +28,7 @@ class UvicornOptions(TypedDict):
     access_log: bool
     proxy_headers: bool
     log_level: str
+    log_config: None
 
 
 def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
@@ -37,6 +39,7 @@ def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
         access_log=False,
         proxy_headers=False,
         log_level=UVICORN_LOG_LEVEL,
+        log_config=None,
     )
 
 
@@ -71,6 +74,7 @@ def build_application(settings: ServerSettings) -> FastAPI:
 
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
+    configure("hopin")
     settings = ServerSettings()
     uvicorn.run(build_application(settings), **uvicorn_options(settings))
 

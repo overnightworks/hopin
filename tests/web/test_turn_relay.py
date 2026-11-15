@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 import structlog.testing
 from fastapi.testclient import TestClient
+from logline import REQUEST_EVENT
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
@@ -268,6 +269,10 @@ MALFORMED_BODIES = {
 }
 
 
+def without_request_line(records):
+    return [record for record in records if record["event"] != REQUEST_EVENT]
+
+
 class TestProviderFailures:
     @pytest.mark.parametrize("body", MALFORMED_BODIES.values(), ids=MALFORMED_BODIES.keys())
     def test_a_malformed_answer_gives_stun_only_and_a_malformed_warning(self, turn_settings, body):
@@ -277,7 +282,9 @@ class TestProviderFailures:
             response = client.get(ICE_SERVERS_PATH)
 
         assert (response.status_code, response.json()["iceServers"]) == (200, [{"urls": [settings.stun_server]}])
-        assert records == [{"event": "turn_relay_unavailable", "log_level": "warning", "reason": "malformed"}]
+        assert without_request_line(records) == [
+            {"event": "turn_relay_unavailable", "log_level": "warning", "reason": "malformed"}
+        ]
 
     @pytest.mark.parametrize("status", [200, 201])
     def test_any_2xx_answer_is_served(self, turn_settings, status):
@@ -290,7 +297,7 @@ class TestProviderFailures:
             response = client.get(ICE_SERVERS_PATH)
 
         assert relay_entry(response) == []
-        assert records == [
+        assert without_request_line(records) == [
             {"event": "turn_relay_unavailable", "log_level": "warning", "reason": "refused", "status": status}
         ]
 
@@ -304,7 +311,7 @@ class TestProviderFailures:
             response = client.get(ICE_SERVERS_PATH)
 
         assert relay_entry(response) == []
-        assert [record["reason"] for record in records] == [reason]
+        assert [record["reason"] for record in without_request_line(records)] == [reason]
 
 
 class TestSecrets:
