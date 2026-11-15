@@ -193,11 +193,16 @@ class _Redirect:
 
 
 def fetch_figure(
-    transport: FigureTransport, figure: Figure, *, monotonic: Callable[[], float], max_bytes: int = FIGURE_MAX_BYTES
+    transport: FigureTransport,
+    figure: Figure,
+    *,
+    monotonic: Callable[[], float],
+    max_bytes: int = FIGURE_MAX_BYTES,
+    redirect_sources: Collection[FigureSource] | None = None,
 ) -> bytes | FigureRefusal:
     """The verified bytes of the file the figure's URL and digest name (a clip is fetched alike, within its own
     `max_bytes`), or why there are none. One deadline spans the whole fetch, and at most one redirect to https is
-    followed."""
+    followed; given `redirect_sources`, the redirect's target must also be allowed by one of them."""
     deadline = monotonic() + FIGURE_FETCH_SECONDS
     url, redirects = figure.url, 0
     while True:
@@ -215,6 +220,8 @@ def fetch_figure(
             return FigureRefusal.MALFORMED_URL
         if urlsplit(url).scheme != HTTPS_SCHEME:
             return FigureRefusal.REDIRECT_NOT_HTTPS
+        if redirect_sources is not None and (refusal := figure_refusal(redirect_sources, url)) is not None:
+            return refusal
 
 
 def _get_once(

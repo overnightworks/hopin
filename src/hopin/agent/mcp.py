@@ -370,7 +370,13 @@ class ParticipationFeature:
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         clip_store = FigureStore(
-            partial(fetch_figure, self.figure_transport, monotonic=time.monotonic, max_bytes=CLIP_MAX_BYTES),
+            partial(
+                fetch_figure,
+                self.figure_transport,
+                monotonic=time.monotonic,
+                max_bytes=CLIP_MAX_BYTES,
+                redirect_sources=self.figure_sources,
+            ),
             cache_bytes=CLIP_CACHE_BYTES,
             failure_event="agent_clip_fetch_failed",
         )

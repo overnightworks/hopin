@@ -27,6 +27,7 @@ from tests.participation.support.figures import (
     figure_url,
     glb,
     ok,
+    redirect,
 )
 from tests.participation.support.own_accounts import ADDERS
 from tests.participation.support.tool_calls import call_in
@@ -433,6 +434,16 @@ class TestThePersonasClips:
         joined = scene.owner.frame_of_type(JOINED)
 
         assert ("figure" in joined, "gestures" in joined) == (False, False)
+
+    def test_a_clip_that_redirects_outside_the_allowed_sources_is_a_bad_gateway_and_the_other_host_is_not_asked(
+        self, scene, figure_origin
+    ):
+        elsewhere = figure_url("wave.vrma").replace("figures.", "other.")
+
+        clip_path = joined_with_clip(scene, figure_origin, answer=redirect(elsewhere))
+        served = read_figure(scene, clip_path)
+
+        assert (served.status_code, figure_origin.requested.count(elsewhere)) == (502, 0)
 
     @pytest.mark.parametrize(
         ("clip", "answer"),
