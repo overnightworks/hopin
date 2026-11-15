@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "58ebea1f68ce5844f7d7d2f07a9ad6cf386afbea"
 branch = "claude/issue-855-design-v0-34-0"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "tests/e2e/participation"]
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "tests/e2e/participation", "uv.lock"]
 opened_commit = "5b6961dba6d6fd70aceda7a18980b636e6a38b53"
 whole_reason = "One dependency bump with the workaround it retires and its browser proof."
