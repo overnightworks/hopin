@@ -1,0 +1,7 @@
+claim_id = "a58b09f19a564935856ece53abc0a28f"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "4ff2d73ed50a4c468001ed16f35f4614fc5e1179"
+branch = "claude/issue-880-process-lines-test"
+scope = ["tests/test_main_logging.py"]
+opened_commit = "9a6866dfac524db1d0c3b55be5f349053f430ad6"
