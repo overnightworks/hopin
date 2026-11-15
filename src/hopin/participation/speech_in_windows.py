@@ -88,7 +88,7 @@ class SpeechInWindows:
         async def watched(text: str, voices: tuple[str, ...]) -> RenderedSentence | VoiceFailure | None:
             rendered: RenderedSentence | VoiceFailure | None = None
             refused: VoiceRefusedError | None = None
-            with self.speak_step(agent, text) as step:
+            async with self.speak_step(agent, text) as step:
                 try:
                     rendered = await render(text, voices)
                 except VoiceRefusedError as refusal:
