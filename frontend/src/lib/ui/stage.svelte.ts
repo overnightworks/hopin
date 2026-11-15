@@ -1,6 +1,12 @@
 import { SvelteMap } from "svelte/reactivity";
 import { untrack } from "svelte";
-import { AGENT_FIGURE, DEFAULT_AGENT_KEY, type AgentFigureDrawer, type AgentTile } from "#lib/call/feature-port.ts";
+import {
+    AGENT_FIGURE,
+    DEFAULT_AGENT_KEY,
+    type AgentFigureDrawer,
+    type AgentFigureHandle,
+    type AgentTile,
+} from "#lib/call/feature-port.ts";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
@@ -56,36 +62,55 @@ export function drawAgentFigures(drawer: AgentFigureDrawer) {
     figureDrawer = drawer;
 }
 
+// The drawn figures by the key of their tile, which is how a gesture finds its agent; not reactive, as the media maps below.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
+const drawnFigures = new Map<string, AgentFigureHandle>();
+
+/** Play the gesture on the figure of the agent tile under `key`; a tile with no drawn figure drops it. */
+export function gestureAgentFigure(key: string, gesture: string) {
+    drawnFigures.get(key)?.gesture(gesture);
+}
+
+interface AgentFigureSpot {
+    key: string;
+    path: string | undefined;
+}
+
 /** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, and a new path draws afresh. */
-export function agentFigure(host: HTMLElement, path: string | undefined) {
-    let stop: (() => void) | null = null;
-    let drawnPath = path;
+export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
+    // The key is the tile's own and never changes while its action lives.
+    const { key } = spot;
+    let drawnPath = spot.path;
+    let drawn: AgentFigureHandle | null = null;
+
+    function stop() {
+        drawn?.stop();
+        drawn = null;
+        drawnFigures.delete(key);
+    }
 
     function draw(figure: string | undefined) {
-        stop?.();
-        stop = null;
+        stop();
         if (figureDrawer === null || figure === undefined) {
             delete host.dataset.figure;
             return;
         }
         host.dataset.figure = AGENT_FIGURE.LOADING;
-        stop = figureDrawer(host, figure, (state) => {
+        drawn = figureDrawer(host, figure, (state) => {
             host.dataset.figure = state;
         });
+        drawnFigures.set(key, drawn);
     }
 
-    draw(path);
+    draw(drawnPath);
     return {
         // Svelte calls update with the unchanged path whenever the tile's entry re-renders; only a new path draws afresh.
-        update(figure: string | undefined) {
-            if (figure === drawnPath) return;
-            drawnPath = figure;
-            draw(figure);
+        update(next: AgentFigureSpot) {
+            if (next.path === drawnPath) return;
+            drawnPath = next.path;
+            draw(next.path);
         },
-        destroy() {
-            stop?.();
-            stop = null;
-        },
+        destroy: stop,
     };
 }
 

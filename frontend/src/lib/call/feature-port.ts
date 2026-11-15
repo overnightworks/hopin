@@ -29,8 +29,18 @@ export const AGENT_FIGURE = {
 } as const;
 export type AgentFigure = (typeof AGENT_FIGURE)[keyof typeof AGENT_FIGURE];
 
-/** Draws the figure at the same-origin `path` into `host` and reports whether it is `DRAWN` or `ENDED`; the tile shows its symbol until `DRAWN`. The returned stop takes the figure away and is the last the drawer reports. */
-export type AgentFigureDrawer = (host: HTMLElement, path: string, show: (figure: AgentFigure) => void) => () => void;
+/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading. */
+export interface AgentFigureHandle {
+    stop: () => void;
+    gesture: (name: string) => void;
+}
+
+/** Draws the figure at the same-origin `path` into `host` and reports whether it is `DRAWN` or `ENDED`; the tile shows its symbol until `DRAWN`. */
+export type AgentFigureDrawer = (
+    host: HTMLElement,
+    path: string,
+    show: (figure: AgentFigure) => void,
+) => AgentFigureHandle;
 
 /** The switch on an agent's tile that lets the agent hear the person: the tile shows `on` and hands each press, as the value it asks for, to `onChange`; it holds no state of its own. */
 export interface AgentHearing {
@@ -87,6 +97,8 @@ export interface FeatureCore {
     showAgentTile(tile: AgentTile | null, key?: string): void;
     /** Hand the drawer that draws the figure of each agent tile that names one. */
     drawAgentFigures(drawer: AgentFigureDrawer): void;
+    /** Play the gesture on the figure of the agent tile shown under `key`; dropped when that tile has no drawn figure. */
+    gestureAgentFigure(key: string, gesture: string): void;
     /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */
     showStage(view: FeatureView | null): void;
     /** Register a handler for the person's microphone; it is told the current state at once and then on every change: a stream that holds only the local microphone track while the person is in a call and the microphone is on, and null otherwise (the pre-join included). The stream is never a screen share's audio, a peer's or an agent's. */

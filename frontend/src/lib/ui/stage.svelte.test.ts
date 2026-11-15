@@ -380,6 +380,7 @@ describe("feature view on the stage", () => {
 
 describe("an agent tile's figure", () => {
     const PATH = "/api/participation/figures/abc";
+    const KEY = "agent-a1";
 
     function drawerOf() {
         const started: {
@@ -387,11 +388,13 @@ describe("an agent tile's figure", () => {
             path: string;
             show: (figure: AgentFigure) => void;
             stop: ReturnType<typeof vi.fn>;
+            gesture: ReturnType<typeof vi.fn>;
         }[] = [];
         const drawer = (host: HTMLElement, path: string, show: (figure: AgentFigure) => void) => {
             const stop = vi.fn();
-            started.push({ host, path, show, stop });
-            return stop;
+            const gesture = vi.fn();
+            started.push({ host, path, show, stop, gesture });
+            return { stop, gesture };
         };
         return { drawer, started };
     }
@@ -402,7 +405,7 @@ describe("an agent tile's figure", () => {
         drawAgentFigures(drawer);
         const host = document.createElement("div");
 
-        agentFigure(host, PATH);
+        agentFigure(host, { key: KEY, path: PATH });
         const loading = host.dataset.figure;
         started[0]?.show(AGENT_FIGURE.DRAWN);
 
@@ -419,7 +422,7 @@ describe("an agent tile's figure", () => {
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);
         const host = document.createElement("div");
-        agentFigure(host, PATH);
+        agentFigure(host, { key: KEY, path: PATH });
 
         started[0]?.show(AGENT_FIGURE.ENDED);
 
@@ -435,7 +438,7 @@ describe("an agent tile's figure", () => {
         if (hasDrawer) drawAgentFigures(drawer);
         const host = document.createElement("div");
 
-        agentFigure(host, path).destroy();
+        agentFigure(host, { key: KEY, path: path }).destroy();
 
         expect([host.dataset.figure, started.length]).toEqual([undefined, 0]);
     });
@@ -444,7 +447,7 @@ describe("an agent tile's figure", () => {
         const { agentFigure, drawAgentFigures } = await freshStage();
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);
-        const action = agentFigure(document.createElement("div"), PATH);
+        const action = agentFigure(document.createElement("div"), { key: KEY, path: PATH });
 
         action.destroy();
         action.destroy();
@@ -457,10 +460,10 @@ describe("an agent tile's figure", () => {
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);
         const host = document.createElement("div");
-        const action = agentFigure(host, PATH);
+        const action = agentFigure(host, { key: KEY, path: PATH });
         started[0]?.show(AGENT_FIGURE.ENDED);
 
-        action.update("/api/participation/figures/def");
+        action.update({ key: KEY, path: "/api/participation/figures/def" });
 
         expect([started[0]?.stop.mock.calls.length, started[1]?.path, host.dataset.figure]).toEqual([
             1,
@@ -474,10 +477,10 @@ describe("an agent tile's figure", () => {
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);
         const host = document.createElement("div");
-        const action = agentFigure(host, PATH);
+        const action = agentFigure(host, { key: KEY, path: PATH });
         started[0]?.show(AGENT_FIGURE.DRAWN);
 
-        action.update(PATH);
+        action.update({ key: KEY, path: PATH });
 
         expect([started.length, started[0]?.stop.mock.calls.length, host.dataset.figure]).toEqual([
             1,
@@ -491,10 +494,33 @@ describe("an agent tile's figure", () => {
         const { drawer, started } = drawerOf();
         drawAgentFigures(drawer);
         const host = document.createElement("div");
-        const action = agentFigure(host, PATH);
+        const action = agentFigure(host, { key: KEY, path: PATH });
 
-        action.update(undefined);
+        action.update({ key: KEY, path: undefined });
 
         expect([started[0]?.stop.mock.calls.length, started.length, host.dataset.figure]).toEqual([1, 1, undefined]);
+    });
+    it("CALL-65: plays a gesture on the figure drawn for the tile key", async () => {
+        const { agentFigure, drawAgentFigures, gestureAgentFigure } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+        agentFigure(document.createElement("div"), { key: "agent-a2", path: PATH });
+
+        gestureAgentFigure(KEY, "wave");
+
+        expect([started[0]?.gesture.mock.calls, started[1]?.gesture.mock.calls]).toEqual([[["wave"]], []]);
+    });
+
+    it("CALL-65: drops a gesture for a tile that has no figure and for one whose figure went", async () => {
+        const { agentFigure, drawAgentFigures, gestureAgentFigure } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH }).destroy();
+
+        gestureAgentFigure("agent-none", "wave");
+        gestureAgentFigure(KEY, "wave");
+
+        expect(started[0]?.gesture).not.toHaveBeenCalled();
     });
 });

@@ -64,6 +64,7 @@ async function installedGame({ connected = true } = {}) {
         showAgentTile: (tile) => void agentTiles.push(tile),
         showStage: () => undefined,
         drawAgentFigures: () => undefined,
+        gestureAgentFigure: () => undefined,
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
         onMicrophone: () => undefined,

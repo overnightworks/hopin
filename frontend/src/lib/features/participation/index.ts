@@ -61,6 +61,11 @@ interface AgentVoiceFrame {
     voice_id: string;
 }
 
+interface AgentGestureFrame {
+    agent_id: string;
+    gesture: string;
+}
+
 interface AgentStopFrame {
     agent_id: string;
 }
@@ -318,6 +323,9 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame: AgentStopFrame) => {
         voices.stop(frame.agent_id);
+    });
+    core.on(PARTICIPATION_SIGNAL.AGENT_GESTURE, (frame: AgentGestureFrame) => {
+        if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);
