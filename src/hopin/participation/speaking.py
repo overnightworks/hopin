@@ -40,14 +40,16 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
 
 
-def speak_timer(agent: DialedAgent, text: str) -> StepTimer:
-    """The timer of the `speak.ended` line of one sentence the agent's speaking asked for, started now."""
+def speak_timer(agent: DialedAgent, text: str, *, seq: int | None) -> StepTimer:
+    """The timer of the `speak.ended` line of one sentence the agent's speaking asked for, started now; `seq` is the
+    newest line of the agent's window when the sentence arrived, which the agent's last pulse told."""
     return StepTimer(
         "speak.ended",
         _STEPS,
         room_ref=room_reference(agent.room_id),
         agent_id=agent.agent_id,
         text_bytes=utf8_length(text),
+        seq=seq,
     )
 
 

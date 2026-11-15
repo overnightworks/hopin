@@ -123,6 +123,19 @@ class TestASentenceStarts:
             (WindowLine(1, LineKind.AGENT, "Mozart", "Guten Tag", own=False, spoken=True),),
         ]
 
+    async def test_a_sentences_speak_line_carries_the_newest_seq_of_the_agents_window(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+
+        with captured_lines() as logs:
+            await speak(participation, room_id=room_id)
+            await scheduler.advance(SENTENCE_MS / 1000)
+            await speak(participation, room_id=room_id)
+
+        assert [line["seq"] for line in logs if line["event"] == "speak.ended"] == [0, 1]
+
     async def test_call_60_whitespace_around_the_sentence_is_dropped_and_a_line_break_is_a_space(
         self, participation, call
     ):

@@ -25,7 +25,7 @@ from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccoun
 from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.seeing import Seeing
 from hopin.participation.shown_figures import ShownFigures
-from hopin.participation.speaking import Speaking, SpeakResult, StopResult, speak_timer
+from hopin.participation.speaking import Speaking, SpeakResult, StopResult
 from hopin.participation.speech_in_windows import SpeechInWindows
 from hopin.participation.switches import Switches
 from hopin.participation.text import clean_line, clean_name, one_line
@@ -627,7 +627,7 @@ class Participation:
 
     def _unavailable(self, agent: DialedAgent, text: str, failure: SpeakFailure) -> AgentRefusal:
         """Answer `unavailable` for a sentence never rendered, its closed cause on its speak line and nothing else."""
-        with speak_timer(agent, text) as step:
+        with self.speech.speak_step(agent, text) as step:
             step.refuse(failure.value)
         return AgentRefusal.UNAVAILABLE
 

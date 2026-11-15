@@ -74,6 +74,11 @@ class SpeechInWindows:
             if window.append(kind, name, text, own=person == sayer):
                 self._on_window_changed(person, room_id)
 
+    def speak_step(self, agent: DialedAgent, text: str) -> StepTimer:
+        """The `speak.ended` timer of a sentence the agent's speaking asked for, with the `seq` its window has now."""
+        window = self._places.window_of(agent.person, agent.room_id)
+        return speak_timer(agent, text, seq=None if window is None else window.last_seq)
+
     def watching_voice(self, agent: DialedAgent, render: Renderer, offered: VoicesOffered | None) -> Renderer:
         """The renderer, and every sound or failure of the agent's voice it makes shown in the agent's window: a
         failure turns the voice unavailable and logs that once until a sound, or `offered` saying that a voice of the
@@ -83,7 +88,7 @@ class SpeechInWindows:
         async def watched(text: str, voices: tuple[str, ...]) -> RenderedSentence | VoiceFailure | None:
             rendered: RenderedSentence | VoiceFailure | None = None
             refused: VoiceRefusedError | None = None
-            with speak_timer(agent, text) as step:
+            with self.speak_step(agent, text) as step:
                 try:
                     rendered = await render(text, voices)
                 except VoiceRefusedError as refusal:
