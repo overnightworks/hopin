@@ -377,6 +377,21 @@ class TestWhatIsHeard:
         trace_of = {line["event"]: line["trace_id"] for line in lines}
         assert (trace_of["speak.ended"], trace_of["speak.ended"] is None) == (trace_of["pulse.sent"], False)
 
+    async def test_the_agents_sentence_after_a_written_line_stays_out_of_the_trace_of_the_turn_heard_before(
+        self, participation, dialed, capsys
+    ):
+        host, guest, _agent = dialed
+
+        with configured("hopin"):
+            with unit_trace(None):
+                participation.heard(guest.peer_id, "hello there", began_at=0.0)
+            participation.chat_said(host.peer_id, room_of(host), "written")
+            await speak(participation, room_id=room_of(host))
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+        trace_of = {line["event"]: line["trace_id"] for line in lines}
+        assert trace_of["speak.ended"] != trace_of["pulse.sent"]
+
     async def test_call_57_the_agent_reads_a_heard_sentence_as_a_spoken_entry_of_its_window(
         self, participation, dialed
     ):

@@ -12,7 +12,7 @@ nothing is asked.
 
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 from weakref import WeakKeyDictionary
 
 import structlog
@@ -39,6 +39,13 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+class _PulsedTurn(NamedTuple):
+    """The trace of a heard sentence's turn and the `seq` of the line it entered, which the agent's pulse told."""
+
+    seq: int
+    traceparent: str
 
 
 def _note_rendering(step: StepTimer, rendered: RenderedSentence | VoiceFailure | None) -> None:
@@ -69,7 +76,7 @@ class SpeechInWindows:
         self._on_window_changed = on_window_changed
         self._scheduler = scheduler
         self._recovery: TimerHandle | None = None
-        self._turn_traces: WeakKeyDictionary[ChatWindow, str] = WeakKeyDictionary()
+        self._turn_traces: WeakKeyDictionary[ChatWindow, _PulsedTurn] = WeakKeyDictionary()
 
     def line_said(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
         """Add a written line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
@@ -81,13 +88,18 @@ class SpeechInWindows:
     @contextmanager
     def speak_step(self, agent: DialedAgent, text: str) -> Iterator[StepTimer]:
         """The `speak.ended` timer of a sentence the agent's speaking asked for, with the `seq` its window has now. Its
-        line is written in the trace of the turn that pulsed the agent last, so the sentence joins the turn that caused
-        it; with no such turn it stays in the trace of the call that carries the sentence."""
+        line is written in the trace of the heard sentence the window's newest line is, so the sentence joins the turn
+        that caused it; once another line has entered the window, or with no heard sentence, it stays in the trace of
+        the call that carries the sentence."""
         window = self._places.window_of(agent.person, agent.room_id)
-        turn_trace = None if window is None else self._turn_traces.get(window)
+        turn_trace = None if window is None else self._newest_line_trace(window)
         in_turn: AbstractContextManager[None] = nullcontext() if turn_trace is None else unit_trace(turn_trace)
         with in_turn, speak_timer(agent, text, seq=None if window is None else window.last_seq) as step:
             yield step
+
+    def _newest_line_trace(self, window: ChatWindow) -> str | None:
+        pulsed = self._turn_traces.get(window)
+        return pulsed.traceparent if pulsed is not None and pulsed.seq == window.last_seq else None
 
     def watching_voice(self, agent: DialedAgent, render: Renderer, offered: VoicesOffered | None) -> Renderer:
         """The renderer, and every sound or failure of the agent's voice it makes shown in the agent's window: a
@@ -211,7 +223,7 @@ class SpeechInWindows:
         logger.info("pulse.sent", agent_id=self._agent_id_of(person, room_id), seq=window.last_seq)
         turn_trace = current_traceparent()
         if turn_trace is not None:
-            self._turn_traces[window] = turn_trace
+            self._turn_traces[window] = _PulsedTurn(window.last_seq, turn_trace)
 
     def _agent_id_of(self, person: Person, room_id: str) -> str | None:
         agent = self._places.get(person, room_id)
