@@ -45,6 +45,7 @@ from webauth.session_groups import SessionGroups
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
+from hopin.agent.issuer_error import grant_refusal_reason
 from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, SPEECH_STREAM, AgentVoice, SpeechRenderer
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
@@ -127,7 +128,7 @@ class _BuiltParticipation:
         async with StepTimer("group_read.ended", _STEPS) as step:
             groups = await self.groups.of_connection(connection)
             if isinstance(groups, AccessTokenRefusal):
-                step.refuse(groups.reason.value)
+                step.refuse(grant_refusal_reason(groups))
         return None if isinstance(groups, AccessTokenRefusal) else groups
 
     def _listens_to_standing(self, person: Person) -> bool:

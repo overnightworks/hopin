@@ -13,6 +13,7 @@ from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 from tests.support.dialed_call import accept_arguments
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -61,6 +62,17 @@ class TestAddingTheAgent:
         scene.add(key)
 
         assert scene.member.frame_of_type(REFUSED)["reason"] == AgentRefusal.UNAVAILABLE.value
+
+    def test_a_group_read_the_issuer_refuses_logs_the_issuers_error_code(self, scene):
+        key = scene.key_of_offer()
+        scene.call.issuer.refuses_refresh_grants = True
+        scene.call.issuer.refresh_refusal_error = "unauthorized_client"
+
+        with captured_lines() as logs:
+            scene.add(key)
+            scene.member.frame_of_type(REFUSED)
+
+        assert {line["reason"] for line in logs if line["event"] == "group_read.ended"} == {"unauthorized_client"}
 
     def test_a_seat_outside_the_group_is_offered_nothing_and_its_forged_add_is_refused(self, scene_of):
         scene = scene_of(member_groups=("/apps/hopin",))
