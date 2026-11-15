@@ -451,6 +451,7 @@ class TestThePersonasClips:
             pytest.param(CLIP, Answer(404), id="not found"),
             pytest.param(CLIP, ok(glb(b"another clip")), id="a wrong digest"),
             pytest.param(glb(b"\x00" * CLIP_MAX_BYTES), None, id="over the clip bound"),
+            pytest.param(b"not a glb", None, id="no glTF header"),
         ],
     )
     def test_a_clip_that_cannot_be_verified_is_a_bad_gateway_and_the_figure_and_the_agent_stand(
