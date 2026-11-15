@@ -181,12 +181,13 @@ class SpeechInWindows:
             appended = person in heard.hearers and window.append(
                 heard.kind, heard.name, heard.text, own=False, spoken=True
             )
+            turn_ended = window.turn_ended(seat)
             if appended:
                 self._line_entered(person, room_id, window)
-            if window.turn_ended(seat) or appended:
+            if turn_ended or appended:
                 self._on_window_changed(person, room_id)
-                if appended:
-                    self._pulse_sent(person, room_id, window)
+            if appended:
+                self._pulse_sent(person, room_id, window)
 
     def _line_entered(self, person: Person, room_id: str, window: ChatWindow) -> None:
         logger.info(
