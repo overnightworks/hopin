@@ -88,7 +88,6 @@ class TestAVoiceThatFails:
         answered_early = await answers_so_far(scheduler, SENTENCE_MS / 1000 - 0.001, written)
         before = written_lines(participation, GUEST, room_id)
         await scheduler.advance(0.001)
-        await asyncio.sleep(0)
 
         assert (answered_early, before, await written) == ([False], [], SpeakFallback.WRITTEN)
         assert written_lines(participation, GUEST, room_id) == [("Eins", True, True), ("Zwei", True, False)]
