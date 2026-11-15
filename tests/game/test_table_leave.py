@@ -172,7 +172,7 @@ class TestTheStartersLeave:
 
         assert game_frames(host)[-3:] == [line(DEFAULT_QUESTION), ended_by("guest"), IDLE]
         assert len(game_master.calls) == 2
-        assert [log for log in logs if log["event"] == "game_driver_failed"] == []
+        assert [log for log in logs if log["event"] == "game_driver.failed"] == []
 
     async def test_an_ending_established_before_the_notice_wins_and_the_notice_sends_nothing(
         self, link, game_master, scheduler

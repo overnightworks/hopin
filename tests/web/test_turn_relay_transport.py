@@ -97,14 +97,14 @@ class TestTransport:
         url = origin.serve("/answer", http_response("201 Created", b"body"))
         assert post(url, "token") == TurnAnswer(201, b"body")
 
-    def test_a_500_is_refused_with_its_status_after_one_request_and_leaks_nothing(self, origin, urllib3_records):
+    def test_a_500_is_refused_after_one_request_and_leaks_nothing(self, origin, urllib3_records):
         key_id, path = unique_key_path()
         token = secrets.token_urlsafe(32)
         url = origin.serve(path, http_response("500 Internal Server Error", b""))
 
         error = failure_of(relay_toward(url, key_id, token).relay_servers)
 
-        assert (error.reason, error.status, len(origin.requests)) == (TurnRelayFailure.REFUSED, 500, 1)
+        assert (error.reason, len(origin.requests)) == (TurnRelayFailure.REFUSED, 1)
         assert key_id not in rendered_traceback(error) + str(error) + "".join(urllib3_records)
         assert token not in rendered_traceback(error) + str(error) + "".join(urllib3_records)
 
@@ -115,7 +115,7 @@ class TestTransport:
 
         error = failure_of(relay_toward(url, key_id, "token").relay_servers)
 
-        assert (error.reason, error.status, origin.paths_requested()) == (TurnRelayFailure.REFUSED, 302, [path])
+        assert (error.reason, origin.paths_requested()) == (TurnRelayFailure.REFUSED, [path])
 
     def test_an_origin_that_never_answers_times_out_within_the_read_timeout(self, origin):
         url = origin.serve("/silent", http_response("200 OK", b""), held=True)

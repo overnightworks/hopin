@@ -1,7 +1,6 @@
 import asyncio
 
 import pytest
-import structlog.testing
 
 from hopin.config.constants import SignalType
 from hopin.game.table import Line, Refused
@@ -37,6 +36,7 @@ from tests.game.support.table_world import (
     wait_within_cap,
     yield_until,
 )
+from tests.support.log_lines import captured_lines, runs_logged
 from tests.support.signaling_fakes import disconnect_frame
 
 pytestmark = pytest.mark.asyncio
@@ -161,7 +161,7 @@ class TestEndAgainstAnEndInDelivery:
         await open_a_question([host, guest], guest)
         entered = asyncio.Event()
         gate = hold_writes_from(guest, refused(GameRefusal.NO_ACCESS), entered)
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             push_unsettled(guest, REVEAL)
             await sent(host, thinking(guest))
             await wait_within_cap(entered)
@@ -254,12 +254,12 @@ class TestAfterEnd:
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await ending(guest)
             await sent(host, IDLE)
             await shut_down_within_cap(link.handler)
 
-        assert [log["outcome"] for log in logs if log["event"] == "game_master_run"] == ["ended"]
+        assert runs_logged(logs) == ["ended"]
 
 
 class TestEndAgainstTheRoomsEnd:
@@ -277,7 +277,7 @@ class TestEndAgainstTheRoomsEnd:
         await open_a_question([host, guest, starter], starter)
         entered = asyncio.Event()
         gate = hold_writes_from(guest, ending, entered)
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             start_ending(starter)
             await sent(host, ending)
             await wait_within_cap(entered)
@@ -302,11 +302,11 @@ class TestEndWithABrokenWrite:
         await open_a_question([host, guest, third], host)
         guest.socket.send_text = broken_write
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await host.say(END)
             await sent_to_all([host, third], IDLE)
 
         for browser in (host, third):
             assert game_frames(browser) == [*asked(host), ENDED, IDLE]
-        assert [log["error"] for log in logs if log["event"] == "game_end_failed"] == ["RuntimeError"] * 2
+        assert [log["error_type"] for log in logs if log["event"] == "game_end.failed"] == ["RuntimeError"] * 2
         assert "a write that broke" not in repr(logs)

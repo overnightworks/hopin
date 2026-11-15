@@ -1,6 +1,7 @@
 import argparse
 from typing import TYPE_CHECKING, TypedDict
 
+import structlog
 import uvicorn
 from logline import configure
 
@@ -19,6 +20,9 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from fastapi import FastAPI
+
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 class UvicornOptions(TypedDict):
@@ -75,6 +79,7 @@ def build_application(settings: ServerSettings) -> FastAPI:
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
     configure("hopin")
+    logger.info("process.started")
     settings = ServerSettings()
     uvicorn.run(build_application(settings), **uvicorn_options(settings))
 

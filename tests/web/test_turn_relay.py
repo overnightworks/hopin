@@ -5,9 +5,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import pytest
-import structlog.testing
 from fastapi.testclient import TestClient
-from logline import REQUEST_EVENT
+from logline import Outcome
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
@@ -15,6 +14,7 @@ from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.ice_servers import TurnRelayFailure, TurnRelayUnavailableError
 from hopin.web.turn_relay import TurnAnswer, build_turn_relay
+from tests.support.log_lines import captured_lines, ended_steps
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
@@ -269,8 +269,7 @@ MALFORMED_BODIES = {
 }
 
 
-def without_request_line(records):
-    return [record for record in records if record["event"] != REQUEST_EVENT]
+TURN_CREDENTIALS_EVENT = "turn_credentials.ended"
 
 
 class TestProviderFailures:
@@ -278,28 +277,24 @@ class TestProviderFailures:
     def test_a_malformed_answer_gives_stun_only_and_a_malformed_warning(self, turn_settings, body):
         settings = turn_settings()
         client = member_client(settings, FakeTransport(body=body))
-        with structlog.testing.capture_logs() as records:
+        with captured_lines() as records:
             response = client.get(ICE_SERVERS_PATH)
 
         assert (response.status_code, response.json()["iceServers"]) == (200, [{"urls": [settings.stun_server]}])
-        assert without_request_line(records) == [
-            {"event": "turn_relay_unavailable", "log_level": "warning", "reason": "malformed"}
-        ]
+        assert ended_steps(records, TURN_CREDENTIALS_EVENT) == [("warning", Outcome.REFUSED, "malformed")]
 
     @pytest.mark.parametrize("status", [200, 201])
     def test_any_2xx_answer_is_served(self, turn_settings, status):
         assert len(relay_entry(served_by(turn_settings(), FakeTransport(status=status)))) == 1
 
     @pytest.mark.parametrize("status", [302, 401, 403, 404, 429, 500])
-    def test_any_other_status_gives_stun_only_and_a_refused_warning_with_the_status(self, turn_settings, status):
+    def test_any_other_status_gives_stun_only_and_a_refused_warning(self, turn_settings, status):
         client = member_client(turn_settings(), FakeTransport(status=status))
-        with structlog.testing.capture_logs() as records:
+        with captured_lines() as records:
             response = client.get(ICE_SERVERS_PATH)
 
         assert relay_entry(response) == []
-        assert without_request_line(records) == [
-            {"event": "turn_relay_unavailable", "log_level": "warning", "reason": "refused", "status": status}
-        ]
+        assert ended_steps(records, TURN_CREDENTIALS_EVENT) == [("warning", Outcome.REFUSED, "refused")]
 
     @pytest.mark.parametrize("reason", [TurnRelayFailure.UNREACHABLE, TurnRelayFailure.TIMED_OUT])
     def test_a_transport_that_cannot_reach_the_provider_gives_stun_only_and_its_reason(self, turn_settings, reason):
@@ -307,11 +302,11 @@ class TestProviderFailures:
             raise TurnRelayUnavailableError(reason)
 
         client = member_client(turn_settings(), unreachable)
-        with structlog.testing.capture_logs() as records:
+        with captured_lines() as records:
             response = client.get(ICE_SERVERS_PATH)
 
         assert relay_entry(response) == []
-        assert [record["reason"] for record in without_request_line(records)] == [reason]
+        assert ended_steps(records, TURN_CREDENTIALS_EVENT) == [("warning", Outcome.REFUSED, reason)]
 
 
 class TestSecrets:
@@ -332,7 +327,7 @@ class TestSecrets:
             member_client(settings, transport)
             for transport in [FakeTransport(), FakeTransport(status=403), FakeTransport(body=b"{")]
         ]
-        with structlog.testing.capture_logs() as records:
+        with captured_lines() as records:
             for client in clients:
                 client.get(ICE_SERVERS_PATH)
 

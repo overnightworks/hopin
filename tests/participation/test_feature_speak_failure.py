@@ -5,7 +5,6 @@ import asyncio
 import contextlib
 
 import pytest
-import structlog.testing
 
 from hopin.participation.chat_window import WindowVoice
 from hopin.participation.vocabulary import (
@@ -17,6 +16,7 @@ from hopin.participation.vocabulary import (
     SpeakStop,
     VoiceFailure,
 )
+from hopin.rooms.reference import room_reference
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     SENTENCE_MS,
@@ -30,6 +30,7 @@ from tests.participation.support.speaking import (
     speak,
     waiting_to_speak,
 )
+from tests.support.log_lines import captured_lines
 from tests.support.speech_origin import failures_in
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -38,8 +39,7 @@ HOST = person_named("host")
 GUEST = person_named("guest")
 VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
-FAILED = "agent_speak_failed"
-OUTAGE = "agent_voice_unavailable"
+OUTAGE = "agent_voice.lost"
 
 
 def written_lines(participation, person, room_id):
@@ -243,18 +243,22 @@ class TestTheVoiceState:
         host, *_ = call
         room_id = room_of(host)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await speak(participation, "Geheim", render=renders_failing, room_id=room_id)
             await speak(participation, "Geheim", render=renders_failing, room_id=room_id)
-            first = failures_in(logs, OUTAGE)
+            first = voices_lost(logs)
             await speak(participation, room_id=room_id)
             await scheduler.advance(SENTENCE_MS / 1000)
             await speak(participation, "Geheim", render=renders_failing, room_id=room_id)
 
-        assert (first, failures_in(logs, OUTAGE)) == (
-            [{"reason": "busy", "room_id": room_id}],
-            [{"reason": "busy", "room_id": room_id}] * 2,
+        assert (first, voices_lost(logs)) == (
+            [("busy", room_reference(room_id))],
+            [("busy", room_reference(room_id))] * 2,
         )
+
+
+def voices_lost(lines):
+    return [(line["reason"], line["room_ref"]) for line in failures_in(lines, OUTAGE)]
 
 
 class TestTheVoiceComesBackWithoutASentence:

@@ -6,6 +6,7 @@ takes its turn in the same queue and is written as a chat line instead. A stop c
 other one of the agent."""
 
 import asyncio
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -13,7 +14,9 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
+from logline import StepTimer
 
+from hopin.participation.chat_window import utf8_length
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
@@ -22,6 +25,7 @@ from hopin.participation.vocabulary import (
     SpeakStop,
     VoiceFailure,
 )
+from hopin.rooms.reference import room_reference
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -33,6 +37,20 @@ if TYPE_CHECKING:
 MILLISECONDS_PER_SECOND: Final = 1000
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
+
+
+def speak_timer(agent: DialedAgent, text: str, *, seq: int | None) -> StepTimer:
+    """The timer of the `speak.ended` line of one sentence the agent's speaking asked for, started now; `seq` is the
+    newest line of the agent's window when the sentence arrived, which the agent's last pulse told."""
+    return StepTimer(
+        "speak.ended",
+        _STEPS,
+        room_ref=room_reference(agent.room_id),
+        agent_id=agent.agent_id,
+        text_bytes=utf8_length(text),
+        seq=seq,
+    )
 
 
 @dataclass(frozen=True)
@@ -165,7 +183,8 @@ class Speaking:
         )
         if queue.playing is not None or queue.waiting:
             queue.waiting.append(sentence)
-        elif isinstance(sentence, WrittenSentence):
+            return await _answered_after_waiting(agent, answer)
+        if isinstance(sentence, WrittenSentence):
             await self._written(agent, sentence)
         else:
             self._run_in_background(agent, self._begin(agent, queue, sentence))
@@ -244,7 +263,7 @@ class Speaking:
 
     def _announced(self, agent_id: str, task: asyncio.Task[None]) -> None:
         if not task.cancelled() and task.exception() is not None:
-            logger.error("agent_announcement_failed", agent_id=agent_id)
+            logger.error("agent_announcement.failed", agent_id=agent_id)
         pending = self._announcements.get(agent_id)
         if pending is not None:
             pending.discard(task)
@@ -328,6 +347,17 @@ class Speaking:
         _answer(sentence, SpeakFallback.WRITTEN)
 
 
+async def _answered_after_waiting(agent: DialedAgent, answer: asyncio.Future[SpeakResult]) -> SpeakResult:
+    """The speaker's answer to a sentence that waits behind others, which its caller waits on."""
+    with StepTimer(
+        "sentence_wait.ended", _STEPS, room_ref=room_reference(agent.room_id), agent_id=agent.agent_id
+    ) as step:
+        result = await answer
+        if isinstance(result, AgentRefusal | SpeakStop):
+            step.refuse(result.value)
+    return result
+
+
 async def _fill(
     voice: StoredVoice, ended: asyncio.Future[int | VoiceFailure], pieces: AsyncGenerator[SoundPiece]
 ) -> None:
@@ -343,8 +373,9 @@ async def _fill(
                 case _:
                     voice.break_off()
                     ended.set_result(piece)
+                    logger.info("voice_stream.broken", reason=piece.value)
     except Exception:
-        logger.error("agent_voice_stream_failed", code=VoiceFailure.CUT)
+        logger.error("voice_stream.failed", reason=VoiceFailure.CUT.value)
         voice.break_off()
         ended.set_result(VoiceFailure.CUT)
 

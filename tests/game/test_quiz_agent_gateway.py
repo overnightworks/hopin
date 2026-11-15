@@ -7,10 +7,10 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 
 import pytest
-import structlog.testing
 from agents.agent_file import load_agent
 from agents.backend.fake_gateway import FakeGateway, Reply, completion
 from agents.backend.gateway import GatewayBackend, GatewayDetail
+from logline import Outcome
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
 from hopin.game.quiz import QUIZ_TOPICS, question_request
@@ -18,6 +18,7 @@ from hopin.game.vocabulary import GamePhase, GameRefusal
 from tests.game.support.call_world import IDLE, asked, phase, refused, serving_call
 from tests.game.support.world import API_GROUP, agent_settings
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -62,7 +63,7 @@ def refused_frames(reason, starter, *, retry_after_seconds=None):
 
 
 def stops_logged(logs):
-    return [log for log in logs if log["event"] == "game_master_turn_refused"]
+    return [log for log in logs if log["event"] == "game_master_turn.ended" and log["outcome"] == Outcome.REFUSED]
 
 
 def first_post_of(gateway):
@@ -140,7 +141,7 @@ def test_the_key_files_line_is_the_bearer_and_stays_out_of_every_log_frame_and_r
     call, gateway = quiz_on_gateway(reply)
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
 
-    with structlog.testing.capture_logs() as logs, caplog.at_level(logging.DEBUG):
+    with captured_lines() as logs, caplog.at_level(logging.DEBUG):
         host.start()
         frames = host.frames(3)
 
@@ -209,13 +210,13 @@ def test_a_gateway_that_gives_no_answer_reads_as_unavailable_with_its_closed_det
     call, gateway = quiz_on_gateway(reply)
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
 
-    with structlog.testing.capture_logs() as logs:
+    with captured_lines() as logs:
         host.start()
         frames = host.frames(3)
 
     [stopped] = stops_logged(logs)
     assert frames == refused_frames(GameRefusal.UNAVAILABLE, host)
-    assert stopped["detail"] == detail.value
+    assert stopped["reason"] == detail.value
     assert len(gateway.requests) == 1
 
 
@@ -235,11 +236,11 @@ def test_an_unusable_key_file_leaves_the_start_standing_and_makes_the_turn_unava
     call, gateway = quiz_on_gateway()
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
 
-    with structlog.testing.capture_logs() as logs:
+    with captured_lines() as logs:
         host.start()
         frames = host.frames(3)
 
     [stopped] = stops_logged(logs)
     assert frames == refused_frames(GameRefusal.UNAVAILABLE, host)
-    assert stopped["detail"] == GatewayDetail.KEY_UNUSABLE.value
+    assert stopped["reason"] == GatewayDetail.KEY_UNUSABLE.value
     assert gateway.requests == []

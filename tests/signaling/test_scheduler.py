@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 import structlog.testing
+from logline import current_traceparent, unit_trace
 
 from hopin.signaling.scheduler import AsyncioScheduler
 
@@ -15,6 +16,11 @@ class TimerError(Exception):
 @pytest.fixture
 def scheduler():
     return AsyncioScheduler()
+
+
+def trace_id_now() -> str | None:
+    traceparent = current_traceparent()
+    return None if traceparent is None else traceparent.split("-")[1]
 
 
 async def wait_for(event: asyncio.Event) -> None:
@@ -32,6 +38,23 @@ class TestAsyncioScheduler:
         scheduler.call_later(0, callback)
 
         await wait_for(ran)
+
+    @pytest.mark.asyncio
+    async def test_a_timer_runs_in_a_trace_of_its_own_not_the_one_that_scheduled_it(self, scheduler):
+        ran = asyncio.Event()
+        traces: dict[str, str | None] = {}
+
+        async def callback():
+            traces["timer"] = trace_id_now()
+            ran.set()
+
+        with unit_trace(None):
+            traces["scheduling"] = trace_id_now()
+            scheduler.call_later(0, callback)
+        await wait_for(ran)
+
+        assert traces["timer"] is not None
+        assert traces["timer"] != traces["scheduling"]
 
     @pytest.mark.asyncio
     async def test_cancelled_timer_never_runs_its_callback(self, scheduler):
@@ -84,9 +107,35 @@ class TestAsyncioScheduler:
             await wait_for(raised)
             await asyncio.sleep(0)
 
-        [failure] = [log for log in logs if log["event"] == "timer_failed"]
+        [failure] = [log for log in logs if log["event"] == "timer.failed"]
         assert failure["log_level"] == "error"
         assert isinstance(failure["exc_info"], TimerError)
+
+    @pytest.mark.asyncio
+    async def test_a_failing_timer_logs_its_failure_in_its_own_trace_not_the_one_that_scheduled_it(self, scheduler):
+        raised = asyncio.Event()
+        traces: dict[str, str | None] = {}
+
+        async def callback():
+            traces["timer"] = trace_id_now()
+            raised.set()
+            raise TimerError
+
+        def stamp_trace(_logger, _method, event_dict):
+            event_dict["trace_id"] = trace_id_now()
+            return event_dict
+
+        with structlog.testing.capture_logs(processors=[stamp_trace]) as logs:
+            with unit_trace(None):
+                traces["scheduling"] = trace_id_now()
+                scheduler.call_later(0, callback)
+            await wait_for(raised)
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+        [failure] = [log for log in logs if log["event"] == "timer.failed"]
+        assert failure["trace_id"] == traces["timer"]
+        assert failure["trace_id"] != traces["scheduling"]
 
     @pytest.mark.asyncio
     async def test_cancelled_callback_task_is_not_logged_as_a_failure(self, scheduler):
@@ -104,4 +153,4 @@ class TestAsyncioScheduler:
             await asyncio.sleep(0)
             await asyncio.sleep(0)
 
-        assert [log for log in logs if log["event"] == "timer_failed"] == []
+        assert [log for log in logs if log["event"] == "timer.failed"] == []

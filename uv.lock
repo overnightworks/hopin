@@ -423,7 +423,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "overnightworks-agents", extras = ["backend", "mcp-server"], git = "https://github.com/overnightworks/agents?rev=v0.45.0" },
-    { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v0.2.1" },
+    { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v0.3.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.17.0" },
     { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.40.0" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -741,8 +741,8 @@ provides-extras = ["catalogs"]
 
 [[package]]
 name = "overnightworks-logline"
-version = "0.2.1"
-source = { git = "https://github.com/overnightworks/logline?rev=v0.2.1#ee98a907f384410ee7ebde4d1a04cd07db720d12" }
+version = "0.3.0"
+source = { git = "https://github.com/overnightworks/logline?rev=v0.3.0#ce06443ab20bd5fa3c153700e940cc8ace40bbcb" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "structlog" },

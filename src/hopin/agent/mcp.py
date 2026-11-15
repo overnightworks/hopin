@@ -2,6 +2,7 @@
 serve it."""
 
 import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
@@ -33,6 +34,7 @@ from agents.member import (
 )
 from agents.tools import JsonObject, Principal, ToolOutcome
 from fastapi import APIRouter, HTTPException, Response
+from logline import StepTimer
 from starlette.requests import HTTPConnection
 from starlette.routing import Route
 from webauth.middleware import ProtectedResource, resource_person
@@ -43,6 +45,7 @@ from webauth.session_groups import SessionGroups
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
+from hopin.agent.issuer_error import grant_refusal_reason
 from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, SPEECH_STREAM, AgentVoice, SpeechRenderer
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
@@ -57,7 +60,6 @@ from hopin.participation.vocabulary import (
     CLIP_PATH,
     FIGURE_PATH,
     HEARING_PATH,
-    SPEAK_FAILED_EVENT,
     VOICE_PATH,
 )
 from hopin.participation.voice import VoiceStore, voice_endpoint
@@ -79,6 +81,7 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 # The realm's objects for HopIn's MCP path: the scope and audience a token carries, the group whose members the
 # gate admits, the group of agents' own accounts it admits from any client, and the public client an agent signs in
@@ -129,11 +132,11 @@ class _BuiltParticipation:
         return self.participation
 
     async def _groups_of(self, connection: HTTPConnection) -> frozenset[str] | None:
-        groups = await self.groups.of_connection(connection)
-        if isinstance(groups, AccessTokenRefusal):
-            logger.info("agent_adders_group_read_refused", reason=groups.reason.value)
-            return None
-        return groups
+        async with StepTimer("group_read.ended", _STEPS) as step:
+            groups = await self.groups.of_connection(connection)
+            if isinstance(groups, AccessTokenRefusal):
+                step.refuse(grant_refusal_reason(groups))
+        return None if isinstance(groups, AccessTokenRefusal) else groups
 
     def _listens_to_standing(self, person: Person) -> bool:
         return self.changes.listens_to(_principal_of_person(person), STANDING_URI)
@@ -150,7 +153,7 @@ class _BuiltParticipation:
     def _recompute_ended(self, recompute: asyncio.Task[None]) -> None:
         self._recomputes.discard(recompute)
         if not recompute.cancelled() and (error := recompute.exception()) is not None:
-            logger.error("agent_offers_recompute_failed", exc_info=error)
+            logger.error("agent_offers_recompute.failed", exc_info=error)
 
     def _tell_changed(self, person: Person) -> None:
         self.changes.changed(_principal_of_person(person), STANDING_URI)
@@ -404,7 +407,7 @@ class ParticipationFeature:
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
 
     def _clip_store(self) -> FigureStore:
-        """The store of the clips, with its own byte bound, cache and failure event apart from the figure's."""
+        """The store of the clips, with its own byte bound, cache and step line apart from the figure's."""
         return FigureStore(
             partial(
                 fetch_figure,
@@ -414,7 +417,7 @@ class ParticipationFeature:
                 redirect_sources=self.figure_sources,
             ),
             cache_bytes=CLIP_CACHE_BYTES,
-            failure_event="agent_clip_fetch_failed",
+            step_event="clip_fetch.ended",
         )
 
     def _add_hearing_route(
@@ -479,7 +482,6 @@ class ParticipationFeature:
             SPEAK_DEADLINE_SECONDS,
             SPEAK_MAX_BYTES,
             relying_party,
-            SPEAK_FAILED_EVENT,
             SPEECH_STREAM,
         )
         return AgentVoice(renderer, tokens)

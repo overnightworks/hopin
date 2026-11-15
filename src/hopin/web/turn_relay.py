@@ -148,7 +148,7 @@ class CloudflareTurnRelay:
             timeout=urllib3.Timeout(connect=CONNECT_TIMEOUT_SECONDS, read=READ_TIMEOUT_SECONDS),
         )
         if not 200 <= answer.status < 300:
-            raise TurnRelayUnavailableError(TurnRelayFailure.REFUSED, answer.status)
+            raise TurnRelayUnavailableError(TurnRelayFailure.REFUSED)
         try:
             return _relay_entries(_ProviderAnswer.model_validate_json(answer.body))
         except ValueError:

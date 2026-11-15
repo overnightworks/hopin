@@ -120,6 +120,8 @@ class Origin:
         return [path for _, path, _, _ in self.requests]
 
     def close(self) -> None:
+        if self.stopped.is_set():
+            return
         self.stopped.set()
         for release in (*self.release.values(), *self.resume.values()):
             release.set()

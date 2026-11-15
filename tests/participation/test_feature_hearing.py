@@ -1,10 +1,14 @@
 """Whom a joined agent may hear, at participation's real feature and handler and the agents library's real record."""
 
+import json
+
 import pytest
 import pytest_asyncio
 from agents.mcp_server.hearing import Sense
 from agents.member import LEASE_SECONDS, PlaceRef, place_window_uri
 from agents.tools import Principal
+from logline import unit_trace
+from logline.testing import configured
 from pydantic import ValidationError
 
 from hopin.agent.hearing import MemberHearingRecord
@@ -30,6 +34,7 @@ from tests.participation.support.own_accounts import (
     offers_sent_to,
 )
 from tests.participation.support.people import person_named, room_of
+from tests.participation.support.speaking import speak
 from tests.signaling.support.browsers import host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -357,6 +362,35 @@ class TestWhatIsHeard:
             WindowLine(1, LineKind.PERSON, "guest", "hello there", own=False, spoken=True),
         )
         assert window_changes == [(GUEST, room_of(host))]
+
+    async def test_the_agents_sentence_after_a_pulse_writes_its_speak_line_in_the_trace_of_the_turn_that_pulsed_it(
+        self, participation, dialed, capsys
+    ):
+        host, guest, _agent = dialed
+
+        with configured("hopin"):
+            with unit_trace(None):
+                participation.heard(guest.peer_id, "hello there", began_at=0.0)
+            await speak(participation, room_id=room_of(host))
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+        trace_of = {line["event"]: line["trace_id"] for line in lines}
+        assert (trace_of["speak.ended"], trace_of["speak.ended"] is None) == (trace_of["pulse.sent"], False)
+
+    async def test_the_agents_sentence_after_a_written_line_stays_out_of_the_trace_of_the_turn_heard_before(
+        self, participation, dialed, capsys
+    ):
+        host, guest, _agent = dialed
+
+        with configured("hopin"):
+            with unit_trace(None):
+                participation.heard(guest.peer_id, "hello there", began_at=0.0)
+            participation.chat_said(host.peer_id, room_of(host), "written")
+            await speak(participation, room_id=room_of(host))
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+        trace_of = {line["event"]: line["trace_id"] for line in lines}
+        assert trace_of["speak.ended"] != trace_of["pulse.sent"]
 
     async def test_call_57_the_agent_reads_a_heard_sentence_as_a_spoken_entry_of_its_window(
         self, participation, dialed

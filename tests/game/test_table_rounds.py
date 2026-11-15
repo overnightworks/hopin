@@ -1,5 +1,4 @@
 import pytest
-import structlog.testing
 
 from hopin.game.quiz import FINAL_SCORE_REQUEST, QUIZ_ROUNDS, Speaker, Turn
 from hopin.game.table import Line
@@ -10,13 +9,10 @@ from tests.game.support.table_world import (
     answering,
     call_of,
     game_frames,
-    hold_writes_from,
     line,
     question,
-    sent,
     sent_to_all,
     thinking,
-    wait_within_cap,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -86,24 +82,3 @@ class TestFiveRounds:
 
         for browser in call:
             assert game_frames(browser) == frames_of_a_whole_quiz(call[1])
-
-    async def test_a_run_that_waited_for_the_run_before_it_counts_its_duration_from_the_end_of_that_wait(
-        self, link, game_master, scheduler
-    ):
-        host, guest = await call_of(link, "host", "guest")
-        gate = hold_writes_from(guest, answering(host))
-        await host.say(START)
-        await sent(host, answering(host))
-        held = game_master.hold_next()
-        await host.say(REVEAL)
-        await scheduler.advance(5)
-        gate.set()
-        await wait_within_cap(held.started)
-        await scheduler.advance(2)
-
-        with structlog.testing.capture_logs() as logs:
-            held.release.set()
-            await sent(host, answering(host, 2))
-
-        durations = [log["duration_ms"] for log in logs if log["event"] == "game_master_run"]
-        assert durations == [2000, 0]

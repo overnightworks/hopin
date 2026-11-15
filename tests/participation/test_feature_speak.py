@@ -6,7 +6,7 @@ import contextlib
 
 import pytest
 import pytest_asyncio
-import structlog.testing
+from logline import Outcome
 
 from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
@@ -18,6 +18,7 @@ from hopin.participation.vocabulary import (
     SpeakStarted,
     SpeakStop,
 )
+from hopin.rooms.reference import room_reference
 from tests.participation.support.ends import leave_by_the_agent
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
@@ -36,7 +37,8 @@ from tests.participation.support.speaking import (
     window_texts,
 )
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, HeldWrite
-from tests.support.speech_origin import failures_in
+from tests.support.log_lines import captured_lines
+from tests.support.speech_origin import speak_failures
 from tests.support.stores import sound_of
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -45,8 +47,6 @@ HOST = person_named("host")
 GUEST = person_named("guest")
 VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
-FAILED = "agent_speak_failed"
-OUTAGE = "agent_voice_unavailable"
 
 
 async def a_full_window(participation, room_id, scheduler):
@@ -123,6 +123,19 @@ class TestASentenceStarts:
             (WindowLine(1, LineKind.AGENT, "Mozart", "Guten Tag", own=False, spoken=True),),
         ]
 
+    async def test_a_sentences_speak_line_carries_the_newest_seq_of_the_agents_window(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+
+        with captured_lines() as logs:
+            await speak(participation, room_id=room_id)
+            await scheduler.advance(SENTENCE_MS / 1000)
+            await speak(participation, room_id=room_id)
+
+        assert [line["seq"] for line in logs if line["event"] == "speak.ended"] == [0, 1]
+
     async def test_call_60_whitespace_around_the_sentence_is_dropped_and_a_line_break_is_a_space(
         self, participation, call
     ):
@@ -166,6 +179,25 @@ class TestTheAnswerComesWhenTheSentenceStarts:
         assert (done, [first, second.result(), third.result()]) == (
             [[False, False], [False, False], [True, False], [True, False], [True, True]],
             [SpeakStarted.SPOKEN] * 3,
+        )
+
+    async def test_a_sentence_that_waits_behind_another_writes_its_wait_when_it_starts(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+
+        with captured_lines() as logs:
+            await speak(participation, room_id=room_id)
+            second = await waiting_to_speak(participation, room_id=room_id)
+            waits_while_waiting = [log for log in logs if log["event"] == "sentence_wait.ended"]
+            await answers_so_far(scheduler, SENTENCE_MS / 1000, second)
+
+        [wait] = [log for log in logs if log["event"] == "sentence_wait.ended"]
+        assert (waits_while_waiting, wait["outcome"], wait["room_ref"]) == (
+            [],
+            Outcome.OK,
+            room_reference(room_id),
         )
 
     async def test_call_60_a_sentence_whose_speaker_gave_up_waiting_still_starts_in_order_and_the_queue_goes_on(
@@ -464,14 +496,14 @@ class TestASentenceThatIsNotSpoken:
         async def render(sentence, voice):
             rendered.append(sentence)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             refused = await speak(participation, text, render=render, room_id=room_of(host))
 
-        assert (refused, rendered, host.frames(VOICE), failures_in(logs, FAILED)) == (
+        assert (refused, rendered, host.frames(VOICE), speak_failures(logs)) == (
             AgentRefusal.UNAVAILABLE,
             [],
             [],
-            [{"outcome": "no_text"}],
+            ["no_text"],
         )
 
     async def test_call_60_a_renderer_with_no_sound_refuses_unavailable_and_nothing_is_shown(self, participation, call):
@@ -489,14 +521,14 @@ class TestASentenceThatIsNotSpoken:
     ):
         host, *_ = call
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             unavailable = await participation.speak(GUEST, room_of(host), "Hallo", None)
             gone = await participation.speak(person_named("stranger"), room_of(host), "Hallo", None)
 
-        assert (unavailable, gone, failures_in(logs, FAILED)) == (
+        assert (unavailable, gone, speak_failures(logs)) == (
             AgentRefusal.UNAVAILABLE,
             AgentRefusal.GONE,
-            [{"outcome": "speaking_off"}],
+            ["speaking_off"],
         )
 
     async def test_call_60_an_agent_removed_while_its_sentence_renders_is_refused_and_nothing_is_shown(
@@ -548,13 +580,13 @@ class TestTheBounds:
         async def render(sentence, voice):
             rendered.append(sentence)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             refused = await speak(participation, render=render, room_id=room_id)
 
-        assert (refused, rendered, failures_in(logs, FAILED)) == (
+        assert (refused, rendered, speak_failures(logs)) == (
             AgentRefusal.UNAVAILABLE,
             [],
-            [{"outcome": outcome}],
+            [outcome],
         )
 
     async def test_call_60_sentences_rendering_at_once_never_leave_more_than_the_queue_allows_waiting(
@@ -568,13 +600,13 @@ class TestTheBounds:
             entered.set()
             await asyncio.Event().wait()
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             held = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", render_held))
             await entered.wait()
             second = await speak(participation, render=LONG, room_id=room_id)
         held.cancel()
 
-        assert (second, failures_in(logs, FAILED)) == (AgentRefusal.UNAVAILABLE, [{"outcome": "queue_full"}])
+        assert (second, speak_failures(logs)) == (AgentRefusal.UNAVAILABLE, ["queue_full"])
 
     @pytest.mark.parametrize("failing", [renders_nothing, renders_cancelled, renders_broken])
     async def test_call_60_a_sentence_that_fails_to_render_leaves_its_place_in_the_queue_free(
@@ -687,10 +719,10 @@ class TestAnEndWhileTheSentenceIsAnnounced:
             raise RuntimeError("the failure carries the sentence")
 
         host.socket.send_text = refuse
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await speak(participation, room_id=room_of(host))
 
-        [failure] = [log for log in logs if log["event"] == "agent_announcement_failed"]
+        [failure] = [log for log in logs if log["event"] == "agent_announcement.failed"]
         assert (failure["agent_id"] is not None, "exc_info" in failure, "carries the sentence" in str(failure)) == (
             True,
             False,

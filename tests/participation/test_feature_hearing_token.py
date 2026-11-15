@@ -5,14 +5,15 @@ import logging
 import threading
 
 import pytest
-import structlog.testing
 from agents.member import LEASE_SECONDS
+from logline import Outcome
 from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.participation.participants import Person
 from tests.participation.support.own_accounts import OWNER
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -202,7 +203,7 @@ class TestNoHearing:
 
 
 def refusals(logs):
-    return [entry for entry in logs if entry["event"] == "agent_hearing_token_refused"]
+    return [entry for entry in logs if entry["event"] == "token_exchange.ended" and entry["outcome"] == Outcome.REFUSED]
 
 
 class TestRefusedExchange:
@@ -216,21 +217,16 @@ class TestRefusedExchange:
         adding_call.issuer.refuses_token_exchange_grants = True
         adding_call.issuer.token_exchange_refusal_error = issuer_error
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             response = agent.calls(agent.token())
 
         [refusal] = refusals(logs)
-        assert (response.status_code, agent.held(), refusal["reason"], refusal["idp_error"]) == (
-            200,
-            None,
-            "token-request-refused",
-            logged,
-        )
+        assert (response.status_code, agent.held(), refusal["reason"]) == (200, None, logged)
 
     def test_an_outage_serves_the_call_and_logs_the_endpoint_failure(self, adding_call, agent):
         adding_call.issuer.token_endpoint_is_down = True
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             response = agent.calls(agent.token())
 
         [refusal] = refusals(logs)
@@ -266,7 +262,7 @@ class TestNoTokenInALog:
         adding_call.issuer.refuses_token_exchange_grants = refused
         presented = agent.token()
 
-        with caplog.at_level(logging.DEBUG), structlog.testing.capture_logs() as logs:
+        with caplog.at_level(logging.DEBUG), captured_lines() as logs:
             agent.calls(presented)
 
         secrets = [presented, *adding_call.issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT)]

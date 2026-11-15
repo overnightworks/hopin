@@ -1,7 +1,7 @@
 import asyncio
 
 import pytest
-import structlog.testing
+from logline import Outcome
 
 from hopin.config.constants import (
     HOST_GRACE_SECONDS,
@@ -13,6 +13,7 @@ from hopin.game.quiz import Speaker, Turn, question_request
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal
 from hopin.rooms.manager import RoomManager
+from hopin.rooms.reference import room_reference
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.game.support.table_world import (
@@ -52,6 +53,7 @@ from tests.game.support.table_world import (
     yield_until,
 )
 from tests.signaling.support.browsers import Browser, Link
+from tests.support.log_lines import captured_lines
 from tests.support.signaling_fakes import ROOM_LIMIT, SocketAccountResolver, account_named, text_frame
 
 pytestmark = pytest.mark.asyncio
@@ -126,31 +128,31 @@ class TestOneRun:
         [host] = await call_of(link, "host")
         game_master.answer_next(RuntimeError("the secret text of a failure"))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await host.say(START)
             await sent(host, IDLE)
 
         assert game_frames(host) == [thinking(host), refused(GameRefusal.UNAVAILABLE), IDLE]
         assert "the secret text of a failure" not in repr(logs)
-        assert {"event": "game_master_raised", "log_level": "error", "error": "RuntimeError"} in logs
+        assert {"event": "game_master.failed", "log_level": "error", "error_type": "RuntimeError"} in logs
 
-    async def test_the_run_is_logged_with_its_room_outcome_and_duration_only(self, link, game_master, scheduler):
+    async def test_the_run_is_logged_with_its_room_reference_outcome_and_duration(self, link, game_master, scheduler):
         [host] = await call_of(link, "host")
         held = await start_and_hold(game_master, host)
         await scheduler.advance(3)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             held.release.set()
             await sent(host, answering(host))
 
-        [run] = [log for log in logs if log["event"] == "game_master_run"]
-        assert run == {
-            "event": "game_master_run",
+        [run] = [log for log in logs if log["event"] == "game_master_run.ended"]
+        assert {key: value for key, value in run.items() if key != "duration_ms"} == {
+            "event": "game_master_run.ended",
             "log_level": "info",
-            "room_id": host.socket.sent[0]["room_id"],
-            "outcome": "line",
-            "duration_ms": 3000,
+            "room_ref": room_reference(host.socket.sent[0]["room_id"]),
+            "outcome": Outcome.OK,
         }
+        assert run["duration_ms"] >= 0
 
     @pytest.mark.parametrize(
         "frame", [START, REVEAL, END, answer("Lissabon")], ids=["start", "reveal", "end", "answer"]
@@ -419,7 +421,7 @@ class TestRoomEnd:
         await start_and_hold(game_master, guest)
         [call] = game_master.calls
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await host.say(END_ROOM)
             await yield_until(lambda: call.finished)
             assert call.cancelled
@@ -439,7 +441,7 @@ class TestRoomEnd:
         held.release.set()
         await sent(host, question())
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             push_unsettled(host, END_ROOM)
             await host.socket.wait_until(lambda: host.frames(SignalType.ROOM_CLOSED))
             gate.set()
@@ -467,7 +469,7 @@ class TestRoomEnd:
         await start_and_hold(game_master, guest)
         [call] = game_master.calls
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await host.drop(code=1000)
             await scheduler.advance(HOST_GRACE_SECONDS)
             await yield_until(lambda: call.finished)
@@ -549,7 +551,7 @@ class TestShutdown:
 
 
 def driver_failed(logs):
-    return {"event": "game_driver_failed", "log_level": "error", "error": "RuntimeError"} in logs
+    return {"event": "game_driver.failed", "log_level": "error", "error_type": "RuntimeError"} in logs
 
 
 class TestBrokenWrite:
@@ -562,7 +564,7 @@ class TestBrokenWrite:
         await sent(third, thinking(host))
         guest.socket.send_text = broken_write
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             held.release.set()
             await sent_to_all([host, third], answering(host))
             await yield_until(lambda: driver_failed(logs))
@@ -589,7 +591,7 @@ class TestBrokenWrite:
         host, guest, third = await call_of(link, "host", "guest", "third")
         guest.socket.send_text = broken_write
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             held = await start_and_hold(game_master, host)
             await sent(third, thinking(host))
             await third.say(START)

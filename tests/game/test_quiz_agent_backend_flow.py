@@ -6,7 +6,6 @@ import secrets
 from urllib.parse import urlsplit
 
 import pytest
-import structlog.testing
 from agents.turn import RejectionCode
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
@@ -23,6 +22,7 @@ from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejec
 from tests.game.support.table_world import answers_in_reveal
 from tests.game.support.world import wait_in_a_worker
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.log_lines import captured_lines, runs_logged
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import ManualScheduler
@@ -129,13 +129,13 @@ def test_a_store_failure_while_reading_the_groups_is_logged_by_its_type_alone_an
 
     monkeypatch.setattr(call.stores.sessions, "replace_refresh_token", fail_to_store)
 
-    with structlog.testing.capture_logs() as logs:
+    with captured_lines() as logs:
         host.start()
         frames = host.frames(3)
     host.chat("Noch da?")
 
     assert frames == [phase(GamePhase.THINKING, host), refused(GameRefusal.UNAVAILABLE), IDLE]
-    assert {"event": "game_master_raised", "log_level": "error", "error": "ConnectionError"} in logs
+    assert {"event": "game_master.failed", "log_level": "error", "error_type": "ConnectionError"} in logs
     assert detail not in repr(logs)
     assert guest.frames(3)[-1]["message"] == "Noch da?"
     assert call.backend.runs == []
@@ -328,17 +328,17 @@ async def test_shutting_down_mid_run_cancels_the_run_and_waits_for_it(sign_in_se
     held = Holds()
     server.backend.answer_next(held)
 
-    with structlog.testing.capture_logs() as logs:
+    with captured_lines() as logs:
         async with server.app.router.lifespan_context(server.app):
             await server.start_a_quiz()
             await held.started.wait_async()
-        runs_logged = [log["outcome"] for log in logs if log["event"] == "game_master_run"]
+        runs = runs_logged(logs)
     [run] = server.backend.runs
     run_closed_at_shutdown = run.closed.is_set()
     await server.leave()
 
     assert run_closed_at_shutdown
-    assert runs_logged == [GameRefusal.UNAVAILABLE.value]
+    assert runs == [GameRefusal.UNAVAILABLE.value]
 
 
 @pytest.mark.asyncio
@@ -346,7 +346,7 @@ async def test_the_run_deadline_during_a_held_refresh_grant_ends_the_run_unavail
     server = OneLoopServer(sign_in_settings)
     hold = server.issuer.hold("refresh_token")
 
-    with structlog.testing.capture_logs() as logs:
+    with captured_lines() as logs:
         async with server.app.router.lifespan_context(server.app):
             await server.start_a_quiz()
             await wait_in_a_worker(hold.parked)
@@ -354,9 +354,9 @@ async def test_the_run_deadline_during_a_held_refresh_grant_ends_the_run_unavail
             hold.release.set()
             await wait_in_a_worker(hold.answered)
             await server.leave()
-        runs_logged = [log["outcome"] for log in logs if log["event"] == "game_master_run"]
+        runs = runs_logged(logs)
 
-    assert runs_logged == [GameRefusal.UNAVAILABLE.value]
+    assert runs == [GameRefusal.UNAVAILABLE.value]
     assert server.backend.runs == []
 
 

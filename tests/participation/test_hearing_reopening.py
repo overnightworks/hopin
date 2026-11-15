@@ -5,9 +5,9 @@ from speech_client.wire import WORKLOAD_TOKEN_HEADER, RefusalCode
 
 from hopin.participation.vocabulary import HearingClose
 from tests.participation.support.hearing_scene import (
+    endings_of,
     entries_of,
     header_of,
-    logged_endings,
 )
 from tests.participation.support.hearing_scene import (
     lose_the_held_token as _lose_the_held_token,
@@ -16,6 +16,7 @@ from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT,
 from tests.support.fake_issuer import TOKEN_LIFETIME_SECONDS
 from tests.support.fake_speech import a_sentence, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -78,7 +79,7 @@ class TestAReopenedSession:
     def test_call_58_a_reopening_without_a_token_ends_the_hearing_in_order_with_no_token_logged(
         self, sponsored, fake_speech, issuer_clock, token_lost
     ):
-        with logged_endings() as endings, hop(sponsored) as socket:
+        with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)
             first.wait_for_audio(1)
@@ -86,12 +87,12 @@ class TestAReopenedSession:
             first.drop()
             closed = closed_with(socket)
 
-        assert (closed, endings, len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
+        assert (closed, endings_of(lines), len(fake_speech.sessions)) == (HearingClose.NORMAL, ["no_token"], 1)
 
     def test_call_58_a_service_that_stays_unavailable_ends_the_hearing_with_a_service_code_logged_as_reconnect_failed(
         self, sponsored, fake_speech
     ):
-        with logged_endings() as endings, hop(sponsored) as socket:
+        with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)
             first.wait_for_audio(1)
@@ -99,4 +100,4 @@ class TestAReopenedSession:
             first.drop()
             closed = closed_with(socket)
 
-        assert (closed, endings) == (HearingClose.SERVICE_FAILED, ["reconnect_failed"])
+        assert (closed, endings_of(lines)) == (HearingClose.SERVICE_FAILED, ["reconnect_failed"])
