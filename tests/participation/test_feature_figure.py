@@ -349,20 +349,20 @@ class TestTheGestureTool:
         scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
         return scene
 
-    def test_call_65_an_agent_with_a_shown_figure_is_offered_the_gesture_tool(self, gesturing):
+    def test_call_64_an_agent_with_a_shown_figure_is_offered_the_gesture_tool(self, gesturing):
         assert GESTURE_TOOL in offered_tools(gesturing)
 
-    def test_call_65_an_agent_whose_figure_was_refused_is_not_offered_it(self, scene):
+    def test_call_64_an_agent_whose_figure_was_refused_is_not_offered_it(self, scene):
         accept_with(scene, figure_of(figure_url().replace("figures.", "other.")))
 
         assert GESTURE_TOOL not in offered_tools(scene)
 
-    def test_call_65_an_agent_without_a_figure_is_not_offered_it(self, scene):
+    def test_call_64_an_agent_without_a_figure_is_not_offered_it(self, scene):
         accept_with(scene, None)
 
         assert GESTURE_TOOL not in offered_tools(scene)
 
-    def test_call_65_a_gesture_is_relayed_and_every_seat_is_told_it_with_the_agent_s_id(self, gesturing):
+    def test_call_64_a_gesture_is_relayed_and_every_seat_is_told_it_with_the_agent_s_id(self, gesturing):
         gestured = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
 
         assert (gestured.is_error, gestured.outcome) == (False, {"relayed": True})
@@ -370,7 +370,7 @@ class TestTheGestureTool:
             told = seat.frame_of_type(GESTURED)
             assert (told["agent_id"], told["gesture"]) == (gesturing.agent_id, "wave")
 
-    def test_call_65_a_seat_that_joins_later_is_told_no_past_gesture(self, gesturing):
+    def test_call_64_a_seat_that_joins_later_is_told_no_past_gesture(self, gesturing):
         call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
         gesturing.owner.frame_of_type(GESTURED)
         _, later_login = gesturing.call.member()
@@ -387,17 +387,49 @@ class TestTheGestureTool:
             pytest.param({"gesture": "wave"}, id="no place"),
         ],
     )
-    def test_call_65_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
+    def test_call_64_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
         dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, arguments)
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
 
-    def test_call_65_a_gesture_figure_does_not_know_is_not_active(self, gesturing):
+    def test_call_64_a_gesture_figure_does_not_know_is_not_active(self, gesturing):
         dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="no-such-gesture")
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
 
-    def test_call_65_a_gesture_after_the_agent_left_is_not_offered_and_is_not_made(self, gesturing):
+    def test_call_64_the_gesture_tool_is_withdrawn_once_the_agent_left(self, gesturing):
         gesturing.call.call(gesturing.token, LEAVE_CALL, {"room": gesturing.owner.room_id})
 
         assert GESTURE_TOOL not in offered_tools(gesturing)
+
+    def test_call_64_a_gesture_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
+        self, gesturing, seat_changes
+    ):
+        seat_changes.clear()
+        gesturing.owner.drop()
+        assert seat_changes.wait(timeout=10)
+
+        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+        assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
+
+    @pytest.mark.parametrize(
+        ("arguments", "fields"),
+        [
+            pytest.param({"gesture": "wave", "voice": "secret-voice-value"}, ["voice"], id="a forbidden key"),
+            pytest.param({"gesture": ["secret-gesture-value"]}, ["gesture"], id="a gesture of the wrong kind"),
+        ],
+    )
+    def test_call_64_a_malformed_gesture_logs_its_closed_event_with_the_field_names_only(
+        self, gesturing, arguments, fields
+    ):
+        place = {"kind": "call", "id": gesturing.owner.room_id}
+
+        with structlog.testing.capture_logs() as logs:
+            dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, {"place": place} | arguments)
+
+        malformed = [entry for entry in logs if entry["event"] == "agent_gesture_malformed"]
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+        assert [(entry["log_level"], entry["fields"]) for entry in malformed] == [("warning", fields)]
+        assert "secret" not in str(logs)
