@@ -1,5 +1,6 @@
 import base64
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -154,6 +155,13 @@ RAISED_SHARE = 0.1
 PERSONA_ARM_SHARE = 0.15
 WAIT_FOR_THE_FIGURE_MILLISECONDS = 30_000
 WAIT_FOR_THE_GESTURE_SECONDS = 30
+# The held page clock advances by a step to each picture; a step is far shorter than the wave, so no picture skips it.
+STEP_MILLISECONDS = 100
+WAVE_MILLISECONDS = 20_000
+CLOCK_LEAD_MILLISECONDS = 100
+# The arm's top at rest moves by the pixel grid and the idle sway, a few thousandths of the picture between two figures;
+# an arm still easing back one step before it settles stands about 0.05 off.
+REST_TOLERANCE = 0.02
 
 
 def arm_top(person: Page) -> float | None:
@@ -193,24 +201,36 @@ def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
     return False
 
 
+def hold_the_page_clock(person: Page) -> None:
+    """The page's clock, and with it the figure's animation, stands until the test advances it."""
+    person.clock.install()
+    person.clock.pause_at(timedelta(milliseconds=CLOCK_LEAD_MILLISECONDS) + datetime.now(tz=UTC))
+
+
+def arm_top_after(person: Page, milliseconds: int) -> float:
+    person.clock.run_for(milliseconds)
+    top = arm_top(person)
+    assert top is not None, "the figure is not drawn"
+    return top
+
+
 def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]) -> list[float]:
     """The tops of the arm in the pictures from the first with the arm raised to the first with the arm drawn at rest
-    again. Fails when the arm is not seen raised, or not seen back at rest, within the wait."""
-    raised: list[float] = []
+    again, one picture to each step of the held page clock. Fails when the arm is not seen raised before the gesture's
+    wait is over, or not back at rest within the clock time of the wave."""
     deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
-    while time.monotonic() < deadline:
-        if not raised:
-            gesture()
-        top = arm_top(person)
-        if top is None:
-            continue
-        if top < at_rest - RAISED_SHARE:
-            raised.append(top)
-        elif raised:
-            return raised
-    pytest.fail(
-        f"the arm was seen raised {len(raised)} times and not back at rest within {WAIT_FOR_THE_GESTURE_SECONDS} s"
-    )
+    top = at_rest
+    while top >= at_rest - RAISED_SHARE:
+        assert time.monotonic() < deadline, f"the arm was not seen raised within {WAIT_FOR_THE_GESTURE_SECONDS} s"
+        gesture()
+        top = arm_top_after(person, STEP_MILLISECONDS)
+    tops = [top]
+    for _ in range(WAVE_MILLISECONDS // STEP_MILLISECONDS):
+        top = arm_top_after(person, STEP_MILLISECONDS)
+        if abs(top - at_rest) <= REST_TOLERANCE:
+            return tops
+        tops.append(top)
+    pytest.fail(f"the arm did not return to {at_rest} within {WAVE_MILLISECONDS} ms of the page's clock: {tops}")
 
 
 def everyone_with_the_figure_drawn(scene: Scene, clip: dict[str, str]) -> dict[Page, float]:
@@ -254,7 +274,11 @@ def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
     scene = scene_of(form_factor)
 
     at_rest = everyone_with_the_figure_drawn(scene, clip)
+    # The held clock fakes the page's resource timing, so the answers are read first.
+    answers = [clip_answers(person) for person in at_rest]
+    for person in at_rest:
+        hold_the_page_clock(person)
     waves = [tops_of_one_wave(person, rest, lambda: scene.agent.gesture(WAVE)) for person, rest in at_rest.items()]
 
-    assert [clip_answers(person) for person in at_rest] == [[answer]] * len(at_rest)
+    assert answers == [[answer]] * len(at_rest)
     assert min(top for wave in waves for top in wave) > PERSONA_ARM_SHARE
