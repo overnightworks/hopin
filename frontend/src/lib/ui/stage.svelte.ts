@@ -5,6 +5,7 @@ import {
     DEFAULT_AGENT_KEY,
     type AgentFigureDrawer,
     type AgentFigureHandle,
+    type AgentGestureClips,
     type AgentTile,
 } from "#lib/call/feature-port.ts";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
@@ -74,9 +75,10 @@ export function gestureAgentFigure(key: string, gesture: string) {
 interface AgentFigureSpot {
     key: string;
     path: string | undefined;
+    gestures?: AgentGestureClips;
 }
 
-/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, and a new path draws afresh. */
+/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, and a new path draws afresh; the clips go with the path they came with. */
 export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
     // The key is the tile's own and never changes while its action lives.
     const { key } = spot;
@@ -89,26 +91,31 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
         drawnFigures.delete(key);
     }
 
-    function draw(figure: string | undefined) {
+    function draw(figure: string | undefined, gestures: AgentGestureClips | undefined) {
         stop();
         if (figureDrawer === null || figure === undefined) {
             delete host.dataset.figure;
             return;
         }
         host.dataset.figure = AGENT_FIGURE.LOADING;
-        drawn = figureDrawer(host, figure, (state) => {
-            host.dataset.figure = state;
-        });
+        drawn = figureDrawer(
+            host,
+            figure,
+            (state) => {
+                host.dataset.figure = state;
+            },
+            gestures,
+        );
         drawnFigures.set(key, drawn);
     }
 
-    draw(drawnPath);
+    draw(drawnPath, spot.gestures);
     return {
         // Svelte calls update with the unchanged path whenever the tile's entry re-renders; only a new path draws afresh.
         update(next: AgentFigureSpot) {
             if (next.path === drawnPath) return;
             drawnPath = next.path;
-            draw(next.path);
+            draw(next.path, next.gestures);
         },
         destroy: stop,
     };

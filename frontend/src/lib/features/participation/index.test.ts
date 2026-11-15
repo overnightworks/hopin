@@ -58,6 +58,23 @@ describe("dialed-in agents", () => {
         ]);
     });
 
+    it("CALL-65: hands the paths of an agent's clips to its tile, and none for an agent without", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
+            ...joined("someone"),
+            figure: "/api/participation/figures/abc",
+            gestures: { wave: "/api/participation/clips/def" },
+        });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+
+        expect([...page.tiles.values()].map(({ gestures }) => gestures)).toEqual([
+            { wave: "/api/participation/clips/def" },
+            undefined,
+        ]);
+    });
+
     it.each([
         { who: "the sponsor", host: false, sponsorId: ME },
         { who: "the host", host: true, sponsorId: "someone" },
