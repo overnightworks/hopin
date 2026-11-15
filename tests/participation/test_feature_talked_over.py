@@ -12,6 +12,8 @@ from tests.signaling.support.browsers import host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
+ITEM_ID = "item_one"
+
 HOST = person_named("host")
 GUEST = person_named("guest")
 
@@ -102,7 +104,7 @@ class TestAPersonTalksOverASentence:
         participation.speech.words_heard(room_id, guest.peer_id, "Moment")
         window_changes.clear()
 
-        participation.heard(guest.peer_id, "Moment bitte", began_at=0.0)
+        participation.heard(guest.peer_id, "Moment bitte", began_at=0.0, item_id=ITEM_ID)
 
         window = window_of(participation, GUEST, room_id)
         assert (window.talked_over, [line.text for line in window.lines], window_changes) == (

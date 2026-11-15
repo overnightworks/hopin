@@ -5,6 +5,7 @@ holds for the agent.
 The text, the sound and a token reach no log: the callers' step lines carry one closed code."""
 
 import asyncio
+import contextvars
 import logging
 import math
 import threading
@@ -161,8 +162,15 @@ class SpeechRenderer:
         arrived: asyncio.Queue[PreferenceStreamItem | Exception] = asyncio.Queue()
         stopped = threading.Event()
         loop = asyncio.get_running_loop()
+        # The worker runs in a copy of this context: the client's request carries the running trace, which a bare
+        # executor thread does not have.
         loop.run_in_executor(
-            None, _read, items, lambda item: loop.call_soon_threadsafe(arrived.put_nowait, item), stopped
+            None,
+            contextvars.copy_context().run,
+            _read,
+            items,
+            lambda item: loop.call_soon_threadsafe(arrived.put_nowait, item),
+            stopped,
         )
         try:
             while True:

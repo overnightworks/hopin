@@ -250,13 +250,14 @@ class Participation:
             return HearingRefusal.SEAT_AWAY
         return self._hearing.open(account, room_id, seat, holds_token)
 
-    def heard(self, seat: PeerId, text: str, began_at: float) -> None:
-        """Add a finished sentence the seat said, which began at `began_at` on the scheduler's clock, to the window of
-        each joined agent that hears the seat, under the name the call shows for the seat."""
+    def heard(self, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
+        """Add a finished sentence the seat said, which began at `began_at` on the scheduler's clock and which the
+        speech service knows as `item_id`, to the window of each joined agent that hears the seat, under the name the
+        call shows for the seat."""
         room_id = self._rooms.room_of(seat)
         if room_id is None:
             return
-        self.speech.person_said(room_id, seat, text, began_at)
+        self.speech.person_said(room_id, seat, text, began_at, item_id)
 
     def is_live_agent(self, person: Person) -> bool:
         """Whether the person is an agent with an account of its own whose lease is registered."""

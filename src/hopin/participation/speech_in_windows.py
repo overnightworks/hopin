@@ -210,9 +210,10 @@ class SpeechInWindows:
             if changed:
                 self._on_window_changed(person, agent.room_id)
 
-    def person_said(self, room_id: str, seat: PeerId, text: str, began_at: float) -> None:
-        """A sentence the seat said, which began at `began_at`, enters the window of each agent that hears the seat
-        under the name the call shows, in the change that takes the seat's words out of the record."""
+    def person_said(self, room_id: str, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
+        """A sentence the seat said, which began at `began_at` and which the speech service knows as `item_id`, enters
+        the window of each agent that hears the seat under the name the call shows, in the change that takes the seat's
+        words out of the record."""
         heard = self._hearing.heard(room_id, seat, self._rooms.name_of(seat), text, began_at)
         if heard is None:
             return
@@ -222,20 +223,23 @@ class SpeechInWindows:
             )
             turn_ended = window.turn_ended(seat)
             if appended:
-                self._line_entered(person, room_id, window, EntryKind.HEARD)
+                self._line_entered(person, room_id, window, EntryKind.HEARD, item_id)
             if turn_ended or appended:
                 self._on_window_changed(person, room_id)
             if appended:
                 self._pulse_sent(person, room_id, window)
                 self._remember_turn(window)
 
-    def _line_entered(self, person: Person, room_id: str, window: ChatWindow, kind: EntryKind) -> None:
+    def _line_entered(
+        self, person: Person, room_id: str, window: ChatWindow, kind: EntryKind, item_id: str | None = None
+    ) -> None:
         logger.info(
             "line.entered",
             room_ref=room_reference(room_id),
             agent_id=self._agent_id_of(person, room_id),
             seq=window.last_seq,
             kind=kind,
+            item_id=item_id,
         )
 
     def _pulse_sent(self, person: Person, room_id: str, window: ChatWindow) -> None:
