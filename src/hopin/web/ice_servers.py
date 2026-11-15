@@ -29,10 +29,9 @@ class TurnRelayFailure(StrEnum):
 
 
 class TurnRelayUnavailableError(Exception):
-    def __init__(self, reason: TurnRelayFailure, status: int | None = None) -> None:
+    def __init__(self, reason: TurnRelayFailure) -> None:
         super().__init__(reason)
         self.reason = reason
-        self.status = status
 
 
 class TurnRelay(Protocol):

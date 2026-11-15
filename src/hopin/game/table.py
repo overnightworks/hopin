@@ -128,14 +128,12 @@ class _VoiceRun:
 
     task: asyncio.Task[bytes | None]
     deadline: TimerHandle = field(init=False)
-    expired: bool = False
 
     def stop(self) -> None:
         self.deadline.cancel()
         self.task.cancel()
 
     async def expire(self) -> None:  # NOSONAR(S7503) the scheduler awaits it
-        self.expired = True
         self.task.cancel()
 
 
@@ -455,8 +453,6 @@ class Game:
         with StepTimer("voice_wait.ended", _STEPS, room_ref=room_reference(room_id)):
             await asyncio.wait({run.voice.task})
         run.voice.deadline.cancel()
-        if run.voice.expired and run.voice.task.cancelled():
-            logger.info("game_voice.refused", reason="past_deadline")
         wav = _voice_of(run.voice.task)
         if not self._is_live(room_id, run):
             return

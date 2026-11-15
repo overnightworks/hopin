@@ -314,15 +314,11 @@ class TestAVoiceThatFails:
         await sent_to_all([host, guest], answering(host))
         [spoken] = voice.calls
 
-        with structlog.testing.capture_logs() as logs:
-            await scheduler.advance(VOICE_DEADLINE_SECONDS)
-            await yield_until(lambda: spoken.finished)
-            await host.say(REVEAL)
-            await sent_to_all([host, guest], answering(host, 2))
+        await scheduler.advance(VOICE_DEADLINE_SECONDS)
+        await yield_until(lambda: spoken.finished)
+        await host.say(REVEAL)
+        await sent_to_all([host, guest], answering(host, 2))
 
-        assert [log for log in logs if log["event"] == "game_voice.refused"] == [
-            {"event": "game_voice.refused", "log_level": "info", "reason": "past_deadline"}
-        ]
         assert spoken.cancelled
         assert shown(guest)[:6] == [*asked(host, "Frage?"), {"type": VOICE_TYPE}, thinking(host), line(REVEAL_LINE)]
 
