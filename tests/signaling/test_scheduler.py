@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 import structlog.testing
+from logline import current_traceparent, unit_trace
 
 from hopin.signaling.scheduler import AsyncioScheduler
 
@@ -15,6 +16,11 @@ class TimerError(Exception):
 @pytest.fixture
 def scheduler():
     return AsyncioScheduler()
+
+
+def trace_id_now() -> str | None:
+    traceparent = current_traceparent()
+    return None if traceparent is None else traceparent.split("-")[1]
 
 
 async def wait_for(event: asyncio.Event) -> None:
@@ -32,6 +38,23 @@ class TestAsyncioScheduler:
         scheduler.call_later(0, callback)
 
         await wait_for(ran)
+
+    @pytest.mark.asyncio
+    async def test_a_timer_runs_in_a_trace_of_its_own_not_the_one_that_scheduled_it(self, scheduler):
+        ran = asyncio.Event()
+        traces: dict[str, str | None] = {}
+
+        async def callback():
+            traces["timer"] = trace_id_now()
+            ran.set()
+
+        with unit_trace(None):
+            traces["scheduling"] = trace_id_now()
+            scheduler.call_later(0, callback)
+        await wait_for(ran)
+
+        assert traces["timer"] is not None
+        assert traces["timer"] != traces["scheduling"]
 
     @pytest.mark.asyncio
     async def test_cancelled_timer_never_runs_its_callback(self, scheduler):

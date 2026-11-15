@@ -2,6 +2,7 @@ import asyncio
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
+from logline import unit_trace
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -39,7 +40,9 @@ class AsyncioScheduler:
 
     @staticmethod
     async def _run(callback: Callable[[], Awaitable[None]]) -> None:
-        await callback()
+        # The timer is a unit of its own: the context it copied at scheduling carries the trace of whatever scheduled it.
+        with unit_trace(None):
+            await callback()
 
     def _finished(self, task: asyncio.Task[None]) -> None:
         self._running.discard(task)
