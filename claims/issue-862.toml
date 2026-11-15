@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "a87ab7e97faf4426f5e9e379ed55f9effbe2fd77"
 branch = "claude/issue-862-logline"
-scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/main.py", "tests/test_app.py", "uv.lock"]
+scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/auth/request_identity.py", "src/hopin/main.py", "tests/conftest.py", "tests/game/test_table_feature_activation.py", "tests/test_app.py", "tests/test_main.py", "tests/test_main_logging.py", "tests/web/test_turn_relay.py", "uv.lock"]
 opened_commit = "77b9789343544dc4867537e27f95841aeae2ff4d"
 whole_reason = "One logger switch: the entry point, the app and the two hops it times change together, or hopin logs in two shapes."
