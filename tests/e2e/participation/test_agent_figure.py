@@ -199,21 +199,16 @@ CLOCK_LEAD_MILLISECONDS = 5_000
 # The arm's top at rest moves by the pixel grid and the idle sway, a few thousandths of the picture between two figures;
 # an arm still easing back one step before it settles stands about 0.05 off.
 REST_TOLERANCE = 0.02
+# The arm stands at rest when its top has moved no more than the sway through this many steps in a row; a tile that has
+# just been laid out draws at its new size with its first pictures.
+SWAY = 0.01
+STILL_STEPS = 3
+SETTLING_STEPS = 100
 
 
 def arm_top(person: Page) -> float | None:
     picture = person.locator(f"{AGENT_TILE} canvas").screenshot()
     return person.evaluate(ARM_TOP_SHARE, base64.b64encode(picture).decode())
-
-
-def drawn_at_rest(person: Page) -> float:
-    """The arm's top once the person's tile shows the figure drawn, at rest."""
-    expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
-        "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
-    )
-    top = arm_top(person)
-    assert top is not None
-    return top
 
 
 def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
@@ -222,7 +217,7 @@ def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
     deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
     while time.monotonic() < deadline:
         gesture()
-        top = arm_top(person)
+        top = arm_top_after(person, STEP_MILLISECONDS)
         if top is not None and top < PERSONA_ARM_SHARE:
             return True
     return False
@@ -233,11 +228,37 @@ def hold_the_page_clock(person: Page) -> None:
     person.clock.pause_at(timedelta(milliseconds=CLOCK_LEAD_MILLISECONDS) + datetime.now(tz=UTC))
 
 
-def arm_top_after(person: Page, milliseconds: int) -> float:
+def arm_top_after(person: Page, milliseconds: int) -> float | None:
     person.clock.run_for(milliseconds)
-    top = arm_top(person)
+    return arm_top(person)
+
+
+def arm_top_seen_after(person: Page, milliseconds: int) -> float:
+    top = arm_top_after(person, milliseconds)
     assert top is not None, "the figure is not drawn"
     return top
+
+
+def held_once_drawn(person: Page) -> None:
+    """Holds the page clock the moment the person's tile shows the figure drawn: a figure that draws on in real time
+    ends as too slow when a loaded machine draws every browser's figure at once."""
+    expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
+        "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
+    )
+    hold_the_page_clock(person)
+
+
+def arm_top_at_rest(person: Page) -> float:
+    """The arm's top of the figure on the held page clock once it stands still."""
+    previous = None
+    still = 0
+    for _ in range(SETTLING_STEPS):
+        top = arm_top_after(person, STEP_MILLISECONDS)
+        still = still + 1 if top is not None and previous is not None and abs(top - previous) <= SWAY else 0
+        if still == STILL_STEPS and top is not None:
+            return top
+        previous = top
+    pytest.fail(f"the arm did not stand still within {SETTLING_STEPS} steps of the page's clock")
 
 
 def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]) -> list[float]:
@@ -249,10 +270,10 @@ def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]
     while top >= at_rest - RAISED_SHARE:
         assert time.monotonic() < deadline, f"the arm was not seen raised within {WAIT_FOR_THE_GESTURE_SECONDS} s"
         gesture()
-        top = arm_top_after(person, STEP_MILLISECONDS)
+        top = arm_top_seen_after(person, STEP_MILLISECONDS)
     tops = [top]
     for _ in range(WAVE_MILLISECONDS // STEP_MILLISECONDS):
-        top = arm_top_after(person, STEP_MILLISECONDS)
+        top = arm_top_seen_after(person, STEP_MILLISECONDS)
         if abs(top - at_rest) <= REST_TOLERANCE:
             return tops
         tops.append(top)
@@ -261,14 +282,18 @@ def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]
 
 def everyone_with_the_figure_drawn(scene: Scene, clip: dict[str, str]) -> dict[Page, float]:
     """The persona's figure with `clip` as its wave is accepted and a late joiner is in: each browser of the call with
-    the arm's top at rest."""
+    its page clock held and the arm's top at rest."""
     figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: clip}}
     scene.member_adds_and_the_agent_accepts(figure)
+    for person in scene.everyone:
+        held_once_drawn(person)
     late = scene.person_joins_late()
-    return {person: drawn_at_rest(person) for person in [*scene.everyone, late]}
+    held_once_drawn(late)
+    return {person: arm_top_at_rest(person) for person in [*scene.everyone, late]}
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
+@pytest.mark.parametrize("clock_faked", [True])
 def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_included(
     scene_of: Callable[..., Scene], clip_answers: dict[Page, list[int]], form_factor: dict[str, Any]
 ) -> None:
@@ -306,8 +331,6 @@ def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
 
     at_rest = everyone_with_the_figure_drawn(scene, clip)
     answers = [clip_answers[person] for person in at_rest]
-    for person in at_rest:
-        hold_the_page_clock(person)
     waves = [tops_of_one_wave(person, rest, lambda: scene.agent.gesture(WAVE)) for person, rest in at_rest.items()]
 
     assert answers == [[answer]] * len(at_rest)
