@@ -3,8 +3,12 @@ from typing import TYPE_CHECKING, Final, Protocol
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
 
-# The game keeps its lines' voices under this speaker, one at a time.
+# The game keeps its lines' voices under this speaker.
 GAME_SPEAKER: Final = "game"
+
+# The latest voices kept: a fast speech service makes the next line's voice within milliseconds of sending a voice's
+# frame, before a seat's fetch of that voice arrives, so the voice before the latest stays fetchable.
+GAME_VOICES_KEPT: Final = 2
 
 # The message of the cancel that cuts a voice at its deadline, so the voice can tell it from the end of its run.
 VOICE_DEADLINE_CUT: Final = "voice_deadline"
@@ -36,6 +40,9 @@ class VoiceShelf(Protocol):
 
     def put(self, room_id: str, speaker: str, wav: bytes) -> StoredVoice:
         """Keep the sound under a new id."""
+
+    def keep_latest(self, room_id: str, speaker: str, count: int) -> None:
+        """Drop the speaker's sounds in the room but the `count` it kept last."""
 
     def forget_speaker(self, room_id: str, speaker: str) -> None:
         """Drop every sound the speaker has kept in the room."""

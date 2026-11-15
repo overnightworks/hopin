@@ -135,6 +135,19 @@ class TestTheStore:
             await waiting
         assert (store.get(voice.id), store.room_of(voice.id)) == (None, None)
 
+    async def test_call_60_a_speaker_keeps_only_its_latest_sounds_and_the_others_keep_theirs(self):
+        store = VoiceStore()
+        kept = [
+            store.put(ROOM, SPEAKER, b"first"),
+            store.put(ROOM, SPEAKER, b"second"),
+            store.put(ROOM, SPEAKER, b"third"),
+        ]
+        other = store.put(ROOM, "someone else", b"other")
+
+        store.keep_latest(ROOM, SPEAKER, 2)
+
+        assert ([store.get(voice.id) for voice in kept], store.get(other.id)) == ([None, kept[1], kept[2]], other)
+
     async def test_call_60_a_speaker_that_goes_loses_every_sound_it_kept_in_the_room(self):
         store = VoiceStore()
         kept = [store.open(ROOM, SPEAKER), store.put(ROOM, SPEAKER, b"whole")]
