@@ -32,8 +32,11 @@ HOLDING_WAVE = (FIGURE_FILES / "holding_wave.vrma").read_bytes()
 DRAWABLE_URL = figure_url("drawable.vrm")
 HOLDING_WAVE_URL = figure_url("holding_wave.vrma")
 MISSING_WAVE_URL = figure_url("missing_wave.vrma")
+REFUSED_WAVE_URL = figure_url("refused_wave.vrma")
 WAVE = "wave"
 UNDRAWABLE = glb(b"mozart" * 8)
+# The server passes it as a clip, it has a glTF binary header; figure's own check refuses it, it is no animation.
+REFUSED_WAVE = glb(b"salieri" * 8)
 UNDRAWABLE_URL = figure_url("undrawable.glb")
 MISSING_URL = figure_url("missing.glb")
 
@@ -47,6 +50,7 @@ def figure_origin() -> FigureOrigin:
     origin.serve(DRAWABLE_URL, ok(DRAWABLE))
     origin.serve(HOLDING_WAVE_URL, ok(HOLDING_WAVE))
     origin.serve(MISSING_WAVE_URL, Answer(404))
+    origin.serve(REFUSED_WAVE_URL, ok(REFUSED_WAVE))
     return origin
 
 
@@ -226,12 +230,20 @@ def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_in
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_a_clip_the_server_cannot_verify_leaves_the_neutral_wave_and_the_figure_drawn(
-    scene_of: Callable[..., Scene], form_factor: dict[str, Any]
+@pytest.mark.parametrize(
+    ("clip", "answer"),
+    [
+        pytest.param(figure_of(MISSING_WAVE_URL, b""), 502, id="a clip the server cannot fetch"),
+        pytest.param(figure_of(REFUSED_WAVE_URL, REFUSED_WAVE), 200, id="a clip figure refuses"),
+    ],
+)
+def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
+    scene_of: Callable[..., Scene], form_factor: dict[str, Any], clip: dict[str, str], answer: int
 ) -> None:
-    """CALL-65: A clip that cannot be fetched leaves the neutral gesture and the figure is drawn all the same."""
+    """CALL-65: A clip that cannot be fetched, or that figure refuses, leaves the neutral gesture and the figure is
+    drawn all the same."""
     scene = scene_of(form_factor)
-    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: figure_of(MISSING_WAVE_URL, b"")}}
+    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: clip}}
 
     scene.member_adds_and_the_agent_accepts(figure)
     late = scene.person_joins_late()
@@ -240,6 +252,6 @@ def test_a_clip_the_server_cannot_verify_leaves_the_neutral_wave_and_the_figure_
 
     waves = [tops_of_one_wave(person, at_rest[person], lambda: scene.agent.gesture(WAVE)) for person in everyone]
 
-    assert [clip_answers(person) for person in everyone] == [[502]] * len(everyone)
+    assert [clip_answers(person) for person in everyone] == [[answer]] * len(everyone)
     assert all(waves)
     assert min(top for wave in waves for top in wave) > PERSONA_ARM_SHARE
