@@ -418,8 +418,8 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
 async def _gestured(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         gesturing = GestureArguments.model_validate(arguments)
-    except ValidationError as invalid:
-        await _log_malformed(AGENT_GESTURE_MALFORMED_EVENT, invalid)
+    except ValidationError:
+        await logger.awarning(AGENT_GESTURE_MALFORMED_EVENT)
         return _gesture_refused()
     if gesturing.place.kind != CALL_KIND:
         return _gesture_refused()

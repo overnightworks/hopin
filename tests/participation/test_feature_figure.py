@@ -415,15 +415,13 @@ class TestTheGestureTool:
         assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
 
     @pytest.mark.parametrize(
-        ("arguments", "fields"),
+        "arguments",
         [
-            pytest.param({"gesture": "wave", "voice": "secret-voice-value"}, ["voice"], id="a forbidden key"),
-            pytest.param({"gesture": ["secret-gesture-value"]}, ["gesture"], id="a gesture of the wrong kind"),
+            pytest.param({"gesture": "wave", "secret-key": "secret-voice-value"}, id="a key the tool does not name"),
+            pytest.param({"gesture": ["secret-gesture-value"]}, id="a gesture of the wrong kind"),
         ],
     )
-    def test_call_64_a_malformed_gesture_logs_its_closed_event_with_the_field_names_only(
-        self, gesturing, arguments, fields
-    ):
+    def test_call_64_a_malformed_gesture_logs_its_closed_event_and_nothing_the_agent_sent(self, gesturing, arguments):
         place = {"kind": "call", "id": gesturing.owner.room_id}
 
         with structlog.testing.capture_logs() as logs:
@@ -431,5 +429,5 @@ class TestTheGestureTool:
 
         malformed = [entry for entry in logs if entry["event"] == "agent_gesture_malformed"]
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-        assert [(entry["log_level"], entry["fields"]) for entry in malformed] == [("warning", fields)]
+        assert malformed == [{"event": "agent_gesture_malformed", "log_level": "warning"}]
         assert "secret" not in str(logs)
