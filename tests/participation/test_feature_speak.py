@@ -35,7 +35,7 @@ from tests.participation.support.speaking import (
     waiting_to_speak,
     window_texts,
 )
-from tests.signaling.support.browsers import HeldWrite
+from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, HeldWrite
 from tests.support.speech_origin import failures_in
 from tests.support.stores import sound_of
 
@@ -183,7 +183,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
         seconds = SENTENCE_MS / 1000
         await scheduler.advance(seconds)
         await scheduler.advance(seconds)
-        await asyncio.sleep(0)
+        await behind
         await scheduler.advance(seconds)
         later = await speak(participation, "four", room_id=room_id)
 
@@ -200,9 +200,9 @@ class TestTheAnswerComesWhenTheSentenceStarts:
         held = HeldWrite(host.socket, first_only=True)
         speaking = asyncio.create_task(participation.speak(GUEST, room_of(host), "Guten Tag", rendering()))
         await held.reached()
-        await asyncio.sleep(0)
 
-        answered_while_blocked = speaking.done()
+        answered, _ = await asyncio.wait({speaking}, timeout=SETTLE_TIMEOUT_SECONDS)
+        answered_while_blocked = bool(answered)
         held.release.set()
         await speaking
 
@@ -671,8 +671,7 @@ class TestAnEndWhileTheSentenceIsAnnounced:
         first = asyncio.create_task(speak(participation, "eins", room_id=room_of(host)))
         await held.reached()
         await scheduler.advance(SENTENCE_MS / 1000)
-        second = asyncio.create_task(speak(participation, "zwei", room_id=room_of(host)))
-        await asyncio.sleep(0)
+        second = await waiting_to_speak(participation, "zwei", room_id=room_of(host))
         held.release.set()
         await asyncio.gather(first, second)
 
