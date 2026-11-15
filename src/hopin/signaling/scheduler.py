@@ -42,12 +42,10 @@ class AsyncioScheduler:
     async def _run(callback: Callable[[], Awaitable[None]]) -> None:
         # A timer is a unit of its own: the context it copied at scheduling carries the scheduler's trace.
         with unit_trace(None):
-            await callback()
+            try:
+                await callback()
+            except Exception as error:
+                logger.error("timer.failed", exc_info=error)
 
     def _finished(self, task: asyncio.Task[None]) -> None:
         self._running.discard(task)
-        if task.cancelled():
-            return
-        exception = task.exception()
-        if exception is not None:
-            logger.error("timer.failed", exc_info=exception)
