@@ -44,6 +44,13 @@ class TestMain:
         assert mock_run.call_args[1]["log_level"] == UVICORN_LOG_LEVEL
 
     @patch("hopin.main.uvicorn.run")
+    def test_leaves_uvicorn_no_logging_setup_of_its_own(self, mock_run, sign_in_settings, monkeypatch):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        main(["serve"])
+        assert mock_run.call_args[1]["log_config"] is None
+
+    @patch("hopin.main.uvicorn.run")
     def test_leaves_the_client_address_to_the_trusted_proxy_setting(self, mock_run, sign_in_settings, monkeypatch):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)

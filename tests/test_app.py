@@ -1,4 +1,5 @@
 import asyncio
+import json
 import secrets
 import threading
 from datetime import UTC, datetime, timedelta
@@ -9,6 +10,8 @@ import structlog
 import structlog.testing
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
+from logline import REQUEST_EVENT
+from logline.testing import configured
 from starlette.requests import Request
 from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
@@ -21,6 +24,7 @@ from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     CALL_FEATURES_PATH,
+    HEALTH_PATH,
     LOGIN_GROUP,
     SESSION_SWEEP_SECONDS,
     WEBSOCKET_PATH,
@@ -367,20 +371,19 @@ class TestExpiredSessionSweep:
         ]
 
 
-class TestLoggedExceptions:
-    def test_rendered_traceback_leaves_out_the_values_of_local_variables(self, sign_in_settings, capsys):
-        create_app(sign_in_settings().settings, page_build=fixture_page_build())
-        sentinel = secrets.token_urlsafe(16)
+class TestRequestLine:
+    def test_a_request_writes_one_json_line_with_its_route_and_without_its_path(self, sign_in_settings, capsys):
+        app = create_app(sign_in_settings().settings, page_build=fixture_page_build())
+        probe = secrets.token_urlsafe(8)
 
-        def fail_holding_the_sentinel():
-            held_secret = sentinel
-            raise ValueError(len(held_secret))
+        with configured("hopin"):
+            TestClient(app, base_url=TEST_PUBLIC_ORIGIN).get(f"{HEALTH_PATH}?probe={probe}")
 
-        try:
-            fail_holding_the_sentinel()
-        except ValueError:
-            structlog.get_logger().exception("failed")
-
-        rendered = capsys.readouterr().out
-        assert "ValueError" in rendered
-        assert sentinel not in rendered
+        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
+        assert (request["service"], request["status"], isinstance(request["duration_ms"], int | float)) == (
+            "hopin",
+            200,
+            True,
+        )
+        assert probe not in json.dumps(request)

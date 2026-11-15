@@ -120,18 +120,16 @@ async def _refused_handshake(output: Output, target: str) -> None:
 class TestServerLogging:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("make_request", "target_template", "path"),
+        ("make_request", "target_template"),
         [
-            pytest.param(
-                _get, f"{AUTH_CALLBACK_PATH}?code={{0}}&state={{0}}", AUTH_CALLBACK_PATH, id="sign_in_callback"
-            ),
-            pytest.param(_join_and_close, f"{WEBSOCKET_PATH}?probe={{0}}", WEBSOCKET_PATH, id="admitted_handshake"),
-            pytest.param(_refused_handshake, f"{WEBSOCKET_PATH}?probe={{0}}", WEBSOCKET_PATH, id="refused_handshake"),
-            pytest.param(_get, f"{HEALTH_PATH}?probe={{0}}", HEALTH_PATH, id="health_check"),
+            pytest.param(_get, f"{AUTH_CALLBACK_PATH}?code={{0}}&state={{0}}", id="sign_in_callback"),
+            pytest.param(_join_and_close, f"{WEBSOCKET_PATH}?probe={{0}}", id="admitted_handshake"),
+            pytest.param(_refused_handshake, f"{WEBSOCKET_PATH}?probe={{0}}", id="refused_handshake"),
+            pytest.param(_get, f"{HEALTH_PATH}?probe={{0}}", id="health_check"),
         ],
     )
-    async def test_request_leaves_no_line_in_the_server_output(
-        self, started_server: Output, make_request, target_template: str, path: str
+    async def test_request_leaves_neither_its_raw_target_nor_its_person_in_the_server_output(
+        self, started_server: Output, make_request, target_template: str
     ) -> None:
         sentinel = secrets.token_urlsafe(16)
         target = target_template.format(sentinel)
@@ -140,7 +138,6 @@ class TestServerLogging:
 
         output = started_server.read()
         assert target not in output
-        assert path not in output
         assert sentinel not in output
         assert started_server.member.account.username not in output
 
