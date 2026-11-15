@@ -1,0 +1,8 @@
+claim_id = "2a5d32c0905e44ebbb9b80b9c3ece910"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "723b653a62f35443244a85ef7a6ea75900e7c792"
+branch = "claude/issue-799-persona-gesture-clips"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/figure", "frontend/src/lib/ui/stage.svelte.ts", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation", "tests/e2e/participation", "tests/participation"]
+opened_commit = "ee458629d9b28af20e67006ae0c840846d404469"
+whole_reason = "One path for a persona's clips, from accept through the verified server copy to the figure's gestures option, judged in one drive."
