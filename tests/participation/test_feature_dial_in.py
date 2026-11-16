@@ -7,6 +7,7 @@ from hopin.participation.participants import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AgentRefusal,
+    FigureGesture,
     ParticipationSignal,
 )
 from hopin.rooms.manager import RoomManager
@@ -124,7 +125,7 @@ class TestJoiningOneLiveSeat:
         if reason == "left":
             await participation.leave(person, room_id)
 
-        refused = await participation.figures.gesture(person, room_id, "wave")
+        refused = await participation.figures.gesture(person, room_id, FigureGesture.WAVE)
 
         assert refused is AgentRefusal.GONE
         assert agent_frames(host, ParticipationSignal.AGENT_GESTURE) == []

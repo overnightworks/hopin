@@ -5,90 +5,29 @@ import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
 import { words } from "#lib/words/de.ts";
 import { sourceLanguage } from "#lib/words/index.ts";
-import { SIGNAL_TYPE } from "#lib/wire.ts";
+import { SIGNAL_TYPE, type ServerFrameByType } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createLooks } from "./looking.ts";
-import { createAgentOffers, outcomeOf, refusalOf, rowsOf, type Offer } from "./offers.svelte.ts";
+import { createAgentOffers, outcomeOf, refusalOf, rowsOf } from "./offers.svelte.ts";
 import { createAgentVoices, type PlayerFactory } from "./voice.ts";
-import { AGENT_REFUSAL, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL } from "./wire.ts";
-
-interface SeatFrame {
-    participant_id: string;
-    is_host: boolean;
-}
-
-interface AgentJoinedFrame {
-    agent_id: string;
-    name: string;
-    sponsor: string;
-    sponsor_id: string;
-    figure?: string;
-    gestures?: Readonly<Record<string, string>>;
-}
-
-interface AgentLeftFrame {
-    agent_id: string;
-}
-
-interface AgentHearingFrame {
-    agent_id: string;
-    on: boolean;
-}
-
-type AgentSeeingFrame = AgentHearingFrame;
-
-interface AgentLookRequestFrame {
-    request_id: string;
-}
-
-interface AgentLookedFrame {
-    agent_id: string;
-}
+import {
+    AGENT_REFUSAL,
+    HEARING_PATH,
+    PARTICIPATION_SIGNAL,
+    type Offer,
+    type ParticipationFrameByType,
+} from "./wire.ts";
 
 interface ShownAgent {
-    readonly joined: AgentJoinedFrame;
+    readonly joined: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_JOINED];
     // The server's record of the sponsor's switches; absent until its frame comes, which only the sponsor gets.
     readonly hearing?: boolean;
     readonly seeing?: boolean;
     // A look of the agent was shown lately.
     readonly looking?: boolean;
-}
-
-interface AgentVoiceFrame {
-    agent_id: string;
-    voice_id: string;
-}
-
-interface AgentGestureFrame {
-    agent_id: string;
-    gesture: string;
-}
-
-interface AgentStopFrame {
-    agent_id: string;
-}
-
-interface AgentOffersFrame {
-    shown: boolean;
-    full: boolean;
-    offers: Offer[];
-}
-
-interface InvitationEndedFrame {
-    agent_key: string;
-    outcome: INVITATION_OUTCOME;
-}
-
-interface AgentLineFrame {
-    name: string;
-    text: string;
-}
-
-interface AgentRefusedFrame {
-    reason: AGENT_REFUSAL;
 }
 
 // How long the mark of a look stays on the agent's tile.
@@ -137,7 +76,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         return [...shown.values()].filter((agent) => agent.hearing === true).length;
     }
 
-    function mayRemove(frame: AgentJoinedFrame) {
+    function mayRemove(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_JOINED]) {
         return isHost || frame.sponsor_id === seatId;
     }
 
@@ -182,13 +121,13 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         );
     }
 
-    function show(frame: AgentJoinedFrame) {
+    function show(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_JOINED]) {
         const agent: ShownAgent = { ...shown.get(frame.agent_id), joined: frame };
         shown.set(frame.agent_id, agent);
         draw(agent);
     }
 
-    function showHearing(frame: AgentHearingFrame) {
+    function showHearing(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_HEARING]) {
         const agent = shown.get(frame.agent_id);
         if (agent === undefined) return;
         pressedOff.delete(frame.agent_id);
@@ -198,7 +137,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         capture.setHearers(hearingAgents());
     }
 
-    function showSeeing(frame: AgentSeeingFrame) {
+    function showSeeing(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_SEEING]) {
         const agent = shown.get(frame.agent_id);
         if (agent === undefined) return;
         const recorded = { ...agent, seeing: frame.on };
@@ -209,7 +148,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     // The mark is drawn at each look and leaves after a while; a look in between starts the time over.
     const markTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-    function showLooked(frame: AgentLookedFrame) {
+    function showLooked(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LOOKED]) {
         const agent = shown.get(frame.agent_id);
         if (agent === undefined) return;
         clearTimeout(markTimers.get(frame.agent_id));
@@ -271,7 +210,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     }
 
     // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
-    function showOffers(frame: AgentOffersFrame) {
+    function showOffers(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_OFFERS]) {
         const hadFocus = offers.contains(document.activeElement);
         clearRefusal();
         offered = frame.offers;
@@ -285,7 +224,7 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         if (hadFocus && !offers.contains(document.activeElement)) offers.focus();
     }
 
-    function showEnding(frame: InvitationEndedFrame) {
+    function showEnding(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED]) {
         endings.set(frame.agent_key, outcomeOf(frame.outcome));
         drawOffers();
     }
@@ -301,7 +240,9 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
         capture.setHearers(hearingAgents());
     }
 
-    const seated = (frame: SeatFrame) => {
+    const seated = (
+        frame: ServerFrameByType[SIGNAL_TYPE.ROOM_CREATED] | ServerFrameByType[SIGNAL_TYPE.EXISTING_PARTICIPANTS],
+    ) => {
         seatId = frame.participant_id;
         isHost = frame.is_host;
         // The server announces every agent still in the room to a new seat; one it does not announce has left.
@@ -311,36 +252,45 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     core.on(SIGNAL_TYPE.ROOM_CREATED, seated);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, seated);
     core.on(PARTICIPATION_SIGNAL.AGENT_JOINED, show);
-    core.on(PARTICIPATION_SIGNAL.AGENT_LEFT, (frame: AgentLeftFrame) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_LEFT, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LEFT]) => {
         hide(frame.agent_id);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_HEARING, showHearing);
     core.on(PARTICIPATION_SIGNAL.AGENT_SEEING, showSeeing);
-    core.on(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, (frame: AgentLookRequestFrame) => {
-        void looks.answer(frame.request_id);
-    });
+    core.on(
+        PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST,
+        (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST]) => {
+            void looks.answer(frame.request_id);
+        },
+    );
     core.on(PARTICIPATION_SIGNAL.AGENT_LOOKED, showLooked);
-    core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame: AgentVoiceFrame) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_VOICE]) => {
         if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id);
     });
-    core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame: AgentStopFrame) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_STOP]) => {
         voices.stop(frame.agent_id);
     });
-    core.on(PARTICIPATION_SIGNAL.AGENT_GESTURE, (frame: AgentGestureFrame) => {
-        if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
-    });
+    core.on(
+        PARTICIPATION_SIGNAL.AGENT_GESTURE,
+        (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_GESTURE]) => {
+            if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
+        },
+    );
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);
-    core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: AgentLineFrame) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LINE]) => {
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });
-    core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame: AgentRefusedFrame) => {
-        if (frame.reason === AGENT_REFUSAL.NOT_SPONSOR_OR_HOST) {
-            core.showToast(NOT_REMOVED_TEXT, core.toastKind.LOCKED, null);
-        } else {
-            offersView.refusal = refusalOf(frame.reason);
-        }
-    });
+    core.on(
+        PARTICIPATION_SIGNAL.AGENT_REFUSED,
+        (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_REFUSED]) => {
+            if (frame.reason === AGENT_REFUSAL.NOT_SPONSOR_OR_HOST) {
+                core.showToast(NOT_REMOVED_TEXT, core.toastKind.LOCKED, null);
+            } else {
+                offersView.refusal = refusalOf(frame.reason);
+            }
+        },
+    );
     core.onMicrophone((stream) => {
         capture.setStream(stream);
     });

@@ -4,16 +4,16 @@ gestures it makes with it."""
 from typing import TYPE_CHECKING
 
 from hopin.participation.figures import NamedFigure
-from hopin.participation.frames import gesture_frame
+from hopin.participation.frames import AgentGestureFrame, ParticipationFrame
 from hopin.participation.participants import DialedAgent
-from hopin.participation.vocabulary import AgentRefusal
+from hopin.participation.vocabulary import AgentRefusal, FigureGesture
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
-    from hopin.signaling.frames import JsonObject, PeerId
+    from hopin.signaling.frames import PeerId
 
 
 class ShownFigures:
@@ -24,7 +24,7 @@ class ShownFigures:
         self,
         places: Places,
         active_agent: Callable[[Person, str], DialedAgent | AgentRefusal],
-        tell: Callable[[str, Sequence[PeerId], JsonObject], Awaitable[None]],
+        tell: Callable[[str, Sequence[PeerId], ParticipationFrame], Awaitable[None]],
         recipients: Callable[[str], list[PeerId]],
     ) -> None:
         self._places = places
@@ -56,7 +56,7 @@ class ShownFigures:
             isinstance(place, DialedAgent) and place.figure is not None for _, place in self._places.of_person(person)
         )
 
-    async def gesture(self, person: Person, room_id: str, gesture: str) -> AgentRefusal | None:
+    async def gesture(self, person: Person, room_id: str, gesture: FigureGesture) -> AgentRefusal | None:
         """Tell every seat the person's agent makes the gesture with its figure; why not when the agent holds no active
         place there or shows no figure. A seat that joins later is told no past gesture."""
         agent = self._active_agent(person, room_id)
@@ -64,5 +64,5 @@ class ShownFigures:
             return agent
         if agent.figure is None:
             return AgentRefusal.GONE
-        await self._tell(room_id, self._recipients(room_id), gesture_frame(agent, gesture))
+        await self._tell(room_id, self._recipients(room_id), AgentGestureFrame(agent.agent_id, gesture))
         return None

@@ -63,6 +63,107 @@ export enum FIGURE_GESTURE {
     WAVE = "wave",
 }
 
+export interface Offer {
+    agent_key: string;
+    name: string;
+    pending: boolean;
+}
+
+export type AgentJoinedFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_JOINED;
+    agent_id: string;
+    name: string;
+    sponsor: string;
+    sponsor_id: string;
+    figure?: string;
+    gestures?: Record<string, string>;
+};
+
+export type AgentLeftFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_LEFT;
+    agent_id: string;
+};
+
+export type AgentHearingFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_HEARING;
+    agent_id: string;
+    on: boolean;
+};
+
+export type AgentSeeingFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_SEEING;
+    agent_id: string;
+    on: boolean;
+};
+
+export type AgentLookRequestFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST;
+    request_id: string;
+};
+
+export type AgentLookedFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_LOOKED;
+    agent_id: string;
+};
+
+export type AgentVoiceFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_VOICE;
+    agent_id: string;
+    voice_id: string;
+};
+
+export type AgentStopFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_STOP;
+    agent_id: string;
+};
+
+export type AgentGestureFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_GESTURE;
+    agent_id: string;
+    gesture: FIGURE_GESTURE;
+};
+
+export type AgentOffersFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_OFFERS;
+    shown: boolean;
+    full: boolean;
+    offers: Offer[];
+};
+
+export type AgentInvitationEndedFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED;
+    agent_key: string;
+    outcome: INVITATION_OUTCOME;
+};
+
+export type AgentLineFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_LINE;
+    agent_id: string;
+    name: string;
+    text: string;
+};
+
+export type AgentRefusedFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_REFUSED;
+    reason: AGENT_REFUSAL;
+};
+
+export type ParticipationFrameByType = {
+    [PARTICIPATION_SIGNAL.AGENT_JOINED]: AgentJoinedFrame;
+    [PARTICIPATION_SIGNAL.AGENT_LEFT]: AgentLeftFrame;
+    [PARTICIPATION_SIGNAL.AGENT_HEARING]: AgentHearingFrame;
+    [PARTICIPATION_SIGNAL.AGENT_SEEING]: AgentSeeingFrame;
+    [PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST]: AgentLookRequestFrame;
+    [PARTICIPATION_SIGNAL.AGENT_LOOKED]: AgentLookedFrame;
+    [PARTICIPATION_SIGNAL.AGENT_VOICE]: AgentVoiceFrame;
+    [PARTICIPATION_SIGNAL.AGENT_STOP]: AgentStopFrame;
+    [PARTICIPATION_SIGNAL.AGENT_GESTURE]: AgentGestureFrame;
+    [PARTICIPATION_SIGNAL.AGENT_OFFERS]: AgentOffersFrame;
+    [PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED]: AgentInvitationEndedFrame;
+    [PARTICIPATION_SIGNAL.AGENT_LINE]: AgentLineFrame;
+    [PARTICIPATION_SIGNAL.AGENT_REFUSED]: AgentRefusedFrame;
+};
+
 export const HEARING_PATH = "/ws/hearing";
 export const VOICE_PATH = "/api/game/voice";
 export const LOOK_MAX_PIXELS = 1280;

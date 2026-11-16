@@ -93,6 +93,12 @@ class InvitationOutcome(StrEnum):
     OWNER_ABSENT = "owner_absent"
 
 
+class FigureGesture(StrEnum):
+    """A gesture a figure makes on its tile, as a seat is told it."""
+
+    WAVE = "wave"
+
+
 class Sense(StrEnum):
     """What a sponsor's switch lets a joined agent do with them: hear their sound or see their camera."""
 
@@ -232,4 +238,5 @@ BROWSER_ENUMS = {
     "AGENT_REFUSAL": AgentRefusal,
     "INVITATION_OUTCOME": InvitationOutcome,
     "HEARING_CLOSE": HearingClose,
+    "FIGURE_GESTURE": FigureGesture,
 }

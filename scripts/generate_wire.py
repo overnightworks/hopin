@@ -15,8 +15,6 @@ from typing import TYPE_CHECKING, ClassVar, Literal, Protocol, Union, get_args, 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
 
-from agents.figure_vocabulary import FigureGesture  # noqa: E402  # the gestures an agent names
-
 from hopin.config.constants import (  # noqa: E402
     ACCOUNT_CONSOLE_PATH,
     ACCOUNT_PATH,
@@ -34,6 +32,7 @@ from hopin.config.constants import (  # noqa: E402
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER  # noqa: E402
 from hopin.game.frames import BROWSER_FRAMES  # noqa: E402  # game
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
+from hopin.participation.frames import BROWSER_FRAMES as PARTICIPATION_FRAMES  # noqa: E402  # participation
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
 from hopin.participation.vocabulary import (  # noqa: E402
     HEARING_PATH,
@@ -163,6 +162,43 @@ def _property(name: str, optional: str, members: list[str]) -> str:
     return f"{INDENT}{name}{optional}:\n{wrapped};\n"
 
 
+def _properties(
+    record_cls: type, field_types: Mapping[object, str], enums: Mapping[str, type[StrEnum | IntEnum]]
+) -> list[str]:
+    """The property lines of a record's fields; an unmapped field type fails the generation."""
+    lines = []
+    for field in dataclasses.fields(record_cls):
+        annotation = field.type
+        if get_origin(annotation) in (types.UnionType, Union):
+            present_types = [part for part in get_args(annotation) if part is not types.NoneType]
+            if len(present_types) != 1:
+                message = f"{record_cls.__name__}.{field.name} must be one type, optionally None, not {annotation}"
+                raise TypeError(message)
+            annotation = present_types[0]
+        rendered = _field_type(annotation, field_types, enums)
+        if rendered is None:
+            message = f"{record_cls.__name__}.{field.name} has no TypeScript type for {annotation}"
+            raise TypeError(message)
+        optional = "?" if field.default is not dataclasses.MISSING else ""
+        lines.append(_property(WIRE_FIELD_NAMES.get(field.name, field.name), optional, rendered))
+    return lines
+
+
+def _nested_records(frame_cls: type) -> list[type]:
+    """The records a frame's `list[Record]` fields hold, in field order."""
+    return [
+        get_args(field.type)[0]
+        for field in dataclasses.fields(frame_cls)
+        if get_origin(field.type) is list and dataclasses.is_dataclass(get_args(field.type)[0])
+    ]
+
+
+def render_record_type(record_cls: type, enums: Mapping[str, type[StrEnum | IntEnum]] = CORE_ENUMS) -> str:
+    """Render a record nested in a frame as its own interface."""
+    lines = _properties(record_cls, FRAME_FIELD_TYPES, enums)
+    return f"export interface {record_cls.__name__} {{\n" + "".join(lines) + "}\n"
+
+
 def render_frame_type(
     frame_cls: type[ServerFrame],
     extra_field_types: Mapping[object, str] | None = None,
@@ -170,30 +206,22 @@ def render_frame_type(
 ) -> str:
     """Render a server frame from its dataclass fields; an unmapped field type fails the generation.
 
-    A field typed as an exported enum, as `Literal` members of one, or as `Literal[True]` renders as that type.
+    A field typed as an exported enum, as `Literal` members of one, or as `Literal[True]` renders as that type; a
+    `list` of a record renders as an array of the record's interface (see `render_record_type`).
     """
     field_types = {**FRAME_FIELD_TYPES, **(extra_field_types or {})}
+    for record_cls in _nested_records(frame_cls):
+        field_types[list[record_cls]] = f"{record_cls.__name__}[]"
     signal = _exported_name(enums, type(frame_cls.TYPE))
-    lines = [f"{INDENT}type: {signal}.{frame_cls.TYPE.name};\n"]
-    for field in dataclasses.fields(frame_cls):
-        annotation = field.type
-        if get_origin(annotation) in (types.UnionType, Union):
-            present_types = [part for part in get_args(annotation) if part is not types.NoneType]
-            if len(present_types) != 1:
-                message = f"{frame_cls.__name__}.{field.name} must be one type, optionally None, not {annotation}"
-                raise TypeError(message)
-            annotation = present_types[0]
-        rendered = _field_type(annotation, field_types, enums)
-        if rendered is None:
-            message = f"{frame_cls.__name__}.{field.name} has no TypeScript type for {annotation}"
-            raise TypeError(message)
-        optional = "?" if field.default is not dataclasses.MISSING else ""
-        lines.append(_property(WIRE_FIELD_NAMES.get(field.name, field.name), optional, rendered))
+    lines = [f"{INDENT}type: {signal}.{frame_cls.TYPE.name};\n", *_properties(frame_cls, field_types, enums)]
     return f"export type {frame_cls.__name__} = {{\n" + "".join(lines) + "};\n"
 
 
-def render_feature(enums: Mapping[str, type[StrEnum | IntEnum]], frames: Sequence[type[ServerFrame]]) -> str:
-    """A feature's enums, its frame types and `<Feature>FrameByType`: each signal to its frame or union of frames."""
+def render_feature(
+    enums: Mapping[str, type[StrEnum | IntEnum]], frames: Sequence[type[ServerFrame]], constants: str = ""
+) -> str:
+    """A feature's enums, its frame types and `<Feature>FrameByType`: each signal to its frame or union of frames,
+    then its constants."""
     shapes: dict[enum.StrEnum, list[str]] = {}
     for frame_cls in frames:
         shapes.setdefault(frame_cls.TYPE, []).append(frame_cls.__name__)
@@ -202,8 +230,11 @@ def render_feature(enums: Mapping[str, type[StrEnum | IntEnum]], frames: Sequenc
         f"{INDENT}[{signal_name}.{signal.name}]: {' | '.join(names)};\n" for signal, names in shapes.items()
     )
     by_type_name = f"{signal_name.removesuffix('_SIGNAL').title()}FrameByType"
+    records = {record_cls: None for frame_cls in frames for record_cls in _nested_records(frame_cls)}
+    record_types = [render_record_type(record_cls, enums) for record_cls in records]
     frame_types = [render_frame_type(frame_cls, None, enums) for frame_cls in frames]
-    body = "\n".join((_enums(enums), *frame_types, f"export type {by_type_name} = {{\n{entries}}};\n"))
+    by_type = f"export type {by_type_name} = {{\n{entries}}};\n"
+    body = "\n".join((_enums(enums), *record_types, *frame_types, by_type, *([constants] if constants else [])))
     return _generated_file(body)
 
 
@@ -268,7 +299,7 @@ def render_participation() -> str:
         f"export const LOOK_MAX_BYTES = {LOOK_MAX_BYTES};\n"
         f"export const LOOK_PART_CHARACTERS = {LOOK_PART_CHARACTERS};\n"
     )
-    return _generated_file(f"{_enums({**PARTICIPATION_BROWSER_ENUMS, 'FIGURE_GESTURE': FigureGesture})}\n{constants}")
+    return render_feature(PARTICIPATION_BROWSER_ENUMS, PARTICIPATION_FRAMES, constants)
 
 
 def outputs(root: Path) -> dict[Path, str]:
@@ -276,7 +307,7 @@ def outputs(root: Path) -> dict[Path, str]:
     return {
         root / CORE_OUTPUT: render_core(),
         root / "frontend/src/lib/features/game/wire.ts": render_feature(BROWSER_ENUMS, BROWSER_FRAMES),  # game
-        root / "frontend/src/lib/features/participation/wire.ts": render_participation(),
+        root / "frontend/src/lib/features/participation/wire.ts": render_participation(),  # participation
         root / "frontend/src/lib/features/skat/wire.ts": _generated_file(_enums(SKAT_BROWSER_ENUMS)),  # skat
     }
 
