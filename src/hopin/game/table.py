@@ -8,6 +8,18 @@ import structlog
 from logline import StepTimer
 
 from hopin.errors import InvalidMessageError
+from hopin.game.frames import (
+    AnswerCountFrame,
+    BusyRefusedFrame,
+    EndedFrame,
+    GameFrame,
+    IdlePhaseFrame,
+    LineFrame,
+    QuizPhaseFrame,
+    RefusedFrame,
+    SilentVoiceFrame,
+    VoiceFrame,
+)
 from hopin.game.quiz import QUIZ_ROUNDS, Quiz
 from hopin.game.vocabulary import (
     FEATURE_NAME,
@@ -21,7 +33,7 @@ from hopin.game.vocabulary import (
 )
 from hopin.game.voice import GAME_SPEAKER, GAME_VOICES_KEPT, VOICE_DEADLINE_CUT
 from hopin.rooms.reference import room_reference
-from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
+from hopin.signaling.frames import JsonObject, PeerId
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -38,8 +50,6 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
 
 RUN_ENDED_REASON: Final = "ended"
-IDLE_FRAME: Final[JsonObject] = {TYPE_KEY: GameSignal.GAME_PHASE.value, "phase": GamePhase.IDLE.value}
-ENDED_FRAME: Final[JsonObject] = {TYPE_KEY: GameSignal.GAME_ENDED.value}
 
 
 @dataclass(frozen=True)
@@ -73,56 +83,18 @@ class GameMaster(Protocol):
         """Release what the game master holds; called once, when the game shuts down."""
 
 
-def _quiz_phase_frame(phase: GamePhase, quiz: Quiz) -> JsonObject:
-    return {
-        TYPE_KEY: GameSignal.GAME_PHASE.value,
-        "phase": phase.value,
-        "round": quiz.round,
-        "rounds": QUIZ_ROUNDS,
-        "starter": quiz.starter,
-    }
-
-
-def _line_frame(line: Line, quiz: Quiz, *, voiced: bool) -> JsonObject:
-    frame: JsonObject = {TYPE_KEY: GameSignal.GAME_LINE.value, "text": line.text}
-    if voiced:
-        frame["voiced"] = True
-    if quiz.is_asking:
-        frame["round"] = quiz.round
-    return frame
-
-
-def _voice_frame(voice: StoredVoice | None) -> JsonObject:
-    """The line's voice, or, with none, the word that none follows."""
-    if voice is None:
-        return {TYPE_KEY: GameSignal.GAME_VOICE.value}
-    return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice.id, "path": voice.path}
-
-
-def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId], recipient: PeerId) -> JsonObject:
-    """The count for one seat; `own_answer_counted` says its own answer is in it, which an earlier count lacks."""
-    frame: JsonObject = {
-        TYPE_KEY: GameSignal.GAME_ANSWER_COUNT.value,
-        "answered": quiz.answered_count(present),
-        "players": len(quiz.players & present),
-    }
-    if recipient in quiz.counted_players(present):
-        frame["own_answer_counted"] = True
-    return frame
-
-
-def _refusal_frame(refusal: Refused) -> JsonObject:
-    frame: JsonObject = {TYPE_KEY: GameSignal.GAME_REFUSED.value, "reason": refusal.reason.value}
-    if refusal.retry_after_seconds is not None:
-        frame["retry_after_seconds"] = refusal.retry_after_seconds
-    return frame
+def _refusal_frame(refusal: Refused) -> BusyRefusedFrame | RefusedFrame:
+    if refusal.reason is GameRefusal.BUSY:
+        assert refusal.retry_after_seconds is not None  # noqa: S101 - the invariant `Refused` enforces, for the type checker
+        return BusyRefusedFrame(refusal.reason, refusal.retry_after_seconds)
+    return RefusedFrame(refusal.reason)
 
 
 @dataclass(eq=False)
 class _Phase:
     """A room's phase other than idle, and the seats already told it, so each seat is told once."""
 
-    frame: JsonObject
+    frame: QuizPhaseFrame
     told: set[str] = field(default_factory=set)
 
 
@@ -216,9 +188,9 @@ class Game:
         if room_id is None:
             return
         if room_id in self._runs:
-            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ALREADY_ANSWERING)))
+            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.ALREADY_ANSWERING).to_json())
         elif room_id in self._quizzes:
-            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.QUIZ_RUNNING)))
+            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.QUIZ_RUNNING).to_json())
         else:
             self._run(room_id, Quiz.opening(peer_id, self._topic_drawer()))
 
@@ -230,7 +202,7 @@ class Game:
         if quiz is not None and quiz.may_reveal(peer_id):
             self._run(room_id, quiz.revealing())
         elif quiz is None or quiz.starter != peer_id:
-            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.NOT_STARTER)))
+            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.NOT_STARTER).to_json())
 
     async def _end(self, peer_id: PeerId) -> None:
         """End the room's quiz for everyone; it runs in the ender's receive loop, which never waits on a driver."""
@@ -239,11 +211,11 @@ class Game:
         if room_id is None or quiz is None or quiz.is_over:
             return
         if not quiz.may_end(peer_id, hosts_call=self._rooms.is_host(peer_id)):
-            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.NOT_STARTER_OR_HOST)))
+            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.NOT_STARTER_OR_HOST).to_json())
             return
-        await self._end_for_everyone(room_id, quiz, ENDED_FRAME)
+        await self._end_for_everyone(room_id, quiz, EndedFrame())
 
-    async def _end_for_everyone(self, room_id: str, quiz: Quiz, notice: JsonObject) -> None:
+    async def _end_for_everyone(self, room_id: str, quiz: Quiz, notice: EndedFrame) -> None:
         """Send the room's seats the notice, then idle, and remove the quiz; the quiz is not over yet."""
         ended = quiz.ended()
         self._quizzes[room_id] = ended
@@ -254,7 +226,7 @@ class Game:
             run.stop()
         recipients = self._rooms.members(room_id)
         try:
-            for frame in (notice, IDLE_FRAME):
+            for frame in (notice, IdlePhaseFrame(GamePhase.IDLE)):
                 broken_writes = await self._send_isolated(
                     recipients, frame, lambda: self._quizzes.get(room_id) is ended
                 )
@@ -274,10 +246,10 @@ class Game:
             raise InvalidMessageError("An answer needs text")
         quiz = self._quizzes.get(room_id)
         if quiz is None or not quiz.may_answer(peer_id):
-            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ANSWER_CLOSED)))
+            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.ANSWER_CLOSED).to_json())
             return
         if len(text.strip()) > GAME_ANSWER_MAX_CHARACTERS:
-            await self._rooms.send(peer_id, _refusal_frame(Refused(GameRefusal.ANSWER_TOO_LONG)))
+            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.ANSWER_TOO_LONG).to_json())
             return
         answered = quiz.with_answer(peer_id, self._rooms.name_of(peer_id), text.strip())
         self._quizzes[room_id] = answered
@@ -296,7 +268,11 @@ class Game:
     async def _send_answer_count(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> None:
         broken_writes: list[Exception] = []
         for seat in self._rooms.members(room_id):
-            frame = _answer_count_frame(quiz, present, PeerId(seat))
+            frame = AnswerCountFrame(
+                answered=quiz.answered_count(present),
+                players=len(quiz.players & present),
+                own_answer_counted=True if PeerId(seat) in quiz.counted_players(present) else None,
+            )
             broken_writes += await self._send_isolated([seat], frame, lambda: self._quizzes.get(room_id) is quiz)
         for error in broken_writes:
             # The sender's connection and the reveal check go on; only the type is logged, never the text.
@@ -325,7 +301,7 @@ class Game:
         run.deadline = self._scheduler.call_later(GAME_RUN_DEADLINE_SECONDS, partial(_expire, run))
         self._quizzes[room_id] = quiz
         runs.append(run)
-        self._phases[room_id] = _Phase(_quiz_phase_frame(GamePhase.THINKING, quiz))
+        self._phases[room_id] = _Phase(QuizPhaseFrame(GamePhase.THINKING, quiz.round, QUIZ_ROUNDS, quiz.starter))
         self._drivers.add(run.driver)
         run.driver.add_done_callback(self._driver_finished)
 
@@ -335,7 +311,7 @@ class Game:
         phase = None if room_id is None else self._phases.get(room_id)
         if phase is not None and peer_id not in phase.told:
             phase.told.add(peer_id)
-            await self._rooms.send(peer_id, phase.frame)
+            await self._rooms.send(peer_id, phase.frame.to_json())
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
         """The starter's leave ends the quiz for everyone; a player's leave shrinks the count of an answered question.
@@ -346,7 +322,7 @@ class Game:
         if quiz is None or quiz.is_over:
             return
         if peer_id == quiz.starter:
-            await self._end_for_everyone(room_id, quiz, {**ENDED_FRAME, "leaver": name})
+            await self._end_for_everyone(room_id, quiz, EndedFrame(leaver=name))
         elif quiz.counts_leave_of(peer_id):
             # Replacing the quiz first makes a count or a reveal check still in flight find its quiz replaced.
             shrunk = quiz.without_player(peer_id)
@@ -410,7 +386,11 @@ class Game:
         if isinstance(outcome, Line):
             recipients = self._rooms.members(room_id)
             self._start_voice(run, outcome)
-            frame = _line_frame(outcome, run.quiz, voiced=self._voice is not None)
+            frame = LineFrame(
+                outcome.text,
+                voiced=True if self._voice is not None else None,
+                round=run.quiz.round if run.quiz.is_asking else None,
+            )
             await self._send_each(room_id, run, recipients, frame)
             quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
@@ -420,7 +400,7 @@ class Game:
             await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(outcome))
             if not run.quiz.is_opening:
                 others = [seat for seat in seated if seat != run.quiz.starter]
-                await self._send_each(room_id, run, others, ENDED_FRAME)
+                await self._send_each(room_id, run, others, EndedFrame())
             quiz = None
         if not self._is_live(room_id, run):
             return
@@ -450,6 +430,13 @@ class Game:
             run.voice.stop()
             await asyncio.wait({run.voice.task})
 
+    def _voice_frame(self, room_id: str, wav: bytes | None) -> VoiceFrame | SilentVoiceFrame:
+        """The line's voice, or, with none, the word that none follows."""
+        if wav is None:
+            return SilentVoiceFrame()
+        voice = self._keep(room_id, wav)
+        return VoiceFrame(voice.id, voice.path)
+
     async def _send_voice(self, room_id: str, run: _Run, recipients: list[str]) -> None:
         """Wait for the run's voice and send its one frame, made or empty, to the recipients still seated, if live."""
         if run.voice is None:
@@ -461,7 +448,7 @@ class Game:
         if not self._is_live(room_id, run):
             return
         seated = [seat for seat in recipients if self._rooms.room_of(PeerId(seat)) == room_id]
-        await self._send_each(room_id, run, seated, _voice_frame(None if wav is None else self._keep(room_id, wav)))
+        await self._send_each(room_id, run, seated, self._voice_frame(room_id, wav))
 
     def _keep(self, room_id: str, wav: bytes) -> StoredVoice:
         """Keep the sound as the room's latest voice; the voice after the next or the room's end replaces it."""
@@ -480,14 +467,14 @@ class Game:
     async def _open_question(self, room_id: str, run: _Run, quiz: Quiz) -> None:
         self._quizzes[room_id] = quiz
         seated = self._rooms.members(room_id)
-        phase = _Phase(_quiz_phase_frame(GamePhase.ANSWERING, quiz), told=set(seated))
+        phase = _Phase(QuizPhaseFrame(GamePhase.ANSWERING, quiz.round, QUIZ_ROUNDS, quiz.starter), told=set(seated))
         self._phases[room_id] = phase
         await self._send_each(room_id, run, seated, phase.frame)
 
     async def _end_quiz(self, room_id: str, run: _Run) -> None:
         del self._quizzes[room_id]
         del self._phases[room_id]
-        await self._send_to_room(room_id, run, IDLE_FRAME)
+        await self._send_to_room(room_id, run, IdlePhaseFrame(GamePhase.IDLE))
 
     async def _ask_after(
         self, previous: asyncio.Task[None] | None, starter: HTTPConnection, transcript: tuple[Turn, ...]
@@ -517,24 +504,25 @@ class Game:
         phase.told.update(recipients)
         await self._send_each(room_id, run, recipients, phase.frame)
 
-    async def _send_to_room(self, room_id: str, run: _Run, frame: JsonObject) -> None:
+    async def _send_to_room(self, room_id: str, run: _Run, frame: GameFrame) -> None:
         # Each caller has checked, in this same step, that the run is still the room's, so the room exists.
         await self._send_each(room_id, run, self._rooms.members(room_id), frame)
 
-    async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: JsonObject) -> None:
+    async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: GameFrame) -> None:
         # Re-raised by the driver once every other seat has its frames.
         run.broken_writes.extend(await self._send_isolated(recipients, frame, lambda: self._is_live(room_id, run)))
 
     async def _send_isolated(
-        self, recipients: list[str], frame: JsonObject, still_wanted: Callable[[], bool]
+        self, recipients: list[str], frame: GameFrame, still_wanted: Callable[[], bool]
     ) -> list[Exception]:
         """Send the frame to each recipient while it is wanted; a seat's broken write never keeps the others from it."""
         broken_writes: list[Exception] = []
+        wire_frame = frame.to_json()
         for peer_id in recipients:
             if not still_wanted():
                 break
             try:
-                await self._rooms.send(peer_id, frame)
+                await self._rooms.send(peer_id, wire_frame)
             except Exception as error:
                 broken_writes.append(error)
         return broken_writes
