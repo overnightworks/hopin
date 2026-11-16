@@ -26,6 +26,7 @@ from hopin.auth.sign_in import (
     build_relying_party,
     build_sign_in_configs,
     install_sign_in,
+    words_logout_button_label,
 )
 from hopin.config.constants import (
     ADMIN_GROUP,
@@ -46,7 +47,7 @@ from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
-from tests.support.signed_in import new_id_token
+from tests.support.signed_in import cookie_header, new_id_token, seed_member
 from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
@@ -126,6 +127,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         client_secret: str | None = None,
         audit: AuditSink | None = None,
         languages: AppLanguages = APP_LANGUAGES,
+        logout_button_label: Callable[[str], str] = words_logout_button_label,
     ) -> SignInHarness:
         sign_in = sign_in_settings()
         if client_secret is not None:
@@ -148,6 +150,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
             stores.transaction,
             fixture_page_build(languages),
             RequestLanguage(languages, sessions, configs.web_auth),
+            logout_button_label,
         )
 
         @app.get(WHO_AM_I_PATH)
@@ -406,6 +409,32 @@ class TestLogout:
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
         assert set(cookies) == {SESSION_COOKIE}
+
+    @pytest.mark.parametrize(
+        ("offered", "accept_language", "account_language", "shown"),
+        [
+            (("de",), "en", None, "de"),
+            (("de", "en"), "en", None, "en"),
+            (("de", "en"), "de", "en", "en"),
+        ],
+        ids=["german alone", "the second language the browser asks for", "the second language the account carries"],
+    )
+    def test_the_logout_page_is_in_the_resolved_language(
+        self, make_harness, offered, accept_language, account_language, shown
+    ):
+        harness = make_harness(
+            languages=AppLanguages(offered=offered, default="de"),
+            logout_button_label=lambda language: f"label-{language}",
+        )
+        member = seed_member(harness, harness.config, account_language=account_language)
+
+        response = harness.browser().post(
+            LOGOUT_PATH,
+            headers={"cookie": cookie_header(member.set_cookie_headers), "accept-language": accept_language},
+        )
+
+        page = EndSessionPage(response.text)
+        assert (page.language, page.button_label) == (shown, f"label-{shown}")
 
     def test_a_logout_whose_row_is_gone_sends_no_hint_so_the_issuer_asks_once(self, harness):
         browser = harness.browser()

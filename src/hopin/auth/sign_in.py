@@ -159,6 +159,7 @@ def install_sign_in(
     transaction: SignInTransaction,
     page_build: PageBuild,
     request_language: Callable[[Request], str],
+    logout_button_label: Callable[[str], str],
 ) -> None:
     """The library serves the start, callback, logout and back-channel routes; the pages stay HopIn's."""
     install_sign_in_routes(
@@ -170,15 +171,19 @@ def install_sign_in(
         refused=lambda request, refusal: _refusal_response(refusal, page_build, request_language(request)),
         keeps_id_token=True,
         max_sessions=None,
-        logout_page_text=lambda request: _logout_page_text(request_language(request)),
+        logout_page_text=lambda request: _logout_page_text(request_language(request), logout_button_label),
         ui_language=request_language,
     )
     app.include_router(_create_pages_router(page_build, request_language))
 
 
-def _logout_page_text(language: str) -> LogoutPageText:
+def words_logout_button_label(language: str) -> str:
     # The offered languages are the words' own, so the resolved one is a words language.
-    return LogoutPageText(language=language, button_label=text(cast("Language", language), "signIn.logOutButton"))
+    return text(cast("Language", language), "signIn.logOutButton")
+
+
+def _logout_page_text(language: str, button_label_of: Callable[[str], str]) -> LogoutPageText:
+    return LogoutPageText(language=language, button_label=button_label_of(language))
 
 
 def _create_pages_router(page_build: PageBuild, request_language: Callable[[Request], str]) -> APIRouter:

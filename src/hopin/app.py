@@ -29,6 +29,7 @@ from hopin.auth.sign_in import (
     build_relying_party,
     build_sign_in_configs,
     install_sign_in,
+    words_logout_button_label,
 )
 from hopin.config.constants import (
     PERMISSIONS_POLICY,
@@ -265,7 +266,9 @@ def create_app(
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
-    install_sign_in(app, relying_party, sign_in_stores.transaction, page_build, request_language)
+    install_sign_in(
+        app, relying_party, sign_in_stores.transaction, page_build, request_language, words_logout_button_label
+    )
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
     app.add_middleware(RequestIdentityMiddleware)
     app.add_middleware(RequestLineMiddleware)
