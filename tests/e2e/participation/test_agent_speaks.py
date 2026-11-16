@@ -155,6 +155,11 @@ class Speaker:
         place = PlaceRef(kind=CALL_KIND, id=self.room)
         return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
 
+    def speech_was_asked(self) -> bool:
+        """Whether the server asked speech to render the latest `speak_behind` sentence, so that a stop sent now
+        cannot overtake it."""
+        return self.speech_origin.received[SPEECH_PATH].wait(REQUEST_SECONDS)
+
     def speech_has_rendered_the_rest(self) -> bool:
         return self.speech_origin.resumed[SPEECH_PATH].is_set()
 
@@ -373,6 +378,7 @@ def test_a_stop_cuts_the_sentence_and_drops_the_queue_in_every_browser_and_the_a
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
     behind = speaker.speak_behind(SOUND_SECONDS)
+    assert speaker.speech_was_asked()
 
     cut = speaker.stop()
 
