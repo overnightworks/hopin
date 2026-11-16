@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from typing import ClassVar, Final, Literal
+from typing import ClassVar, Literal, get_args
 
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
-from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
+from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId, with_present
 
 QuizPhase = Literal[GamePhase.THINKING, GamePhase.ANSWERING]
 OtherRefusal = Literal[
@@ -100,9 +100,7 @@ class AnswerCountFrame:
 
     def to_json(self) -> JsonObject:
         frame: JsonObject = {TYPE_KEY: self.TYPE.value, "answered": self.answered, "players": self.players}
-        if self.own_answer_counted is not None:
-            frame["own_answer_counted"] = self.own_answer_counted
-        return frame
+        return with_present(frame, own_answer_counted=self.own_answer_counted)
 
 
 @dataclass(frozen=True)
@@ -142,9 +140,7 @@ class EndedFrame:
 
     def to_json(self) -> JsonObject:
         frame: JsonObject = {TYPE_KEY: self.TYPE.value}
-        if self.leaver is not None:
-            frame["leaver"] = self.leaver
-        return frame
+        return with_present(frame, leaver=self.leaver)
 
 
 type GameFrame = (
@@ -160,14 +156,4 @@ type GameFrame = (
 )
 
 # The frames the generator renders into the game's own browser wire, in the order they appear there.
-BROWSER_FRAMES: Final = (
-    IdlePhaseFrame,
-    QuizPhaseFrame,
-    LineFrame,
-    VoiceFrame,
-    SilentVoiceFrame,
-    AnswerCountFrame,
-    BusyRefusedFrame,
-    RefusedFrame,
-    EndedFrame,
-)
+BROWSER_FRAMES = get_args(GameFrame.__value__)
