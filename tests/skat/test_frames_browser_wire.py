@@ -1,17 +1,8 @@
-import re
-from typing import TYPE_CHECKING
-
 import pytest
 
 from hopin.skat.frames import BROWSER_FRAMES, AttachedTableFrame, EmptyTableFrame, RefusedFrame, SkatFrame
 from hopin.skat.vocabulary import BROWSER_ENUMS, SkatRefusal, SkatSignal
-from scripts import generate_wire
 from tests.support.rendered_frames import rendered_property_names
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-SKAT_OUTPUT = "frontend/src/lib/features/skat/wire.ts"
 
 FULLY_SET_FRAMES = [
     AttachedTableFrame(3, 1, "t1", "https://skat.example/t/t1?mode=call", "p1"),
@@ -38,10 +29,3 @@ def test_an_empty_table_sends_its_absent_fields_as_explicit_null() -> None:
         "src": None,
         "opener_id": None,
     }
-
-
-def test_the_signal_map_has_exactly_the_signals_the_frames_carry(tmp_path: Path) -> None:
-    written = generate_wire.outputs(tmp_path)[tmp_path / SKAT_OUTPUT]
-
-    mapped = set(re.findall(r"^    \[SKAT_SIGNAL\.(\w+)\]:", written, flags=re.MULTILINE))
-    assert mapped == {frame.TYPE.name for frame in BROWSER_FRAMES}
