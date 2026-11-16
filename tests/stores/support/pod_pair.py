@@ -17,7 +17,7 @@ from tests.support.page_build import FIXTURE_DIRECTORY
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
 
 LOCALHOST = "127.0.0.1"
 LAUNCHER = Path(__file__).parent / "serve_hopin.py"
@@ -66,11 +66,11 @@ class Pod:
         raise RuntimeError(f"hopin serve did not answer in {START_WAIT_SECONDS} s:\n{self.log.read_text()[-2000:]}")
 
 
-def _start_pod(environment: dict[str, str], directory: Path, name: str) -> Pod:
+def _start_pod(environment: dict[str, str], directory: Path, name: str, launcher_options: Sequence[str] = ()) -> Pod:
     port = _free_port()
     log = directory / f"{name}.log"
     process = subprocess.Popen(  # noqa: S603 - fixed argument list
-        [*DIE_WITH_PYTEST, sys.executable, str(LAUNCHER), str(FIXTURE_DIRECTORY)],
+        [*DIE_WITH_PYTEST, sys.executable, str(LAUNCHER), str(FIXTURE_DIRECTORY), *launcher_options],
         env={**environment, "HOPIN_HOST": LOCALHOST, "HOPIN_PORT": str(port)},
         stdout=log.open("wb"),
         stderr=subprocess.STDOUT,
@@ -98,9 +98,15 @@ def _pod_environment(sign_in_environment: dict[str, str], redis_url: str) -> dic
 
 
 @contextlib.contextmanager
-def starting_pod(sign_in_environment: dict[str, str], redis_url: str, directory: Path) -> Iterator[Pod]:
-    """A pod that has been started, whether or not it answers yet; it is stopped on exit."""
-    pod = _start_pod(_pod_environment(sign_in_environment, redis_url), directory, "starting")
+def starting_pod(
+    sign_in_environment: dict[str, str], redis_url: str, directory: Path, subscription_wait_seconds: float | None = None
+) -> Iterator[Pod]:
+    """A pod that has been started, whether or not it answers yet; it is stopped on exit.
+
+    `subscription_wait_seconds` replaces production's wait for the first subscription of agents' wakes.
+    """
+    options = () if subscription_wait_seconds is None else (str(subscription_wait_seconds),)
+    pod = _start_pod(_pod_environment(sign_in_environment, redis_url), directory, "starting", options)
     try:
         yield pod
     finally:

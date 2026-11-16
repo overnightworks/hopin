@@ -4,7 +4,7 @@ serve it."""
 import asyncio
 import logging
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
@@ -99,6 +99,10 @@ OFFERS_RECOMPUTE_FAILED_EVENT: Final = "agent_offers_recompute.failed"
 PLACE_SIGNAL_TASK_NAME: Final = "agent-place-signal"
 PLACE_SIGNAL_FAILED_EVENT: Final = "place_signal.failed"
 LISTENERS_READ_FAILED_EVENT: Final = "listeners_read.failed"
+# A start that waits on the first confirmed subscription ends before a deployment's 30 s grace for a stop runs out,
+# because the server reads a stop only after its start.
+PLACE_SUBSCRIPTION_WAIT_SECONDS: Final = 20.0
+PLACE_SUBSCRIPTION_TIMED_OUT_EVENT: Final = "place_subscription_start.timed_out"
 
 
 @dataclass
@@ -399,6 +403,7 @@ class ParticipationFeature:
     hearing: SpeechService | None = None
     speaking: SpeechService | None = None
     voices: VoiceStore = field(default_factory=VoiceStore)
+    subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -439,7 +444,8 @@ class ParticipationFeature:
         @asynccontextmanager
         async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             try:
-                async with front.running():
+                async with AsyncExitStack() as stack:
+                    await self._enter_bounded(stack, front)
                     yield
             finally:
                 await built.shut_down()
@@ -504,6 +510,15 @@ class ParticipationFeature:
             scheduler=scheduler,
         )
         router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
+
+    async def _enter_bounded(self, stack: AsyncExitStack, front: McpPersonFront) -> None:
+        """Enter the front, failing the start loudly when its first subscription is not confirmed in time."""
+        try:
+            async with asyncio.timeout(self.subscription_wait_seconds):
+                await stack.enter_async_context(front.running())
+        except TimeoutError:
+            logger.error(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, wait_seconds=self.subscription_wait_seconds)
+            raise
 
     def _front(
         self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None
