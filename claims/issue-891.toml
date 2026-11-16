@@ -1,0 +1,8 @@
+claim_id = "6d60a671e4c34f9ba1666736c21ac916"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "4dafaaccb969149eeb566aa372b12676d23a3d3e"
+branch = "claude/issue-891-typed-game-frames"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/features/game", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/game", "tests/game", "tests/scripts/test_generate_wire.py"]
+opened_commit = "a0fea851ee61f2bcd2423d105cd7d77651d0d482"
+whole_reason = "The records, their generator and their one reader on the page change together; split apart, wire-check would be red between the slices."
