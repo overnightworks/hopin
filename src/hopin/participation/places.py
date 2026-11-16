@@ -7,18 +7,30 @@ withdrawal raises the epoch of its (agent, room), so an invitation made before i
 expiry or decline leaves the epoch as it is: a new invitation is a new id.
 """
 
+import json
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from hopin.participation.chat_window import ChatWindow
 from hopin.participation.line_rate import LINE_RATE, LOOK_RATE, Rate, admitted
+from hopin.participation.participants import Person
 
 if TYPE_CHECKING:
-    from hopin.participation.participants import DialedAgent, Person
+    from hopin.participation.participants import DialedAgent
     from hopin.signaling.frames import PeerId
 
 type PlaceKey = tuple[Person, str]
+
+
+def invitation_key(person: Person, room_id: str) -> str:
+    """The (agent, room) of an invitation as its deadline's key."""
+    return json.dumps((person.key, room_id))
+
+
+def invitation_of(key: str) -> PlaceKey:
+    person_key, room_id = json.loads(key)
+    return Person.from_key(person_key), room_id
 
 
 @dataclass(frozen=True)

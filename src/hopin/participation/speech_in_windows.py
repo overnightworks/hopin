@@ -181,8 +181,7 @@ class SpeechInWindows:
         del key
         offered = self._recovery_offered
         self._recovery_offered = None
-        if offered is None:
-            return
+        assert offered is not None  # noqa: S101 - the offer is set with its deadline and cleared by cancelling it
         for agent in self._places.joined():
             window = self._places.window_of(agent.person, agent.room_id)
             if window and window.voice_unavailable and await offered(agent.voices) and window.voice_worked():

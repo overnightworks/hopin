@@ -306,8 +306,7 @@ class Speaking:
     async def _played(self, agent_id: str) -> None:
         queue = self._queues[agent_id]
         sentence = queue.playing
-        if sentence is None:
-            return
+        assert sentence is not None  # noqa: S101 - every end of the playing sentence cancels its deadline
         continues = any(isinstance(waiting, QueuedSentence) for waiting in queue.waiting)
         await self._finish(queue.agent, queue, sentence, SentenceEnd.CONTINUED if continues else SentenceEnd.PLAYED)
 

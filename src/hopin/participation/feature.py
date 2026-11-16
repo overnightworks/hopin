@@ -1,5 +1,3 @@
-import asyncio
-import json
 import secrets
 from functools import partial
 from typing import TYPE_CHECKING
@@ -21,7 +19,8 @@ from hopin.participation.frames import (
     ParticipationFrame,
     joined_frame,
 )
-from hopin.participation.live_agents import LiveAgents, TimerAction
+from hopin.participation.group_reads import GroupReads, GroupsOf
+from hopin.participation.live_agents import LiveAgents
 from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
 from hopin.participation.places import (
@@ -31,6 +30,8 @@ from hopin.participation.places import (
     Places,
     PlaceStanding,
     PlaceState,
+    invitation_key,
+    invitation_of,
 )
 from hopin.participation.seeing import Seeing
 from hopin.participation.shown_figures import ShownFigures
@@ -56,9 +57,7 @@ from hopin.signaling.frames import PeerId
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
-
-    from starlette.requests import HTTPConnection
+    from collections.abc import Callable, Collection, Mapping, Sequence
 
     from hopin.participation.hearing import Hearing, HearingHandle
     from hopin.participation.live_agents import LiveAgent
@@ -71,22 +70,6 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Deadlines
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
-
-
-type GroupsOf = Callable[[HTTPConnection], Awaitable[frozenset[str] | None]]
-"""The groups the issuer holds for the session a connection carries now, or nothing when they cannot be read."""
-
-
-GROUPS_READ_TASK_NAME = "participation-groups-read"
-
-
-def _invitation_key(person: Person, room_id: str) -> str:
-    return json.dumps((person.key, room_id))
-
-
-def _invitation_of(key: str) -> tuple[Person, str]:
-    person_key, room_id = json.loads(key)
-    return Person.from_key(person_key), room_id
 
 
 class Participation:
@@ -135,7 +118,9 @@ class Participation:
         self._departed: dict[PeerId, list[DialedAgent]] = {}
         self._abandoned: dict[PeerId, list[AbandonedInvitation]] = {}
         self._views: dict[PeerId, SeatView] = {}
-        self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
+        self._group_reads = GroupReads(
+            rooms, adders, groups_of, self._view_of, partial(self._update_offers, read=False)
+        )
 
     @property
     def name(self) -> str:
@@ -470,10 +455,7 @@ class Participation:
             del self._views[peer_id]
 
     async def shut_down(self) -> None:
-        reads = list(self._reads.values())
-        for read in reads:
-            read.cancel()
-        await asyncio.gather(*reads, return_exceptions=True)
+        await self._group_reads.cancel()
         for room_id in {agent.room_id for agent in self._places.joined()}:
             self._hearing.room_ended(room_id)
         ended = self._places.joined()
@@ -578,12 +560,12 @@ class Participation:
             adder=adder,
         )
         self._places.put(live.person, room_id, invitation)
-        self._deadlines.set(DeadlineKind.INVITATION, _invitation_key(live.person, room_id), self._invitation_seconds)
+        self._deadlines.set(DeadlineKind.INVITATION, invitation_key(live.person, room_id), self._invitation_seconds)
         self._on_changed(live.person)
         await logger.ainfo("agent.invited", room_ref=room_reference(room_id))
 
     async def _invitation_timer(self, key: str) -> None:
-        person, room_id = _invitation_of(key)
+        person, room_id = invitation_of(key)
         place = self._places.get(person, room_id)
         if isinstance(place, Invited):
             await self._end_invitation(person, room_id, place, InvitationOutcome.NO_ANSWER, reason="expired")
@@ -609,9 +591,9 @@ class Participation:
             return
         check = self._live.checked(person, current.generation, now=self._deadlines.now())
         self._live = check.agents
-        if check.action == TimerAction.REARM:
+        if check.ended is None:
             self._arm(person, check.rearm_after)
-        elif check.ended is not None:
+        else:
             await self._end_lease(check.ended)
 
     async def _end_lease(self, ended: LiveAgent) -> None:
@@ -752,7 +734,7 @@ class Participation:
         if not seats:  # the room has ended
             return
         if read:
-            self._start_reads(room_id, seats)
+            self._group_reads.start(room_id, seats)
         full = self._is_busy(room_id)
         for peer_id in seats:
             view = self._view_of(peer_id, room_id)
@@ -795,30 +777,3 @@ class Participation:
             elif place is None and not self._is_busy(room_id):
                 offers.append(Offer(live.key, live.name, pending=False))
         return tuple(offers)
-
-    def _start_reads(self, room_id: str, seats: Sequence[PeerId]) -> None:
-        """Read the groups of each seat whose membership in an adders group is unknown or failed to read."""
-        groups = set(self._adders.values())
-        for peer_id in seats:
-            memberships = self._view_of(peer_id, room_id).memberships
-            if any(memberships.get(group, Membership.FAILED) is Membership.FAILED for group in groups):
-                self._start_read(peer_id, room_id)
-
-    def _start_read(self, peer_id: PeerId, room_id: str) -> None:
-        key = (peer_id, room_id)
-        if key in self._reads:
-            return
-        read = asyncio.create_task(
-            self._read_groups(peer_id, room_id, self._rooms.connection_of(peer_id)), name=GROUPS_READ_TASK_NAME
-        )
-        self._reads[key] = read
-        read.add_done_callback(lambda _: self._reads.pop(key, None))
-
-    async def _read_groups(self, peer_id: PeerId, room_id: str, connection: HTTPConnection) -> None:
-        groups = await self._groups_of(connection)
-        if self._rooms.room_of(peer_id) != room_id:
-            return
-        memberships = self._view_of(peer_id, room_id).memberships
-        for group in set(self._adders.values()):
-            memberships[group] = membership_in(groups, group)
-        await self._update_offers(room_id, read=False)

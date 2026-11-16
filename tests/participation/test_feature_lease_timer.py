@@ -98,3 +98,11 @@ class TestTheLeaseTimer:
         await scheduler.advance(LEASE / 2)
 
         assert changed == [PERSON]
+
+    async def test_a_lease_timer_that_outlives_the_shut_down_adds_no_change(self, participation, scheduler, changed):
+        await participation.agent_called(PERSON, OWNER)
+        await participation.shut_down()
+
+        await scheduler.advance(LEASE)
+
+        assert changed == []
