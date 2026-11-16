@@ -85,8 +85,7 @@ class GameMaster(Protocol):
 
 def _refusal_frame(refusal: Refused) -> BusyRefusedFrame | RefusedFrame:
     if refusal.reason is GameRefusal.BUSY:
-        assert refusal.retry_after_seconds is not None  # noqa: S101 - the invariant `Refused` enforces, for the type checker
-        return BusyRefusedFrame(refusal.reason, refusal.retry_after_seconds)
+        return BusyRefusedFrame(refusal.reason, refusal.retry_after_seconds or 0)
     return RefusedFrame(refusal.reason)
 
 
@@ -394,13 +393,7 @@ class Game:
             await self._send_each(room_id, run, recipients, frame)
             quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
         else:
-            # The refusal ends the quiz: it is over before the first write, so no End starts a second ending.
-            self._quizzes[room_id] = run.quiz.ended()
-            seated = self._rooms.members(room_id)
-            await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(outcome))
-            if not run.quiz.is_opening:
-                others = [seat for seat in seated if seat != run.quiz.starter]
-                await self._send_each(room_id, run, others, EndedFrame())
+            await self._deliver_refusal(room_id, run, outcome)
             quiz = None
         if not self._is_live(room_id, run):
             return
@@ -416,6 +409,15 @@ class Game:
         await self._send_voice(room_id, run, recipients)
         if chained is not None and self._is_live(room_id, run):
             self._chain(room_id, chained)
+
+    async def _deliver_refusal(self, room_id: str, run: _Run, refusal: Refused) -> None:
+        # The refusal ends the quiz: it is over before the first write, so no End starts a second ending.
+        self._quizzes[room_id] = run.quiz.ended()
+        seated = self._rooms.members(room_id)
+        await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(refusal))
+        if not run.quiz.is_opening:
+            others = [seat for seat in seated if seat != run.quiz.starter]
+            await self._send_each(room_id, run, others, EndedFrame())
 
     def _start_voice(self, run: _Run, line: Line) -> None:
         """Make the line's voice beside the run, on its own deadline; the line and its phase never wait for it."""
