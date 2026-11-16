@@ -210,7 +210,7 @@ describe("answering", () => {
 
         expect(sent).toEqual([{ type: GAME_SIGNAL.GAME_ANSWER, text: "Paris" }]);
         expect(card).toMatchObject({ sent: false, status: "" });
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({ answered: 1, players: 3, own_answer_counted: true });
         expect(card).toMatchObject({
             sent: true,
             status: words["game.answerSentCountStatus"]({ answered: "1", players: "3" }),
@@ -239,8 +239,53 @@ describe("answering", () => {
         quiz.receiveAnswerCount({ answered: 1, players: 3 });
         expect(card.status).toBe(words["game.answerCountStatus"]({ answered: "1", players: "3" }));
         card.answer("Paris");
+        quiz.receiveAnswerCount({ answered: 2, players: 3, own_answer_counted: true });
 
-        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "1", players: "3" }));
+        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "2", players: "3" }));
+    });
+
+    it("shows no count between the send and the count that includes the own answer", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+        quiz.receiveAnswerCount({ answered: 1, players: 2 });
+
+        card.answer("Paris");
+
+        expect(card).toMatchObject({ sent: false, status: "" });
+        quiz.receiveAnswerCount({ answered: 2, players: 2, own_answer_counted: true });
+        expect(card).toMatchObject({
+            sent: true,
+            status: words["game.answerSentCountStatus"]({ answered: "2", players: "2" }),
+        });
+    });
+
+    it("shows no count from a count that leaves the own answer out, even when it arrives after the send", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+
+        card.answer("Paris");
+        quiz.receiveAnswerCount({ answered: 1, players: 2 });
+
+        expect(card).toMatchObject({ sent: false, status: "" });
+        quiz.receiveAnswerCount({ answered: 2, players: 2, own_answer_counted: true });
+        expect(card.sent).toBe(true);
+    });
+
+    it("keeps the sent mark and its count when the answer is changed", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+        card.answer("Paris");
+        quiz.receiveAnswerCount({ answered: 1, players: 2, own_answer_counted: true });
+
+        card.answer("Lyon");
+
+        expect(card).toMatchObject({
+            sent: true,
+            status: words["game.answerSentCountStatus"]({ answered: "1", players: "2" }),
+        });
     });
 
     it("forgets the answers of the last round when a new round opens", () => {
@@ -269,7 +314,7 @@ describe("answering", () => {
         openRound(quiz, 1);
         const card = openCard(quiz);
         card.answer("Paris");
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({ answered: 1, players: 3, own_answer_counted: true });
         card.answer("Paris, France, ...");
 
         quiz.receiveRefusal({ reason: GAME_REFUSAL.ANSWER_TOO_LONG });
@@ -287,7 +332,7 @@ describe("answering", () => {
         openRound(quiz, 1);
         const card = openCard(quiz);
         card.answer("Paris");
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({ answered: 1, players: 3, own_answer_counted: true });
         card.reveal();
         expect(card.locked).toBe(true);
 

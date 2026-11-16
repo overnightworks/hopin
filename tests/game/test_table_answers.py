@@ -25,6 +25,7 @@ from tests.game.support.table_world import (
     revealed_into_question_two,
     script_two_questions,
     sent,
+    sent_count_to_all,
     sent_to_all,
     wait_within_cap,
     yield_until,
@@ -43,11 +44,30 @@ async def test_an_answer_gives_every_seat_the_count_and_no_seat_its_text(link, g
     await open_a_question([host, guest], host)
 
     await guest.say(answer(PRIVATE_ANSWER))
-    await sent_to_all([host, guest], answer_count(1, 2))
+    await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
     for browser in (host, guest):
         assert PRIVATE_ANSWER not in json.dumps(browser.socket.sent)
         assert browser.frames(SignalType.CHAT) == []
+
+
+async def test_two_answers_in_one_round_trip_give_each_seat_a_count_that_holds_its_own_only_once_it_does(
+    link, game_master
+):
+    host, guest, third = await call_of(link, "host", "guest", "third")
+    await open_a_question([host, guest, third], host)
+
+    push_unsettled(host, answer("Porto"))
+    push_unsettled(guest, answer("Lissabon"))
+    await sent_count_to_all([host, guest, third], 2, 3, answered_by=[host, guest])
+
+    for answerer in (host, guest):
+        counts = [frame for frame in game_frames(answerer) if frame["type"] == GameSignal.GAME_ANSWER_COUNT.value]
+        assert counts[-1] == answer_count(2, 3, own=True)
+    assert [frame for frame in game_frames(third) if frame["type"] == GameSignal.GAME_ANSWER_COUNT.value] == [
+        answer_count(1, 3),
+        answer_count(2, 3),
+    ]
 
 
 async def test_a_second_answer_replaces_the_first_and_the_count_stays(link, game_master):
@@ -72,13 +92,18 @@ async def test_the_last_present_players_answer_runs_the_reveal_on_the_starters_s
     await guest.say(answer("Lissabon"))
     await sent_to_all([host, guest], answering(guest, 2))
 
-    for browser in (host, guest):
-        assert game_frames(browser) == [
-            *asked(guest, "Frage?"),
-            answer_count(1, 2),
-            answer_count(2, 2),
-            *revealed_into_question_two(guest),
-        ]
+    assert game_frames(host) == [
+        *asked(guest, "Frage?"),
+        answer_count(1, 2, own=True),
+        answer_count(2, 2, own=True),
+        *revealed_into_question_two(guest),
+    ]
+    assert game_frames(guest) == [
+        *asked(guest, "Frage?"),
+        answer_count(1, 2),
+        answer_count(2, 2, own=True),
+        *revealed_into_question_two(guest),
+    ]
     assert game_master.calls[1].starter is guest.socket
 
 
@@ -119,8 +144,8 @@ async def test_a_parked_player_holds_the_reveal_back_until_it_answers_after_its_
 
     assert game_frames(host) == [
         *asked(host, "Frage?"),
-        answer_count(1, 2),
-        answer_count(2, 2),
+        answer_count(1, 2, own=True),
+        answer_count(2, 2, own=True),
         *revealed_into_question_two(host),
     ]
     assert revealed_answers(game_master) == [
@@ -145,7 +170,7 @@ async def test_a_seat_that_joined_during_answering_plays_from_the_next_question(
 
     assert [frame["reason"] for frame in late.frames(GameSignal.GAME_REFUSED)] == [GameRefusal.ANSWER_CLOSED.value]
     counts = [frame for frame in game_frames(host) if frame["type"] == GameSignal.GAME_ANSWER_COUNT.value]
-    assert counts == [answer_count(1, 2), answer_count(2, 2), answer_count(1, 3)]
+    assert counts == [answer_count(1, 2, own=True), answer_count(2, 2, own=True), answer_count(1, 3)]
 
 
 async def test_a_seat_that_joins_while_the_question_line_is_held_is_told_answering_but_is_no_player(
@@ -205,12 +230,16 @@ async def test_a_newer_answer_wins_the_counts_a_held_seat_still_waits_for(link, 
     push_unsettled(third, answer("Porto"))
     await sent(host, answer_count(1, 3))
     push_unsettled(host, answer("Lissabon"))
-    await sent(host, answer_count(2, 3))
+    await sent(host, answer_count(2, 3, own=True))
     gate.set()
-    await sent_to_all([guest, third], answer_count(2, 3))
+    await sent_count_to_all([guest, third], 2, 3, answered_by=[third])
 
-    assert answer_count(1, 3) not in game_frames(third)
-    assert [game_frames(browser)[-1] for browser in (host, guest, third)] == [answer_count(2, 3)] * 3
+    assert answer_count(1, 3, own=True) not in game_frames(third)
+    assert [game_frames(browser)[-1] for browser in (host, guest, third)] == [
+        answer_count(2, 3, own=True),
+        answer_count(2, 3),
+        answer_count(2, 3, own=True),
+    ]
 
 
 async def test_the_last_answer_reveals_once_the_question_run_still_held_by_a_departed_seat_ends(link, game_master):
@@ -223,14 +252,14 @@ async def test_the_last_answer_reveals_once_the_question_run_still_held_by_a_dep
 
     await host.say(answer("Porto"))
     await guest.say(answer("Lissabon"))
-    await sent(guest, answer_count(2, 2))
+    await sent(guest, answer_count(2, 2, own=True))
     gate.set()
     await sent_to_all([host, guest], answering(host, 2))
 
     assert game_frames(host) == [
         *asked(host, "Frage?"),
-        answer_count(1, 2),
-        answer_count(2, 2),
+        answer_count(1, 2, own=True),
+        answer_count(2, 2, own=True),
         *revealed_into_question_two(host),
     ]
     assert len(game_master.calls) == 3
@@ -240,12 +269,12 @@ async def test_the_starters_reveal_while_the_last_counts_are_sent_runs_one_revea
     host, guest, third = await call_of(link, "host", "guest", "third")
     script_two_questions(game_master)
     await open_a_question([host, guest, third], host)
-    gate = hold_writes_from(guest, answer_count(3, 3))
+    gate = hold_writes_from(guest, answer_count(3, 3, own=True))
     await host.say(answer("Porto"))
     await guest.say(answer("Lissabon"))
 
     push_unsettled(third, answer("Faro"))
-    await sent(host, answer_count(3, 3))
+    await sent(host, answer_count(3, 3, own=True))
     await host.say(REVEAL)
     gate.set()
     await sent_to_all([host, guest, third], answering(host, 2))
@@ -267,7 +296,7 @@ async def test_a_seat_whose_write_breaks_does_not_stop_the_counts_the_reveal_or_
     assert game_frames(host) == [
         *asked(host, "Frage?"),
         answer_count(1, 2),
-        answer_count(2, 2),
+        answer_count(2, 2, own=True),
         *revealed_into_question_two(host),
     ]
     assert host.socket.closed_with is None
@@ -305,14 +334,14 @@ async def test_the_reveal_run_gets_the_newest_answer_when_two_players_answers_ra
     host, guest, third = await call_of(link, "host", "guest", "third")
     script_two_questions(game_master)
     await open_a_question([host, guest, third], host)
-    gate = hold_writes_from(guest, answer_count(3, 3))
+    gate = hold_writes_from(guest, answer_count(3, 3, own=True))
     await host.say(answer("Porto"))
     await guest.say(answer("Lissabon"))
 
     push_unsettled(third, answer("Faro"))
-    await sent(host, answer_count(3, 3))
+    await sent(host, answer_count(3, 3, own=True))
     push_unsettled(host, answer("Tejo"))
-    await sent(host, answer_count(3, 3), times=2)
+    await sent(host, answer_count(3, 3, own=True), times=2)
     gate.set()
     await sent_to_all([host, guest, third], answering(host, 2))
     await let_every_task_run()
@@ -332,7 +361,7 @@ async def test_an_answer_over_the_cap_is_refused_to_its_sender_alone_and_counts_
     assert game_frames(guest) == [*asked(host), refused(GameRefusal.ANSWER_TOO_LONG)]
     assert game_frames(host) == asked(host)
     await host.say(answer("Porto"))
-    await sent_to_all([host, guest], answer_count(1, 2))
+    await sent_count_to_all([host, guest], 1, 2, answered_by=[host])
 
 
 async def test_an_answer_of_exactly_the_cap_with_spaces_around_it_is_accepted(link, game_master):
@@ -341,7 +370,7 @@ async def test_an_answer_of_exactly_the_cap_with_spaces_around_it_is_accepted(li
 
     await guest.say(answer(f"  {'x' * GAME_ANSWER_MAX_CHARACTERS}  "))
 
-    await sent_to_all([host, guest], answer_count(1, 2))
+    await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
 
 async def test_an_over_long_overwrite_keeps_the_earlier_answer_for_the_reveal(link, game_master):
