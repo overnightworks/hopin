@@ -432,15 +432,18 @@ class Game:
 
     async def _expire_run(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
         # A run that already ended has a finished `ask`, so the cancel is a no-op then.
-        self._run_keyed(key).ask.cancel()
+        run = self._run_keyed(key)
+        if run is not None:
+            run.ask.cancel()
 
     async def _expire_voice(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
-        voice = self._run_keyed(key).voice
+        run = self._run_keyed(key)
+        voice = run.voice if run is not None else None
         if voice is not None:
             voice.task.cancel(VOICE_DEADLINE_CUT)
 
-    def _run_keyed(self, key: str) -> _Run:
-        return next(run for runs in self._runs.values() for run in runs if run.key == key)
+    def _run_keyed(self, key: str) -> _Run | None:
+        return next((run for runs in self._runs.values() for run in runs if run.key == key), None)
 
     async def _stop_voice(self, run: _Run) -> None:
         self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)

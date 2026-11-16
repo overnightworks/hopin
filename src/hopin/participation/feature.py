@@ -81,12 +81,12 @@ GROUPS_READ_TASK_NAME = "participation-groups-read"
 
 
 def _invitation_key(person: Person, room_id: str) -> str:
-    return json.dumps((person.issuer, person.subject, room_id))
+    return json.dumps((person.key, room_id))
 
 
 def _invitation_of(key: str) -> tuple[Person, str]:
-    issuer, subject, room_id = json.loads(key)
-    return Person(issuer, subject), room_id
+    person_key, room_id = json.loads(key)
+    return Person.from_key(person_key), room_id
 
 
 class Participation:
