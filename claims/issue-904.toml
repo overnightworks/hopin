@@ -1,8 +1,0 @@
-claim_id = "0a7b4eb878df451e8101c518cbcd1585"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "b90cbc200f0a8c1fd7dc842780970df907e977f1"
-branch = "claude/issue-904-named-deadlines"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/agent/feature.py", "src/hopin/agent/hearing_token.py", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/game/table.py", "src/hopin/participation/feature.py", "src/hopin/participation/group_reads.py", "src/hopin/participation/live_agents.py", "src/hopin/participation/looking.py", "src/hopin/participation/participants.py", "src/hopin/participation/places.py", "src/hopin/participation/seeing.py", "src/hopin/participation/speaking.py", "src/hopin/participation/speech_in_windows.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/scheduler.py", "src/hopin/signaling/seats.py", "src/hopin/skat/feature.py", "tests"]
-opened_commit = "613bc38105865771075db485682d557ea9d81034"
-whole_reason = "One port replaces every stored kind's closure timer; a half move leaves two clocks for the same deadline."
