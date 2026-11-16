@@ -70,7 +70,8 @@ class StarterPerson:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
-        self._groups = SessionGroups(relying_party, session_transaction_of(sessions), web_auth)
+        self._session_transaction = session_transaction_of(sessions)
+        self._groups = SessionGroups(relying_party, self._session_transaction, web_auth)
 
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
@@ -115,7 +116,7 @@ class StarterPerson:
         return fresh_access_token(
             self._relying_party,
             session_id,
-            session_transaction=session_transaction_of(self._sessions),
+            session_transaction=self._session_transaction,
             config=self._web_auth,
         )
 
