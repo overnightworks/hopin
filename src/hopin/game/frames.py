@@ -58,11 +58,7 @@ class LineFrame:
 
     def to_json(self) -> JsonObject:
         frame: JsonObject = {TYPE_KEY: self.TYPE.value, "text": self.text}
-        if self.voiced is not None:
-            frame["voiced"] = self.voiced
-        if self.round is not None:
-            frame["round"] = self.round
-        return frame
+        return with_present(frame, voiced=self.voiced, round=self.round)
 
 
 @dataclass(frozen=True)
@@ -99,8 +95,10 @@ class AnswerCountFrame:
     own_answer_counted: Literal[True] | None = None
 
     def to_json(self) -> JsonObject:
-        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "answered": self.answered, "players": self.players}
-        return with_present(frame, own_answer_counted=self.own_answer_counted)
+        return with_present(
+            {TYPE_KEY: self.TYPE.value, "answered": self.answered, "players": self.players},
+            own_answer_counted=self.own_answer_counted,
+        )
 
 
 @dataclass(frozen=True)
