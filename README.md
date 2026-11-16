@@ -75,7 +75,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `HOPIN_HOST` | `0.0.0.0` | Server bind address |
 | `HOPIN_PORT` | `8080` | Server port |
 | `LOG_LEVEL` | `info` | The root log level (`debug`, `info`, `warning`, `error`, `critical`); logline reads it without the `HOPIN_` prefix, and anything else stops the start |
-| `SERVICE_VERSION` | unset | The `version` of every log line, which logline reads without the `HOPIN_` prefix |
+| `SERVICE_VERSION` | unset; the release image sets it to the release version | The `version` of every log line, which logline reads without the `HOPIN_` prefix |
 | `HOPIN_STUN_SERVER` | `stun:stun.cloudflare.com:3478` | STUN server for NAT traversal, served to the browser at `/api/ice-servers` |
 | `HOPIN_TURN_PROVIDER` | `off` | `off` or `cloudflare`. With `cloudflare`, each call start asks the provider for a TURN credential that lives 12 hours and serves it with the STUN entry. Switching off (it takes a restart) stops new TURN credentials only: credentials already handed out stay valid at the provider until their 12 h end |
 | `HOPIN_TURN_KEY_ID_FILE` | unset | Absolute path of the file holding the TURN key's ID; required when TURN is on |
