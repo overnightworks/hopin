@@ -4,10 +4,16 @@ import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi.responses import Response
+from webauth.languages import AppLanguages
 
 from hopin.config.secret_files import StartRefusedError
+from hopin.words import LANGUAGES, SOURCE_LANGUAGE
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 BUILD_DIRECTORY = Path(__file__).parent / "build"
 SHELL_FILE = "index.html"
@@ -18,6 +24,8 @@ APP_PATH_PREFIX = "/_app/"
 APP_DIRECTORY = "_app"
 IMMUTABLE_DIRECTORY = "immutable"
 ANNOUNCER_ID = "svelte-announcer"
+HTML_LANGUAGE = re.compile(rb'(<html\b[^>]*?\blang=")[^"]*(")')
+APP_LANGUAGES = AppLanguages(offered=LANGUAGES, default=SOURCE_LANGUAGE)
 _CSS_URL = re.compile(r"""url\(\s*['"]?(/_app/[^'")\s]+)""")
 
 
@@ -119,32 +127,50 @@ def _announcer_style(directory: Path) -> str:
 
 
 @dataclass(frozen=True)
-class BuiltPage:
-    """One page as `make frontend` wrote it, with the strong ETag of those bytes."""
+class PageVariant:
+    """One page's bytes in one language, with the strong ETag of those bytes."""
 
     content: bytes
     etag: str
 
+
+@dataclass(frozen=True)
+class BuiltPage:
+    """One page as `make frontend` wrote it, once per offered language, each with its own strong ETag."""
+
+    variants: Mapping[str, PageVariant]
+
     @classmethod
-    def of(cls, content: bytes) -> BuiltPage:
-        return cls(content=content, etag=f'"{hashlib.sha256(content).hexdigest()}"')
+    def of(cls, content: bytes, languages: AppLanguages, name: str) -> BuiltPage:
+        """The page with its `<html lang>` set to each offered language, made once so no request rewrites it."""
+        if HTML_LANGUAGE.search(content) is None:
+            raise PageBuildMissingError(f"The page {name} of the build has no <html lang>; run make frontend")
+        return cls(variants={language: _page_variant(content, language) for language in languages.offered})
 
 
-def built_page_response(page: BuiltPage, status_code: int = 200) -> Response:
-    return Response(page.content, status_code=status_code, media_type="text/html", headers={"ETag": page.etag})
+def _page_variant(content: bytes, language: str) -> PageVariant:
+    variant = HTML_LANGUAGE.sub(rb"\g<1>" + language.encode() + rb"\g<2>", content, count=1)
+    return PageVariant(content=variant, etag=f'"{hashlib.sha256(variant).hexdigest()}"')
+
+
+def built_page_response(page: BuiltPage, language: str, status_code: int = 200) -> Response:
+    variant = page.variants[language]
+    return Response(variant.content, status_code=status_code, media_type="text/html", headers={"ETag": variant.etag})
 
 
 @dataclass(frozen=True)
 class PageBuild:
     """What `make frontend` wrote: the pages the server answers with, and what their policy and gate admit.
 
-    The pages are held as read, so the served shell is the hashed shell even when a build rewrites the file
-    while the server runs. `sign_in_assets` are the `/_app/` stylesheets and icon the three sign-in pages link and
-    the `/_app/` files those stylesheets reference (the fonts), the only build files a signed-out visitor may fetch.
+    The pages are held as read, one per offered language, so the served shell is the hashed shell even when a build
+    rewrites the file while the server runs. `sign_in_assets` are the `/_app/` stylesheets and icon the three sign-in
+    pages link and the `/_app/` files those stylesheets reference (the fonts), the only build files a signed-out
+    visitor may fetch.
     `announcer_style_sources` are the `style-src` sources that admit the route announcer's inline style.
     """
 
     directory: Path
+    languages: AppLanguages
     shell: BuiltPage
     signed_out: BuiltPage
     login_failed: BuiltPage
@@ -158,7 +184,7 @@ class PageBuild:
         return self.directory / APP_DIRECTORY
 
     @classmethod
-    def load(cls, directory: Path) -> PageBuild:
+    def load(cls, directory: Path, languages: AppLanguages = APP_LANGUAGES) -> PageBuild:
         page_paths = [directory / name for name in (SHELL_FILE, SIGNED_OUT_FILE, LOGIN_FAILED_FILE, NO_ACCESS_FILE)]
         if not all(path.is_file() for path in page_paths) or not (directory / APP_DIRECTORY).is_dir():
             raise PageBuildMissingError(f"The page build is missing at {directory}; run make frontend")
@@ -177,10 +203,11 @@ class PageBuild:
         announcer_style = _announcer_style(directory)
         return cls(
             directory=directory,
-            shell=BuiltPage.of(shell_bytes),
-            signed_out=BuiltPage.of(signed_out_bytes),
-            login_failed=BuiltPage.of(login_failed_bytes),
-            no_access=BuiltPage.of(no_access_bytes),
+            languages=languages,
+            shell=BuiltPage.of(shell_bytes, languages, SHELL_FILE),
+            signed_out=BuiltPage.of(signed_out_bytes, languages, SIGNED_OUT_FILE),
+            login_failed=BuiltPage.of(login_failed_bytes, languages, LOGIN_FAILED_FILE),
+            no_access=BuiltPage.of(no_access_bytes, languages, NO_ACCESS_FILE),
             script_hashes=tuple(_inline_hash(text) for text in scripts.texts),
             announcer_style_sources=("'unsafe-hashes'", f"'{_inline_hash(announcer_style)}'"),
             sign_in_assets=stylesheets | icons | frozenset().union(*(_css_asset_urls(css) for css in stylesheet_bytes)),

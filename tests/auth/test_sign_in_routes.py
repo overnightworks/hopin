@@ -16,6 +16,7 @@ from pydantic import SecretStr
 from webauth.admission import AppRole
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.languages import AppLanguages
 from webauth.oidc_login import new_session_id
 from webauth.ports import AccountEventKind, AccountKind
 
@@ -25,6 +26,7 @@ from hopin.auth.sign_in import (
     build_relying_party,
     build_sign_in_configs,
     install_sign_in,
+    words_logout_button_label,
 )
 from hopin.config.constants import (
     ADMIN_GROUP,
@@ -39,12 +41,14 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
+from hopin.web.page_build import APP_LANGUAGES
+from hopin.web.request_language import RequestLanguage
 from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
-from tests.support.signed_in import new_id_token
+from tests.support.signed_in import cookie_header, new_id_token, seed_member
 from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
@@ -81,9 +85,9 @@ class SignInHarness:
             raise_server_exceptions=raise_server_exceptions,
         )
 
-    def start(self, browser: TestClient, next_path: str | None = None) -> Response:
+    def start(self, browser: TestClient, next_path: str | None = None, **headers: str) -> Response:
         params = {} if next_path is None else {RETURN_TO_QUERY_PARAMETER: next_path}
-        response = browser.get(AUTH_START_PATH, params=params)
+        response = browser.get(AUTH_START_PATH, params=params, headers=headers)
         self.started.append(response)
         return response
 
@@ -123,6 +127,8 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         windows_line_ending: bool = False,
         client_secret: str | None = None,
         audit: AuditSink | None = None,
+        languages: AppLanguages = APP_LANGUAGES,
+        logout_button_label: Callable[[str], str] = words_logout_button_label,
     ) -> SignInHarness:
         sign_in = sign_in_settings()
         if client_secret is not None:
@@ -139,7 +145,14 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         accounts, sessions = stores.accounts, stores.sessions
         app = FastAPI()
         install_web_auth_config(app, configs.web_auth)
-        install_sign_in(app, build_relying_party(configs, transports), stores.transaction, fixture_page_build())
+        install_sign_in(
+            app,
+            build_relying_party(configs, transports),
+            stores.transaction,
+            fixture_page_build(languages),
+            RequestLanguage(languages, sessions, configs.web_auth),
+            logout_button_label,
+        )
 
         @app.get(WHO_AM_I_PATH)
         def who_am_i(request: Request) -> dict[str, object]:
@@ -240,6 +253,22 @@ class TestStart:
         ]
         assert len(pending) == 1
         assert {"httponly", "secure"} <= pending[0]
+
+    @pytest.mark.parametrize(
+        ("offered", "accept_language", "sent"),
+        [
+            (("de",), "en", "de"),
+            (("de", "en"), "en;q=0.9, fr;q=0.5", "en"),
+            (("de", "en"), "fr", "de"),
+        ],
+        ids=["german alone", "a second language the browser asks for", "a language nobody offers"],
+    )
+    def test_sends_the_resolved_language_as_ui_locales(self, make_harness, offered, accept_language, sent):
+        harness = make_harness(languages=AppLanguages(offered=offered, default="de"))
+
+        response = harness.start(harness.browser(), **{"accept-language": accept_language})
+
+        assert parse_qs(urlsplit(response.headers["location"]).query)["ui_locales"] == [sent]
 
 
 class TestMemberSignIn:
@@ -381,6 +410,29 @@ class TestLogout:
         assert harness.who(browser) == {"user": None}
         assert {"max-age=0", "path=/"} <= cookies[SESSION_COOKIE]
         assert set(cookies) == {SESSION_COOKIE}
+
+    @pytest.mark.parametrize(
+        ("offered", "asked", "account", "shown"),
+        [
+            (("de",), "en", None, "de"),
+            (("de", "en"), "en", None, "en"),
+            (("de", "en"), "de", "en", "en"),
+        ],
+        ids=["german alone", "the second language the browser asks for", "the second language the account carries"],
+    )
+    def test_the_logout_page_is_in_the_resolved_language(self, make_harness, offered, asked, account, shown):
+        harness = make_harness(
+            languages=AppLanguages(offered, default="de"), logout_button_label=lambda lang: f"label-{lang}"
+        )
+        member = seed_member(harness, harness.config, account_language=account)
+
+        response = harness.browser().post(
+            LOGOUT_PATH,
+            headers={"cookie": cookie_header(member.set_cookie_headers), "accept-language": asked},
+        )
+
+        page = EndSessionPage(response.text)
+        assert (page.language, page.button_label) == (shown, f"label-{shown}")
 
     def test_a_logout_whose_row_is_gone_sends_no_hint_so_the_issuer_asks_once(self, harness):
         browser = harness.browser()
