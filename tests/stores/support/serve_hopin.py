@@ -6,16 +6,16 @@ ends in a moment instead of production's wait.
 """
 
 import sys
-from functools import partial
 from pathlib import Path
 
-from hopin import main
+from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS
 from hopin.config.settings import ServerSettings
+from hopin.main import serve
 from hopin.web.page_build import PageBuild
 
 page_build_directory, *subscription_wait = sys.argv[1:]
-if subscription_wait:
-    main.ParticipationFeature = partial(  # the composition root's one call site, bound
-        main.ParticipationFeature, subscription_wait_seconds=float(subscription_wait[0])
-    )
-main.serve(ServerSettings(), PageBuild.load(Path(page_build_directory)))
+serve(
+    ServerSettings(),
+    PageBuild.load(Path(page_build_directory)),
+    subscription_wait_seconds=float(subscription_wait[0]) if subscription_wait else PLACE_SUBSCRIPTION_WAIT_SECONDS,
+)

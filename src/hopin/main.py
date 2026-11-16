@@ -6,7 +6,7 @@ import uvicorn
 from logline import configure
 
 from hopin.agent.feature import configured_game_feature  # game
-from hopin.agent.mcp import ParticipationFeature
+from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeature
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
@@ -57,7 +57,13 @@ def command_line_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_application(settings: ServerSettings, page_build: PageBuild, shared_stores: SharedStores) -> FastAPI:
+def build_application(
+    settings: ServerSettings,
+    page_build: PageBuild,
+    shared_stores: SharedStores,
+    *,
+    subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
+) -> FastAPI:
     participation = ParticipationSettings()
     speech = SpeechSettings()
     voices = VoiceStore()
@@ -75,14 +81,25 @@ def build_application(settings: ServerSettings, page_build: PageBuild, shared_st
                 speaking=speech.speaking_service,
                 voices=voices,
                 redis=shared_stores.async_redis,
+                subscription_wait_seconds=subscription_wait_seconds,
             ),
             *configured_skat_feature(settings.public_origin),  # skat
         ),
     )
 
 
-def serve(settings: ServerSettings, page_build: PageBuild) -> None:
-    application = build_application(settings, page_build, connect_shared_stores(str(settings.redis_url)))
+def serve(
+    settings: ServerSettings,
+    page_build: PageBuild,
+    *,
+    subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
+) -> None:
+    application = build_application(
+        settings,
+        page_build,
+        connect_shared_stores(str(settings.redis_url)),
+        subscription_wait_seconds=subscription_wait_seconds,
+    )
     uvicorn.run(application, **uvicorn_options(settings))
 
 
