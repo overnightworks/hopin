@@ -1,7 +1,0 @@
-claim_id = "bdd2cf06fc3a444e82682a70f7a04886"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "99513b06d4f07857611db82514a68103481dcf41"
-branch = "claude/issue-888-call-58-trace-tests"
-scope = ["docs/call.md", "tests/participation/test_hearing_trace.py"]
-opened_commit = "61213074bbbc8f74b1b69e23ce83d65eff193398"
