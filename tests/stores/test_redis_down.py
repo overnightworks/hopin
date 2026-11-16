@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hopin.app import create_app
-from hopin.config.constants import LOGIN_PATH
+from hopin.config.constants import HEALTH_PATH, LOGIN_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -37,3 +37,6 @@ class TestRedisDown:
 
         assert refused.status_code == HTTPStatus.SERVICE_UNAVAILABLE
         assert "retry-after" in refused.headers
+
+    def test_health_answers_503(self, served_without_redis):
+        assert served_without_redis.get(HEALTH_PATH).status_code == HTTPStatus.SERVICE_UNAVAILABLE

@@ -290,6 +290,7 @@ class Scene:
     its standing once."""
 
     agent_name = "Mozart"
+    agent_subject = "agent-subject"
     agent_username = "agent-subject-username"
     owner_subject = OWNER_SUBJECT
 
@@ -301,7 +302,7 @@ class Scene:
         self.member = call.seat(self.member_login, self.owner.room_id)
         self.token = call.agent_token(
             owner=OWNER_SUBJECT,
-            subject="agent-subject",
+            subject=self.agent_subject,
             agent_name=self.agent_name,
             preferred_username=self.agent_username,
         )
