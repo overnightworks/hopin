@@ -1,5 +1,6 @@
 """Who takes part in a call beside its people: the person a token speaks for, a tool's caller and an agent's place."""
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -16,6 +17,16 @@ class Person:
 
     issuer: str
     subject: str
+
+    @property
+    def key(self) -> str:
+        """The person as a deadline's key."""
+        return json.dumps((self.issuer, self.subject))
+
+    @classmethod
+    def from_key(cls, key: str) -> Person:
+        issuer, subject = json.loads(key)
+        return cls(issuer, subject)
 
 
 @dataclass(frozen=True)

@@ -52,16 +52,16 @@ def voices():
 
 
 @pytest.fixture
-def game(scheduler, game_master, voice, voices):
+def game(deadlines, game_master, voice, voices):
     """The game as `create_app` builds it, its game master a fake."""
     return partial(
-        Game, scheduler=scheduler, game_master=game_master, topic_drawer=fixed_topics, voice=voice, voices=voices
+        Game, deadlines=deadlines, game_master=game_master, topic_drawer=fixed_topics, voice=voice, voices=voices
     )
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, game):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, [game])
+def handler(room_manager, scheduler, deadlines, game):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [game])
 
 
 @pytest_asyncio.fixture

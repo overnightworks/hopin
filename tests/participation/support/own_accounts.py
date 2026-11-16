@@ -2,7 +2,7 @@
 
 import asyncio
 
-from hopin.participation.feature import GROUPS_READ_TASK_NAME
+from hopin.participation.group_reads import GROUPS_READ_TASK_NAME
 from hopin.participation.participants import OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named

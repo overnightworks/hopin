@@ -26,13 +26,14 @@ from hopin.participation.vocabulary import (
     VoiceFailure,
 )
 from hopin.rooms.reference import room_reference
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
 
     from hopin.participation.participants import DialedAgent
     from hopin.participation.voice import StoredVoice, VoiceStore
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines
 
 MILLISECONDS_PER_SECOND: Final = 1000
 
@@ -128,10 +129,10 @@ class _Queue:
     """One agent's sentences, kept from its first one until its speaking ends; the queue itself names that span.
     `stops` counts the stops that dropped sentences, which a sentence still being rendered finds when it is done."""
 
+    agent: DialedAgent
     playing: QueuedSentence | None = None
     waiting: deque[WaitingSentence] = field(default_factory=deque)
     rendering: int = 0
-    timer: TimerHandle | None = None
     stops: int = 0
 
 
@@ -142,13 +143,14 @@ class Speaking:
     def __init__(
         self,
         voices: VoiceStore,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         start: Callable[[DialedAgent, QueuedSentence], Awaitable[None]],
         ended: Callable[[DialedAgent, QueuedSentence, SentenceEnd], None],
         write: Callable[[DialedAgent, str], Awaitable[None]],
     ) -> None:
         self._voices = voices
-        self._scheduler = scheduler
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.SENTENCE_END, self._played)
         self._start = start
         self._ended = ended
         self._write = write
@@ -161,7 +163,7 @@ class Speaking:
         before any sound, or why it never does: no sound came for a reason that is no failure of the voice, a stop
         dropped it while it was rendered or waited, or an end dropped the agent's queue meanwhile, which a rejoin or a
         resume does not undo."""
-        queue = self._queues.setdefault(agent.agent_id, _Queue())
+        queue = self._queues.setdefault(agent.agent_id, _Queue(agent))
         stops = queue.stops
         queue.rendering += 1
         try:
@@ -214,7 +216,7 @@ class Speaking:
         cut = None if queue is None else queue.playing
         if queue is None or cut is None:
             return None
-        _cancel_timer(queue)
+        self._deadlines.cancel(DeadlineKind.SENTENCE_END, agent.agent_id)
         queue.playing = None
         queue.stops += 1
         for sentence in queue.waiting:
@@ -241,7 +243,7 @@ class Speaking:
         """The agent's removal, leave, pause, lease end or call end: drop its queue and its sounds at once."""
         queue = self._queues.pop(agent.agent_id, None)
         if queue is not None:
-            _cancel_timer(queue)
+            self._deadlines.cancel(DeadlineKind.SENTENCE_END, agent.agent_id)
             for sentence in queue.waiting:
                 if isinstance(sentence, QueuedSentence):
                     sentence.filling.cancel()
@@ -275,7 +277,7 @@ class Speaking:
         announcement shows it."""
         queue.playing = sentence
         _answer(sentence, SpeakStarted.SPOKEN)
-        ending = partial(self._set_end, agent, queue, sentence, self._scheduler.now())
+        ending = partial(self._set_end, agent, queue, sentence, self._deadlines.now())
         if sentence.ended.done():
             ending(sentence.ended)
         else:
@@ -298,15 +300,15 @@ class Speaking:
         if isinstance(outcome, VoiceFailure):
             self._run_in_background(agent, self._cut(agent, sentence))
             return
-        remaining = began_at + outcome / MILLISECONDS_PER_SECOND - self._scheduler.now()
-        queue.timer = self._scheduler.call_later(max(remaining, 0), partial(self._played, agent, sentence))
+        remaining = began_at + outcome / MILLISECONDS_PER_SECOND - self._deadlines.now()
+        self._deadlines.set(DeadlineKind.SENTENCE_END, agent.agent_id, max(remaining, 0))
 
-    async def _played(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
-        queue = self._queues.get(agent.agent_id)
-        if queue is None or queue.playing is not sentence:
-            return
+    async def _played(self, agent_id: str) -> None:
+        queue = self._queues[agent_id]
+        sentence = queue.playing
+        assert sentence is not None  # noqa: S101 - every end of the playing sentence cancels its deadline
         continues = any(isinstance(waiting, QueuedSentence) for waiting in queue.waiting)
-        await self._finish(agent, queue, sentence, SentenceEnd.CONTINUED if continues else SentenceEnd.PLAYED)
+        await self._finish(queue.agent, queue, sentence, SentenceEnd.CONTINUED if continues else SentenceEnd.PLAYED)
 
     async def _cut(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
         queue = self._queues.get(agent.agent_id)
@@ -378,11 +380,6 @@ async def _fill(
         logger.error("voice_stream.failed", reason=VoiceFailure.CUT.value)
         voice.break_off()
         ended.set_result(VoiceFailure.CUT)
-
-
-def _cancel_timer(queue: _Queue) -> None:
-    if queue.timer is not None:
-        queue.timer.cancel()
 
 
 def _answer(sentence: WaitingSentence, answer: SpeakResult) -> None:

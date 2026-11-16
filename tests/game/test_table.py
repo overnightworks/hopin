@@ -691,12 +691,13 @@ class TestSeatsComingAndGoing:
         assert game_frames(late) == []
 
 
-async def test_six_seats_get_the_question(scheduler, game):
+async def test_six_seats_get_the_question(scheduler, deadlines, game):
     """GM-18: Six seats get the question."""
     handler = SignalingHandler(
         RoomManager(max_participants_per_room=MAX_PARTICIPANTS_PER_ROOM),
         SocketAccountResolver(),
         scheduler,
+        deadlines,
         [game],
     )
     link = Link(handler)

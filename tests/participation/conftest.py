@@ -113,9 +113,9 @@ def speaking_service():
 
 
 @pytest.fixture
-def member_hearing(scheduler):
+def member_hearing(deadlines):
     """The agents library's record of who may hear whom, on the scheduler's clock."""
-    return MemberHearing(now=scheduler.now)
+    return MemberHearing(now=deadlines.now)
 
 
 @pytest.fixture
@@ -131,7 +131,17 @@ def voices():
 
 @pytest.fixture
 def handler(
-    room_manager, scheduler, changes, window_changes, adders, groups_of_seat, group_reads, listeners, hearing, voices
+    room_manager,
+    scheduler,
+    deadlines,
+    changes,
+    window_changes,
+    adders,
+    groups_of_seat,
+    group_reads,
+    listeners,
+    hearing,
+    voices,
 ):
     async def groups_of(connection):
         group_reads.append(connection.account.name)
@@ -145,10 +155,11 @@ def handler(
         room_manager,
         SocketAccountResolver(),
         scheduler,
+        deadlines,
         [
             partial(
                 Participation,
-                scheduler=scheduler,
+                deadlines=deadlines,
                 lease_seconds=LEASE_SECONDS,
                 invitation_seconds=INVITATION_SECONDS,
                 on_changed=changes,

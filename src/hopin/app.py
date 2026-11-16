@@ -46,7 +46,7 @@ from hopin.people import create_people_router
 from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
-from hopin.signaling.scheduler import AsyncioScheduler, Scheduler, TimerHandle
+from hopin.signaling.scheduler import AsyncioScheduler, Deadlines, InMemoryDeadlines, Scheduler, TimerHandle
 from hopin.web.call_features import create_call_features_router
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.request_language import RequestLanguage
@@ -89,7 +89,7 @@ class BuiltCallFeature(Protocol):
 
 
 class CallFeatureBuilder(Protocol):
-    """Builds an optional call feature on the app's own sign-in and scheduler; `main` passes each one in."""
+    """Builds an optional call feature on the app's own sign-in, scheduler and deadlines; `main` passes each one in."""
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -106,6 +106,7 @@ class CallFeatureBuilder(Protocol):
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
+        deadlines: Deadlines,
         transaction: SignInTransaction,
     ) -> BuiltCallFeature:
         """The feature's factory, its router and its bearer resource."""
@@ -220,6 +221,7 @@ def _build_features(
     sign_in_stores: SingleProcessStores,
     auth_config: WebAuthConfig,
     timers: Scheduler,
+    deadlines: Deadlines,
 ) -> list[BuiltCallFeature]:
     return [
         builder(
@@ -227,6 +229,7 @@ def _build_features(
             sessions=sign_in_stores.sessions,
             auth_config=auth_config,
             scheduler=timers,
+            deadlines=deadlines,
             transaction=sign_in_stores.transaction,
         )
         for builder in call_features
@@ -256,12 +259,16 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
-    built_features = _build_features(call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers)
+    deadlines = InMemoryDeadlines(timers)
+    built_features = _build_features(
+        call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers, deadlines
+    )
     bearer = _bearer_of(built_features, relying_party)
     signaling_handler = SignalingHandler(
         room_manager,
         SessionIdentityResolver(sign_in_stores.sessions),
         timers,
+        deadlines,
         [built.factory for built in built_features],
     )
 

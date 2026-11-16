@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from hopin.participation.participants import DialedAgent
     from hopin.participation.places import Places
     from hopin.signaling.frames import ForeignFrame, PeerId
-    from hopin.signaling.scheduler import Scheduler
+    from hopin.signaling.scheduler import Deadlines
 
 
 class Seeing:
@@ -30,16 +30,16 @@ class Seeing:
         self,
         hearing: Hearing,
         places: Places,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         tell: Callable[[str, Sequence[str], ParticipationFrame], Awaitable[None]],
         recipients: Callable[[str], list[PeerId]],
     ) -> None:
         self._hearing = hearing
         self._places = places
-        self._scheduler = scheduler
+        self._deadlines = deadlines
         self._tell = tell
         self._recipients = recipients
-        self._looking = Looking(scheduler, self._ask)
+        self._looking = Looking(deadlines, self._ask)
 
     async def look(self, agent: DialedAgent) -> Picture:
         """The picture of the sponsor's camera, or why there is none: the switch is off, the agent looked too often,
@@ -47,7 +47,7 @@ class Seeing:
         on. Every seat of the call is shown the look when it yields a picture."""
         if not self._hearing.sees(agent):
             return LookRefusal.NOT_ALLOWED
-        if not self._places.take_look(agent.person, agent.room_id, self._scheduler.now()):
+        if not self._places.take_look(agent.person, agent.room_id, self._deadlines.now()):
             return LookRefusal.TOO_FAST
         return await self._looking.look(agent, partial(self._show, agent))
 

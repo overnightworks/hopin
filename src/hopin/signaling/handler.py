@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.features import CallFeature, FeatureFactory
     from hopin.signaling.identity import IdentityResolver
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines, Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -50,13 +50,14 @@ class SignalingHandler:
         room_manager: RoomManager,
         identity_resolver: IdentityResolver,
         scheduler: Scheduler,
+        deadlines: Deadlines,
         features: Sequence[FeatureFactory] = (),
     ) -> None:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
         self._routing = RoomRouting(
-            room_manager, scheduler, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
+            room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
         )
         self._seats = self._routing.seats
         self._features = build_features(features, CallRooms(self._routing, room_manager))

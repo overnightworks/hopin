@@ -1,6 +1,6 @@
 import pytest
 
-from hopin.participation.live_agents import LiveAgents, TimerAction
+from hopin.participation.live_agents import LiveAgents
 from hopin.participation.participants import Person
 
 LEASE = 30.0
@@ -58,28 +58,17 @@ class TestAdmit:
 
 
 class TestChecked:
-    def test_a_timer_of_a_gone_agent_does_nothing(self):
-        assert LiveAgents().checked(PERSON, 1, now=0.0).action == TimerAction.NOTHING
-
-    def test_a_timer_of_a_replaced_registration_does_nothing(self):
-        first = admitted(LiveAgents(), now=0.0)
-        replaced = admitted(first.agents, now=1.0, owner="other owner")
-
-        check = replaced.agents.checked(PERSON, first.agent.generation, now=LEASE + 5)
-
-        assert (check.action, check.agents) == (TimerAction.NOTHING, replaced.agents)
-
     def test_a_timer_before_the_deadline_rearms_for_the_rest_of_the_lease(self):
         first = admitted(LiveAgents(), now=0.0)
         renewed = admitted(first.agents, now=LEASE - 1)
 
-        check = renewed.agents.checked(PERSON, first.agent.generation, now=LEASE)
+        check = renewed.agents.checked(PERSON, now=LEASE)
 
-        assert (check.action, check.rearm_after) == (TimerAction.REARM, pytest.approx(LEASE - 1))
+        assert (check.ended, check.rearm_after) == (None, pytest.approx(LEASE - 1))
 
     def test_a_timer_at_the_deadline_expires_the_agent(self):
         first = admitted(LiveAgents(), now=0.0)
 
-        check = first.agents.checked(PERSON, first.agent.generation, now=LEASE)
+        check = first.agents.checked(PERSON, now=LEASE)
 
-        assert (check.action, check.ended, check.agents.by_person) == (TimerAction.EXPIRE, first.agent, {})
+        assert (check.ended, check.agents.by_person) == (first.agent, {})
