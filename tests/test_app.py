@@ -33,6 +33,7 @@ from hopin.config.constants import (
 )
 from hopin.config.secret_files import StartRefusedError
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_ICON, SIGN_IN_STYLESHEET, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
@@ -49,7 +50,7 @@ SESSION_COOKIE = "__Host-session_id"
 
 def signed_in_client(settings: ServerSettings) -> TestClient:
     stores = single_process_stores()
-    app = create_app(settings, page_build=fixture_page_build(), stores=stores)
+    app = create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
     member = seed_member(stores, installed_web_auth_config(app))
     headers = {"cookie": cookie_header(member.set_cookie_headers)}
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, follow_redirects=False)
@@ -57,16 +58,20 @@ def signed_in_client(settings: ServerSettings) -> TestClient:
 
 class TestCreateApp:
     def test_returns_fastapi_application(self, sign_in_settings):
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build())
+        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
         assert isinstance(app, FastAPI)
 
     def test_uses_provided_settings(self, sign_in_settings):
-        app = create_app(sign_in_settings(port=9999).settings, page_build=fixture_page_build())
+        app = create_app(
+            sign_in_settings(port=9999).settings, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+        )
         assert app.state.settings.port == 9999
 
     def test_installs_the_web_auth_config_built_from_its_settings(self, sign_in_settings):
         sign_in = sign_in_settings()
-        config = installed_web_auth_config(create_app(sign_in.settings, page_build=fixture_page_build()))
+        config = installed_web_auth_config(
+            create_app(sign_in.settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        )
         assert isinstance(config, WebAuthConfig)
         assert config.session_secret.get_secret_value() == sign_in.session_secret
 
@@ -74,8 +79,9 @@ class TestCreateApp:
         settings = sign_in_settings().settings
         settings.session_secret_file.unlink()
         page_build = fixture_page_build()
+        shared_stores = in_thread_stores()
         with pytest.raises(StartRefusedError, match="session_secret_file"):
-            create_app(settings, page_build=page_build)
+            create_app(settings, page_build=page_build, shared_stores=shared_stores)
 
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
         class BearerFeature:
@@ -92,14 +98,20 @@ class TestCreateApp:
         settings = sign_in_settings().settings
         page_build = fixture_page_build()
         call_features = (BearerFeature(), BearerFeature())
+        shared_stores = in_thread_stores()
 
         with pytest.raises(StartRefusedError, match="bearer"):
-            create_app(settings, page_build=page_build, call_features=call_features)
+            create_app(settings, page_build=page_build, shared_stores=shared_stores, call_features=call_features)
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
+        app = create_app(
+            sign_in.settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            issuer_transports=issuer.transports,
+        )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -111,7 +123,12 @@ class TestCreateApp:
     def test_account_route_reads_the_sessions_the_sign_in_wrote(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
+        app = create_app(
+            sign_in.settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            issuer_transports=issuer.transports,
+        )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -126,7 +143,11 @@ class TestCreateApp:
         issuer = FakeIssuer(sign_in)
         stores = single_process_stores()
         app = create_app(
-            sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports, stores=stores
+            sign_in.settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            issuer_transports=issuer.transports,
+            stores=stores,
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
@@ -145,7 +166,12 @@ class TestCreateApp:
     def test_admits_the_member_the_sign_in_router_signed_in_to_its_pages(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
-        app = create_app(sign_in.settings, page_build=fixture_page_build(), issuer_transports=issuer.transports)
+        app = create_app(
+            sign_in.settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            issuer_transports=issuer.transports,
+        )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
@@ -159,7 +185,9 @@ class TestCreateApp:
                 assert (response.status_code, "location" in response.headers) == (200, False)
 
     def test_registers_routes(self, sign_in_settings):
-        response = TestClient(create_app(sign_in_settings().settings, page_build=fixture_page_build())).get("/health")
+        response = TestClient(
+            create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        ).get("/health")
         assert response.status_code == 200
 
     def test_serves_the_configured_stun_server_as_ice_servers(self, sign_in_settings):
@@ -204,7 +232,10 @@ class TestCreateApp:
         settings = sign_in_settings().settings
 
         response = TestClient(
-            create_app(settings, page_build=fixture_page_build(), call_features=features), base_url=TEST_PUBLIC_ORIGIN
+            create_app(
+                settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), call_features=features
+            ),
+            base_url=TEST_PUBLIC_ORIGIN,
         ).get("/health")
 
         assert expected in response.headers["content-security-policy"]
@@ -245,7 +276,11 @@ class TestExpiredSessionSweep:
     def swept(self, sign_in_settings, scheduler):
         stores = single_process_stores()
         app = create_app(
-            sign_in_settings().settings, page_build=fixture_page_build(), stores=stores, scheduler=scheduler
+            sign_in_settings().settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            stores=stores,
+            scheduler=scheduler,
         )
         account = stores.accounts.create_for_subject("subject", "name", "user", kind=AccountKind.PERSON)
         now = datetime.now(UTC)
@@ -327,7 +362,11 @@ class TestExpiredSessionSweep:
         stores = single_process_stores()
         scheduler = QueuingScheduler()
         app = create_app(
-            sign_in_settings().settings, page_build=fixture_page_build(), stores=stores, scheduler=scheduler
+            sign_in_settings().settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            stores=stores,
+            scheduler=scheduler,
         )
         now = datetime.now(UTC)
         account = stores.accounts.create_for_subject("subject", "name", "user", kind=AccountKind.PERSON)
@@ -374,7 +413,7 @@ class TestExpiredSessionSweep:
 
 class TestRequestLine:
     def test_a_request_writes_one_json_line_with_its_route_and_without_its_path(self, sign_in_settings, capsys):
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build())
+        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
         probe = secrets.token_urlsafe(8)
 
         with configured("hopin"):
@@ -394,7 +433,7 @@ class TestRequestLine:
         proxy = "172.31.250.1"
         settings = sign_in_settings(trusted_proxies=proxy).settings
         stores = single_process_stores()
-        app = create_app(settings, page_build=fixture_page_build(), stores=stores)
+        app = create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
         member = seed_member(stores, installed_web_auth_config(app))
         headers = {"cookie": cookie_header(member.set_cookie_headers), "x-forwarded-for": "198.51.100.7"}
         client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, client=(proxy, 50000))
@@ -409,7 +448,11 @@ class TestRequestLine:
 
     def test_a_refused_request_still_carries_its_address_and_no_sub(self, sign_in_settings, capsys):
         proxy = "172.31.250.1"
-        app = create_app(sign_in_settings(trusted_proxies=proxy).settings, page_build=fixture_page_build())
+        app = create_app(
+            sign_in_settings(trusted_proxies=proxy).settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+        )
         client = TestClient(
             app,
             base_url=TEST_PUBLIC_ORIGIN,

@@ -12,6 +12,7 @@ from hopin.config.constants import (
 )
 from tests.signaling.support.flow import number_frames_after_the_first
 from tests.signaling.support.served_sessions import ServedSessions
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
@@ -28,7 +29,7 @@ def stores():
 @pytest.fixture
 def app(sign_in_settings, stores):
     settings = sign_in_settings(max_participants_per_room=3).settings
-    return create_app(settings, page_build=fixture_page_build(), stores=stores)
+    return create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
 
 
 @pytest.fixture

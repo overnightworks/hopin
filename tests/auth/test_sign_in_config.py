@@ -7,6 +7,7 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError, build_sign_in_configs
 from hopin.config.secret_files import StartRefusedError
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 
 pytestmark = pytest.mark.integration
@@ -40,8 +41,9 @@ class TestSecretFiles:
         sentinel = secrets.token_urlsafe(16)
         corrupt_secret_file(settings, setting, state, sentinel)
 
+        rate_limits = in_thread_stores().rate_limits
         with pytest.raises(StartRefusedError, match=setting) as refusal:
-            build_sign_in_configs(settings, ())
+            build_sign_in_configs(settings, (), rate_limits)
 
         error = refusal.value
         assert error.__cause__ is None
@@ -55,25 +57,28 @@ class TestSecretFiles:
     def test_a_session_secret_of_31_characters_is_refused_naming_its_setting(self, sign_in_settings):
         settings = sign_in_settings().settings
         settings.session_secret_file.write_text(secrets.token_urlsafe(24)[:31])
+        rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="session_secret_file"):
-            build_sign_in_configs(settings, ())
+            build_sign_in_configs(settings, (), rate_limits)
 
     def test_a_session_secret_of_32_characters_is_accepted(self, sign_in_settings):
         settings = sign_in_settings().settings
         settings.session_secret_file.write_text(secrets.token_urlsafe(24)[:32])
-        build_sign_in_configs(settings, ())
+        build_sign_in_configs(settings, (), in_thread_stores().rate_limits)
 
     def test_the_client_asks_for_the_sign_in_scopes_alone_without_a_feature(self, sign_in_settings):
-        configs = build_sign_in_configs(sign_in_settings().settings, ())
+        configs = build_sign_in_configs(sign_in_settings().settings, (), in_thread_stores().rate_limits)
         assert configs.oidc_client.scopes == ("openid", "profile", "groups")
 
     def test_the_client_also_asks_for_the_scopes_a_feature_names(self, sign_in_settings):
-        configs = build_sign_in_configs(sign_in_settings().settings, ("feature-audience",))
+        configs = build_sign_in_configs(
+            sign_in_settings().settings, ("feature-audience",), in_thread_stores().rate_limits
+        )
         assert configs.oidc_client.scopes == ("openid", "profile", "groups", "feature-audience")
 
     def test_each_secret_loses_one_trailing_newline(self, sign_in_settings):
         sign_in = sign_in_settings()
-        configs = build_sign_in_configs(sign_in.settings, ())
+        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
         assert configs.oidc_client.client_secret.get_secret_value() == sign_in.client_secret
         assert configs.web_auth.session_secret.get_secret_value() == sign_in.session_secret
 
@@ -93,7 +98,7 @@ class TestSecretFiles:
         settings.oidc_client_secret_file.write_bytes((secret + ending).encode())
         settings.session_secret_file.write_bytes((secret + ending).encode())
 
-        configs = build_sign_in_configs(settings, ())
+        configs = build_sign_in_configs(settings, (), in_thread_stores().rate_limits)
 
         expected = secret + expected_ending
         assert configs.oidc_client.client_secret.get_secret_value() == expected
@@ -121,15 +126,16 @@ class TestRefusedUrls:
     )
     def test_an_http_url_stops_the_start_naming_the_settings_and_not_the_value(self, sign_in_settings, setting, value):
         settings = sign_in_settings(**{setting: value}).settings
+        rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="oidc_issuer and public_origin") as refusal:
-            build_sign_in_configs(settings, ())
+            build_sign_in_configs(settings, (), rate_limits)
         assert value not in str(refusal.value)
 
 
 class TestBuiltConfigs:
     def test_the_client_registers_the_callback_and_the_post_logout_page_under_the_public_origin(self, sign_in_settings):
         sign_in = sign_in_settings()
-        client = build_sign_in_configs(sign_in.settings, ()).oidc_client
+        client = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits).oidc_client
         origin = sign_in.settings.public_origin
         assert client.redirect_uri == f"{origin}/auth/callback"
         assert client.post_logout_redirect_uri == f"{origin}/login"
@@ -137,7 +143,7 @@ class TestBuiltConfigs:
 
     def test_the_client_endpoints_derive_from_the_issuer(self, sign_in_settings):
         sign_in = sign_in_settings()
-        client = build_sign_in_configs(sign_in.settings, ()).oidc_client
+        client = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits).oidc_client
         issuer = sign_in.settings.oidc_issuer
         assert client.issuer == issuer
         assert client.authorization_endpoint == f"{issuer}/protocol/openid-connect/auth"
@@ -146,7 +152,9 @@ class TestBuiltConfigs:
         assert client.end_session_endpoint == f"{issuer}/protocol/openid-connect/logout"
 
     def test_a_session_lasts_twelve_hours_in_a_secure_lax_cookie(self, sign_in_settings):
-        web_auth = installed_web_auth_config(create_app(sign_in_settings().settings, page_build=fixture_page_build()))
+        web_auth = installed_web_auth_config(
+            create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        )
         assert web_auth.session_lifetime.idle_seconds == SESSION_LENGTH_SECONDS
         assert web_auth.session_lifetime.absolute_max_age_seconds == SESSION_LENGTH_SECONDS
         assert web_auth.cookie_samesite == "lax"
@@ -154,5 +162,7 @@ class TestBuiltConfigs:
 
     def test_only_the_public_origins_host_is_admitted(self, sign_in_settings):
         settings = sign_in_settings(public_origin="https://HopIn.Test.invalid:8443").settings
-        web_auth = installed_web_auth_config(create_app(settings, page_build=fixture_page_build()))
+        web_auth = installed_web_auth_config(
+            create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        )
         assert web_auth.allowed_hosts_exact == frozenset({"hopin.test.invalid:8443"})

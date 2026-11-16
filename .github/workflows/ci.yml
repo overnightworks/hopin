@@ -64,7 +64,7 @@ jobs:
       - name: Test with coverage
         env:
           COVERAGE_FILE: .coverage.unit
-        run: pytest -q -n auto -m "not e2e"
+        run: pytest -q -n auto -m "not e2e and not shared_stores"
 
       - name: Upload the unit coverage data
         if: ${{ !cancelled() }}
@@ -75,6 +75,48 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
+
+  shared-stores:
+    name: Shared stores
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # The store the processes share; the test stops it for its clients by closing its own forwarder, never the service.
+    services:
+      redis:
+        image: redis:7.4-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+
+      # Installs as the Lint and test job does; the project stays out of the environment, and each process the
+      # tests start finds src/ through PYTHONPATH.
+      - name: Install dependencies
+        run: |
+          uv sync --locked --no-install-project --no-build
+          echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
+
+      # Two `hopin serve` processes with their own ports against the one Redis. They write no coverage data, so the
+      # Coverage job counts none of this run.
+      - name: Run two processes against one Redis
+        env:
+          HOPIN_TEST_REDIS_URL: redis://localhost:6379
+        run: pytest -q -n auto -m shared_stores --no-cov
 
   e2e-shard:
     name: End-to-end shard ${{ matrix.shard }}
@@ -388,7 +430,7 @@ jobs:
 
       - name: Run the unit tests
         working-directory: ${{ env.COPY }}
-        run: pytest -q -n auto -m "not e2e" --no-cov
+        run: pytest -q -n auto -m "not e2e and not shared_stores" --no-cov
 
       - name: Install Chromium
         working-directory: ${{ env.COPY }}

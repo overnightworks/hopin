@@ -63,6 +63,7 @@ if TYPE_CHECKING:
 
     from hopin.config.settings import ServerSettings
     from hopin.signaling.features import FeatureFactory
+    from hopin.stores.shared import SharedStores
     from hopin.web.page_build import PageBuild
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -212,10 +213,32 @@ def _bearer_of(
     return (relying_party, resources[0]) if resources else None
 
 
+def _build_features(
+    call_features: Sequence[CallFeatureBuilder],
+    relying_party: OidcRelyingParty,
+    sign_in_stores: SingleProcessStores,
+    auth_config: WebAuthConfig,
+    timers: Scheduler,
+    deadlines: Deadlines,
+) -> list[BuiltCallFeature]:
+    return [
+        builder(
+            relying_party=relying_party,
+            sessions=sign_in_stores.sessions,
+            auth_config=auth_config,
+            scheduler=timers,
+            deadlines=deadlines,
+            transaction=sign_in_stores.transaction,
+        )
+        for builder in call_features
+    ]
+
+
 def create_app(
     settings: ServerSettings,
     *,
     page_build: PageBuild,
+    shared_stores: SharedStores,
     issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
     stores: SingleProcessStores | None = None,
     scheduler: Scheduler | None = None,
@@ -224,7 +247,9 @@ def create_app(
     monotonic_clock: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(
-        settings, tuple(scope for builder in call_features for scope in builder.sign_in_scopes)
+        settings,
+        tuple(scope for builder in call_features for scope in builder.sign_in_scopes),
+        shared_stores.rate_limits,
     )
     turn_relay = build_turn_relay(settings, turn_transport)
 
@@ -233,17 +258,9 @@ def create_app(
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     deadlines = InMemoryDeadlines(timers)
-    built_features = [
-        builder(
-            relying_party=relying_party,
-            sessions=sign_in_stores.sessions,
-            auth_config=sign_in_configs.web_auth,
-            scheduler=timers,
-            deadlines=deadlines,
-            transaction=sign_in_stores.transaction,
-        )
-        for builder in call_features
-    ]
+    built_features = _build_features(
+        call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers, deadlines
+    )
     bearer = _bearer_of(built_features, relying_party)
     signaling_handler = SignalingHandler(
         room_manager,
@@ -259,7 +276,7 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
-    app.include_router(create_router(signaling_handler, page_build))
+    app.include_router(create_router(signaling_handler, page_build, shared_stores.answers))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))
     _include_feature_routes(app, built_features, settings.oidc_issuer)

@@ -1,4 +1,4 @@
-.PHONY: install lint wire wire-check catalogs format test dead check run e2e frontend frontend-check
+.PHONY: install lint wire wire-check catalogs format test shared-stores dead check run e2e frontend frontend-check
 
 install:
 	uv sync --all-extras
@@ -24,10 +24,13 @@ format:
 	uv run ruff format src tests
 
 test:
-	uv run pytest -m "not e2e"
+	uv run pytest -m "not e2e and not shared_stores"
 
 e2e: frontend
 	uv run pytest -m e2e --no-cov --output test-results
+
+shared-stores:
+	uv run pytest -m shared_stores --no-cov
 
 dead:
 	uv run vulture src/hopin

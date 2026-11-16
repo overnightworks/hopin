@@ -20,9 +20,9 @@ Only members of the Keycloak group `/apps/hopin` use it. Why HopIn exists and wh
 
 ## Quick Start
 
-You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the four required settings and the four required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
+You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the five required settings and the four required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
-Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start.
+Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings HopIn refuses to start. `HOPIN_REDIS_URL` names a Redis that every HopIn process shares for its request budgets; a local `redis-server` is enough, and HopIn has no in-memory fallback.
 
 Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
 
@@ -87,6 +87,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `HOPIN_PUBLIC_ORIGIN` | required | HopIn's own https origin, without a path or trailing slash |
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 | `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits; empty trusts none, so every request counts against its direct peer |
+| `HOPIN_REDIS_URL` | required | The `redis://` or `rediss://` URL of the Redis that every HopIn process shares. The per-address request budgets live there, so a budget spent through one process is refused through the others. HopIn refuses to start without it and has no in-memory fallback; with Redis down `/health` is not ready and every budgeted route answers 503 |
 | `HOPIN_AGENT__BACKEND` | required while the game is installed | Which backend runs the game master's turns: `litellm`, the one value |
 | `HOPIN_AGENT__GATEWAY__ORIGIN` | required while the game is installed | The gateway's http(s) origin (scheme, host and optional port), `http://litellm-front:4000` in `compose.yaml` |
 | `HOPIN_AGENT__GATEWAY__KEY_FILE` | required while the game is installed | Absolute path of the file holding HopIn's gateway key, read at every turn, so a missing or unusable file does not stop the start: the turn then reads as unavailable |

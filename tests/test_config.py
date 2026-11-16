@@ -17,7 +17,7 @@ from hopin.config.constants import (
 )
 from hopin.config.settings import ServerSettings
 
-REQUIRED_SIGN_IN_SETTINGS = ["oidc_issuer", "oidc_client_secret_file", "public_origin", "session_secret_file"]
+REQUIRED_SETTINGS = ["oidc_issuer", "oidc_client_secret_file", "public_origin", "session_secret_file", "redis_url"]
 
 
 class TestConstants:
@@ -108,8 +108,8 @@ class TestServerSettings:
         with pytest.raises(ValidationError, match="max_participants_per_room"):
             sign_in_settings(max_participants_per_room=limit)
 
-    @pytest.mark.parametrize("setting", REQUIRED_SIGN_IN_SETTINGS)
-    def test_missing_required_sign_in_setting_is_refused_by_name(self, sign_in_settings, setting):
+    @pytest.mark.parametrize("setting", REQUIRED_SETTINGS)
+    def test_missing_required_setting_is_refused_by_name(self, sign_in_settings, setting):
         with pytest.raises(ValidationError, match=setting):
             sign_in_settings(**{setting: None})
 
@@ -121,9 +121,10 @@ class TestServerSettings:
             ("public_origin", "https://hopin.test.invalid/apps/hopin"),
             ("oidc_client_secret_file", "relative/client-secret"),
             ("session_secret_file", "relative/session-secret"),
+            ("redis_url", "http://redis.test.invalid:6379"),
         ],
     )
-    def test_malformed_sign_in_setting_is_refused_by_name_and_never_by_value(self, sign_in_settings, setting, value):
+    def test_malformed_setting_is_refused_by_name_and_never_by_value(self, sign_in_settings, setting, value):
         with pytest.raises(ValidationError, match=setting) as refusal:
             sign_in_settings(**{setting: value})
         assert value not in str(refusal.value)
