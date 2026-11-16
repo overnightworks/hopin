@@ -6,10 +6,11 @@ committed file differs from the rendering or is missing, so CI catches drift.
 """
 
 import dataclasses
+import enum
 import sys
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Protocol, Union, get_args, get_origin
+from typing import TYPE_CHECKING, ClassVar, Literal, Protocol, Union, get_args, get_origin
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
@@ -31,6 +32,7 @@ from hopin.config.constants import (  # noqa: E402
     SignalType,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER  # noqa: E402
+from hopin.game.frames import BROWSER_FRAMES  # noqa: E402  # game
 from hopin.game.vocabulary import BROWSER_ENUMS  # noqa: E402  # game
 from hopin.participation.vocabulary import BROWSER_ENUMS as PARTICIPATION_BROWSER_ENUMS  # noqa: E402
 from hopin.participation.vocabulary import (  # noqa: E402
@@ -71,7 +73,7 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
     class ServerFrame(DataclassInstance, Protocol):
-        TYPE: ClassVar[SignalType]
+        TYPE: ClassVar[enum.StrEnum]
 
 
 CORE_OUTPUT = Path("frontend/src/lib/wire.ts")
@@ -121,16 +123,58 @@ FRAME_FIELD_TYPES: dict[object, str] = {
 ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON"}
 ERROR_FIELD_TYPES: dict[object, str] = {ErrorReason: "ERROR_REASON"}
 RELAY_FIELD_TYPES: dict[object, str] = {JsonValue: "unknown"}
+CORE_ENUMS = {"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason}
 WIRE_FIELD_NAMES = {"from_": SENDER_KEY}
+
+
+def _exported_name(enums: Mapping[str, type[StrEnum | IntEnum]], vocabulary: type) -> str:
+    for exported_name, candidate in enums.items():
+        if candidate is vocabulary:
+            return exported_name
+    raise TypeError(f"{vocabulary.__name__} is not an enum the generator exports")
+
+
+def _literal_member(enums: Mapping[str, type[StrEnum | IntEnum]], member: object) -> str:
+    if member is True:
+        return "true"
+    if isinstance(member, enum.Enum):
+        return f"{_exported_name(enums, type(member))}.{member.name}"
+    raise TypeError(f"a Literal member must be True or an exported enum member, not {member!r}")
+
+
+def _field_type(
+    annotation: object, field_types: Mapping[object, str], enums: Mapping[str, type[StrEnum | IntEnum]]
+) -> list[str] | None:
+    """The union members a field renders as, or None when its type has no rendering."""
+    if get_origin(annotation) is Literal:
+        return [_literal_member(enums, member) for member in get_args(annotation)]
+    if isinstance(annotation, type) and annotation in enums.values():
+        return [_exported_name(enums, annotation)]
+    rendered = field_types.get(annotation)
+    return None if rendered is None else [rendered]
+
+
+def _property(name: str, optional: str, members: list[str]) -> str:
+    """One property line; a union too wide for the print width wraps one member per line, as prettier writes it."""
+    one_line = f"{INDENT}{name}{optional}: {' | '.join(members)};\n"
+    if len(one_line) <= PRINT_WIDTH:
+        return one_line
+    wrapped = "\n".join(f"{INDENT * 2}| {member}" for member in members)
+    return f"{INDENT}{name}{optional}:\n{wrapped};\n"
 
 
 def render_frame_type(
     frame_cls: type[ServerFrame],
     extra_field_types: Mapping[object, str] | None = None,
+    enums: Mapping[str, type[StrEnum | IntEnum]] = CORE_ENUMS,
 ) -> str:
-    """Render a server frame from its dataclass fields; an unmapped field type fails the generation."""
+    """Render a server frame from its dataclass fields; an unmapped field type fails the generation.
+
+    A field typed as an exported enum, as `Literal` members of one, or as `Literal[True]` renders as that type.
+    """
     field_types = {**FRAME_FIELD_TYPES, **(extra_field_types or {})}
-    lines = [f"{INDENT}type: SIGNAL_TYPE.{frame_cls.TYPE.name};\n"]
+    signal = _exported_name(enums, type(frame_cls.TYPE))
+    lines = [f"{INDENT}type: {signal}.{frame_cls.TYPE.name};\n"]
     for field in dataclasses.fields(frame_cls):
         annotation = field.type
         if get_origin(annotation) in (types.UnionType, Union):
@@ -139,12 +183,28 @@ def render_frame_type(
                 message = f"{frame_cls.__name__}.{field.name} must be one type, optionally None, not {annotation}"
                 raise TypeError(message)
             annotation = present_types[0]
-        if annotation not in field_types:
+        rendered = _field_type(annotation, field_types, enums)
+        if rendered is None:
             message = f"{frame_cls.__name__}.{field.name} has no TypeScript type for {annotation}"
             raise TypeError(message)
         optional = "?" if field.default is not dataclasses.MISSING else ""
-        lines.append(f"{INDENT}{WIRE_FIELD_NAMES.get(field.name, field.name)}{optional}: {field_types[annotation]};\n")
+        lines.append(_property(WIRE_FIELD_NAMES.get(field.name, field.name), optional, rendered))
     return f"export type {frame_cls.__name__} = {{\n" + "".join(lines) + "};\n"
+
+
+def render_feature(enums: Mapping[str, type[StrEnum | IntEnum]], frames: Sequence[type[ServerFrame]]) -> str:
+    """A feature's enums, its frame types and `<Feature>FrameByType`: each signal to its frame or union of frames."""
+    shapes: dict[enum.StrEnum, list[str]] = {}
+    for frame_cls in frames:
+        shapes.setdefault(frame_cls.TYPE, []).append(frame_cls.__name__)
+    signal_name = _exported_name(enums, type(frames[0].TYPE))
+    entries = "".join(
+        f"{INDENT}[{signal_name}.{signal.name}]: {' | '.join(names)};\n" for signal, names in shapes.items()
+    )
+    by_type_name = f"{signal_name.removesuffix('_SIGNAL').title()}FrameByType"
+    frame_types = [render_frame_type(frame_cls, None, enums) for frame_cls in frames]
+    body = "\n".join((_enums(enums), *frame_types, f"export type {by_type_name} = {{\n{entries}}};\n"))
+    return _generated_file(body)
 
 
 SERVER_FRAMES: dict[type[ServerFrame], Mapping[object, str] | None] = {
@@ -182,7 +242,7 @@ def _server_frames() -> str:
 
 
 def render_core() -> str:
-    enums = _enums({"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason})
+    enums = _enums(CORE_ENUMS)
     constants = (
         f"export const SESSION_ENDED_CLOSE_CODE = {SESSION_ENDED_CLOSE_CODE};\n"
         f'export const WEBSOCKET_PATH = "{WEBSOCKET_PATH}";\n'
@@ -215,7 +275,7 @@ def outputs(root: Path) -> dict[Path, str]:
     """Every generated file under the root, by path."""
     return {
         root / CORE_OUTPUT: render_core(),
-        root / "frontend/src/lib/features/game/wire.ts": _generated_file(_enums(BROWSER_ENUMS)),  # game
+        root / "frontend/src/lib/features/game/wire.ts": render_feature(BROWSER_ENUMS, BROWSER_FRAMES),  # game
         root / "frontend/src/lib/features/participation/wire.ts": render_participation(),
         root / "frontend/src/lib/features/skat/wire.ts": _generated_file(_enums(SKAT_BROWSER_ENUMS)),  # skat
     }

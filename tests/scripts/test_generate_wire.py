@@ -2,7 +2,8 @@
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from enum import StrEnum
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import pytest
 
@@ -68,6 +69,98 @@ def test_render_room_closed_frame_follows_the_frame_fields() -> None:
         "    type: SIGNAL_TYPE.ROOM_CLOSED;\n"
         "    reason: ROOM_CLOSED_REASON;\n"
         "    wait_seconds?: number;\n"
+        "};\n"
+    )
+
+
+class FeatureSignal(StrEnum):
+    MOVED = "moved"
+    STOPPED = "stopped"
+
+
+class Mode(StrEnum):
+    FAST = "fast"
+    SLOW = "slow"
+    OFF = "off"
+
+
+FEATURE_ENUMS = {"FEATURE_SIGNAL": FeatureSignal, "MODE": Mode}
+
+
+def test_render_frame_type_renders_enums_and_literal_members() -> None:
+    @dataclass(frozen=True)
+    class MovedFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.MOVED
+
+        mode: Mode
+        fixed: Literal[Mode.OFF]
+        either: Literal[Mode.FAST, Mode.SLOW]
+        flag: Literal[True] | None = None
+
+    rendered = generate_wire.render_frame_type(MovedFrame, None, FEATURE_ENUMS)
+
+    assert rendered == (
+        "export type MovedFrame = {\n"
+        "    type: FEATURE_SIGNAL.MOVED;\n"
+        "    mode: MODE;\n"
+        "    fixed: MODE.OFF;\n"
+        "    either: MODE.FAST | MODE.SLOW;\n"
+        "    flag?: true;\n"
+        "};\n"
+    )
+
+
+def test_render_frame_type_wraps_a_union_wider_than_the_print_width_one_member_per_line() -> None:
+    @dataclass(frozen=True)
+    class MovedFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.MOVED
+
+        wide: Literal[Mode.FAST, Mode.SLOW, Mode.OFF]
+
+    exported = "AN_EXPORTED_ENUM_NAME_OF_FORTY_CHARACTERS"
+    rendered = generate_wire.render_frame_type(MovedFrame, None, {"FEATURE_SIGNAL": FeatureSignal, exported: Mode})
+
+    assert rendered == (
+        "export type MovedFrame = {\n"
+        "    type: FEATURE_SIGNAL.MOVED;\n"
+        "    wide:\n"
+        f"        | {exported}.FAST\n"
+        f"        | {exported}.SLOW\n"
+        f"        | {exported}.OFF;\n"
+        "};\n"
+    )
+
+
+def test_render_frame_type_unexported_enum_fails_generation() -> None:
+    @dataclass(frozen=True)
+    class MovedFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.MOVED
+
+        mode: Literal[Mode.OFF]
+
+    with pytest.raises(TypeError, match="Mode"):
+        generate_wire.render_frame_type(MovedFrame, None, {"FEATURE_SIGNAL": FeatureSignal})
+
+
+def test_render_feature_maps_each_signal_to_its_frame_or_the_union_of_its_frames() -> None:
+    @dataclass(frozen=True)
+    class MovedFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.MOVED
+
+    @dataclass(frozen=True)
+    class FarFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.MOVED
+
+    @dataclass(frozen=True)
+    class StoppedFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.STOPPED
+
+    rendered = generate_wire.render_feature(FEATURE_ENUMS, [MovedFrame, FarFrame, StoppedFrame])
+
+    assert rendered.endswith(
+        "export type FeatureFrameByType = {\n"
+        "    [FEATURE_SIGNAL.MOVED]: MovedFrame | FarFrame;\n"
+        "    [FEATURE_SIGNAL.STOPPED]: StoppedFrame;\n"
         "};\n"
     )
 

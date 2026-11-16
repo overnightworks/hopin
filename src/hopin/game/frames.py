@@ -4,8 +4,8 @@ from typing import ClassVar, Final, Literal
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
-type QuizPhase = Literal[GamePhase.THINKING, GamePhase.ANSWERING]
-type OtherRefusal = Literal[
+QuizPhase = Literal[GamePhase.THINKING, GamePhase.ANSWERING]
+OtherRefusal = Literal[
     GameRefusal.NO_ACCESS,
     GameRefusal.SIGN_IN_AGAIN,
     GameRefusal.BUDGET_SPENT,
