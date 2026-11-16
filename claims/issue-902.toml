@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "b90cbc200f0a8c1fd7dc842780970df907e977f1"
 branch = "claude/issue-902-page-language"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/web/page_build.py", "src/hopin/web/routes.py", "tests/auth/test_gate.py", "tests/auth/test_sign_in_routes.py", "tests/e2e/support/server.py", "tests/support/page_build.py", "tests/support/page_build_fixture", "tests/web/test_page_build.py"]
+scope = ["docs/ARCHITECTURE.md", "src/hopin/app.py", "src/hopin/auth/sign_in.py", "src/hopin/web/page_build.py", "src/hopin/web/request_language.py", "src/hopin/web/routes.py", "tests/auth/test_gate.py", "tests/auth/test_sign_in_routes.py", "tests/e2e/support/server.py", "tests/support/page_build.py", "tests/support/page_build_fixture", "tests/support/signed_in.py", "tests/web/test_page_build.py", "tests/web/test_routes.py"]
 opened_commit = "8a8bb7f65324ba1b0dc7781d0b74e96f7d0a4741"
 whole_reason = "The page answer, the sign-in start and the logout page all ask one resolver for the request's language."
