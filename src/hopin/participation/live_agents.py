@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class LiveAgent:
     """An agent's registration: whose it is, how it shows, the key its places hang on, and when its lease runs out.
-    The generation tells a timer which registration it was armed for."""
+    The generation tells an add which registration it was read against, so a replaced one is refused."""
 
     person: Person
     owner_subject: str
