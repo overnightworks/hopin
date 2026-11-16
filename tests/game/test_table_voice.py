@@ -15,7 +15,6 @@ from tests.game.support.table_world import (
     REVEAL,
     START,
     answer,
-    answer_count,
     answering,
     asked,
     assert_no_driver_failed,
@@ -26,6 +25,7 @@ from tests.game.support.table_world import (
     question,
     refused,
     sent,
+    sent_count_to_all,
     sent_to_all,
     shut_down_within_cap,
     thinking,
@@ -163,7 +163,7 @@ class TestAVoiceThatTheTextDoesNotWaitFor:
         await host.say(START)
         await sent_to_all([host, guest], answering(host))
         await guest.say(answer("Lissabon"))
-        await sent_to_all([host, guest], answer_count(1, 2))
+        await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
         assert voice_ids(host) == []
 
@@ -243,7 +243,7 @@ class TestAVoiceThatFails:
             await sent_to_all([host, guest], answering(host))
             await let_every_task_run()
             await guest.say(answer("Lissabon"))
-            await sent_to_all([host, guest], answer_count(1, 2))
+            await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
         for browser in (host, guest):
             assert shown(browser)[:3] == asked(host)

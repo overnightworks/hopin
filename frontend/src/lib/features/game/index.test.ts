@@ -242,7 +242,7 @@ describe("the question card", () => {
 
         game.emit(GAME_SIGNAL.GAME_ANSWER_COUNT, { answered: 1, players: 2 });
         props.answer("Paris");
-        game.emit(GAME_SIGNAL.GAME_ANSWER_COUNT, { answered: 2, players: 2 });
+        game.emit(GAME_SIGNAL.GAME_ANSWER_COUNT, { answered: 2, players: 2, own_answer_counted: true });
 
         expect(game.cards).toHaveLength(1);
         expect(game.cards[0]?.component).toBe(QuestionCard);

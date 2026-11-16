@@ -19,6 +19,8 @@ export type VoiceFrame = { id: string; path: string } | { id?: undefined; path?:
 export interface AnswerCountFrame {
     answered: number;
     players: number;
+    /** Present when this seat's own answer is in the count; a count in flight before the answer lacks it. */
+    own_answer_counted?: true;
 }
 
 /** A busy refusal always carries its wait; no other refusal does. */
@@ -214,8 +216,8 @@ export class Quiz {
 
     receiveAnswerCount(frame: AnswerCountFrame) {
         this.#answerCount = { answered: frame.answered, players: frame.players };
-        // The server counts an answer before it sends the count, so a count that follows the send includes it.
-        if (this.#ownAnswer === OwnAnswer.SENT) this.#ownAnswer = OwnAnswer.COUNTED;
+        if (this.#ownAnswer === OwnAnswer.SENT && frame.own_answer_counted === true)
+            this.#ownAnswer = OwnAnswer.COUNTED;
         this.#changed();
     }
 
@@ -239,7 +241,8 @@ export class Quiz {
         if (text === "" || !this.#outlet.isConnected()) return;
         this.#outlet.send({ type: GAME_SIGNAL.GAME_ANSWER, text });
         this.#ownAnswerBeforeLastSend = this.#ownAnswer;
-        this.#ownAnswer = OwnAnswer.SENT;
+        // A new answer replaces a counted one without changing the count, so the mark and the count stay.
+        if (this.#ownAnswer === OwnAnswer.NONE) this.#ownAnswer = OwnAnswer.SENT;
         this.#changed();
     }
 

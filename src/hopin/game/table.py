@@ -99,12 +99,16 @@ def _voice_frame(voice: StoredVoice | None) -> JsonObject:
     return {TYPE_KEY: GameSignal.GAME_VOICE.value, "id": voice.id, "path": voice.path}
 
 
-def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId]) -> JsonObject:
-    return {
+def _answer_count_frame(quiz: Quiz, present: frozenset[PeerId], recipient: PeerId) -> JsonObject:
+    """The count for one seat; `own_answer_counted` says its own answer is in it, which an earlier count lacks."""
+    frame: JsonObject = {
         TYPE_KEY: GameSignal.GAME_ANSWER_COUNT.value,
         "answered": quiz.answered_count(present),
         "players": len(quiz.players & present),
     }
+    if recipient in quiz.counted_players(present):
+        frame["own_answer_counted"] = True
+    return frame
 
 
 def _refusal_frame(refusal: Refused) -> JsonObject:
@@ -290,10 +294,10 @@ class Game:
         return frozenset(player for player in quiz.players if self._rooms.room_of(player) == room_id)
 
     async def _send_answer_count(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> None:
-        frame = _answer_count_frame(quiz, present)
-        broken_writes = await self._send_isolated(
-            self._rooms.members(room_id), frame, lambda: self._quizzes.get(room_id) is quiz
-        )
+        broken_writes: list[Exception] = []
+        for seat in self._rooms.members(room_id):
+            frame = _answer_count_frame(quiz, present, PeerId(seat))
+            broken_writes += await self._send_isolated([seat], frame, lambda: self._quizzes.get(room_id) is quiz)
         for error in broken_writes:
             # The sender's connection and the reveal check go on; only the type is logged, never the text.
             logger.error("game_answer_count.failed", error_type=type(error).__name__)
