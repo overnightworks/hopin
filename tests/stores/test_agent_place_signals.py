@@ -2,6 +2,7 @@ import socket
 import time
 from http import HTTPStatus
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import pytest
 from agents.member import LEASE_SECONDS, STANDING_URI
@@ -23,12 +24,19 @@ PLACE_SIGNAL_FAILED = "place_signal.failed"
 
 
 @pytest.fixture
-def agent_call(sign_in_settings, redis_gate):
+def agent_subject():
+    """The agent's own subject, which no other test shares: Redis delivers a wake to every database, so a test that
+    shared its agent with a test on another worker would take that test's wake for its own."""
+    return f"agent-subject-{uuid4().hex}"
+
+
+@pytest.fixture
+def agent_call(sign_in_settings, redis_gate, agent_subject):
     """HopIn in this process over the real Redis, and the token of an agent that has called once, so that it holds a
     lease. A call of the same agent for another owner, and the end of the lease, change its standing."""
     sign_in = sign_in_settings()
     with serving_dialed_call(sign_in, FakeIssuer(sign_in), shared_stores=connect_shared_stores(redis_gate.url)) as call:
-        token = call.agent_token(owner="owner-subject", subject="agent-subject")
+        token = call.agent_token(owner="owner-subject", subject=agent_subject)
         call.standing(token)
         yield call, token
 
@@ -45,11 +53,11 @@ def kill_subscriptions(redis_url: str) -> int:
 
 
 class TestAgentPlaceSignals:
-    def test_a_change_wakes_a_listen_open_on_the_same_process(self, agent_call):
+    def test_a_change_wakes_a_listen_open_on_the_same_process(self, agent_call, agent_subject):
         call, token = agent_call
 
         with call.open_listen(token, [STANDING_URI]) as stream:
-            call.standing(call.agent_token(owner="another-owner-subject", subject="agent-subject"))
+            call.standing(call.agent_token(owner="another-owner-subject", subject=agent_subject))
 
             assert stream.wait_for(RESOURCE_UPDATED, SIGNAL_WAIT_SECONDS)
 
