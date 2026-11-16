@@ -4,13 +4,17 @@ from http import HTTPStatus
 import pytest
 from fastapi.testclient import TestClient
 
+from hopin.agent.mcp import PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, ParticipationFeature
 from hopin.app import create_app
 from hopin.config.constants import HEALTH_PATH, LOGIN_PATH
 from hopin.stores.redis import connect_shared_stores
+from tests.support.log_lines import captured_lines
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 pytestmark = pytest.mark.integration
+
+SHORT_SUBSCRIPTION_WAIT_SECONDS = 0.2
 
 
 @pytest.fixture
@@ -40,3 +44,26 @@ class TestRedisDown:
 
     def test_health_answers_503(self, served_without_redis):
         assert served_without_redis.get(HEALTH_PATH).status_code == HTTPStatus.SERVICE_UNAVAILABLE
+
+    def test_a_start_whose_place_subscription_never_comes_up_fails_and_logs_once(
+        self, sign_in_settings, unreachable_redis_url
+    ):
+        settings = sign_in_settings().settings
+        shared_stores = connect_shared_stores(unreachable_redis_url)
+        app = create_app(
+            settings,
+            page_build=fixture_page_build(),
+            shared_stores=shared_stores,
+            call_features=(
+                ParticipationFeature(
+                    settings.public_origin,
+                    redis=shared_stores.async_redis,
+                    subscription_wait_seconds=SHORT_SUBSCRIPTION_WAIT_SECONDS,
+                ),
+            ),
+        )
+
+        with captured_lines() as lines, pytest.raises(TimeoutError), TestClient(app, base_url=TEST_PUBLIC_ORIGIN):
+            pass
+
+        assert [line["event"] for line in lines].count(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT) == 1

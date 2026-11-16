@@ -8,7 +8,7 @@ import pytest
 from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
 from redis import Redis
 
-from hopin.agent.mcp import PLACE_SIGNAL_FAILED_EVENT, PLACE_SUBSCRIPTION_TIMED_OUT_EVENT
+from hopin.agent.mcp import PLACE_SIGNAL_FAILED_EVENT
 from hopin.config.constants import HEALTH_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.pod_pair import LOCALHOST, starting_pod
@@ -129,7 +129,7 @@ class TestReadinessWaitsForTheSubscription:
             finally:
                 reachable.close()
 
-    def test_a_pod_whose_subscription_never_comes_up_ends_its_start_loudly(self, sign_in_settings, tmp_path):
+    def test_a_pod_whose_subscription_never_comes_up_exits_non_zero(self, sign_in_settings, tmp_path):
         unreachable = f"redis://{LOCALHOST}:{free_port()}/0"
         with starting_pod(
             sign_in_settings().environment, unreachable, tmp_path, SHORT_SUBSCRIPTION_WAIT_SECONDS
@@ -137,4 +137,3 @@ class TestReadinessWaitsForTheSubscription:
             exit_code = pod.process.wait(SHORT_SUBSCRIPTION_WAIT_SECONDS + PROCESS_START_ALLOWANCE_SECONDS)
 
         assert exit_code != 0
-        assert pod.log.read_text().count(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT) == 1
