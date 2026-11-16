@@ -63,6 +63,7 @@ from hopin.signaling.frames import (  # noqa: E402
     RoomUnlockedFrame,
 )
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
+from hopin.skat.frames import BROWSER_FRAMES as SKAT_FRAMES  # noqa: E402  # skat
 from hopin.skat.vocabulary import BROWSER_ENUMS as SKAT_BROWSER_ENUMS  # noqa: E402  # skat
 
 if TYPE_CHECKING:
@@ -118,6 +119,7 @@ FRAME_FIELD_TYPES: dict[object, str] = {
     int: "number",
     list[str]: "string[]",
     dict[str, str]: "Record<string, string>",
+    None: "null",
 }
 ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON"}
 ERROR_FIELD_TYPES: dict[object, str] = {ErrorReason: "ERROR_REASON"}
@@ -169,17 +171,21 @@ def _properties(
     lines = []
     for field in dataclasses.fields(record_cls):
         annotation = field.type
+        optional = "?" if field.default is not dataclasses.MISSING else ""
+        sends_null = False
         if get_origin(annotation) in (types.UnionType, Union):
             present_types = [part for part in get_args(annotation) if part is not types.NoneType]
             if len(present_types) != 1:
                 message = f"{record_cls.__name__}.{field.name} must be one type, optionally None, not {annotation}"
                 raise TypeError(message)
             annotation = present_types[0]
+            sends_null = not optional
         rendered = _field_type(annotation, field_types, enums)
         if rendered is None:
             message = f"{record_cls.__name__}.{field.name} has no TypeScript type for {annotation}"
             raise TypeError(message)
-        optional = "?" if field.default is not dataclasses.MISSING else ""
+        if sends_null:
+            rendered = [*rendered, "null"]
         lines.append(_property(WIRE_FIELD_NAMES.get(field.name, field.name), optional, rendered))
     return lines
 
@@ -308,7 +314,7 @@ def outputs(root: Path) -> dict[Path, str]:
         root / CORE_OUTPUT: render_core(),
         root / "frontend/src/lib/features/game/wire.ts": render_feature(BROWSER_ENUMS, BROWSER_FRAMES),  # game
         root / "frontend/src/lib/features/participation/wire.ts": render_participation(),  # participation
-        root / "frontend/src/lib/features/skat/wire.ts": _generated_file(_enums(SKAT_BROWSER_ENUMS)),  # skat
+        root / "frontend/src/lib/features/skat/wire.ts": render_feature(SKAT_BROWSER_ENUMS, SKAT_FRAMES),  # skat
     }
 
 
