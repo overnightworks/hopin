@@ -285,8 +285,13 @@ def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_o
     after_the_cut, _ = LATER_SOUND_SECONDS
     speaker.speak(after_the_cut)
     for person in everyone:
-        person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
-        assert speaker.started(person)[-1] == after_the_cut
+        # The cut sentence's second chunk is a sound of its own when its first chunk played out before it arrived, so
+        # the next sentence is the last sound started, not necessarily the second.
+        person.wait_for_function(
+            "seconds => Math.round(window.soundsStarted.at(-1) * 100) / 100 === seconds",
+            arg=after_the_cut,
+            timeout=PLAYBACK_WAIT_MILLISECONDS,
+        )
     late_statuses = [
         person.evaluate("async url => (await fetch(url)).status", cut_voice_urls[person]) for person in everyone
     ]
