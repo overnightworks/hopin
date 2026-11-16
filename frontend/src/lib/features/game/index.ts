@@ -110,30 +110,30 @@ function createVoice(createPlayer: () => Player, quiz: Quiz) {
     };
 }
 
-function listen(core: FeatureCore, quiz: Quiz, createPlayer: () => Player) {
+function listen(core: FeatureCore<GameFrameByType>, quiz: Quiz, createPlayer: () => Player) {
     const voice = createVoice(createPlayer, quiz);
-    core.on(GAME_SIGNAL.GAME_PHASE, (frame: GameFrameByType[GAME_SIGNAL.GAME_PHASE]) => {
+    core.on(GAME_SIGNAL.GAME_PHASE, (frame) => {
         quiz.receivePhase(frame);
     });
-    core.on(GAME_SIGNAL.GAME_LINE, (frame: GameFrameByType[GAME_SIGNAL.GAME_LINE]) => {
+    core.on(GAME_SIGNAL.GAME_LINE, (frame) => {
         core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
         quiz.receiveLine(frame);
     });
-    core.on(GAME_SIGNAL.GAME_VOICE, (frame: GameFrameByType[GAME_SIGNAL.GAME_VOICE]) => {
+    core.on(GAME_SIGNAL.GAME_VOICE, (frame) => {
         if ("id" in frame && quiz.isFirstHearing(frame.id)) {
             quiz.voiceRequested(frame.id);
             voice.play(frame.id, frame.path);
         }
         quiz.voiceFrameArrived();
     });
-    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: GameFrameByType[GAME_SIGNAL.GAME_ANSWER_COUNT]) => {
+    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame) => {
         quiz.receiveAnswerCount(frame);
     });
-    core.on(GAME_SIGNAL.GAME_REFUSED, (frame: GameFrameByType[GAME_SIGNAL.GAME_REFUSED]) => {
+    core.on(GAME_SIGNAL.GAME_REFUSED, (frame) => {
         quiz.receiveRefusal(frame);
         core.showToast(...refusalToast(frame, core.toastKind));
     });
-    core.on(GAME_SIGNAL.GAME_ENDED, (frame: GameFrameByType[GAME_SIGNAL.GAME_ENDED]) => {
+    core.on(GAME_SIGNAL.GAME_ENDED, (frame) => {
         const text =
             frame.leaver === undefined
                 ? words["game.endedToast"]
@@ -154,12 +154,12 @@ function listen(core: FeatureCore, quiz: Quiz, createPlayer: () => Player) {
     return voice;
 }
 
-export function install(core: FeatureCore): Promise<void> {
+export function install(core: FeatureCore<GameFrameByType>): Promise<void> {
     return installWith(core, createSpeechPlayer);
 }
 
 /** `createPlayer` makes the player of the game master's voice. */
-export function installWith(core: FeatureCore, createPlayer: () => Player): Promise<void> {
+export function installWith(core: FeatureCore<GameFrameByType>, createPlayer: () => Player): Promise<void> {
     const more = moreItems();
     let thinkingView: FeatureView | null = null;
     let handedCard: QuestionCardProps | null = null;

@@ -52,7 +52,7 @@ import { words } from "#lib/words/de.ts";
 
 const callEndedHooks: (() => void)[] = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
-const FEATURE_CORE: FeatureCore = Object.freeze({
+const FEATURE_CORE: FeatureCore<never> = Object.freeze({
     on: onFeatureFrame,
     send: sendFeatureFrame,
     isConnected,

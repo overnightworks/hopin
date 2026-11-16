@@ -4,6 +4,7 @@
 
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { TOAST_KIND, ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
+import type { ServerFrameByType } from "#lib/wire.ts";
 
 export interface OutgoingFrame {
     type: string;
@@ -81,9 +82,12 @@ export interface PictureBounds {
     maxMilliseconds: number;
 }
 
-export interface FeatureCore {
-    /** The handler declares the fields of the frames it registers for; the server it trusts sends them. */
-    on(type: string, handler: (frame: never) => void): void;
+/** `Frames` is the feature's own `<Feature>FrameByType`; a handler takes the frame of the signal it registers for, from the feature's frames or the core's. */
+export interface FeatureCore<Frames extends object = object> {
+    on<Type extends (keyof Frames | keyof ServerFrameByType) & string>(
+        type: Type,
+        handler: (frame: (Frames & ServerFrameByType)[Type]) => void,
+    ): void;
     /** A `transient` frame is sent once and nothing keeps it: a reconnect does not replay it and one sent while the session is not live is dropped, so a payload that must not outlast its use is not retained. */
     send(frame: OutgoingFrame, options?: SendOptions): void;
     isConnected(): boolean;
@@ -114,5 +118,5 @@ export interface FeatureCore {
 }
 
 export interface FeatureModule {
-    install(core: FeatureCore): Promise<void>;
+    install(core: FeatureCore<never>): Promise<void>;
 }

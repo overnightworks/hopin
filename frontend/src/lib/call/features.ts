@@ -33,7 +33,7 @@ function isFeatureModule(module: unknown): module is FeatureModule {
     return typeof module === "object" && module !== null && "install" in module && typeof module.install === "function";
 }
 
-async function installFeature(name: string, bundled: BundledFeatures, core: FeatureCore): Promise<void> {
+async function installFeature(name: string, bundled: BundledFeatures, core: FeatureCore<never>): Promise<void> {
     const entry = Object.entries(bundled).find(([path]) => path.includes(`/features/${name}/`));
     if (entry === undefined) {
         throw new Error(`The page bundles no feature ${name}`);
@@ -46,7 +46,7 @@ async function installFeature(name: string, bundled: BundledFeatures, core: Feat
 }
 
 /** Installs every feature the server offers; resolves to whether all are in. A failure never reaches the caller. */
-export async function loadFeatures(bundled: BundledFeatures, core: FeatureCore): Promise<boolean> {
+export async function loadFeatures(bundled: BundledFeatures, core: FeatureCore<never>): Promise<boolean> {
     try {
         const names = await featureNames();
         await Promise.all(names.map((name) => installFeature(name, bundled, core)));
