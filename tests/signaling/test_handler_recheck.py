@@ -170,7 +170,7 @@ class TestTick:
 
 
 class TestSuspendedCheck:
-    @pytest.mark.parametrize("answer", ["refused", "admitted"])
+    @pytest.mark.parametrize("answer", ["refused", "admitted", "raises"])
     async def test_check_suspended_across_a_drop_leaves_the_parked_seat_alone(
         self, link, scheduler, resolver, room_manager, answer
     ):
@@ -179,18 +179,20 @@ class TestSuspendedCheck:
         await guest.drop(1006)
         if answer == "refused":
             guest.socket.account = None
+        if answer == "raises":
+            resolver.failing[guest.socket] = RuntimeError("store unavailable")
 
         with structlog.testing.capture_logs() as logs:
             await release_check(resolver, ticking)
 
         assert guest.socket.closed_with is None
-        assert [entry for entry in logs if entry["event"] == "session.expired"] == []
+        assert [entry for entry in logs if entry["event"] in ("session.expired", "session.check_failed")] == []
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
         assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
         assert len(ticks_due_at(scheduler, 2 * SESSION_RECHECK_SECONDS)) == 1
 
     @pytest.mark.parametrize("old_handler", ["still_running", "finished"])
-    @pytest.mark.parametrize("answer", ["refused", "admitted"])
+    @pytest.mark.parametrize("answer", ["refused", "admitted", "raises"])
     async def test_check_suspended_across_a_takeover_leaves_the_new_socket_in_its_seat(
         self, link, scheduler, resolver, room_manager, answer, old_handler
     ):
@@ -204,13 +206,16 @@ class TestSuspendedCheck:
             await link.tasks[old_socket]
         if answer == "refused":
             old_socket.account = None
+        if answer == "raises":
+            resolver.failing[old_socket] = RuntimeError("store unavailable")
         before = len(host.frames(SignalType.PARTICIPANT_LEFT))
 
         with structlog.testing.capture_logs() as logs:
             await release_check(resolver, ticking)
 
         assert guest.socket.closed_with is None
-        assert [entry for entry in logs if entry["event"] == "session.expired"] == []
+        assert old_socket.closed_with != SERVER_ERROR_CLOSE_CODE
+        assert [entry for entry in logs if entry["event"] in ("session.expired", "session.check_failed")] == []
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == before
         assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
         assert len(ticks_due_at(scheduler, 2 * SESSION_RECHECK_SECONDS)) == 2
