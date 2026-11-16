@@ -9,12 +9,15 @@ import pytest
 from agents.config import AgentConfig, BackendKind, ChatGateway
 from starlette.requests import HTTPConnection
 from webauth.admission import AppRole
+from webauth.languages import AppLanguages
 from webauth.ports import AccountKind
 
 from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
+from hopin.web.page_build import APP_LANGUAGES
+from hopin.web.request_language import RequestLanguage
 from tests.game.support.fake_agent_backend import FakeAgentBackend
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
@@ -32,6 +35,8 @@ WAIT_CAP_SECONDS = 10
 API_GROUP = "/services/scenario/api"
 # A quiz's first run: it asks for the first question.
 OPENING = (Turn(Speaker.HOPIN, question_request(QUIZ_TOPICS[0])),)
+# An app offering a second language, so a starter's own language differs from the default.
+OFFERING_GERMAN_AND_ENGLISH = AppLanguages(offered=("de", "en"), default="de")
 
 
 class StoreSpy:
@@ -58,18 +63,30 @@ class World:
     sessions: StoreSpy
     relying_party: object
     web_auth: object
+    languages: AppLanguages
 
     @property
     def game_master(self):
-        return QuizGameMaster(self.backend, StarterPerson(self.relying_party, self.sessions, self.web_auth))
+        return QuizGameMaster(self.backend, self.starter_person)
 
-    def starter(self, name="anna", *, with_refresh_token=True, role=None):
-        """A socket's connection carrying the session cookie of a member, and the member."""
+    @property
+    def starter_person(self):
+        return StarterPerson(self.relying_party, self.sessions, self.web_auth, self.request_language)
+
+    @property
+    def request_language(self):
+        return RequestLanguage(self.languages, self.sessions, self.web_auth)
+
+    def starter(self, name="anna", *, with_refresh_token=True, role=None, account_language=None):
+        """A socket's connection carrying the session cookie of a member, whose account has `account_language` as
+        its language tag, and the member."""
         account = self.stores.accounts.create_for_subject(
             f"subject-{name}", name, role=role or AppRole.USER, kind=AccountKind.PERSON
         )
         refresh_token = self.issuer.refresh_token_for(account.id) if with_refresh_token else None
-        member = seed_member(self.stores, self.web_auth, account=account, refresh_token=refresh_token)
+        member = seed_member(
+            self.stores, self.web_auth, account=account, refresh_token=refresh_token, account_language=account_language
+        )
         return connection_with(cookie_header(member.set_cookie_headers)), member
 
     def grant_types(self):
@@ -81,13 +98,13 @@ def connection_with(cookie):
     return HTTPConnection({"type": "websocket", "headers": headers})
 
 
-def build_world(sign_in: SignInSettings) -> World:
+def build_world(sign_in: SignInSettings, languages: AppLanguages = APP_LANGUAGES) -> World:
     issuer = FakeIssuer(sign_in)
     configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
     stores = single_process_stores()
     sessions = StoreSpy(stores.sessions)
     relying_party = build_relying_party(configs, issuer.transports)
-    return World(issuer, FakeAgentBackend(), stores, sessions, relying_party, configs.web_auth)
+    return World(issuer, FakeAgentBackend(), stores, sessions, relying_party, configs.web_auth, languages)
 
 
 async def wait_in_a_worker(event):

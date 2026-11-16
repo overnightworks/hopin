@@ -1,4 +1,5 @@
 import asyncio
+import re
 import secrets
 
 import pytest
@@ -19,7 +20,14 @@ from tests.game.support.fake_agent_backend import (
     SaysThenStops,
     Succeeds,
 )
-from tests.game.support.world import OPENING, build_world, cancelled, connection_with, wait_in_a_worker
+from tests.game.support.world import (
+    OFFERING_GERMAN_AND_ENGLISH,
+    OPENING,
+    build_world,
+    cancelled,
+    connection_with,
+    wait_in_a_worker,
+)
 from tests.support.log_lines import captured_lines
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -301,12 +309,30 @@ class TestWhatLeaves:
         agent = load_agent(QUIZ_AGENT_FILE, [])
         assert (request.agent, request.roles, request.tools) == ("quiz", ["admin", "user"], ())
         assert (request.model, request.max_duration_seconds) == (agent.model, agent.max_duration_seconds)
-        assert request.turn.system == agent.prompt
+        assert request.turn.system.startswith(agent.prompt)
         assert [(message.role.value, message.text) for message in request.turn.messages] == [
             ("user", "Erste Bitte."),
             ("assistant", "Frage eins?"),
             ("user", "Zweite Bitte."),
         ]
+
+
+class TestTheStartersLanguage:
+    @pytest.mark.parametrize(("account_language", "tag", "other_tag"), [("en", "en", "de"), (None, "de", "en")])
+    async def test_each_run_tells_the_quiz_agent_the_starters_language_and_its_prompt_fixes_none(
+        self, sign_in_settings, account_language, tag, other_tag
+    ):
+        """GM-39: Each run tells the quiz agent the starter's language and its prompt fixes none."""
+        world = build_world(sign_in_settings(), OFFERING_GERMAN_AND_ENGLISH)
+        starter, _ = world.starter(account_language=account_language)
+
+        await world.game_master.ask(starter, OPENING)
+
+        [run] = world.backend.runs
+        prompt = load_agent(QUIZ_AGENT_FILE, []).prompt
+        words_after_the_prompt = re.findall(r"\w+", run.request.turn.system.removeprefix(prompt))
+        assert (tag in words_after_the_prompt, other_tag in words_after_the_prompt) == (True, False)
+        assert "Deutsch" not in prompt
 
 
 class TestNothingLeaksIntoLogs:

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from hopin.game.voice import VoiceShelf
     from hopin.signaling.features import FeatureFactory
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.request_language import RequestLanguage
 
 
 def draw_quiz_topics() -> tuple[str, ...]:
@@ -67,9 +68,10 @@ class GameFeature:
         scheduler: Scheduler,
         deadlines: Deadlines,
         transaction: SignInTransaction,
+        request_language: RequestLanguage,
     ) -> BuiltGameFeature:
         del scheduler, transaction
-        starter_person = StarterPerson(relying_party, sessions, auth_config)
+        starter_person = StarterPerson(relying_party, sessions, auth_config, request_language)
         factory = partial(
             Game,
             deadlines=deadlines,

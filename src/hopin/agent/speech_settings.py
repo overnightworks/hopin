@@ -12,7 +12,7 @@ from hopin.words import SOURCE_LANGUAGE
 type ScopeToken = Annotated[str, Field(pattern=r"^[\x21\x23-\x5b\x5d-\x7e]+$")]
 
 
-# The language of HopIn's page, which the game master's lines and an agent's sentence without a language are spoken in.
+# The language of HopIn's page, which an agent's sentence without a language is spoken in.
 PAGE_LANGUAGE: Final = Language(SOURCE_LANGUAGE)
 
 

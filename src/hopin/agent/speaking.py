@@ -293,7 +293,7 @@ class AgentVoice:
         of the voices speaks and for a style none of them takes; speech's own refusal of the style raises the latter
         too."""
         preference = self._preference(voices)
-        spoken_language = _spoken_language(language, preference)
+        spoken_language = spoken_language_of(language, preference)
         if style is not None and not any(VOICES[voice].takes_instructions for voice in preference):
             raise StyleUnavailableError
         token = self._tokens.held(agent)
@@ -322,7 +322,9 @@ class AgentVoice:
         return tuple(VoiceId(voice) for voice in voices) or (self._renderer.service.voice,)
 
 
-def _spoken_language(code: str | None, preference: Sequence[VoiceId]) -> Language:
+def spoken_language_of(code: str | None, preference: Sequence[VoiceId]) -> Language:
+    """The language `code` names, or the page's for none; raises `LanguageUnavailableError` when speech knows no such
+    language or none of the voices of `preference` speaks it."""
     try:
         language = PAGE_LANGUAGE if code is None else Language(code)
     except ValueError:

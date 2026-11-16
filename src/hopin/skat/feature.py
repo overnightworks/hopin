@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from hopin.signaling.features import CallRooms, FeatureFactory
     from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.request_language import RequestLanguage
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -165,8 +166,9 @@ class SkatFeature:
         scheduler: Scheduler,
         deadlines: Deadlines,
         transaction: SignInTransaction,
+        request_language: RequestLanguage,
     ) -> BuiltSkatFeature:
-        del relying_party, sessions, auth_config, scheduler, deadlines, transaction
+        del relying_party, sessions, auth_config, scheduler, deadlines, transaction, request_language
         return BuiltSkatFeature(partial(Skat, origin=self.origin), APIRouter())
 
 
