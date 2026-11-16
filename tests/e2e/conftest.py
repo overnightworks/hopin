@@ -151,9 +151,12 @@ def open_person(
         return page
 
     yield open_page
-    browser_coverage.write()
-    for context in contexts:
-        context.close()
+    try:
+        browser_coverage.write()
+    finally:
+        # An open page keeps its socket to the server, which then waits out the closing handshake at its stop.
+        for context in contexts:
+            context.close()
     assert failed_requests == []
 
 
