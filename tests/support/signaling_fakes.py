@@ -2,7 +2,7 @@ import asyncio
 import json
 import threading
 from dataclasses import dataclass, field
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
@@ -10,7 +10,10 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocketState
 
 from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT
+from hopin.errors import InvalidMessageError
 from hopin.rooms.models import Account
+from hopin.signaling.features import TransitionFeature
+from hopin.signaling.transition import Section
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -205,6 +208,36 @@ class RecordingFeature:
         pass
 
     async def shut_down(self):
+        pass
+
+
+STAGED_LINE = Section[str]("staged_line")
+
+
+class StagingFeature(TransitionFeature):
+    """A call feature on transitions: `stage` keeps its line as the room's state and tells every seat the line; a line
+    `refused` is kept and told, then refused. `show` tells its sender the line the room keeps."""
+
+    name = "staging"
+    browser_modules = ()
+    signal_types = MappingProxyType({"STAGE": "stage", "SHOW": "show"})
+
+    def on_frame(self, view, peer_id, frame, transition):
+        if frame.signal_type == "show":
+            transition.send(peer_id, {"type": "staged", "line": view.section(STAGED_LINE)})
+            return True
+        line = frame.data["line"]
+        transition.put(STAGED_LINE, line)
+        for member in view.members:
+            transition.send(member, {"type": "staged", "line": line})
+        if line == "refused":
+            raise InvalidMessageError("The line is refused")
+        return True
+
+    def seat_joined(self, view, peer_id, transition):
+        pass
+
+    def seat_left(self, view, peer_id, transition):
         pass
 
 

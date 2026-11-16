@@ -1,26 +1,19 @@
-from hopin.skat.stage import Stages
+from hopin.skat.stage import RoomState
 
 TABLE = "a" * 32
 SOURCE = f"https://skat.example/t/{TABLE}"
 
 
-def test_the_calls_end_clears_its_table_and_nothing_of_another_call():
-    stages = Stages()
-    stages.attach("ended", table=TABLE, source=SOURCE, opener="opener")
-    stages.attach("other", table=TABLE, source=SOURCE, opener="opener")
+def test_every_change_of_a_room_gives_it_a_higher_revision():
+    attached = RoomState().attached(table=TABLE, source=SOURCE, opener="opener")
+    without_opener = attached.without_opener("opener")
+    detached = without_opener.detached()
 
-    stages.end("ended")
+    assert attached.revision < without_opener.revision < detached.revision
+    assert (without_opener.attachment.opener, detached.attachment) == (None, None)
 
-    assert (stages.state_of("ended").attachment, stages.state_of("other").attachment is None) == (None, False)
 
+def test_a_seat_that_opened_nothing_leaves_the_room_unchanged():
+    attached = RoomState().attached(table=TABLE, source=SOURCE, opener="opener")
 
-def test_every_change_of_any_room_is_given_a_higher_revision():
-    stages = Stages()
-
-    stages.attach("one", table=TABLE, source=SOURCE, opener="opener")
-    stages.attach("two", table=TABLE, source=SOURCE, opener="opener")
-    stages.detach("one")
-    stages.forget_opener("opener")
-
-    assert stages.state_of("one").revision < stages.state_of("two").revision
-    assert stages.state_of("two").attachment.opener is None
+    assert attached.without_opener("guest") == attached

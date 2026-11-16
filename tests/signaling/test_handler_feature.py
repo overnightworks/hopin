@@ -25,6 +25,7 @@ from tests.signaling.support.browsers import (
 from tests.support.signaling_fakes import (
     RecordingFeature,
     SocketAccountResolver,
+    StagingFeature,
     account_named,
     disconnect_frame,
     text_frame,
@@ -403,3 +404,22 @@ class TestSeveralFeatures:
 
         assert [feature.joined for feature in link.handler.features] == [[host.peer_id, guest.peer_id]] * 2
         assert [feature.left for feature in link.handler.features] == [[(guest.peer_id, room_id_of(host), "guest")]] * 2
+
+
+def staged_lines(browser):
+    return [frame["line"] for frame in browser.socket.sent if frame["type"] == "staged"]
+
+
+@pytest.mark.asyncio
+class TestTransitions:
+    async def test_a_refused_hook_commits_neither_its_state_nor_its_frames(self, room_manager, scheduler):
+        link = Link(handler_with(room_manager, scheduler, StagingFeature()))
+        host, guest = await host_and_guest(link)
+        await host.say({"type": "stage", "line": "kept"})
+
+        await host.say({"type": "stage", "line": "refused"})
+        await guest.say({"type": "show"})
+
+        assert (staged_lines(host), staged_lines(guest)) == (["kept"], ["kept", "kept"])
+        assert host.frames(SignalType.ERROR)
+        await link.close_all()

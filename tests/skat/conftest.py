@@ -1,5 +1,3 @@
-from functools import partial
-
 import pytest
 import pytest_asyncio
 
@@ -12,7 +10,7 @@ from tests.support.signaling_fakes import SocketAccountResolver
 
 @pytest.fixture
 def handler(room_manager, scheduler, deadlines):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [partial(Skat, origin=ORIGIN)])
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [Skat(ORIGIN)])
 
 
 @pytest_asyncio.fixture

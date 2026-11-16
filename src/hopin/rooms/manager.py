@@ -25,8 +25,12 @@ class RoomManager:
         self._rooms[room_id] = room
         return room
 
+    def find_room(self, room_id: str) -> Room | None:
+        """The room, or nothing once it has ended."""
+        return self._rooms.get(room_id)
+
     def get_room(self, room_id: str) -> Room:
-        room = self._rooms.get(room_id)
+        room = self.find_room(room_id)
         if room is None:
             raise RoomNotFoundError(room_id)
         return room
@@ -54,7 +58,7 @@ class RoomManager:
 
     def remove_agent(self, room_id: str, agent_id: str) -> None:
         """Free the agent's place; a room that has ended holds none."""
-        room = self._rooms.get(room_id)
+        room = self.find_room(room_id)
         if room is not None:
             room.agent_ids.discard(agent_id)
 

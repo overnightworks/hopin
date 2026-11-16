@@ -32,6 +32,7 @@ from hopin.signaling.frames import (
 )
 from hopin.signaling.routing import Departure, RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
+from hopin.signaling.transition import InMemoryCallStore
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -60,7 +61,11 @@ class SignalingHandler:
             room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
         )
         self._seats = self._routing.seats
-        self._features = build_features(features, CallRooms(self._routing, room_manager))
+        self._features = build_features(
+            features,
+            CallRooms(self._routing, room_manager, self._seats),
+            InMemoryCallStore(self._routing, room_manager),
+        )
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
         }
