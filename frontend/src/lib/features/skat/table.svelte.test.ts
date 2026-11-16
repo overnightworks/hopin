@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { OutgoingFrame } from "#lib/call/feature-port.ts";
-import { Table, type TableFrame } from "./table.svelte.ts";
-import { SKAT_SIGNAL } from "./wire.ts";
+import { Table } from "./table.svelte.ts";
+import { SKAT_SIGNAL, type SkatFrameByType } from "./wire.ts";
 
 const ME = "me";
 const SOMEONE = "someone";
 const TABLE = "0123456789abcdef0123456789abcdef";
 
-function stateOf(revision: number, attachment: number | null, openerId: string | null = SOMEONE): TableFrame {
-    if (attachment === null) return { revision, attachment, table: null, src: null, opener_id: null };
+function stateOf(
+    revision: number,
+    attachment: number | null,
+    openerId: string | null = SOMEONE,
+): SkatFrameByType[SKAT_SIGNAL.SKAT_TABLE] {
+    if (attachment === null)
+        return { type: SKAT_SIGNAL.SKAT_TABLE, revision, attachment, table: null, src: null, opener_id: null };
     return {
+        type: SKAT_SIGNAL.SKAT_TABLE,
         revision,
         attachment,
         table: TABLE,

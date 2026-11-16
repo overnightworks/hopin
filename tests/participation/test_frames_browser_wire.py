@@ -29,12 +29,10 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
 )
 from scripts import generate_wire
-from tests.support.rendered_frames import rendered_property_names
+from tests.support.rendered_frames import mapped_signal_names, rendered_property_names
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-PARTICIPATION_OUTPUT = "frontend/src/lib/features/participation/wire.ts"
 
 FULLY_SET_FRAMES = [
     AgentJoinedFrame("a1", "Mozart", "Ana", "p1", figure="/f", gestures={"wave": "/c"}),
@@ -81,7 +79,6 @@ def test_the_joined_frame_sends_no_figure_or_gestures_it_does_not_have() -> None
 
 
 def test_the_signal_map_has_exactly_the_signals_the_frames_carry(tmp_path: Path) -> None:
-    written = generate_wire.outputs(tmp_path)[tmp_path / PARTICIPATION_OUTPUT]
-
-    mapped = set(re.findall(r"^    \[PARTICIPATION_SIGNAL\.(\w+)\]:", written, flags=re.MULTILINE))
-    assert mapped == {frame.TYPE.name for frame in BROWSER_FRAMES}
+    assert mapped_signal_names(tmp_path, "frontend/src/lib/features/participation/wire.ts", "PARTICIPATION_SIGNAL") == {
+        frame.TYPE.name for frame in BROWSER_FRAMES
+    }

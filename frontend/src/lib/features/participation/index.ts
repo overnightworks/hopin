@@ -39,12 +39,15 @@ function tileKey(agentId: string) {
     return `agent-${agentId}`;
 }
 
-export function install(core: FeatureCore): Promise<void> {
+export function install(core: FeatureCore<ParticipationFrameByType>): Promise<void> {
     return installWith(core, createSpeechPlayer);
 }
 
 /** `createPlayer` makes the player of each agent that speaks. */
-export async function installWith(core: FeatureCore, createPlayer: PlayerFactory): Promise<void> {
+export async function installWith(
+    core: FeatureCore<ParticipationFrameByType>,
+    createPlayer: PlayerFactory,
+): Promise<void> {
     const kitWords = await loadKitWords(sourceLanguage);
     let seatId = "";
     let isHost = false;
@@ -252,45 +255,36 @@ export async function installWith(core: FeatureCore, createPlayer: PlayerFactory
     core.on(SIGNAL_TYPE.ROOM_CREATED, seated);
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, seated);
     core.on(PARTICIPATION_SIGNAL.AGENT_JOINED, show);
-    core.on(PARTICIPATION_SIGNAL.AGENT_LEFT, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LEFT]) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_LEFT, (frame) => {
         hide(frame.agent_id);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_HEARING, showHearing);
     core.on(PARTICIPATION_SIGNAL.AGENT_SEEING, showSeeing);
-    core.on(
-        PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST,
-        (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST]) => {
-            void looks.answer(frame.request_id);
-        },
-    );
+    core.on(PARTICIPATION_SIGNAL.AGENT_LOOK_REQUEST, (frame) => {
+        void looks.answer(frame.request_id);
+    });
     core.on(PARTICIPATION_SIGNAL.AGENT_LOOKED, showLooked);
-    core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_VOICE]) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame) => {
         if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id);
     });
-    core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_STOP]) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame) => {
         voices.stop(frame.agent_id);
     });
-    core.on(
-        PARTICIPATION_SIGNAL.AGENT_GESTURE,
-        (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_GESTURE]) => {
-            if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
-        },
-    );
+    core.on(PARTICIPATION_SIGNAL.AGENT_GESTURE, (frame) => {
+        if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
+    });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);
-    core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_LINE]) => {
+    core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame) => {
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });
-    core.on(
-        PARTICIPATION_SIGNAL.AGENT_REFUSED,
-        (frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_REFUSED]) => {
-            if (frame.reason === AGENT_REFUSAL.NOT_SPONSOR_OR_HOST) {
-                core.showToast(NOT_REMOVED_TEXT, core.toastKind.LOCKED, null);
-            } else {
-                offersView.refusal = refusalOf(frame.reason);
-            }
-        },
-    );
+    core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame) => {
+        if (frame.reason === AGENT_REFUSAL.NOT_SPONSOR_OR_HOST) {
+            core.showToast(NOT_REMOVED_TEXT, core.toastKind.LOCKED, null);
+        } else {
+            offersView.refusal = refusalOf(frame.reason);
+        }
+    });
     core.onMicrophone((stream) => {
         capture.setStream(stream);
     });

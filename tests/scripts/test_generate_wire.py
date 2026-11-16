@@ -110,6 +110,29 @@ def test_render_frame_type_renders_enums_and_literal_members() -> None:
     )
 
 
+def test_render_frame_type_renders_a_field_without_a_default_as_present_and_nullable() -> None:
+    @dataclass(frozen=True)
+    class HeldFrame:
+        TYPE: ClassVar[FeatureSignal] = FeatureSignal.MOVED
+
+        holder: str | None
+        number: int
+        nothing: None
+        sometimes: str | None = None
+
+    rendered = generate_wire.render_frame_type(HeldFrame, None, FEATURE_ENUMS)
+
+    assert rendered == (
+        "export type HeldFrame = {\n"
+        "    type: FEATURE_SIGNAL.MOVED;\n"
+        "    holder: string | null;\n"
+        "    number: number;\n"
+        "    nothing: null;\n"
+        "    sometimes?: string;\n"
+        "};\n"
+    )
+
+
 def test_render_frame_type_wraps_a_union_wider_than_the_print_width_one_member_per_line() -> None:
     @dataclass(frozen=True)
     class MovedFrame:
