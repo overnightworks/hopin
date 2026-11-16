@@ -5,14 +5,15 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 import pytest
-from agents.member import LEASE_SECONDS, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
 from redis import Redis
 
 from hopin.config.constants import HEALTH_PATH
+from hopin.participation.vocabulary import ParticipationSignal
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.pod_pair import LOCALHOST, starting_pod
 from tests.stores.support.redis_gate import RedisGate
-from tests.support.dialed_call import RESOURCE_UPDATED, serving_dialed_call
+from tests.support.dialed_call import RESOURCE_UPDATED, accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.log_lines import captured_lines
 
@@ -21,6 +22,8 @@ pytestmark = pytest.mark.shared_stores
 SIGNAL_WAIT_SECONDS = 10
 NOT_READY_OBSERVED_SECONDS = 3
 PLACE_SIGNAL_FAILED = "place_signal.failed"
+OWNER_SUBJECT = "owner-subject"
+ADDERS_GROUP = "/apps/hopin/agent-adders"
 
 
 @pytest.fixture
@@ -35,10 +38,30 @@ def agent_call(sign_in_settings, redis_gate, agent_subject):
     """HopIn in this process over the real Redis, and the token of an agent that has called once, so that it holds a
     lease. A call of the same agent for another owner, and the end of the lease, change its standing."""
     sign_in = sign_in_settings()
-    with serving_dialed_call(sign_in, FakeIssuer(sign_in), shared_stores=connect_shared_stores(redis_gate.url)) as call:
-        token = call.agent_token(owner="owner-subject", subject=agent_subject)
+    with serving_dialed_call(
+        sign_in,
+        FakeIssuer(sign_in),
+        {OWNER_SUBJECT: ADDERS_GROUP},
+        shared_stores=connect_shared_stores(redis_gate.url),
+    ) as call:
+        token = call.agent_token(owner=OWNER_SUBJECT, subject=agent_subject)
         call.standing(token)
         yield call, token
+
+
+def join_the_agent(call, token):
+    """The owner adds the agent from its seat, once the agent's listen on its standing has offered it, and the agent
+    accepts, so that it holds a joined place in the owner's call."""
+    _, login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS_GROUP,))
+    owner = call.seat(login)
+    call.listen(token, [STANDING_URI])
+    offers = []
+    while not offers:
+        offers = owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+    owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
+    owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+    [standing] = call.standing(token)
+    call.call(token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
 
 
 def kill_subscriptions(redis_url: str) -> int:
@@ -69,8 +92,12 @@ class TestAgentPlaceSignals:
 
             assert stream.wait_for(RESOURCE_UPDATED, SIGNAL_WAIT_SECONDS)
 
-    def test_while_redis_refuses_the_closed_code_is_logged_once(self, agent_call, redis_gate):
-        call, _token = agent_call
+    def test_while_redis_refuses_the_change_stands_and_the_closed_code_is_logged_once(
+        self, agent_call, agent_subject, redis_gate
+    ):
+        call, token = agent_call
+        join_the_agent(call, token)
+        assert len(call.places_held_by(agent_subject)) == 1
 
         with captured_lines() as lines:
             redis_gate.close()
@@ -78,6 +105,7 @@ class TestAgentPlaceSignals:
             assert lines.wait_for_event(PLACE_SIGNAL_FAILED, SIGNAL_WAIT_SECONDS)
 
         assert [line["event"] for line in lines].count(PLACE_SIGNAL_FAILED) == 1
+        assert call.places_held_by(agent_subject) == ()
 
 
 def free_port() -> int:

@@ -24,6 +24,7 @@ from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, Pa
 from hopin.agent.tools import CALL_KIND
 from hopin.app import create_app
 from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
+from hopin.participation.participants import Person
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -308,6 +309,11 @@ class DialedCall:
         """The JSON-RPC answer to reading the chat window of the call: its `result` or its `error`."""
         uri = window_uri(room_id)
         return self.request(token, "resources/read", {"uri": uri}, routing_name=uri).json()
+
+    def places_held_by(self, subject):
+        """The places participation holds for the agent as it reads now; a call of the agent would first end a lease
+        that has run out."""
+        return self._mcp_front().participation().standings_of(Person(self.issuer.issuer, subject))
 
     def voice(self, member, path):
         """What a seat's browser gets fetching the voice at the path its frame names, on its session cookie."""
