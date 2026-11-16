@@ -77,7 +77,7 @@ async def started_server(
     with (
         patch("hopin.main.uvicorn.run") as run,
         # The running app's place store waits for its Redis, and the test settings name none that answers.
-        patch("hopin.main.connect_shared_stores", lambda _url: in_thread_stores()),
+        patch("hopin.main.connect_shared_stores", return_value=in_thread_stores()),
         patch("hopin.main.create_app", partial(create_app, stores=stores)),
         redirect_stdout(written),
     ):
