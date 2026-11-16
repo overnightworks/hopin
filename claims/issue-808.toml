@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "65cc5f3fea30c665087a0857a4f629ee78f8d08b"
 branch = "claude/issue-808-game-voice-404"
-scope = ["frontend/src/lib/features/participation", "src/hopin/participation", "tests"]
+scope = ["docs/game-master.md", "frontend/src/lib/features/participation", "src/hopin/game/table.py", "src/hopin/game/voice.py", "src/hopin/participation", "tests"]
 opened_commit = "8a1d1e9bcc096b47c29c574d3ec838096761ee8e"
 whole_reason = "The defect lies between the voice route and the page's player; the trace decides which side changes."
