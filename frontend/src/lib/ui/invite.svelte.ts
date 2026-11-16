@@ -1,5 +1,5 @@
 import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const CANCELLED_SHARE_ERROR = "AbortError";
 

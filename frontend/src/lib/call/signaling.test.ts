@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ERROR_REASON, SESSION_ENDED_CLOSE_CODE, SIGNAL_TYPE, WEBSOCKET_PATH } from "#lib/wire.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
 

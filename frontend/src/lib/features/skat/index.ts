@@ -1,6 +1,6 @@
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 import { SIGNAL_TYPE, type ServerFrameByType } from "#lib/wire.ts";
 import "./skat.css";
 import SkatTable from "./SkatTable.svelte";

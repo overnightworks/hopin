@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { StatusType } from "#lib/ui/status.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 // The module holds its state, so each case loads a fresh copy.
 async function freshStatus() {

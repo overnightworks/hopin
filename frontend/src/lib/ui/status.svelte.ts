@@ -1,4 +1,4 @@
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 export type StatusType = "connecting" | "connected" | "error" | "disconnected";
 

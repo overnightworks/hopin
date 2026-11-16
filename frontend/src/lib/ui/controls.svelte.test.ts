@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SIGNAL_TYPE } from "#lib/wire.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const media = vi.hoisted(() => {
     class CameraError extends Error {

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { words } from "#lib/words/de.ts";
+    import { words } from "#lib/words.ts";
 
     let { text }: { text: string } = $props();
 </script>

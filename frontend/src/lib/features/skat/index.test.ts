@@ -3,7 +3,7 @@ import { mount, unmount } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { install } from "./index.ts";
