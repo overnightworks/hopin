@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "99e1ff6a5d596fb311fdb6dd45287b0be0482e49"
 branch = "claude/issue-915-call-core-transitions"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/rooms/manager.py", "src/hopin/signaling", "src/hopin/skat/feature.py", "src/hopin/skat/stage.py", "tests"]
+scope = ["docs/ARCHITECTURE.md", "docs/skat.md", "src/hopin/rooms/manager.py", "src/hopin/signaling", "src/hopin/skat/feature.py", "src/hopin/skat/stage.py", "tests"]
 opened_commit = "3689d8d49581a15f3de5bdae43bcd689d7aebe72"
 whole_reason = "The contract, the core behind it and one feature on it are the thinnest proof that the contract carries a feature."
