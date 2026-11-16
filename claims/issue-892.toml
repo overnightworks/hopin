@@ -1,0 +1,8 @@
+claim_id = "4e40bd587c3e4d419e3404a3c6485816"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "9602e78b45721bda7966f1a954af9e0a38bc0b49"
+branch = "claude/issue-892-typed-participation-frames"
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/features/participation", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/participation", "src/hopin/signaling/frames.py", "tests/participation", "tests/scripts/test_generate_wire.py"]
+opened_commit = "26529b63f82d60a6a9e76658703f5c20dd9519ca"
+whole_reason = "The records, their generator support and their one reader on the page change together; split apart, wire-check would be red between the slices."
