@@ -4,6 +4,7 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import partial
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING
 
@@ -19,10 +20,10 @@ from webauth.config import installed_web_auth_config
 from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
 from hopin.app import create_app
-from hopin.config.constants import SESSION_RECHECK_SECONDS
 from hopin.main import uvicorn_options
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.voice import VoiceStore
+from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
@@ -57,10 +58,13 @@ RECHECK_INTERVAL_IN_TESTS_SECONDS = 1
 
 
 class QuickRecheckScheduler(AsyncioScheduler):
-    """The server's scheduler with the session recheck's tick due after one second; other timers keep their delay."""
+    """The server's scheduler with the signaling handler's session recheck due after one second; every other timer
+    keeps its delay."""
 
     def call_later(self, delay_seconds: float, callback: Callable[[], Awaitable[None]]) -> TimerHandle:
-        if delay_seconds == SESSION_RECHECK_SECONDS:
+        # The recheck is scheduled as the handler's `_recheck_on_tick` bound to its connection.
+        recheck = SignalingHandler._recheck_on_tick  # noqa: SLF001
+        if isinstance(callback, partial) and getattr(callback.func, "__func__", None) is recheck:
             delay_seconds = RECHECK_INTERVAL_IN_TESTS_SECONDS
         return super().call_later(delay_seconds, callback)
 

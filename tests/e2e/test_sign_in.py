@@ -250,7 +250,6 @@ window.addEventListener("beforeunload", () => window.noteTheLeaving({{
 THE_LOCAL_TRACKS_THAT_ARE_LIVE = (
     "() => document.getElementById('localVideo').srcObject.getTracks().filter((t) => t.readyState === 'live').length"
 )
-CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS = "() => { setTimeout(() => document.getElementById('muteBtn').click()); }"
 
 
 @FORM_FACTORS
@@ -286,8 +285,7 @@ def test_a_call_whose_session_ended_stops_the_media_before_it_goes_through_the_s
     guest.on("websocket", lambda socket: sockets_opened_after_the_session_ended.append(socket))
     e2e_server.stores.sessions.delete(member_of(guest).session.id)
 
-    guest.evaluate(CLICK_THE_MUTE_BUTTON_AFTER_THE_CALL_RETURNS)
-
+    # The server's recheck tick finds the session gone and ends the call; the page does nothing to cause it.
     poll_until(guest, lambda: len(documents()), lambda seen: seen == 3, "the page went through the sign-in")
     room_path = urlsplit(invite_link).path
     expect_the_sign_in_at_the_issuer(
