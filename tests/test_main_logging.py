@@ -1,9 +1,10 @@
 import asyncio
+import io
 import json
 import logging
 import secrets
 import socket
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
@@ -13,6 +14,7 @@ import pytest
 import pytest_asyncio
 import uvicorn
 import websockets
+from logline import REQUEST_EVENT
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
@@ -22,7 +24,7 @@ from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable, Iterator
+    from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 
 LOCALHOST = "127.0.0.1"
 UVICORN_LOGGER_NAMES = ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi")
@@ -34,6 +36,7 @@ class Output:
     port: int
     read: Callable[[], str]
     member: SeededMember
+    stop: Callable[[], Awaitable[None]]
 
 
 def _logger_state() -> list[tuple[list[logging.Handler], int, bool, bool]]:
@@ -63,12 +66,18 @@ def uvicorn_loggers_restored() -> Iterator[None]:
 
 @pytest_asyncio.fixture
 async def started_server(
-    sign_in_settings, monkeypatch, capfd, uvicorn_loggers_restored, fixture_build_directory
+    sign_in_settings, monkeypatch, capfd, uvicorn_loggers_restored, logging_restored, fixture_build_directory
 ) -> AsyncIterator[Output]:
     for name, value in sign_in_settings(host=LOCALHOST).environment.items():
         monkeypatch.setenv(name, value)
     stores = single_process_stores()
-    with patch("hopin.main.uvicorn.run") as run, patch("hopin.main.create_app", partial(create_app, stores=stores)):
+    written = io.StringIO()
+    # logline's handler keeps the stdout of its configure call, and capfd's differs between fixture setup and the test.
+    with (
+        patch("hopin.main.uvicorn.run") as run,
+        patch("hopin.main.create_app", partial(create_app, stores=stores)),
+        redirect_stdout(written),
+    ):
         main(["serve"])
     app = run.call_args.args[0]
     member = seed_member(stores, installed_web_auth_config(app))
@@ -80,11 +89,14 @@ async def started_server(
 
     def read() -> str:
         captured = capfd.readouterr()
-        return captured.out + captured.err
+        return written.getvalue() + captured.out + captured.err
 
-    yield Output(listening.getsockname()[1], read, member)
-    server.should_exit = True
-    await serving
+    async def stop() -> None:
+        server.should_exit = True
+        await serving
+
+    yield Output(listening.getsockname()[1], read, member, stop)
+    await stop()
 
 
 async def _send_raw(port: int, request: bytes) -> None:
@@ -120,18 +132,16 @@ async def _refused_handshake(output: Output, target: str) -> None:
 class TestServerLogging:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        ("make_request", "target_template", "path"),
+        ("make_request", "target_template"),
         [
-            pytest.param(
-                _get, f"{AUTH_CALLBACK_PATH}?code={{0}}&state={{0}}", AUTH_CALLBACK_PATH, id="sign_in_callback"
-            ),
-            pytest.param(_join_and_close, f"{WEBSOCKET_PATH}?probe={{0}}", WEBSOCKET_PATH, id="admitted_handshake"),
-            pytest.param(_refused_handshake, f"{WEBSOCKET_PATH}?probe={{0}}", WEBSOCKET_PATH, id="refused_handshake"),
-            pytest.param(_get, f"{HEALTH_PATH}?probe={{0}}", HEALTH_PATH, id="health_check"),
+            pytest.param(_get, f"{AUTH_CALLBACK_PATH}?code={{0}}&state={{0}}", id="sign_in_callback"),
+            pytest.param(_join_and_close, f"{WEBSOCKET_PATH}?probe={{0}}", id="admitted_handshake"),
+            pytest.param(_refused_handshake, f"{WEBSOCKET_PATH}?probe={{0}}", id="refused_handshake"),
+            pytest.param(_get, f"{HEALTH_PATH}?probe={{0}}", id="health_check"),
         ],
     )
-    async def test_request_leaves_no_line_in_the_server_output(
-        self, started_server: Output, make_request, target_template: str, path: str
+    async def test_request_leaves_neither_its_raw_target_nor_its_person_in_the_server_output(
+        self, started_server: Output, make_request, target_template: str
     ) -> None:
         sentinel = secrets.token_urlsafe(16)
         target = target_template.format(sentinel)
@@ -140,9 +150,26 @@ class TestServerLogging:
 
         output = started_server.read()
         assert target not in output
-        assert path not in output
         assert sentinel not in output
         assert started_server.member.account.username not in output
+
+    @pytest.mark.asyncio
+    async def test_every_line_is_logline_json_and_a_request_carries_its_trace(self, started_server: Output) -> None:
+        await _get(started_server, HEALTH_PATH)
+        await _send_raw(started_server.port, b"\x00\x01 not http\r\n\r\n")
+
+        lines = [json.loads(line) for line in started_server.read().splitlines()]
+        assert {line["service"] for line in lines} == {"hopin"}
+        (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
+        assert request["trace_id"]
+
+    @pytest.mark.asyncio
+    async def test_process_lines_come_in_the_order_started_ready_stopped(self, started_server: Output) -> None:
+        await started_server.stop()
+
+        events = [json.loads(line)["event"] for line in started_server.read().splitlines()]
+        process_events = [event for event in events if event.startswith("process.")]
+        assert process_events == ["process.started", "process.ready", "process.stopped"]
 
     @pytest.mark.asyncio
     async def test_invalid_request_still_leaves_a_warning(self, started_server: Output) -> None:

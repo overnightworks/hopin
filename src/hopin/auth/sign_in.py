@@ -36,6 +36,8 @@ from hopin.web.page_build import built_page_response
 from hopin.words import text
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
     from webauth.ports import AccountEvent, RateLimitBackend, SignInTransaction
@@ -52,7 +54,7 @@ class LoggingAuditSink:
     """Logs each account event by its kind, the issuer's subject and the role, never a username."""
 
     def account_event(self, event: AccountEvent) -> None:
-        logger.info("account_event", kind=event.kind.value, subject_id=event.subject_id, role=event.role)
+        logger.info("account.changed", kind=event.kind.value, sub=event.subject_id, role=event.role)
 
 
 class SignInConfigurationError(StartRefusedError):
@@ -137,13 +139,17 @@ def _build_web_auth(
     )
 
 
-def build_relying_party(sign_in_configs: SignInConfigs, issuer_transports: IssuerTransports) -> OidcRelyingParty:
+def build_relying_party(
+    sign_in_configs: SignInConfigs,
+    issuer_transports: IssuerTransports,
+    monotonic_clock: Callable[[], float] = time.monotonic,
+) -> OidcRelyingParty:
     return OidcRelyingParty(
         sign_in_configs.oidc_client,
         post_token_request=issuer_transports.post_token_request,
         fetch_key_set=issuer_transports.fetch_key_set,
         wall_clock=sign_in_configs.web_auth.wall_clock,
-        monotonic_clock=time.monotonic,
+        monotonic_clock=monotonic_clock,
     )
 
 
@@ -189,10 +195,10 @@ def _refusal_response(refusal: SignInRefusal, page_build: PageBuild) -> Response
 
 def _log_refusal(refusal: OidcRefusal | AdmissionRefusal) -> None:
     if isinstance(refusal, AdmissionRefusal):
-        logger.info("sign_in_refused", reason=refusal.value)
+        logger.info("sign_in.refused", reason=refusal.value)
         return
     codes = {
         "idp_error": refusal.idp_error,
         "token_rejection": None if refusal.token_rejection is None else refusal.token_rejection.value,
     }
-    logger.info("sign_in_refused", reason=refusal.reason.value, **{name: code for name, code in codes.items() if code})
+    logger.info("sign_in.refused", reason=refusal.reason.value, **{name: code for name, code in codes.items() if code})

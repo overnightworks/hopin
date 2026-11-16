@@ -6,6 +6,7 @@ import pytest_asyncio
 
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import ParticipationSignal
+from tests.participation.support.hearing_scene import heard
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import LONG, SENTENCE_MS, speak, waiting_to_speak
 from tests.signaling.support.browsers import host_and_guest
@@ -102,7 +103,7 @@ class TestAPersonTalksOverASentence:
         participation.speech.words_heard(room_id, guest.peer_id, "Moment")
         window_changes.clear()
 
-        participation.heard(guest.peer_id, "Moment bitte", began_at=0.0)
+        heard(participation, guest.peer_id, "Moment bitte", began_at=0.0)
 
         window = window_of(participation, GUEST, room_id)
         assert (window.talked_over, [line.text for line in window.lines], window_changes) == (

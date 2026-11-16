@@ -39,3 +39,8 @@ def frames_of(seat, signal_type):
 def sound_at(scene, seat, login=None):
     voice_id = seat.frame_of_type(VOICE)["voice_id"]
     return scene.call.voice(scene.member_login if login is None else login, f"{VOICE_PATH}/{voice_id}")
+
+
+def grants(scene, grant_type):
+    """The requests the issuer was asked to grant of this type, refused ones too."""
+    return [request for request, _ in scene.call.issuer.exchanges if request.form["grant_type"] == grant_type]

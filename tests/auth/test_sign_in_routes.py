@@ -16,6 +16,7 @@ from pydantic import SecretStr
 from webauth.admission import AppRole
 from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.oidc_login import new_session_id
 from webauth.ports import AccountEventKind, AccountKind
 
 from hopin.auth.sign_in import (
@@ -431,7 +432,7 @@ class TestBackchannelLogout:
         assert harness.sessions.load(other) is not None
         assert harness.accounts.get("ben") == ben
         ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
-        assert [log["subject_id"] for log in ended] == ["anna"]
+        assert [log["sub"] for log in ended] == ["anna"]
         assert USERNAME not in json.dumps(logs)
 
     def test_a_token_for_an_unseen_subject_is_accepted_and_creates_no_account(self, harness):
@@ -472,7 +473,7 @@ class TestBackchannelLogout:
             harness.sign_in_through(new_browser, subject="anna")
 
         created = [log for log in logs if log.get("kind") == AccountEventKind.USER_CREATED.value]
-        assert [(log["subject_id"], log["role"]) for log in created] == [("anna", "user")]
+        assert [(log["sub"], log["role"]) for log in created] == [("anna", "user")]
         assert harness.who(old_browser) == {"user": None}
         assert harness.who(new_browser)["user"] == {"id": "anna", "username": USERNAME}
 
@@ -508,6 +509,7 @@ class TestBackchannelLogout:
         now = datetime.now(UTC)
         session = harness.sessions.create(
             account.id,
+            session_id=new_session_id(),
             now=now,
             expires_at=now + timedelta(hours=1),
             refresh_token=None,
@@ -678,7 +680,7 @@ class TestLogs:
             harness.sign_in_through(harness.browser())
             harness.sign_in_through(harness.browser())
         created = [log for log in logs if log.get("kind") == "user_created"]
-        assert [(log["subject_id"], log["role"]) for log in created] == [(SUBJECT, "user")]
+        assert [(log["sub"], log["role"]) for log in created] == [(SUBJECT, "user")]
         assert USERNAME not in json.dumps(logs)
 
     @pytest.mark.parametrize(
@@ -689,7 +691,7 @@ class TestLogs:
         harness.issuer.token_endpoint_is_down = endpoint_is_down
         with structlog.testing.capture_logs() as logs:
             harness.sign_in_through(harness.browser(), groups=groups)
-        refusals = [log for log in logs if log["event"] == "sign_in_refused"]
+        refusals = [log for log in logs if log["event"] == "sign_in.refused"]
         assert [log["reason"] for log in refusals] == [reason]
         assert SUBJECT not in json.dumps(refusals)
         assert USERNAME not in json.dumps(refusals)
@@ -699,7 +701,7 @@ class TestLogs:
         with structlog.testing.capture_logs() as logs:
             response = harness.sign_in_through(harness.browser())
         assert_refused(harness, response)
-        assert [(log["reason"], log["idp_error"]) for log in logs if log["event"] == "sign_in_refused"] == [
+        assert [(log["reason"], log["idp_error"]) for log in logs if log["event"] == "sign_in.refused"] == [
             ("token-request-refused", "invalid_client")
         ]
 

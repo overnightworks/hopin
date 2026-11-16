@@ -105,6 +105,11 @@ class ChatWindow:
             self._text_bytes -= self._lines.popleft()[1]
         return True
 
+    @property
+    def last_seq(self) -> int:
+        """The `seq` of the newest line, 0 for a window that never held one."""
+        return self._next_seq - 1
+
     def talk_over(self, speaker: str, name: str) -> bool:
         """A person starts speaking: they join the record that stands, or open one when a sentence of the agent plays
         now; say whether the record changed. The record keeps its id until its last person's turn has ended."""

@@ -7,6 +7,7 @@ import structlog
 
 from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason
 from hopin.errors import InvalidMessageError, RoomNotFoundError
+from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import (
     RELAY_BROADCAST_FRAMES,
     ChatBroadcastFrame,
@@ -105,7 +106,7 @@ class RoomRouting:
                 resume_token=self._seats.seat(peer_id).resume_token,
             ).to_json(),
         )
-        await logger.ainfo("room_created", room_id=room.room_id, host=peer_id)
+        await logger.ainfo("room.created", room_ref=room_reference(room.room_id), peer_id=peer_id)
 
     async def _join_room(self, peer_id: PeerId, room_id: str) -> None:
         account = self._seats.account_of(peer_id)
@@ -135,7 +136,7 @@ class RoomRouting:
         if host_returned:
             await self._seats.send_all(others, HostBackFrame(participant_id=peer_id).to_json())
 
-        await logger.ainfo("participant_joined", room_id=room_id, participant=peer_id)
+        await logger.ainfo("participant.joined", room_ref=room_reference(room_id), peer_id=peer_id)
 
     async def set_locked(self, peer_id: PeerId, *, locked: bool) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -144,7 +145,10 @@ class RoomRouting:
         room = self._room_manager.set_room_locked(room_id, self._seats.account_of(peer_id), locked=locked)
         frame = RoomLockedFrame() if locked else RoomUnlockedFrame()
         await self._broadcast_to_room(room_id, frame.to_json())
-        await logger.ainfo(frame.TYPE.value, room_id=room.room_id, by=peer_id)
+        if locked:
+            await logger.ainfo("room.locked", room_ref=room_reference(room.room_id), peer_id=peer_id)
+        else:
+            await logger.ainfo("room.unlocked", room_ref=room_reference(room.room_id), peer_id=peer_id)
 
     async def handle_end_room(self, peer_id: PeerId) -> None:
         room_id = self._peer_rooms.get(peer_id)
@@ -181,7 +185,7 @@ class RoomRouting:
             return
         sender_room = self._peer_rooms.get(peer_id)
         if sender_room is None or self._peer_rooms.get(target_id) != sender_room:
-            await logger.ainfo("relay_outside_room", peer_id=peer_id)
+            await logger.ainfo("relay.refused", reason="outside_room", peer_id=peer_id)
             return
         await self._seats.send(
             target_id,
@@ -231,7 +235,7 @@ class RoomRouting:
         await self._seats.send_all(
             departure.remaining, ParticipantLeftFrame(participant_id=departure.peer_id).to_json()
         )
-        await logger.ainfo("participant_left", room_id=departure.room_id, participant=departure.peer_id)
+        await logger.ainfo("participant.left", room_ref=room_reference(departure.room_id), peer_id=departure.peer_id)
         await self._on_seat_left(departure)
 
     def _start_grace(self, room_id: str, host_peer_id: PeerId, deadline: float) -> None:
@@ -266,7 +270,7 @@ class RoomRouting:
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
             await self._seats.close_socket(websocket)
-        await logger.ainfo("room_closed", room_id=room_id, reason=reason.value)
+        await logger.ainfo("room.closed", room_ref=room_reference(room_id), reason=reason.value)
 
     def _host_away_frame(self, grace: HostGrace) -> HostAwayFrame:
         return HostAwayFrame(

@@ -33,16 +33,17 @@ pytestmark = pytest.mark.e2e
 
 QUESTION = "Welcher Fluss fließt durch Lissabon?"
 REVEAL = "Der Tejo."
-# A page records each blob audio it is asked to play and whether the browser allowed it.
+HTTP_ERROR = 400
+# A page records each voice its speech player starts: the player plays a voice as buffer sources, the chunks of a
+# streamed body beginning where the one before ends, so the chunks that join up are one voice.
 RECORD_VOICES = """
 window.voicesPlayed = [];
-const play = HTMLMediaElement.prototype.play;
-HTMLMediaElement.prototype.play = function () {
-    const started = play.call(this);
-    if (this.src.startsWith("blob:")) {
-        started.then(() => window.voicesPlayed.push("started"), () => window.voicesPlayed.push("refused"));
-    }
-    return started;
+let joinsAt = NaN;
+const start = AudioBufferSourceNode.prototype.start;
+AudioBufferSourceNode.prototype.start = function (when, ...args) {
+    if (when !== joinsAt) window.voicesPlayed.push("started");
+    joinsAt = when + this.buffer.duration;
+    return start.call(this, when, ...args);
 };
 """
 
@@ -106,6 +107,45 @@ def test_both_browsers_start_the_voice_of_the_question(
     for person in (host, guest):
         person.wait_for_function("() => window.voicesPlayed.length > 0")
         assert person.evaluate("() => window.voicesPlayed") == ["started"]
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_quiz_round_leaves_no_failed_voice_fetch_and_no_console_error(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    speech_origin: Origin,
+    agent_backend: FakeAgentBackend,
+    page_errors: list[str],
+    form_factor: dict[str, Any],
+) -> None:
+    """GM-38: A quiz round leaves no failed voice fetch and no console error on either browser, every line playing."""
+    speaking(speech_origin, chunked_wav(silent_wav()))
+    agent_backend.answer_next(Succeeds(QUESTION), Succeeds(REVEAL), Succeeds(QUESTION))
+    host, guest = open_call_recording_voices(open_person, e2e_server.base_url, page_errors, form_factor)
+    failed_voice_fetches: list[str] = []
+    console_errors: list[str] = []
+    for person in (host, guest):
+        person.on(
+            "response",
+            lambda response: (
+                failed_voice_fetches.append(f"{response.status} {response.url}")
+                if VOICE_PATH in response.url and response.status >= HTTP_ERROR
+                else None
+            ),
+        )
+        person.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
+
+    start_quiz(host)
+    for person in (host, guest):
+        open_chat(person)
+        expect(person.locator(CARD)).to_contain_text(QUESTION)
+        answer_on_card(person, "Tejo")
+    for person in (host, guest):
+        expect(person.locator(GAME_MASTER_LINES).filter(has_text=REVEAL)).to_have_count(1)
+        person.wait_for_function("() => window.voicesPlayed.length > 2")
+
+    assert failed_voice_fetches == []
+    assert console_errors == []
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

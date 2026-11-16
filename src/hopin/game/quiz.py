@@ -140,8 +140,12 @@ class Quiz:
             answers=self.answers,
         )
 
+    def counted_players(self, present: frozenset[PeerId]) -> frozenset[PeerId]:
+        """The present players whose answer the count holds."""
+        return frozenset({answer.player for answer in self.answers} & present & self.players)
+
     def answered_count(self, present: frozenset[PeerId]) -> int:
-        return len({answer.player for answer in self.answers} & present & self.players)
+        return len(self.counted_players(present))
 
     def everyone_answered(self, present: frozenset[PeerId]) -> bool:
         waited_for = self.players & present

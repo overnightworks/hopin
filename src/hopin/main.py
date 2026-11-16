@@ -1,7 +1,9 @@
 import argparse
 from typing import TYPE_CHECKING, TypedDict
 
+import structlog
 import uvicorn
+from logline import configure
 
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import ParticipationFeature
@@ -23,6 +25,9 @@ if TYPE_CHECKING:
     from hopin.stores.shared import SharedStores
 
 
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
 class UvicornOptions(TypedDict):
     host: str
     port: int
@@ -30,6 +35,7 @@ class UvicornOptions(TypedDict):
     access_log: bool
     proxy_headers: bool
     log_level: str
+    log_config: None
 
 
 def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
@@ -40,6 +46,7 @@ def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
         access_log=False,
         proxy_headers=False,
         log_level=UVICORN_LOG_LEVEL,
+        log_config=None,
     )
 
 
@@ -80,6 +87,8 @@ def serve(settings: ServerSettings, page_build: PageBuild) -> None:
 
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
+    configure("hopin")
+    logger.info("process.started")
     serve(ServerSettings(), PageBuild.load(BUILD_DIRECTORY))
 
 

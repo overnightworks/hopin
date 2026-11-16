@@ -3,6 +3,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import pytest
+from logline.testing import configured
 
 # Assertion rewriting must be registered before the first import of a support module.
 # The `tests` namespace itself is already imported when this conftest loads.
@@ -26,6 +27,13 @@ if TYPE_CHECKING:
 @pytest.fixture
 def sign_in_settings(tmp_path: Path) -> Callable[..., SignInSettings]:
     return partial(build_sign_in_settings, tmp_path)
+
+
+@pytest.fixture
+def logging_restored() -> Iterator[None]:
+    """A test that runs `hopin.main.main` leaves the process's logging as it found it."""
+    with configured("hopin"):
+        yield
 
 
 @pytest.fixture

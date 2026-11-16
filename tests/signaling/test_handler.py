@@ -242,7 +242,7 @@ class TestJoinExistingRoom:
         with structlog.testing.capture_logs() as logs:
             await deliver(browsers["p1"], join_message())
 
-        assert [log["event"] for log in logs if log["event"] in ("room_created", "participant_joined")] == []
+        assert [log["event"] for log in logs if log["event"] in ("room.created", "participant.joined")] == []
 
     async def test_joiner_gets_the_existing_participants_and_they_hear_of_the_joiner(self, link, room_manager):
         room, browsers = await seat_in_room(link, room_manager, "host1")
@@ -320,8 +320,9 @@ class TestRelay:
         with structlog.testing.capture_logs() as logs:
             await deliver(browsers["p1"], {"type": SignalType.OFFER.value, "target": sentinel, "sdp": "x"})
 
-        [refusal] = [log for log in logs if log["event"] == "relay_outside_room"]
-        assert set(refusal) == {"event", "peer_id", "log_level"}
+        [refusal] = [log for log in logs if log["event"] == "relay.refused"]
+        assert set(refusal) == {"event", "reason", "peer_id", "log_level"}
+        assert refusal["reason"] == "outside_room"
         assert refusal["peer_id"] == browsers["p1"].peer_id
         assert sentinel not in repr(logs)
         captured = capsys.readouterr()
@@ -427,7 +428,7 @@ class TestHandleWebsocket:
         with structlog.testing.capture_logs() as logs:
             await handler.handle_websocket(socket)
 
-        [error_log] = [log for log in logs if log["event"] == "websocket_error"]
+        [error_log] = [log for log in logs if log["event"] == "websocket.failed"]
         assert error_log["code"] == 1006
         assert_room_exists(room_manager, socket.sent[0]["room_id"])
 
@@ -437,7 +438,7 @@ class TestHandleWebsocket:
         with structlog.testing.capture_logs() as logs:
             await handler.handle_websocket(socket)
 
-        assert [log for log in logs if log["event"] == "websocket_error"] == []
+        assert [log for log in logs if log["event"] == "websocket.failed"] == []
 
     async def test_binary_frame_is_ignored_and_later_text_frames_still_process(self, handler, room_manager):
         socket = FakeSocket(
@@ -596,7 +597,7 @@ class TestSendToGonePeer:
         with structlog.testing.capture_logs() as logs:
             await handler.handle_websocket(websocket)
 
-        assert [log["event"] for log in logs if log["event"] == "send_to_gone_peer"] == ["send_to_gone_peer"]
+        assert [log["event"] for log in logs if log["event"] == "frame_send.refused"] == ["frame_send.refused"]
 
 
 def assert_room_exists(room_manager, room_id):

@@ -12,3 +12,31 @@ export enum SKAT_REFUSAL {
     BUSY = "busy",
     NOT_OPENER_OR_HOST = "not_opener_or_host",
 }
+
+export type AttachedTableFrame = {
+    type: SKAT_SIGNAL.SKAT_TABLE;
+    revision: number;
+    attachment: number;
+    table: string;
+    src: string;
+    opener_id: string | null;
+};
+
+export type EmptyTableFrame = {
+    type: SKAT_SIGNAL.SKAT_TABLE;
+    revision: number;
+    attachment: null;
+    table: null;
+    src: null;
+    opener_id: null;
+};
+
+export type RefusedFrame = {
+    type: SKAT_SIGNAL.SKAT_REFUSED;
+    reason: SKAT_REFUSAL;
+};
+
+export type SkatFrameByType = {
+    [SKAT_SIGNAL.SKAT_TABLE]: AttachedTableFrame | EmptyTableFrame;
+    [SKAT_SIGNAL.SKAT_REFUSED]: RefusedFrame;
+};

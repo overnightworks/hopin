@@ -14,7 +14,7 @@ COPY frontend ./
 # The maps are for the coverage report in CI; the image serves none.
 RUN pnpm build && find /build/src/hopin/web/build -name '*.map' -delete
 
-FROM ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.8@sha256:5cc1805e2426484abca4ad46ea783bab281fdb225fd82d8ce6d66a81254bac85 AS uv
 
 FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS python-base
 
@@ -56,6 +56,9 @@ RUN uv build --wheel --out-dir /tmp/wheel \
  && rm -r /tmp/wheel
 # A pod's runAsNonRoot can verify only a numeric user; 1001 is hopin's uid.
 USER 1001
+
+ARG SERVICE_VERSION
+ENV SERVICE_VERSION=$SERVICE_VERSION
 
 EXPOSE 8080
 CMD ["hopin", "serve"]

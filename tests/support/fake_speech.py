@@ -98,23 +98,32 @@ class Session:
             self._arrived.notify_all()
 
 
-def a_sentence(text: str, *, started_ms: int | None = 0, stopped_ms: int | None = 900) -> Iterator[ServerEvent]:
-    """The events of one finished item, the way the service sends them: its speech's bounds, a delta, the transcript."""
+def a_sentence(
+    text: str,
+    *,
+    started_ms: int | None = 0,
+    stopped_ms: int | None = 900,
+    item_id: str = ITEM,
+    traceparent: str | None = None,
+) -> Iterator[ServerEvent]:
+    """The events of one finished item, the way the service sends them: its speech's bounds, a delta, the transcript,
+    which carries the turn's `traceparent` when the service sends one."""
     if started_ms is not None:
-        yield SpeechStarted(item_id=ITEM, audio_start_ms=started_ms)
+        yield SpeechStarted(item_id=item_id, audio_start_ms=started_ms)
     if stopped_ms is not None:
-        yield SpeechStopped(item_id=ITEM, audio_end_ms=stopped_ms)
-    yield TranscriptDelta(item_id=ITEM, delta=text)
-    yield completed(text)
+        yield SpeechStopped(item_id=item_id, audio_end_ms=stopped_ms)
+    yield TranscriptDelta(item_id=item_id, delta=text)
+    yield completed(text, item_id=item_id, traceparent=traceparent)
 
 
-def completed(text: str, *, item_id: str = ITEM) -> TranscriptCompleted:
+def completed(text: str, *, item_id: str = ITEM, traceparent: str | None = None) -> TranscriptCompleted:
     return TranscriptCompleted.model_validate(
         {
             "item_id": item_id,
             "transcript": text,
             "usage": {"seconds": 1.0},
             "languages": [{"code": "de"}],
+            "traceparent": traceparent,
         }
     )
 

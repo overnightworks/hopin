@@ -1,10 +1,6 @@
 import type { OutgoingFrame } from "#lib/call/feature-port.ts";
 import type { CurrentTable } from "./messages.ts";
-import { SKAT_SIGNAL } from "./wire.ts";
-
-export type TableFrame = { revision: number; opener_id: string | null } & (
-    { attachment: number; table: string; src: string } | { attachment: null; table: null; src: null }
-);
+import { SKAT_SIGNAL, type SkatFrameByType } from "./wire.ts";
 
 export interface TableStage {
     show(src: string, table: Table): void;
@@ -43,7 +39,7 @@ export class Table {
         this.#isHost = isHost;
     }
 
-    receive(frame: TableFrame) {
+    receive(frame: SkatFrameByType[SKAT_SIGNAL.SKAT_TABLE]) {
         if (frame.revision < this.#highestRevision) return;
         this.#highestRevision = frame.revision;
         this.#openerId = frame.opener_id;

@@ -31,6 +31,7 @@ from tests.game.support.table_world import (
     revealed_into_question_two,
     script_two_questions,
     sent,
+    sent_count_to_all,
     sent_to_all,
     start_and_hold,
     thinking,
@@ -172,7 +173,7 @@ class TestTheStartersLeave:
 
         assert game_frames(host)[-3:] == [line(DEFAULT_QUESTION), ended_by("guest"), IDLE]
         assert len(game_master.calls) == 2
-        assert [log for log in logs if log["event"] == "game_driver_failed"] == []
+        assert [log for log in logs if log["event"] == "game_driver.failed"] == []
 
     async def test_an_ending_established_before_the_notice_wins_and_the_notice_sends_nothing(
         self, link, game_master, scheduler
@@ -257,13 +258,13 @@ class TestAPlayersLeave:
         host, guest, third = await call_of(link, "host", "guest", "third")
         await open_a_question([host, guest, third], host)
         await guest.say(answer("Porto"))
-        await sent_to_all([host, guest, third], answer_count(1, 3))
+        await sent_count_to_all([host, guest, third], 1, 3, answered_by=[guest])
 
         await third.drop(code=1000)
-        await sent_to_all([host, guest], answer_count(1, 2))
+        await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
-        for browser in (host, guest):
-            assert game_frames(browser) == [*asked(host), answer_count(1, 3), answer_count(1, 2)]
+        assert game_frames(host) == [*asked(host), answer_count(1, 3), answer_count(1, 2)]
+        assert game_frames(guest) == [*asked(host), answer_count(1, 3, own=True), answer_count(1, 2, own=True)]
 
     async def test_a_count_still_on_its_way_never_overwrites_the_reduced_count(self, link, game_master):
         host, guest, third, fourth = await call_of(link, "host", "guest", "third", "fourth")
@@ -275,15 +276,15 @@ class TestAPlayersLeave:
             await wait_within_cap(entered)
 
             await guest.drop(code=1000)
-            await sent_to_all([host, third, fourth], answer_count(1, 3))
+            await sent_count_to_all([host, third, fourth], 1, 3, answered_by=[third])
         finally:
             gate.set()
         await link.settle(third.socket)
 
         for browser in (host, third, fourth):
-            assert game_frames(browser)[-1] == answer_count(1, 3)
+            assert game_frames(browser)[-1] == answer_count(1, 3, own=browser is third)
         for browser in (third, fourth):
-            assert answer_count(1, 4) not in game_frames(browser)
+            assert answer_count(1, 4, own=browser is third) not in game_frames(browser)
 
     async def test_when_everyone_still_there_has_answered_the_reveal_follows_with_the_given_answers(
         self, link, game_master
@@ -293,15 +294,15 @@ class TestAPlayersLeave:
         await open_a_question([host, guest, third], host)
         await host.say(answer("Porto"))
         await guest.say(answer("Lissabon"))
-        await sent_to_all([host, guest, third], answer_count(2, 3))
+        await sent_count_to_all([host, guest, third], 2, 3, answered_by=[host, guest])
 
         await third.drop(code=1000)
         await sent_to_all([host, guest], answering(host, 2))
 
         for browser in (host, guest):
             assert game_frames(browser)[-7:] == [
-                answer_count(2, 3),
-                answer_count(2, 2),
+                answer_count(2, 3, own=True),
+                answer_count(2, 2, own=True),
                 *revealed_into_question_two(host),
             ]
         assert {given["name"] for given in revealed_answers(game_master)} == {"host", "guest"}
@@ -311,7 +312,7 @@ class TestAPlayersLeave:
         script_two_questions(game_master)
         await open_a_question([host, guest, third], host)
         await guest.say(answer("Porto"))
-        await sent_to_all([host, guest, third], answer_count(1, 3))
+        await sent_count_to_all([host, guest, third], 1, 3, answered_by=[guest])
         await guest.drop(code=1000)
         await sent_to_all([host, third], answer_count(0, 2))
 
@@ -324,7 +325,7 @@ class TestAPlayersLeave:
         host, guest = await call_of(link, "host", "guest")
         await open_a_question([host, guest], host)
         await guest.say(answer("Porto"))
-        await sent_to_all([host, guest], answer_count(1, 2))
+        await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
         late = await link.join("late", host.socket.sent[0]["room_id"])
 
         await late.drop(code=1000)

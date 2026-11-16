@@ -1,25 +1,44 @@
+import base64
+import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 import pytest
 from playwright.sync_api import expect
 
 from hopin.participation.settings import ParticipationSettings
-from hopin.participation.vocabulary import FIGURE_MODULE
+from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE
 from tests.e2e.support.client_manifest import urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT
-from tests.e2e.support.people import DESKTOP
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from playwright.sync_api import Page
+
     from tests.e2e.support.participation_scene import Scene
 
 pytestmark = pytest.mark.e2e
 
 LOADED_FILES = "() => performance.getEntriesByType('resource').map((entry) => entry.name)"
+FIGURE_FILES = Path(__file__).parent / "figure_files"
+# Both files pass figure v0.8.0's own checks: the figure is its conformant synthetic one, with green arms, and the
+# clip holds the right upper arm straight up for eight seconds, far past the length of figure's own wave.
+DRAWABLE = (FIGURE_FILES / "drawable.vrm").read_bytes()
+HOLDING_WAVE = (FIGURE_FILES / "holding_wave.vrma").read_bytes()
+DRAWABLE_URL = figure_url("drawable.vrm")
+HOLDING_WAVE_URL = figure_url("holding_wave.vrma")
+MISSING_WAVE_URL = figure_url("missing_wave.vrma")
+REFUSED_WAVE_URL = figure_url("refused_wave.vrma")
+WAVE = "wave"
 UNDRAWABLE = glb(b"mozart" * 8)
+# The server passes it as a clip, it has a glTF binary header; figure's own check refuses it, it is no animation.
+REFUSED_WAVE = glb(b"salieri" * 8)
 UNDRAWABLE_URL = figure_url("undrawable.glb")
 MISSING_URL = figure_url("missing.glb")
 
@@ -30,6 +49,10 @@ def figure_origin() -> FigureOrigin:
     origin = FigureOrigin()
     origin.serve(UNDRAWABLE_URL, ok(UNDRAWABLE))
     origin.serve(MISSING_URL, Answer(404))
+    origin.serve(DRAWABLE_URL, ok(DRAWABLE))
+    origin.serve(HOLDING_WAVE_URL, ok(HOLDING_WAVE))
+    origin.serve(MISSING_WAVE_URL, Answer(404))
+    origin.serve(REFUSED_WAVE_URL, ok(REFUSED_WAVE))
     return origin
 
 
@@ -56,6 +79,42 @@ def figures_on() -> bool:
 @pytest.fixture
 def e2e_server(figures_on: bool, figure_server: RunningServer, participation_server: RunningServer) -> RunningServer:
     return figure_server if figures_on else participation_server
+
+
+@pytest.fixture
+def clock_faked() -> bool:
+    return False
+
+
+@pytest.fixture
+def clip_answers() -> dict[Page, list[int]]:
+    """The statuses each page got for the clips it asked the server for. A faked page clock fakes the page's resource
+    timing, so they are taken from the responses."""
+    return {}
+
+
+@pytest.fixture
+def open_person(
+    open_person: Callable[..., Page], clock_faked: bool, clip_answers: dict[Page, list[int]]
+) -> Callable[..., Page]:
+    """Opens each page recording its clip answers and, when `clock_faked`, with the page clock faked from its first
+    load, so the figure's animation keeps one time base when the test later holds the clock; the faked clock runs with
+    real time until then."""
+
+    def open_recording(**options: Any) -> Page:
+        page = open_person(**options)
+        answers = clip_answers.setdefault(page, [])
+        page.on(
+            "response",
+            lambda response: (
+                answers.append(response.status) if urlsplit(response.url).path.startswith(CLIP_PATH) else None
+            ),
+        )
+        if clock_faked:
+            page.clock.install()
+        return page
+
+    return open_recording
 
 
 def figure_chunk_urls(base_url: str) -> set[str]:
@@ -105,3 +164,174 @@ def test_with_figures_off_no_file_that_holds_the_figure_code_is_requested(
         expect(person.locator(AGENT_TILE)).to_have_count(1)
         assert person.locator(AGENT_TILE + " .vid[data-figure]").count() == 0
         assert not figure_chunks & set(person.evaluate(LOADED_FILES))
+
+
+# The topmost pixel of the arm, as a share of the picture's height: the synthetic figure's arms are the only green in
+# the tile, a darker green where the page's controls dim it.
+ARM_TOP_SHARE = """
+async (base64) => {
+    // The page's policy forbids fetching a data URL, so the bytes become a blob without one.
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    context.drawImage(bitmap, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    for (let row = 0; row < height; row++) {
+        for (let column = 0; column < width; column++) {
+            const [red, green, blue, alpha] = data.subarray(4 * (row * width + column));
+            if (alpha >= 200 && green > red + 40 && green > blue + 25) return row / height;
+        }
+    }
+    return null;
+}
+"""
+RAISED_SHARE = 0.1
+# Figure's neutral wave lifts the arm's top no higher than a third of the picture, the persona's clip holds it straight
+# up and out of the picture's top.
+PERSONA_ARM_SHARE = 0.15
+WAIT_FOR_THE_FIGURE_MILLISECONDS = 30_000
+WAIT_FOR_THE_GESTURE_SECONDS = 30
+# The held page clock advances by a step to each picture; a step is far shorter than the wave, so no picture skips it.
+STEP_MILLISECONDS = 100
+WAVE_MILLISECONDS = 20_000
+CLOCK_LEAD_MILLISECONDS = 5_000
+# The arm's top at rest moves by the pixel grid and the idle sway, a few thousandths of the picture between two figures;
+# an arm still easing back one step before it settles stands about 0.05 off.
+REST_TOLERANCE = 0.02
+# The arm stands at rest when its top has moved no more than the sway through this many steps in a row; a tile that has
+# just been laid out draws at its new size with its first pictures.
+SWAY = 0.01
+STILL_STEPS = 3
+SETTLING_STEPS = 100
+
+
+def arm_top(person: Page) -> float | None:
+    picture = person.locator(f"{AGENT_TILE} canvas").screenshot()
+    return person.evaluate(ARM_TOP_SHARE, base64.b64encode(picture).decode())
+
+
+def persona_clip_plays(person: Page, gesture: Callable[[], object]) -> bool:
+    """Whether the persona's clip holds the arm of the person's figure up. A gesture that plays is not started again and
+    one made before the clip is parsed plays the neutral wave, so the gesture is made again with each picture."""
+    deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
+    while time.monotonic() < deadline:
+        gesture()
+        top = arm_top_after(person, STEP_MILLISECONDS)
+        if top is not None and top < PERSONA_ARM_SHARE:
+            return True
+    return False
+
+
+def hold_the_page_clock(person: Page) -> None:
+    """The page's clock, and with it the figure's animation, stands until the test advances it."""
+    person.clock.pause_at(timedelta(milliseconds=CLOCK_LEAD_MILLISECONDS) + datetime.now(tz=UTC))
+
+
+def arm_top_after(person: Page, milliseconds: int) -> float | None:
+    person.clock.run_for(milliseconds)
+    return arm_top(person)
+
+
+def arm_top_seen_after(person: Page, milliseconds: int) -> float:
+    top = arm_top_after(person, milliseconds)
+    assert top is not None, "the figure is not drawn"
+    return top
+
+
+def held_once_drawn(person: Page) -> None:
+    """Holds the page clock the moment the person's tile shows the figure drawn: a figure that draws on in real time
+    ends as too slow when a loaded machine draws every browser's figure at once."""
+    expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
+        "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
+    )
+    hold_the_page_clock(person)
+
+
+def arm_top_at_rest(person: Page) -> float:
+    """The arm's top of the figure on the held page clock once it stands still."""
+    previous = None
+    still = 0
+    for _ in range(SETTLING_STEPS):
+        top = arm_top_after(person, STEP_MILLISECONDS)
+        still = still + 1 if top is not None and previous is not None and abs(top - previous) <= SWAY else 0
+        if still == STILL_STEPS and top is not None:
+            return top
+        previous = top
+    pytest.fail(f"the arm did not stand still within {SETTLING_STEPS} steps of the page's clock")
+
+
+def tops_of_one_wave(person: Page, at_rest: float, gesture: Callable[[], object]) -> list[float]:
+    """The tops of the arm in the pictures from the first with the arm raised to the first with the arm drawn at rest
+    again, one picture to each step of the held page clock. Fails when the arm is not seen raised before the gesture's
+    wait is over, or not back at rest within the clock time of the wave."""
+    deadline = time.monotonic() + WAIT_FOR_THE_GESTURE_SECONDS
+    top = at_rest
+    while top >= at_rest - RAISED_SHARE:
+        assert time.monotonic() < deadline, f"the arm was not seen raised within {WAIT_FOR_THE_GESTURE_SECONDS} s"
+        gesture()
+        top = arm_top_seen_after(person, STEP_MILLISECONDS)
+    tops = [top]
+    for _ in range(WAVE_MILLISECONDS // STEP_MILLISECONDS):
+        top = arm_top_seen_after(person, STEP_MILLISECONDS)
+        if abs(top - at_rest) <= REST_TOLERANCE:
+            return tops
+        tops.append(top)
+    pytest.fail(f"the arm did not return to {at_rest} within {WAVE_MILLISECONDS} ms of the page's clock: {tops}")
+
+
+def everyone_with_the_figure_drawn(scene: Scene, clip: dict[str, str]) -> dict[Page, float]:
+    """The persona's figure with `clip` as its wave is accepted and a late joiner is in: each browser of the call with
+    its page clock held and the arm's top at rest."""
+    figure = figure_of(DRAWABLE_URL, DRAWABLE) | {"gestures": {WAVE: clip}}
+    scene.member_adds_and_the_agent_accepts(figure)
+    for person in scene.everyone:
+        held_once_drawn(person)
+    late = scene.person_joins_late()
+    held_once_drawn(late)
+    return {person: arm_top_at_rest(person) for person in [*scene.everyone, late]}
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+@pytest.mark.parametrize("clock_faked", [True])
+def test_a_personas_clip_plays_on_its_figure_in_every_browser_the_late_joiner_included(
+    scene_of: Callable[..., Scene], clip_answers: dict[Page, list[int]], form_factor: dict[str, Any]
+) -> None:
+    """CALL-65: A clip the agent brings plays for its gesture on its tile in every browser of the call, late joiners
+    included."""
+    scene = scene_of(form_factor)
+
+    everyone = list(everyone_with_the_figure_drawn(scene, figure_of(HOLDING_WAVE_URL, HOLDING_WAVE)))
+
+    assert [persona_clip_plays(person, lambda: scene.agent.gesture(WAVE)) for person in everyone] == [True] * len(
+        everyone
+    )
+    assert [clip_answers[person] for person in everyone] == [[200]] * len(everyone)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+@pytest.mark.parametrize("clock_faked", [True])
+@pytest.mark.parametrize(
+    ("clip", "answer"),
+    [
+        pytest.param(figure_of(MISSING_WAVE_URL, b""), 502, id="a clip the server cannot fetch"),
+        pytest.param(figure_of(REFUSED_WAVE_URL, REFUSED_WAVE), 200, id="a clip figure refuses"),
+    ],
+)
+def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
+    scene_of: Callable[..., Scene],
+    clip_answers: dict[Page, list[int]],
+    form_factor: dict[str, Any],
+    clip: dict[str, str],
+    answer: int,
+) -> None:
+    """CALL-65: A clip that cannot be fetched, or that figure refuses, leaves the neutral gesture and the figure is
+    drawn all the same."""
+    scene = scene_of(form_factor)
+
+    at_rest = everyone_with_the_figure_drawn(scene, clip)
+    answers = [clip_answers[person] for person in at_rest]
+    waves = [tops_of_one_wave(person, rest, lambda: scene.agent.gesture(WAVE)) for person, rest in at_rest.items()]
+
+    assert answers == [[answer]] * len(at_rest)
+    assert min(top for wave in waves for top in wave) > PERSONA_ARM_SHARE

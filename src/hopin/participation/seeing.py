@@ -6,18 +6,19 @@ captures its own camera, and a picture it yields is shown to the call as a mark 
 from functools import partial
 from typing import TYPE_CHECKING
 
-from hopin.participation.frames import look_request_frame, looked_frame
+from hopin.participation.frames import AgentLookedFrame, AgentLookRequestFrame
 from hopin.participation.looking import Looking
 from hopin.participation.vocabulary import LookRefusal
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
+    from hopin.participation.frames import ParticipationFrame
     from hopin.participation.hearing import Hearing
     from hopin.participation.looking import Picture
     from hopin.participation.participants import DialedAgent
     from hopin.participation.places import Places
-    from hopin.signaling.frames import ForeignFrame, JsonObject, PeerId
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Scheduler
 
 
@@ -30,7 +31,7 @@ class Seeing:
         hearing: Hearing,
         places: Places,
         scheduler: Scheduler,
-        tell: Callable[[str, Sequence[str], JsonObject], Awaitable[None]],
+        tell: Callable[[str, Sequence[str], ParticipationFrame], Awaitable[None]],
         recipients: Callable[[str], list[PeerId]],
     ) -> None:
         self._hearing = hearing
@@ -60,7 +61,7 @@ class Seeing:
         self._looking.end(agent, refusal)
 
     async def _ask(self, agent: DialedAgent, request_id: str) -> None:
-        await self._tell(agent.room_id, [agent.sponsor], look_request_frame(request_id))
+        await self._tell(agent.room_id, [agent.sponsor], AgentLookRequestFrame(request_id))
 
     async def _show(self, agent: DialedAgent) -> None:
-        await self._tell(agent.room_id, self._recipients(agent.room_id), looked_frame(agent))
+        await self._tell(agent.room_id, self._recipients(agent.room_id), AgentLookedFrame(agent.agent_id))

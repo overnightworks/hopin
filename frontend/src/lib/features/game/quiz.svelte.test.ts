@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { OutgoingFrame } from "#lib/call/feature-port.ts";
+import { type OutgoingFrame } from "#lib/call/feature-port.ts";
 import { words } from "#lib/words/de.ts";
-import { Quiz, type PhaseFrame } from "./quiz.svelte.ts";
-import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
+import { Quiz } from "./quiz.svelte.ts";
+import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL, type QuizPhaseFrame } from "./wire.ts";
 
 const ME = "me";
 const SOMEONE = "someone";
 const roundOfThree = (round: number) => words["game.questionProgress"]({ round: String(round), rounds: "3" });
 
-function answering(round: number, starter = ME): PhaseFrame {
-    return { phase: GAME_PHASE.ANSWERING, round, rounds: 3, starter };
+function answering(round: number, starter = ME): QuizPhaseFrame {
+    return { type: GAME_SIGNAL.GAME_PHASE, phase: GAME_PHASE.ANSWERING, round, rounds: 3, starter };
 }
 
 // A quiz on a connected page, seated as `ME`; `sent` collects the frames it sends.
@@ -24,7 +24,7 @@ function seatedQuiz({ isHost = false, connected = true } = {}) {
 
 function openRound(quiz: Quiz, round: number, starter = ME) {
     quiz.receivePhase(answering(round, starter));
-    quiz.receiveLine({ text: `Question ${String(round)}?`, round });
+    quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: `Question ${String(round)}?`, round });
 }
 
 function openCard(quiz: Quiz) {
@@ -59,7 +59,13 @@ describe("the start and end control", () => {
 
         quiz.startOrEnd();
         expect(quiz.startDisabled).toBe(true);
-        quiz.receivePhase({ phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME });
+        quiz.receivePhase({
+            type: GAME_SIGNAL.GAME_PHASE,
+            phase: GAME_PHASE.THINKING,
+            round: 1,
+            rounds: 3,
+            starter: ME,
+        });
 
         expect(quiz.isThinking).toBe(true);
         expect(quiz.startDisabled).toBe(true);
@@ -96,7 +102,7 @@ describe("the progress line", () => {
 
         quiz.receivePhase(answering(2));
         expect(quiz.progress).toBe(roundOfThree(2));
-        quiz.receivePhase({ phase: GAME_PHASE.IDLE });
+        quiz.receivePhase({ type: GAME_SIGNAL.GAME_PHASE, phase: GAME_PHASE.IDLE });
 
         expect(quiz.progress).toBe("");
     });
@@ -116,9 +122,9 @@ describe("the question card", () => {
 
         quiz.receivePhase(answering(2));
         expect(quiz.card).toBeNull();
-        quiz.receiveLine({ text: "Question 1?", round: 1 });
+        quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: "Question 1?", round: 1 });
         expect(quiz.card).toBeNull();
-        quiz.receiveLine({ text: "Question 2?", round: 2 });
+        quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: "Question 2?", round: 2 });
 
         expect(quiz.card).toMatchObject({ tag: roundOfThree(2), question: "Question 2?" });
     });
@@ -128,7 +134,7 @@ describe("the question card", () => {
         openRound(quiz, 1);
         expect(quiz.card).not.toBeNull();
 
-        quiz.receiveLine({ text: "It was Paris." });
+        quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: "It was Paris." });
 
         expect(quiz.card).toBeNull();
     });
@@ -136,7 +142,7 @@ describe("the question card", () => {
     it("closes when the quiz ends or the call does", () => {
         const { quiz } = seatedQuiz();
         openRound(quiz, 1);
-        quiz.receivePhase({ phase: GAME_PHASE.IDLE });
+        quiz.receivePhase({ type: GAME_SIGNAL.GAME_PHASE, phase: GAME_PHASE.IDLE });
         expect(quiz.card).toBeNull();
 
         openRound(quiz, 1);
@@ -151,7 +157,7 @@ describe("the question card", () => {
         openRound(quiz, 1);
         const first = openCard(quiz);
 
-        quiz.receiveAnswerCount({ answered: 1, players: 2 });
+        quiz.receiveAnswerCount({ type: GAME_SIGNAL.GAME_ANSWER_COUNT, answered: 1, players: 2 });
         quiz.receivePhase(answering(1));
         expect(quiz.card).toBe(first);
         expect(first.status).toBe(words["game.answerCountStatus"]({ answered: "1", players: "2" }));
@@ -178,7 +184,13 @@ describe("the question card", () => {
         const card = openCard(quiz);
         expect(card).toMatchObject({ locked: false, revealDisabled: false });
 
-        quiz.receivePhase({ phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME });
+        quiz.receivePhase({
+            type: GAME_SIGNAL.GAME_PHASE,
+            phase: GAME_PHASE.THINKING,
+            round: 1,
+            rounds: 3,
+            starter: ME,
+        });
         expect(card).toMatchObject({ locked: true, revealDisabled: true });
         quiz.receivePhase(answering(1));
 
@@ -210,7 +222,12 @@ describe("answering", () => {
 
         expect(sent).toEqual([{ type: GAME_SIGNAL.GAME_ANSWER, text: "Paris" }]);
         expect(card).toMatchObject({ sent: false, status: "" });
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 1,
+            players: 3,
+            own_answer_counted: true,
+        });
         expect(card).toMatchObject({
             sent: true,
             status: words["game.answerSentCountStatus"]({ answered: "1", players: "3" }),
@@ -236,17 +253,82 @@ describe("answering", () => {
         const card = openCard(quiz);
         expect(card.status).toBe("");
 
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({ type: GAME_SIGNAL.GAME_ANSWER_COUNT, answered: 1, players: 3 });
         expect(card.status).toBe(words["game.answerCountStatus"]({ answered: "1", players: "3" }));
         card.answer("Paris");
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 2,
+            players: 3,
+            own_answer_counted: true,
+        });
 
-        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "1", players: "3" }));
+        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "2", players: "3" }));
+    });
+
+    it("shows no count between the send and the count that includes the own answer", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+        quiz.receiveAnswerCount({ type: GAME_SIGNAL.GAME_ANSWER_COUNT, answered: 1, players: 2 });
+
+        card.answer("Paris");
+
+        expect(card).toMatchObject({ sent: false, status: "" });
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 2,
+            players: 2,
+            own_answer_counted: true,
+        });
+        expect(card).toMatchObject({
+            sent: true,
+            status: words["game.answerSentCountStatus"]({ answered: "2", players: "2" }),
+        });
+    });
+
+    it("shows no count from a count that leaves the own answer out, even when it arrives after the send", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+
+        card.answer("Paris");
+        quiz.receiveAnswerCount({ type: GAME_SIGNAL.GAME_ANSWER_COUNT, answered: 1, players: 2 });
+
+        expect(card).toMatchObject({ sent: false, status: "" });
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 2,
+            players: 2,
+            own_answer_counted: true,
+        });
+        expect(card.sent).toBe(true);
+    });
+
+    it("keeps the sent mark and its count when the answer is changed", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+        card.answer("Paris");
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 1,
+            players: 2,
+            own_answer_counted: true,
+        });
+
+        card.answer("Lyon");
+
+        expect(card).toMatchObject({
+            sent: true,
+            status: words["game.answerSentCountStatus"]({ answered: "1", players: "2" }),
+        });
     });
 
     it("forgets the answers of the last round when a new round opens", () => {
         const { quiz } = seatedQuiz();
         openRound(quiz, 1);
-        quiz.receiveAnswerCount({ answered: 2, players: 3 });
+        quiz.receiveAnswerCount({ type: GAME_SIGNAL.GAME_ANSWER_COUNT, answered: 2, players: 3 });
         openCard(quiz).answer("Paris");
 
         openRound(quiz, 2);
@@ -259,7 +341,7 @@ describe("answering", () => {
         openRound(quiz, 1);
         openCard(quiz).answer("Paris");
 
-        quiz.receiveRefusal({ reason: GAME_REFUSAL.ANSWER_CLOSED });
+        quiz.receiveRefusal({ type: GAME_SIGNAL.GAME_REFUSED, reason: GAME_REFUSAL.ANSWER_CLOSED });
 
         expect(openCard(quiz).sent).toBe(false);
     });
@@ -269,15 +351,20 @@ describe("answering", () => {
         openRound(quiz, 1);
         const card = openCard(quiz);
         card.answer("Paris");
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 1,
+            players: 3,
+            own_answer_counted: true,
+        });
         card.answer("Paris, France, ...");
 
-        quiz.receiveRefusal({ reason: GAME_REFUSAL.ANSWER_TOO_LONG });
+        quiz.receiveRefusal({ type: GAME_SIGNAL.GAME_REFUSED, reason: GAME_REFUSAL.ANSWER_TOO_LONG });
         expect(card.sent).toBe(true);
         openRound(quiz, 2);
         const next = openCard(quiz);
         next.answer("x".repeat(500));
-        quiz.receiveRefusal({ reason: GAME_REFUSAL.ANSWER_TOO_LONG });
+        quiz.receiveRefusal({ type: GAME_SIGNAL.GAME_REFUSED, reason: GAME_REFUSAL.ANSWER_TOO_LONG });
 
         expect(next.sent).toBe(false);
     });
@@ -287,11 +374,16 @@ describe("answering", () => {
         openRound(quiz, 1);
         const card = openCard(quiz);
         card.answer("Paris");
-        quiz.receiveAnswerCount({ answered: 1, players: 3 });
+        quiz.receiveAnswerCount({
+            type: GAME_SIGNAL.GAME_ANSWER_COUNT,
+            answered: 1,
+            players: 3,
+            own_answer_counted: true,
+        });
         card.reveal();
         expect(card.locked).toBe(true);
 
-        quiz.receiveRefusal({ reason: GAME_REFUSAL.NOT_STARTER });
+        quiz.receiveRefusal({ type: GAME_SIGNAL.GAME_REFUSED, reason: GAME_REFUSAL.NOT_STARTER });
 
         expect(card).toMatchObject({ sent: true, locked: false });
     });
@@ -325,9 +417,9 @@ describe("the quiz master's voice toggle", () => {
 
         openRound(quiz, 1);
         shown.push(quiz.voiceToggleShown);
-        quiz.receiveLine({ text: "Question 1?", round: 1, voiced: true });
+        quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: "Question 1?", round: 1, voiced: true });
         shown.push(quiz.voiceToggleShown);
-        quiz.receivePhase({ phase: GAME_PHASE.IDLE });
+        quiz.receivePhase({ type: GAME_SIGNAL.GAME_PHASE, phase: GAME_PHASE.IDLE });
         shown.push(quiz.voiceToggleShown);
         quiz.voiceFrameArrived();
         shown.push(quiz.voiceToggleShown);
@@ -338,8 +430,8 @@ describe("the quiz master's voice toggle", () => {
     it("GM-37: stays while the final line's voice plays and goes with the tile once muting ends that voice", () => {
         const { quiz } = seatedQuiz();
         openRound(quiz, 1);
-        quiz.receiveLine({ text: "Final score", voiced: true });
-        quiz.receivePhase({ phase: GAME_PHASE.IDLE });
+        quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: "Final score", voiced: true });
+        quiz.receivePhase({ type: GAME_SIGNAL.GAME_PHASE, phase: GAME_PHASE.IDLE });
         quiz.voiceFrameArrived();
         quiz.voiceRequested("voice-one");
         quiz.voiceStarted("voice-one");

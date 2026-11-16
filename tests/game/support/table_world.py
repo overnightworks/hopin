@@ -107,8 +107,10 @@ def answer(text):
     return {"type": GameSignal.GAME_ANSWER.value, "text": text}
 
 
-def answer_count(answered, players):
-    return {"type": GameSignal.GAME_ANSWER_COUNT.value, "answered": answered, "players": players}
+def answer_count(answered, players, *, own=False):
+    """The count frame; `own` is the frame a seat gets whose own answer the count holds."""
+    frame = {"type": GameSignal.GAME_ANSWER_COUNT.value, "answered": answered, "players": players}
+    return {**frame, "own_answer_counted": True} if own else frame
 
 
 def refused(reason, **fields):
@@ -141,6 +143,12 @@ async def sent(browser, frame, times=1):
 async def sent_to_all(browsers, frame, times=1):
     for browser in browsers:
         await sent(browser, frame, times)
+
+
+async def sent_count_to_all(browsers, answered, players, *, answered_by=()):
+    """Wait until each browser has been sent the count; the seats that answered get it with their own answer in it."""
+    for browser in browsers:
+        await sent(browser, answer_count(answered, players, own=browser in answered_by))
 
 
 async def wait_within_cap(event):
@@ -223,7 +231,7 @@ def push_unsettled(browser, data):
 
 
 def assert_no_driver_failed(logs):
-    assert [log for log in logs if log["event"] == "game_driver_failed"] == []
+    assert [log for log in logs if log["event"] == "game_driver.failed"] == []
 
 
 def assert_no_game_frame_after_room_closed(browsers):

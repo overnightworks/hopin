@@ -2,6 +2,7 @@ from functools import partial
 from typing import TYPE_CHECKING, assert_never
 
 import structlog
+from logline import unit_trace
 from starlette.websockets import WebSocket  # noqa: TC002 - FastAPI resolves the route annotation at runtime
 
 from hopin.config.constants import (
@@ -109,7 +110,7 @@ class SignalingHandler:
         except TooManyCallsError as refusal:
             await self._refuse_beyond_cap(websocket, refusal)
             return
-        await logger.ainfo("client_connected", peer_id=peer_id)
+        await logger.ainfo("client.connected", peer_id=peer_id)
 
         connection = Connection(websocket=websocket, peer_id=peer_id)
         connection.recheck = self._schedule_recheck(connection)
@@ -119,7 +120,7 @@ class SignalingHandler:
             await self._end_connection(connection)
 
     async def _refuse_beyond_cap(self, websocket: WebSocket, refusal: TooManyCallsError) -> None:
-        await logger.ainfo("too_many_calls", **refusal.frame_fields())
+        await logger.ainfo("client.refused", reason="too_many_calls", **refusal.frame_fields())
         await self._seats.write(websocket, error_frame(refusal))
         await self._seats.close_socket(websocket, POLICY_VIOLATION_CLOSE_CODE)
 
@@ -135,14 +136,15 @@ class SignalingHandler:
         if frame["type"] == WEBSOCKET_DISCONNECT_EVENT:
             if frame["code"] not in NORMAL_CLOSE_CODES and not self._seats.closed_by_server(connection.websocket):
                 connection.dropped = True
-                await logger.aerror("websocket_error", peer_id=connection.peer_id, code=frame["code"])
+                await logger.aerror("websocket.failed", peer_id=connection.peer_id, code=frame["code"])
             return False
         text = frame.get("text")
         if text is not None:
             if not await self._session_admits(connection):
                 return False
             if self._serves_seat(connection):
-                await self._handle_message(connection, text)
+                with unit_trace(None):
+                    await self._handle_message(connection, text)
         return True
 
     def _schedule_recheck(self, connection: Connection) -> TimerHandle:
@@ -183,7 +185,7 @@ class SignalingHandler:
         departure = self._routing.leave(peer_id)
         await self._seats.close_socket(connection.websocket, close_code)
         await self._routing.announce(departure)
-        await logger.ainfo("session_ended", peer_id=peer_id)
+        await logger.ainfo("session.expired", peer_id=peer_id)
 
     async def _end_connection(self, connection: Connection) -> None:
         connection.ended = True

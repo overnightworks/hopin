@@ -103,6 +103,7 @@ class Dialed:
     outcome: dict | None
     is_error: bool | None
     response: object
+    text: str | None = None
 
 
 @dataclass
@@ -338,7 +339,11 @@ class DialedCall:
             return Dialed(response.status_code, None, None, response)
         result = response.json()["result"]
         text = next((block["text"] for block in result["content"] if block["type"] == "text"), None)
-        return Dialed(200, None if text is None else json.loads(text), result["isError"], response)
+        try:
+            outcome = None if text is None else json.loads(text)
+        except json.JSONDecodeError:
+            outcome = None  # a tool error that is plain text
+        return Dialed(200, outcome, result["isError"], response, text)
 
 
 class _ParticipationBuilt:
@@ -394,6 +399,7 @@ def serving_dialed_call(
     figure_transport=None,
     hearing=None,
     speaking=None,
+    monotonic_clock=time.monotonic,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test. `hearing` is the speech service agents hear through and `speaking` the one they speak through, none with
@@ -424,6 +430,7 @@ def serving_dialed_call(
             *more_call_features,
             participation,
         ),
+        monotonic_clock=monotonic_clock,
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]

@@ -2,10 +2,11 @@
 
 import pytest
 
-from hopin.participation.figures import Figure, fetch_figure
+from hopin.participation.figures import Figure, FigureSource, fetch_figure
 from hopin.participation.vocabulary import FIGURE_FETCH_SECONDS, FIGURE_MAX_BYTES, FigureRefusal
 from tests.participation.support.figures import (
     GLB_HEADER,
+    SOURCE_HOST,
     Answer,
     FakeClock,
     FigureOrigin,
@@ -30,9 +31,9 @@ def clock():
     return FakeClock()
 
 
-def fetched(origin, clock, url=None, sha256=None):
+def fetched(origin, clock, url=None, sha256=None, **options):
     return fetch_figure(
-        origin, Figure(url or figure_url(), digest_of(FILE) if sha256 is None else sha256), monotonic=clock
+        origin, Figure(url or figure_url(), digest_of(FILE) if sha256 is None else sha256), monotonic=clock, **options
     )
 
 
@@ -151,6 +152,24 @@ class TestAFetchThatIsRefused:
         origin.serve(figure_url("third.glb"), ok(FILE))
 
         assert (fetched(origin, clock), origin.requested) == (FigureRefusal.SECOND_REDIRECT, [figure_url(), MIRROR])
+
+    def test_a_redirect_outside_the_given_sources_is_refused_and_not_followed(self, origin, clock):
+        origin.serve(figure_url(), redirect(MIRROR))
+        origin.serve(MIRROR, ok(FILE))
+        sources = [FigureSource(SOURCE_HOST, "/personas/")]
+
+        assert (fetched(origin, clock, redirect_sources=sources), origin.requested) == (
+            FigureRefusal.OTHER_HOST,
+            [figure_url()],
+        )
+
+    def test_a_redirect_inside_the_given_sources_is_followed(self, origin, clock):
+        target = figure_url("moved.glb")
+        origin.serve(figure_url(), redirect(target))
+        origin.serve(target, ok(FILE))
+        sources = [FigureSource(SOURCE_HOST, "/personas/")]
+
+        assert (fetched(origin, clock, redirect_sources=sources), origin.requested) == (FILE, [figure_url(), target])
 
     @pytest.mark.parametrize(
         ("location", "refusal"),

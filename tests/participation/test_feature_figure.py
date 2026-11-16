@@ -3,20 +3,22 @@ told, and the route that serves the verified file while a joined agent names it.
 
 import pytest
 import structlog.testing
-from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, GESTURE_TOOL, LEASE_SECONDS, STANDING_URI
 
 from hopin.agent.tools import LEAVE_CALL
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import (
+    CLIP_MAX_BYTES,
+    CLIP_PATH,
     FEATURE_NAME,
     FIGURE_MODULE,
     FIGURE_PATH,
-    AgentRefusal,
     FigureRefusal,
     ParticipationSignal,
 )
+from hopin.rooms.reference import room_reference
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
     Answer,
@@ -25,8 +27,10 @@ from tests.participation.support.figures import (
     figure_url,
     glb,
     ok,
+    redirect,
 )
 from tests.participation.support.own_accounts import ADDERS
+from tests.participation.support.tool_calls import call_in
 from tests.support.dialed_call import accept_arguments
 from tests.support.signed_in import cookie_header
 
@@ -34,9 +38,13 @@ pytestmark = pytest.mark.integration
 
 JOINED = ParticipationSignal.AGENT_JOINED.value
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
+GESTURED = ParticipationSignal.AGENT_GESTURE.value
 SECOND_OWNER = "subject-second-owner"
 FILE = glb(b"mozart" * 8)
-REFUSED_EVENT = "agent_figure_refused"
+CLIP = glb(b"wave" * 8)
+REFUSED_EVENT = "agent_figure.refused"
+CLIP_REFUSED_EVENT = "agent_clip.refused"
+WAVE = "wave"
 
 
 @pytest.fixture
@@ -64,8 +72,10 @@ def adding_call_adders(adding_call_adders):
     return adding_call_adders | {SECOND_OWNER: ADDERS}
 
 
-def figure_of(url, body=FILE):
-    return {"url": url, "sha256": digest_of(body)}
+def figure_of(url, body=FILE, clips=None):
+    """The accept's figure; `clips` maps a gesture to the URL and the bytes of the clip that replaces it."""
+    gestures = {name: {"url": clip_url, "sha256": digest_of(clip)} for name, (clip_url, clip) in (clips or {}).items()}
+    return {"url": url, "sha256": digest_of(body)} | ({"gestures": gestures} if gestures else {})
 
 
 def accept_with(scene, figure, *, token=None, name=None):
@@ -101,8 +111,21 @@ def joined_with(scene, url, body=FILE):
     return scene.owner.frame_of_type(JOINED)["figure"]
 
 
-def refusals_in(logs):
-    return [entry for entry in logs if entry["event"] == REFUSED_EVENT]
+def refusals_in(logs, event=REFUSED_EVENT):
+    return [entry for entry in logs if entry["event"] == event]
+
+
+def clip_of_wave():
+    return figure_url("wave.vrma")
+
+
+def joined_with_clip(scene, figure_origin, clip=CLIP, answer=None):
+    """The agent accepted with a figure and a clip for the wave, which the origin answers with `answer` (the clip's
+    own bytes when none); the path the owner's seat was told for the clip."""
+    figure_origin.serve(figure_url(), ok(FILE))
+    figure_origin.serve(clip_of_wave(), ok(clip) if answer is None else answer)
+    assert not accept_with(scene, figure_of(figure_url(), clips={WAVE: (clip_of_wave(), clip)})).is_error
+    return scene.owner.frame_of_type(JOINED)["gestures"][WAVE]
 
 
 def is_active(scene):
@@ -180,7 +203,12 @@ class TestTheFigureAtAccept:
         assert accepted.outcome == {"room": scene.owner.room_id, "name": scene.agent_name}
         assert "figure" not in scene.owner.frame_of_type(JOINED)
         assert refusals_in(logs) == [
-            {"event": REFUSED_EVENT, "room_id": scene.owner.room_id, "reason": code.value, "log_level": "info"}
+            {
+                "event": REFUSED_EVENT,
+                "room_ref": room_reference(scene.owner.room_id),
+                "reason": code.value,
+                "log_level": "info",
+            }
         ]
         assert figure_origin.requested == []
 
@@ -211,13 +239,17 @@ class TestTheFigureAtAccept:
         [
             pytest.param(figure_of(figure_url().replace("https:", "http:")), id="http"),
             pytest.param(figure_of(f"{figure_url()}?v=1"), id="a query"),
+            pytest.param(
+                figure_of(figure_url(), clips={WAVE: (f"{clip_of_wave()}?v=1", CLIP)}), id="a clip with a query"
+            ),
             pytest.param({"url": figure_url(), "sha256": digest_of(FILE).upper()}, id="an uppercase digest"),
         ],
     )
-    def test_a_figure_the_accept_record_refuses_refuses_the_accept_as_a_malformed_argument(self, scene, figure):
+    def test_a_figure_the_accept_record_refuses_is_a_tool_error_naming_the_figure(self, scene, figure):
         accepted = accept_with(scene, figure)
 
-        assert (accepted.is_error, accepted.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
+        assert (accepted.is_error, accepted.outcome) == (True, None)
+        assert accepted.text.startswith("Invalid arguments: figure")
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
 
@@ -332,3 +364,237 @@ class TestTheRoute:
         assert not accept_with(scene, figure_of(second_url), token=second, name="Haydn").is_error
 
         assert read_figure(scene, path).content == FILE
+
+
+class TestThePersonasClips:
+    def test_an_allowed_clip_is_told_to_every_seat_and_to_a_later_one_as_the_path_that_serves_it(
+        self, scene, figure_origin
+    ):
+        figure_origin.serve(figure_url(), ok(FILE))
+        figure_origin.serve(clip_of_wave(), ok(CLIP))
+        accept_with(scene, figure_of(figure_url(), clips={WAVE: (clip_of_wave(), CLIP)}))
+        told = [seat.frame_of_type(JOINED).get("gestures") for seat in (scene.owner, scene.member)]
+        _, later_login = scene.call.member()
+        later = scene.call.seat(later_login, scene.owner.room_id)
+
+        assert told == [later.frame_of_type(JOINED)["gestures"]] * 2
+        path = told[0][WAVE]
+        assert (path.startswith(f"{CLIP_PATH}/"), read_figure(scene, path).content) == (True, CLIP)
+
+    def test_an_accept_without_a_clip_joins_with_no_gestures_on_the_tile(self, scene, figure_origin):
+        figure_origin.serve(figure_url(), ok(FILE))
+        accept_with(scene, figure_of(figure_url()))
+
+        assert "gestures" not in scene.owner.frame_of_type(JOINED)
+
+    def test_a_clip_is_served_as_a_gltf_binary_that_is_kept_privately_for_good(self, scene, figure_origin):
+        path = joined_with_clip(scene, figure_origin)
+
+        served = read_figure(scene, path)
+
+        assert (served.status_code, served.content) == (200, CLIP)
+        assert (
+            served.headers["content-type"],
+            served.headers["x-content-type-options"],
+            served.headers["cache-control"],
+        ) == ("model/gltf-binary", "nosniff", "private, max-age=31536000, immutable")
+
+    def test_a_clip_is_fetched_once_for_every_read(self, scene, figure_origin):
+        path = joined_with_clip(scene, figure_origin)
+
+        reads = [read_figure(scene, path).content for _ in range(2)]
+
+        assert (reads, figure_origin.requested.count(clip_of_wave())) == ([CLIP] * 2, 1)
+
+    @pytest.mark.parametrize(
+        ("url", "code"),
+        [
+            pytest.param(figure_url("wave.vrma").replace("figures.", "other."), FigureRefusal.OTHER_HOST, id="host"),
+            pytest.param(f"{SOURCE_PREFIX}../wave.vrma", FigureRefusal.DOT_DOT_SEGMENT, id="a dot-dot segment"),
+        ],
+    )
+    def test_a_clip_outside_the_allowed_sources_is_dropped_the_figure_stays_and_only_its_code_is_logged(
+        self, scene, figure_origin, url, code
+    ):
+        figure_origin.serve(figure_url(), ok(FILE))
+        with structlog.testing.capture_logs() as logs:
+            accept_with(scene, figure_of(figure_url(), clips={WAVE: (url, CLIP)}))
+
+        joined = scene.owner.frame_of_type(JOINED)
+        assert ("figure" in joined, "gestures" in joined) == (True, False)
+        assert refusals_in(logs, CLIP_REFUSED_EVENT) == [
+            {
+                "event": CLIP_REFUSED_EVENT,
+                "room_ref": room_reference(scene.owner.room_id),
+                "gesture": WAVE,
+                "reason": code.value,
+                "log_level": "info",
+            }
+        ]
+        assert figure_origin.requested == []
+
+    def test_a_clip_of_an_agent_whose_figure_is_refused_is_dropped_with_it(self, scene, figure_origin):
+        other_host = figure_url().replace("figures.", "other.")
+        accept_with(scene, figure_of(other_host, clips={WAVE: (clip_of_wave(), CLIP)}))
+
+        joined = scene.owner.frame_of_type(JOINED)
+
+        assert ("figure" in joined, "gestures" in joined) == (False, False)
+
+    def test_a_clip_that_redirects_outside_the_allowed_sources_is_a_bad_gateway_and_the_other_host_is_not_asked(
+        self, scene, figure_origin
+    ):
+        elsewhere = figure_url("wave.vrma").replace("figures.", "other.")
+
+        clip_path = joined_with_clip(scene, figure_origin, answer=redirect(elsewhere))
+        served = read_figure(scene, clip_path)
+
+        assert (served.status_code, figure_origin.requested.count(elsewhere)) == (502, 0)
+
+    @pytest.mark.parametrize(
+        ("clip", "answer"),
+        [
+            pytest.param(CLIP, Answer(404), id="not found"),
+            pytest.param(CLIP, ok(glb(b"another clip")), id="a wrong digest"),
+            pytest.param(glb(b"\x00" * CLIP_MAX_BYTES), None, id="over the clip bound"),
+            pytest.param(b"not a glb", None, id="no glTF header"),
+        ],
+    )
+    def test_a_clip_that_cannot_be_verified_is_a_bad_gateway_and_the_figure_and_the_agent_stand(
+        self, scene, figure_origin, clip, answer
+    ):
+        clip_path = joined_with_clip(scene, figure_origin, clip, answer)
+
+        served = read_figure(scene, clip_path)
+
+        assert served.status_code == 502
+        assert "immutable" not in served.headers.get("cache-control", "")
+        joined = next(frame for frame in scene.owner.received if frame["type"] == JOINED)
+        assert read_figure(scene, joined["figure"]).content == FILE
+        assert is_active(scene)
+
+    def test_the_clip_bound_is_not_the_figure_bound(self, scene, figure_origin):
+        figure = glb(b"\x00" * CLIP_MAX_BYTES)
+        figure_origin.serve(figure_url(), ok(figure))
+
+        assert read_figure(scene, joined_with(scene, figure_url(), figure)).content == figure
+
+    @pytest.mark.parametrize("on_clip_route", [True, False])
+    def test_a_digest_is_read_only_at_the_route_of_its_own_kind(self, scene, figure_origin, on_clip_route):
+        joined_with_clip(scene, figure_origin)
+        digest, route = (digest_of(FILE), CLIP_PATH) if on_clip_route else (digest_of(CLIP), FIGURE_PATH)
+
+        served = read_figure(scene, f"{route}/{digest}")
+
+        assert served.status_code == 404
+
+    def test_once_the_agent_has_gone_its_clip_is_not_found_though_the_cache_holds_it(self, scene, figure_origin):
+        path = joined_with_clip(scene, figure_origin)
+        assert read_figure(scene, path).status_code == 200
+
+        scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
+        scene.member.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
+
+        assert read_figure(scene, path).status_code == 404
+
+    def test_a_read_of_a_clip_without_a_session_is_refused_by_the_gate(self, scene, figure_origin):
+        path = joined_with_clip(scene, figure_origin)
+
+        assert scene.call.client.get(path).status_code == 401
+
+
+def offered_tools(scene):
+    answer = scene.call.request(scene.token, "tools/list").json()
+    return {tool["name"] for tool in answer["result"]["tools"]}
+
+
+class TestTheGestureTool:
+    @pytest.fixture
+    def gesturing(self, scene, figure_origin):
+        """The scene with the agent joined with a shown figure."""
+        joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
+        scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
+        return scene
+
+    def test_call_64_an_agent_with_a_shown_figure_is_offered_the_gesture_tool(self, gesturing):
+        assert GESTURE_TOOL in offered_tools(gesturing)
+
+    def test_call_64_an_agent_whose_figure_was_refused_is_not_offered_it(self, scene):
+        accept_with(scene, figure_of(figure_url().replace("figures.", "other.")))
+
+        assert GESTURE_TOOL not in offered_tools(scene)
+
+    def test_call_64_an_agent_without_a_figure_is_not_offered_it(self, scene):
+        accept_with(scene, None)
+
+        assert GESTURE_TOOL not in offered_tools(scene)
+
+    def test_call_64_a_gesture_is_relayed_and_every_seat_is_told_it_with_the_agent_s_id(self, gesturing):
+        gestured = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+
+        assert (gestured.is_error, gestured.outcome) == (False, {"relayed": True})
+        for seat in (gesturing.owner, gesturing.member):
+            told = seat.frame_of_type(GESTURED)
+            assert (told["agent_id"], told["gesture"]) == (gesturing.agent_id, "wave")
+
+    def test_call_64_a_seat_that_joins_later_is_told_no_past_gesture(self, gesturing):
+        call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+        gesturing.owner.frame_of_type(GESTURED)
+        _, later_login = gesturing.call.member()
+        later = gesturing.call.seat(later_login, gesturing.owner.room_id)
+        later.frame_of_type(JOINED)
+
+        assert [frame for frame in later.received if frame["type"] == GESTURED] == []
+
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            pytest.param({"gesture": "wave", "place": {"kind": "call", "id": "no-such-room"}}, id="another room"),
+            pytest.param({"gesture": "wave", "place": {"kind": "table", "id": "any"}}, id="a place of another kind"),
+            pytest.param({"gesture": "wave"}, id="no place"),
+        ],
+    )
+    def test_call_64_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
+        dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, arguments)
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+
+    def test_call_64_a_gesture_figure_does_not_know_is_not_active(self, gesturing):
+        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="no-such-gesture")
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+
+    def test_call_64_the_gesture_tool_is_withdrawn_once_the_agent_left(self, gesturing):
+        gesturing.call.call(gesturing.token, LEAVE_CALL, {"room": gesturing.owner.room_id})
+
+        assert GESTURE_TOOL not in offered_tools(gesturing)
+
+    def test_call_64_a_gesture_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
+        self, gesturing, seat_changes
+    ):
+        seat_changes.clear()
+        gesturing.owner.drop()
+        assert seat_changes.wait(timeout=10)
+
+        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+        assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
+
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            pytest.param({"gesture": "wave", "secret-key": "secret-voice-value"}, id="a key the tool does not name"),
+            pytest.param({"gesture": ["secret-gesture-value"]}, id="a gesture of the wrong kind"),
+        ],
+    )
+    def test_call_64_a_malformed_gesture_logs_its_closed_event_and_nothing_the_agent_sent(self, gesturing, arguments):
+        place = {"kind": "call", "id": gesturing.owner.room_id}
+
+        with structlog.testing.capture_logs() as logs:
+            dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, {"place": place} | arguments)
+
+        malformed = [entry for entry in logs if entry["event"] == "gesture.refused"]
+        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
+        assert malformed == [{"event": "gesture.refused", "reason": "malformed", "log_level": "warning"}]
+        assert "secret" not in str(logs)

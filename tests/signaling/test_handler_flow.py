@@ -608,5 +608,7 @@ class TestCallCap:
 
         member = member_named("busy")
         secrets_in_logs = [member.account.username, member.account.id, member.session.id]
-        assert [set(entry) for entry in events_named(logs, "too_many_calls")] == [{"event", "limit", "log_level"}]
+        assert [set(entry) for entry in events_named(logs, "client.refused")] == [
+            {"event", "reason", "limit", "log_level"}
+        ]
         assert [secret for secret in secrets_in_logs if secret in str(logs)] == []

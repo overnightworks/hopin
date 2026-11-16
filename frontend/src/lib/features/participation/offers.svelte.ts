@@ -1,5 +1,5 @@
 import type { AgentControlOutcome, AgentControlRefusal, AgentRow } from "overnightworks-design";
-import { AGENT_REFUSAL, INVITATION_OUTCOME } from "./wire.ts";
+import { AGENT_REFUSAL, INVITATION_OUTCOME, type Offer } from "./wire.ts";
 
 /** What the page shows of the agents a seat may call: whether the control shows, whether no place is free for an agent,
  * its rows and the refusal of the last call. */
@@ -8,12 +8,6 @@ export interface AgentOffersView {
     full: boolean;
     rows: AgentRow[];
     refusal: AgentControlRefusal | undefined;
-}
-
-export interface Offer {
-    agent_key: string;
-    name: string;
-    pending: boolean;
 }
 
 export function createAgentOffers(): AgentOffersView {

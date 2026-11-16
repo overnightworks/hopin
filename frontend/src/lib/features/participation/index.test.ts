@@ -58,6 +58,23 @@ describe("dialed-in agents", () => {
         ]);
     });
 
+    it("CALL-65: hands the paths of an agent's clips to its tile, and none for an agent without", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
+            ...joined("someone"),
+            figure: "/api/participation/figures/abc",
+            gestures: { wave: "/api/participation/clips/def" },
+        });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+
+        expect([...page.tiles.values()].map(({ gestures }) => gestures)).toEqual([
+            { wave: "/api/participation/clips/def" },
+            undefined,
+        ]);
+    });
+
     it.each([
         { who: "the sponsor", host: false, sponsorId: ME },
         { who: "the host", host: true, sponsorId: "someone" },
@@ -447,6 +464,22 @@ describe("an agent's voice", () => {
         await page.players.created[0]?.sounds[1]?.start();
 
         expect([afterStop, tileActivities(page)]).toEqual([[AGENT_ACTIVITY.PRESENT], [AGENT_ACTIVITY.SPEAKING]]);
+    });
+
+    it("CALL-64: hands a gesture the server tells to the figure of the agent it names", async () => {
+        const page = await pageWithAgents("a1", "a2");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_GESTURE, { agent_id: "a2", gesture: "wave" });
+
+        expect(page.gestures).toEqual([["agent-a2", "wave"]]);
+    });
+
+    it("CALL-64: drops a gesture of an agent the stage does not show", async () => {
+        const page = await pageWithAgents("a1");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_GESTURE, { agent_id: "unknown", gesture: "wave" });
+
+        expect(page.gestures).toEqual([]);
     });
 
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {

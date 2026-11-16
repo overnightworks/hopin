@@ -123,7 +123,7 @@ class Seats:
         peer.park = Park(generation=generation, dropped_at=self._scheduler.now(), timer=timer)
         peer.replaying = False
         self._on_seat_changed(peer_id)
-        await logger.ainfo("seat_parked", peer_id=peer_id)
+        await logger.ainfo("seat.parked", peer_id=peer_id)
 
     async def _expire_park(self, peer_id: PeerId, generation: int) -> None:
         peer = self._peers.get(peer_id)
@@ -155,7 +155,7 @@ class Seats:
         try:
             await websocket.send_text(json.dumps(frame))
         except WebSocketDisconnect:
-            await logger.ainfo("send_to_gone_peer", peer_id=peer_id)
+            await logger.ainfo("frame_send.refused", reason="peer_gone", peer_id=peer_id)
             return False
         return True
 
@@ -213,10 +213,10 @@ class Seats:
         try:
             await websocket.close(code=code)
         except WebSocketDisconnect:
-            await logger.ainfo("closed_socket_already_gone")
+            await logger.ainfo("socket_close.refused", reason="socket_gone")
 
     async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
-        await logger.ainfo("resume_refused", peer_id=connection.peer_id, cause=refusal.cause.value)
+        await logger.ainfo("resume.refused", peer_id=connection.peer_id, reason=refusal.cause.value)
         await self.write(connection.websocket, error_frame(refusal))
 
     async def _take_over_seat(self, connection: Connection, seat: Peer, claim: ResumeClaim) -> None:
@@ -236,7 +236,7 @@ class Seats:
             connection.websocket, ResumedFrame(resume_token=seat.resume_token, last_seq=seat.received_seq).to_json()
         )
         await self._replay(connection.websocket, claim.participant_id, seat, claim.last_seq)
-        await logger.ainfo("seat_resumed", peer_id=claim.participant_id)
+        await logger.ainfo("seat.resumed", peer_id=claim.participant_id)
 
     async def _replay(self, websocket: WebSocket, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
         cursor = last_seq

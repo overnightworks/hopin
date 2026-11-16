@@ -7,8 +7,10 @@ import pytest
 from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import ParticipationSignal
+from hopin.rooms.reference import room_reference
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import HeldWrite, host_and_guest
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -122,6 +124,34 @@ class TestTheBound:
         assert (window.starts_at, len(window.lines)) == (starts_at, held)
         assert window.lines[0].seq == window.starts_at
         assert window.lines[-1].text == texts[-1]
+
+
+@pytest.mark.asyncio
+class TestTheWrittenLineIsLogged:
+    async def test_a_written_line_writes_its_entry_and_the_pulse_of_each_agent_it_wakes_without_its_text(
+        self, link, participation
+    ):
+        host, guest = await host_and_guest(link)
+        claude = await dial(participation, guest)
+        mozart = await dial(participation, host, OTHER_AGENT_NAME)
+
+        with captured_lines() as lines:
+            await host.say(chat("ein geheimer Satz"))
+
+        def fields_of(event, *names):
+            written = (line for line in lines if line["event"] == event)
+            return sorted((line["agent_id"], *(line[name] for name in names)) for line in written)
+
+        woken = sorted([claude.agent_id, mozart.agent_id])
+        assert (
+            fields_of("line.entered", "seq", "kind", "room_ref"),
+            fields_of("pulse.sent", "seq"),
+            "ein geheimer Satz" in repr(lines),
+        ) == (
+            [(agent, 1, "written", room_reference(room_of(host))) for agent in woken],
+            [(agent, 1) for agent in woken],
+            False,
+        )
 
 
 @pytest.mark.asyncio

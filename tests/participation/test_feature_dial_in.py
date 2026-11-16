@@ -7,6 +7,7 @@ from hopin.participation.participants import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AgentRefusal,
+    FigureGesture,
     ParticipationSignal,
 )
 from hopin.rooms.manager import RoomManager
@@ -112,6 +113,22 @@ class TestJoiningOneLiveSeat:
         assert parked == [AgentRefusal.SPONSOR_AWAY, AgentRefusal.SPONSOR_AWAY]
         assert resumed is None
         assert agent_frames(host, ParticipationSignal.AGENT_LEFT) != []
+
+    @pytest.mark.parametrize("reason", ["no_figure", "left"])
+    async def test_call_64_a_gesture_of_an_agent_without_an_active_place_or_figure_is_refused(
+        self, link, participation, reason
+    ):
+        """CALL-64: A gesture is refused while the agent shows no figure or has left."""
+        host, guest = await host_and_guest(link)
+        await dial(participation, guest)
+        person, room_id = person_named("guest"), room_of(guest)
+        if reason == "left":
+            await participation.leave(person, room_id)
+
+        refused = await participation.figures.gesture(person, room_id, FigureGesture.WAVE)
+
+        assert refused is AgentRefusal.GONE
+        assert agent_frames(host, ParticipationSignal.AGENT_GESTURE) == []
 
     @pytest.mark.parametrize(
         "ending",

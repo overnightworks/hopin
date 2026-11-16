@@ -28,6 +28,11 @@ def _is_sequence_number(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
+def with_present(frame: JsonObject, **optional: JsonValue) -> JsonObject:
+    """The frame plus each optional field that is set, so an absent field is absent from the wire."""
+    return {**frame, **{key: value for key, value in optional.items() if value is not None}}
+
+
 @dataclass(frozen=True)
 class ErrorFrame:
     TYPE: ClassVar[SignalType] = SignalType.ERROR
@@ -39,11 +44,7 @@ class ErrorFrame:
 
     def to_json(self) -> JsonObject:
         frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value, "message": self.message}
-        if self.capacity is not None:
-            frame["capacity"] = self.capacity
-        if self.limit is not None:
-            frame["limit"] = self.limit
-        return frame
+        return with_present(frame, capacity=self.capacity, limit=self.limit)
 
 
 def error_frame(error: HopInError) -> JsonObject:
@@ -60,9 +61,7 @@ class RoomClosedFrame:
 
     def to_json(self) -> JsonObject:
         frame: JsonObject = {TYPE_KEY: self.TYPE.value, "reason": self.reason.value, "host_name": self.host_name}
-        if self.grace_seconds is not None:
-            frame["grace_seconds"] = self.grace_seconds
-        return frame
+        return with_present(frame, grace_seconds=self.grace_seconds)
 
 
 @dataclass(frozen=True)

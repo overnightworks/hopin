@@ -8,6 +8,7 @@ from pydantic import SecretStr
 from starlette.responses import Response
 from webauth.admission import AppRole
 from webauth.cookies import issue_session_cookies
+from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -78,6 +79,7 @@ def seed_member(
     lifetime = timedelta(seconds=config.session_lifetime.absolute_max_age_seconds) if expires_in is None else expires_in
     session = stores.sessions.create(
         account.id,
+        session_id=new_session_id(),
         now=now,
         expires_at=now + lifetime,
         refresh_token=None if refresh_token is None else SecretStr(refresh_token),

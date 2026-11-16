@@ -1,21 +1,22 @@
 import asyncio
+import logging
 from contextlib import aclosing, nullcontext
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, assert_never
+from typing import TYPE_CHECKING, Final, Protocol, assert_never
 
-import structlog
 from agents.agent_file import load_agent
 from agents.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopped
 from agents.backend.gateway import GatewayBackend
 from agents.turn import AgentRole, Principal, StopOutcome, TurnMessage, TurnRole
 from agents.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
+from logline import StepTimer
 from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, fresh_access_token
 from webauth.session_groups import SessionGroups
 
-from hopin.agent.issuer_error import issuer_error
+from hopin.agent.issuer_error import grant_refusal_reason
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
@@ -33,14 +34,18 @@ if TYPE_CHECKING:
 
     from hopin.agent.settings import AgentSettings
 
-type QuizBackend = AgentBackend
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+class QuizBackend(AgentBackend, Protocol):
+    """The backend the game master asks; its host closes it once with `aclose`."""
+
+    async def aclose(self) -> None:
+        """Release the backend's connections."""
+
+
+_STEPS: Final = logging.getLogger(__name__)
 
 QUIZ_AGENT_FILE: Final = Path(__file__).parent.parent / "agents" / "quiz.md"
 CUT_MARK: Final = "…"
-GROUPS_REFUSED_EVENT: Final = "game_master_groups_refused"
-STARTER_REFUSED_EVENT: Final = "game_voice_starter_refused"
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: TurnRole.ASSISTANT}
 
@@ -82,9 +87,12 @@ class StarterPerson:
         """A new access token of the starter, from one refresh grant; raises `StarterRefusedError` without one."""
         session_id = self._session_id_of(starter)
         # Like the groups grant, it runs in a worker that still stores a rotated refresh token when cancelled.
-        token = await asyncio.to_thread(self._fresh_access_token, session_id)
+        async with StepTimer("token_refresh.ended", _STEPS) as step:
+            token = await asyncio.to_thread(self._fresh_access_token, session_id)
+            if isinstance(token, AccessTokenRefusal):
+                step.refuse(grant_refusal_reason(token))
         if isinstance(token, AccessTokenRefusal):
-            raise StarterRefusedError(_refusal_of_grant(token, event=STARTER_REFUSED_EVENT))
+            raise StarterRefusedError(_refusal_of_grant(token))
         return token.get_secret_value()
 
     def _session_id_of(self, starter: HTTPConnection) -> str:
@@ -94,7 +102,10 @@ class StarterPerson:
         return session_id
 
     async def _groups_of(self, session_id: str) -> frozenset[str]:
-        groups = await self._groups.of_session(session_id)
+        async with StepTimer("group_read.ended", _STEPS) as step:
+            groups = await self._groups.of_session(session_id)
+            if isinstance(groups, AccessTokenRefusal):
+                step.refuse(grant_refusal_reason(groups))
         if isinstance(groups, AccessTokenRefusal):
             raise StarterRefusedError(_refusal_of_grant(groups))
         return groups
@@ -118,34 +129,39 @@ class QuizGameMaster:
 
     async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
         request = self._agent.request(_turn_messages(transcript))
-        try:
-            person = await self._starter_person.person_of(starter)
-            async with aclosing(self._backend.run(request, person)) as events:
-                async for event in events:
-                    outcome = _outcome_of_event(event)
-                    if outcome is not None:
-                        return outcome
-        except StarterRefusedError as refused:
-            return Refused(refused.refusal)
-        except TurnStopped as stopped:
-            return _refusal_of_stop(stopped)
-        _log_refusal(failure="no_final_event")
-        return UNAVAILABLE
+        async with StepTimer("game_master_turn.ended", _STEPS) as step:
+            try:
+                person = await self._starter_person.person_of(starter)
+                async with aclosing(self._backend.run(request, person)) as events:
+                    async for event in events:
+                        outcome = _outcome_of_event(event, step)
+                        if outcome is not None:
+                            return outcome
+            except StarterRefusedError as refused:
+                step.refuse(refused.refusal.value)
+                return Refused(refused.refusal)
+            except TurnStopped as stopped:
+                return _refusal_of_stop(stopped, step)
+            step.refuse("no_final_event")
+            return UNAVAILABLE
+
+    async def aclose(self) -> None:
+        await self._backend.aclose()
 
 
 def _turn_messages(transcript: tuple[Turn, ...]) -> list[TurnMessage]:
     return [TurnMessage(role=ROLE_OF_SPEAKER[turn.speaker], text=turn.text) for turn in transcript]
 
 
-def _outcome_of_event(event: TurnEvent) -> GameOutcome | None:
+def _outcome_of_event(event: TurnEvent, step: StepTimer) -> GameOutcome | None:
     # Text before the end stays unread: only the final text becomes a line.
     match event:
         case FinalEvent(text=text) if text:
             return Line(_cut(text))
         case FinalEvent():
-            _log_refusal(failure="no_words")
+            step.refuse("no_words")
         case ToolCallEvent() | ToolResultEvent():
-            _log_refusal(failure="tool_event")
+            step.refuse("tool_event")
         case AssistantTextEvent():
             return None
         case _:  # pragma: no cover - the type checker proves the match exhaustive
@@ -153,8 +169,8 @@ def _outcome_of_event(event: TurnEvent) -> GameOutcome | None:
     return UNAVAILABLE
 
 
-def _refusal_of_stop(stopped: TurnStopped) -> Refused:
-    _log_refusal(kind=stopped.kind.value, code=stopped.code.value, detail=stopped.detail)
+def _refusal_of_stop(stopped: TurnStopped, step: StepTimer) -> Refused:
+    step.refuse(stopped.detail or stopped.code.value)
     outcome = stopped.outcome
     match outcome:
         case StopOutcome.NOT_ENABLED:
@@ -181,13 +197,7 @@ def _cut(text: str) -> str:
     return text[: GAME_LINE_MAX_CHARACTERS - len(CUT_MARK)] + CUT_MARK
 
 
-def _log_refusal(**codes: str | None) -> None:
-    # Only closed values: a body, a message or an exception's text may carry the game's text.
-    logger.info("game_master_turn_refused", **{name: code for name, code in codes.items() if code is not None})
-
-
-def _refusal_of_grant(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSED_EVENT) -> GameRefusal:
-    _log_grant_refusal(refusal, event)
+def _refusal_of_grant(refusal: AccessTokenRefusal) -> GameRefusal:
     match refusal.reason:
         case AccessTokenRefusalReason.SESSION_ENDED | AccessTokenRefusalReason.SIGN_IN_AGAIN:
             return GameRefusal.SIGN_IN_AGAIN
@@ -195,16 +205,3 @@ def _refusal_of_grant(refusal: AccessTokenRefusal, *, event: str = GROUPS_REFUSE
             return GameRefusal.UNAVAILABLE
         case _:  # pragma: no cover - the type checker proves the match exhaustive
             assert_never(refusal.reason)
-
-
-def _log_grant_refusal(refusal: AccessTokenRefusal, event: str) -> None:
-    issuer_refusal = refusal.issuer_refusal
-    codes = {
-        "issuer_reason": None if issuer_refusal is None else issuer_refusal.reason.value,
-        "idp_error": issuer_error(issuer_refusal),
-    }
-    logger.info(
-        event,
-        reason=refusal.reason.value,
-        **{name: code for name, code in codes.items() if code},
-    )

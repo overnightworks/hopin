@@ -10,6 +10,7 @@ import structlog
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
     DECLINE_INVITATION_TOOL,
+    GESTURE_TOOL,
     SPEAK_TOOL,
     STOP_SPEAKING_TOOL,
     AcceptInvitationArguments,
@@ -19,7 +20,12 @@ from agents.member import (
     DeclineInvitationReason,
     DeclineInvitationRefusal,
     DeclineInvitationRefused,
+    FigureRef,
+    GestureArguments,
+    GestureRefusal,
+    GestureRefused,
     PlaceRef,
+    Relayed,
     SpeakArguments,
     SpeakRefusal,
     SpeakRefused,
@@ -29,12 +35,13 @@ from agents.member import (
     StopSpeakingRefusal,
     StopSpeakingRefused,
     Written,
+    gesture_tool,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voices
-from hopin.participation.figures import Figure
+from hopin.participation.figures import Clip, Figure
 from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
 from hopin.participation.vocabulary import (
@@ -42,11 +49,13 @@ from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     LOOKS_PER_WINDOW,
     AgentRefusal,
+    FigureGesture,
     InvitationOutcome,
     LookRefusal,
     SpeakFallback,
     SpeakStop,
 )
+from hopin.rooms.reference import room_reference
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -56,7 +65,6 @@ if TYPE_CHECKING:
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
-AGENT_VOICE_UNKNOWN_EVENT: Final = "agent_voice_unknown"
 
 JOIN_CALL: Final = "join_call"
 LEAVE_CALL: Final = "leave_call"
@@ -90,6 +98,7 @@ AUDIENCE_OF_TOOL: Final = {
     SAY: Audience.EVERY_AGENT,
     SPEAK_TOOL: Audience.EVERY_AGENT,
     STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
+    GESTURE_TOOL: Audience.EVERY_AGENT,
     LOOK: Audience.EVERY_AGENT,
 }
 
@@ -178,7 +187,8 @@ _SAY_DECLARATION: Final = ToolDeclaration(
         "Write a line in the chat of the call you joined. Everyone in the call reads it under your name with an AI "
         f"mark. A line holds 1 to {AGENT_LINE_MAX_CHARACTERS} characters with no line break, and you may write 10 "
         "lines a minute. Only those in the call now read the line; agents joined in it can read it in their bounded "
-        "windows until it is evicted or their place ends."
+        "windows until it is evicted or their place ends. A written line is read, not heard: it stands in the chat, "
+        "where it can be read again and kept, so it suits links, lists and names."
     ),
     parameters={
         "type": "object",
@@ -277,6 +287,10 @@ def _look_refused(refusal: LookRefusal) -> ToolOutcome:
     return ToolOutcome(json.dumps({"refused": refusal.value}), is_error=True)
 
 
+def _gesture_refused() -> ToolOutcome:
+    return ToolOutcome(GestureRefused(refused=GestureRefusal.NOT_ACTIVE).model_dump_json(), is_error=True)
+
+
 def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
     return ToolOutcome(StopSpeakingRefused(refused=refusal).model_dump_json(), is_error=True)
 
@@ -320,15 +334,32 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _refused_fields(invalid: ValidationError) -> list[str]:
+    """The names of the refused fields only: the error carries the input, which can hold anything."""
+    return sorted({str(error["loc"][0]) for error in invalid.errors() if error["loc"]})
+
+
+def _invalid_arguments(invalid: ValidationError) -> ToolOutcome:
+    """A tool error naming the invalid field paths, so the agent can correct the call; never the input values."""
+    paths = sorted({".".join(str(part) for part in error["loc"]) for error in invalid.errors() if error["loc"]})
+    return ToolOutcome(f"Invalid arguments: {', '.join(paths)}", is_error=True)
+
+
+def _figure_of(ref: FigureRef) -> Figure:
+    clips = tuple(Clip(gesture.value, clip.url, clip.sha256) for gesture, clip in ref.gestures.items())
+    return Figure(ref.url, ref.sha256, clips)
+
+
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         # The strict model reads a list of voices only as JSON, which the arguments are.
         accepted = AcceptInvitationArguments.model_validate_json(json.dumps(arguments))
-    except ValidationError:
-        return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
+    except ValidationError as invalid:
+        await logger.awarning("invitation_accept.refused", reason="malformed", fields=_refused_fields(invalid))
+        return _invalid_arguments(invalid)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
-    figure = None if accepted.figure is None else Figure(accepted.figure.url, accepted.figure.sha256)
+    figure = None if accepted.figure is None else _figure_of(accepted.figure)
     voices = known_voices(accepted.voices)
     outcome = await participation.accept(
         caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voices
@@ -336,15 +367,16 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
     if isinstance(outcome, AgentRefusal):
         return _accept_refused(AcceptInvitationRefusal(outcome.value))
     if len(voices) < len(accepted.voices or ()):
-        await logger.ainfo(AGENT_VOICE_UNKNOWN_EVENT, room_id=accepted.place.id)
+        await logger.ainfo("voice_list.refused", reason="unknown_voice", room_ref=room_reference(accepted.place.id))
     return _joined_or_refused(outcome)
 
 
 async def _declined(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         declined = DeclineInvitationArguments.model_validate(arguments)
-    except ValidationError:
-        return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
+    except ValidationError as invalid:
+        await logger.awarning("invitation_decline.refused", reason="malformed", fields=_refused_fields(invalid))
+        return _invalid_arguments(invalid)
     if declined.place.kind != CALL_KIND:
         return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
     refusal = await participation.decline(
@@ -394,6 +426,20 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
 
+async def _gestured(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    try:
+        gesturing = GestureArguments.model_validate(arguments)
+    except ValidationError:
+        await logger.awarning("gesture.refused", reason="malformed")
+        return _gesture_refused()
+    if gesturing.place.kind != CALL_KIND:
+        return _gesture_refused()
+    gesture = FigureGesture(gesturing.gesture.value)
+    if await participation.figures.gesture(caller.person, gesturing.place.id, gesture) is not None:
+        return _gesture_refused()
+    return ToolOutcome(Relayed(relayed=True).model_dump_json(), is_error=False)
+
+
 async def _looked(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         looking = LookArguments.model_validate(arguments)
@@ -439,6 +485,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def stop_speaking(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _stopped(participation(), caller, arguments)
 
+    async def gesture(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _gestured(participation(), caller, arguments)
+
     async def look(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _looked(participation(), caller, arguments)
 
@@ -450,5 +499,6 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_SAY_DECLARATION, say),
         CallerTool(_SPEAK_DECLARATION, speak),
         CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
+        CallerTool(gesture_tool(), gesture),
         CallerTool(_LOOK_DECLARATION, look),
     )

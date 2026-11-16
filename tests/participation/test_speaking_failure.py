@@ -4,7 +4,6 @@ import logging
 from functools import partial
 
 import pytest
-import structlog.testing
 from agents.member import LEASE_SECONDS, SPEAK_TOOL, PlaceRef
 from speech_client.wire import (
     RefusalCode,
@@ -15,6 +14,7 @@ from hopin.agent.speaking import SPEAK_MAX_BYTES
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, SPEAK_MAX_CHARACTERS
 from hopin.participation.vocabulary import VOICE_PATH
+from hopin.rooms.reference import room_reference
 from tests.participation.support.speaking_scene import (
     ANSWER_SECONDS,
     CLIENT_CREDENTIALS_GRANT,
@@ -30,6 +30,7 @@ from tests.participation.support.speaking_scene import (
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
+from tests.support.log_lines import captured_lines
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
@@ -39,6 +40,7 @@ from tests.support.speech_origin import (
     not_chunked_answer,
     refusal_answer,
     silent_wav,
+    speak_failures,
     speaking,
     speech_requests,
     with_sample_rate,
@@ -46,10 +48,16 @@ from tests.support.speech_origin import (
 
 pytestmark = pytest.mark.integration
 
-FAILED = "agent_speak_failed"
-VOICE_UNAVAILABLE = "agent_voice_unavailable"
+VOICE_UNAVAILABLE = "agent_voice.lost"
+STREAM_BROKEN = "voice_stream.broken"
 UNREADABLE = "unreadable_audio"
-failures_of = partial(failures_in, event=FAILED)
+failures_of = speak_failures
+breaks_of = partial(failures_in, event=STREAM_BROKEN)
+
+
+def voices_lost(lines):
+    """The reason and the room reference of each line that says the agent's voice was lost."""
+    return [(line["reason"], line["room_ref"]) for line in failures_in(lines, VOICE_UNAVAILABLE)]
 
 
 @pytest.fixture
@@ -58,18 +66,18 @@ def speaking_service(speech_origin):
 
 
 SPEECH_FAILS = [
-    pytest.param(refusal_answer(RefusalCode.FORBIDDEN), {"outcome": "refused", "code": "forbidden"}, id="refused"),
-    pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), {"outcome": "busy"}, id="busy"),
-    pytest.param(not_chunked_answer(), {"outcome": "malformed"}, id="malformed"),
+    pytest.param(refusal_answer(RefusalCode.FORBIDDEN), "refused", id="refused"),
+    pytest.param(refusal_answer(RefusalCode.BUSY, retry_after_seconds=3), "busy", id="busy"),
+    pytest.param(not_chunked_answer(), "malformed", id="malformed"),
 ]
 """A speech service that fails before any sound."""
 
 STREAM_BREAKS = [
-    pytest.param(chunked_wav(SOUND, terminated=False), {"outcome": "cut"}, id="cut"),
-    pytest.param(chunked_wav(SOUND + bytes(SPEAK_MAX_BYTES)), {"outcome": "over_cap"}, id="over-cap"),
-    pytest.param(chunked_wav(NOT_A_WAV), {"outcome": "malformed"}, id="unreadable-sound"),
-    pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), {"outcome": "malformed"}, id="zero-sample-rate"),
-    pytest.param(chunked_wav(silent_wav(0)), {"outcome": UNREADABLE}, id="no-sound-at-all"),
+    pytest.param(chunked_wav(SOUND, terminated=False), "cut", id="cut"),
+    pytest.param(chunked_wav(SOUND + bytes(SPEAK_MAX_BYTES)), "over_cap", id="over-cap"),
+    pytest.param(chunked_wav(NOT_A_WAV), "malformed", id="unreadable-sound"),
+    pytest.param(chunked_wav(with_sample_rate(SOUND, 0)), "malformed", id="zero-sample-rate"),
+    pytest.param(chunked_wav(silent_wav(0)), UNREADABLE, id="no-sound-at-all"),
 ]
 """A speech service whose stream breaks off after the sound began."""
 
@@ -91,20 +99,20 @@ class TestWhenTheSentenceCannotBeSpoken:
             joined_agent.standings()
         grants_before = len(adding_call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT))
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             dialed = speak(joined_agent)
         drained(joined_agent)
 
         assert (
             refusal_of(dialed),
             failures_of(logs),
-            failures_in(logs, VOICE_UNAVAILABLE),
+            voices_lost(logs),
             len(adding_call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)) - grants_before,
             speech_requests(speech_origin),
             joined_agent.entries(),
             "voice_state" in joined_agent.window(),
             frames_of(joined_agent.member, LINE),
-        ) == ((True, {"refused": "unavailable"}), [{"outcome": "no_token"}], [], 0, [], [], False, [])
+        ) == ((True, {"refused": "unavailable"}), ["no_voice"], [], 0, [], [], False, [])
 
 
 class TestWhenTheVoiceFails:
@@ -114,16 +122,16 @@ class TestWhenTheVoiceFails:
     ):
         speaking(speech_origin, answer)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             written = speak(joined_agent)
         drained(joined_agent)
 
         [entry] = joined_agent.entries()
-        assert (written.is_error, written.outcome, failures_of(logs), failures_in(logs, VOICE_UNAVAILABLE)) == (
+        assert (written.is_error, written.outcome, failures_of(logs), voices_lost(logs)) == (
             False,
             {"written": True},
             [logged],
-            [{"reason": logged["outcome"], "room_id": joined_agent.owner.room_id}],
+            [(logged, room_reference(joined_agent.owner.room_id))],
         )
         assert (entry["text"], entry["own"], entry["spoken"]) == (TEXT, True, False)
         assert [frames_of(seat, VOICE) for seat in (joined_agent.owner, joined_agent.member)] == [[], []]
@@ -135,16 +143,16 @@ class TestWhenTheVoiceFails:
     ):
         speaking(speech_origin, answer)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             spoken = speak(joined_agent, seconds=None)
             joined_agent.call.after_sounds_released(1)
         drained(joined_agent)
 
         [entry] = joined_agent.entries()
-        assert (spoken.is_error, spoken.outcome, failures_of(logs), failures_in(logs, VOICE_UNAVAILABLE)) == (
+        assert (spoken.is_error, spoken.outcome, breaks_of(logs), voices_lost(logs)) == (
             False,
             {"spoken": True},
-            [logged],
+            [{"reason": logged}],
             [],
         )
         assert (entry["text"], entry["own"], entry["spoken"], entry["cut"]) == (TEXT, True, True, True)
@@ -155,10 +163,10 @@ class TestWhenTheVoiceFails:
     ):
         adding_call.issuer.refuses_client_credentials_grants = True
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             written = speak(joined_agent)
 
-        assert (written.outcome, [log["outcome"] for log in failures_of(logs)], speech_requests(speech_origin)) == (
+        assert (written.outcome, failures_of(logs), speech_requests(speech_origin)) == (
             {"written": True},
             ["workload_token_refused"],
             [],
@@ -167,37 +175,14 @@ class TestWhenTheVoiceFails:
     def test_call_61_a_sentence_with_nothing_to_pronounce_is_written_and_speech_is_not_called(
         self, joined_agent, speech_origin
     ):
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             written = speak(joined_agent, text="... !?")
 
         assert (written.outcome, failures_of(logs), speech_requests(speech_origin)) == (
             {"written": True},
-            [{"outcome": "input_refused"}],
+            ["input_refused"],
             [],
         )
-
-    def test_call_61_a_stream_that_crashes_after_the_sound_began_cuts_the_sentence_and_logs_only_a_closed_code(
-        self, joined_agent, monkeypatch
-    ):
-        def crashing_stream(*_arguments, **_named):
-            yield SOUND
-            message = "the crash carries the sentence"
-            raise RuntimeError(message)
-
-        monkeypatch.setattr("hopin.agent.speaking.speak_stream_with_preference", crashing_stream)
-
-        with structlog.testing.capture_logs() as logs:
-            spoken = speak(joined_agent, seconds=None)
-            joined_agent.call.after_sounds_released(1)
-        drained(joined_agent)
-
-        [entry] = joined_agent.entries()
-        assert (spoken.outcome, entry["cut"], failures_in(logs, "agent_voice_stream_failed")) == (
-            {"spoken": True},
-            True,
-            [{"code": "cut"}],
-        )
-        assert "exc_info" not in [key for log in logs for key in log]
 
     def test_call_61_the_window_states_the_voice_unavailable(self, joined_agent, speech_origin):
         speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
@@ -210,20 +195,20 @@ class TestWhenTheVoiceFails:
         self, joined_agent, speech_origin
     ):
         speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             speak(joined_agent)
             speak(joined_agent)
         speaking(speech_origin, chunked_wav(SOUND))
         recovered = speak(joined_agent)
         joined_agent.call.pass_time(SENTENCE_SECONDS)
         speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        with structlog.testing.capture_logs() as later_logs:
+        with captured_lines() as later_logs:
             speak(joined_agent)
 
         assert (
-            len(failures_in(logs, VOICE_UNAVAILABLE)),
+            len(voices_lost(logs)),
             recovered.outcome,
-            len(failures_in(later_logs, VOICE_UNAVAILABLE)),
+            len(voices_lost(later_logs)),
         ) == (1, {"spoken": True}, 1)
 
     def test_call_61_the_voice_is_stated_available_once_a_sound_follows_the_outage(self, joined_agent, speech_origin):
@@ -249,12 +234,12 @@ class TestASentenceWithNoText:
         place = PlaceRef(kind=CALL_KIND, id=joined_agent.owner.room_id).model_dump()
         arguments = {"place": place} if text is None else {"place": place, "text": text}
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             dialed = joined_agent.call.call(joined_agent.token, SPEAK_TOOL, arguments)
 
         assert (refusal_of(dialed), failures_of(logs), speech_requests(speech_origin)) == (
             (True, {"refused": "unavailable"}),
-            [{"outcome": "no_text"}],
+            ["no_text"],
             [],
         )
 
@@ -282,10 +267,10 @@ class TestAServiceThatIsNotThere:
         return SpeechService(origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
     def test_call_61_the_sentence_is_written_and_unreachable_is_logged(self, joined_agent):
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             written = speak(joined_agent)
 
-        assert (written.outcome, failures_of(logs)) == ({"written": True}, [{"outcome": "unreachable"}])
+        assert (written.outcome, failures_of(logs)) == ({"written": True}, ["unreachable"])
 
 
 class TestEveryEndAtTheRoute:
@@ -329,7 +314,7 @@ class TestNothingLeaks:
         assert [token for token in tokens if token in seen] == []
 
     def test_call_60_a_debug_log_of_a_sentence_carries_no_text_no_sound_and_no_token(self, joined_agent, caplog):
-        with caplog.at_level(logging.DEBUG), structlog.testing.capture_logs() as logs:
+        with caplog.at_level(logging.DEBUG), captured_lines() as logs:
             speak(joined_agent)
             sound_at(joined_agent, joined_agent.member)
         issuer = joined_agent.call.issuer

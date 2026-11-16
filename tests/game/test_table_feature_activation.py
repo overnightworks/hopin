@@ -18,7 +18,7 @@ pytestmark = pytest.mark.integration
 
 @patch("hopin.main.uvicorn.run")
 def test_the_app_main_starts_offers_a_member_the_game_as_the_calls_feature(
-    mock_run, sign_in_settings, monkeypatch, fixture_build_directory
+    mock_run, sign_in_settings, monkeypatch, fixture_build_directory, logging_restored
 ):
     for name, value in sign_in_settings().environment.items():
         monkeypatch.setenv(name, value)

@@ -13,10 +13,11 @@ from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 from tests.support.dialed_call import accept_arguments
+from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
-RECOMPUTE_FAILED_EVENT = "agent_offers_recompute_failed"
+RECOMPUTE_FAILED_EVENT = "agent_offers_recompute.failed"
 
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 JOINED = ParticipationSignal.AGENT_JOINED.value
@@ -62,6 +63,17 @@ class TestAddingTheAgent:
 
         assert scene.member.frame_of_type(REFUSED)["reason"] == AgentRefusal.UNAVAILABLE.value
 
+    def test_a_group_read_the_issuer_refuses_logs_the_issuers_error_code(self, scene):
+        key = scene.key_of_offer()
+        scene.call.issuer.refuses_refresh_grants = True
+        scene.call.issuer.refresh_refusal_error = "unauthorized_client"
+
+        with captured_lines() as logs:
+            scene.add(key)
+            scene.member.frame_of_type(REFUSED)
+
+        assert {line["reason"] for line in logs if line["event"] == "group_read.ended"} == {"unauthorized_client"}
+
     def test_a_seat_outside_the_group_is_offered_nothing_and_its_forged_add_is_refused(self, scene_of):
         scene = scene_of(member_groups=("/apps/hopin",))
         key = scene.owner.frame_of_type(OFFERS)["offers"][0]["agent_key"]
@@ -80,10 +92,6 @@ class TestAddingTheAgent:
 
 STALE_ARGUMENTS = {
     "another_place_kind": lambda valid: {**valid, "place": {**valid["place"], "kind": "quiz"}},
-    "a_missing_field": lambda valid: {key: value for key, value in valid.items() if key != "invitation"},
-    "an_extra_field": lambda valid: {**valid, "room": valid["place"]["id"]},
-    "a_bool_epoch": lambda valid: {**valid, "epoch": True},
-    "a_negative_epoch": lambda valid: {**valid, "epoch": -1},
     "another_invitation_id": lambda valid: {**valid, "invitation": "another"},
     "another_epoch": lambda valid: {**valid, "epoch": valid["epoch"] + 1},
 }
@@ -99,6 +107,61 @@ class TestAcceptingInTheSharedShape:
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
         assert [item["state"] for item in scene.standings()] == ["invited"]
+
+
+def decline_arguments(standing):
+    """The shared arguments of declining, as busy, the invitation a read standing carries."""
+    return accept_arguments(standing) | {"reason": "busy"}
+
+
+MALFORMED = {
+    "a_forbidden_key": (lambda valid: {**valid, "voice": "secret-voice-value"}, ["voice"]),
+    "a_bad_epoch": (lambda valid: {**valid, "epoch": "secret-epoch-value"}, ["epoch"]),
+    "a_bad_epoch_and_a_forbidden_key": (
+        lambda valid: {**valid, "epoch": -1, "voice": "x", "room": "y"},
+        ["epoch", "room", "voice"],
+    ),
+}
+
+
+class TestLoggingAMalformedCall:
+    @pytest.mark.parametrize(
+        ("event", "tool", "arguments_of"),
+        [
+            ("invitation_accept.refused", ACCEPT_INVITATION_TOOL, accept_arguments),
+            ("invitation_decline.refused", DECLINE_INVITATION_TOOL, decline_arguments),
+        ],
+        ids=["accept", "decline"],
+    )
+    @pytest.mark.parametrize(("malform", "fields"), MALFORMED.values(), ids=MALFORMED.keys())
+    def test_arguments_the_contract_refuses_log_their_closed_event_with_the_field_names_only(
+        self, scene, event, tool, arguments_of, malform, fields
+    ):
+        """CALL-52: A malformed accept or decline is logged once at warning with the refused field names only."""
+        scene.invite()
+        [standing] = scene.standings()
+
+        with structlog.testing.capture_logs() as logs:
+            dialed = scene.call.call(scene.token, tool, malform(arguments_of(standing)))
+
+        malformed = [entry for entry in logs if entry["event"] == event]
+        assert (dialed.is_error, dialed.outcome) == (True, None)
+        assert [(entry["log_level"], entry["fields"]) for entry in malformed] == [("warning", fields)]
+        assert "secret" not in str(logs)
+
+    def test_a_well_formed_accept_that_is_stale_logs_no_malformed_event(self, scene):
+        """CALL-52: A well-formed accept that is stale logs no malformed event."""
+        scene.invite()
+        [standing] = scene.standings()
+
+        with structlog.testing.capture_logs() as logs:
+            scene.call.call(
+                scene.token,
+                ACCEPT_INVITATION_TOOL,
+                accept_arguments(standing) | {"epoch": accept_arguments(standing)["epoch"] + 1},
+            )
+
+        assert [entry for entry in logs if entry.get("reason") == "malformed"] == []
 
 
 def _another_epoch(scene, arguments, seat_changes):
@@ -141,11 +204,6 @@ class TestRefusingTheAcceptance:
         dialed = scene.call.call(scene.token, ACCEPT_INVITATION_TOOL, arguments)
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": code})
-
-
-def decline_arguments(standing):
-    """The shared arguments of declining, as busy, the invitation a read standing carries."""
-    return accept_arguments(standing) | {"reason": "busy"}
 
 
 class TestDecliningTheInvitation:

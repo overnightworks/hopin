@@ -1,4 +1,5 @@
 from enum import IntEnum, StrEnum
+from typing import ClassVar
 
 FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
@@ -10,8 +11,8 @@ LINE_WINDOW_SECONDS = 60
 SENTENCES_WAITING_PER_AGENT = 10
 # How often the speech service is asked whether a voice is back while a window states its voice unavailable.
 VOICE_RECOVERY_SECONDS = 5
-SPEAK_FAILED_EVENT = "agent_speak_failed"
-VOICE_UNAVAILABLE_EVENT = "agent_voice_unavailable"
+# The speak line's reason when the voice has nothing to ask a speech service with.
+NO_VOICE_REASON = "no_voice"
 AGENT_ID_BYTES = 16
 FIGURE_PATH = "/api/participation/figures"
 FIGURE_FETCH_SECONDS = 30
@@ -19,6 +20,12 @@ FIGURE_FETCH_SECONDS = 30
 # the profile admits fits.
 FIGURE_MAX_BYTES = 12 * 1024 * 1024
 FIGURE_CACHE_BYTES = 48 * 1024 * 1024
+# A persona's clip for a gesture is read at this path and its digest; a clip has its own bound and cache, apart from
+# the figure's.
+CLIP_PATH = "/api/participation/clips"
+# A server bound at least as large as the clip profile's file budget (512 KiB in figure v0.8.0).
+CLIP_MAX_BYTES = 512 * 1024
+CLIP_CACHE_BYTES = 8 * 1024 * 1024
 FIGURE_FETCH_WORKERS = 2
 FIGURE_REDIRECTS = 1
 # A look: one JPEG of the sponsor's camera, which the sponsor's browser sends back in parts of the signaling frame's
@@ -47,6 +54,7 @@ class ParticipationSignal(StrEnum):
     AGENT_HEARING = "agent_hearing"
     AGENT_VOICE = "agent_voice"
     AGENT_STOP = "agent_stop"
+    AGENT_GESTURE = "agent_gesture"
     AGENT_SEEING = "agent_seeing"
     AGENT_LOOK_REQUEST = "agent_look_request"
     AGENT_LOOK_PART = "agent_look_part"
@@ -83,6 +91,12 @@ class InvitationOutcome(StrEnum):
     NO_ANSWER = "no_answer"
     BUSY = "busy"
     OWNER_ABSENT = "owner_absent"
+
+
+class FigureGesture(StrEnum):
+    """A gesture a figure makes on its tile, as a seat is told it."""
+
+    WAVE = "wave"
 
 
 class Sense(StrEnum):
@@ -139,6 +153,12 @@ class VoiceFailure(StrEnum):
     MALFORMED = "malformed"
     UNREACHABLE = "unreachable"
     UNREADABLE_AUDIO = "unreadable_audio"
+
+
+class VoiceRefusedError(Exception):
+    """The voice refuses a sentence before any sound is asked for; `reason` is the code its speak line carries."""
+
+    reason: ClassVar[str]
 
 
 class SpeakFailure(StrEnum):
@@ -218,4 +238,5 @@ BROWSER_ENUMS = {
     "AGENT_REFUSAL": AgentRefusal,
     "INVITATION_OUTCOME": InvitationOutcome,
     "HEARING_CLOSE": HearingClose,
+    "FIGURE_GESTURE": FigureGesture,
 }

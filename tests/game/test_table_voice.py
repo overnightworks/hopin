@@ -1,9 +1,11 @@
 import pytest
 import structlog.testing
+from logline import Outcome
 
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.table import Line
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, GameRefusal, GameSignal
+from hopin.rooms.reference import room_reference
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.game.support.fake_voice import DEFAULT_WAV, FakeVoice
 from tests.game.support.table_world import (
@@ -13,7 +15,6 @@ from tests.game.support.table_world import (
     REVEAL,
     START,
     answer,
-    answer_count,
     answering,
     asked,
     assert_no_driver_failed,
@@ -24,12 +25,14 @@ from tests.game.support.table_world import (
     question,
     refused,
     sent,
+    sent_count_to_all,
     sent_to_all,
     shut_down_within_cap,
     thinking,
     wait_within_cap,
     yield_until,
 )
+from tests.support.log_lines import captured_lines
 from tests.support.stores import sound_of
 
 pytestmark = pytest.mark.asyncio
@@ -37,6 +40,7 @@ pytestmark = pytest.mark.asyncio
 REVEAL_LINE = "Lissabon."
 FINAL_LINE = "Ihr wart alle großartig."
 VOICE_TYPE = GameSignal.GAME_VOICE.value
+WAITING_EVENTS = ("voice_wait.ended", "game_master_run.ended")
 
 
 @pytest.fixture
@@ -159,7 +163,7 @@ class TestAVoiceThatTheTextDoesNotWaitFor:
         await host.say(START)
         await sent_to_all([host, guest], answering(host))
         await guest.say(answer("Lissabon"))
-        await sent_to_all([host, guest], answer_count(1, 2))
+        await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
         assert voice_ids(host) == []
 
@@ -239,7 +243,7 @@ class TestAVoiceThatFails:
             await sent_to_all([host, guest], answering(host))
             await let_every_task_run()
             await guest.say(answer("Lissabon"))
-            await sent_to_all([host, guest], answer_count(1, 2))
+            await sent_count_to_all([host, guest], 1, 2, answered_by=[guest])
 
         for browser in (host, guest):
             assert shown(browser)[:3] == asked(host)
@@ -254,11 +258,50 @@ class TestAVoiceThatFails:
         with structlog.testing.capture_logs() as logs:
             await host.say(START)
             await sent_to_all([host, guest], answering(host))
-            await yield_until(lambda: [log for log in logs if log["event"] == "game_voice_raised"])
+            await yield_until(lambda: [log for log in logs if log["event"] == "game_voice.failed"])
 
-        assert [log for log in logs if log["event"] == "game_voice_raised"] == [
-            {"event": "game_voice_raised", "log_level": "error", "error": "RuntimeError"}
+        assert [log for log in logs if log["event"] == "game_voice.failed"] == [
+            {"event": "game_voice.failed", "log_level": "error", "error_type": "RuntimeError"}
         ]
+
+    async def test_the_run_and_its_voice_wait_end_once_the_voice_is_sent(self, link, voice):
+        host, guest = await call_of(link, "host", "guest")
+        held = voice.hold(DEFAULT_QUESTION)
+
+        with captured_lines() as logs:
+            await host.say(START)
+            await sent_to_all([host, guest], answering(host))
+            await let_every_task_run()
+            waiting = [log["event"] for log in logs if log["event"] in WAITING_EVENTS]
+            held.release.set()
+            await voice_sent([host, guest])
+            await let_every_task_run()
+
+        ended = [log for log in logs if log["event"] in WAITING_EVENTS]
+        assert (waiting, [log["event"] for log in ended]) == ([], ["voice_wait.ended", "game_master_run.ended"])
+        assert {log["room_ref"] for log in ended} == {room_reference(host.socket.sent[0]["room_id"])}
+
+    async def test_a_run_that_waits_for_the_run_before_it_writes_that_wait(self, link, game_master, voice):
+        host, guest = await call_of(link, "host", "guest")
+        game_master.answer_next(Line("Frage?"), Line(REVEAL_LINE))
+        held = voice.hold("Frage?")
+        await host.say(START)
+        await sent_to_all([host, guest], answering(host))
+
+        with captured_lines() as logs:
+            await host.say(REVEAL)
+            await let_every_task_run()
+            waiting = [log for log in logs if log["event"] == "run_wait.ended"]
+            held.release.set()
+            await sent_to_all([host, guest], answering(host, 2))
+            await let_every_task_run()
+
+        waits = [log for log in logs if log["event"] == "run_wait.ended"]
+        assert waiting == []
+        assert waits
+        assert {(wait["outcome"], wait["room_ref"]) for wait in waits} == {
+            (Outcome.OK, room_reference(host.socket.sent[0]["room_id"]))
+        }
 
     async def test_a_voice_past_its_deadline_is_cancelled_and_the_quiz_goes_on(
         self, link, game_master, voice, scheduler
@@ -271,16 +314,12 @@ class TestAVoiceThatFails:
         await sent_to_all([host, guest], answering(host))
         [spoken] = voice.calls
 
-        with structlog.testing.capture_logs() as logs:
-            await scheduler.advance(VOICE_DEADLINE_SECONDS)
-            await yield_until(lambda: spoken.finished)
-            await host.say(REVEAL)
-            await sent_to_all([host, guest], answering(host, 2))
+        await scheduler.advance(VOICE_DEADLINE_SECONDS)
+        await yield_until(lambda: spoken.finished)
+        await host.say(REVEAL)
+        await sent_to_all([host, guest], answering(host, 2))
 
-        assert [log for log in logs if log["event"] == "game_voice_failed"] == [
-            {"event": "game_voice_failed", "log_level": "info", "outcome": "past_deadline"}
-        ]
-        assert spoken.cancelled
+        assert (spoken.cancelled, spoken.cut_by_deadline) == (True, True)
         assert shown(guest)[:6] == [*asked(host, "Frage?"), {"type": VOICE_TYPE}, thinking(host), line(REVEAL_LINE)]
 
 

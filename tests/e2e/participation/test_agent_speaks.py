@@ -1,6 +1,8 @@
 import re
 import time
+from contextlib import ExitStack
 from functools import partial
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -10,7 +12,7 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from hopin.participation.vocabulary import VOICE_RECOVERY_SECONDS
+from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS
 from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
@@ -39,24 +41,28 @@ pytestmark = pytest.mark.e2e
 
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
 AGENT_LINE = "#chatMessages .chat-msg:has(.participation-agent-sender)"
+ABORTED_VOICE_FAILURE = "net::ERR_INCOMPLETE_CHUNKED_ENCODING"
+ABORTED_VOICE_CONSOLE_LINE = f"Failed to load resource: {ABORTED_VOICE_FAILURE}"
 SOUND_SECONDS = 1.0
 LONGER_SOUND_SECONDS = 5.0
 POLL_SECONDS = 0.2
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
-# Each page records the length of every sound its player starts and how many sources it stopped. The player starts a
-# sound as the chunks of its body arrive, each chunk beginning where the one before it ends, so the chunks that join
-# up are one sound.
+# Each page records the length of every sound its players start and how many sources it stopped. A player starts a
+# sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its own context's clock,
+# so the chunks of one context that join up are one sound, whichever other player starts between them.
 RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
     window.soundsStopped = 0;
-    let joinsAt = NaN;
+    const lastSoundOf = new WeakMap();
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (when, ...args) {
-        if (when === joinsAt) window.soundsStarted[window.soundsStarted.length - 1] += this.buffer.duration;
-        else window.soundsStarted.push(this.buffer.duration);
-        joinsAt = when + this.buffer.duration;
+        const last = lastSoundOf.get(this.context);
+        let index = last?.index;
+        if (last?.joinsAt === when) window.soundsStarted[index] += this.buffer.duration;
+        else index = window.soundsStarted.push(this.buffer.duration) - 1;
+        lastSoundOf.set(this.context, { index, joinsAt: when + this.buffer.duration });
         return start.call(this, when, ...args);
     };
     const stop = AudioBufferSourceNode.prototype.stop;
@@ -135,10 +141,24 @@ class Speaker:
 
     def speak_while_speech_pauses(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
         """Say a sentence whose second half speech renders only once `finish_rendering` says so."""
+        return self._speak_with_second_half(seconds, text, lambda rest: rest)
+
+    def speak_while_speech_breaks(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
+        """Say a sentence whose stream speech breaks in its second half once `finish_rendering` says so."""
+        return self._speak_with_second_half(seconds, text, lambda rest: rest[: len(rest) // 2])
+
+    def _speak_with_second_half(
+        self, seconds: float, text: str, later_body: Callable[[bytes], bytes]
+    ) -> Future[dict[str, Any]]:
         first, rest = chunked_wav_in_two(silent_wav(seconds))
-        self.speech_origin.serve(SPEECH_PATH, first, later=rest)
+        self.speech_origin.serve(SPEECH_PATH, first, later=later_body(rest))
         place = PlaceRef(kind=CALL_KIND, id=self.room)
         return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+
+    def speech_was_asked(self) -> bool:
+        """Whether the server asked speech to render the latest `speak_behind` sentence, so that a stop sent now
+        cannot overtake it."""
+        return self.speech_origin.received[SPEECH_PATH].wait(REQUEST_SECONDS)
 
     def speech_has_rendered_the_rest(self) -> bool:
         return self.speech_origin.resumed[SPEECH_PATH].is_set()
@@ -219,6 +239,61 @@ def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_render
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_only_the_aborted_voice(
+    speaker: Speaker, e2e_server: RunningServer, expected_request_failures: list[str], page_errors: list[str]
+) -> None:
+    """CALL-61: A stream that breaks after its first chunk ends the sentence that already sounds: every browser's voice
+    response aborts, which is the one error its console logs, the tile shows present again, the agent's window holds
+    the sentence as a cut line, the agent's next sentence plays, and a seat that loads the cut voice later gets 404
+    with no page error."""
+    everyone = speaker.scene.everyone
+    expected_request_failures.append(f"{e2e_server.base_url}{VOICE_PATH}/")
+    console_errors: list[str] = []
+    aborted_voices: list[str] = []
+    cut_voice_urls: dict[Page, str] = {}
+    for person in everyone:
+        person.on("console", lambda message: message.type == "error" and console_errors.append(message.text))
+        person.on("requestfailed", lambda request: aborted_voices.append(f"{request.url}: {request.failure}"))
+        person.on(
+            "request",
+            lambda request, seat=person: VOICE_PATH in request.url and cut_voice_urls.setdefault(seat, request.url),
+        )
+
+    answered = speaker.speak_while_speech_breaks(SOUND_SECONDS)
+
+    assert answered.result(REQUEST_SECONDS) == {"spoken": True}
+    for person in everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    with ExitStack() as aborts:
+        for person in everyone:
+            aborts.enter_context(person.expect_event("requestfailed"))
+            aborts.enter_context(person.expect_console_message(lambda message: message.type == "error"))
+        speaker.finish_rendering()
+
+    for person in everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+    assert (
+        console_errors,
+        [failure.partition(": ")[2] for failure in aborted_voices if VOICE_PATH in failure],
+        [(line["text"], line["spoken"], line["cut"]) for line in speaker.window()["entries"]],
+    ) == (
+        [ABORTED_VOICE_CONSOLE_LINE] * len(everyone),
+        [ABORTED_VOICE_FAILURE] * len(everyone),
+        [("Guten Tag", True, True)],
+    )
+
+    after_the_cut, _ = LATER_SOUND_SECONDS
+    speaker.speak(after_the_cut)
+    for person in everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        assert speaker.started(person)[-1] == after_the_cut
+    late_statuses = [
+        person.evaluate("async url => (await fetch(url)).status", cut_voice_urls[person]) for person in everyone
+    ]
+    assert (late_statuses, page_errors) == ([HTTPStatus.NOT_FOUND] * len(everyone), [])
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_an_agent_that_leaves_takes_its_tile_and_the_sound_it_plays_from_every_browser(speaker: Speaker) -> None:
     """CALL-60: The agent's leave closes its player in every browser: the sound that plays ends and its tile is gone,
     with no error shown."""
@@ -265,6 +340,33 @@ def test_both_agents_of_one_seat_speak_each_through_its_own_player_and_its_own_t
         assert sorted(speaker.started(person)) == [SOUND_SECONDS, LONGER_SOUND_SECONDS]
 
 
+def test_the_recording_counts_the_chunks_of_one_player_as_one_sound_whatever_another_player_starts_between(
+    page: Page,
+) -> None:
+    """The chunks that join up count as one sound even when another player starts its sound between them."""
+    page.evaluate(RECORD_PLAYBACK)
+
+    started = page.evaluate(
+        """
+        () => {
+            const [first, second] = [new AudioContext(), new AudioContext()];
+            const play = (context, seconds, when) => {
+                const source = context.createBufferSource();
+                source.buffer = context.createBuffer(1, Math.round(seconds * context.sampleRate), context.sampleRate);
+                source.start(when);
+                return when + seconds;
+            };
+            const joinsAt = play(first, 0.25, 0);
+            play(second, 5, 0);
+            play(first, 0.75, joinsAt);
+            return window.soundsStarted;
+        }
+        """
+    )
+
+    assert sorted(started) == [SOUND_SECONDS, LONGER_SOUND_SECONDS]
+
+
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_a_stop_cuts_the_sentence_and_drops_the_queue_in_every_browser_and_the_agent_speaks_again(
     speaker: Speaker,
@@ -276,6 +378,7 @@ def test_a_stop_cuts_the_sentence_and_drops_the_queue_in_every_browser_and_the_a
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
     behind = speaker.speak_behind(SOUND_SECONDS)
+    assert speaker.speech_was_asked()
 
     cut = speaker.stop()
 

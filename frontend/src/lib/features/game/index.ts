@@ -1,21 +1,20 @@
+import { createPlayer as createSpeechPlayer, type Player } from "overnightworks-speech-browser";
 import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView, type FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
 import { words } from "#lib/words/de.ts";
-import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
+import {
+    AUTH_START_PATH,
+    RETURN_TO_QUERY_PARAMETER,
+    SIGNAL_TYPE,
+    type ExistingParticipantsFrame,
+    type RoomCreatedFrame,
+} from "#lib/wire.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
 import QuestionCard from "./QuestionCard.svelte";
-import {
-    Quiz,
-    type AnswerCountFrame,
-    type LineFrame,
-    type PhaseFrame,
-    type QuestionCardProps,
-    type RefusedFrame,
-    type VoiceFrame,
-} from "./quiz.svelte.ts";
-import { GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
+import { Quiz, type QuestionCardProps } from "./quiz.svelte.ts";
+import { GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType } from "./wire.ts";
 import "./game.css";
 
 const SPARK_PATHS =
@@ -29,17 +28,10 @@ const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="
 <p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>
 <button id="gameVoiceBtn" class="mi game-item" type="button" aria-label="${words["game.voiceLabel"](MASTER_NAME)}" hidden><svg class="icon voice-on-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_ON_PATHS}</svg><svg class="icon voice-off-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_OFF_PATHS}</svg><span class="grow">${words["game.voiceLabel"](MASTER_NAME)}<small id="gameVoiceState"></small></span></button>`;
 
-interface SeatFrame {
-    participant_id: string;
-    is_host: boolean;
-}
-
-interface EndedFrame {
-    leaver?: string;
-}
+type SeatFrame = RoomCreatedFrame | ExistingParticipantsFrame;
 
 type RefusalToast = (
-    frame: RefusedFrame,
+    frame: GameFrameByType[GAME_SIGNAL.GAME_REFUSED],
     toastKind: FeatureCore["toastKind"],
 ) => [string, ToastKind, ToastAction | null];
 
@@ -94,93 +86,54 @@ function moreItems() {
     };
 }
 
-interface VoiceEvents {
-    isMuted(): boolean;
-    started(voiceId: string): void;
-    ended(voiceId: string): void;
-}
+/** The game master's voice for the person's browser: voices play one after another through one speech player, which fetches the route's body and ends each voice exactly once, played or not; a voice that cannot be fetched or played leaves its line as text. The player is made with the first voice. */
+function createVoice(createPlayer: () => Player, quiz: Quiz) {
+    let player: Player | null = null;
 
-/** Plays one voice at a time, none while muted (a skipped voice ends like one that failed to load): the voice whose fetch finishes last replaces the playing one, and a stop drops every voice still being fetched; a voice that cannot be fetched or played leaves its line as text. Every voice it takes reports its end exactly once, played or not. */
-function createVoicePlayer(events: VoiceEvents) {
-    let releaseCurrent: (() => void) | null = null;
-    let requested = 0;
-    let stoppedThrough = 0;
-
-    function stop() {
-        stoppedThrough = requested;
-        releaseCurrent?.();
-        releaseCurrent = null;
-    }
-
-    function begin(blob: Blob, sequence: number, voiceId: string) {
-        if (sequence <= stoppedThrough) return false;
-        releaseCurrent?.();
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        const release = () => {
-            audio.pause();
-            URL.revokeObjectURL(url);
-            events.ended(voiceId);
-        };
-        releaseCurrent = release;
-        audio.addEventListener("ended", release);
-        void audio.play().then(() => {
-            events.started(voiceId);
-        }, release);
-        return true;
-    }
-
-    async function play(voiceId: string, path: string) {
-        if (events.isMuted()) {
-            events.ended(voiceId);
-            return;
-        }
-        requested += 1;
-        const sequence = requested;
-        try {
-            const response = await fetch(path);
-            if (response.ok && begin(await response.blob(), sequence, voiceId)) return;
-        } catch {
-            // The line stays text.
-        }
-        events.ended(voiceId);
-    }
-
-    return { play, stop };
-}
-
-function listen(core: FeatureCore, quiz: Quiz) {
-    const voice = createVoicePlayer({
-        isMuted: () => quiz.voiceMuted,
-        started: (voiceId) => {
-            quiz.voiceStarted(voiceId);
-        },
-        ended: (voiceId) => {
+    function play(voiceId: string, path: string) {
+        player ??= createPlayer();
+        player.setMuted(quiz.voiceMuted);
+        const playback = player.play(path);
+        void playback.started.then((start) => {
+            if (start.kind === "playing") quiz.voiceStarted(voiceId);
+        });
+        void playback.ended.then(() => {
             quiz.voiceEnded(voiceId);
-        },
-    });
-    core.on(GAME_SIGNAL.GAME_PHASE, (frame: PhaseFrame) => {
+        });
+    }
+
+    return {
+        play,
+        stop: () => player?.stop(),
+        // A muted player ends every voice muted and fetches nothing; the choice follows the quiz, which a new call resets.
+        syncMuted: () => player?.setMuted(quiz.voiceMuted),
+    };
+}
+
+function listen(core: FeatureCore<GameFrameByType>, quiz: Quiz, createPlayer: () => Player) {
+    const voice = createVoice(createPlayer, quiz);
+    core.on(GAME_SIGNAL.GAME_PHASE, (frame) => {
         quiz.receivePhase(frame);
     });
-    core.on(GAME_SIGNAL.GAME_LINE, (frame: LineFrame) => {
+    core.on(GAME_SIGNAL.GAME_LINE, (frame) => {
         core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
         quiz.receiveLine(frame);
     });
-    core.on(GAME_SIGNAL.GAME_VOICE, (frame: VoiceFrame) => {
-        if (frame.id !== undefined && quiz.isFirstHearing(frame.id)) {
+    core.on(GAME_SIGNAL.GAME_VOICE, (frame) => {
+        if ("id" in frame && quiz.isFirstHearing(frame.id)) {
             quiz.voiceRequested(frame.id);
-            void voice.play(frame.id, frame.path);
+            voice.play(frame.id, frame.path);
         }
         quiz.voiceFrameArrived();
     });
-    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
+    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame) => {
         quiz.receiveAnswerCount(frame);
     });
-    core.on(GAME_SIGNAL.GAME_REFUSED, (frame: RefusedFrame) => {
+    core.on(GAME_SIGNAL.GAME_REFUSED, (frame) => {
         quiz.receiveRefusal(frame);
         core.showToast(...refusalToast(frame, core.toastKind));
     });
-    core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
+    core.on(GAME_SIGNAL.GAME_ENDED, (frame) => {
         const text =
             frame.leaver === undefined
                 ? words["game.endedToast"]
@@ -198,10 +151,15 @@ function listen(core: FeatureCore, quiz: Quiz) {
         voice.stop();
         quiz.reset();
     });
-    return voice.stop;
+    return voice;
 }
 
-export function install(core: FeatureCore): Promise<void> {
+export function install(core: FeatureCore<GameFrameByType>): Promise<void> {
+    return installWith(core, createSpeechPlayer);
+}
+
+/** `createPlayer` makes the player of the game master's voice. */
+export function installWith(core: FeatureCore<GameFrameByType>, createPlayer: () => Player): Promise<void> {
     const more = moreItems();
     let thinkingView: FeatureView | null = null;
     let handedCard: QuestionCardProps | null = null;
@@ -251,10 +209,10 @@ export function install(core: FeatureCore): Promise<void> {
     more.startButton.addEventListener("click", () => {
         quiz.startOrEnd();
     });
-    const stopVoice = listen(core, quiz);
+    const voice = listen(core, quiz, createPlayer);
     more.voiceButton.addEventListener("click", () => {
         quiz.toggleVoiceMuted();
-        if (quiz.voiceMuted) stopVoice();
+        voice.syncMuted();
     });
     core.addMoreItems(...more.items);
     return Promise.resolve();

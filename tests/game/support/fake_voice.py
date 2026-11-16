@@ -2,6 +2,8 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 
+from hopin.game.voice import VOICE_DEADLINE_CUT
+
 DEFAULT_WAV = b"RIFF-the-fake-voice"
 
 
@@ -18,6 +20,7 @@ class SpeakCall:
     starter: object
     text: str
     cancelled: bool = False
+    cut_by_deadline: bool = False
     finished: bool = False
 
 
@@ -54,8 +57,9 @@ class FakeVoice:
             if isinstance(answer, BaseException):
                 raise answer
             return answer
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as cancelled:
             call.cancelled = True
+            call.cut_by_deadline = cancelled.args == (VOICE_DEADLINE_CUT,)
             raise
         finally:
             call.finished = True

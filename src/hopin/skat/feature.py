@@ -6,7 +6,8 @@ import structlog
 from fastapi import APIRouter
 
 from hopin.errors import InvalidMessageError
-from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
+from hopin.rooms.reference import room_reference
+from hopin.skat.frames import AttachedTableFrame, EmptyTableFrame, RefusedFrame
 from hopin.skat.settings import SkatSettings, check_origin_differs, table_source
 from hopin.skat.stage import Stages
 from hopin.skat.vocabulary import FEATURE_NAME, SIGNAL_TYPES, SkatRefusal, SkatSignal
@@ -20,14 +21,10 @@ if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.signaling.features import CallRooms, FeatureFactory
-    from hopin.signaling.frames import ForeignFrame
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
-
-
-def _refusal_frame(refusal: SkatRefusal) -> JsonObject:
-    return {TYPE_KEY: SkatSignal.SKAT_REFUSED.value, "reason": refusal.value}
 
 
 class Skat:
@@ -64,7 +61,7 @@ class Skat:
         room_id = self._rooms.room_of(peer_id)
         if room_id is None:  # pragma: no cover - a seat is in its room when it is announced
             return
-        await self._rooms.send(peer_id, self._table_frame(room_id))
+        await self._rooms.send(peer_id, self._table_frame(room_id).to_json())
 
     def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
         """Skat reads no chat."""
@@ -95,11 +92,15 @@ class Skat:
             return
         address = table_source(self._origin, link)
         if address is None:
-            await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BAD_LINK))
+            await self._rooms.send(peer_id, RefusedFrame(SkatRefusal.BAD_LINK).to_json())
         elif not self._stages.attach(room_id, table=address.table, source=address.source, opener=peer_id):
-            await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.BUSY))
+            await self._rooms.send(peer_id, RefusedFrame(SkatRefusal.BUSY).to_json())
         else:
-            await logger.ainfo("skat_attached", room_id=room_id, attachment=self._stages.state_of(room_id).revision)
+            await logger.ainfo(
+                "skat.attached",
+                room_ref=room_reference(room_id),
+                attachment=self._stages.state_of(room_id).revision,
+            )
             await self._tell_room(room_id)
 
     async def _on_detach(self, peer_id: PeerId, frame: ForeignFrame) -> None:
@@ -111,28 +112,23 @@ class Skat:
         if room_id is None or held is None or held.number != attachment:
             return
         if held.opener not in (None, peer_id) and not self._rooms.is_host(peer_id):
-            await self._rooms.send(peer_id, _refusal_frame(SkatRefusal.NOT_OPENER_OR_HOST))
+            await self._rooms.send(peer_id, RefusedFrame(SkatRefusal.NOT_OPENER_OR_HOST).to_json())
             return
         self._stages.detach(room_id)
-        await logger.ainfo("skat_detached", room_id=room_id, attachment=attachment)
+        await logger.ainfo("skat.detached", room_ref=room_reference(room_id), attachment=attachment)
         await self._tell_room(room_id)
 
-    def _table_frame(self, room_id: str) -> JsonObject:
+    def _table_frame(self, room_id: str) -> AttachedTableFrame | EmptyTableFrame:
         """The room's state as it is at this call, so a frame sent late never claims more than it was sent with."""
         state = self._stages.state_of(room_id)
         held = state.attachment
-        return {
-            TYPE_KEY: SkatSignal.SKAT_TABLE.value,
-            "revision": state.revision,
-            "attachment": None if held is None else held.number,
-            "table": None if held is None else held.table,
-            "src": None if held is None else held.source,
-            "opener_id": None if held is None else held.opener,
-        }
+        if held is None:
+            return EmptyTableFrame(state.revision, None, None, None, None)
+        return AttachedTableFrame(state.revision, held.number, held.table, held.source, held.opener)
 
     async def _tell_room(self, room_id: str) -> None:
         for member in self._rooms.members(room_id):
-            await self._rooms.send(member, self._table_frame(room_id))
+            await self._rooms.send(member, self._table_frame(room_id).to_json())
 
 
 @dataclass(frozen=True)

@@ -193,7 +193,7 @@ class TestSuspendedCheck:
             await release_check(resolver, ticking)
 
         assert guest.socket.closed_with is None
-        assert [entry for entry in logs if entry["event"] == "session_ended"] == []
+        assert [entry for entry in logs if entry["event"] == "session.expired"] == []
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
         assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
         assert len(ticks_due_at(scheduler, 2 * SESSION_RECHECK_SECONDS)) == 1
@@ -219,7 +219,7 @@ class TestSuspendedCheck:
             await release_check(resolver, ticking)
 
         assert guest.socket.closed_with is None
-        assert [entry for entry in logs if entry["event"] == "session_ended"] == []
+        assert [entry for entry in logs if entry["event"] == "session.expired"] == []
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == before
         assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
         assert len(ticks_due_at(scheduler, 2 * SESSION_RECHECK_SECONDS)) == 2
@@ -353,7 +353,7 @@ class TestOtherEnds:
             await scheduler.advance(SESSION_RECHECK_SECONDS)
 
         assert guest.socket.closed_with is None
-        assert [entry for entry in logs if entry["event"] == "session_ended"] == []
+        assert [entry for entry in logs if entry["event"] == "session.expired"] == []
 
     async def test_tick_that_fired_before_the_socket_closed_but_ran_after_does_nothing(self, link, scheduler, resolver):
         _, guest = await host_and_guest(link)
@@ -390,5 +390,5 @@ class TestOtherEnds:
             await scheduler.advance(SESSION_RECHECK_SECONDS)
 
         assert guest.socket.closed_with == closed_with
-        assert [entry for entry in logs if entry["event"] == "session_ended"] == []
+        assert [entry for entry in logs if entry["event"] == "session.expired"] == []
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []

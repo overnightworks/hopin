@@ -6,10 +6,11 @@ import secrets
 from functools import partial
 
 import pytest
-import structlog.testing
 from agents.member import STOP_SPEAKING_TOOL
+from logline import Outcome
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
+    HEALTH_PATH,
     SPEECH_PATH,
     WORKLOAD_TOKEN_HEADER,
     Language,
@@ -17,10 +18,13 @@ from speech_client.wire import (
     VoiceId,
 )
 
+from hopin.agent import speaking as speaking_module
+from hopin.agent.speaking import HEALTH_MAX_BYTES
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import SPEAK_MAX_CHARACTERS
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS, ParticipationSignal
+from hopin.rooms.reference import room_reference
 from tests.participation.support.speaking_scene import (
     ANSWER_SECONDS,
     CLIENT_CREDENTIALS_GRANT,
@@ -30,20 +34,23 @@ from tests.participation.support.speaking_scene import (
     VOICE,
     drained,
     frames_of,
+    grants,
     refusal_of,
     sound_at,
     still_waiting,
 )
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
-from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
+from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
+from tests.support.log_lines import captured_lines
+from tests.support.loopback_origin import http_response
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     chunked_wav,
-    failures_in,
     header_of,
     offering,
     refusal_answer,
+    speak_failures,
     speaking,
     speech_requests,
     spoken_request,
@@ -53,10 +60,10 @@ from tests.support.speech_origin import (
 pytestmark = pytest.mark.integration
 
 SENTENCE_MS = 1500
-FAILED = "agent_speak_failed"
+HEALTH_DEADLINE_FOR_A_STALL_SECONDS = 0.2
 UNKNOWN_VOICE = "de_DE-nobody-medium"
-UNKNOWN_VOICE_EVENT = "agent_voice_unknown"
-failures_of = partial(failures_in, event=FAILED)
+UNKNOWN_VOICE_EVENT = "voice_list.refused"
+failures_of = speak_failures
 
 
 @pytest.fixture
@@ -75,13 +82,13 @@ class TestSpeakingOff:
     def test_call_60_with_the_setting_off_speak_is_unavailable_logs_speaking_off_and_nobody_is_called(
         self, joined_agent
     ):
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             dialed = speak(joined_agent)
         drained(joined_agent)
 
         issuer = joined_agent.call.issuer
         assert refusal_of(dialed) == (True, {"refused": "unavailable"})
-        assert failures_of(logs) == [{"outcome": "speaking_off"}]
+        assert failures_of(logs) == ["speaking_off"]
         assert (
             issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT),
             issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT),
@@ -184,6 +191,50 @@ class TestSpeaking:
         assert dialed.is_error is False
 
 
+def speak_until_it_ends(scene):
+    """A sentence that is spoken to its end, so that the next one does not wait behind it."""
+    spoken = speak(scene)
+    scene.call.pass_time(SENTENCE_SECONDS)
+    return spoken
+
+
+class TestTheWorkloadToken:
+    def test_call_60_sentences_within_one_tokens_lifetime_post_one_grant_and_carry_the_same_token(
+        self, joined_agent, speech_origin
+    ):
+        """CALL-60: HopIn's token for the service is fetched once for the sentences that follow within its lifetime."""
+        for _ in range(2):
+            speak_until_it_ends(joined_agent)
+
+        assert (
+            len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT)),
+            {header_of(request, WORKLOAD_TOKEN_HEADER) for request in speech_requests(speech_origin)},
+        ) == (1, set(joined_agent.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)))
+
+    def test_call_60_a_token_at_the_end_of_its_lifetime_is_fetched_anew_before_the_next_sentence(
+        self, joined_agent, issuer_clock
+    ):
+        speak_until_it_ends(joined_agent)
+        issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
+        speak_until_it_ends(joined_agent)
+
+        assert len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT)) == 2
+
+    def test_call_61_a_refusal_is_not_reused_for_the_next_sentence(self, joined_agent):
+        issuer = joined_agent.call.issuer
+        issuer.refuses_client_credentials_grants = True
+        refused = speak(joined_agent)
+        issuer.refuses_client_credentials_grants = False
+
+        spoken = speak(joined_agent)
+
+        assert (refused.outcome, spoken.outcome, len(grants(joined_agent, CLIENT_CREDENTIALS_GRANT))) == (
+            {"written": True},
+            {"spoken": True},
+            2,
+        )
+
+
 class TestTheVoiceOfASentence:
     @pytest.fixture
     def accepted_voices(self):
@@ -272,6 +323,37 @@ class TestTheVoicesOfAnAgent:
             [],
             "unavailable",
         )
+
+    @pytest.mark.parametrize(
+        ("answer", "reason"),
+        [
+            pytest.param(http_response("500 Internal Server Error", b""), "unexpected_status", id="unexpected-status"),
+            pytest.param(http_response("200 OK", b"{"), "malformed", id="malformed"),
+            pytest.param(http_response("200 OK", bytes(HEALTH_MAX_BYTES + 1)), "over_cap", id="over-cap"),
+            pytest.param(http_response("200 OK", b"{", declared_length=HEALTH_MAX_BYTES), "cut", id="cut"),
+            pytest.param(None, "past_deadline", id="past-deadline"),
+            pytest.param(b"", "unreachable", id="unreachable"),
+        ],
+    )
+    def test_call_61_a_health_that_cannot_be_read_ends_the_health_step_refused_with_its_cause(
+        self, joined_agent, speech_origin, monkeypatch, answer, reason
+    ):
+        offering(speech_origin, VoiceId.KERSTIN)
+        speak(joined_agent)
+        if answer is None:
+            monkeypatch.setattr(speaking_module, "HEALTH_DEADLINE_SECONDS", HEALTH_DEADLINE_FOR_A_STALL_SECONDS)
+            speech_origin.serve(HEALTH_PATH, b"", held=True)
+        elif answer:
+            speech_origin.serve(HEALTH_PATH, answer)
+        else:
+            speech_origin.close()
+
+        with captured_lines() as logs:
+            joined_agent.call.pass_time(VOICE_RECOVERY_SECONDS)
+            assert logs.wait_for_event("speech_health.ended", 5)
+
+        [health] = [log for log in logs if log["event"] == "speech_health.ended"]
+        assert (health["outcome"], health["reason"]) == (Outcome.REFUSED, reason)
 
     def test_call_61_the_window_turns_available_again_without_a_sentence_once_a_voice_of_the_list_is_offered(
         self, joined_agent, speech_origin
@@ -485,7 +567,7 @@ class TestAVoiceSpeechDoesNotName:
         self, scene, speech_origin
     ):
         scene.invite()
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             accepted = scene.accept(scene.standings()[0], voices=[UNKNOWN_VOICE])
             scene.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)
         spoken = speak(scene)
@@ -497,7 +579,13 @@ class TestAVoiceSpeechDoesNotName:
             [spoken_request(request).voice for request in speech_requests(speech_origin)],
             [{key: value for key, value in log.items() if key not in {"event", "log_level"}} for log in unknown],
             UNKNOWN_VOICE in repr(logs),
-        ) == (False, False, [VoiceId.THORSTEN], [{"room_id": scene.owner.room_id}], False)
+        ) == (
+            False,
+            False,
+            [VoiceId.THORSTEN],
+            [{"reason": "unknown_voice", "room_ref": room_reference(scene.owner.room_id)}],
+            False,
+        )
 
 
 class TestTheVoiceRoute:

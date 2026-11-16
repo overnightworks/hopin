@@ -364,7 +364,7 @@ class TestBackchannelLogout:
         assert application.stores.sessions.load(other_device.session.id) is None
         assert application.stores.sessions.load(other_member.session.id) is not None
         ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
-        assert [log["subject_id"] for log in ended] == [member.account.id]
+        assert [log["sub"] for log in ended] == [member.account.id]
         assert member.account.username not in json.dumps(logs)
 
     @pytest.mark.parametrize(

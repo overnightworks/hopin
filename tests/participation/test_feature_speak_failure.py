@@ -5,7 +5,6 @@ import asyncio
 import contextlib
 
 import pytest
-import structlog.testing
 
 from hopin.participation.chat_window import WindowVoice
 from hopin.participation.vocabulary import (
@@ -17,6 +16,7 @@ from hopin.participation.vocabulary import (
     SpeakStop,
     VoiceFailure,
 )
+from hopin.rooms.reference import room_reference
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     SENTENCE_MS,
@@ -30,6 +30,7 @@ from tests.participation.support.speaking import (
     speak,
     waiting_to_speak,
 )
+from tests.support.log_lines import captured_lines
 from tests.support.speech_origin import failures_in
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -38,8 +39,8 @@ HOST = person_named("host")
 GUEST = person_named("guest")
 VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
-FAILED = "agent_speak_failed"
-OUTAGE = "agent_voice_unavailable"
+OUTAGE = "agent_voice.lost"
+RETURN = "agent_voice.returned"
 
 
 def written_lines(participation, person, room_id):
@@ -88,7 +89,6 @@ class TestAVoiceThatFails:
         answered_early = await answers_so_far(scheduler, SENTENCE_MS / 1000 - 0.001, written)
         before = written_lines(participation, GUEST, room_id)
         await scheduler.advance(0.001)
-        await asyncio.sleep(0)
 
         assert (answered_early, before, await written) == ([False], [], SpeakFallback.WRITTEN)
         assert written_lines(participation, GUEST, room_id) == [("Eins", True, True), ("Zwei", True, False)]
@@ -244,18 +244,36 @@ class TestTheVoiceState:
         host, *_ = call
         room_id = room_of(host)
 
-        with structlog.testing.capture_logs() as logs:
+        with captured_lines() as logs:
             await speak(participation, "Geheim", render=renders_failing, room_id=room_id)
             await speak(participation, "Geheim", render=renders_failing, room_id=room_id)
-            first = failures_in(logs, OUTAGE)
+            first = voices_lost(logs)
             await speak(participation, room_id=room_id)
             await scheduler.advance(SENTENCE_MS / 1000)
             await speak(participation, "Geheim", render=renders_failing, room_id=room_id)
 
-        assert (first, failures_in(logs, OUTAGE)) == (
-            [{"reason": "busy", "room_id": room_id}],
-            [{"reason": "busy", "room_id": room_id}] * 2,
+        assert (first, voices_lost(logs)) == (
+            [("busy", room_reference(room_id))],
+            [("busy", room_reference(room_id))] * 2,
         )
+
+    async def test_the_return_is_logged_once_with_the_call_and_the_agent_when_a_sound_follows_the_outage(
+        self, participation, call, scheduler
+    ):
+        host, _, mozart, _ = call
+        room_id = room_of(host)
+
+        with captured_lines() as logs:
+            await speak(participation, render=renders_failing, room_id=room_id)
+            await speak(participation, room_id=room_id)
+            await scheduler.advance(SENTENCE_MS / 1000)
+            await speak(participation, room_id=room_id)
+
+        assert failures_in(logs, RETURN) == [{"room_ref": room_reference(room_id), "agent_id": mozart.agent_id}]
+
+
+def voices_lost(lines):
+    return [(line["reason"], line["room_ref"]) for line in failures_in(lines, OUTAGE)]
 
 
 class TestTheVoiceComesBackWithoutASentence:
@@ -289,6 +307,22 @@ class TestTheVoiceComesBackWithoutASentence:
             WindowVoice.UNAVAILABLE,
             WindowVoice.AVAILABLE,
             [(GUEST, room_id)],
+        )
+
+    async def test_the_return_is_logged_once_when_the_voice_is_offered_again(self, participation, call, scheduler):
+        host, _, mozart, _ = call
+        room_id = room_of(host)
+        offered = self.offering(False, True)
+        await speak(participation, render=renders_failing, room_id=room_id, offered=offered)
+
+        with captured_lines() as logs:
+            await scheduler.advance(VOICE_RECOVERY_SECONDS)
+            before = failures_in(logs, RETURN)
+            await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
+
+        assert (before, failures_in(logs, RETURN)) == (
+            [],
+            [{"room_ref": room_reference(room_id), "agent_id": mozart.agent_id}],
         )
 
     async def test_call_61_the_voice_is_asked_for_nothing_while_no_window_states_it_unavailable(

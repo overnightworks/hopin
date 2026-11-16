@@ -2,6 +2,7 @@
 serve it."""
 
 import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, Resourc
 from agents.mcp_server.hearing import MemberHearing
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
+    GESTURE_TOOL,
     INVITATION_SECONDS,
     LEASE_SECONDS,
     STANDING_URI,
@@ -32,6 +34,7 @@ from agents.member import (
 )
 from agents.tools import JsonObject, Principal, ToolOutcome
 from fastapi import APIRouter, HTTPException, Response
+from logline import StepTimer
 from starlette.requests import HTTPConnection
 from starlette.routing import Route
 from webauth.middleware import ProtectedResource, resource_person
@@ -42,15 +45,23 @@ from webauth.session_groups import SessionGroups
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
-from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, AgentVoice, SpeechRenderer
+from hopin.agent.issuer_error import grant_refusal_reason
+from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, SPEECH_STREAM, AgentVoice, SpeechRenderer
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
 from hopin.participation.feature import Participation
 from hopin.participation.figure_transport import get_figure_over_https
-from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, fetch_figure
+from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, NamedFigure, fetch_figure
 from hopin.participation.hearing import Hearing
 from hopin.participation.participants import Caller, OwnAccount, Person
-from hopin.participation.vocabulary import FIGURE_PATH, HEARING_PATH, SPEAK_FAILED_EVENT, VOICE_PATH
+from hopin.participation.vocabulary import (
+    CLIP_CACHE_BYTES,
+    CLIP_MAX_BYTES,
+    CLIP_PATH,
+    FIGURE_PATH,
+    HEARING_PATH,
+    VOICE_PATH,
+)
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
 
@@ -70,6 +81,7 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+_STEPS: Final = logging.getLogger(__name__)
 
 # The realm's objects for HopIn's MCP path: the scope and audience a token carries, the group whose members the
 # gate admits, the group of agents' own accounts it admits from any client, and the public client an agent signs in
@@ -120,11 +132,11 @@ class _BuiltParticipation:
         return self.participation
 
     async def _groups_of(self, connection: HTTPConnection) -> frozenset[str] | None:
-        groups = await self.groups.of_connection(connection)
-        if isinstance(groups, AccessTokenRefusal):
-            logger.info("agent_adders_group_read_refused", reason=groups.reason.value)
-            return None
-        return groups
+        async with StepTimer("group_read.ended", _STEPS) as step:
+            groups = await self.groups.of_connection(connection)
+            if isinstance(groups, AccessTokenRefusal):
+                step.refuse(grant_refusal_reason(groups))
+        return None if isinstance(groups, AccessTokenRefusal) else groups
 
     def _listens_to_standing(self, person: Person) -> bool:
         return self.changes.listens_to(_principal_of_person(person), STANDING_URI)
@@ -141,10 +153,18 @@ class _BuiltParticipation:
     def _recompute_ended(self, recompute: asyncio.Task[None]) -> None:
         self._recomputes.discard(recompute)
         if not recompute.cancelled() and (error := recompute.exception()) is not None:
-            logger.error("agent_offers_recompute_failed", exc_info=error)
+            logger.error("agent_offers_recompute.failed", exc_info=error)
 
     def _tell_changed(self, person: Person) -> None:
         self.changes.changed(_principal_of_person(person), STANDING_URI)
+        self.changes.tools_changed(_principal_of_person(person))
+
+    async def offered_tools(  # NOSONAR(S7503) OfferedTools is async
+        self, declared: Collection[str], principal: Principal
+    ) -> Collection[str]:
+        """Every declared tool, and the gesture tool only while the principal's agent shows a figure in some call."""
+        shown = self.participation.figures.shown_by(Person(principal.iss, principal.sub))
+        return tuple(name for name in declared if name != GESTURE_TOOL or shown)
 
     def _tell_window_changed(self, person: Person, room_id: str) -> None:
         self.changes.changed(_principal_of_person(person), _call_window_uri(room_id))
@@ -287,14 +307,14 @@ class _MemberResources:
         return None if window is None else _window_of(window)
 
 
-def _figure_endpoint(
-    store: FigureStore, participation: Callable[[], Participation]
+def _file_endpoint(
+    store: FigureStore, named_by: Callable[[str], tuple[NamedFigure, ...]]
 ) -> Callable[[str], Awaitable[Response]]:
-    """The route of a figure: any signed-in member reads the verified file of a digest a joined agent names, since the
-    file is a public release asset."""
+    """The route of a figure or of a clip, by the store and the names of its kind: any signed-in member reads the
+    verified file of a digest a joined agent names, since the file is a public release asset."""
 
     async def figure(sha256: str) -> Response:
-        named = participation().figures_named(sha256)
+        named = named_by(sha256)
         if not named:
             raise HTTPException(status_code=404)
         body = await store.bytes_of(sha256, named)
@@ -352,12 +372,8 @@ class ParticipationFeature:
         hearing_tokens = self._hearing_tokens(scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
-        front = McpPersonFront(
-            [_as_person_tool(tool) for tool in participation_tools(built.current, voice)],
-            resolve_person=partial(_principal_of, relying_party.issuer),
-            resources=_MemberResources(built.current),
-            changes=built.changes,
-        )
+        clip_store = self._clip_store()
+        front = self._front(built, relying_party, voice)
 
         @asynccontextmanager
         async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -366,6 +382,7 @@ class ParticipationFeature:
                     yield
             finally:
                 store.shut_down()
+                clip_store.shut_down()
 
         router = APIRouter(lifespan=lifespan)
         # No methods named, so every method reaches the front, which refuses all but POST itself.
@@ -375,20 +392,68 @@ class ParticipationFeature:
                 endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current, hearing_tokens),
             )
         )
-        router.add_api_route(f"{FIGURE_PATH}/{{sha256}}", _figure_endpoint(store, built.current), methods=READ_METHODS)
+        router.add_api_route(
+            f"{FIGURE_PATH}/{{sha256}}",
+            _file_endpoint(store, lambda sha256: built.current().figures.named(sha256)),
+            methods=READ_METHODS,
+        )
+        router.add_api_route(
+            f"{CLIP_PATH}/{{sha256}}",
+            _file_endpoint(clip_store, lambda sha256: built.current().figures.named_clips(sha256)),
+            methods=READ_METHODS,
+        )
         self._add_voice_route(router, built.current)
-        if self.hearing is not None:
-            hearing_route = HearingRoute(
-                service=self.hearing,
-                issuer=relying_party.issuer,
-                resolver=SessionIdentityResolver(sessions),
-                participation=built.current,
-                tokens=hearing_tokens,
-                relying_party=relying_party,
-                scheduler=scheduler,
-            )
-            router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
+        self._add_hearing_route(router, built.current, relying_party, sessions, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+
+    def _clip_store(self) -> FigureStore:
+        """The store of the clips, with its own byte bound, cache and step line apart from the figure's."""
+        return FigureStore(
+            partial(
+                fetch_figure,
+                self.figure_transport,
+                monotonic=time.monotonic,
+                max_bytes=CLIP_MAX_BYTES,
+                redirect_sources=self.figure_sources,
+            ),
+            cache_bytes=CLIP_CACHE_BYTES,
+            step_event="clip_fetch.ended",
+        )
+
+    def _add_hearing_route(
+        self,
+        router: APIRouter,
+        participation: Callable[[], Participation],
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        scheduler: Scheduler,
+        hearing_tokens: HearingTokens,
+    ) -> None:
+        """Serve the hearing socket when a hearing service is wired."""
+        if self.hearing is None:
+            return
+        hearing_route = HearingRoute(
+            service=self.hearing,
+            issuer=relying_party.issuer,
+            resolver=SessionIdentityResolver(sessions),
+            participation=participation,
+            tokens=hearing_tokens,
+            relying_party=relying_party,
+            scheduler=scheduler,
+        )
+        router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
+
+    def _front(
+        self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None
+    ) -> McpPersonFront:
+        tools = [_as_person_tool(tool) for tool in participation_tools(built.current, voice)]
+        return McpPersonFront(
+            tools,
+            resolve_person=partial(_principal_of, relying_party.issuer),
+            resources=_MemberResources(built.current),
+            changes=built.changes,
+            offered_tools=partial(built.offered_tools, [tool.declaration.name for tool in tools]),
+        )
 
     def _add_voice_route(self, router: APIRouter, participation: Callable[[], Participation]) -> None:
         """Serve the stored sounds to the signed-in accounts that hold a seat in the sound's room."""
@@ -413,7 +478,11 @@ class ParticipationFeature:
         if self.speaking is None:
             return None
         renderer = SpeechRenderer(
-            self.speaking, SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, relying_party, SPEAK_FAILED_EVENT
+            self.speaking,
+            SPEAK_DEADLINE_SECONDS,
+            SPEAK_MAX_BYTES,
+            relying_party,
+            SPEECH_STREAM,
         )
         return AgentVoice(renderer, tokens)
 

@@ -1,10 +1,12 @@
 import asyncio
+import time
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
 from fastapi import FastAPI
+from logline import RequestLineMiddleware
 from webauth.config import install_web_auth_config
 from webauth.middleware import install_resource_metadata, install_web_auth_middleware
 from webauth.policies import (
@@ -19,6 +21,7 @@ from webauth.single_process_stores import SingleProcessStores
 
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import bearer_gate, session_gate
+from hopin.auth.request_identity import RequestIdentityMiddleware
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
@@ -129,7 +132,7 @@ class _ExpiredSessionSweep:
             self._sessions.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)
         )
         if removed:
-            logger.info("expired_sessions_swept", removed=removed)
+            logger.info("sessions.swept", removed_count=removed)
         self._schedule_next_unless_stopped()
 
     def _schedule_next_unless_stopped(self) -> None:
@@ -151,23 +154,14 @@ def _lifespan(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         sweep = _ExpiredSessionSweep(sessions, wall_clock, scheduler)
         try:
+            logger.info("process.ready")
             yield
         finally:
             sweep.stop()
             await signaling_handler.shut_down()
+            logger.info("process.stopped")
 
     return lifespan
-
-
-def _configure_logging() -> None:
-    structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.add_log_level,
-            # The default exception formatter switches to rich tracebacks with locals as soon as rich is installed.
-            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback),
-        ],
-    )
 
 
 def _install_web_auth(
@@ -247,6 +241,7 @@ def create_app(
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_features: Sequence[CallFeatureBuilder] = (),
+    monotonic_clock: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(
         settings,
@@ -255,10 +250,8 @@ def create_app(
     )
     turn_relay = build_turn_relay(settings, turn_transport)
 
-    _configure_logging()
-
     sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
-    relying_party = build_relying_party(sign_in_configs, issuer_transports)
+    relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     built_features = _build_features(call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers)
@@ -286,5 +279,7 @@ def create_app(
     install_web_auth_config(app, sign_in_configs.web_auth)
     install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
+    app.add_middleware(RequestIdentityMiddleware)
+    app.add_middleware(RequestLineMiddleware)
 
     return app

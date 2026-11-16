@@ -1,29 +1,31 @@
 import asyncio
 import secrets
 from functools import partial
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 import structlog
 
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.participation.chat_window import LineKind, WindowRead
-from hopin.participation.figures import Figure, FigureSource, NamedFigure, figure_refusal
+from hopin.participation.figures import Figure, FigureSource, judge_figure
 from hopin.participation.frames import (
+    AgentInvitationEndedFrame,
+    AgentLeftFrame,
+    AgentLineFrame,
+    AgentOffersFrame,
+    AgentRefusedFrame,
+    AgentStopFrame,
+    AgentVoiceFrame,
     Offer,
-    invitation_ended_frame,
+    ParticipationFrame,
     joined_frame,
-    left_frame,
-    line_frame,
-    offers_frame,
-    refusal_frame,
-    stop_frame,
-    voice_frame,
 )
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
 from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
 from hopin.participation.seeing import Seeing
+from hopin.participation.shown_figures import ShownFigures
 from hopin.participation.speaking import Speaking, SpeakResult, StopResult
 from hopin.participation.speech_in_windows import SpeechInWindows
 from hopin.participation.switches import Switches
@@ -33,7 +35,6 @@ from hopin.participation.vocabulary import (
     FEATURE_NAME,
     FIGURE_MODULE,
     SIGNAL_TYPES,
-    SPEAK_FAILED_EVENT,
     AgentRefusal,
     HearingRefusal,
     InvitationOutcome,
@@ -42,7 +43,8 @@ from hopin.participation.vocabulary import (
     SpeakFailure,
     SpeakStop,
 )
-from hopin.signaling.frames import JsonObject, PeerId
+from hopin.rooms.reference import room_reference
+from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
@@ -61,7 +63,6 @@ if TYPE_CHECKING:
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
-AGENT_ADDED_EVENT: Final = "agent_invited"
 
 type GroupsOf = Callable[[HTTPConnection], Awaitable[frozenset[str] | None]]
 """The groups the issuer holds for the session a connection carries now, or nothing when they cannot be read."""
@@ -107,6 +108,7 @@ class Participation:
         self._speaking = Speaking(
             voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
+        self.figures = ShownFigures(self._places, self._active_agent, self._tell, self._recipients)
         self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients)
         self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
         self._live = LiveAgents()
@@ -151,7 +153,7 @@ class Participation:
         self._on_changed(person)
         await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(sponsor))
         await self._switches.tell(agent)
-        await logger.ainfo("agent_dialed_in", room_id=room_id, agent_id=agent.agent_id)
+        await logger.ainfo("agent.dialed_in", room_ref=room_reference(room_id), agent_id=agent.agent_id)
         await self._update_offers(room_id)
         return agent
 
@@ -192,10 +194,12 @@ class Participation:
             return agent
         sentence = clean_line(one_line(text))
         if sentence is None or render is None:
-            return await self._unavailable(SpeakFailure.NO_TEXT if sentence is None else SpeakFailure.SPEAKING_OFF)
+            return self._unavailable(
+                agent, text, SpeakFailure.NO_TEXT if sentence is None else SpeakFailure.SPEAKING_OFF
+            )
         failure = self._no_room_to_speak(agent)
         if failure is not None:
-            return await self._unavailable(failure)
+            return self._unavailable(agent, text, failure)
         return await self._speaking.speak(agent, sentence, self.speech.watching_voice(agent, render, offered))
 
     async def stop_speaking(self, person: Person, room_id: str) -> StopResult:
@@ -207,7 +211,7 @@ class Participation:
         cut = self._speaking.stop(agent)
         if cut is None:
             return SpeakStop.NOTHING_PLAYING
-        await self._tell(room_id, self._recipients(room_id), stop_frame(agent))
+        await self._tell(room_id, self._recipients(room_id), AgentStopFrame(agent.agent_id))
         return cut
 
     async def look(self, person: Person, room_id: str) -> Picture:
@@ -247,25 +251,18 @@ class Participation:
             return HearingRefusal.SEAT_AWAY
         return self._hearing.open(account, room_id, seat, holds_token)
 
-    def heard(self, seat: PeerId, text: str, began_at: float) -> None:
-        """Add a finished sentence the seat said, which began at `began_at` on the scheduler's clock, to the window of
-        each joined agent that hears the seat, under the name the call shows for the seat."""
+    def heard(self, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
+        """Add a finished sentence the seat said, which began at `began_at` on the scheduler's clock and which the
+        speech service knows as `item_id`, to the window of each joined agent that hears the seat, under the name the
+        call shows for the seat."""
         room_id = self._rooms.room_of(seat)
         if room_id is None:
             return
-        self.speech.person_said(room_id, seat, text, began_at)
+        self.speech.person_said(room_id, seat, text, began_at, item_id)
 
     def is_live_agent(self, person: Person) -> bool:
         """Whether the person is an agent with an account of its own whose lease is registered."""
         return person in self._live.by_person
-
-    def figures_named(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest."""
-        return tuple(
-            NamedFigure(agent.room_id, agent.figure.url)
-            for agent in self._places.joined()
-            if agent.figure is not None and agent.figure.sha256 == sha256
-        )
 
     async def accept(
         self,
@@ -286,14 +283,14 @@ class Participation:
             return AgentRefusal.TWO_SEATS
         if self._rooms.is_parked(invitation.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        refusal = None if figure is None else figure_refusal(self._figure_sources, figure.url)
+        verdict = judge_figure(self._figure_sources, figure)
         agent = DialedAgent(
             secrets.token_hex(AGENT_ID_BYTES),
             live.name,
             person,
             invitation.sponsor,
             room_id,
-            figure if refusal is None else None,
+            verdict.shown,
             voices,
         )
         if not self._takes_place(agent):
@@ -301,9 +298,13 @@ class Participation:
         self._places.put(person, room_id, agent)
         self._hearing.joined(agent, brought_by_sponsor=invitation.adder == invitation.sponsor)
         self._on_changed(person)
-        await logger.ainfo("agent_invitation_ended", room_id=room_id, reason="accepted")
-        if refusal is not None:
-            await logger.ainfo("agent_figure_refused", room_id=room_id, reason=refusal.value)
+        await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
+        if verdict.refusal is not None:
+            await logger.ainfo("agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value)
+        for gesture, clip_refusal in verdict.clip_refusals.items():
+            await logger.ainfo(
+                "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
+            )
         await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(invitation.sponsor))
         await self._switches.tell(agent)
         await self._update_offers(room_id)
@@ -424,7 +425,7 @@ class Participation:
             await self._tell(
                 invitation.room_id,
                 [invitation.adder],
-                invitation_ended_frame(invitation.agent_key, InvitationOutcome.OWNER_ABSENT),
+                AgentInvitationEndedFrame(invitation.agent_key, InvitationOutcome.OWNER_ABSENT),
             )
 
     def room_ended(self, room_id: str) -> None:
@@ -477,7 +478,7 @@ class Participation:
         if agent is None:
             return
         if peer_id != agent.sponsor and not self._rooms.is_host(peer_id):
-            await self._rooms.send(peer_id, refusal_frame(AgentRefusal.NOT_SPONSOR_OR_HOST))
+            await self._rooms.send(peer_id, AgentRefusedFrame(AgentRefusal.NOT_SPONSOR_OR_HOST).to_json())
             return
         await self._remove(agent)
 
@@ -488,11 +489,11 @@ class Participation:
         room_id = self._rooms.room_of(peer_id)
         live = None if room_id is None else self._live.by_key(agent_key)
         if room_id is None or live is None:
-            await self._rooms.send(peer_id, refusal_frame(AgentRefusal.GONE))
+            await self._rooms.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
             return
         refusal = self._refusal_of_add(peer_id, room_id, live, membership_is_fresh=False)
         if refusal is not None:
-            await self._rooms.send(peer_id, refusal_frame(refusal))
+            await self._rooms.send(peer_id, AgentRefusedFrame(refusal).to_json())
             return
         await self._add_after_a_fresh_read(peer_id, room_id, live)
 
@@ -514,7 +515,7 @@ class Participation:
         await self._update_offers(room_id)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
-            await self._rooms.send(peer_id, refusal_frame(refusal))
+            await self._rooms.send(peer_id, AgentRefusedFrame(refusal).to_json())
 
     def _refusal_of_add_now(
         self, peer_id: PeerId, room_id: str, live: LiveAgent, sponsor: PeerId
@@ -562,7 +563,7 @@ class Participation:
             self._invitation_seconds, partial(self._invitation_timer, live.person, room_id, invitation.invitation_id)
         )
         self._on_changed(live.person)
-        await logger.ainfo(AGENT_ADDED_EVENT, room_id=room_id)
+        await logger.ainfo("agent.invited", room_ref=room_reference(room_id))
 
     async def _invitation_timer(self, person: Person, room_id: str, invitation_id: str) -> None:
         place = self._places.get(person, room_id)
@@ -575,10 +576,10 @@ class Participation:
         agent_key = self._live.by_person[person].key  # read before the awaits: the lease may end during them
         self._places.end_invitation(person, room_id)
         self._on_changed(person)
-        await logger.ainfo("agent_invitation_ended", room_id=room_id, reason=reason)
+        await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason=reason)
         await self._update_offers(room_id)
         # After the offers, which list the agent as available again: the outcome then marks that row.
-        await self._tell(room_id, [invitation.adder], invitation_ended_frame(agent_key, outcome))
+        await self._tell(room_id, [invitation.adder], AgentInvitationEndedFrame(agent_key, outcome))
 
     def _arm(self, person: Person, generation: int, seconds: float) -> None:
         self._scheduler.call_later(seconds, partial(self._lease_timer, person, generation))
@@ -613,7 +614,9 @@ class Participation:
     async def _write_line(self, agent: DialedAgent, line: str) -> None:
         """Show the agent's written line to every joined agent's window and every seat in its room."""
         self.speech.line_said(agent.room_id, LineKind.AGENT, agent.name, line, sayer=agent.person)
-        await self._tell(agent.room_id, self._recipients(agent.room_id), line_frame(agent, line))
+        await self._tell(
+            agent.room_id, self._recipients(agent.room_id), AgentLineFrame(agent.agent_id, agent.name, line)
+        )
 
     def _active_agent(self, person: Person, room_id: str) -> DialedAgent | AgentRefusal:
         """The person's agent in the room when it is joined and its sponsor's seat is connected, else why it is not."""
@@ -630,9 +633,10 @@ class Participation:
             return SpeakFailure.TOO_FAST
         return None
 
-    async def _unavailable(self, failure: SpeakFailure) -> AgentRefusal:
-        """Answer `unavailable` for a sentence never rendered, its closed cause logged and nothing else."""
-        await logger.ainfo(SPEAK_FAILED_EVENT, outcome=failure.value)
+    def _unavailable(self, agent: DialedAgent, text: str, failure: SpeakFailure) -> AgentRefusal:
+        """Answer `unavailable` for a sentence never rendered, its closed cause on its speak line and nothing else."""
+        with self.speech.speak_step(agent, text) as step:
+            step.refuse(failure.value)
         return AgentRefusal.UNAVAILABLE
 
     def _agent_ended(self, agent: DialedAgent) -> None:
@@ -647,11 +651,11 @@ class Participation:
         its voice."""
         self.speech.sentence_started(agent)
         recipients = self._recipients(agent.room_id)
-        await self._tell(agent.room_id, recipients, line_frame(agent, sentence.text))
+        await self._tell(agent.room_id, recipients, AgentLineFrame(agent.agent_id, agent.name, sentence.text))
         for peer_id in recipients:
             if not self._speaking.is_playing(agent, sentence):
                 return
-            await self._tell(agent.room_id, [peer_id], voice_frame(agent, sentence.voice.id))
+            await self._tell(agent.room_id, [peer_id], AgentVoiceFrame(agent.agent_id, sentence.voice.id))
 
     def _sole_seat(self, room_id: str, owner_subject: str) -> PeerId | AgentRefusal:
         seats = self._rooms.seats_in(room_id, owner_subject)
@@ -694,8 +698,8 @@ class Participation:
         await self._update_offers(agent.room_id)
 
     async def _announce_removed(self, agent: DialedAgent, recipients: Sequence[str]) -> None:
-        await self._tell(agent.room_id, recipients, left_frame(agent))
-        await logger.ainfo("agent_left", room_id=agent.room_id, agent_id=agent.agent_id)
+        await self._tell(agent.room_id, recipients, AgentLeftFrame(agent.agent_id))
+        await logger.ainfo("agent.left", room_ref=room_reference(agent.room_id), agent_id=agent.agent_id)
 
     async def _announce_joined(self, agent: DialedAgent, peer_ids: Sequence[str], sponsor_name: str) -> None:
         """Tell the seats of the agent's tile, each only while the agent is still in the call."""
@@ -705,11 +709,11 @@ class Participation:
                 return
             await self._tell(agent.room_id, [peer_id], frame)
 
-    async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: JsonObject) -> None:
+    async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame) -> None:
         """Send to each seat that still sits in the room: a room that has ended gets nothing more."""
         for peer_id in peer_ids:
             if self._rooms.room_of(PeerId(peer_id)) == room_id:
-                await self._rooms.send(peer_id, frame)
+                await self._rooms.send(peer_id, frame.to_json())
 
     async def _update_every_room_offers(self) -> None:
         for room_id in sorted({view.room_id for view in self._views.values()}):
@@ -733,7 +737,7 @@ class Participation:
                 view.offered = offers
                 view.shown = shown
                 view.full = full
-                await self._tell(room_id, [peer_id], offers_frame(offers, shown=shown, full=full))
+                await self._tell(room_id, [peer_id], AgentOffersFrame(shown=shown, full=full, offers=list(offers)))
 
     def _control_shown_to(self, peer_id: PeerId, room_id: str, offers: Sequence[Offer]) -> bool:
         """The control shows to a seat with an offer, to the call's host and to a member of an adders group, even with
@@ -792,6 +796,4 @@ class Participation:
         memberships = self._view_of(peer_id, room_id).memberships
         for group in set(self._adders.values()):
             memberships[group] = membership_in(groups, group)
-        if groups is None:
-            await logger.ainfo("agent_adders_read_failed", room_id=room_id)
         await self._update_offers(room_id, read=False)

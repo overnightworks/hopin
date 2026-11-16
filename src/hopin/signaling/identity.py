@@ -26,6 +26,6 @@ class SessionIdentityResolver:
         # The session store is synchronous, so the check runs in a worker.
         user = await run_in_threadpool(authenticate_websocket, websocket, sessions=self._sessions)
         if isinstance(user, ConnectionRefusal):
-            await logger.ainfo("handshake_refused", reason=user.value)
+            await logger.ainfo("handshake.refused", reason=user.value)
             return None
         return Account(id=user.id, name=user.username)
