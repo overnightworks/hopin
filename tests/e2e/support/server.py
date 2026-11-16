@@ -19,9 +19,11 @@ from webauth.config import installed_web_auth_config
 from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
 from hopin.app import create_app
+from hopin.config.constants import SESSION_RECHECK_SECONDS
 from hopin.main import uvicorn_options
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.voice import VoiceStore
+from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
@@ -29,7 +31,7 @@ from tests.support.sign_in_settings import build_sign_in_settings
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
     from pathlib import Path
 
     from fastapi import FastAPI
@@ -39,6 +41,7 @@ if TYPE_CHECKING:
     from hopin.app import CallFeatureBuilder
     from hopin.config.settings import ServerSettings
     from hopin.participation.figures import FigureSource, FigureTransport
+    from hopin.signaling.scheduler import TimerHandle
     from tests.support.sign_in_settings import SignInSettings
 
 LOOPBACK_HOST = "127.0.0.1"
@@ -49,6 +52,17 @@ UNREACHABLE_HEARING = SpeechService("http://speech.invalid:8090", VoiceId.THORST
 READINESS_POLL_INTERVAL_SECONDS = 0.1
 READINESS_DEADLINE_SECONDS = 20
 SERVER_STOP_TIMEOUT_SECONDS = 10
+# A browser test cannot wait a whole recheck interval for the tick that ends an ended session.
+RECHECK_INTERVAL_IN_TESTS_SECONDS = 1
+
+
+class QuickRecheckScheduler(AsyncioScheduler):
+    """The server's scheduler with the session recheck's tick due after one second; other timers keep their delay."""
+
+    def call_later(self, delay_seconds: float, callback: Callable[[], Awaitable[None]]) -> TimerHandle:
+        if delay_seconds == SESSION_RECHECK_SECONDS:
+            delay_seconds = RECHECK_INTERVAL_IN_TESTS_SECONDS
+        return super().call_later(delay_seconds, callback)
 
 
 def reserve_free_port() -> int:
@@ -203,6 +217,7 @@ def running_hopin(
         loopback.sign_in.settings,
         page_build=PageBuild.load(page_build_directory),
         shared_stores=in_thread_stores(),
+        scheduler=QuickRecheckScheduler(),
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_features=(
