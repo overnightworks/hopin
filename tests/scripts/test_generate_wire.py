@@ -441,3 +441,47 @@ def test_render_core_server_frame_union_is_the_value_union_of_the_map() -> None:
 
 def test_render_core_sequenced_frame_adds_the_replay_sequence_key_as_optional() -> None:
     assert f"export type SequencedFrame = ServerFrame & {{ {SEQUENCE_KEY}?: number }};\n" in generate_wire.render_core()
+
+
+@dataclass(frozen=True)
+class NestedRow:
+    key: str
+    pending: bool
+
+
+@dataclass(frozen=True)
+class RowsFrame:
+    TYPE: ClassVar[SignalType] = SignalType.ROOM_CREATED
+
+    rows: list[NestedRow]
+
+
+def test_render_frame_type_renders_a_list_of_records_as_an_array_of_their_interface() -> None:
+    assert generate_wire.render_frame_type(RowsFrame) == (
+        "export type RowsFrame = {\n    type: SIGNAL_TYPE.ROOM_CREATED;\n    rows: NestedRow[];\n};\n"
+    )
+
+
+def test_render_record_type_renders_the_record_as_its_own_interface() -> None:
+    assert generate_wire.render_record_type(NestedRow) == (
+        "export interface NestedRow {\n    key: string;\n    pending: boolean;\n}\n"
+    )
+
+
+def test_render_feature_writes_each_nested_record_once_before_the_frames_that_hold_them() -> None:
+    @dataclass(frozen=True)
+    class OtherRowsFrame:
+        TYPE: ClassVar[SignalType] = SignalType.ROOM_LOCKED
+
+        rows: list[NestedRow]
+
+    rendered = generate_wire.render_feature({"SIGNAL_TYPE": SignalType}, [RowsFrame, OtherRowsFrame])
+
+    assert rendered.count("export interface NestedRow {") == 1
+    assert rendered.index("export interface NestedRow") < rendered.index("export type RowsFrame")
+
+
+def test_render_feature_ends_with_the_constants_it_is_given() -> None:
+    rendered = generate_wire.render_feature({"SIGNAL_TYPE": SignalType}, [RowsFrame], "export const LIMIT = 3;\n")
+
+    assert rendered.endswith("};\n\nexport const LIMIT = 3;\n")

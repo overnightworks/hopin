@@ -4,19 +4,20 @@ presses one, and is answered with the server's record of it."""
 from typing import TYPE_CHECKING
 
 from hopin.errors import InvalidMessageError
-from hopin.participation.frames import hearing_frame, refusal_frame, seeing_frame
+from hopin.participation.frames import AgentHearingFrame, AgentRefusedFrame, AgentSeeingFrame
 from hopin.participation.vocabulary import AgentRefusal, LookRefusal, ParticipationSignal
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
+    from hopin.participation.frames import ParticipationFrame
     from hopin.participation.hearing import Hearing
     from hopin.participation.participants import DialedAgent
     from hopin.participation.places import Places
     from hopin.participation.seeing import Seeing
     from hopin.participation.speech_in_windows import SpeechInWindows
     from hopin.signaling.features import CallRooms
-    from hopin.signaling.frames import ForeignFrame, JsonObject, PeerId
+    from hopin.signaling.frames import ForeignFrame, PeerId
 
 
 class Switches:
@@ -30,7 +31,7 @@ class Switches:
         hearing: Hearing,
         speech: SpeechInWindows,
         seeing: Seeing,
-        tell: Callable[[str, Sequence[str], JsonObject], Awaitable[None]],
+        tell: Callable[[str, Sequence[str], ParticipationFrame], Awaitable[None]],
         in_call: Callable[[DialedAgent], bool],
     ) -> None:
         self._rooms = rooms
@@ -53,9 +54,9 @@ class Switches:
             (agent for agent in self._places.joined() if agent.agent_id == agent_id and agent.room_id == room_id), None
         )
         if agent is None:
-            await self._rooms.send(peer_id, refusal_frame(AgentRefusal.GONE))
+            await self._rooms.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
         elif agent.sponsor != peer_id:
-            await self._rooms.send(peer_id, refusal_frame(AgentRefusal.NOT_SPONSOR))
+            await self._rooms.send(peer_id, AgentRefusedFrame(AgentRefusal.NOT_SPONSOR).to_json())
         elif frame.signal_type == ParticipationSignal.AGENT_HEARING:
             self._hearing.switch(agent, on=on)
             self._speech.hearing_switched(agent, on=on)
@@ -73,5 +74,5 @@ class Switches:
             return
         hearing = self._hearing.switch_of(agent)
         if hearing is not None:
-            await self._tell(agent.room_id, [agent.sponsor], hearing_frame(agent, on=hearing))
-        await self._tell(agent.room_id, [agent.sponsor], seeing_frame(agent, on=self._hearing.sees(agent)))
+            await self._tell(agent.room_id, [agent.sponsor], AgentHearingFrame(agent.agent_id, on=hearing))
+        await self._tell(agent.room_id, [agent.sponsor], AgentSeeingFrame(agent.agent_id, on=self._hearing.sees(agent)))

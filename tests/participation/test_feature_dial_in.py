@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from agents.figure_vocabulary import FigureGesture
 
 from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, ErrorReason, SignalType
 from hopin.participation.participants import DialedAgent
@@ -124,7 +125,7 @@ class TestJoiningOneLiveSeat:
         if reason == "left":
             await participation.leave(person, room_id)
 
-        refused = await participation.figures.gesture(person, room_id, "wave")
+        refused = await participation.figures.gesture(person, room_id, FigureGesture.WAVE)
 
         assert refused is AgentRefusal.GONE
         assert agent_frames(host, ParticipationSignal.AGENT_GESTURE) == []
