@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
     from hopin.agent.backend import StarterPerson
     from hopin.agent.speech_settings import SpeechService
-    from hopin.web.request_language import RequestLanguage
 
 _STEPS: Final = logging.getLogger(__name__)
 STARTER_TOKEN_REFUSED_REASON: Final = "starter_token_refused"  # noqa: S105 - name of a refusal and no credential
@@ -32,11 +31,9 @@ class SpeechVoice:
         cap_bytes: int,
         relying_party: OidcRelyingParty,
         starter_person: StarterPerson,
-        request_language: RequestLanguage,
     ) -> None:
         self._renderer = SpeechRenderer(service, deadline_seconds, cap_bytes, relying_party, SPEECH_STREAM)
         self._starter_person = starter_person
-        self._request_language = request_language
 
     async def speak(self, starter: HTTPConnection, text: str) -> bytes | None:
         async with StepTimer("game_voice.ended", _STEPS) as step:
@@ -50,7 +47,7 @@ class SpeechVoice:
                 return None
 
     async def _wav(self, starter: HTTPConnection, text: str, step: StepTimer) -> bytes | None:
-        tag = await asyncio.to_thread(self._request_language, starter)
+        tag = await self._starter_person.language_of(starter)
         try:
             language = spoken_language_of(tag, (self._renderer.service.voice,))
         except LanguageUnavailableError as unavailable:

@@ -75,9 +75,7 @@ def origin():
 
 def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS, voice_name=VOICE_NAME):
     service = SpeechService(origin.base_url, voice_name, AUDIENCE_SCOPE)
-    return SpeechVoice(
-        service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, world.starter_person, world.request_language
-    )
+    return SpeechVoice(service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, world.starter_person)
 
 
 class TestSpeaking:

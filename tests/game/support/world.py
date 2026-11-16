@@ -67,11 +67,11 @@ class World:
 
     @property
     def game_master(self):
-        return QuizGameMaster(self.backend, self.starter_person, self.request_language)
+        return QuizGameMaster(self.backend, self.starter_person)
 
     @property
     def starter_person(self):
-        return StarterPerson(self.relying_party, self.sessions, self.web_auth)
+        return StarterPerson(self.relying_party, self.sessions, self.web_auth, self.request_language)
 
     @property
     def request_language(self):

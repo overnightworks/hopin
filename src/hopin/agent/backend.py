@@ -68,14 +68,25 @@ class StarterRefusedError(Exception):
 
 
 class StarterPerson:
-    """Reads who a run is for, from the session the starter's socket opened with."""
+    """Reads who a run is for and in which language, from the session the starter's socket opened with."""
 
-    def __init__(self, relying_party: OidcRelyingParty, sessions: SessionRecordStore, web_auth: WebAuthConfig) -> None:
+    def __init__(
+        self,
+        relying_party: OidcRelyingParty,
+        sessions: SessionRecordStore,
+        web_auth: WebAuthConfig,
+        request_language: RequestLanguage,
+    ) -> None:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
         self._session_transaction = session_transaction_of(sessions)
         self._groups = SessionGroups(relying_party, self._session_transaction, web_auth)
+        self._request_language = request_language
+
+    async def language_of(self, starter: HTTPConnection) -> str:
+        """The starter's language tag, as every page of theirs reads it."""
+        return await asyncio.to_thread(self._request_language, starter)
 
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
@@ -129,16 +140,15 @@ class QuizGameMaster:
     """Asks the quiz agent for the game master's next line through the backend, for the starter, in the starter's
     language."""
 
-    def __init__(self, backend: QuizBackend, starter_person: StarterPerson, request_language: RequestLanguage) -> None:
+    def __init__(self, backend: QuizBackend, starter_person: StarterPerson) -> None:
         self._backend = backend
         self._starter_person = starter_person
-        self._request_language = request_language
         self._agent = load_agent(QUIZ_AGENT_FILE, [])
 
     async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
         async with StepTimer("game_master_turn.ended", _STEPS) as step:
             try:
-                tag = await asyncio.to_thread(self._request_language, starter)
+                tag = await self._starter_person.language_of(starter)
                 request = self._agent.request(
                     _turn_messages(transcript), appended_system=STARTER_LANGUAGE_SYSTEM.format(tag=tag)
                 )

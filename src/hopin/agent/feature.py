@@ -71,26 +71,22 @@ class GameFeature:
         request_language: RequestLanguage,
     ) -> BuiltGameFeature:
         del scheduler, transaction
-        starter_person = StarterPerson(relying_party, sessions, auth_config)
+        starter_person = StarterPerson(relying_party, sessions, auth_config, request_language)
         factory = partial(
             Game,
             deadlines=deadlines,
-            game_master=QuizGameMaster(self.backend, starter_person, request_language),
+            game_master=QuizGameMaster(self.backend, starter_person),
             topic_drawer=draw_quiz_topics,
-            voice=self._voice(relying_party, starter_person, request_language),
+            voice=self._voice(relying_party, starter_person),
             voices=self.voices,
         )
         return BuiltGameFeature(factory, APIRouter())
 
-    def _voice(
-        self, relying_party: OidcRelyingParty, starter_person: StarterPerson, request_language: RequestLanguage
-    ) -> SpeechVoice | None:
+    def _voice(self, relying_party: OidcRelyingParty, starter_person: StarterPerson) -> SpeechVoice | None:
         service = self.speech.service
         if service is None:
             return None
-        return SpeechVoice(
-            service, VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES, relying_party, starter_person, request_language
-        )
+        return SpeechVoice(service, VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES, relying_party, starter_person)
 
 
 def configured_game_feature(voices: VoiceShelf) -> GameFeature:
