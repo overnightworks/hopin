@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -19,6 +19,7 @@ from hopin.web.page_build import built_page_response
 
 if TYPE_CHECKING:
     import os
+    from collections.abc import Callable
 
     from starlette.types import Scope
 
@@ -42,24 +43,26 @@ class _PageBuildFiles(StaticFiles):
         return response
 
 
-def create_router(signaling_handler: SignalingHandler, page_build: PageBuild) -> APIRouter:
+def create_router(
+    signaling_handler: SignalingHandler, page_build: PageBuild, request_language: Callable[[Request], str]
+) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
         return JSONResponse({"status": "ok"})
 
-    def shell() -> Response:
-        return built_page_response(page_build.shell)
+    def shell(request: Request) -> Response:
+        return built_page_response(page_build.shell, request_language(request))
 
     @router.api_route(HOME_PATH, methods=READ_METHODS)
-    def home_page() -> Response:
-        return shell()
+    def home_page(request: Request) -> Response:
+        return shell(request)
 
     # Every call address answers the page; whether the call exists is decided when someone joins.
     @router.api_route(f"{CALL_PATH}/{{room_id}}", methods=READ_METHODS)
-    def call_page() -> Response:
-        return shell()
+    def call_page(request: Request) -> Response:
+        return shell(request)
 
     router.mount(APP_ASSET_PATH, _PageBuildFiles(page_build.app_directory), name="page-build")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)

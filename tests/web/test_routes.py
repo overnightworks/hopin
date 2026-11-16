@@ -36,7 +36,7 @@ def signaling_handler(room_manager):
 @pytest.fixture
 def app(signaling_handler):
     application = FastAPI()
-    application.include_router(create_router(signaling_handler, fixture_page_build()))
+    application.include_router(create_router(signaling_handler, fixture_page_build(), lambda _request: "de"))
     return application
 
 
@@ -47,7 +47,7 @@ def client(app):
 
 class TestCreateRoutes:
     def test_returns_four_routes_and_the_app_mount(self, signaling_handler):
-        router = create_router(signaling_handler, fixture_page_build())
+        router = create_router(signaling_handler, fixture_page_build(), lambda _request: "de")
         assert len(router.routes) == 5
 
 
@@ -69,7 +69,10 @@ class TestHomePage:
 
         response = client.get(HOME_PATH)
 
-        assert (response.content, response.headers["etag"]) == (page_build.shell.content, page_build.shell.etag)
+        assert (response.content, response.headers["etag"]) == (
+            page_build.shell.variants["de"].content,
+            page_build.shell.variants["de"].etag,
+        )
 
 
 class TestCallPage:
@@ -84,13 +87,13 @@ class TestCallPage:
 
         response = client.get(f"{CALL_PATH}/{room.room_id}")
 
-        assert response.content == fixture_page_build().shell.content
+        assert response.content == fixture_page_build().shell.variants["de"].content
 
     def test_answers_the_same_shell_for_an_address_that_never_had_a_call(self, client):
         """CALL-14: An address that never had a call answers the page."""
         response = client.get(f"{CALL_PATH}/nonexistent")
 
-        assert (response.status_code, response.content) == (200, fixture_page_build().shell.content)
+        assert (response.status_code, response.content) == (200, fixture_page_build().shell.variants["de"].content)
 
     @pytest.mark.parametrize("path", ["/call", "/join/x"])
     def test_the_retired_addresses_answer_404(self, client, path):

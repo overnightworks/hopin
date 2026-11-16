@@ -48,6 +48,7 @@ from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Scheduler, TimerHandle
 from hopin.web.call_features import create_call_features_router
 from hopin.web.ice_servers import create_ice_servers_router
+from hopin.web.request_language import RequestLanguage
 from hopin.web.routes import create_router
 from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_turn_relay
 
@@ -255,7 +256,8 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
-    app.include_router(create_router(signaling_handler, page_build))
+    request_language = RequestLanguage(page_build.languages, sign_in_stores.sessions, sign_in_configs.web_auth)
+    app.include_router(create_router(signaling_handler, page_build, request_language))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))
     _include_feature_routes(app, built_features, settings.oidc_issuer)
@@ -263,7 +265,7 @@ def create_app(
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings
     install_web_auth_config(app, sign_in_configs.web_auth)
-    install_sign_in(app, relying_party, sign_in_stores.transaction, page_build)
+    install_sign_in(app, relying_party, sign_in_stores.transaction, page_build, request_language)
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
     app.add_middleware(RequestIdentityMiddleware)
     app.add_middleware(RequestLineMiddleware)
