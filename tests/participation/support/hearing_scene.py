@@ -1,11 +1,17 @@
-"""What the hearing route's tests share: the hearing's scope, the agent's window read through the real `/mcp`, and the
-endings the route logs."""
+"""What the hearing route's tests share: the hearing's scope, the agent's window read through the real `/mcp`, the
+endings the route logs and a sentence the service finished."""
 
 import json
+import secrets
 
 from agents.member import LEASE_SECONDS
 
 AUDIENCE_SCOPE = "speech-audience"
+
+
+def heard(participation, seat, text, began_at=0.0):
+    """The speech service's finished sentence of the seat, under an item id of its own."""
+    participation.heard(seat, text, began_at=began_at, item_id=f"item_{secrets.token_hex(4)}")
 
 
 def entries_of(scene, token=None, room_id=None):

@@ -2,10 +2,11 @@ import asyncio
 import secrets
 
 import pytest
-from logline import Outcome
+from logline import Outcome, unit_trace
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
+    TRACEPARENT_HEADER,
     WORKLOAD_TOKEN_HEADER,
     Language,
     RefusalCode,
@@ -111,6 +112,18 @@ class TestSpeaking:
         assert world.grant_types() == ["refresh_token", "client_credentials"]
         workload_grant = world.issuer.exchanges[1][0]
         assert workload_grant.form["scope"] == AUDIENCE_SCOPE
+
+    async def test_a_line_spoken_inside_a_trace_reaches_the_service_in_that_trace(self, world, origin):
+        speaking(origin, chunked_wav(SPOKEN_WAV))
+        starter, _ = world.starter()
+
+        trace_id = secrets.token_hex(16)
+
+        with unit_trace(f"00-{trace_id}-{secrets.token_hex(8)}-01"):
+            await voice_of(world, origin).speak(starter, TEXT)
+
+        [request] = origin.requests
+        assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == trace_id
 
 
 class TestTheLanguageOfALine:

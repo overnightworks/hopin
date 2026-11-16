@@ -17,6 +17,7 @@ from speech_client.hearing import NEEDED_HOLD_BYTES, Closed, NoToken, ReconnectF
 from speech_client.outcomes import Busy, Cut, Malformed, OverCap, PastDeadline, Unreachable
 from speech_client.relay import HOP_FRAME_BYTES, AppEnded, BrowserLeft, RuleBroken
 from speech_client.utterances import (
+    HearingCallbacks,
     Partial,
     ServiceFailed,
     SpeechStart,
@@ -166,7 +167,9 @@ class HearingRoute:
         # grant on.
         recheck = _SessionRecheck(self._resolver, self._scheduler, websocket, handle.ended)
         try:
-            await self._hear(websocket, handle)
+            # The hop's own lines and the session's upgrade to the service share one trace, apart from each turn's.
+            with unit_trace(None):
+                await self._hear(websocket, handle)
         finally:
             recheck.close()
             self._participation().speech.turn_ended(handle.room_id, handle.seat)
@@ -187,12 +190,12 @@ class HearingRoute:
         clock = _AudioClock(self._scheduler.now())
 
         def on_utterance(utterance: Utterance) -> Awaitable[None]:
-            # The turn starts here: the speech client hands over no trace, and the socket's task outlives the turn.
+            # The turn runs in the trace the service names, else starts one here: the socket's task outlives the turn.
             with (
-                unit_trace(None),
+                unit_trace(utterance.traceparent),
                 StepTimer("transcript_relay.ended", _STEPS, room_ref=room_reference(handle.room_id)),
             ):
-                self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance))
+                self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance), utterance.item_id)
             return asyncio.sleep(0)  # the client awaits its callback; hearing is synchronous
 
         def on_speech_started(_: SpeechStart) -> Awaitable[None]:
@@ -218,10 +221,12 @@ class HearingRoute:
                 deadline_seconds=HEARING_DEADLINE_SECONDS,
                 held_limit_bytes=HELD_LIMIT_BYTES,
                 ended=handle.ended,
-                on_utterance=on_utterance,
-                on_partial=on_partial,
-                on_speech_started=on_speech_started,
-                on_turn_ended=on_turn_ended,
+                callbacks=HearingCallbacks(
+                    on_utterance=on_utterance,
+                    on_partial=on_partial,
+                    on_speech_started=on_speech_started,
+                    on_turn_ended=on_turn_ended,
+                ),
             )
             reason = ending_reason(outcome)
             if reason is not None:

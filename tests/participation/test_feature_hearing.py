@@ -25,6 +25,7 @@ from tests.participation.support.ends import (
     remove_by_the_host,
     shut_down,
 )
+from tests.participation.support.hearing_scene import heard
 from tests.participation.support.own_accounts import (
     ADDERS,
     AGENT,
@@ -225,7 +226,7 @@ class TestTwoAgentsOfOneSponsor:
         """CALL-57: With both switches on, a heard sentence joins the window of each agent."""
         owner, added, own = both
 
-        participation.heard(owner.peer_id, "to both", began_at=0.0)
+        heard(participation, owner.peer_id, "to both", began_at=0.0)
 
         assert [
             [line.text for line in lines_of(participation, agent.person, owner.room_id)] for agent in (added, own)
@@ -236,7 +237,7 @@ class TestTwoAgentsOfOneSponsor:
         owner, added, own = both
         await owner.say(switch(own.agent_id, on=False))
 
-        participation.heard(owner.peer_id, "to one", began_at=0.0)
+        heard(participation, owner.peer_id, "to one", began_at=0.0)
 
         assert [
             [line.text for line in lines_of(participation, agent.person, owner.room_id)] for agent in (added, own)
@@ -356,7 +357,7 @@ class TestWhatIsHeard:
         name the call shows for the seat, and the window change is signalled."""
         host, guest, _agent = dialed
 
-        participation.heard(guest.peer_id, "hello there", began_at=0.0)
+        heard(participation, guest.peer_id, "hello there", began_at=0.0)
 
         assert lines_of(participation, GUEST, room_of(host)) == (
             WindowLine(1, LineKind.PERSON, "guest", "hello there", own=False, spoken=True),
@@ -370,7 +371,7 @@ class TestWhatIsHeard:
 
         with configured("hopin"):
             with unit_trace(None):
-                participation.heard(guest.peer_id, "hello there", began_at=0.0)
+                heard(participation, guest.peer_id, "hello there", began_at=0.0)
             await speak(participation, room_id=room_of(host))
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
 
@@ -384,7 +385,7 @@ class TestWhatIsHeard:
 
         with configured("hopin"):
             with unit_trace(None):
-                participation.heard(guest.peer_id, "hello there", began_at=0.0)
+                heard(participation, guest.peer_id, "hello there", began_at=0.0)
             participation.chat_said(host.peer_id, room_of(host), "written")
             await speak(participation, room_id=room_of(host))
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
@@ -414,7 +415,7 @@ class TestWhatIsHeard:
         """CALL-57: The agent's read of the call's window marks a heard line spoken and not its own."""
         host, guest, _agent = dialed
         participation.chat_said(host.peer_id, room_of(host), "written")
-        participation.heard(guest.peer_id, "said aloud", began_at=0.0)
+        heard(participation, guest.peer_id, "said aloud", began_at=0.0)
         resources = _MemberResources(lambda: participation)
 
         window = await resources.read(
@@ -433,7 +434,7 @@ class TestWhatIsHeard:
         await dial(participation, guest)
         await dial(participation, host)
 
-        participation.heard(guest.peer_id, "from the guest", began_at=0.0)
+        heard(participation, guest.peer_id, "from the guest", began_at=0.0)
 
         assert [line.text for line in lines_of(participation, GUEST, room_of(host))] == ["from the guest"]
         assert lines_of(participation, HOST, room_of(host)) == ()
@@ -443,7 +444,7 @@ class TestWhatIsHeard:
         """CALL-57: An empty sentence, or one that does not encode, appends nothing and signals nothing."""
         host, guest, _agent = dialed
 
-        participation.heard(guest.peer_id, text, began_at=0.0)
+        heard(participation, guest.peer_id, text, began_at=0.0)
 
         assert (lines_of(participation, GUEST, room_of(host)), window_changes) == ((), [])
 
@@ -453,7 +454,7 @@ class TestWhatIsHeard:
         _host, guest, _agent = dialed
 
         with pytest.raises(ValidationError):
-            participation.heard(guest.peer_id, "a sentence", began_at=began_at)
+            heard(participation, guest.peer_id, "a sentence", began_at=began_at)
 
     async def test_call_57_a_switch_on_in_the_middle_of_a_sentence_loses_it(
         self, participation, scheduler, invitation_of
@@ -463,8 +464,8 @@ class TestWhatIsHeard:
         scheduler.skip(10)
         await owner.say(switch(agent.agent_id, on=True))
 
-        participation.heard(owner.peer_id, "began before", began_at=9.0)
-        participation.heard(owner.peer_id, "began at the switch", began_at=10.0)
+        heard(participation, owner.peer_id, "began before", began_at=9.0)
+        heard(participation, owner.peer_id, "began at the switch", began_at=10.0)
 
         assert [line.text for line in lines_of(participation, AGENT, owner.room_id)] == ["began at the switch"]
 
@@ -473,7 +474,7 @@ class TestWhatIsHeard:
         _host, guest, _agent = dialed
         await guest.drop(1000)
 
-        participation.heard(guest.peer_id, "too late", began_at=0.0)
+        heard(participation, guest.peer_id, "too late", began_at=0.0)
 
         assert window_changes == []
 
@@ -482,7 +483,7 @@ class TestWhatIsHeard:
         host, guest, agent = dialed
         await guest.say(switch(agent.agent_id, on=False))
 
-        participation.heard(guest.peer_id, "too late", began_at=0.0)
+        heard(participation, guest.peer_id, "too late", began_at=0.0)
 
         assert lines_of(participation, GUEST, room_of(host)) == ()
 
@@ -491,7 +492,7 @@ class TestWhatIsHeard:
         host, guest, _agent = dialed
 
         for number in range(LINES_PER_WINDOW + 1):
-            participation.heard(guest.peer_id, f"line {number}", began_at=0.0)
+            heard(participation, guest.peer_id, f"line {number}", began_at=0.0)
 
         window = participation.read_window(GUEST, room_of(host))
         assert (len(window.lines), window.starts_at) == (LINES_PER_WINDOW, 2)
@@ -606,8 +607,8 @@ class TestTheEnds:
         scheduler.skip(10)
         await dial(participation, guest)
 
-        participation.heard(guest.peer_id, "before the rejoin", began_at=5.0)
-        participation.heard(guest.peer_id, "after the rejoin", began_at=10.0)
+        heard(participation, guest.peer_id, "before the rejoin", began_at=5.0)
+        heard(participation, guest.peer_id, "after the rejoin", began_at=10.0)
 
         assert [line.text for line in lines_of(participation, GUEST, room_of(host))] == ["after the rejoin"]
 
@@ -629,7 +630,7 @@ class TestTheSettingOff:
         assert [frame["reason"] for frame in guest.frames(SignalType.ERROR)] == [ErrorReason.INVALID_MESSAGE.value]
         assert hearing_frames(guest) == []
         assert open_hearing(participation, GUEST, guest.peer_id) is HearingRefusal.NOBODY_HEARS
-        participation.heard(guest.peer_id, "hello", began_at=0.0)
+        heard(participation, guest.peer_id, "hello", began_at=0.0)
         assert (lines_of(participation, GUEST, room_of(host)), window_changes) == ((), [])
 
     async def test_call_57_a_switch_turned_on_by_any_caller_records_nothing(

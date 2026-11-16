@@ -186,9 +186,9 @@ class TestAFinishedSentence:
         began = []
         heard = Participation.heard
 
-        def recording(participation, seat, text, began_at):
+        def recording(participation, seat, text, began_at, item_id):
             began.append((text, began_at))
-            heard(participation, seat, text, began_at)
+            heard(participation, seat, text, began_at, item_id)
 
         monkeypatch.setattr(Participation, "heard", recording)
         sponsored.call.pass_time(40)
