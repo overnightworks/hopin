@@ -9,10 +9,10 @@ from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
 from redis import Redis
 
 from hopin.config.constants import HEALTH_PATH
-from hopin.participation.vocabulary import ParticipationSignal
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.pod_pair import LOCALHOST, starting_pod
 from tests.stores.support.redis_gate import RedisGate
+from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import RESOURCE_UPDATED, accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.log_lines import captured_lines
@@ -23,7 +23,6 @@ SIGNAL_WAIT_SECONDS = 10
 NOT_READY_OBSERVED_SECONDS = 3
 PLACE_SIGNAL_FAILED = "place_signal.failed"
 OWNER_SUBJECT = "owner-subject"
-ADDERS_GROUP = "/apps/hopin/agent-adders"
 
 
 @pytest.fixture
@@ -55,11 +54,7 @@ def join_the_agent(call, token):
     _, login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS_GROUP,))
     owner = call.seat(login)
     call.listen(token, [STANDING_URI])
-    offers = []
-    while not offers:
-        offers = owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
-    owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
-    owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+    owner.adds_the_offered_agent()
     [standing] = call.standing(token)
     call.call(token, ACCEPT_INVITATION_TOOL, accept_arguments(standing))
 

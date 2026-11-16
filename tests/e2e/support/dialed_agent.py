@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 
 OWNER_USERNAME = "owner"
 OWNER_SUBJECT = f"subject-{OWNER_USERNAME}"
-ADDERS_GROUP = "/apps/hopin/agent-adders"
 AGENT_NAME = "Mozart"
 SECOND_AGENT_NAME = "Leonardo"
 AGENT_TILE = '#stage [id^="container-agent-"]'

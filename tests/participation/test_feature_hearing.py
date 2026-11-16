@@ -27,7 +27,6 @@ from tests.participation.support.ends import (
 )
 from tests.participation.support.hearing_scene import heard
 from tests.participation.support.own_accounts import (
-    ADDERS,
     AGENT,
     OWNER,
     agent_calls_and_listens,
@@ -37,6 +36,7 @@ from tests.participation.support.own_accounts import (
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import speak
 from tests.signaling.support.browsers import host_and_guest
+from tests.support.agent_adders import ADDERS_GROUP
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -51,12 +51,12 @@ def hears():
 
 @pytest.fixture
 def adders():
-    return {OWNER: ADDERS}
+    return {OWNER: ADDERS_GROUP}
 
 
 @pytest.fixture(autouse=True)
 def members(groups_of_seat):
-    groups_of_seat[OWNER] = groups_of_seat["guest"] = frozenset({ADDERS})
+    groups_of_seat[OWNER] = groups_of_seat["guest"] = frozenset({ADDERS_GROUP})
 
 
 def switch(agent_id, *, on):

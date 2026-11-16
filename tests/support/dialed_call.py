@@ -25,6 +25,7 @@ from hopin.agent.tools import CALL_KIND
 from hopin.app import create_app
 from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
 from hopin.participation.participants import Person
+from hopin.participation.vocabulary import ParticipationSignal
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -90,6 +91,16 @@ class Seat:
             frame = self.next_frame()
             if frame["type"] == signal_type:
                 return frame
+
+    def adds_the_offered_agent(self, agent_name=None):
+        """The owner adds the agent its seat is offered, the one named `agent_name` else the first, once the agent's
+        listen on its standing has offered it; returns when the seat has been told the offers again."""
+        key = None
+        while key is None:
+            offers = self.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+            key = next((offer["agent_key"] for offer in offers if agent_name in (None, offer["name"])), None)
+        self.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
+        self.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
 
     def next_frame(self):
         frame = self._socket.receive_json()

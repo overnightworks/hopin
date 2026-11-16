@@ -25,6 +25,7 @@ from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupRe
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking_scene import SOUND
 from tests.signaling.support.browsers import Link, host_and_guest
+from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
@@ -193,7 +194,6 @@ async def link(handler):
 
 
 OWNER_SUBJECT = "subject-owner"
-ADDERS = "/apps/hopin/agent-adders"
 
 
 @dataclass(eq=False)
@@ -215,7 +215,7 @@ def seat_changes():
 @pytest.fixture
 def adding_call_adders():
     """The owners of the adding call mapped to their adders group; a module that adds another owner extends it."""
-    return {OWNER_SUBJECT: ADDERS}
+    return {OWNER_SUBJECT: ADDERS_GROUP}
 
 
 @pytest.fixture
@@ -284,9 +284,9 @@ class Scene:
     agent_username = "agent-subject-username"
     owner_subject = OWNER_SUBJECT
 
-    def __init__(self, call, *, member_groups=(ADDERS,)):
+    def __init__(self, call, *, member_groups=(ADDERS_GROUP,)):
         self.call = call
-        self.owner_account, self.owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS,))
+        self.owner_account, self.owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS_GROUP,))
         self.owner = call.seat(self.owner_login)
         self.member_account, self.member_login = call.member(groups=member_groups)
         self.member = call.seat(self.member_login, self.owner.room_id)
@@ -347,19 +347,7 @@ class Scene:
         self.second_token = self.call.agent_token(owner=self.owner_subject, subject="agent-two", agent_name="Leonardo")
         self.call.standing(self.second_token)
         self.call.listen(self.second_token, [STANDING_URI])
-        while not (
-            key := next(
-                (
-                    offer["agent_key"]
-                    for offer in self.owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
-                    if offer["name"] == "Leonardo"
-                ),
-                None,
-            )
-        ):
-            pass
-        self.owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
-        self.owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+        self.owner.adds_the_offered_agent("Leonardo")
         [standing] = self.call.standing(self.second_token)
         self.call.call(self.second_token, ACCEPT_INVITATION_TOOL, accept_arguments(standing) | more)
         self.second_agent_id = self.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
@@ -392,13 +380,9 @@ def accepted_voices():
 def joined_agent(scene, accepted_voices):
     """The scene with its owner's agent added from the owner's own seat and accepted, so the agent holds a joined place
     in the owner's call; `agent_id` is the id the seats are told."""
-    owner = scene.owner
-    while not (offers := owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]):
-        pass
-    owner.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offers[0]["agent_key"]})
-    owner.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+    scene.owner.adds_the_offered_agent()
     scene.accept(scene.standings()[0], **({"voices": list(accepted_voices)} if accepted_voices else {}))
-    scene.agent_id = owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
+    scene.agent_id = scene.owner.frame_of_type(ParticipationSignal.AGENT_JOINED.value)["agent_id"]
     return scene
 
 

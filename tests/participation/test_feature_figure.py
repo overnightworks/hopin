@@ -29,8 +29,8 @@ from tests.participation.support.figures import (
     ok,
     redirect,
 )
-from tests.participation.support.own_accounts import ADDERS
 from tests.participation.support.tool_calls import call_in
+from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import accept_arguments
 from tests.support.signed_in import cookie_header
 
@@ -69,7 +69,7 @@ def figure_transport(figure_origin):
 
 @pytest.fixture
 def adding_call_adders(adding_call_adders):
-    return adding_call_adders | {SECOND_OWNER: ADDERS}
+    return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
 
 
 def figure_of(url, body=FILE, clips=None):
@@ -356,7 +356,7 @@ class TestTheRoute:
         good = figure_origin.serve(figure_url("good.glb"), ok(FILE))
         first, second_url = (failing, good) if failing_first else (good, failing)
         path = joined_with(scene, first)
-        _, second_owner_login = scene.call.member(subject=SECOND_OWNER, groups=(ADDERS,))
+        _, second_owner_login = scene.call.member(subject=SECOND_OWNER, groups=(ADDERS_GROUP,))
         scene.call.seat(second_owner_login, scene.owner.room_id)
         second = scene.call.agent_token(owner=SECOND_OWNER, subject="second-agent", agent_name="Haydn")
         scene.call.standing(second)

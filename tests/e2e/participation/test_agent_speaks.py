@@ -13,9 +13,10 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
 from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS
-from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
+from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import window_uri
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import (
