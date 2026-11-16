@@ -1,8 +1,0 @@
-claim_id = "4d61c80a02514ec8a774336db86a8ce4"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "8efe0104db27f96cafa3548c58f66df4851a8b17"
-branch = "claude/issue-831-agents-redis-place-store"
-scope = [".github/workflows/ci.yml", "README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "scripts/remove_feature.py", "src/hopin/agent", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/main.py", "src/hopin/participation", "src/hopin/stores", "tests", "uv.lock"]
-opened_commit = "081b1c45710f44fa55f8581581f48dfa9db740e3"
-whole_reason = "The agents bump and the place signals' wiring through hopin's MCP surface are one change; the bump without the store does not run."
