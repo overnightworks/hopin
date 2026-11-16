@@ -84,13 +84,13 @@ class VoiceStore:
 
     def __init__(self) -> None:
         self._by_id: dict[str, _Stored] = {}
-        self._ids_of_speaker: defaultdict[tuple[str, str], set[str]] = defaultdict(set)
+        self._ids_of_speaker: defaultdict[tuple[str, str], list[str]] = defaultdict(list)
 
     def open(self, room_id: str, speaker: str) -> StoredVoice:
         """Keep a sound under a new id, empty and unfinished, for its writer to fill."""
         voice = StoredVoice(secrets.token_urlsafe(ID_BYTES))
         self._by_id[voice.id] = _Stored(room_id, speaker, voice)
-        self._ids_of_speaker[room_id, speaker].add(voice.id)
+        self._ids_of_speaker[room_id, speaker].append(voice.id)
         return voice
 
     def put(self, room_id: str, speaker: str, wav: bytes) -> StoredVoice:
@@ -113,12 +113,18 @@ class VoiceStore:
         stored = self._by_id.pop(voice_id)
         stored.voice.finish()
         held = self._ids_of_speaker[stored.room_id, stored.speaker]
-        held.discard(voice_id)
+        held.remove(voice_id)
         if not held:
             del self._ids_of_speaker[stored.room_id, stored.speaker]
 
+    def keep_latest(self, room_id: str, speaker: str, count: int) -> None:
+        """Release the speaker's sounds in the room but the `count` it kept last."""
+        held = self._ids_of_speaker.get((room_id, speaker), [])
+        for voice_id in held[: max(len(held) - count, 0)]:
+            self.release(voice_id)
+
     def forget_speaker(self, room_id: str, speaker: str) -> None:
-        for voice_id in self._ids_of_speaker.pop((room_id, speaker), set()):
+        for voice_id in self._ids_of_speaker.pop((room_id, speaker), []):
             self._by_id.pop(voice_id).voice.finish()
 
 

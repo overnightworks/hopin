@@ -98,20 +98,23 @@ class TestTheVoiceInARealCall:
         ]
         assert GameRefusal.UNAVAILABLE.value not in repr(frames)
 
-    def test_the_voice_of_a_line_is_replaced_by_the_next_and_gone_with_the_call(self, call):
-        """GM-32: The voice of a line is replaced by the next and gone with the call."""
+    def test_the_voice_of_a_line_is_fetchable_after_the_next_and_replaced_by_the_one_after_and_gone_with_the_call(
+        self, call
+    ):
+        """GM-38: The voice of a line is fetchable after the next, replaced by the one after and gone with the call."""
         host, guest, guest_member = call.host_and_guest()
         guest.start()
         first_path = voice_path_of(guest.frames(4)[3])
         host.frames(4)
         guest.reveal()
-        second_path = voice_path_of(guest.frames(7)[2])
+        frames = guest.frames(7)
+        second_path, third_path = voice_path_of(frames[2]), voice_path_of(frames[6])
 
-        replaced = call.voice(guest_member, first_path)
+        statuses = [call.voice(guest_member, path).status_code for path in (first_path, second_path, third_path)]
         host.send({"type": SignalType.END_ROOM.value})
-        gone = call.voice(guest_member, second_path)
+        gone = call.voice(guest_member, third_path)
 
-        assert (replaced.status_code, gone.status_code) == (404, 404)
+        assert (statuses, gone.status_code) == ([404, 200, 200], 404)
 
     def test_a_voice_that_is_no_id_of_a_voice_is_not_found(self, call):
         """GM-32: A voice that is no id of a voice is not found."""

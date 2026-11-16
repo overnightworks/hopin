@@ -19,7 +19,7 @@ from hopin.game.vocabulary import (
     GameRefusal,
     GameSignal,
 )
-from hopin.game.voice import GAME_SPEAKER, VOICE_DEADLINE_CUT
+from hopin.game.voice import GAME_SPEAKER, GAME_VOICES_KEPT, VOICE_DEADLINE_CUT
 from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import TYPE_KEY, JsonObject, PeerId
 
@@ -460,9 +460,10 @@ class Game:
         await self._send_each(room_id, run, seated, _voice_frame(None if wav is None else self._keep(room_id, wav)))
 
     def _keep(self, room_id: str, wav: bytes) -> StoredVoice:
-        """Keep the sound as the room's latest voice, which the next voice or the room's end replaces."""
-        self._voices.forget_speaker(room_id, GAME_SPEAKER)
-        return self._voices.put(room_id, GAME_SPEAKER, wav)
+        """Keep the sound as the room's latest voice; the voice after the next or the room's end replaces it."""
+        voice = self._voices.put(room_id, GAME_SPEAKER, wav)
+        self._voices.keep_latest(room_id, GAME_SPEAKER, GAME_VOICES_KEPT)
+        return voice
 
     def _chain(self, room_id: str, quiz: Quiz) -> None:
         """Run the quiz's next request at once, on the starter's token and with no idle in between.
