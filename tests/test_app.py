@@ -79,8 +79,9 @@ class TestCreateApp:
         settings = sign_in_settings().settings
         settings.session_secret_file.unlink()
         page_build = fixture_page_build()
+        shared_stores = in_thread_stores()
         with pytest.raises(StartRefusedError, match="session_secret_file"):
-            create_app(settings, page_build=page_build, shared_stores=in_thread_stores())
+            create_app(settings, page_build=page_build, shared_stores=shared_stores)
 
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
         class BearerFeature:
@@ -97,9 +98,10 @@ class TestCreateApp:
         settings = sign_in_settings().settings
         page_build = fixture_page_build()
         call_features = (BearerFeature(), BearerFeature())
+        shared_stores = in_thread_stores()
 
         with pytest.raises(StartRefusedError, match="bearer"):
-            create_app(settings, page_build=page_build, shared_stores=in_thread_stores(), call_features=call_features)
+            create_app(settings, page_build=page_build, shared_stores=shared_stores, call_features=call_features)
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()

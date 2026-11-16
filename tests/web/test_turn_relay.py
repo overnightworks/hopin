@@ -123,8 +123,9 @@ def write_file_state(path: Path, state) -> None:
 def refusal_of(settings) -> StartRefusedError:
     transport = FakeTransport()
     page_build = fixture_page_build()
+    shared_stores = in_thread_stores()
     with pytest.raises(StartRefusedError) as refusal:
-        create_app(settings, page_build=page_build, shared_stores=in_thread_stores(), turn_transport=transport)
+        create_app(settings, page_build=page_build, shared_stores=shared_stores, turn_transport=transport)
     return refusal.value
 
 

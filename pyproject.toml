@@ -8,7 +8,7 @@ dependencies = [
     "overnightworks-agents[backend,mcp-server] @ git+https://github.com/overnightworks/agents@v0.45.0",
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v0.4.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.19.0#subdirectory=packages/client",
-    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.40.0",
+    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.40.1",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "redis>=5.0,<9",

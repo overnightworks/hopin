@@ -92,9 +92,11 @@ class TestMain:
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
         monkeypatch.setenv(setting, "true")
+        page_build = fixture_page_build()
+        shared_stores = in_thread_stores()
 
         with pytest.raises(ValidationError):
-            build_application(ServerSettings(), fixture_page_build(), in_thread_stores())
+            build_application(ServerSettings(), page_build, shared_stores)
 
     @patch("hopin.main.uvicorn.run")
     def test_refuses_to_start_without_the_page_build_and_names_the_build_command(
