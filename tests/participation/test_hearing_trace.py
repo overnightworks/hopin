@@ -3,6 +3,8 @@ hearing and a fake one for the agent's sentence: the turn runs in the trace the 
 agent's sentence reaches the service in it."""
 
 import json
+import secrets
+from dataclasses import dataclass
 
 import pytest
 from logline.testing import configured
@@ -16,9 +18,23 @@ from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_reques
 
 pytestmark = pytest.mark.integration
 
-TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
-TURN_TRACEPARENT = f"00-{TRACE_ID}-b7ad6b7169203331-01"
-ITEM_ID = "item_of_the_turn"
+
+@dataclass(frozen=True)
+class Turn:
+    """What the speech service's transcript of one turn names: its trace and its item."""
+
+    trace_id: str
+    span_id: str
+    item_id: str
+
+    @property
+    def traceparent(self):
+        return f"00-{self.trace_id}-{self.span_id}-01"
+
+
+@pytest.fixture
+def turn():
+    return Turn(trace_id=secrets.token_hex(16), span_id=secrets.token_hex(8), item_id=f"item_{secrets.token_hex(4)}")
 
 
 @pytest.fixture
@@ -26,42 +42,42 @@ def speaking_service(speech_origin):
     return SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
 
-def hear_the_turn(scene, fake_speech):
+def hear_the_turn(scene, fake_speech, turn):
     """A hop in which the service hears one sentence of the turn that its transcript names the trace of."""
     with hop(scene) as socket:
         socket.send_bytes(SOUND)
         session = fake_speech.next_session()
-        for event in a_sentence("Guten Tag", item_id=ITEM_ID, traceparent=TURN_TRACEPARENT):
+        for event in a_sentence("Guten Tag", item_id=turn.item_id, traceparent=turn.traceparent):
             session.say(event)
         session.hang_up()
         closed_with(socket)
 
 
 def test_call_58_a_heard_turn_runs_in_the_trace_the_transcript_names_and_line_entered_names_its_item(
-    sponsored, fake_speech, capsys
+    sponsored, fake_speech, turn, capsys
 ):
     with configured("hopin"):
-        hear_the_turn(sponsored, fake_speech)
+        hear_the_turn(sponsored, fake_speech, turn)
     lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
 
     by_event = {line["event"]: line for line in lines}
     assert (
         {by_event[event]["trace_id"] for event in ("transcript_relay.ended", "line.entered", "pulse.sent")},
         by_event["line.entered"]["item_id"],
-    ) == ({TRACE_ID}, ITEM_ID)
+    ) == ({turn.trace_id}, turn.item_id)
 
 
 def test_call_58_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_turns_trace(
-    sponsored, fake_speech, speech_origin
+    sponsored, fake_speech, speech_origin, turn
 ):
-    hear_the_turn(sponsored, fake_speech)
+    hear_the_turn(sponsored, fake_speech, turn)
     speak(sponsored)
 
     [request] = speech_requests(speech_origin)
-    assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == TRACE_ID
+    assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == turn.trace_id
 
 
-def test_call_58_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(sponsored, fake_speech):
-    hear_the_turn(sponsored, fake_speech)
+def test_call_58_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(sponsored, fake_speech, turn):
+    hear_the_turn(sponsored, fake_speech, turn)
 
     assert fake_speech.next_session().headers.get(TRACEPARENT_HEADER) is not None

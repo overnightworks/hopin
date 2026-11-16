@@ -36,7 +36,6 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 TEXT = f"Wie heißt die Hauptstadt {secrets.token_hex(8)}?"
 VOICE_NAME = VoiceId.THORSTEN
-TURN_TRACEPARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 
 
 def failures_of(lines):
@@ -118,11 +117,13 @@ class TestSpeaking:
         speaking(origin, chunked_wav(SPOKEN_WAV))
         starter, _ = world.starter()
 
-        with unit_trace(TURN_TRACEPARENT):
+        trace_id = secrets.token_hex(16)
+
+        with unit_trace(f"00-{trace_id}-{secrets.token_hex(8)}-01"):
             await voice_of(world, origin).speak(starter, TEXT)
 
         [request] = origin.requests
-        assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == TURN_TRACEPARENT.split("-")[1]
+        assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == trace_id
 
 
 class TestTheLanguageOfALine:
