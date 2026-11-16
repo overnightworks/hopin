@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 // The module reads the navigator once and holds its state, so each case loads a fresh copy.
 async function freshInvite() {

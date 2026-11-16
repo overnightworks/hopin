@@ -2,8 +2,7 @@
     import { HearingSwitch, loadKitWords, type KitWords } from "overnightworks-design";
     import { onMount } from "svelte";
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
-    import { words } from "#lib/words/de.ts";
-    import { sourceLanguage } from "#lib/words/index.ts";
+    import { language, words } from "#lib/words.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
     import { agentFigure, agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
 
@@ -22,7 +21,7 @@
     let kitWords = $state<KitWords>();
     let agentTileWidths = $state<Record<string, number>>({});
     onMount(async () => {
-        kitWords = await loadKitWords(sourceLanguage);
+        kitWords = await loadKitWords(language);
     });
 </script>
 

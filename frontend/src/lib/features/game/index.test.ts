@@ -4,7 +4,7 @@ import { AGENT_ACTIVITY, type AgentTile, type FeatureCore } from "#lib/call/feat
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND, type ToastAction, type ToastKind } from "#lib/ui/toast.svelte.ts";
 import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
 import { fakePlayers } from "../participation/player.fixture.ts";

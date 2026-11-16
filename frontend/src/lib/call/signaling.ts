@@ -14,7 +14,7 @@ import {
     type ServerFrameByType,
     WEBSOCKET_PATH,
 } from "#lib/wire.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 // Method syntax keeps parameters bivariant, so a handler typed for one frame shape registers without a cast.
 type Handler = { handle(data: ServerFrame): void }["handle"];

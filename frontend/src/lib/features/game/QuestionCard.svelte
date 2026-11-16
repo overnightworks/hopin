@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { words } from "#lib/words/de.ts";
+    import { words } from "#lib/words.ts";
     import type { QuestionCardProps } from "./quiz.svelte.ts";
 
     let { tag, question, canReveal, revealDisabled, locked, status, sent, reveal, answer }: QuestionCardProps =

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const { goThroughSignIn } = vi.hoisted(() => ({ goThroughSignIn: vi.fn() }));
 vi.mock("#lib/ui/navigation.ts", () => ({ goThroughSignIn }));

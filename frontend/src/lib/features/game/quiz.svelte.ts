@@ -1,5 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 import { AGENT_ACTIVITY, type AgentTile, type OutgoingFrame } from "#lib/call/feature-port.ts";
 import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType } from "./wire.ts";
 

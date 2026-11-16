@@ -4,7 +4,7 @@ import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "#lib/call/m
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 export const PREJOIN_KIND = {
     HOST: "host",

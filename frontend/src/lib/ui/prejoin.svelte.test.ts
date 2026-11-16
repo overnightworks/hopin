@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const media = vi.hoisted(() => ({
     acquireMedia: vi.fn(),

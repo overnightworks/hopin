@@ -1,7 +1,7 @@
 import { ERROR_REASON, type ErrorFrame, ROOM_CLOSED_REASON, type RoomClosedFrame } from "#lib/wire.ts";
 import { getRoomIdFromUrl, openCall } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 export enum END_KIND {
     HOST_GONE = "host_gone",

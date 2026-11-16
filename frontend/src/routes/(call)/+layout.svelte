@@ -3,7 +3,7 @@
     import { onMount } from "svelte";
     import type { LayoutProps } from "./$types";
     import { LEGAL_LINKS } from "#lib/legal.ts";
-    import { words } from "#lib/words/de.ts";
+    import { words } from "#lib/words.ts";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
