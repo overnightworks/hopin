@@ -6,6 +6,7 @@ from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
 from hopin.participation.participants import OwnAccount, Person
 from hopin.participation.voice import VoiceStore
+from hopin.signaling.scheduler import InMemoryDeadlines
 from tests.support.signaling_fakes import ManualScheduler
 
 
@@ -27,15 +28,20 @@ def scheduler():
 
 
 @pytest.fixture
+def deadlines(scheduler):
+    return InMemoryDeadlines(scheduler)
+
+
+@pytest.fixture
 def changed():
     return []
 
 
 @pytest.fixture
-def participation(scheduler, changed):
+def participation(deadlines, changed):
     return Participation(
         rooms=None,
-        scheduler=scheduler,
+        deadlines=deadlines,
         lease_seconds=LEASE,
         invitation_seconds=LEASE,
         on_changed=changed.append,

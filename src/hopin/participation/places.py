@@ -23,12 +23,11 @@ type PlaceKey = tuple[Person, str]
 
 @dataclass(frozen=True)
 class Invited:
-    """An open invitation: bound to the owner's exact seat, opened by the adder's seat. `expires_at` is the wall-clock
-    time the agent reads; `deadline` is the scheduler's time that enforces it."""
+    """An open invitation: bound to the owner's exact seat, opened by the adder's seat. `deadline` is the deadlines'
+    clock time it ends, the one clock that enforces it."""
 
     invitation_id: str
     epoch: int
-    expires_at: float
     deadline: float
     sponsor: PeerId
     adder: PeerId
@@ -53,13 +52,22 @@ class PlaceState(StrEnum):
 
 
 @dataclass(frozen=True)
+class InvitationStanding:
+    """What the agent reads of its open invitation: `expires_at` is the wall-clock time the invitation ends."""
+
+    invitation_id: str
+    epoch: int
+    expires_at: float
+
+
+@dataclass(frozen=True)
 class PlaceStanding:
     """An agent's standing in one room as participation reads it: its state and, exactly when invited, the open
     invitation."""
 
     room_id: str
     state: PlaceState
-    invitation: Invited | None = None
+    invitation: InvitationStanding | None = None
 
 
 class Places:

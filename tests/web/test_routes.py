@@ -16,7 +16,7 @@ from hopin.config.constants import (
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
-from hopin.signaling.scheduler import AsyncioScheduler
+from hopin.signaling.scheduler import AsyncioScheduler, InMemoryDeadlines
 from hopin.web.routes import create_router
 from tests.support.page_build import FIXTURE_DIRECTORY, SIGN_IN_PAGE_FILES, fixture_page_build
 from tests.support.page_inventory import (
@@ -30,7 +30,9 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def signaling_handler(room_manager):
-    return SignalingHandler(room_manager, SocketAccountResolver(), AsyncioScheduler())
+    return SignalingHandler(
+        room_manager, SocketAccountResolver(), AsyncioScheduler(), InMemoryDeadlines(AsyncioScheduler())
+    )
 
 
 @pytest.fixture

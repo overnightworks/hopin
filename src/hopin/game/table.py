@@ -1,7 +1,7 @@
 import asyncio
 import logging
+import secrets
 from dataclasses import dataclass, field
-from functools import partial
 from typing import TYPE_CHECKING, Final, Protocol
 
 import structlog
@@ -34,6 +34,7 @@ from hopin.game.vocabulary import (
 from hopin.game.voice import GAME_SPEAKER, GAME_VOICES_KEPT, VOICE_DEADLINE_CUT
 from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import JsonObject, PeerId
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -44,12 +45,13 @@ if TYPE_CHECKING:
     from hopin.game.voice import StoredVoice, Voice, VoiceShelf
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
 
 RUN_ENDED_REASON: Final = "ended"
+RUN_KEY_BYTES: Final = 8
 
 
 @dataclass(frozen=True)
@@ -100,17 +102,12 @@ class _Phase:
 
 @dataclass(eq=False)
 class _VoiceRun:
-    """A line's voice being made, and the deadline that cuts it."""
+    """A line's voice being made, which its run's voice deadline cuts."""
 
     task: asyncio.Task[bytes | None]
-    deadline: TimerHandle = field(init=False)
 
     def stop(self) -> None:
-        self.deadline.cancel()
         self.task.cancel()
-
-    async def expire(self) -> None:  # NOSONAR(S7503) the scheduler awaits it
-        self.task.cancel(VOICE_DEADLINE_CUT)
 
 
 @dataclass(eq=False)
@@ -124,11 +121,10 @@ class _Run:
     broken_writes: list[Exception] = field(default_factory=list)
     ended: bool = False
     driver: asyncio.Task[None] = field(init=False)
-    deadline: TimerHandle = field(init=False)
     voice: _VoiceRun | None = None
+    key: str = field(default_factory=lambda: secrets.token_hex(RUN_KEY_BYTES))
 
     def stop(self) -> None:
-        self.deadline.cancel()
         self.ask.cancel()
         if self.voice is not None:
             self.voice.stop()
@@ -140,14 +136,16 @@ class Game:
     def __init__(
         self,
         rooms: CallRooms,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         game_master: GameMaster,
         topic_drawer: Callable[[], tuple[str, ...]],
         voice: Voice | None,
         voices: VoiceShelf,
     ) -> None:
         self._rooms = rooms
-        self._scheduler = scheduler
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.GAME_RUN, self._expire_run)
+        deadlines.register(DeadlineKind.GAME_VOICE, self._expire_voice)
         self._topic_drawer = topic_drawer
         self._game_master = game_master
         self._voice = voice
@@ -223,7 +221,7 @@ class Game:
         for run in self._runs.get(room_id, []):
             # The room keeps the run until its call has closed, so a new quiz never overlaps it.
             run.ended = True
-            run.stop()
+            self._stop(run)
         recipients = self._rooms.members(room_id)
         try:
             for frame in (notice, IdlePhaseFrame(GamePhase.IDLE)):
@@ -298,7 +296,7 @@ class Game:
             ask=asyncio.create_task(self._ask_after(previous, starter, quiz.transcript)),
         )
         run.driver = asyncio.create_task(self._drive(room_id, run))
-        run.deadline = self._scheduler.call_later(GAME_RUN_DEADLINE_SECONDS, partial(_expire, run))
+        self._deadlines.set(DeadlineKind.GAME_RUN, run.key, GAME_RUN_DEADLINE_SECONDS)
         self._quizzes[room_id] = quiz
         runs.append(run)
         self._phases[room_id] = _Phase(QuizPhaseFrame(GamePhase.THINKING, quiz.round, QUIZ_ROUNDS, quiz.starter))
@@ -341,7 +339,7 @@ class Game:
         self._phases.pop(room_id, None)
         self._voices.forget_speaker(room_id, GAME_SPEAKER)
         for run in self._runs.pop(room_id, []):
-            run.stop()
+            self._stop(run)
 
     async def shut_down(self) -> None:
         # A quiz waiting for its reveal has no run, and a run delivering idle has no quiz any more.
@@ -361,7 +359,7 @@ class Game:
                 await self._announce_thinking(room_id, run)
                 await asyncio.wait({run.ask})
                 outcome = _outcome_of(run.ask)
-                run.deadline.cancel()
+                self._deadlines.cancel(DeadlineKind.GAME_RUN, run.key)
                 reason = _refusal_reason(run, outcome)
                 if reason is not None:
                     step.refuse(reason)
@@ -425,10 +423,27 @@ class Game:
         if self._voice is not None:
             task = asyncio.create_task(self._voice.speak(run.starter, line.text))
             run.voice = _VoiceRun(task)
-            run.voice.deadline = self._scheduler.call_later(VOICE_DEADLINE_SECONDS, run.voice.expire)
+            self._deadlines.set(DeadlineKind.GAME_VOICE, run.key, VOICE_DEADLINE_SECONDS)
 
-    @staticmethod
-    async def _stop_voice(run: _Run) -> None:
+    def _stop(self, run: _Run) -> None:
+        self._deadlines.cancel(DeadlineKind.GAME_RUN, run.key)
+        self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)
+        run.stop()
+
+    async def _expire_run(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        # A run that already ended has a finished `ask`, so the cancel is a no-op then.
+        self._run_keyed(key).ask.cancel()
+
+    async def _expire_voice(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        voice = self._run_keyed(key).voice
+        if voice is not None:
+            voice.task.cancel(VOICE_DEADLINE_CUT)
+
+    def _run_keyed(self, key: str) -> _Run:
+        return next(run for runs in self._runs.values() for run in runs if run.key == key)
+
+    async def _stop_voice(self, run: _Run) -> None:
+        self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)
         if run.voice is not None:
             run.voice.stop()
             await asyncio.wait({run.voice.task})
@@ -446,7 +461,7 @@ class Game:
             return
         with StepTimer("voice_wait.ended", _STEPS, room_ref=room_reference(room_id)):
             await asyncio.wait({run.voice.task})
-        run.voice.deadline.cancel()
+        self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)
         wav = _voice_of(run.voice.task)
         if not self._is_live(room_id, run):
             return
@@ -541,11 +556,6 @@ def _refusal_reason(run: _Run, outcome: GameOutcome) -> str | None:
     if run.ended:
         return RUN_ENDED_REASON
     return None if isinstance(outcome, Line) else outcome.reason.value
-
-
-async def _expire(run: _Run) -> None:  # NOSONAR(S7503) the scheduler's contract takes a coroutine function
-    # A run that already ended has a finished `ask`, so the cancel is a no-op then.
-    run.ask.cancel()
 
 
 def _voice_of(voice: asyncio.Task[bytes | None]) -> bytes | None:

@@ -12,6 +12,7 @@ pytest.register_assert_rewrite("tests.game.support")  # game
 
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
+from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
 from tests.support.page_build import FIXTURE_DIRECTORY  # noqa: E402
@@ -57,8 +58,13 @@ def scheduler():
 
 
 @pytest.fixture
-def handler(room_manager, scheduler):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler)
+def deadlines(scheduler):
+    return InMemoryDeadlines(scheduler)
+
+
+@pytest.fixture
+def handler(room_manager, scheduler, deadlines):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines)
 
 
 @pytest.fixture

@@ -12,8 +12,7 @@ nothing is asked.
 
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from enum import StrEnum
-from functools import partial
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Final, NamedTuple
 from weakref import WeakKeyDictionary
 
 import structlog
@@ -24,6 +23,7 @@ from hopin.participation.participants import DialedAgent
 from hopin.participation.speaking import RenderedSentence, SentenceEnd, speak_timer
 from hopin.participation.vocabulary import NO_VOICE_REASON, VOICE_RECOVERY_SECONDS, VoiceFailure, VoiceRefusedError
 from hopin.rooms.reference import room_reference
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -37,9 +37,11 @@ if TYPE_CHECKING:
     from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import PeerId
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+WINDOW_RECOVERY_KEY: Final = "voices"
 
 
 class EntryKind(StrEnum):
@@ -76,14 +78,15 @@ class SpeechInWindows:
         hearing: Hearing,
         rooms: CallRooms,
         on_window_changed: Callable[[Person, str], None],
-        scheduler: Scheduler,
+        deadlines: Deadlines,
     ) -> None:
         self._places = places
         self._hearing = hearing
         self._rooms = rooms
         self._on_window_changed = on_window_changed
-        self._scheduler = scheduler
-        self._recovery: TimerHandle | None = None
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.WINDOW_RECOVERY, self._ask_whether_voices_are_back)
+        self._recovery_offered: VoicesOffered | None = None
         self._turn_traces: WeakKeyDictionary[ChatWindow, _PulsedTurn] = WeakKeyDictionary()
 
     def line_said(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
@@ -138,9 +141,8 @@ class SpeechInWindows:
 
     def stop_recovery(self) -> None:
         """Stop asking whether a voice is back."""
-        if self._recovery is not None:
-            self._recovery.cancel()
-            self._recovery = None
+        self._deadlines.cancel(DeadlineKind.WINDOW_RECOVERY, WINDOW_RECOVERY_KEY)
+        self._recovery_offered = None
 
     def _voice_rendered(
         self, agent: DialedAgent, rendered: RenderedSentence | VoiceFailure, offered: VoicesOffered | None
@@ -171,13 +173,16 @@ class SpeechInWindows:
         logger.info("agent_voice.returned", room_ref=room_reference(agent.room_id), agent_id=agent.agent_id)
 
     def _ask_again_later(self, offered: VoicesOffered) -> None:
-        if self._recovery is None:
-            self._recovery = self._scheduler.call_later(
-                VOICE_RECOVERY_SECONDS, partial(self._ask_whether_voices_are_back, offered)
-            )
+        if self._recovery_offered is None:
+            self._recovery_offered = offered
+            self._deadlines.set(DeadlineKind.WINDOW_RECOVERY, WINDOW_RECOVERY_KEY, VOICE_RECOVERY_SECONDS)
 
-    async def _ask_whether_voices_are_back(self, offered: VoicesOffered) -> None:
-        self._recovery = None
+    async def _ask_whether_voices_are_back(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        del key
+        offered = self._recovery_offered
+        self._recovery_offered = None
+        if offered is None:
+            return
         for agent in self._places.joined():
             window = self._places.window_of(agent.person, agent.room_id)
             if window and window.voice_unavailable and await offered(agent.voices) and window.voice_worked():

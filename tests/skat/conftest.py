@@ -11,8 +11,8 @@ from tests.support.signaling_fakes import SocketAccountResolver
 
 
 @pytest.fixture
-def handler(room_manager, scheduler):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, [partial(Skat, origin=ORIGIN)])
+def handler(room_manager, scheduler, deadlines):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [partial(Skat, origin=ORIGIN)])
 
 
 @pytest_asyncio.fixture

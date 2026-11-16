@@ -1,7 +1,6 @@
 import json
 import secrets
 from dataclasses import dataclass, field
-from functools import partial
 from typing import TYPE_CHECKING
 from weakref import WeakSet
 
@@ -19,21 +18,20 @@ from hopin.config.constants import (
 from hopin.errors import ResumeRefusedError, TooManyCallsError
 from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumedFrame, ResumeFrame, error_frame
 from hopin.signaling.replay import ReplayLog
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hopin.rooms.models import Account
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
 class Park:
-    generation: int
     dropped_at: float
-    timer: TimerHandle
 
 
 @dataclass(frozen=True)
@@ -62,7 +60,6 @@ class Peer:
     received_seq: int = 0
     replaying: bool = False
     park: Park | None = None
-    parks_started: int = 0
 
 
 @dataclass
@@ -82,11 +79,12 @@ class Seats:
 
     def __init__(
         self,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         on_seat_lost: Callable[[PeerId], Awaitable[None]],
         on_seat_changed: Callable[[PeerId], None],
     ) -> None:
-        self._scheduler = scheduler
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.RESUME_WINDOW, self._expire_park)
         self._on_seat_lost = on_seat_lost
         self._on_seat_changed = on_seat_changed
         self._peers: dict[PeerId, Peer] = {}
@@ -113,22 +111,18 @@ class Seats:
     def forget(self, peer_id: PeerId) -> Peer | None:
         peer = self._peers.pop(peer_id, None)
         if peer is not None and peer.park is not None:
-            peer.park.timer.cancel()
+            self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, peer_id)
         return peer
 
     async def park(self, peer_id: PeerId, peer: Peer) -> None:
-        peer.parks_started += 1
-        generation = peer.parks_started
-        timer = self._scheduler.call_later(RESUME_WINDOW_SECONDS, partial(self._expire_park, peer_id, generation))
-        peer.park = Park(generation=generation, dropped_at=self._scheduler.now(), timer=timer)
+        self._deadlines.set(DeadlineKind.RESUME_WINDOW, peer_id, RESUME_WINDOW_SECONDS)
+        peer.park = Park(dropped_at=self._deadlines.now())
         peer.replaying = False
         self._on_seat_changed(peer_id)
         await logger.ainfo("seat.parked", peer_id=peer_id)
 
-    async def _expire_park(self, peer_id: PeerId, generation: int) -> None:
-        peer = self._peers.get(peer_id)
-        if peer is not None and peer.park is not None and peer.park.generation == generation:
-            await self._on_seat_lost(peer_id)
+    async def _expire_park(self, peer_id: str) -> None:
+        await self._on_seat_lost(PeerId(peer_id))
 
     def account_of(self, peer_id: str) -> Account:
         return self._peers[PeerId(peer_id)].account
@@ -222,7 +216,7 @@ class Seats:
     async def _take_over_seat(self, connection: Connection, seat: Peer, claim: ResumeClaim) -> None:
         superseded = seat.websocket
         if seat.park is not None:
-            seat.park.timer.cancel()
+            self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, claim.participant_id)
             seat.park = None
             self._on_seat_changed(claim.participant_id)
         self.forget(connection.peer_id)

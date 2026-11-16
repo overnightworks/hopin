@@ -1,4 +1,5 @@
 import asyncio
+import json
 import secrets
 from functools import partial
 from typing import TYPE_CHECKING
@@ -23,7 +24,14 @@ from hopin.participation.frames import (
 from hopin.participation.live_agents import LiveAgents, TimerAction
 from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
-from hopin.participation.places import AbandonedInvitation, Invited, Places, PlaceStanding, PlaceState
+from hopin.participation.places import (
+    AbandonedInvitation,
+    InvitationStanding,
+    Invited,
+    Places,
+    PlaceStanding,
+    PlaceState,
+)
 from hopin.participation.seeing import Seeing
 from hopin.participation.shown_figures import ShownFigures
 from hopin.participation.speaking import Speaking, SpeakResult, StopResult
@@ -45,6 +53,7 @@ from hopin.participation.vocabulary import (
 )
 from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import PeerId
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
@@ -59,7 +68,7 @@ if TYPE_CHECKING:
     from hopin.participation.voice import VoiceStore
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
-    from hopin.signaling.scheduler import Scheduler
+    from hopin.signaling.scheduler import Deadlines
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -71,6 +80,15 @@ type GroupsOf = Callable[[HTTPConnection], Awaitable[frozenset[str] | None]]
 GROUPS_READ_TASK_NAME = "participation-groups-read"
 
 
+def _invitation_key(person: Person, room_id: str) -> str:
+    return json.dumps((person.issuer, person.subject, room_id))
+
+
+def _invitation_of(key: str) -> tuple[Person, str]:
+    issuer, subject, room_id = json.loads(key)
+    return Person(issuer, subject), room_id
+
+
 class Participation:
     """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group,
     whichever seat sponsors them; each takes a place of the call like a person."""
@@ -78,7 +96,7 @@ class Participation:
     def __init__(
         self,
         rooms: CallRooms,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         lease_seconds: float,
         invitation_seconds: float,
         on_changed: Callable[[Person], None],
@@ -92,7 +110,9 @@ class Participation:
         voices: VoiceStore,
     ) -> None:
         self._rooms = rooms
-        self._scheduler = scheduler
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.INVITATION, self._invitation_timer)
+        deadlines.register(DeadlineKind.LEASE, self._lease_timer)
         self._lease_seconds = lease_seconds
         self._invitation_seconds = invitation_seconds
         self._on_changed = on_changed
@@ -104,12 +124,12 @@ class Participation:
         self._figure_sources = figure_sources
         self._hearing = hearing
         self._places = Places()
-        self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed, scheduler)
+        self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed, deadlines)
         self._speaking = Speaking(
-            voices, scheduler, self._sentence_started, self.speech.sentence_ended, self._write_line
+            voices, deadlines, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
         self.figures = ShownFigures(self._places, self._active_agent, self._tell, self._recipients)
-        self._seeing = Seeing(hearing, self._places, scheduler, self._tell, self._recipients)
+        self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
         self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
         self._live = LiveAgents()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
@@ -176,7 +196,7 @@ class Participation:
         line = clean_line(text)
         if line is None:
             return AgentRefusal.BAD_LINE
-        if not self._places.take_line(person, room_id, self._scheduler.now()):
+        if not self._places.take_line(person, room_id, self._deadlines.now()):
             return AgentRefusal.TOO_FAST
         await self._write_line(agent, line)
         return None
@@ -252,7 +272,7 @@ class Participation:
         return self._hearing.open(account, room_id, seat, holds_token)
 
     def heard(self, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
-        """Add a finished sentence the seat said, which began at `began_at` on the scheduler's clock and which the
+        """Add a finished sentence the seat said, which began at `began_at` on the deadlines' clock and which the
         speech service knows as `item_id`, to the window of each joined agent that hears the seat, under the name the
         call shows for the seat."""
         room_id = self._rooms.room_of(seat)
@@ -276,7 +296,7 @@ class Participation:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it, and the agent keeps `voices` for its sentences."""
         live = self._live.by_person.get(person)
-        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
+        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._deadlines.now())
         if live is None or invitation is None:
             return AgentRefusal.STALE_INVITATION
         if self._rooms.seats_in(room_id, live.owner_subject) != [invitation.sponsor]:
@@ -315,7 +335,7 @@ class Participation:
     ) -> AgentRefusal | None:
         """End the agent's standing invitation as its expiry does and tell the seat that made it `outcome`; the refusal,
         or nothing when it ended. A decline seats nothing, so it needs no lease."""
-        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._scheduler.now())
+        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._deadlines.now())
         if invitation is None:
             return AgentRefusal.STALE_INVITATION
         await self._end_invitation(person, room_id, invitation, outcome, reason="declined")
@@ -328,13 +348,13 @@ class Participation:
             person,
             own_account.owner_subject,
             own_account.name,
-            now=self._scheduler.now(),
+            now=self._deadlines.now(),
             lease_seconds=self._lease_seconds,
             new_key=partial(secrets.token_hex, AGENT_ID_BYTES),
         )
         self._live = admission.agents
         if admission.registered:
-            self._arm(person, admission.agent.generation, self._lease_seconds)
+            self._arm(person, self._lease_seconds)
         if admission.ended is not None:
             await self._end_lease(admission.ended)
         elif admission.registered:
@@ -553,21 +573,19 @@ class Participation:
         invitation = Invited(
             invitation_id=secrets.token_hex(AGENT_ID_BYTES),
             epoch=self._places.epoch_of(live.person, room_id),
-            expires_at=self._wall_clock() + self._invitation_seconds,
-            deadline=self._scheduler.now() + self._invitation_seconds,
+            deadline=self._deadlines.now() + self._invitation_seconds,
             sponsor=sponsor,
             adder=adder,
         )
         self._places.put(live.person, room_id, invitation)
-        self._scheduler.call_later(
-            self._invitation_seconds, partial(self._invitation_timer, live.person, room_id, invitation.invitation_id)
-        )
+        self._deadlines.set(DeadlineKind.INVITATION, _invitation_key(live.person, room_id), self._invitation_seconds)
         self._on_changed(live.person)
         await logger.ainfo("agent.invited", room_ref=room_reference(room_id))
 
-    async def _invitation_timer(self, person: Person, room_id: str, invitation_id: str) -> None:
+    async def _invitation_timer(self, key: str) -> None:
+        person, room_id = _invitation_of(key)
         place = self._places.get(person, room_id)
-        if isinstance(place, Invited) and place.invitation_id == invitation_id:
+        if isinstance(place, Invited):
             await self._end_invitation(person, room_id, place, InvitationOutcome.NO_ANSWER, reason="expired")
 
     async def _end_invitation(
@@ -581,14 +599,18 @@ class Participation:
         # After the offers, which list the agent as available again: the outcome then marks that row.
         await self._tell(room_id, [invitation.adder], AgentInvitationEndedFrame(agent_key, outcome))
 
-    def _arm(self, person: Person, generation: int, seconds: float) -> None:
-        self._scheduler.call_later(seconds, partial(self._lease_timer, person, generation))
+    def _arm(self, person: Person, seconds: float) -> None:
+        self._deadlines.set(DeadlineKind.LEASE, person.key, seconds)
 
-    async def _lease_timer(self, person: Person, generation: int) -> None:
-        check = self._live.checked(person, generation, now=self._scheduler.now())
+    async def _lease_timer(self, key: str) -> None:
+        person = Person.from_key(key)
+        current = self._live.by_person.get(person)
+        if current is None:
+            return
+        check = self._live.checked(person, current.generation, now=self._deadlines.now())
         self._live = check.agents
         if check.action == TimerAction.REARM:
-            self._arm(person, generation, check.rearm_after)
+            self._arm(person, check.rearm_after)
         elif check.ended is not None:
             await self._end_lease(check.ended)
 
@@ -607,7 +629,10 @@ class Participation:
 
     def _standing_in(self, room_id: str, place: Invited | DialedAgent) -> PlaceStanding:
         if isinstance(place, Invited):
-            return PlaceStanding(room_id, PlaceState.INVITED, place)
+            expires_at = self._wall_clock() + place.deadline - self._deadlines.now()
+            return PlaceStanding(
+                room_id, PlaceState.INVITED, InvitationStanding(place.invitation_id, place.epoch, expires_at)
+            )
         state = PlaceState.PAUSED if self._rooms.is_parked(place.sponsor) else PlaceState.ACTIVE
         return PlaceStanding(room_id, state)
 
@@ -629,7 +654,7 @@ class Participation:
         """Why the agent may not queue one more sentence, or nothing when it may and takes a line slot for it."""
         if self._speaking.is_full(agent):
             return SpeakFailure.QUEUE_FULL
-        if not self._places.take_line(agent.person, agent.room_id, self._scheduler.now()):
+        if not self._places.take_line(agent.person, agent.room_id, self._deadlines.now()):
             return SpeakFailure.TOO_FAST
         return None
 
