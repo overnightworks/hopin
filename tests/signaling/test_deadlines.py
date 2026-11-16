@@ -58,6 +58,16 @@ class TestInMemoryDeadlines:
 
         assert due == []
 
+    async def test_a_handler_that_started_before_its_replacement_finds_the_deadline_replaced(
+        self, deadlines, scheduler, due
+    ):
+        deadlines.set(KIND, KEY, 10)
+        deadlines.set(KIND, KEY, 20)
+
+        await scheduler.run_cancelled()
+
+        assert due == []
+
     async def test_a_kind_registered_twice_is_refused(self, deadlines):
         with pytest.raises(ValueError, match="already has a handler"):
             deadlines.register(KIND, lambda key: None)
