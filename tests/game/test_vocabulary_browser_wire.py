@@ -20,6 +20,7 @@ from hopin.game.frames import (
 from hopin.game.vocabulary import BROWSER_ENUMS, FEATURE_NAME, GamePhase, GameRefusal
 from hopin.signaling.frames import PeerId
 from scripts import generate_wire
+from tests.support.rendered_frames import rendered_property_names
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -68,10 +69,7 @@ def test_every_browser_frame_has_a_fully_set_instance_here() -> None:
 
 @pytest.mark.parametrize("frame", FULLY_SET_FRAMES, ids=lambda frame: type(frame).__name__)
 def test_a_frames_rendered_properties_are_the_keys_it_sends_in_order(frame: GameFrame) -> None:
-    rendered = generate_wire.render_frame_type(type(frame), None, BROWSER_ENUMS)
-    properties = re.findall(r"^    (\w+)\??:", rendered, flags=re.MULTILINE)
-
-    assert properties == list(frame.to_json())
+    assert rendered_property_names(frame, BROWSER_ENUMS) == list(frame.to_json())
 
 
 def test_the_signal_map_has_exactly_the_signals_the_frames_carry(tmp_path: Path) -> None:
