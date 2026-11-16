@@ -239,8 +239,25 @@ describe("answering", () => {
         quiz.receiveAnswerCount({ answered: 1, players: 3 });
         expect(card.status).toBe(words["game.answerCountStatus"]({ answered: "1", players: "3" }));
         card.answer("Paris");
+        quiz.receiveAnswerCount({ answered: 2, players: 3 });
 
-        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "1", players: "3" }));
+        expect(card.status).toBe(words["game.answerSentCountStatus"]({ answered: "2", players: "3" }));
+    });
+
+    it("shows no count between the send and the count that includes the own answer", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        const card = openCard(quiz);
+        quiz.receiveAnswerCount({ answered: 1, players: 2 });
+
+        card.answer("Paris");
+
+        expect(card).toMatchObject({ sent: false, status: "" });
+        quiz.receiveAnswerCount({ answered: 2, players: 2 });
+        expect(card).toMatchObject({
+            sent: true,
+            status: words["game.answerSentCountStatus"]({ answered: "2", players: "2" }),
+        });
     });
 
     it("forgets the answers of the last round when a new round opens", () => {

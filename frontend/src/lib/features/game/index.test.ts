@@ -242,6 +242,7 @@ describe("the question card", () => {
 
         game.emit(GAME_SIGNAL.GAME_ANSWER_COUNT, { answered: 1, players: 2 });
         props.answer("Paris");
+        game.emit(GAME_SIGNAL.GAME_ANSWER_COUNT, { answered: 2, players: 2 });
 
         expect(game.cards).toHaveLength(1);
         expect(game.cards[0]?.component).toBe(QuestionCard);
@@ -249,7 +250,7 @@ describe("the question card", () => {
             tag: roundOfThree(1),
             question: "Question 1?",
             canReveal: true,
-            status: words["game.answerSentCountStatus"]({ answered: "1", players: "2" }),
+            status: words["game.answerSentCountStatus"]({ answered: "2", players: "2" }),
         });
         expect(game.sent).toEqual([{ type: GAME_SIGNAL.GAME_ANSWER, text: "Paris" }]);
     });

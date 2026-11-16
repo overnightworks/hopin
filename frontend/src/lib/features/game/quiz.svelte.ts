@@ -37,6 +37,13 @@ export type QuestionCardProps = {
     answer: (text: string) => void;
 };
 
+/** Whether the person's answer went out, and whether a count that includes it has come back since. */
+enum OwnAnswer {
+    NONE,
+    SENT,
+    COUNTED,
+}
+
 interface QuizRound {
     round: number;
     rounds: number;
@@ -59,8 +66,8 @@ export class Quiz {
     #question: { round: number; text: string } | null = null;
     #awaitingAnswer = false;
     #answerCount: { answered: number; players: number } | null = null;
-    #answerSent = false;
-    #answerSentBeforeLastSend = false;
+    #ownAnswer = OwnAnswer.NONE;
+    #ownAnswerBeforeLastSend = OwnAnswer.NONE;
     #cardRound: number | null = null;
     #card: QuestionCardProps | null = null;
     // Kept across a reset: a resumed seat is replayed frames it already played.
@@ -207,13 +214,15 @@ export class Quiz {
 
     receiveAnswerCount(frame: AnswerCountFrame) {
         this.#answerCount = { answered: frame.answered, players: frame.players };
+        // The server counts an answer before it sends the count, so a count that follows the send includes it.
+        if (this.#ownAnswer === OwnAnswer.SENT) this.#ownAnswer = OwnAnswer.COUNTED;
         this.#changed();
     }
 
     receiveRefusal(frame: RefusedFrame) {
         this.#awaitingAnswer = false;
-        if (frame.reason === GAME_REFUSAL.ANSWER_CLOSED) this.#answerSent = false;
-        if (frame.reason === GAME_REFUSAL.ANSWER_TOO_LONG) this.#answerSent = this.#answerSentBeforeLastSend;
+        if (frame.reason === GAME_REFUSAL.ANSWER_CLOSED) this.#ownAnswer = OwnAnswer.NONE;
+        if (frame.reason === GAME_REFUSAL.ANSWER_TOO_LONG) this.#ownAnswer = this.#ownAnswerBeforeLastSend;
         this.#changed();
     }
 
@@ -229,8 +238,8 @@ export class Quiz {
         const text = typed.trim();
         if (text === "" || !this.#outlet.isConnected()) return;
         this.#outlet.send({ type: GAME_SIGNAL.GAME_ANSWER, text });
-        this.#answerSentBeforeLastSend = this.#answerSent;
-        this.#answerSent = true;
+        this.#ownAnswerBeforeLastSend = this.#ownAnswer;
+        this.#ownAnswer = OwnAnswer.SENT;
         this.#changed();
     }
 
@@ -255,15 +264,18 @@ export class Quiz {
     }
 
     #answerStatus() {
-        if (this.#answerCount === null) return "";
+        // Until the count that follows the send arrives, the count shown would leave the own answer out.
+        if (this.#answerCount === null || this.#ownAnswer === OwnAnswer.SENT) return "";
         const counts = { answered: String(this.#answerCount.answered), players: String(this.#answerCount.players) };
-        return this.#answerSent ? words["game.answerSentCountStatus"](counts) : words["game.answerCountStatus"](counts);
+        return this.#ownAnswer === OwnAnswer.COUNTED
+            ? words["game.answerSentCountStatus"](counts)
+            : words["game.answerCountStatus"](counts);
     }
 
     #openCard(quizRound: QuizRound, question: { text: string }): QuestionCardProps {
         this.#answerCount = null;
-        this.#answerSent = false;
-        this.#answerSentBeforeLastSend = false;
+        this.#ownAnswer = OwnAnswer.NONE;
+        this.#ownAnswerBeforeLastSend = OwnAnswer.NONE;
         const card = $state<QuestionCardProps>({
             tag: this.#questionProgress(quizRound),
             question: question.text,
@@ -287,8 +299,8 @@ export class Quiz {
         card.revealDisabled = locked;
         card.locked = locked;
         card.status = this.#answerStatus();
-        // The text needs the server's count, so the mark waits for it too: the status line never shows the mark alone.
-        card.sent = this.#answerSent && this.#answerCount !== null;
+        // The mark waits for the count that includes the own answer: the status line never shows the mark alone.
+        card.sent = this.#ownAnswer === OwnAnswer.COUNTED;
     }
 
     #syncCard() {
