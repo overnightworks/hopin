@@ -3,20 +3,18 @@ import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView, type FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
 import { words } from "#lib/words/de.ts";
-import { AUTH_START_PATH, RETURN_TO_QUERY_PARAMETER, SIGNAL_TYPE } from "#lib/wire.ts";
+import {
+    AUTH_START_PATH,
+    RETURN_TO_QUERY_PARAMETER,
+    SIGNAL_TYPE,
+    type ExistingParticipantsFrame,
+    type RoomCreatedFrame,
+} from "#lib/wire.ts";
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
 import QuestionCard from "./QuestionCard.svelte";
-import {
-    Quiz,
-    type AnswerCountFrame,
-    type LineFrame,
-    type PhaseFrame,
-    type QuestionCardProps,
-    type RefusedFrame,
-    type VoiceFrame,
-} from "./quiz.svelte.ts";
-import { GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
+import { Quiz, type QuestionCardProps } from "./quiz.svelte.ts";
+import { GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType } from "./wire.ts";
 import "./game.css";
 
 const SPARK_PATHS =
@@ -30,17 +28,10 @@ const MORE_ITEMS_MARKUP = `<button id="gameStartBtn" class="mi game-item" type="
 <p class="quiet-note"><span>Game answers and names go to the AI service. Chat does not. <a href="https://hallucinai.de/datenschutz#hopin-spielleiter" target="_blank" rel="noopener">Datenschutz</a></span></p>
 <button id="gameVoiceBtn" class="mi game-item" type="button" aria-label="${words["game.voiceLabel"](MASTER_NAME)}" hidden><svg class="icon voice-on-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_ON_PATHS}</svg><svg class="icon voice-off-only" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VOICE_OFF_PATHS}</svg><span class="grow">${words["game.voiceLabel"](MASTER_NAME)}<small id="gameVoiceState"></small></span></button>`;
 
-interface SeatFrame {
-    participant_id: string;
-    is_host: boolean;
-}
-
-interface EndedFrame {
-    leaver?: string;
-}
+type SeatFrame = RoomCreatedFrame | ExistingParticipantsFrame;
 
 type RefusalToast = (
-    frame: RefusedFrame,
+    frame: GameFrameByType[GAME_SIGNAL.GAME_REFUSED],
     toastKind: FeatureCore["toastKind"],
 ) => [string, ToastKind, ToastAction | null];
 
@@ -121,28 +112,28 @@ function createVoice(createPlayer: () => Player, quiz: Quiz) {
 
 function listen(core: FeatureCore, quiz: Quiz, createPlayer: () => Player) {
     const voice = createVoice(createPlayer, quiz);
-    core.on(GAME_SIGNAL.GAME_PHASE, (frame: PhaseFrame) => {
+    core.on(GAME_SIGNAL.GAME_PHASE, (frame: GameFrameByType[GAME_SIGNAL.GAME_PHASE]) => {
         quiz.receivePhase(frame);
     });
-    core.on(GAME_SIGNAL.GAME_LINE, (frame: LineFrame) => {
+    core.on(GAME_SIGNAL.GAME_LINE, (frame: GameFrameByType[GAME_SIGNAL.GAME_LINE]) => {
         core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
         quiz.receiveLine(frame);
     });
-    core.on(GAME_SIGNAL.GAME_VOICE, (frame: VoiceFrame) => {
-        if (frame.id !== undefined && quiz.isFirstHearing(frame.id)) {
+    core.on(GAME_SIGNAL.GAME_VOICE, (frame: GameFrameByType[GAME_SIGNAL.GAME_VOICE]) => {
+        if ("id" in frame && quiz.isFirstHearing(frame.id)) {
             quiz.voiceRequested(frame.id);
             voice.play(frame.id, frame.path);
         }
         quiz.voiceFrameArrived();
     });
-    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: AnswerCountFrame) => {
+    core.on(GAME_SIGNAL.GAME_ANSWER_COUNT, (frame: GameFrameByType[GAME_SIGNAL.GAME_ANSWER_COUNT]) => {
         quiz.receiveAnswerCount(frame);
     });
-    core.on(GAME_SIGNAL.GAME_REFUSED, (frame: RefusedFrame) => {
+    core.on(GAME_SIGNAL.GAME_REFUSED, (frame: GameFrameByType[GAME_SIGNAL.GAME_REFUSED]) => {
         quiz.receiveRefusal(frame);
         core.showToast(...refusalToast(frame, core.toastKind));
     });
-    core.on(GAME_SIGNAL.GAME_ENDED, (frame: EndedFrame) => {
+    core.on(GAME_SIGNAL.GAME_ENDED, (frame: GameFrameByType[GAME_SIGNAL.GAME_ENDED]) => {
         const text =
             frame.leaver === undefined
                 ? words["game.endedToast"]

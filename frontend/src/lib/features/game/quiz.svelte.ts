@@ -1,31 +1,12 @@
 import { SvelteSet } from "svelte/reactivity";
 import { words } from "#lib/words/de.ts";
 import { AGENT_ACTIVITY, type AgentTile, type OutgoingFrame } from "#lib/call/feature-port.ts";
-import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL } from "./wire.ts";
+import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType } from "./wire.ts";
 
-export type PhaseFrame =
-    | { phase: GAME_PHASE.IDLE }
-    | { phase: GAME_PHASE.THINKING | GAME_PHASE.ANSWERING; round: number; rounds: number; starter: string };
-
-export interface LineFrame {
-    text: string;
-    round?: number;
-    voiced?: true;
-}
-
-/** The voice of the line before it, or, without id and path, the word that none follows. */
-export type VoiceFrame = { id: string; path: string } | { id?: undefined; path?: undefined };
-
-export interface AnswerCountFrame {
-    answered: number;
-    players: number;
-    /** Present when this seat's own answer is in the count; a count in flight before the answer lacks it. */
-    own_answer_counted?: true;
-}
-
-/** A busy refusal always carries its wait; no other refusal does. */
-export type RefusedFrame =
-    { reason: GAME_REFUSAL.BUSY; retry_after_seconds: number } | { reason: Exclude<GAME_REFUSAL, GAME_REFUSAL.BUSY> };
+type PhaseFrame = GameFrameByType[GAME_SIGNAL.GAME_PHASE];
+type LineFrame = GameFrameByType[GAME_SIGNAL.GAME_LINE];
+type AnswerCountFrame = GameFrameByType[GAME_SIGNAL.GAME_ANSWER_COUNT];
+type RefusedFrame = GameFrameByType[GAME_SIGNAL.GAME_REFUSED];
 
 export type QuestionCardProps = {
     tag: string;
