@@ -57,5 +57,8 @@ RUN uv build --wheel --out-dir /tmp/wheel \
 # A pod's runAsNonRoot can verify only a numeric user; 1001 is hopin's uid.
 USER 1001
 
+ARG SERVICE_VERSION
+ENV SERVICE_VERSION=$SERVICE_VERSION
+
 EXPOSE 8080
 CMD ["hopin", "serve"]

@@ -15,6 +15,7 @@ from hopin.config.constants import (
     LOGOUT_PATH,
     NO_ACCESS_PATH,
 )
+from hopin.words import text
 from tests.e2e.support.calls import record_page_errors
 from tests.e2e.support.page_assertions import (
     LEGAL_LINKS,
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
     from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
+
+BRAND_NAME = text("de", "call.brandName")
 
 FORGED_CALLBACK = f"{AUTH_CALLBACK_PATH}?state=forged&code=x"
 CARD_AND_ACTION_WIDTHS = """(selectors) => {
@@ -70,7 +73,7 @@ def test_a_failed_sign_in_shows_login_failed_with_one_way_out_and_both_legal_lin
     person = open_login_failed(open_person, e2e_server, page_errors, form_factor)
 
     card = person.get_by_role("main")
-    expect(card.locator(".wordmark")).to_have_text("HopIn")
+    expect(card.locator(".wordmark")).to_have_text(BRAND_NAME)
     expect(card.get_by_role("heading", name=kit_text("de", "signIn.loginFailed"), exact=True)).to_be_visible()
     expect(person.get_by_role("alert")).to_have_text(kit_text("de", "signIn.loginFailedBanner"))
     expect(card.get_by_role("link")).to_have_text([kit_text("de", "signIn.tryAgain")])
@@ -136,9 +139,9 @@ def test_the_no_access_page_shows_its_heading_its_one_action_and_both_legal_link
 ) -> None:
     person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, form_factor)
 
-    expect(person).to_have_title("HopIn")
+    expect(person).to_have_title(BRAND_NAME)
     card = person.get_by_role("main")
-    expect(card.locator(".wordmark")).to_have_text("HopIn")
+    expect(card.locator(".wordmark")).to_have_text(BRAND_NAME)
     expect(card.get_by_role("heading", name=kit_text("de", "signIn.noAccess"), exact=True)).to_be_visible()
     expect(card.get_by_role("button")).to_have_text([kit_text("de", "signIn.logOut")])
     expect(card.get_by_role("link")).to_have_count(0)
@@ -152,9 +155,9 @@ def test_the_signed_out_page_shows_its_heading_its_one_action_and_both_legal_lin
 ) -> None:
     person = open_signed_out_page(open_person, e2e_server, page_errors, LOGIN_PATH, form_factor)
 
-    expect(person).to_have_title("HopIn")
+    expect(person).to_have_title(BRAND_NAME)
     card = person.get_by_role("main")
-    expect(card.locator(".wordmark")).to_have_text("HopIn")
+    expect(card.locator(".wordmark")).to_have_text(BRAND_NAME)
     expect(card.get_by_role("heading", name=kit_text("de", "signIn.loggedOut"), exact=True)).to_be_visible()
     expect(card.get_by_role("link")).to_have_text([kit_text("de", "signIn.logIn")])
     expect_both_legal_links_in_the_same_tab(person.get_by_role("navigation"))
@@ -167,7 +170,7 @@ def test_the_no_access_page_says_the_account_is_signed_in_but_has_no_access(
     person = open_signed_out_page(open_person, e2e_server, page_errors, NO_ACCESS_PATH, DESKTOP)
 
     expect(person.get_by_role("main").locator("p")).to_have_text(
-        kit_text("de", "signIn.noAccessSentence", appName="HopIn")
+        kit_text("de", "signIn.noAccessSentence", appName=BRAND_NAME)
     )
 
 
@@ -187,7 +190,7 @@ def test_the_card_names_the_app_once_for_a_screen_reader(
     person = record_page_errors(open_person(signed_in=False, **DESKTOP), page_errors)
     person.goto(f"{e2e_server.base_url}{path}")
 
-    expect(person.get_by_role("main").locator(".wordmark")).to_match_aria_snapshot("- text: HopIn")
+    expect(person.get_by_role("main").locator(".wordmark")).to_match_aria_snapshot(f"- text: {BRAND_NAME}")
 
 
 ISSUER_NOT_REACHABLE = "net::ERR_NAME_NOT_RESOLVED"
