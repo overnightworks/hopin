@@ -14,12 +14,15 @@ from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
 from hopin.skat.feature import configured_skat_feature  # skat
+from hopin.stores.redis import connect_shared_stores
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from fastapi import FastAPI
+
+    from hopin.stores.shared import SharedStores
 
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -54,13 +57,14 @@ def command_line_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_application(settings: ServerSettings) -> FastAPI:
+def build_application(settings: ServerSettings, page_build: PageBuild, shared_stores: SharedStores) -> FastAPI:
     participation = ParticipationSettings()
     speech = SpeechSettings()
     voices = VoiceStore()
     return create_app(
         settings,
-        page_build=PageBuild.load(BUILD_DIRECTORY),
+        page_build=page_build,
+        shared_stores=shared_stores,
         call_features=(
             configured_game_feature(voices),  # game
             ParticipationFeature(
@@ -76,12 +80,16 @@ def build_application(settings: ServerSettings) -> FastAPI:
     )
 
 
+def serve(settings: ServerSettings, page_build: PageBuild) -> None:
+    application = build_application(settings, page_build, connect_shared_stores(str(settings.redis_url)))
+    uvicorn.run(application, **uvicorn_options(settings))
+
+
 def main(arguments: Sequence[str] | None = None) -> None:
     command_line_parser().parse_args(arguments)
     configure("hopin")
     logger.info("process.started")
-    settings = ServerSettings()
-    uvicorn.run(build_application(settings), **uvicorn_options(settings))
+    serve(ServerSettings(), PageBuild.load(BUILD_DIRECTORY))
 
 
 if __name__ == "__main__":

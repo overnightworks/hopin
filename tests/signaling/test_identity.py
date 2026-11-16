@@ -6,6 +6,7 @@ from hopin.app import create_app
 from hopin.config.constants import WEBSOCKET_PATH
 from hopin.rooms.models import Account
 from hopin.signaling.identity import SessionIdentityResolver
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
@@ -29,7 +30,12 @@ class TestSessionIdentityResolver:
     @pytest.mark.asyncio
     async def test_resolve_answers_the_session_account_and_refuses_a_handshake_without_a_cookie(self, sign_in_settings):
         stores = single_process_stores()
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), stores=stores)
+        app = create_app(
+            sign_in_settings().settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            stores=stores,
+        )
         member = seed_member(stores, installed_web_auth_config(app))
         resolver = SessionIdentityResolver(stores.sessions)
         origin = {"origin": TEST_PUBLIC_ORIGIN}

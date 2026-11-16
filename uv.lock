@@ -397,6 +397,7 @@ dependencies = [
     { name = "overnightworks-webauth" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "redis" },
     { name = "structlog" },
     { name = "urllib3" },
     { name = "uvicorn" },
@@ -425,9 +426,10 @@ requires-dist = [
     { name = "overnightworks-agents", extras = ["backend", "mcp-server"], git = "https://github.com/overnightworks/agents?rev=v0.45.0" },
     { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v0.4.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.19.0" },
-    { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.40.0" },
+    { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.40.1" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
+    { name = "redis", specifier = ">=5.0,<9" },
     { name = "structlog", specifier = ">=24.4" },
     { name = "urllib3", specifier = ">=2.6.3,<3" },
     { name = "uvicorn", specifier = ">=0.54.0" },
@@ -760,8 +762,8 @@ dependencies = [
 
 [[package]]
 name = "overnightworks-webauth"
-version = "0.40.0"
-source = { git = "https://github.com/overnightworks/webauth?rev=v0.40.0#80f194023733e5ba82a5c7efe7c7c7cd4370a5dd" }
+version = "0.40.1"
+source = { git = "https://github.com/overnightworks/webauth?rev=v0.40.1#afdd45531ee0bd1b23724a3daef86bb4f9dc42eb" }
 dependencies = [
     { name = "anyio" },
     { name = "cryptography" },
@@ -1074,6 +1076,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/61/caa39686032d2ebdd04ff0ab5cbe163126c0066d98e00c9018646e42393b/pywin32-312-cp315-cp315-win32.whl", hash = "sha256:5c1fbe4a937a73ae9297384a3da38518cbc694c68ad8a809b2e19acd350f03ed", size = 6471159, upload-time = "2026-06-04T07:49:50.035Z" },
     { url = "https://files.pythonhosted.org/packages/0f/cd/7e1de64a4a6f69c04214169657ccab0d93a670ea50e35eb8f489d7378249/pywin32-312-cp315-cp315-win_amd64.whl", hash = "sha256:c2f03a0f73f804a13c2735b99392b0cd426bb4f2c4d0178e5ac966a0f21618d5", size = 7025293, upload-time = "2026-06-04T07:49:54.857Z" },
     { url = "https://files.pythonhosted.org/packages/23/ed/4532e9388e65fa16b46776ef47ad631a64eda1631884488af707666350ed/pywin32-312-cp315-cp315-win_arm64.whl", hash = "sha256:a8597d28f267b39074aef51fa593530082b39cbe5a074226096857b1fed2dfb9", size = 6840337, upload-time = "2026-06-04T07:49:57.531Z" },
+]
+
+[[package]]
+name = "redis"
+version = "8.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356, upload-time = "2026-07-30T08:51:00.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618, upload-time = "2026-07-30T08:50:58.497Z" },
 ]
 
 [[package]]

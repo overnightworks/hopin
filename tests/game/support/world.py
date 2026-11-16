@@ -17,6 +17,7 @@ from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
 from tests.game.support.fake_agent_backend import FakeAgentBackend
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.signed_in import cookie_header, seed_member
 from tests.support.stores import single_process_stores
 
@@ -82,7 +83,7 @@ def connection_with(cookie):
 
 def build_world(sign_in: SignInSettings) -> World:
     issuer = FakeIssuer(sign_in)
-    configs = build_sign_in_configs(sign_in.settings, ())
+    configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
     stores = single_process_stores()
     sessions = StoreSpy(stores.sessions)
     relying_party = build_relying_party(configs, issuer.transports)
