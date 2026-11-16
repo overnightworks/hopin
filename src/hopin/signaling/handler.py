@@ -140,12 +140,9 @@ class SignalingHandler:
                 await logger.aerror("websocket.failed", peer_id=connection.peer_id, code=frame["code"])
             return False
         text = frame.get("text")
-        if text is not None:
-            if not await self._session_admits(connection):
-                return False
-            if self._serves_seat(connection):
-                with unit_trace(None):
-                    await self._handle_message(connection, text)
+        if text is not None and self._serves_seat(connection):
+            with unit_trace(None):
+                await self._handle_message(connection, text)
         return True
 
     def _schedule_recheck(self, connection: Connection) -> TimerHandle:
@@ -154,19 +151,25 @@ class SignalingHandler:
     async def _recheck_on_tick(self, connection: Connection) -> None:
         if connection.ended:
             return
-        if await self._session_admits(connection) and self._serves_seat(connection):
-            connection.recheck = self._schedule_recheck(connection)
-
-    async def _session_admits(self, connection: Connection) -> bool:
         try:
             account = await self._identity_resolver.resolve(connection.websocket)
         except Exception:
-            await self._end_session(connection, SERVER_ERROR_CLOSE_CODE)
-            raise
-        if account is not None:
-            return True
-        await self._end_session(connection, SESSION_ENDED_CLOSE_CODE)
-        return False
+            await self._park_after_store_error(connection)
+            return
+        if account is None:
+            await self._end_session(connection, SESSION_ENDED_CLOSE_CODE)
+        elif self._serves_seat(connection):
+            connection.recheck = self._schedule_recheck(connection)
+
+    async def _park_after_store_error(self, connection: Connection) -> None:
+        """A session store that cannot answer parks the seat as a drop does; the page reconnects and resumes it."""
+        # A check can be suspended across a drop or a takeover; the seat then belongs to someone else.
+        if not self._serves_seat(connection):
+            return
+        await logger.aexception("session.check_failed", peer_id=connection.peer_id)
+        connection.dropped = True
+        connection.ended = True
+        await self._seats.close_socket(connection.websocket, SERVER_ERROR_CLOSE_CODE)
 
     def _holds_seat(self, connection: Connection) -> bool:
         peer = self._seats.find(connection.peer_id)
