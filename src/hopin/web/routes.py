@@ -2,7 +2,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -45,7 +45,10 @@ class _PageBuildFiles(StaticFiles):
 
 
 def create_router(
-    signaling_handler: SignalingHandler, page_build: PageBuild, stores_answer: Callable[[], bool]
+    signaling_handler: SignalingHandler,
+    page_build: PageBuild,
+    request_language: Callable[[Request], str],
+    stores_answer: Callable[[], bool],
 ) -> APIRouter:
     router = APIRouter()
 
@@ -55,17 +58,17 @@ def create_router(
             return JSONResponse({"status": "unavailable"}, status_code=HTTPStatus.SERVICE_UNAVAILABLE)
         return JSONResponse({"status": "ok"})
 
-    def shell() -> Response:
-        return built_page_response(page_build.shell)
+    def shell(request: Request) -> Response:
+        return built_page_response(page_build.shell, request_language(request))
 
     @router.api_route(HOME_PATH, methods=READ_METHODS)
-    def home_page() -> Response:
-        return shell()
+    def home_page(request: Request) -> Response:
+        return shell(request)
 
     # Every call address answers the page; whether the call exists is decided when someone joins.
     @router.api_route(f"{CALL_PATH}/{{room_id}}", methods=READ_METHODS)
-    def call_page() -> Response:
-        return shell()
+    def call_page(request: Request) -> Response:
+        return shell(request)
 
     router.mount(APP_ASSET_PATH, _PageBuildFiles(page_build.app_directory), name="page-build")
     router.add_api_websocket_route(WEBSOCKET_PATH, signaling_handler.handle_websocket)
