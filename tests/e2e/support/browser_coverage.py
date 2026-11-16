@@ -145,7 +145,13 @@ class BrowserCoverage:
         (self._directory / f"{uuid4().hex}.json").write_text(json.dumps(taken))
 
     def write(self) -> None:
-        """Take the coverage of every page still open; call it before its context closes."""
-        for page in self._sessions:
-            if not page.is_closed():
+        """Take the coverage of every page still open; call it before its context closes.
+
+        Taking a page's coverage lets events run, so a page can open meanwhile; the pass repeats over a
+        snapshot until every open page has been taken.
+        """
+        taken: set[Page] = set()
+        while pages := [page for page in list(self._sessions) if page not in taken and not page.is_closed()]:
+            for page in pages:
                 self._take(page)
+                taken.add(page)
