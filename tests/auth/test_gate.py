@@ -1,4 +1,5 @@
 import json
+import re
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from datetime import timedelta
@@ -10,6 +11,7 @@ import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
+from webauth.languages import AppLanguages
 from webauth.middleware import install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
 from webauth.policies import CsrfPolicy, SecurityHeadersPolicy, default_content_security_policy
@@ -36,6 +38,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.config.web_policy import SIGN_IN_PATHS
+from hopin.web.page_build import APP_LANGUAGES
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import (
@@ -104,12 +107,12 @@ SESSION_LIFETIME = timedelta(hours=12)
 class Application:
     """create_app over stores the test holds, reached through an https client like a browser's."""
 
-    def __init__(self, sign_in: SignInSettings, **options) -> None:
+    def __init__(self, sign_in: SignInSettings, languages: AppLanguages = APP_LANGUAGES, **options) -> None:
         self.stores = single_process_stores()
         self.issuer = FakeIssuer(sign_in)
         self.app = create_app(
             sign_in.settings,
-            page_build=fixture_page_build(),
+            page_build=fixture_page_build(languages),
             shared_stores=in_thread_stores(),
             stores=self.stores,
             issuer_transports=self.issuer.transports,
@@ -118,8 +121,8 @@ class Application:
         self.config = installed_web_auth_config(self.app)
         self.client = TestClient(self.app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
 
-    def seed(self) -> SeededMember:
-        return seed_member(self.stores, self.config)
+    def seed(self, **options) -> SeededMember:
+        return seed_member(self.stores, self.config, **options)
 
     def request(self, method: str, path: str, member: SeededMember | None = None, *, body: bytes = b"", **headers: str):
         if member is not None:
@@ -423,6 +426,57 @@ class TestBackchannelLogout:
 
     def test_other_paths_keep_their_cache_headers(self, application):
         assert application.get(HEALTH_PATH).headers.get("cache-control") != "no-store"
+
+
+TWO_LANGUAGES = AppLanguages(offered=("de", "en"), default="de")
+LANG_ATTRIBUTE = re.compile(r'<html lang="([^"]*)"')
+
+
+def page_language(response) -> str:
+    match = LANG_ATTRIBUTE.search(response.text)
+    assert match is not None
+    return match.group(1)
+
+
+class TestPageLanguage:
+    @pytest.fixture
+    def two_languages(self, sign_in_settings) -> Application:
+        return Application(sign_in_settings(), TWO_LANGUAGES)
+
+    @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access"])
+    def test_every_built_page_is_answered_in_the_browsers_language_with_its_own_etag(self, two_languages, path):
+        member = two_languages.seed()
+        with hosted_room(two_languages, member) as room_id:
+            german = two_languages.get(path.replace("abc", room_id), member, **{"accept-language": "de"})
+            english = two_languages.get(path.replace("abc", room_id), member, **{"accept-language": "en"})
+
+        assert (page_language(german), page_language(english)) == ("de", "en")
+        assert german.headers["etag"] != english.headers["etag"]
+
+    def test_the_login_failed_page_is_answered_in_the_browsers_language(self, two_languages):
+        response = two_languages.get(f"{AUTH_CALLBACK_PATH}?state=x", **{"accept-language": "en"})
+
+        assert (response.status_code, page_language(response)) == (403, "en")
+
+    def test_the_accounts_tag_beats_the_browsers_header(self, two_languages):
+        member = two_languages.seed(account_language="en")
+
+        response = two_languages.get("/login", member, **{"accept-language": "de"})
+
+        assert page_language(response) == "en"
+
+    @pytest.mark.parametrize("header", ["fr", "xx-YY;q=1, fr;q=0.5", "not a header", None])
+    def test_a_language_nobody_offers_is_answered_in_german(self, two_languages, header):
+        headers = {} if header is None else {"accept-language": header}
+
+        assert page_language(two_languages.get("/login", **headers)) == "de"
+
+    def test_with_german_alone_every_request_is_answered_in_german(self, application):
+        member = application.seed(account_language="en")
+
+        response = application.get("/login", member, **{"accept-language": "en"})
+
+        assert page_language(response) == "de"
 
 
 class TestRevalidation:

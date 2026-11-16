@@ -1,11 +1,11 @@
 import time
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlsplit
 
 import structlog
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, FastAPI, Request, Response
 from webauth.admission import AdmissionConfig, AdmissionRefusal
 from webauth.config import SessionLifetime, WebAuthConfig
 from webauth.https_client import fetch_key_set_over_https
@@ -44,6 +44,7 @@ if TYPE_CHECKING:
 
     from hopin.config.settings import ServerSettings
     from hopin.web.page_build import PageBuild
+    from hopin.words import Language
 
 OPENID_CONNECT_PATH = "/protocol/openid-connect"
 
@@ -154,7 +155,12 @@ def build_relying_party(
 
 
 def install_sign_in(
-    app: FastAPI, relying_party: OidcRelyingParty, transaction: SignInTransaction, page_build: PageBuild
+    app: FastAPI,
+    relying_party: OidcRelyingParty,
+    transaction: SignInTransaction,
+    page_build: PageBuild,
+    request_language: Callable[[Request], str],
+    logout_button_label: Callable[[str], str],
 ) -> None:
     """The library serves the start, callback, logout and back-channel routes; the pages stay HopIn's."""
     install_sign_in_routes(
@@ -163,34 +169,43 @@ def install_sign_in(
         relying_party=lambda _request: relying_party,
         admission=AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
         transaction=transaction,
-        refused=lambda _request, refusal: _refusal_response(refusal, page_build),
+        refused=lambda request, refusal: _refusal_response(refusal, page_build, request_language(request)),
         keeps_id_token=True,
         max_sessions=None,
-        logout_page_text=lambda _request: LogoutPageText(language="de", button_label=text("de", "signIn.logOutButton")),
-        ui_language=lambda _request: None,
+        logout_page_text=lambda request: _logout_page_text(request_language(request), logout_button_label),
+        ui_language=request_language,
     )
-    app.include_router(_create_pages_router(page_build))
+    app.include_router(_create_pages_router(page_build, request_language))
 
 
-def _create_pages_router(page_build: PageBuild) -> APIRouter:
+def words_logout_button_label(language: str) -> str:
+    # The offered languages are the words' own, so the resolved one is a words language.
+    return text(cast("Language", language), "signIn.logOutButton")
+
+
+def _logout_page_text(language: str, button_label_of: Callable[[str], str]) -> LogoutPageText:
+    return LogoutPageText(language=language, button_label=button_label_of(language))
+
+
+def _create_pages_router(page_build: PageBuild, request_language: Callable[[Request], str]) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(LOGIN_PATH, methods=READ_METHODS)
-    def signed_out() -> Response:
-        return built_page_response(page_build.signed_out)
+    def signed_out(request: Request) -> Response:
+        return built_page_response(page_build.signed_out, request_language(request))
 
     @router.api_route(NO_ACCESS_PATH, methods=READ_METHODS)
-    def no_access() -> Response:
-        return built_page_response(page_build.no_access)
+    def no_access(request: Request) -> Response:
+        return built_page_response(page_build.no_access, request_language(request))
 
     return router
 
 
-def _refusal_response(refusal: SignInRefusal, page_build: PageBuild) -> Response:
+def _refusal_response(refusal: SignInRefusal, page_build: PageBuild, language: str) -> Response:
     _log_refusal(refusal.cause)
     if refusal.page is RefusalPage.NO_ACCESS:
         return Response(status_code=HTTPStatus.SEE_OTHER, headers={"location": NO_ACCESS_PATH})
-    return built_page_response(page_build.login_failed, status_code=HTTPStatus.FORBIDDEN)
+    return built_page_response(page_build.login_failed, language, status_code=HTTPStatus.FORBIDDEN)
 
 
 def _log_refusal(refusal: OidcRefusal | AdmissionRefusal) -> None:

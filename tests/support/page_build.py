@@ -6,8 +6,12 @@ announcer's template, and the version file.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from hopin.web.page_build import PageBuild
+from hopin.web.page_build import APP_LANGUAGES, PageBuild
+
+if TYPE_CHECKING:
+    from webauth.languages import AppLanguages
 
 FIXTURE_DIRECTORY = Path(__file__).parent / "page_build_fixture"
 SIGN_IN_PAGE_FILES = ("login.html", "login-failed.html", "no-access.html")
@@ -24,5 +28,5 @@ IMMUTABLE_FILE = "/_app/immutable/x.js"
 VERSION_FILE = "/_app/version.json"
 
 
-def fixture_page_build() -> PageBuild:
-    return PageBuild.load(FIXTURE_DIRECTORY)
+def fixture_page_build(languages: AppLanguages = APP_LANGUAGES) -> PageBuild:
+    return PageBuild.load(FIXTURE_DIRECTORY, languages)
