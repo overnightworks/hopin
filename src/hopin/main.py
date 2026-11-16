@@ -74,6 +74,7 @@ def build_application(settings: ServerSettings, page_build: PageBuild, shared_st
                 hearing=speech.hearing_service,
                 speaking=speech.speaking_service,
                 voices=voices,
+                redis=shared_stores.async_redis,
             ),
             *configured_skat_feature(settings.public_origin),  # skat
         ),

@@ -408,6 +408,7 @@ def serving_dialed_call(
     stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
     voices = WatchedVoices()
+    shared_stores = in_thread_stores()
     participation = _ParticipationBuilt(
         ParticipationFeature(
             sign_in.settings.public_origin,
@@ -417,6 +418,7 @@ def serving_dialed_call(
             hearing=hearing,
             speaking=speaking,
             voices=voices,
+            redis=shared_stores.async_redis,
         )
     )
     app = create_app(

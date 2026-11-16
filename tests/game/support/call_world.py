@@ -141,11 +141,12 @@ def serving_call(
     sign_in: SignInSettings, issuer: FakeIssuer, backend: AgentBackend, speech: SpeechSettings | None = None
 ) -> Iterator[Call]:
     stores = single_process_stores()
+    shared_stores = in_thread_stores()
     voices = VoiceStore()
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
-        shared_stores=in_thread_stores(),
+        shared_stores=shared_stores,
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=ManualScheduler(),
@@ -155,7 +156,7 @@ def serving_call(
             else (
                 GameFeature(backend, voices, speech),
                 # The voices are served by participation's route.
-                ParticipationFeature(sign_in.settings.public_origin, voices=voices),
+                ParticipationFeature(sign_in.settings.public_origin, voices=voices, redis=shared_stores.async_redis),
             )
         ),
     )

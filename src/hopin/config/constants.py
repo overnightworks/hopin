@@ -128,3 +128,8 @@ class ResumeRefusalCause(StrEnum):
 # A request holds its worker thread until the Redis client gives up (webauth's rate limits), so the wait is short.
 REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
 REDIS_KEY_PREFIX = "hopin:v1"
+# agents keeps its keys under `<prefix>-agents`, so the one segment that is HopIn's own name keeps them from every other
+# key of this Redis.
+REDIS_AGENTS_KEY_PREFIX = "hopin"
+# How often the async client retries a connection before it gives up.
+REDIS_RETRY_ATTEMPTS = 3

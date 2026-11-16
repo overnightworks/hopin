@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from hopin.app import CallFeatureBuilder
     from hopin.config.settings import ServerSettings
     from hopin.participation.figures import FigureSource, FigureTransport
+    from hopin.stores.shared import SharedStores
     from tests.support.sign_in_settings import SignInSettings
 
 LOOPBACK_HOST = "127.0.0.1"
@@ -114,6 +115,7 @@ class RunningServer:
     config: WebAuthConfig
     stores: SingleProcessStores
     issuer: FakeIssuer
+    shared_stores: SharedStores
 
 
 @dataclass(frozen=True)
@@ -138,7 +140,7 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
         public_origin=f"https://{public_host}:{port}",
         trusted_proxies=LOOPBACK_HOST,
     )
-    return LoopbackSignIn(port, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in))
+    return LoopbackSignIn(port, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in), in_thread_stores())
 
 
 def participation_feature(
@@ -161,6 +163,7 @@ def participation_feature(
         hearing=speech if hears else None,
         speaking=speech if speaks else None,
         voices=voices or VoiceStore(),
+        redis=loopback.shared_stores.async_redis,
     )
 
 
@@ -202,7 +205,7 @@ def running_hopin(
     app = create_app(
         loopback.sign_in.settings,
         page_build=PageBuild.load(page_build_directory),
-        shared_stores=in_thread_stores(),
+        shared_stores=loopback.shared_stores,
         stores=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_features=(

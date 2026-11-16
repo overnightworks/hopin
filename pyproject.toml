@@ -5,9 +5,10 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agents[backend,mcp-server] @ git+https://github.com/overnightworks/agents@v0.45.0",
+    "overnightworks-agents[backend,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.50.0",
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v0.4.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.19.0#subdirectory=packages/client",
+    "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.8.0",
     "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.40.1",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
@@ -32,6 +33,7 @@ no-binary-package = [
     "overnightworks-agents",
     "overnightworks-logline",
     "overnightworks-speech-client",
+    "overnightworks-tandem",
     "overnightworks-webauth",
 ]
 # Their build backends run with these exact tools, as hatchling is pinned above.
@@ -278,6 +280,7 @@ forbidden_modules = ["fastapi", "starlette", "uvicorn", "websockets", "webauth"]
 [dependency-groups]
 dev = [
     "cryptography>=50.0.2",
+    "fakeredis[lua]>=2.35,<3",
     "httpx2>=2.13.1",
     "mypy>=1.19.1",
     "overnightworks-design[catalogs] @ https://github.com/overnightworks/design/releases/download/v0.34.0/overnightworks_design-0.34.0-py3-none-any.whl#sha256=49ecbc76c21ed3ffcf824d9a60b1c8a2ee37aeec495dc57d80be45a4a8d5be7d",
