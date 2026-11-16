@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from contextlib import aclosing, nullcontext
+from contextlib import aclosing
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Protocol, assert_never
@@ -24,6 +24,7 @@ from hopin.game.vocabulary import (
     GAME_RETRY_AFTER_FALLBACK_SECONDS,
     GameRefusal,
 )
+from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
     from pydantic import SecretStr
@@ -69,7 +70,7 @@ class StarterPerson:
         self._relying_party = relying_party
         self._sessions = sessions
         self._web_auth = web_auth
-        self._groups = SessionGroups(relying_party, lambda: nullcontext(sessions), web_auth)
+        self._groups = SessionGroups(relying_party, session_transaction_of(sessions), web_auth)
 
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
@@ -114,7 +115,7 @@ class StarterPerson:
         return fresh_access_token(
             self._relying_party,
             session_id,
-            session_transaction=lambda: nullcontext(self._sessions),
+            session_transaction=session_transaction_of(self._sessions),
             config=self._web_auth,
         )
 
