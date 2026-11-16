@@ -145,15 +145,12 @@ class BuiltPage:
         """The page with its `<html lang>` set to each offered language, made once so no request rewrites it."""
         if HTML_LANGUAGE.search(content) is None:
             raise PageBuildMissingError(f"The page {name} of the build has no <html lang>; run make frontend")
-        return cls(
-            variants={
-                language: PageVariant(
-                    content=(variant := HTML_LANGUAGE.sub(rb"\g<1>" + language.encode() + rb"\g<2>", content, count=1)),
-                    etag=f'"{hashlib.sha256(variant).hexdigest()}"',
-                )
-                for language in languages.offered
-            }
-        )
+        return cls(variants={language: _page_variant(content, language) for language in languages.offered})
+
+
+def _page_variant(content: bytes, language: str) -> PageVariant:
+    variant = HTML_LANGUAGE.sub(rb"\g<1>" + language.encode() + rb"\g<2>", content, count=1)
+    return PageVariant(content=variant, etag=f'"{hashlib.sha256(variant).hexdigest()}"')
 
 
 def built_page_response(page: BuiltPage, language: str, status_code: int = 200) -> Response:
