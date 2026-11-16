@@ -22,6 +22,7 @@ from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejec
 from tests.game.support.table_world import answers_in_reveal
 from tests.game.support.world import wait_in_a_worker
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.log_lines import captured_lines, runs_logged
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -290,6 +291,7 @@ class OneLoopServer:
         self.app = create_app(
             sign_in.settings,
             page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
             issuer_transports=self.issuer.transports,
             stores=self._stores,
             scheduler=self.scheduler,

@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -44,12 +45,17 @@ class _PageBuildFiles(StaticFiles):
 
 
 def create_router(
-    signaling_handler: SignalingHandler, page_build: PageBuild, request_language: Callable[[Request], str]
+    signaling_handler: SignalingHandler,
+    page_build: PageBuild,
+    request_language: Callable[[Request], str],
+    stores_answer: Callable[[], bool],
 ) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(HEALTH_PATH, methods=READ_METHODS)
     def health() -> JSONResponse:
+        if not stores_answer():
+            return JSONResponse({"status": "unavailable"}, status_code=HTTPStatus.SERVICE_UNAVAILABLE)
         return JSONResponse({"status": "ok"})
 
     def shell(request: Request) -> Response:

@@ -40,6 +40,7 @@ from hopin.config.constants import (
 from hopin.config.web_policy import SIGN_IN_PATHS
 from hopin.web.page_build import APP_LANGUAGES
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import (
     FIXTURE_ANNOUNCER_HASH,
     FIXTURE_DIRECTORY,
@@ -112,6 +113,7 @@ class Application:
         self.app = create_app(
             sign_in.settings,
             page_build=fixture_page_build(languages),
+            shared_stores=in_thread_stores(),
             stores=self.stores,
             issuer_transports=self.issuer.transports,
             **options,
@@ -508,7 +510,10 @@ class TestSessionLifetime:
         sign_in = sign_in_settings()
         stores = single_process_stores()
         now = [1_800_000_000.0]
-        config: WebAuthConfig = replace(build_sign_in_configs(sign_in.settings, ()).web_auth, wall_clock=lambda: now[0])
+        config: WebAuthConfig = replace(
+            build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits).web_auth,
+            wall_clock=lambda: now[0],
+        )
         member = seed_member(stores, config)
         app = FastAPI()
         install_web_auth_config(app, config)

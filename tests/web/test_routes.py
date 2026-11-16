@@ -18,6 +18,7 @@ from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.routes import create_router
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, SIGN_IN_PAGE_FILES, fixture_page_build
 from tests.support.page_inventory import (
     CSS_COMMENT,
@@ -36,7 +37,9 @@ def signaling_handler(room_manager):
 @pytest.fixture
 def app(signaling_handler):
     application = FastAPI()
-    application.include_router(create_router(signaling_handler, fixture_page_build(), lambda _request: "de"))
+    application.include_router(
+        create_router(signaling_handler, fixture_page_build(), lambda _request: "de", in_thread_stores().answers)
+    )
     return application
 
 
@@ -47,7 +50,9 @@ def client(app):
 
 class TestCreateRoutes:
     def test_returns_four_routes_and_the_app_mount(self, signaling_handler):
-        router = create_router(signaling_handler, fixture_page_build(), lambda _request: "de")
+        router = create_router(
+            signaling_handler, fixture_page_build(), lambda _request: "de", in_thread_stores().answers
+        )
         assert len(router.routes) == 5
 
 

@@ -45,6 +45,7 @@ from hopin.web.page_build import APP_LANGUAGES
 from hopin.web.request_language import RequestLanguage
 from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
@@ -135,7 +136,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         sign_in.settings.oidc_client_secret_file.write_text(
             sign_in.client_secret + ("\r\n" if windows_line_ending else "\n")
         )
-        configs = build_sign_in_configs(sign_in.settings, ())
+        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
         issuer = FakeIssuer(sign_in)
         transports = issuer.transports
         if key_set_of is not None:
@@ -411,7 +412,7 @@ class TestLogout:
         assert set(cookies) == {SESSION_COOKIE}
 
     @pytest.mark.parametrize(
-        ("offered", "accept_language", "account_language", "shown"),
+        ("offered", "asked", "account", "shown"),
         [
             (("de",), "en", None, "de"),
             (("de", "en"), "en", None, "en"),
@@ -419,18 +420,15 @@ class TestLogout:
         ],
         ids=["german alone", "the second language the browser asks for", "the second language the account carries"],
     )
-    def test_the_logout_page_is_in_the_resolved_language(
-        self, make_harness, offered, accept_language, account_language, shown
-    ):
+    def test_the_logout_page_is_in_the_resolved_language(self, make_harness, offered, asked, account, shown):
         harness = make_harness(
-            languages=AppLanguages(offered=offered, default="de"),
-            logout_button_label=lambda language: f"label-{language}",
+            languages=AppLanguages(offered, default="de"), logout_button_label=lambda lang: f"label-{lang}"
         )
-        member = seed_member(harness, harness.config, account_language=account_language)
+        member = seed_member(harness, harness.config, account_language=account)
 
         response = harness.browser().post(
             LOGOUT_PATH,
-            headers={"cookie": cookie_header(member.set_cookie_headers), "accept-language": accept_language},
+            headers={"cookie": cookie_header(member.set_cookie_headers), "accept-language": asked},
         )
 
         page = EndSessionPage(response.text)

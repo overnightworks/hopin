@@ -123,3 +123,8 @@ class ResumeRefusalCause(StrEnum):
     WRONG_ACCOUNT = "wrong_account"
     SERVER_LOG_TOO_SHORT = "server_log_too_short"
     BROWSER_LOG_TOO_SHORT = "browser_log_too_short"
+
+
+# A request holds its worker thread until the Redis client gives up (webauth's rate limits), so the wait is short.
+REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
+REDIS_KEY_PREFIX = "hopin:v1"

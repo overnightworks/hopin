@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 TEST_ISSUER = "https://issuer.test.invalid/realms/test"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 TEST_PUBLIC_ORIGIN = "https://hopin.test.invalid"
+TEST_REDIS_URL = "redis://redis.test.invalid:6379"
 SESSION_SECRET_BYTES = 36
 CLIENT_SECRET_BYTES = 24
 
@@ -35,6 +36,7 @@ def build_sign_in_settings(directory: Path, **overrides: str | int | Path | None
         "oidc_client_secret_file": client_secret_file,
         "public_origin": TEST_PUBLIC_ORIGIN,
         "session_secret_file": session_secret_file,
+        "redis_url": TEST_REDIS_URL,
         **overrides,
     }
     present = {name: value for name, value in values.items() if value is not None}

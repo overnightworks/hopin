@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from hopin.app import create_app
 from hopin.skat.feature import SkatFeature
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -12,7 +13,12 @@ SKAT_ORIGIN = "https://skat.example:8443"
 
 
 def content_security_policy(sign_in_settings, call_features):
-    app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), call_features=call_features)
+    app = create_app(
+        sign_in_settings().settings,
+        page_build=fixture_page_build(),
+        shared_stores=in_thread_stores(),
+        call_features=call_features,
+    )
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN).get("/health").headers["content-security-policy"]
 
 

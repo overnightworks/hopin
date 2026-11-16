@@ -14,6 +14,7 @@ from hopin.game.vocabulary import GameSignal
 from hopin.participation.voice import VoiceStore
 from tests.game.support.fake_agent_backend import FakeAgentBackend, Succeeds
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -39,6 +40,7 @@ def quiz_call(sign_in_settings, stores):
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
+        shared_stores=in_thread_stores(),
         issuer_transports=issuer.transports,
         stores=stores,
         call_features=(GameFeature(backend, VoiceStore()),),
