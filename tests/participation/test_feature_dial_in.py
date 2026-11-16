@@ -1,13 +1,13 @@
 import asyncio
 
 import pytest
-from agents.figure_vocabulary import FigureGesture
 
 from hopin.config.constants import RESUME_WINDOW_SECONDS, SESSION_RECHECK_SECONDS, ErrorReason, SignalType
 from hopin.participation.participants import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AgentRefusal,
+    FigureGesture,
     ParticipationSignal,
 )
 from hopin.rooms.manager import RoomManager

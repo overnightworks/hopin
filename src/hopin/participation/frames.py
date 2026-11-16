@@ -3,10 +3,8 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, get_args
 
-from agents.figure_vocabulary import FigureGesture  # noqa: TC002 - the wire generator reads the field type at runtime
-
 from hopin.participation.figures import clip_path, figure_path
-from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, FigureGesture, InvitationOutcome, ParticipationSignal
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, with_present
 
 if TYPE_CHECKING:

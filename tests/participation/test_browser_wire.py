@@ -2,7 +2,6 @@ import re
 from typing import TYPE_CHECKING
 
 import pytest
-from agents.figure_vocabulary import FigureGesture
 
 from hopin.participation.frames import (
     BROWSER_FRAMES,
@@ -25,6 +24,7 @@ from hopin.participation.frames import (
 from hopin.participation.vocabulary import (
     BROWSER_ENUMS,
     AgentRefusal,
+    FigureGesture,
     InvitationOutcome,
     ParticipationSignal,
 )
@@ -58,8 +58,7 @@ def test_every_browser_frame_has_a_fully_set_instance_here() -> None:
 
 @pytest.mark.parametrize("frame", FULLY_SET_FRAMES, ids=lambda frame: type(frame).__name__)
 def test_a_frames_rendered_properties_are_the_keys_it_sends_in_order(frame: ParticipationFrame) -> None:
-    enums = {**BROWSER_ENUMS, "FIGURE_GESTURE": FigureGesture}
-    rendered = generate_wire.render_frame_type(type(frame), None, enums)
+    rendered = generate_wire.render_frame_type(type(frame), None, BROWSER_ENUMS)
     properties = re.findall(r"^    (\w+)\??:", rendered, flags=re.MULTILINE)
 
     assert properties == list(frame.to_json())

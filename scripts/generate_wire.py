@@ -15,8 +15,6 @@ from typing import TYPE_CHECKING, ClassVar, Literal, Protocol, Union, get_args, 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
 
-from agents.figure_vocabulary import FigureGesture  # noqa: E402  # the gestures an agent names
-
 from hopin.config.constants import (  # noqa: E402
     ACCOUNT_CONSOLE_PATH,
     ACCOUNT_PATH,
@@ -301,8 +299,7 @@ def render_participation() -> str:
         f"export const LOOK_MAX_BYTES = {LOOK_MAX_BYTES};\n"
         f"export const LOOK_PART_CHARACTERS = {LOOK_PART_CHARACTERS};\n"
     )
-    enums = {**PARTICIPATION_BROWSER_ENUMS, "FIGURE_GESTURE": FigureGesture}
-    return render_feature(enums, PARTICIPATION_FRAMES, constants)
+    return render_feature(PARTICIPATION_BROWSER_ENUMS, PARTICIPATION_FRAMES, constants)
 
 
 def outputs(root: Path) -> dict[Path, str]:

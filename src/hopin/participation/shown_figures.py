@@ -6,12 +6,10 @@ from typing import TYPE_CHECKING
 from hopin.participation.figures import NamedFigure
 from hopin.participation.frames import AgentGestureFrame, ParticipationFrame
 from hopin.participation.participants import DialedAgent
-from hopin.participation.vocabulary import AgentRefusal
+from hopin.participation.vocabulary import AgentRefusal, FigureGesture
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
-
-    from agents.figure_vocabulary import FigureGesture
 
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
