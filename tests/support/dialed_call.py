@@ -424,7 +424,7 @@ def serving_dialed_call(
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
-        shared_stores=in_thread_stores(),
+        shared_stores=shared_stores,
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,
