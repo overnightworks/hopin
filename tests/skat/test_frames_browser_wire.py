@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
+
 import pytest
 
 from hopin.skat.frames import BROWSER_FRAMES, AttachedTableFrame, EmptyTableFrame, RefusedFrame, SkatFrame
 from hopin.skat.vocabulary import BROWSER_ENUMS, SkatRefusal, SkatSignal
-from tests.support.rendered_frames import rendered_property_names
+from tests.support.rendered_frames import mapped_signal_names, rendered_property_names
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 FULLY_SET_FRAMES = [
     AttachedTableFrame(3, 1, "t1", "https://skat.example/t/t1?mode=call", "p1"),
@@ -28,4 +33,10 @@ def test_an_empty_table_sends_its_absent_fields_as_explicit_null() -> None:
         "table": None,
         "src": None,
         "opener_id": None,
+    }
+
+
+def test_the_signal_map_has_exactly_the_signals_the_frames_carry(tmp_path: Path) -> None:
+    assert mapped_signal_names(tmp_path, "frontend/src/lib/features/skat/wire.ts", "SKAT_SIGNAL") == {
+        frame.TYPE.name for frame in BROWSER_FRAMES
     }
