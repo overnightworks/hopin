@@ -23,6 +23,8 @@ from hopin.signaling.scheduler import DeadlineKind
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from starlette.requests import HTTPConnection
+
     from hopin.rooms.models import Account
     from hopin.signaling.scheduler import Deadlines, TimerHandle
 
@@ -58,6 +60,7 @@ class Peer:
     resume_token: str = field(default_factory=mint_resume_token, repr=False)
     log: ReplayLog = field(default_factory=ReplayLog, repr=False)
     received_seq: int = 0
+    delivered_seq: int = 0
     replaying: bool = False
     park: Park | None = None
 
@@ -127,20 +130,36 @@ class Seats:
     def account_of(self, peer_id: str) -> Account:
         return self._peers[PeerId(peer_id)].account
 
+    def connection_of(self, peer_id: PeerId) -> HTTPConnection:
+        return self._peers[peer_id].websocket
+
     async def send_all(self, peer_ids: list[str], data: JsonObject) -> None:
         for peer_id in peer_ids:
             await self.send(peer_id, data)
 
     async def send(self, peer_id: str, data: JsonObject) -> None:
-        # The browser drops frames at or below the last seq it dispatched, so nothing may await
-        # between assigning a frame's seq in the log and writing it.
-        peer = self._peers.get(PeerId(peer_id))
+        if self.log(PeerId(peer_id), data):
+            await self.deliver(PeerId(peer_id))
+
+    def log(self, peer_id: PeerId, data: JsonObject) -> bool:
+        """Give the frame the seat's next seq in its log, and say whether the seat is there to have it."""
+        peer = self._peers.get(peer_id)
         if peer is None:
-            return
-        frame = peer.log.append(data)
-        if peer.replaying or peer.park is not None:
-            return
-        await self.write(peer.websocket, frame, peer_id)
+            return False
+        peer.log.append(data)
+        return True
+
+    async def deliver(self, peer_id: PeerId) -> None:
+        """Write the logged frames the seat's socket has not had; held while the seat is parked or replaying."""
+        # The browser drops frames at or below the last seq it dispatched, so each write starts in the order
+        # of the seq, claimed with no await before it starts; a slow write never holds the next one back.
+        peer = self._peers.get(peer_id)
+        while peer is not None and self.find(peer_id) is peer and not peer.replaying and peer.park is None:
+            pending = peer.log.since(peer.delivered_seq)
+            if not pending:
+                return
+            peer.delivered_seq = pending[0].seq
+            await self.write(peer.websocket, pending[0].frame, peer_id)
 
     @staticmethod
     async def write(websocket: WebSocket, frame: JsonObject, peer_id: str | None = None) -> bool:
@@ -240,6 +259,7 @@ class Seats:
                 return
             pending = seat.log.since(cursor)
             if not pending:
+                seat.delivered_seq = cursor
                 seat.replaying = False
                 return
             if not await self.write(websocket, pending[0].frame):

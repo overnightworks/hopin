@@ -1,5 +1,4 @@
-import itertools
-from dataclasses import KW_ONLY, dataclass, field
+from dataclasses import KW_ONLY, dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,44 +19,25 @@ class Attachment:
 
 @dataclass(frozen=True)
 class RoomState:
-    """What a room shows now, with the revision it has had since its last change."""
+    """What a room shows now, with the revision it has had since its last change; every change gives the room a
+    higher revision."""
 
-    revision: int
-    attachment: Attachment | None
+    revision: int = 0
+    attachment: Attachment | None = None
 
+    def attached(self, *, table: str, source: str, opener: PeerId) -> RoomState | None:
+        """The room showing the table, or nothing while it shows one already."""
+        if self.attachment is not None:
+            return None
+        revision = self.revision + 1
+        return RoomState(revision, Attachment(revision, table=table, source=source, opener=opener))
 
-@dataclass
-class Stages:
-    """The one table each room shows, and the revision every change of it is given; revisions rise for the whole
-    process, so a later state always carries a higher one."""
+    def detached(self) -> RoomState:
+        return RoomState(self.revision + 1, None)
 
-    _attachments: dict[str, Attachment] = field(default_factory=dict)
-    _revisions: dict[str, int] = field(default_factory=dict)
-    _counter: itertools.count[int] = field(default_factory=lambda: itertools.count(1))
-
-    def state_of(self, room_id: str) -> RoomState:
-        return RoomState(self._revisions.get(room_id, 0), self._attachments.get(room_id))
-
-    def attach(self, room_id: str, *, table: str, source: str, opener: PeerId) -> bool:
-        """Show the table unless the room shows one; of two attaches, the first call wins."""
-        if room_id in self._attachments:
-            return False
-        revision = next(self._counter)
-        self._revisions[room_id] = revision
-        self._attachments[room_id] = Attachment(revision, table=table, source=source, opener=opener)
-        return True
-
-    def detach(self, room_id: str) -> None:
-        self._attachments.pop(room_id)
-        self._revisions[room_id] = next(self._counter)
-
-    def forget_opener(self, peer_id: PeerId) -> None:
-        """Clear the seat as the opener of every table it opened."""
-        for room_id, held in [*self._attachments.items()]:
-            if held.opener == peer_id:
-                self._attachments[room_id] = Attachment(held.number, table=held.table, source=held.source, opener=None)
-                self._revisions[room_id] = next(self._counter)
-
-    def end(self, room_id: str) -> None:
-        self._attachments.pop(room_id, None)
-        self._revisions.pop(room_id, None)
+    def without_opener(self, peer_id: PeerId) -> RoomState:
+        """The room's table with the seat no longer its opener; unchanged when the seat opened none."""
+        held = self.attachment
+        if held is None or held.opener != peer_id:
+            return self
+        return RoomState(self.revision + 1, Attachment(held.number, table=held.table, source=held.source, opener=None))
