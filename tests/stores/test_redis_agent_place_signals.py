@@ -8,6 +8,7 @@ import pytest
 from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
 from redis import Redis
 
+from hopin.agent.mcp import PLACE_SIGNAL_FAILED_EVENT
 from hopin.config.constants import HEALTH_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.pod_pair import LOCALHOST, starting_pod
@@ -21,7 +22,6 @@ pytestmark = pytest.mark.shared_stores
 
 SIGNAL_WAIT_SECONDS = 10
 NOT_READY_OBSERVED_SECONDS = 3
-PLACE_SIGNAL_FAILED = "place_signal.failed"
 OWNER_SUBJECT = "owner-subject"
 
 
@@ -97,9 +97,9 @@ class TestAgentPlaceSignals:
         with captured_lines() as lines:
             redis_gate.close()
             call.pass_time(LEASE_SECONDS)
-            assert lines.wait_for_event(PLACE_SIGNAL_FAILED, SIGNAL_WAIT_SECONDS)
+            assert lines.wait_for_event(PLACE_SIGNAL_FAILED_EVENT, SIGNAL_WAIT_SECONDS)
 
-        assert [line["event"] for line in lines].count(PLACE_SIGNAL_FAILED) == 1
+        assert [line["event"] for line in lines].count(PLACE_SIGNAL_FAILED_EVENT) == 1
         assert call.places_held_by(agent_subject) == ()
 
 

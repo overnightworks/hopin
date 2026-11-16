@@ -4,13 +4,13 @@ import pytest
 from agents.member import STANDING_URI
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from hopin.agent.mcp import LISTENERS_READ_FAILED_EVENT
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
-LISTENERS_READ_FAILED = "listeners_read.failed"
 # The last argument of agents' script that reads every listener of a place rather than one principal's.
 ALL_LISTENERS = -1
 
@@ -47,10 +47,10 @@ class TestAFailedListenersRead:
 
         with captured_lines() as lines:
             scene.call.listen(scene.token, [STANDING_URI])
-            assert lines.wait_for_event(LISTENERS_READ_FAILED, SEEN_WITHIN_SECONDS)
+            assert lines.wait_for_event(LISTENERS_READ_FAILED_EVENT, SEEN_WITHIN_SECONDS)
             _, login = scene.call.member(groups=(ADDERS_GROUP,))
             offers = scene.call.seat(login, scene.owner.room_id).frame_of_type(ParticipationSignal.AGENT_OFFERS.value)[
                 "offers"
             ]
 
-        assert (offers, [line["event"] for line in lines].count(LISTENERS_READ_FAILED)) == ([], 1)
+        assert (offers, [line["event"] for line in lines].count(LISTENERS_READ_FAILED_EVENT)) == ([], 1)
