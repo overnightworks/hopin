@@ -115,7 +115,6 @@ class RunningServer:
     config: WebAuthConfig
     stores: SingleProcessStores
     issuer: FakeIssuer
-    shared_stores: SharedStores
 
 
 @dataclass(frozen=True)
@@ -127,6 +126,7 @@ class LoopbackSignIn:
     sign_in: SignInSettings
     stores: SingleProcessStores
     issuer: FakeIssuer
+    shared_stores: SharedStores
 
 
 def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> LoopbackSignIn:
