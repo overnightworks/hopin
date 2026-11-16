@@ -64,6 +64,14 @@ def test_a_frames_rendered_properties_are_the_keys_it_sends_in_order(frame: Part
     assert properties == list(frame.to_json())
 
 
+def test_an_offers_rendered_properties_are_the_keys_it_sends_in_order() -> None:
+    offer = Offer("k", "Bach", pending=True)
+    rendered = generate_wire.render_record_type(Offer, BROWSER_ENUMS)
+    properties = re.findall(r"^    (\w+)\??:", rendered, flags=re.MULTILINE)
+
+    assert properties == list(offer.to_json())
+
+
 def test_the_joined_frame_sends_no_figure_or_gestures_it_does_not_have() -> None:
     assert AgentJoinedFrame("a1", "Mozart", "Ana", "p1").to_json() == {
         "type": ParticipationSignal.AGENT_JOINED.value,
