@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "e3f98d229a37b9fccc30288aba0772564805d715"
 branch = "claude/issue-894-typed-skat-frames"
-scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/game", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/skat", "tests/scripts/test_generate_wire.py", "tests/skat", "tests/support/rendered_frames.py"]
+scope = ["docs/ARCHITECTURE.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/call/features.ts", "frontend/src/lib/features/game", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat", "frontend/src/lib/wire.ts", "frontend/src/routes/(call)/start-up.ts", "scripts/generate_wire.py", "src/hopin/signaling/frames.py", "src/hopin/skat", "tests/participation/test_frames_browser_wire.py", "tests/scripts/test_generate_wire.py", "tests/skat", "tests/support/rendered_frames.py"]
 opened_commit = "02737eee62976dc6e367772a491ba6ad0e0aa1bd"
 whole_reason = "Typing FeatureCore.on touches every feature's handlers at once; the skat records are its last missing frame map."
