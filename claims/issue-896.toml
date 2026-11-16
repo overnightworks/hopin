@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "e3f98d229a37b9fccc30288aba0772564805d715"
 branch = "claude/issue-896-e2e-teardown"
-scope = ["src/hopin/main.py", "src/hopin/signaling", "tests/e2e/conftest.py", "tests/e2e/support"]
+scope = ["src/hopin/main.py", "src/hopin/signaling", "tests/e2e/conftest.py", "tests/e2e/participation/test_agent_speaks.py", "tests/e2e/support", "tests/e2e/test_browser_coverage.py"]
 opened_commit = "695f57d9a2af75a0f6d836891ee7297fedf840bb"
 whole_reason = "The harness teardown and the server shutdown it waits on are one failure path."
