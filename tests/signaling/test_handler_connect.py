@@ -113,17 +113,16 @@ class TestConnect:
         assert [set(entry) for entry in events_named(logs, event)] == [fields]
 
     def test_logs_of_a_refused_recheck_carry_no_account_username_cookie_or_session_id(
-        self, client, served_sessions, stores, seed, logs
+        self, client, stores, seed, logs, tick
     ):
         member = seed()
         with client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(member)) as ws:
             ws.send_json({"type": SignalType.JOIN.value})
             ws.receive_json()
             stores.sessions.delete(member.session.id)
-            ws.send_json({"type": SignalType.CHAT.value, "seq": 1, "message": "hello"})
+            tick()
             with pytest.raises(WebSocketDisconnect):
                 ws.receive_json()
-            served_sessions.wait_for_the_session_to_end()
 
         cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
         secrets_in_logs = [member.account.username, member.account.id, member.session.id]

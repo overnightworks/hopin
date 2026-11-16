@@ -44,15 +44,15 @@ def join_room(connect, account, room_id):
 
 @pytest.mark.integration
 class TestSessionRecheck:
-    def test_guest_whose_session_ended_is_closed_before_its_next_frame_reaches_the_host(
-        self, connect, stores, member_named
+    def test_guest_whose_session_ended_is_closed_at_the_tick_and_the_host_hears_it_left(
+        self, connect, stores, member_named, tick
     ):
         host_ws, room_id = open_room(connect, "host")
         guest_ws, _ = join_room(connect, "guest", room_id)
         guest_peer_id = host_ws.receive_json()["participant_id"]
         stores.sessions.delete(member_named("guest").session.id)
 
-        guest_ws.send_json({"type": SignalType.MEDIA_STATE.value, "seq": 1, "audio": False, "video": True})
+        tick()
 
         with pytest.raises(WebSocketDisconnect) as closed:
             guest_ws.receive_json()
@@ -62,26 +62,27 @@ class TestSessionRecheck:
         _, joined = join_room(connect, "late", room_id)
         assert joined["type"] != SignalType.ERROR.value
 
-    def test_member_whose_session_expired_is_closed_at_its_next_frame(self, connect, stores, member_named):
+    def test_member_whose_session_expired_is_closed_at_the_tick(self, connect, stores, member_named, tick):
         ws, _ = open_room(connect, "host")
         expired = datetime.now(UTC) - timedelta(hours=1)
         stores.sessions.touch(member_named("host").session.id, expires_at=expired)
 
-        ws.send_json({"type": "no-such-signal", "seq": 1})
+        tick()
 
         with pytest.raises(WebSocketDisconnect) as closed:
             ws.receive_json()
         assert closed.value.code == SESSION_ENDED_CLOSE_CODE
 
-    def test_frame_of_a_live_member_renews_the_session_never_past_its_absolute_cap(self, connect, stores, member_named):
-        ws, _ = open_room(connect, "host")
+    def test_tick_of_a_live_member_renews_the_session_never_past_its_absolute_cap(
+        self, connect, stores, member_named, tick
+    ):
+        open_room(connect, "host")
         member = member_named("host")
         absolute_cap = member.session.expires_at
         shortened = absolute_cap - timedelta(hours=3)
         stores.sessions.touch(member.session.id, expires_at=shortened)
 
-        ws.send_json({"type": "no-such-signal", "seq": 1})
-        assert ws.receive_json()["type"] == SignalType.ERROR.value
+        tick()
 
         renewed = expires_at(stores, member)
         assert shortened < renewed <= absolute_cap

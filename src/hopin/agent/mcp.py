@@ -4,7 +4,7 @@ serve it."""
 import asyncio
 import logging
 import time
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
@@ -65,6 +65,7 @@ from hopin.participation.vocabulary import (
 )
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
+from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine, Mapping
@@ -423,7 +424,7 @@ class ParticipationFeature:
             deadlines,
             auth_config.wall_clock,
             self.agent_adders,
-            SessionGroups(relying_party, lambda: nullcontext(sessions), auth_config),
+            SessionGroups(relying_party, session_transaction_of(sessions), auth_config),
             self.figure_sources,
             hears=self.hearing is not None,
             voices=self.voices,

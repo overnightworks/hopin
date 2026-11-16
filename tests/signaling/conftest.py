@@ -7,9 +7,7 @@ from fastapi.testclient import TestClient
 from webauth.config import installed_web_auth_config
 
 from hopin.app import create_app
-from hopin.config.constants import (
-    WEBSOCKET_PATH,
-)
+from hopin.config.constants import SESSION_RECHECK_SECONDS, WEBSOCKET_PATH
 from tests.signaling.support.flow import number_frames_after_the_first
 from tests.signaling.support.served_sessions import ServedSessions
 from tests.support.in_thread_stores import in_thread_stores
@@ -27,9 +25,11 @@ def stores():
 
 
 @pytest.fixture
-def app(sign_in_settings, stores):
+def app(sign_in_settings, stores, scheduler):
     settings = sign_in_settings(max_participants_per_room=3).settings
-    return create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
+    return create_app(
+        settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores, scheduler=scheduler
+    )
 
 
 @pytest.fixture
@@ -60,6 +60,12 @@ def member_named(seed) -> Callable[[str], SeededMember]:
         return members[label]
 
     return member
+
+
+@pytest.fixture
+def tick(client, scheduler) -> Callable[[], None]:
+    """Run the session checks that fall due one `SESSION_RECHECK_SECONDS` on, on the server's own loop."""
+    return lambda: client.portal.call(scheduler.advance, SESSION_RECHECK_SECONDS)
 
 
 @pytest.fixture
