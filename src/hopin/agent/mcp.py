@@ -97,6 +97,7 @@ OFFERS_RECOMPUTE_TASK_NAME: Final = "agent-offers-recompute"
 OFFERS_RECOMPUTE_FAILED_EVENT: Final = "agent_offers_recompute.failed"
 PLACE_SIGNAL_TASK_NAME: Final = "agent-place-signal"
 PLACE_SIGNAL_FAILED_EVENT: Final = "place_signal.failed"
+LISTENERS_READ_FAILED_EVENT: Final = "listeners_read.failed"
 
 
 @dataclass
@@ -173,7 +174,7 @@ class _BuiltParticipation:
         try:
             listeners = await self.changes.listeners(STANDING_URI)
         except PlaceStoreError:
-            logger.error("listeners_read.failed")
+            logger.error(LISTENERS_READ_FAILED_EVENT)
             listeners = frozenset()
         if read == self._listeners_reads:
             self._standing_listeners = listeners

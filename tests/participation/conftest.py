@@ -30,6 +30,7 @@ from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.fake_speech import FakeSpeech
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.loopback_origin import Origin
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
 from tests.support.speech_origin import chunked_wav, offering, speaking
@@ -250,7 +251,14 @@ def issuer_clock():
 
 
 @pytest.fixture
+def shared_stores():
+    """The shared stores the call runs on; a module whose Redis misbehaves overrides it."""
+    return in_thread_stores()
+
+
+@pytest.fixture
 def adding_call(
+    shared_stores,
     issuer_clock,
     sign_in_settings,
     seat_changes,
@@ -272,6 +280,7 @@ def adding_call(
         hearing=hearing_service,
         speaking=speaking_service,
         monotonic_clock=issuer_clock,
+        shared_stores=shared_stores,
     ) as call:
         yield call
 
