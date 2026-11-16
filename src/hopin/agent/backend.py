@@ -129,9 +129,7 @@ class QuizGameMaster:
     """Asks the quiz agent for the game master's next line through the backend, for the starter, in the starter's
     language."""
 
-    def __init__(
-        self, backend: QuizBackend, starter_person: StarterPerson, request_language: RequestLanguage
-    ) -> None:
+    def __init__(self, backend: QuizBackend, starter_person: StarterPerson, request_language: RequestLanguage) -> None:
         self._backend = backend
         self._starter_person = starter_person
         self._request_language = request_language

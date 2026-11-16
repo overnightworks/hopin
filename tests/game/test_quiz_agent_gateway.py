@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import secrets
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -107,7 +108,9 @@ def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_tur
     # The library adds its usage option to every round; the quiz adds nothing of its own beyond these fields.
     assert sorted(body.keys() - {"stream_options"}) == ["messages", "model", "stream", "user"]
     assert body["model"] == agent.model
-    assert system == {"role": "system", "content": agent.prompt}
+    language_line = system["content"].removeprefix(agent.prompt).strip()
+    assert (system["role"], system["content"].startswith(agent.prompt)) == ("system", True)
+    assert ("\n" in language_line, "de" in re.findall(r"\w+", language_line)) == (False, True)
     assert turn["role"] == "user"
     assert turn["content"] in {question_request(topic) for topic in QUIZ_TOPICS}
 
