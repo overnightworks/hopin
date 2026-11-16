@@ -183,6 +183,20 @@ class TestAnInvitation:
 
         assert (invited.participation.standings_of(AGENT), offers_sent_to(invited.member)) == ((), [])
 
+    @pytest.mark.parametrize("ending", ["accepted", "declined"])
+    async def test_an_ended_invitation_leaves_no_deadline_of_its_own(self, invited, scheduler, ending):
+        old = invited.invitation
+        timers_before = scheduler.pending_timers()
+
+        if ending == "accepted":
+            await invited.accept()
+        else:
+            await invited.participation.decline(
+                AGENT, invited.owner.room_id, old.invitation_id, old.epoch, InvitationOutcome.BUSY
+            )
+
+        assert [timer.delay for timer in timers_before if not timer.pending] == [INVITATION_SECONDS]
+
     async def test_it_is_stale_past_its_deadline_before_its_timer_ran(self, invited, scheduler):
         scheduler.skip(INVITATION_SECONDS)
 

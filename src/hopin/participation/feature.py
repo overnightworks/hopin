@@ -301,6 +301,7 @@ class Participation:
         if not self._takes_place(agent):
             return AgentRefusal.BUSY
         self._places.put(person, room_id, agent)
+        self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._hearing.joined(agent, brought_by_sponsor=invitation.adder == invitation.sponsor)
         self._on_changed(person)
         await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
@@ -575,6 +576,7 @@ class Participation:
     ) -> None:
         agent_key = self._live.by_person[person].key  # read before the awaits: the lease may end during them
         self._places.end_invitation(person, room_id)
+        self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._on_changed(person)
         await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason=reason)
         await self._update_offers(room_id)
@@ -589,7 +591,7 @@ class Participation:
         current = self._live.by_person.get(person)
         if current is None:
             return
-        check = self._live.checked(person, current.generation, now=self._deadlines.now())
+        check = self._live.checked(person, now=self._deadlines.now())
         self._live = check.agents
         if check.ended is None:
             self._arm(person, check.rearm_after)
