@@ -60,7 +60,7 @@ SKAT = Removal(
 )
 REMOVALS = {"game": GAME, "skat": SKAT}
 # The client stays for the MCP connector; only the extra that carries its HTTP library to the gateway goes.
-CLIENT_EXTRAS = ("[backend,mcp-server]", "[mcp-server]")
+CLIENT_EXTRAS = ("[backend,mcp-server,redis]", "[mcp-server,redis]")
 REPOSITORY = Path(__file__).resolve().parent.parent
 
 

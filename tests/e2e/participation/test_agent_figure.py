@@ -11,10 +11,11 @@ from playwright.sync_api import expect
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE
 from tests.e2e.support.client_manifest import urls_of_the_chunks_of
-from tests.e2e.support.dialed_agent import ADDERS_GROUP, AGENT_TILE, OWNER_SUBJECT
+from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
+from tests.support.agent_adders import ADDERS_GROUP
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

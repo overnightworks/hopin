@@ -9,7 +9,6 @@ from tests.participation.support.people import person_named
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 
 OWNER = "owner"
-ADDERS = "/apps/hopin/agent-adders"
 AGENT = person_named("agent-subject")
 NAME = "Claude"
 WALL_CLOCK_SECONDS = 1000.0

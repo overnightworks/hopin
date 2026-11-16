@@ -60,7 +60,7 @@ jobs:
 
       # Which files are measured is pyproject.toml's to say (the source key
       # under [tool.coverage.run]). 100 % is judged by the Coverage job over
-      # the unit and end-to-end data together, not here.
+      # the unit, shared-stores and end-to-end data together, not here.
       - name: Test with coverage
         env:
           COVERAGE_FILE: .coverage.unit
@@ -111,12 +111,24 @@ jobs:
           uv sync --locked --no-install-project --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
-      # Two `hopin serve` processes with their own ports against the one Redis. They write no coverage data, so the
-      # Coverage job counts none of this run.
+      # Two `hopin serve` processes with their own ports against the one Redis, and apps in the test process over
+      # it. Only the test process writes coverage data: the Coverage job counts the in-process apps, not the
+      # `hopin serve` processes.
       - name: Run two processes against one Redis
         env:
           HOPIN_TEST_REDIS_URL: redis://localhost:6379
-        run: pytest -q -n auto -m shared_stores --no-cov
+          COVERAGE_FILE: .coverage.shared-stores
+        run: pytest -q -n auto -m shared_stores
+
+      - name: Upload the shared-stores coverage data
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-data-shared-stores
+          path: .coverage.shared-stores
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
 
   e2e-shard:
     name: End-to-end shard ${{ matrix.shard }}
@@ -303,7 +315,7 @@ jobs:
 
   coverage:
     name: Coverage
-    needs: [ci, e2e, e2e-shard, frontend]
+    needs: [ci, shared-stores, e2e, e2e-shard, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -340,11 +352,11 @@ jobs:
           name: browser-coverage
           path: browser-coverage
 
-      # The branch contract: 100 % over unit, integration and end-to-end
-      # together. The xml is the report the quality gate's scan reads.
+      # The branch contract: 100 % over unit, integration, shared-stores and
+      # end-to-end together. The xml is the report the quality gate's scan reads.
       - name: Judge the combined coverage
         run: |
-          coverage combine .coverage.unit .coverage.e2e-*
+          coverage combine .coverage.unit .coverage.shared-stores .coverage.e2e-*
           coverage report --fail-under=100
           coverage xml -o coverage.xml
 

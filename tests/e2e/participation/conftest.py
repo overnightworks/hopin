@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from tests.e2e.support.dialed_agent import (
-    ADDERS_GROUP,
     AGENT_NAME,
     OWNER_SUBJECT,
     SECOND_AGENT_NAME,
@@ -14,6 +13,7 @@ from tests.e2e.support.dialed_agent import (
 )
 from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
+from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.fake_speech import FakeSpeech
 
 if TYPE_CHECKING:

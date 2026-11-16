@@ -4,6 +4,7 @@ the agents' tokens."""
 import asyncio
 import json
 import secrets
+import threading
 import time
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -23,6 +24,8 @@ from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, Pa
 from hopin.agent.tools import CALL_KIND
 from hopin.app import create_app
 from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
+from hopin.participation.participants import Person
+from hopin.participation.vocabulary import ParticipationSignal
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -89,10 +92,64 @@ class Seat:
             if frame["type"] == signal_type:
                 return frame
 
+    def adds_the_offered_agent(self, agent_name=None):
+        """The owner adds the agent its seat is offered, the one named `agent_name` else the first, once the agent's
+        listen on its standing has offered it; returns when the seat has been told the offers again."""
+        key = None
+        while key is None:
+            offers = self.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
+            key = next((offer["agent_key"] for offer in offers if agent_name in (None, offer["name"])), None)
+        self.send({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": key})
+        self.frame_of_type(ParticipationSignal.AGENT_OFFERS.value)
+
     def next_frame(self):
         frame = self._socket.receive_json()
         self.received.append(frame)
         return {key: value for key, value in frame.items() if key != "seq"}
+
+
+ACKNOWLEDGED = b"subscriptions/acknowledged"
+RESOURCE_UPDATED = b"notifications/resources/updated"
+
+
+class OpenListen:
+    """The frames an open `subscriptions/listen` has written so far."""
+
+    def __init__(self) -> None:
+        self._frames: list[bytes] = []
+        self._arrival = threading.Condition()
+        self._disconnected: anyio.Event | None = None
+
+    async def serve(self, app, scope, body) -> None:
+        self._disconnected = anyio.Event()
+        requested = False
+
+        async def receive():
+            nonlocal requested
+            if not requested:
+                requested = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            await self._disconnected.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            with self._arrival:
+                self._frames.append(message.get("body", b""))
+                self._arrival.notify_all()
+
+        await app(scope, receive, send)
+
+    async def disconnect(self) -> None:
+        self._disconnected.set()
+
+    def count(self, marker: bytes) -> int:
+        with self._arrival:
+            return sum(marker in frame for frame in self._frames)
+
+    def wait_for(self, marker: bytes, seconds: float, *, times: int = 1) -> bool:
+        """Whether `times` frames carrying the marker arrived within the seconds."""
+        with self._arrival:
+            return self._arrival.wait_for(lambda: sum(marker in frame for frame in self._frames) >= times, seconds)
 
 
 @dataclass
@@ -203,6 +260,12 @@ class DialedCall:
         """Open `subscriptions/listen` on the app's ASGI interface, wait for its acknowledgement and disconnect, as a
         client does that closes its stream. A TestClient returns only once the response is complete, which a stream
         never is."""
+        with self.open_listen(token, uris):
+            pass
+
+    @contextmanager
+    def open_listen(self, token, uris) -> Iterator[OpenListen]:
+        """A `subscriptions/listen` that stays open, acknowledged on entry, and disconnects on exit."""
         method = "subscriptions/listen"
         body = self._request_body(method, {"notifications": {"resourceSubscriptions": list(uris)}})
         headers = {
@@ -223,29 +286,14 @@ class DialedCall:
             "server": ("testserver", 443),
             "state": self.client.app_state.copy(),
         }
-        self.client.portal.call(self._listen_until_acknowledged, scope, body.encode())
-
-    async def _listen_until_acknowledged(self, scope, body):
-        acknowledged, disconnected = anyio.Event(), anyio.Event()
-        requested = False
-
-        async def receive():
-            nonlocal requested
-            if not requested:
-                requested = True
-                return {"type": "http.request", "body": body, "more_body": False}
-            await disconnected.wait()
-            return {"type": "http.disconnect"}
-
-        async def send(message):
-            if b"subscriptions/acknowledged" in message.get("body", b""):
-                acknowledged.set()
-
-        with anyio.fail_after(LISTEN_TIMEOUT_SECONDS):
-            async with anyio.create_task_group() as tasks:
-                tasks.start_soon(self.client.app, scope, receive, send)
-                await acknowledged.wait()
-                disconnected.set()
+        stream = OpenListen()
+        running = self.client.portal.start_task_soon(stream.serve, self.client.app, scope, body.encode())
+        try:
+            assert stream.wait_for(ACKNOWLEDGED, LISTEN_TIMEOUT_SECONDS)
+            yield stream
+        finally:
+            self.client.portal.call(stream.disconnect)
+            running.result(LISTEN_TIMEOUT_SECONDS)
 
     @staticmethod
     def _routing(method, routing_name):
@@ -272,6 +320,11 @@ class DialedCall:
         """The JSON-RPC answer to reading the chat window of the call: its `result` or its `error`."""
         uri = window_uri(room_id)
         return self.request(token, "resources/read", {"uri": uri}, routing_name=uri).json()
+
+    def places_held_by(self, subject):
+        """The places participation holds for the agent as it reads now; a call of the agent would first end a lease
+        that has run out."""
+        return self._mcp_front().participation().standings_of(Person(self.issuer.issuer, subject))
 
     def voice(self, member, path):
         """What a seat's browser gets fetching the voice at the path its frame names, on its session cookie."""
@@ -400,14 +453,17 @@ def serving_dialed_call(
     hearing=None,
     speaking=None,
     monotonic_clock=time.monotonic,
+    shared_stores=None,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test. `hearing` is the speech service agents hear through and `speaking` the one they speak through, none with
-    the setting off."""
+    the setting off. `shared_stores` are the processes' shared stores, a Redis of the test's own in memory unless a test
+    names the real ones."""
     stores = single_process_stores()
     stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
     voices = WatchedVoices()
+    shared_stores = shared_stores or in_thread_stores()
     participation = _ParticipationBuilt(
         ParticipationFeature(
             sign_in.settings.public_origin,
@@ -417,12 +473,13 @@ def serving_dialed_call(
             hearing=hearing,
             speaking=speaking,
             voices=voices,
+            redis=shared_stores.async_redis,
         )
     )
     app = create_app(
         sign_in.settings,
         page_build=fixture_page_build(),
-        shared_stores=in_thread_stores(),
+        shared_stores=shared_stores,
         issuer_transports=issuer.transports,
         stores=stores,
         scheduler=scheduler,

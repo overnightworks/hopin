@@ -19,11 +19,11 @@ def _pump(source: socket.socket, target: socket.socket) -> None:
 
 
 class RedisGate:
-    def __init__(self, redis_url: str) -> None:
+    def __init__(self, redis_url: str, port: int = 0) -> None:
         target = urlsplit(redis_url)
         self._target = (target.hostname or LOCALHOST, target.port or 6379)
         self._listener = socket.socket()
-        self._listener.bind((LOCALHOST, 0))
+        self._listener.bind((LOCALHOST, port))
         self._listener.listen()
         self._connections: list[socket.socket] = []
         self._lock = threading.Lock()

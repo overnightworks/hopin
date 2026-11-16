@@ -45,25 +45,28 @@ class _StepLines(logging.Handler):
 
 
 @contextmanager
-def captured_lines() -> Iterator[Lines]:
-    """Every line hopin writes while the block runs, structlog's and the step timer's."""
+def captured_lines(*library_logger_names: str) -> Iterator[Lines]:
+    """Every line hopin writes while the block runs, structlog's and the step timer's, and those of the libraries
+    whose standard-library loggers are named."""
     lines = Lines()
 
     def collect(_logger: object, method_name: str, event_dict: dict) -> dict:
         lines.add({**event_dict, "log_level": method_name})
         raise structlog.DropEvent
 
-    hopin_logger = logging.getLogger(HOPIN_LOGGER_NAME)
-    previous_level = hopin_logger.level
+    loggers = [logging.getLogger(name) for name in (HOPIN_LOGGER_NAME, *library_logger_names)]
+    previous_levels = [logger.level for logger in loggers]
     handler = _StepLines(lines)
     with structlog.testing.capture_logs(processors=[collect]):
-        hopin_logger.addHandler(handler)
-        hopin_logger.setLevel(logging.DEBUG)
+        for logger in loggers:
+            logger.addHandler(handler)
+            logger.setLevel(logging.DEBUG)
         try:
             yield lines
         finally:
-            hopin_logger.setLevel(previous_level)
-            hopin_logger.removeHandler(handler)
+            for logger, level in zip(loggers, previous_levels, strict=True):
+                logger.setLevel(level)
+                logger.removeHandler(handler)
 
 
 def runs_logged(lines: list[dict]) -> list[str]:

@@ -9,7 +9,6 @@ from hopin.participation.participants import DialedAgent
 from hopin.participation.places import PlaceState
 from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
 from tests.participation.support.own_accounts import (
-    ADDERS,
     AGENT,
     NAME,
     OWNER,
@@ -22,6 +21,7 @@ from tests.participation.support.own_accounts import (
 )
 from tests.participation.support.people import person_named
 from tests.signaling.support.browsers import HeldClose, HeldWrite
+from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.signaling_fakes import ROOM_LIMIT, text_frame
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -29,12 +29,12 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 @pytest.fixture
 def adders():
-    return {OWNER: ADDERS}
+    return {OWNER: ADDERS_GROUP}
 
 
 @pytest.fixture(autouse=True)
 def members(groups_of_seat):
-    groups_of_seat["guest"] = frozenset({ADDERS})
+    groups_of_seat["guest"] = frozenset({ADDERS_GROUP})
 
 
 class Invited:

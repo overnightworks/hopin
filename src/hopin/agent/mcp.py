@@ -4,15 +4,16 @@ serve it."""
 import asyncio
 import logging
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
 import structlog
-from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, ResourceChanges
+from agents.mcp_server import McpPersonFront, PersonRequest, PersonTool, PlaceStore, PlaceStoreError, ResourceChanges
 from agents.mcp_server.hearing import MemberHearing
+from agents.mcp_server.redis_place_store import RedisPlaceStore
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
     GESTURE_TOOL,
@@ -48,7 +49,7 @@ from hopin.agent.hearing_token import HearingTokens
 from hopin.agent.issuer_error import grant_refusal_reason
 from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, SPEECH_STREAM, AgentVoice, SpeechRenderer
 from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
-from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS
+from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS, REDIS_AGENTS_KEY_PREFIX
 from hopin.participation.feature import Participation
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, NamedFigure, fetch_figure
@@ -67,9 +68,10 @@ from hopin.signaling.identity import SessionIdentityResolver
 from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
+    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine, Mapping
 
     from fastapi import FastAPI
+    from redis.asyncio import Redis as AsyncRedis
     from starlette.types import ASGIApp, Receive, Scope, Send
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
@@ -93,12 +95,21 @@ AGENT_GROUP: Final = "/agents"
 MCP_CLIENT_ID: Final = "agents"
 GLB_MEDIA_TYPE: Final = "model/gltf-binary"
 OFFERS_RECOMPUTE_TASK_NAME: Final = "agent-offers-recompute"
+OFFERS_RECOMPUTE_FAILED_EVENT: Final = "agent_offers_recompute.failed"
+PLACE_SIGNAL_TASK_NAME: Final = "agent-place-signal"
+PLACE_SIGNAL_FAILED_EVENT: Final = "place_signal.failed"
+LISTENERS_READ_FAILED_EVENT: Final = "listeners_read.failed"
+# A start that waits on the first confirmed subscription ends before a deployment's 30 s grace for a stop runs out,
+# because the server reads a stop only after its start.
+PLACE_SUBSCRIPTION_WAIT_SECONDS: Final = 20.0
+PLACE_SUBSCRIPTION_TIMED_OUT_EVENT: Final = "place_subscription_start.timed_out"
 
 
 @dataclass
 class _BuiltParticipation:
     """The participation the call's handler builds, which the tools reach once it exists. Its resource changes tell
-    the participation when an agent starts or stops listening on its standing."""
+    the participation when an agent starts or stops listening on its standing; the place store carries them between
+    HopIn's processes."""
 
     deadlines: Deadlines
     wall_clock: Callable[[], float]
@@ -107,12 +118,18 @@ class _BuiltParticipation:
     figure_sources: tuple[FigureSource, ...]
     hears: bool
     voices: VoiceStore
+    places: PlaceStore
     changes: ResourceChanges = field(init=False)
     participation: Participation = field(init=False)
-    _recomputes: set[asyncio.Task[None]] = field(init=False, default_factory=set)
+    # Who listens to the standing, as the place store last said; empty while it cannot say, so no agent is offered.
+    _standing_listeners: frozenset[Principal] = field(init=False, default=frozenset())
+    _listeners_reads: int = field(init=False, default=0)
+    _tasks: set[asyncio.Task[None]] = field(init=False, default_factory=set)
 
     def __post_init__(self) -> None:
-        self.changes = ResourceChanges(listening_changed=self._listening_changed)
+        self.changes = ResourceChanges(
+            self.places, listening_changed=self._listening_changed, listening_resynced=self._listening_resynced
+        )
 
     def build(self, rooms: CallRooms) -> CallFeature:
         self.participation = Participation(
@@ -140,25 +157,71 @@ class _BuiltParticipation:
         return None if isinstance(groups, AccessTokenRefusal) else groups
 
     def _listens_to_standing(self, person: Person) -> bool:
-        return self.changes.listens_to(_principal_of_person(person), STANDING_URI)
+        return _principal_of_person(person) in self._standing_listeners
 
     def _listening_changed(self, _principal: Principal, uri: str, _listens: bool) -> None:
-        """Only a change on the standing reaches the offers. The callable never blocks: the recompute runs as a task of
-        its own, which the set keeps until it ends."""
-        if uri != STANDING_URI:
-            return
-        recompute = asyncio.create_task(self.current().listening_changed(), name=OFFERS_RECOMPUTE_TASK_NAME)
-        self._recomputes.add(recompute)
-        recompute.add_done_callback(self._recompute_ended)
+        """Only a change on the standing reaches the offers. The callable never blocks: the read runs as a task of its
+        own."""
+        if uri == STANDING_URI:
+            self._follow_listeners()
 
-    def _recompute_ended(self, recompute: asyncio.Task[None]) -> None:
-        self._recomputes.discard(recompute)
-        if not recompute.cancelled() and (error := recompute.exception()) is not None:
-            logger.error("agent_offers_recompute.failed", exc_info=error)
+    def _listening_resynced(self) -> None:
+        self._follow_listeners()
+
+    def _follow_listeners(self) -> None:
+        self._start(self._read_listeners(), OFFERS_RECOMPUTE_TASK_NAME, OFFERS_RECOMPUTE_FAILED_EVENT)
+
+    async def _read_listeners(self) -> None:
+        """Reads who listens and recomputes the offers on it. Only the newest read counts: an older one that ends later
+        would put back a listener that has gone."""
+        self._listeners_reads += 1
+        read = self._listeners_reads
+        try:
+            listeners = await self.changes.listeners(STANDING_URI)
+        except PlaceStoreError:
+            logger.error(LISTENERS_READ_FAILED_EVENT)
+            listeners = frozenset()
+        if read == self._listeners_reads:
+            self._standing_listeners = listeners
+            await self.current().listening_changed()
 
     def _tell_changed(self, person: Person) -> None:
-        self.changes.changed(_principal_of_person(person), STANDING_URI)
-        self.changes.tools_changed(_principal_of_person(person))
+        self._start(
+            self._announce(_principal_of_person(person), STANDING_URI, tools_too=True),
+            PLACE_SIGNAL_TASK_NAME,
+            PLACE_SIGNAL_FAILED_EVENT,
+        )
+
+    def _tell_window_changed(self, person: Person, room_id: str) -> None:
+        self._start(
+            self._announce(_principal_of_person(person), _call_window_uri(room_id), tools_too=False),
+            PLACE_SIGNAL_TASK_NAME,
+            PLACE_SIGNAL_FAILED_EVENT,
+        )
+
+    async def _announce(self, principal: Principal, uri: str, *, tools_too: bool) -> None:
+        """The change stands whether or not the store carries it: a failed signal is logged once, and the agent sees
+        the change at its next listen's read."""
+        try:
+            await self.changes.changed(principal, uri)
+            if tools_too:
+                await self.changes.tools_changed(principal)
+        except PlaceStoreError:
+            logger.error(PLACE_SIGNAL_FAILED_EVENT)
+
+    def _start(self, work: Coroutine[None, None, None], name: str, failed_event: str) -> None:
+        """The synchronous hooks start their async work here; the set keeps each task until it ends."""
+        task = asyncio.create_task(work, name=name)
+        self._tasks.add(task)
+        task.add_done_callback(partial(self._ended, failed_event))
+
+    def _ended(self, failed_event: str, task: asyncio.Task[None]) -> None:
+        self._tasks.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None:
+            logger.error(failed_event, exc_info=error)
+
+    async def shut_down(self) -> None:
+        await asyncio.gather(*self._tasks, return_exceptions=True)
 
     async def offered_tools(  # NOSONAR(S7503) OfferedTools is async
         self, declared: Collection[str], principal: Principal
@@ -166,9 +229,6 @@ class _BuiltParticipation:
         """Every declared tool, and the gesture tool only while the principal's agent shows a figure in some call."""
         shown = self.participation.figures.shown_by(Person(principal.iss, principal.sub))
         return tuple(name for name in declared if name != GESTURE_TOOL or shown)
-
-    def _tell_window_changed(self, person: Person, room_id: str) -> None:
-        self.changes.changed(_principal_of_person(person), _call_window_uri(room_id))
 
     def current(self) -> Participation:
         return self.participation
@@ -335,12 +395,15 @@ class ParticipationFeature:
     """Participation for the app: agents dial in through HopIn's MCP endpoint at the app's public origin."""
 
     public_origin: str
+    # The Redis that carries an agent's place signals between HopIn's processes.
+    redis: AsyncRedis = field(kw_only=True)
     agent_adders: Mapping[str, str] = field(default_factory=dict)
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
     hearing: SpeechService | None = None
     speaking: SpeechService | None = None
     voices: VoiceStore = field(default_factory=VoiceStore)
+    subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -370,6 +433,7 @@ class ParticipationFeature:
             self.figure_sources,
             hears=self.hearing is not None,
             voices=self.voices,
+            places=RedisPlaceStore(self.redis, key_prefix=REDIS_AGENTS_KEY_PREFIX),
         )
         hearing_tokens = self._hearing_tokens(deadlines, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
@@ -380,9 +444,11 @@ class ParticipationFeature:
         @asynccontextmanager
         async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             try:
-                async with front.running():
+                async with AsyncExitStack() as stack:
+                    await self._enter_bounded(stack, front)
                     yield
             finally:
+                await built.shut_down()
                 store.shut_down()
                 clip_store.shut_down()
 
@@ -444,6 +510,15 @@ class ParticipationFeature:
             scheduler=scheduler,
         )
         router.add_api_websocket_route(f"{HEARING_PATH}/{{seat}}", hearing_route.serve)
+
+    async def _enter_bounded(self, stack: AsyncExitStack, front: McpPersonFront) -> None:
+        """Enter the front, failing the start loudly when its first subscription is not confirmed in time."""
+        try:
+            async with asyncio.timeout(self.subscription_wait_seconds):
+                await stack.enter_async_context(front.running())
+        except TimeoutError:
+            logger.error(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, wait_seconds=self.subscription_wait_seconds)
+            raise
 
     def _front(
         self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None

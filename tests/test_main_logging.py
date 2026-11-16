@@ -20,6 +20,7 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.main import main
+from tests.support.in_thread_stores import in_thread_stores
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
 
@@ -75,6 +76,8 @@ async def started_server(
     # logline's handler keeps the stdout of its configure call, and capfd's differs between fixture setup and the test.
     with (
         patch("hopin.main.uvicorn.run") as run,
+        # The running app's place store waits for its Redis, and the test settings name none that answers.
+        patch("hopin.main.connect_shared_stores", return_value=in_thread_stores()),
         patch("hopin.main.create_app", partial(create_app, stores=stores)),
         redirect_stdout(written),
     ):
