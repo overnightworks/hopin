@@ -7,7 +7,6 @@ from fastapi import APIRouter
 
 from hopin.errors import InvalidMessageError
 from hopin.rooms.reference import room_reference
-from hopin.signaling.frames import PeerId
 from hopin.skat.frames import AttachedTableFrame, EmptyTableFrame, RefusedFrame
 from hopin.skat.settings import SkatSettings, check_origin_differs, table_source
 from hopin.skat.stage import Stages
@@ -22,7 +21,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore, SignInTransaction
 
     from hopin.signaling.features import CallRooms, FeatureFactory
-    from hopin.signaling.frames import ForeignFrame
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
