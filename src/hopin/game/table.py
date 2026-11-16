@@ -85,7 +85,8 @@ class GameMaster(Protocol):
 
 def _refusal_frame(refusal: Refused) -> BusyRefusedFrame | RefusedFrame:
     if refusal.reason is GameRefusal.BUSY:
-        return BusyRefusedFrame(refusal.reason, refusal.retry_after_seconds or 0)
+        assert refusal.retry_after_seconds is not None  # noqa: S101 - Refused's constructor guarantees the wait
+        return BusyRefusedFrame(refusal.reason, refusal.retry_after_seconds)
     return RefusedFrame(refusal.reason)
 
 
