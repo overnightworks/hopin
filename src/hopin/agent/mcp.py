@@ -79,7 +79,7 @@ if TYPE_CHECKING:
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
-    from hopin.signaling.scheduler import Scheduler
+    from hopin.signaling.scheduler import Deadlines, Scheduler
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ class _BuiltParticipation:
     """The participation the call's handler builds, which the tools reach once it exists. Its resource changes tell
     the participation when an agent starts or stops listening on its standing."""
 
-    scheduler: Scheduler
+    deadlines: Deadlines
     wall_clock: Callable[[], float]
     adders: Mapping[str, str]
     groups: SessionGroups
@@ -117,7 +117,7 @@ class _BuiltParticipation:
     def build(self, rooms: CallRooms) -> CallFeature:
         self.participation = Participation(
             rooms,
-            self.scheduler,
+            self.deadlines,
             LEASE_SECONDS,
             INVITATION_SECONDS,
             self._tell_changed,
@@ -127,7 +127,7 @@ class _BuiltParticipation:
             self._groups_of,
             self._listens_to_standing,
             self.figure_sources,
-            Hearing(MemberHearingRecord(MemberHearing(now=self.scheduler.now)), enabled=self.hears),
+            Hearing(MemberHearingRecord(MemberHearing(now=self.deadlines.now)), enabled=self.hears),
             self.voices,
         )
         return self.participation
@@ -359,10 +359,11 @@ class ParticipationFeature:
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
+        deadlines: Deadlines,
         transaction: SignInTransaction,
     ) -> BuiltParticipationFeature:
         built = _BuiltParticipation(
-            scheduler,
+            deadlines,
             auth_config.wall_clock,
             self.agent_adders,
             SessionGroups(relying_party, session_transaction_of(sessions), auth_config),
@@ -370,7 +371,7 @@ class ParticipationFeature:
             hears=self.hearing is not None,
             voices=self.voices,
         )
-        hearing_tokens = self._hearing_tokens(scheduler, auth_config)
+        hearing_tokens = self._hearing_tokens(deadlines, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         clip_store = self._clip_store()
@@ -487,10 +488,10 @@ class ParticipationFeature:
         )
         return AgentVoice(renderer, tokens)
 
-    def _hearing_tokens(self, scheduler: Scheduler, auth_config: WebAuthConfig) -> HearingTokens:
+    def _hearing_tokens(self, deadlines: Deadlines, auth_config: WebAuthConfig) -> HearingTokens:
         """HopIn holds an agent's token for the scopes of each service the agent hears or speaks through."""
         services = [service for service in (self.hearing, self.speaking) if service is not None]
         scopes = tuple(dict.fromkeys(service.audience_scope for service in services))
         return HearingTokens(
-            scopes, lease_seconds=LEASE_SECONDS, scheduler=scheduler, wall_clock=auth_config.wall_clock
+            scopes, lease_seconds=LEASE_SECONDS, deadlines=deadlines, wall_clock=auth_config.wall_clock
         )

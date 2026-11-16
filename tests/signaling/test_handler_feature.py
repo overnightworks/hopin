@@ -14,6 +14,7 @@ from hopin.config.constants import (
 from hopin.signaling.features import FeatureClashError
 from hopin.signaling.frames import ForeignFrame
 from hopin.signaling.handler import SignalingHandler
+from hopin.signaling.scheduler import InMemoryDeadlines
 from tests.signaling.support.browsers import (
     HeldWrite,
     Link,
@@ -52,7 +53,7 @@ def refusal_of_unknown(signal_type):
 
 
 def handler_with(room_manager, scheduler, *features):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, features)
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, InMemoryDeadlines(scheduler), features)
 
 
 @pytest_asyncio.fixture

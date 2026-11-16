@@ -1,6 +1,5 @@
 import math
 from dataclasses import dataclass
-from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
@@ -28,13 +27,14 @@ from hopin.signaling.frames import (
     RoomLockedFrame,
     RoomUnlockedFrame,
 )
+from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Seats
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hopin.rooms.manager import RoomManager
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -43,7 +43,6 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class HostGrace:
     host_peer_id: PeerId
     deadline: float
-    timer: TimerHandle
 
 
 @dataclass(frozen=True)
@@ -61,20 +60,21 @@ class RoomRouting:
     def __init__(
         self,
         room_manager: RoomManager,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         on_room_ended: Callable[[str], None],
         on_seat_left: Callable[[Departure], Awaitable[None]],
         on_seat_changed: Callable[[PeerId], None],
         on_chat_said: Callable[[PeerId, str, str], None],
     ) -> None:
         self._room_manager = room_manager
-        self._scheduler = scheduler
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.HOST_GRACE, self._expire_grace)
         self._on_room_ended = on_room_ended
         self._on_seat_left = on_seat_left
         self._on_seat_changed = on_seat_changed
         self._on_chat_said = on_chat_said
         self._graces: dict[str, HostGrace] = {}
-        self._seats = Seats(scheduler, on_seat_lost=self.handle_disconnect, on_seat_changed=on_seat_changed)
+        self._seats = Seats(deadlines, on_seat_lost=self.handle_disconnect, on_seat_changed=on_seat_changed)
         self._peer_rooms: dict[str, str] = {}
 
     @property
@@ -199,7 +199,7 @@ class RoomRouting:
         """Forgets the seat and its place in the room without awaiting, so a server's end leaves no seat to park
         or resume; the departure it returns is announced separately."""
         peer = self._seats.forget(peer_id)
-        left_at = self._scheduler.now()
+        left_at = self._deadlines.now()
         if peer is not None and peer.park is not None:
             left_at = peer.park.dropped_at
         room_id = self._peer_rooms.pop(peer_id, None)
@@ -239,19 +239,18 @@ class RoomRouting:
         await self._on_seat_left(departure)
 
     def _start_grace(self, room_id: str, host_peer_id: PeerId, deadline: float) -> None:
-        timer = self._scheduler.call_later(deadline - self._scheduler.now(), partial(self._expire_grace, room_id))
-        self._graces[room_id] = HostGrace(host_peer_id=host_peer_id, deadline=deadline, timer=timer)
+        self._deadlines.set(DeadlineKind.HOST_GRACE, room_id, deadline - self._deadlines.now())
+        self._graces[room_id] = HostGrace(host_peer_id=host_peer_id, deadline=deadline)
 
     def _cancel_grace(self, room_id: str) -> bool:
         grace = self._graces.pop(room_id, None)
         if grace is None:
             return False
-        grace.timer.cancel()
+        self._deadlines.cancel(DeadlineKind.HOST_GRACE, room_id)
         return True
 
     async def _expire_grace(self, room_id: str) -> None:
-        if room_id in self._graces:
-            await self._end_room(room_id, RoomClosedReason.HOST_GONE)
+        await self._end_room(room_id, RoomClosedReason.HOST_GONE)
 
     async def _end_room(self, room_id: str, reason: RoomClosedReason) -> None:
         room = self._room_manager.get_room(room_id)
@@ -274,7 +273,7 @@ class RoomRouting:
 
     def _host_away_frame(self, grace: HostGrace) -> HostAwayFrame:
         return HostAwayFrame(
-            seconds_left=math.ceil(grace.deadline - self._scheduler.now()), participant_id=grace.host_peer_id
+            seconds_left=math.ceil(grace.deadline - self._deadlines.now()), participant_id=grace.host_peer_id
         )
 
     async def _broadcast_to_room(self, room_id: str, data: JsonObject) -> None:

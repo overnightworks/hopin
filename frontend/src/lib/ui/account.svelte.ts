@@ -1,6 +1,6 @@
 import { goThroughSignIn } from "#lib/ui/navigation.ts";
 import { ACCOUNT_PATH } from "#lib/wire.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const SIGNED_OUT_STATUS = 401;
 const INITIAL_SEPARATOR = /[._-]/;

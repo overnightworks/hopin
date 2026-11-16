@@ -3,8 +3,7 @@ import { createPlayer as createSpeechPlayer, startCapture } from "overnightworks
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
-import { words } from "#lib/words/de.ts";
-import { sourceLanguage } from "#lib/words/index.ts";
+import { language, words } from "#lib/words.ts";
 import { SIGNAL_TYPE, type ServerFrameByType } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
@@ -48,7 +47,7 @@ export async function installWith(
     core: FeatureCore<ParticipationFrameByType>,
     createPlayer: PlayerFactory,
 ): Promise<void> {
-    const kitWords = await loadKitWords(sourceLanguage);
+    const kitWords = await loadKitWords(language);
     let seatId = "";
     let isHost = false;
     const shown = new Map<string, ShownAgent>();

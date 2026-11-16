@@ -48,7 +48,7 @@ import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.svelte.ts";
 import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const callEndedHooks: (() => void)[] = [];
 // What a feature's browser module may reach; its `install` gets it before signaling connects.

@@ -19,6 +19,7 @@ from hopin.config.constants import (
 from hopin.errors import RoomNotFoundError
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
+from hopin.signaling.scheduler import InMemoryDeadlines
 from tests.signaling.support.browsers import (
     Browser,
     Link,
@@ -452,14 +453,18 @@ class TestHandleWebsocket:
         assert_room_exists(room_manager, socket.sent[0]["room_id"])
 
     async def test_refused_handshake_closes_with_policy_violation_without_accepting(self, room_manager):
-        refusing_handler = SignalingHandler(room_manager, SocketAccountResolver(), ManualScheduler())
+        refusing_handler = SignalingHandler(
+            room_manager, SocketAccountResolver(), ManualScheduler(), InMemoryDeadlines(ManualScheduler())
+        )
         socket = FakeSocket([], account=None)
         await refusing_handler.handle_websocket(socket)
         assert socket.closed_with == 1008
         assert not socket.accepted
 
     async def test_failing_resolver_propagates_without_accepting_the_socket(self, room_manager):
-        failing_handler = SignalingHandler(room_manager, RaisingIdentityResolver(), ManualScheduler())
+        failing_handler = SignalingHandler(
+            room_manager, RaisingIdentityResolver(), ManualScheduler(), InMemoryDeadlines(ManualScheduler())
+        )
         socket = FakeSocket([])
         with pytest.raises(ResolverError):
             await failing_handler.handle_websocket(socket)

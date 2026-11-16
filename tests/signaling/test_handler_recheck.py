@@ -52,8 +52,8 @@ def resolver():
 
 
 @pytest_asyncio.fixture
-async def link(room_manager, scheduler, resolver):
-    link = Link(SignalingHandler(room_manager, resolver, scheduler))
+async def link(room_manager, scheduler, deadlines, resolver):
+    link = Link(SignalingHandler(room_manager, resolver, scheduler, deadlines))
     yield link
     await link.close_all()
 

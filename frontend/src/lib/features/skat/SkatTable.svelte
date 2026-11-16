@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { words } from "#lib/words/de.ts";
+    import { words } from "#lib/words.ts";
     import { greetingFor } from "./messages.ts";
     import type { Table } from "./table.svelte.ts";
 

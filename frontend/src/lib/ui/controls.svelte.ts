@@ -4,7 +4,7 @@ import { state } from "#lib/call/state.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { setStatus } from "#lib/ui/status.svelte.ts";
 import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 const CAMERA_ERROR_STATUS_MS = 2000;
 

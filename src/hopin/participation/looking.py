@@ -7,7 +7,6 @@ import asyncio
 import base64
 import secrets
 from dataclasses import dataclass, field
-from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from hopin.errors import InvalidMessageError
@@ -20,13 +19,14 @@ from hopin.participation.vocabulary import (
     LOOK_PART_CHARACTERS,
     LookRefusal,
 )
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hopin.participation.participants import DialedAgent
     from hopin.signaling.frames import ForeignFrame, PeerId
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines
 
 REQUEST_ID_BYTES: Final = 16
 
@@ -45,7 +45,6 @@ class _Request:
     count: int | None = None
     refusal: LookRefusal | None = None
     running: asyncio.Future[Picture] = field(init=False, repr=False)
-    timer: TimerHandle = field(init=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -67,8 +66,9 @@ def _part_of(frame: ForeignFrame) -> _Part:
 class Looking:
     """The looks that wait for their sponsor's browser. `ask` sends the request to the sponsor's seat."""
 
-    def __init__(self, scheduler: Scheduler, ask: Callable[[DialedAgent, str], Awaitable[None]]) -> None:
-        self._scheduler = scheduler
+    def __init__(self, deadlines: Deadlines, ask: Callable[[DialedAgent, str], Awaitable[None]]) -> None:
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.LOOK_ANSWER, self._stop)
         self._ask = ask
         self._requests: dict[str, _Request] = {}
 
@@ -80,13 +80,11 @@ class Looking:
         request = _Request(agent, asyncio.get_running_loop().create_future())
         request.running = asyncio.ensure_future(self._run(request, request_id, show))
         self._requests[request_id] = request
-        request.timer = self._scheduler.call_later(
-            LOOK_ANSWER_SECONDS, partial(self._stop, request, LookRefusal.NO_ANSWER)
-        )
+        self._deadlines.set(DeadlineKind.LOOK_ANSWER, request_id, LOOK_ANSWER_SECONDS)
         try:
             await asyncio.wait({request.running})
         finally:
-            request.timer.cancel()
+            self._deadlines.cancel(DeadlineKind.LOOK_ANSWER, request_id)
             request.running.cancel()
             request.parts.clear()
             del self._requests[request_id]
@@ -121,8 +119,8 @@ class Looking:
             if request.agent.agent_id == agent.agent_id:
                 _stop_request(request, refusal)
 
-    async def _stop(self, request: _Request, refusal: LookRefusal) -> None:  # NOSONAR(S7503) the scheduler awaits it
-        _stop_request(request, refusal)
+    async def _stop(self, request_id: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        _stop_request(self._requests[request_id], LookRefusal.NO_ANSWER)
 
     def _take_part(self, request: _Request, taken: _Part) -> None:
         if request.count not in (None, taken.count) or not 0 <= taken.index < taken.count <= LOOK_MAX_PARTS:

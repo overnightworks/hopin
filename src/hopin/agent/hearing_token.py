@@ -3,7 +3,6 @@ through, inside the agent's own admitted requests."""
 
 import logging
 from dataclasses import dataclass, field
-from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from logline import StepTimer
@@ -11,6 +10,8 @@ from webauth.middleware import exchanged_access_token
 from webauth.oidc import OidcRefusal
 
 from hopin.agent.issuer_error import refusal_reason
+from hopin.participation.participants import Person
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -18,8 +19,7 @@ if TYPE_CHECKING:
     from pydantic import SecretStr
     from starlette.requests import HTTPConnection
 
-    from hopin.participation.participants import Person
-    from hopin.signaling.scheduler import Scheduler, TimerHandle
+    from hopin.signaling.scheduler import Deadlines
 
 _STEPS: Final = logging.getLogger(__name__)
 
@@ -28,16 +28,15 @@ _STEPS: Final = logging.getLogger(__name__)
 class _Holding:
     access_token: SecretStr = field(repr=False)
     lapses_at: float
-    release: TimerHandle
 
 
 class HearingTokens:
     """Holds at most one exchanged token per agent, in memory only, until it expires.
 
     A call of a live agent comes at least once per lease, so the token is exchanged again when it holds nothing or what
-    it holds lapses within a lease. The scheduler drops a token at its expiry, whether or not the agent calls again. A
+    it holds lapses within a lease. The deadlines drop a token at its expiry, whether or not the agent calls again. A
     refusal is not retried for a lease, and at most one exchange per agent is in flight. With no scopes nothing is
-    exchanged. Times run on the scheduler's clock, and the wall clock only turns the issuer's expiry into seconds from
+    exchanged. Times run on the deadlines' clock, and the wall clock only turns the issuer's expiry into seconds from
     now."""
 
     def __init__(
@@ -45,12 +44,13 @@ class HearingTokens:
         scopes: tuple[str, ...],
         *,
         lease_seconds: float,
-        scheduler: Scheduler,
+        deadlines: Deadlines,
         wall_clock: Callable[[], float],
     ) -> None:
         self._scopes = scopes
         self._lease_seconds = lease_seconds
-        self._scheduler = scheduler
+        self._deadlines = deadlines
+        deadlines.register(DeadlineKind.HEARING_LEASE, self._release)
         self._wall_clock = wall_clock
         self._holdings: dict[Person, _Holding] = {}
         self._refused_until: dict[Person, float] = {}
@@ -59,7 +59,7 @@ class HearingTokens:
     def held(self, person: Person) -> SecretStr | None:
         """The token exchanged for the agent, or none when it holds nothing or the token has expired."""
         holding = self._holdings.get(person)
-        if holding is None or holding.lapses_at <= self._scheduler.now():
+        if holding is None or holding.lapses_at <= self._deadlines.now():
             return None
         return holding.access_token
 
@@ -79,29 +79,23 @@ class HearingTokens:
         finally:
             self._in_flight.discard(person)
         if isinstance(exchanged, OidcRefusal):
-            self._refused_until[person] = self._scheduler.now() + self._lease_seconds
+            self._refused_until[person] = self._deadlines.now() + self._lease_seconds
             return
         self._hold(person, exchanged.access_token, max(0.0, exchanged.expires_at - self._wall_clock()))
 
     def _hold(self, person: Person, access_token: SecretStr, seconds_left: float) -> None:
-        previous = self._holdings.get(person)
-        if previous is not None:
-            previous.release.cancel()
-        lapses_at = self._scheduler.now() + seconds_left
-        release = self._scheduler.call_later(seconds_left, partial(self._release, person, lapses_at))
-        self._holdings[person] = _Holding(access_token, lapses_at, release)
+        self._deadlines.set(DeadlineKind.HEARING_LEASE, person.key, seconds_left)
+        self._holdings[person] = _Holding(access_token, self._deadlines.now() + seconds_left)
 
-    async def _release(self, person: Person, lapses_at: float) -> None:  # NOSONAR(S7503) the scheduler awaits it
-        holding = self._holdings.get(person)
-        if holding is not None and holding.lapses_at == lapses_at:
-            del self._holdings[person]
+    async def _release(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        self._holdings.pop(Person.from_key(key), None)
 
     def _is_due(self, person: Person) -> bool:
         if person in self._in_flight or person in self._refused_until:
             return False
         holding = self._holdings.get(person)
-        return holding is None or holding.lapses_at - self._scheduler.now() <= self._lease_seconds
+        return holding is None or holding.lapses_at - self._deadlines.now() <= self._lease_seconds
 
     def _forget_lapsed_refusals(self) -> None:
-        now = self._scheduler.now()
+        now = self._deadlines.now()
         self._refused_until = {person: until for person, until in self._refused_until.items() if until > now}

@@ -13,7 +13,7 @@ import {
     showEnd,
 } from "#lib/ui/end.svelte.ts";
 import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
 

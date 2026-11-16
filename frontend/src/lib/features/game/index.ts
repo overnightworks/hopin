@@ -2,7 +2,7 @@ import { createPlayer as createSpeechPlayer, type Player } from "overnightworks-
 import type { AgentTile, FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView, type FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
-import { words } from "#lib/words/de.ts";
+import { words } from "#lib/words.ts";
 import {
     AUTH_START_PATH,
     RETURN_TO_QUERY_PARAMETER,

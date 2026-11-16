@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from hopin.agent.backend import QuizBackend
     from hopin.game.voice import VoiceShelf
     from hopin.signaling.features import FeatureFactory
-    from hopin.signaling.scheduler import Scheduler
+    from hopin.signaling.scheduler import Deadlines, Scheduler
 
 
 def draw_quiz_topics() -> tuple[str, ...]:
@@ -41,7 +41,7 @@ class BuiltGameFeature:
 
 @dataclass(frozen=True)
 class GameFeature:
-    """The game, built inside `create_app` on the app's own sign-in and scheduler."""
+    """The game, built inside `create_app` on the app's own sign-in and deadlines."""
 
     backend: QuizBackend
     voices: VoiceShelf
@@ -65,13 +65,14 @@ class GameFeature:
         sessions: SessionRecordStore,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
+        deadlines: Deadlines,
         transaction: SignInTransaction,
     ) -> BuiltGameFeature:
-        del transaction
+        del scheduler, transaction
         starter_person = StarterPerson(relying_party, sessions, auth_config)
         factory = partial(
             Game,
-            scheduler=scheduler,
+            deadlines=deadlines,
             game_master=QuizGameMaster(self.backend, starter_person),
             topic_drawer=draw_quiz_topics,
             voice=self._voice(relying_party, starter_person),
