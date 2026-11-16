@@ -158,13 +158,13 @@ def next_chat_message(ws):
 
 
 class TestSeatsOfAnErasedPerson:
-    def test_a_guest_who_chats_after_the_erasure_is_closed_and_the_host_hears_the_leave_not_the_chat(
-        self, sockets, erase
-    ):
+    def test_a_guest_who_chats_after_the_erasure_is_heard_until_the_tick_closes_it(self, sockets, erase, advance):
         host, guest, _ = a_call_with_a_guest(sockets, "ben", "anna")
         assert erase("anna").is_success
 
         chat(guest, "after the erasure")
+        assert next_chat_message(host) == "after the erasure"
+        advance(SESSION_RECHECK_SECONDS)
 
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         assert host.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
@@ -218,13 +218,15 @@ class TestSeatsOfAnErasedPerson:
         assert refused.value.code == POLICY_VIOLATION_CLOSE_CODE
         assert host.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
 
-    def test_everyone_else_in_the_call_keeps_their_account_sessions_and_chat(self, stores, members, sockets, erase):
+    def test_everyone_else_in_the_call_keeps_their_account_sessions_and_chat(
+        self, stores, members, sockets, erase, advance
+    ):
         host, guest, room_id = a_call_with_a_guest(sockets, "ben", "anna")
         third = join_the_call(sockets, "carol", room_id)
         host.receive_json()
         guest.receive_json()
         erase("anna")
-        chat(guest, "after the erasure")
+        advance(SESSION_RECHECK_SECONDS)
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         host.receive_json()
 
