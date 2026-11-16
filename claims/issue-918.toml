@@ -1,0 +1,8 @@
+claim_id = "836bee6fba1c49eba13519a3cfc62c14"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "c59a7a07858278eb01abe0da59ca3e305355517d"
+branch = "claude/issue-918-game-transitions"
+scope = ["docs/ARCHITECTURE.md", "src/hopin/agent/feature.py", "src/hopin/game", "src/hopin/signaling/transition.py", "tests"]
+opened_commit = "9a90956449249da1247706bc6e08eb769b8ac0c9"
+whole_reason = "The game's call sites and its run move together, because the run's frames commit in the same transitions as the table's state."
