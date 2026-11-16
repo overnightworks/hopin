@@ -82,6 +82,7 @@ if TYPE_CHECKING:
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.request_language import RequestLanguage
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
@@ -424,7 +425,9 @@ class ParticipationFeature:
         scheduler: Scheduler,
         deadlines: Deadlines,
         transaction: SignInTransaction,
+        request_language: RequestLanguage,
     ) -> BuiltParticipationFeature:
+        del request_language
         built = _BuiltParticipation(
             deadlines,
             auth_config.wall_clock,

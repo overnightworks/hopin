@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from hopin.game.voice import VoiceShelf
     from hopin.signaling.features import FeatureFactory
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.request_language import RequestLanguage
 
 
 def draw_quiz_topics() -> tuple[str, ...]:
@@ -67,24 +68,29 @@ class GameFeature:
         scheduler: Scheduler,
         deadlines: Deadlines,
         transaction: SignInTransaction,
+        request_language: RequestLanguage,
     ) -> BuiltGameFeature:
         del scheduler, transaction
         starter_person = StarterPerson(relying_party, sessions, auth_config)
         factory = partial(
             Game,
             deadlines=deadlines,
-            game_master=QuizGameMaster(self.backend, starter_person),
+            game_master=QuizGameMaster(self.backend, starter_person, request_language),
             topic_drawer=draw_quiz_topics,
-            voice=self._voice(relying_party, starter_person),
+            voice=self._voice(relying_party, starter_person, request_language),
             voices=self.voices,
         )
         return BuiltGameFeature(factory, APIRouter())
 
-    def _voice(self, relying_party: OidcRelyingParty, starter_person: StarterPerson) -> SpeechVoice | None:
+    def _voice(
+        self, relying_party: OidcRelyingParty, starter_person: StarterPerson, request_language: RequestLanguage
+    ) -> SpeechVoice | None:
         service = self.speech.service
         if service is None:
             return None
-        return SpeechVoice(service, VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES, relying_party, starter_person)
+        return SpeechVoice(
+            service, VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES, relying_party, starter_person, request_language
+        )
 
 
 def configured_game_feature(voices: VoiceShelf) -> GameFeature:

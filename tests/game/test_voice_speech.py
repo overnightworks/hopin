@@ -13,12 +13,11 @@ from speech_client.wire import (
     VoiceId,
 )
 
-from hopin.agent.backend import StarterPerson
 from hopin.agent.speech import SpeechVoice
 from hopin.agent.speech_settings import SpeechService
 from hopin.game.vocabulary import VOICE_DEADLINE_SECONDS, VOICE_MAX_BYTES
 from hopin.game.voice import VOICE_DEADLINE_CUT
-from tests.game.support.world import build_world
+from tests.game.support.world import OFFERING_GERMAN_AND_ENGLISH, build_world
 from tests.support.log_lines import captured_lines
 from tests.support.loopback_origin import ARRIVAL_CAP_SECONDS, Origin
 from tests.support.speech_origin import (
@@ -75,9 +74,10 @@ def origin():
 
 
 def voice_of(world, origin, deadline_seconds=VOICE_DEADLINE_SECONDS, voice_name=VOICE_NAME):
-    person = StarterPerson(world.relying_party, world.sessions, world.web_auth)
     service = SpeechService(origin.base_url, voice_name, AUDIENCE_SCOPE)
-    return SpeechVoice(service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, person)
+    return SpeechVoice(
+        service, deadline_seconds, VOICE_MAX_BYTES, world.relying_party, world.starter_person, world.request_language
+    )
 
 
 class TestSpeaking:
@@ -138,6 +138,36 @@ class TestTheLanguageOfALine:
 
         [request] = origin.requests
         assert (wav, spoken_request(request).language) == (SPOKEN_WAV, Language.DE)
+
+    @pytest.mark.parametrize(("account_language", "spoken"), [("en", Language.EN), (None, Language.DE)])
+    async def test_a_line_is_spoken_in_the_starters_language(self, sign_in_settings, origin, account_language, spoken):
+        """GM-39: A line is spoken in the starter's language: the account's, else the default."""
+        world = build_world(sign_in_settings(), OFFERING_GERMAN_AND_ENGLISH)
+        speaking(origin, chunked_wav(SPOKEN_WAV))
+        starter, _ = world.starter(account_language=account_language)
+
+        wav = await voice_of(world, origin, voice_name=VoiceId.RYAN).speak(starter, TEXT)
+
+        [request] = origin.requests
+        assert (wav, spoken_request(request).language) == (SPOKEN_WAV, spoken)
+
+    async def test_a_starters_language_the_voice_does_not_speak_leaves_the_line_text_only(
+        self, sign_in_settings, origin
+    ):
+        """GM-34: A starter's language the voice does not speak leaves the line text only, before any token."""
+        world = build_world(sign_in_settings(), OFFERING_GERMAN_AND_ENGLISH)
+        speaking(origin, chunked_wav(SPOKEN_WAV))
+        starter, _ = world.starter(account_language="en")
+
+        with captured_lines() as logs:
+            wav = await voice_of(world, origin, voice_name=VoiceId.THORSTEN).speak(starter, TEXT)
+
+        assert (wav, failures_of(logs), world.grant_types(), origin.requests) == (
+            None,
+            ["language_unavailable"],
+            [],
+            [],
+        )
 
 
 class TestWithoutAVoice:

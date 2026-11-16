@@ -89,7 +89,8 @@ class BuiltCallFeature(Protocol):
 
 
 class CallFeatureBuilder(Protocol):
-    """Builds an optional call feature on the app's own sign-in, scheduler and deadlines; `main` passes each one in."""
+    """Builds an optional call feature on the app's own sign-in, scheduler, deadlines and request language; `main`
+    passes each one in."""
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
@@ -108,6 +109,7 @@ class CallFeatureBuilder(Protocol):
         scheduler: Scheduler,
         deadlines: Deadlines,
         transaction: SignInTransaction,
+        request_language: RequestLanguage,
     ) -> BuiltCallFeature:
         """The feature's factory, its router and its bearer resource."""
 
@@ -222,6 +224,7 @@ def _build_features(
     auth_config: WebAuthConfig,
     timers: Scheduler,
     deadlines: Deadlines,
+    request_language: RequestLanguage,
 ) -> list[BuiltCallFeature]:
     return [
         builder(
@@ -231,6 +234,7 @@ def _build_features(
             scheduler=timers,
             deadlines=deadlines,
             transaction=sign_in_stores.transaction,
+            request_language=request_language,
         )
         for builder in call_features
     ]
@@ -260,8 +264,9 @@ def create_app(
     room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     deadlines = InMemoryDeadlines(timers)
+    request_language = RequestLanguage(page_build.languages, sign_in_stores.sessions, sign_in_configs.web_auth)
     built_features = _build_features(
-        call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers, deadlines
+        call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers, deadlines, request_language
     )
     bearer = _bearer_of(built_features, relying_party)
     signaling_handler = SignalingHandler(
@@ -278,7 +283,6 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
-    request_language = RequestLanguage(page_build.languages, sign_in_stores.sessions, sign_in_configs.web_auth)
     app.include_router(create_router(signaling_handler, page_build, request_language, shared_stores.answers))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))

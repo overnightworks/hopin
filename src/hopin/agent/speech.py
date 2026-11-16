@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING, Final
 from logline import StepTimer
 
 from hopin.agent.backend import StarterRefusedError
-from hopin.agent.speaking import SPEECH_STREAM, SpeechRenderer
-from hopin.agent.speech_settings import PAGE_LANGUAGE
+from hopin.agent.speaking import SPEECH_STREAM, LanguageUnavailableError, SpeechRenderer, spoken_language_of
 from hopin.game.voice import VOICE_DEADLINE_CUT
 from hopin.participation.vocabulary import VoiceFailure
 
@@ -16,13 +15,15 @@ if TYPE_CHECKING:
 
     from hopin.agent.backend import StarterPerson
     from hopin.agent.speech_settings import SpeechService
+    from hopin.web.request_language import RequestLanguage
 
 _STEPS: Final = logging.getLogger(__name__)
 STARTER_TOKEN_REFUSED_REASON: Final = "starter_token_refused"  # noqa: S105 - name of a refusal and no credential
 
 
 class SpeechVoice:
-    """Speaks a line through the speech service, on the starter's access token and HopIn's own workload token."""
+    """Speaks a line through the speech service in the starter's language, on the starter's access token and HopIn's
+    own workload token."""
 
     def __init__(
         self,
@@ -31,9 +32,11 @@ class SpeechVoice:
         cap_bytes: int,
         relying_party: OidcRelyingParty,
         starter_person: StarterPerson,
+        request_language: RequestLanguage,
     ) -> None:
         self._renderer = SpeechRenderer(service, deadline_seconds, cap_bytes, relying_party, SPEECH_STREAM)
         self._starter_person = starter_person
+        self._request_language = request_language
 
     async def speak(self, starter: HTTPConnection, text: str) -> bytes | None:
         async with StepTimer("game_voice.ended", _STEPS) as step:
@@ -47,12 +50,18 @@ class SpeechVoice:
                 return None
 
     async def _wav(self, starter: HTTPConnection, text: str, step: StepTimer) -> bytes | None:
+        tag = await asyncio.to_thread(self._request_language, starter)
+        try:
+            language = spoken_language_of(tag, (self._renderer.service.voice,))
+        except LanguageUnavailableError as unavailable:
+            step.refuse(unavailable.reason)
+            return None
         try:
             person_token = await self._starter_person.access_token_of(starter)
         except StarterRefusedError:
             step.refuse(STARTER_TOKEN_REFUSED_REASON)
             return None
-        wav = await self._renderer.wav(text, person_token, PAGE_LANGUAGE)
+        wav = await self._renderer.wav(text, person_token, language)
         if isinstance(wav, VoiceFailure):
             step.refuse(wav.value)
             return None

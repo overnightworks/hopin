@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionRecordStore
 
     from hopin.agent.settings import AgentSettings
+    from hopin.web.request_language import RequestLanguage
 
 
 class QuizBackend(AgentBackend, Protocol):
@@ -49,6 +50,9 @@ QUIZ_AGENT_FILE: Final = Path(__file__).parent.parent / "agents" / "quiz.md"
 CUT_MARK: Final = "…"
 UNAVAILABLE: Final = Refused(GameRefusal.UNAVAILABLE)
 ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: TurnRole.ASSISTANT}
+# The run's language follows the starter's interface, since a click and no message of theirs caused it; like HopIn's
+# requests it is agent input and stays German.
+STARTER_LANGUAGE_SYSTEM: Final = "Schreibe jede Zeile in der Sprache mit dem Sprach-Tag {tag}."
 
 
 def gateway_backend(settings: AgentSettings) -> QuizBackend:
@@ -122,17 +126,24 @@ class StarterPerson:
 
 
 class QuizGameMaster:
-    """Asks the quiz agent for the game master's next line through the backend, for the starter."""
+    """Asks the quiz agent for the game master's next line through the backend, for the starter, in the starter's
+    language."""
 
-    def __init__(self, backend: QuizBackend, starter_person: StarterPerson) -> None:
+    def __init__(
+        self, backend: QuizBackend, starter_person: StarterPerson, request_language: RequestLanguage
+    ) -> None:
         self._backend = backend
         self._starter_person = starter_person
+        self._request_language = request_language
         self._agent = load_agent(QUIZ_AGENT_FILE, [])
 
     async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
-        request = self._agent.request(_turn_messages(transcript))
         async with StepTimer("game_master_turn.ended", _STEPS) as step:
             try:
+                tag = await asyncio.to_thread(self._request_language, starter)
+                request = self._agent.request(
+                    _turn_messages(transcript), appended_system=STARTER_LANGUAGE_SYSTEM.format(tag=tag)
+                )
                 person = await self._starter_person.person_of(starter)
                 async with aclosing(self._backend.run(request, person)) as events:
                     async for event in events:
