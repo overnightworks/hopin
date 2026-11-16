@@ -1,0 +1,8 @@
+claim_id = "18fa11ad14584677a32efcdacafe86c8"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "e47f3c43e7003c314ff10b95db86948ebcdf666a"
+branch = "claude/issue-758-quiz-own-answer-count"
+scope = ["frontend/src/lib/features/game", "src/hopin/game", "tests/e2e/game", "tests/game"]
+opened_commit = "ea6d51423583150afc0ff6bf427ffca04adaa55b"
+whole_reason = "The count's owner may be the server's frame or the card; the test and the fix change together."
