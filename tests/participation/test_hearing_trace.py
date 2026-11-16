@@ -53,7 +53,7 @@ def hear_the_turn(scene, fake_speech, turn):
         closed_with(socket)
 
 
-def test_call_58_a_heard_turn_runs_in_the_trace_the_transcript_names_and_line_entered_names_its_item(
+def test_a_heard_turn_runs_in_the_trace_the_transcript_names_and_line_entered_names_its_item(
     sponsored, fake_speech, turn, capsys
 ):
     with configured("hopin"):
@@ -67,7 +67,7 @@ def test_call_58_a_heard_turn_runs_in_the_trace_the_transcript_names_and_line_en
     ) == ({turn.trace_id}, turn.item_id)
 
 
-def test_call_58_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_turns_trace(
+def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_turns_trace(
     sponsored, fake_speech, speech_origin, turn
 ):
     hear_the_turn(sponsored, fake_speech, turn)
@@ -77,7 +77,7 @@ def test_call_58_the_agents_sentence_after_a_heard_turn_reaches_the_speech_servi
     assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == turn.trace_id
 
 
-def test_call_58_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(sponsored, fake_speech, turn):
+def test_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(sponsored, fake_speech, turn):
     hear_the_turn(sponsored, fake_speech, turn)
 
     assert fake_speech.next_session().headers.get(TRACEPARENT_HEADER) is not None
