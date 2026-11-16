@@ -1,0 +1,8 @@
+claim_id = "e7ad11a3c8b24a8195a43d1e4fda4043"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "ae5524a5f2236a50dafcea5f95b9d641bb26b9ff"
+branch = "claude/issue-905-session-on-tick"
+scope = ["docs/ARCHITECTURE.md", "src/hopin/agent/backend.py", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/seats.py", "tests/agent", "tests/auth", "tests/signaling"]
+opened_commit = "ae25c9b717c2a019dbe104ded983506e26a83896"
+whole_reason = "The session factory, the park on error and the tick-only check are one invariant: a session read never ends a seat and never runs per frame."
