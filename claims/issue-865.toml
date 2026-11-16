@@ -1,8 +1,0 @@
-claim_id = "e0f47957f7a54b5b8ab0c5cc17bb6caf"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "1ccb5d15da887c7d1eeba8208428a820a07fffdc"
-branch = "claude/issue-865-quality-v0-21"
-scope = [".github/workflows", "Dockerfile", "README.md", "tests/e2e/test_sign_in_pages.py"]
-opened_commit = "cb1b1e31db9e2a510c7f40c40961891f93f90440"
-whole_reason = "One quality pin raise: its new locator rule and its version build arg land with the pin they need."
