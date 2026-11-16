@@ -391,6 +391,22 @@ def _file_endpoint(
     return figure
 
 
+def _add_file_routes(
+    router: APIRouter, store: FigureStore, clip_store: FigureStore, participation: Callable[[], Participation]
+) -> None:
+    """The figure and clip routes, each answering only a file the current participation names."""
+    router.add_api_route(
+        f"{FIGURE_PATH}/{{sha256}}",
+        _file_endpoint(store, lambda sha256: participation().figures.named(sha256)),
+        methods=READ_METHODS,
+    )
+    router.add_api_route(
+        f"{CLIP_PATH}/{{sha256}}",
+        _file_endpoint(clip_store, lambda sha256: participation().figures.named_clips(sha256)),
+        methods=READ_METHODS,
+    )
+
+
 @dataclass(frozen=True)
 class ParticipationFeature:
     """Participation for the app: agents dial in through HopIn's MCP endpoint at the app's public origin."""
@@ -463,16 +479,7 @@ class ParticipationFeature:
                 endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current, hearing_tokens),
             )
         )
-        router.add_api_route(
-            f"{FIGURE_PATH}/{{sha256}}",
-            _file_endpoint(store, lambda sha256: built.current().figures.named(sha256)),
-            methods=READ_METHODS,
-        )
-        router.add_api_route(
-            f"{CLIP_PATH}/{{sha256}}",
-            _file_endpoint(clip_store, lambda sha256: built.current().figures.named_clips(sha256)),
-            methods=READ_METHODS,
-        )
+        _add_file_routes(router, store, clip_store, built.current)
         self._add_voice_route(router, built.current)
         self._add_hearing_route(router, built.current, relying_party, sessions, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.build, router, self._resource(transaction))
