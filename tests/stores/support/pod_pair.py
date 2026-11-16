@@ -87,18 +87,32 @@ def _stop(pod: Pod) -> None:
         pod.process.wait()
 
 
-@contextlib.contextmanager
-def serving_pod_pair(
-    sign_in_environment: dict[str, str], redis_url: str, directory: Path, health_path: str
-) -> Iterator[tuple[Pod, Pod]]:
-    """Both pods answer `health_path` on entry; both are stopped on exit, whatever happens inside."""
-    environment = {
+def _pod_environment(sign_in_environment: dict[str, str], redis_url: str) -> dict[str, str]:
+    return {
         "PATH": os.environ["PATH"],
         "PYTHONPATH": str(SOURCE_DIRECTORY),
         **sign_in_environment,
         **GAME_ENVIRONMENT,
         "HOPIN_REDIS_URL": redis_url,
     }
+
+
+@contextlib.contextmanager
+def starting_pod(sign_in_environment: dict[str, str], redis_url: str, directory: Path) -> Iterator[Pod]:
+    """A pod that has been started, whether or not it answers yet; it is stopped on exit."""
+    pod = _start_pod(_pod_environment(sign_in_environment, redis_url), directory, "starting")
+    try:
+        yield pod
+    finally:
+        _stop(pod)
+
+
+@contextlib.contextmanager
+def serving_pod_pair(
+    sign_in_environment: dict[str, str], redis_url: str, directory: Path, health_path: str
+) -> Iterator[tuple[Pod, Pod]]:
+    """Both pods answer `health_path` on entry; both are stopped on exit, whatever happens inside."""
+    environment = _pod_environment(sign_in_environment, redis_url)
     pods: list[Pod] = []
     try:
         for name in ("first", "second"):
