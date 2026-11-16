@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "81b6ef5b88d4de54a4b2e0eec0bea6157132bd1f"
 branch = "claude/issue-910-starter-language-quiz"
-scope = ["docs/ARCHITECTURE.md", "docs/game-master.md", "src/hopin/agent/backend.py", "src/hopin/agent/feature.py", "src/hopin/agent/mcp.py", "src/hopin/agent/speech.py", "src/hopin/agents/quiz.md", "src/hopin/app.py", "src/hopin/skat/feature.py", "src/hopin/web/request_language.py", "tests"]
+scope = ["docs/ARCHITECTURE.md", "docs/game-master.md", "src/hopin/agent/backend.py", "src/hopin/agent/feature.py", "src/hopin/agent/mcp.py", "src/hopin/agent/speaking.py", "src/hopin/agent/speech.py", "src/hopin/agent/speech_settings.py", "src/hopin/agents/quiz.md", "src/hopin/app.py", "src/hopin/skat/feature.py", "src/hopin/web/request_language.py", "tests"]
 opened_commit = "ab7baa41ca0c363238b149f84396b235b39a4e7a"
 whole_reason = "The prompt line, the language hand-off and the voice change are one behaviour; any part alone leaves the quiz master on a fixed language."
