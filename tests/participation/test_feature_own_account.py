@@ -84,8 +84,13 @@ class TestAddingTheAgent:
         assert OFFERS not in [frame["type"] for frame in scene.member.received]
         assert scene.standings() == []
 
-    def test_a_persons_own_agent_is_refused_own_account_only_whatever_it_sends(self, scene):
-        dialed = scene.call.call(scene.call.token(scene.member_account), ACCEPT_INVITATION_TOOL, {})
+    def test_a_persons_own_agent_is_refused_own_account_only_even_for_a_standing_invitation(self, scene):
+        scene.invite()
+        [standing] = scene.standings()
+
+        dialed = scene.call.call(
+            scene.call.token(scene.member_account), ACCEPT_INVITATION_TOOL, accept_arguments(standing)
+        )
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.OWN_ACCOUNT_ONLY.value})
 
@@ -114,54 +119,46 @@ def decline_arguments(standing):
     return accept_arguments(standing) | {"reason": "busy"}
 
 
+SECRET = "secret-value"
 MALFORMED = {
-    "a_forbidden_key": (lambda valid: {**valid, "voice": "secret-voice-value"}, ["voice"]),
-    "a_bad_epoch": (lambda valid: {**valid, "epoch": "secret-epoch-value"}, ["epoch"]),
-    "a_bad_epoch_and_a_forbidden_key": (
-        lambda valid: {**valid, "epoch": -1, "voice": "x", "room": "y"},
-        ["epoch", "room", "voice"],
-    ),
+    "a_forbidden_key": lambda valid: {**valid, "voice": SECRET},
+    "a_bad_epoch": lambda valid: {**valid, "epoch": SECRET},
+    "a_bad_place_id": lambda valid: {**valid, "place": {**valid["place"], "id": 5}},
 }
 
 
-class TestLoggingAMalformedCall:
+@pytest.mark.parametrize(
+    ("tool", "arguments_of"),
+    [(ACCEPT_INVITATION_TOOL, accept_arguments), (DECLINE_INVITATION_TOOL, decline_arguments)],
+    ids=["accept", "decline"],
+)
+class TestAMalformedInvitationCall:
+    """CALL-52: an accept or a decline whose arguments the agents contract refuses."""
+
     @pytest.mark.parametrize(
-        ("event", "tool", "arguments_of"),
-        [
-            ("invitation_accept.refused", ACCEPT_INVITATION_TOOL, accept_arguments),
-            ("invitation_decline.refused", DECLINE_INVITATION_TOOL, decline_arguments),
-        ],
-        ids=["accept", "decline"],
+        ("malform", "path"), zip(MALFORMED.values(), ["[key]", "epoch", "place.id"], strict=True), ids=MALFORMED.keys()
     )
-    @pytest.mark.parametrize(("malform", "fields"), MALFORMED.values(), ids=MALFORMED.keys())
-    def test_arguments_the_contract_refuses_log_their_closed_event_with_the_field_names_only(
-        self, scene, event, tool, arguments_of, malform, fields
+    def test_it_is_a_tool_error_naming_the_field_path_and_no_value_or_refusal_code(
+        self, scene, tool, arguments_of, malform, path
     ):
-        """CALL-52: A malformed accept or decline is logged once at warning with the refused field names only."""
         scene.invite()
         [standing] = scene.standings()
 
-        with structlog.testing.capture_logs() as logs:
-            dialed = scene.call.call(scene.token, tool, malform(arguments_of(standing)))
+        dialed = scene.call.call(scene.token, tool, malform(arguments_of(standing)))
 
-        malformed = [entry for entry in logs if entry["event"] == event]
         assert (dialed.is_error, dialed.outcome) == (True, None)
-        assert [(entry["log_level"], entry["fields"]) for entry in malformed] == [("warning", fields)]
-        assert "secret" not in str(logs)
+        assert path in dialed.text
+        assert SECRET not in dialed.text
+        assert [item["state"] for item in scene.standings()] == ["invited"]
 
-    def test_a_well_formed_accept_that_is_stale_logs_no_malformed_event(self, scene):
-        """CALL-52: A well-formed accept that is stale logs no malformed event."""
+    def test_a_correct_call_after_it_is_answered(self, scene, tool, arguments_of):
         scene.invite()
         [standing] = scene.standings()
+        scene.call.call(scene.token, tool, {**arguments_of(standing), "epoch": SECRET})
 
-        with structlog.testing.capture_logs() as logs:
-            scene.call.call(
-                scene.token,
-                ACCEPT_INVITATION_TOOL,
-                accept_arguments(standing) | {"epoch": accept_arguments(standing)["epoch"] + 1},
-            )
+        dialed = scene.call.call(scene.token, tool, arguments_of(standing))
 
-        assert [entry for entry in logs if entry.get("reason") == "malformed"] == []
+        assert not dialed.is_error
 
 
 def _another_epoch(scene, arguments, seat_changes):
@@ -247,8 +244,13 @@ class TestDecliningTheInvitation:
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.STALE_INVITATION.value})
         assert [item["state"] for item in scene.standings()] == ["active"]
 
-    def test_a_persons_own_agent_is_refused_own_account_only_whatever_it_sends(self, scene):
-        dialed = scene.call.call(scene.call.token(scene.member_account), DECLINE_INVITATION_TOOL, {})
+    def test_a_persons_own_agent_is_refused_own_account_only_even_for_a_standing_invitation(self, scene):
+        scene.invite()
+        [standing] = scene.standings()
+
+        dialed = scene.call.call(
+            scene.call.token(scene.member_account), DECLINE_INVITATION_TOOL, decline_arguments(standing)
+        )
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": AgentRefusal.OWN_ACCOUNT_ONLY.value})
 

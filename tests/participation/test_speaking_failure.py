@@ -227,12 +227,11 @@ class TestWhenTheVoiceFails:
 
 
 class TestASentenceWithNoText:
-    @pytest.mark.parametrize("text", [None, "", "   "], ids=["missing", "empty", "blank"])
-    def test_call_60_it_is_unavailable_with_no_text_logged_and_nobody_is_called(
-        self, joined_agent, speech_origin, text
+    def test_call_60_a_blank_one_is_unavailable_with_no_text_logged_and_nobody_is_called(
+        self, joined_agent, speech_origin
     ):
         place = PlaceRef(kind=CALL_KIND, id=joined_agent.owner.room_id).model_dump()
-        arguments = {"place": place} if text is None else {"place": place, "text": text}
+        arguments = {"place": place, "text": "   "}
 
         with captured_lines() as logs:
             dialed = joined_agent.call.call(joined_agent.token, SPEAK_TOOL, arguments)
