@@ -50,6 +50,10 @@ class RoomView:
         """The name the call shows for a seat of the room, or for the seat whose leave the transition hears."""
         return self.names[peer_id]
 
+    def naming(self, peer_id: PeerId, name: str) -> RoomView:
+        """This view with the name of a seat it no longer holds, for the transition that hears that seat's leave."""
+        return replace(self, names=MappingProxyType({**self.names, peer_id: name}))
+
     def is_host(self, peer_id: PeerId) -> bool:
         """Whether the seat's account hosts the room."""
         return peer_id in self.hosts
@@ -263,8 +267,7 @@ class TransitionHost:
     def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
         """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
         together with the departure that tells the room."""
-        loaded = self._store.load(room_id)
-        view = replace(loaded, names=MappingProxyType({**loaded.names, peer_id: name}))
+        view = self._store.load(room_id).naming(peer_id, name)
         transition = Transition()
         self._feature.seat_left(view, peer_id, transition)
         return self._commit(view, transition)

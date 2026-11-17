@@ -155,19 +155,19 @@ class TransitionFeature(ABC):
         """As `CallFeature.seat_left`; the view is of the room the seat left. A room's end drops the feature's
         sections in it."""
 
-    def room_ended(self, room_id: str) -> None:  # noqa: B027 - optional, a feature without one keeps the no-op
+    def room_ended(self, room_id: str) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Release what the feature keeps for the room beside its sections; its sections are dropped and its work
         stopped already."""
 
-    async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:  # noqa: B027 - optional, a feature without one keeps the no-op
+    async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Run a work the feature dispatched, on the process holding its seat's socket: the only place a connection
         is reached, through `live_seats`. Its results re-enter the room through `room`, each as a transition."""
 
-    def stop_work(self, key: str) -> None:  # noqa: B027 - optional, a feature without one keeps the no-op
+    def stop_work(self, key: str) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Make the running work of that key end soon, its room's end, a transition or the shutdown asks it to; called
         only while the work runs."""
 
-    async def shut_down(self) -> None:  # noqa: B027 - optional, a feature without one keeps the no-op
+    async def shut_down(self) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Release what the feature holds, once its work has ended."""
 
 
