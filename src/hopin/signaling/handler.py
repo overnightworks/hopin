@@ -61,10 +61,9 @@ class SignalingHandler:
             room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
         )
         self._seats = self._routing.seats
+        self._store = InMemoryCallStore(self._routing, room_manager)
         self._features = build_features(
-            features,
-            CallRooms(self._routing, room_manager, self._seats),
-            InMemoryCallStore(self._routing, room_manager),
+            features, CallRooms(self._routing, room_manager, self._seats), self._store, self._seats
         )
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
@@ -91,9 +90,11 @@ class SignalingHandler:
             await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
 
     async def shut_down(self) -> None:
-        """Shut the call's features down in order and wait until each has cleaned up."""
+        """Shut the call's features down in order and wait until each has cleaned up; the calls' feature state ends with
+        them."""
         for feature in self._features:
             await feature.shut_down()
+        self._store.end_all()
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""

@@ -27,6 +27,7 @@ from hopin.signaling.frames import (
     RoomLockedFrame,
     RoomUnlockedFrame,
 )
+from hopin.signaling.replay import Supersedes
 from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Seats
 
@@ -265,7 +266,8 @@ class RoomRouting:
 
         grace_seconds = HOST_GRACE_SECONDS if reason is RoomClosedReason.HOST_GONE else None
         frame = RoomClosedFrame(reason=reason, host_name=host_name, grace_seconds=grace_seconds)
-        await self._seats.send_all(recipients, frame.to_json())
+        # The call is over, so it supersedes whatever of the call a seat has not been written yet.
+        await self._seats.send_all(recipients, frame.to_json(), Supersedes(types=None))
         seats = [self._seats.forget(PeerId(peer_id)) for peer_id in recipients]
         for websocket in [seat.websocket for seat in seats if seat is not None]:
             await self._seats.close_socket(websocket)

@@ -18,7 +18,7 @@ Ruled by the operator:
 - GM-14: A drop of up to 30 seconds does not end the quiz.
 - GM-15: When the person who started the quiz leaves the call, the quiz ends for everyone with "Quiz beendet: <name> ist gegangen."
 - GM-16: People who join during a quiz play from the next question.
-- GM-17: Until the reveal, a person can overwrite their own answer.
+- GM-17: Until the reveal, a person can overwrite their own answer; the reveal starts the moment everyone present has answered, and a later overwrite is refused as closed to its sender alone.
 - GM-18: The quiz works with 1 to 6 people.
 - GM-19: Only members of the AI API group can start a quiz; HopIn adds no group, admin switch or check of its own.
 - GM-20: HopIn holds the refresh token per sign-in session in memory only, never on disk or in a log, and uses it only for the game master.
