@@ -3,7 +3,7 @@ state and frames together and wake the seats it sent to. Work a transition dispa
 results re-enter the room as transitions of their own."""
 
 import asyncio
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from functools import partial
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Protocol, cast
@@ -52,7 +52,13 @@ class RoomView:
 
     def naming(self, peer_id: PeerId, name: str) -> RoomView:
         """This view with the name of a seat it no longer holds, for the transition that hears that seat's leave."""
-        return replace(self, names=MappingProxyType({**self.names, peer_id: name}))
+        return RoomView(
+            room_id=self.room_id,
+            members=self.members,
+            hosts=self.hosts,
+            names=MappingProxyType({**self.names, peer_id: name}),
+            sections=self.sections,
+        )
 
     def is_host(self, peer_id: PeerId) -> bool:
         """Whether the seat's account hosts the room."""
