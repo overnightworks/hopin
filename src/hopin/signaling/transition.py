@@ -13,7 +13,7 @@ import structlog
 from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
@@ -111,6 +111,14 @@ class Transition:
         self.broken_write_event = event
 
 
+@dataclass(frozen=True)
+class Committed:
+    """A transition the store has committed, and the seats it logged frames for, which are still to be woken."""
+
+    transition: Transition
+    woken: tuple[PeerId, ...]
+
+
 class LiveSeats(Protocol):
     """The seats whose sockets this process holds."""
 
@@ -175,6 +183,21 @@ class InMemoryCallStore:
             )
         )
 
+    async def wake_committed(self, committed: Sequence[Committed]) -> None:
+        """Wake the seats of transitions committed together once every one of them is logged, so a frame of one
+        supersedes the other's before any is written. A broken write raises unless each transition names the event it
+        is logged under."""
+        woken = tuple(dict.fromkeys(peer_id for each in committed for peer_id in each.woken))
+        broken_writes = await self.wake(woken)
+        events = [each.transition.broken_write_event for each in committed]
+        if not broken_writes:
+            return
+        if None in events:
+            raise broken_writes[0]
+        for error in broken_writes:
+            # Only the type is logged, never a frame's text.
+            logger.error(events[0], error_type=type(error).__name__)
+
     async def wake(self, peer_ids: tuple[PeerId, ...]) -> list[Exception]:
         """Write the woken seats' logged frames to their sockets, and name the writes that broke."""
         broken_writes: list[Exception] = []
@@ -235,9 +258,16 @@ class TransitionHost:
         await self._run(view, partial(self._feature.seat_joined, view, peer_id))
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
+        """A feature on transitions hears a seat's leave in the transition that tells the room, `commit_seat_left`."""
+
+    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
+        """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
+        together with the departure that tells the room."""
         loaded = self._store.load(room_id)
         view = replace(loaded, names=MappingProxyType({**loaded.names, peer_id: name}))
-        await self._run(view, partial(self._feature.seat_left, view, peer_id))
+        transition = Transition()
+        self._feature.seat_left(view, peer_id, transition)
+        return self._commit(view, transition)
 
     def view(self, room_id: str) -> RoomView:
         return self._store.load(room_id)
@@ -251,15 +281,13 @@ class TransitionHost:
         """Apply the hook to the view it was given and commit what it changed; a hook that raises commits nothing."""
         transition = Transition()
         outcome = hook(transition)
-        woken = self._store.commit(view, transition)
-        self._start_and_stop_work(view, transition)
-        broken_writes = await self._store.wake(woken)
-        if broken_writes and transition.broken_write_event is None:
-            raise broken_writes[0]
-        for error in broken_writes:
-            # Only the type is logged, never a frame's text.
-            logger.error(transition.broken_write_event, error_type=type(error).__name__)
+        await self._store.wake_committed([self._commit(view, transition)])
         return outcome
+
+    def _commit(self, view: RoomView, transition: Transition) -> Committed:
+        committed = Committed(transition, self._store.commit(view, transition))
+        self._start_and_stop_work(view, transition)
+        return committed
 
     def _start_and_stop_work(self, view: RoomView, transition: Transition) -> None:
         for key in transition.stopped:

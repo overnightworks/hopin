@@ -30,6 +30,7 @@ from hopin.signaling.frames import (
 from hopin.signaling.replay import Supersedes
 from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Seats
+from hopin.signaling.transition import Transition
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -63,7 +64,7 @@ class RoomRouting:
         room_manager: RoomManager,
         deadlines: Deadlines,
         on_room_ended: Callable[[str], None],
-        on_seat_left: Callable[[Departure], Awaitable[None]],
+        on_seat_left: Callable[[Departure, Transition], Awaitable[None]],
         on_seat_changed: Callable[[PeerId], None],
         on_chat_said: Callable[[PeerId, str, str], None],
     ) -> None:
@@ -229,15 +230,15 @@ class RoomRouting:
     async def announce(self, departure: Departure | None) -> None:
         if departure is None:
             return
+        told = Transition()
         # Read now, not at the leave: a host back before the announcement has cancelled the grace.
         grace = self._graces.get(departure.room_id)
-        if departure.host_left and grace is not None:
-            await self._seats.send_all(departure.remaining, self._host_away_frame(grace).to_json())
-        await self._seats.send_all(
-            departure.remaining, ParticipantLeftFrame(participant_id=departure.peer_id).to_json()
-        )
+        for peer_id in departure.remaining:
+            if departure.host_left and grace is not None:
+                told.send(PeerId(peer_id), self._host_away_frame(grace).to_json())
+            told.send(PeerId(peer_id), ParticipantLeftFrame(participant_id=departure.peer_id).to_json())
         await logger.ainfo("participant.left", room_ref=room_reference(departure.room_id), peer_id=departure.peer_id)
-        await self._on_seat_left(departure)
+        await self._on_seat_left(departure, told)
 
     def _start_grace(self, room_id: str, host_peer_id: PeerId, deadline: float) -> None:
         self._deadlines.set(DeadlineKind.HOST_GRACE, room_id, deadline - self._deadlines.now())
