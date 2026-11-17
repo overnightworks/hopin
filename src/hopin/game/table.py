@@ -255,12 +255,11 @@ class Game(TransitionFeature):
             transition.send(peer_id, RefusedFrame(GameRefusal.ANSWER_TOO_LONG).to_json())
             return
         answered = quiz.with_answer(peer_id, view.name_of(peer_id), text.strip())
-        self._count_and_reveal_when_due(view, replace(table, quiz=answered), transition)
+        self._count_and_reveal_when_due(view, table, answered, transition)
 
-    def _count_and_reveal_when_due(self, view: RoomView, table: _Table, transition: Transition) -> None:
-        """Tell each seat the count, then reveal if everyone answered."""
-        quiz = table.quiz
-        assert quiz is not None  # noqa: S101 - only an answer or a player's leave counts, and both need the quiz
+    def _count_and_reveal_when_due(self, view: RoomView, table: _Table, quiz: Quiz, transition: Transition) -> None:
+        """Put the table with the quiz, tell each seat the count, then reveal if everyone answered."""
+        table = replace(table, quiz=quiz)
         present = frozenset(player for player in quiz.players if player in view.members)
         transition.put(TABLE, table)
         transition.log_broken_writes_as(_COUNT_WRITE_BROKE)
@@ -299,7 +298,7 @@ class Game(TransitionFeature):
         if peer_id == quiz.starter:
             _end_for_everyone(view, table, EndedFrame(leaver=view.name_of(peer_id)), transition)
         elif quiz.counts_leave_of(peer_id):
-            self._count_and_reveal_when_due(view, replace(table, quiz=quiz.without_player(peer_id)), transition)
+            self._count_and_reveal_when_due(view, table, quiz.without_player(peer_id), transition)
 
     def room_ended(self, room_id: str) -> None:
         self._voices.forget_speaker(room_id, GAME_SPEAKER)
