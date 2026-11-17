@@ -1,0 +1,616 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgctxt "call.unexpectedError"
+msgid "Etwas ist schiefgegangen. Bitte versuch es noch einmal."
+msgstr "Something went wrong. Please try again."
+
+msgctxt "call.pageTitle"
+msgid "HopIn - Videoanruf"
+msgstr "HopIn - Video call"
+
+msgctxt "call.brandName"
+msgid "HopIn"
+msgstr "HopIn"
+
+msgctxt "call.leaveQuestion"
+msgid "Diesen Anruf verlassen?"
+msgstr "Leave this call?"
+
+msgctxt "call.leaveCancelButton"
+msgid "Abbrechen"
+msgstr "Cancel"
+
+msgctxt "call.leaveConfirmButton"
+msgid "Verlassen"
+msgstr "Leave"
+
+msgctxt "call.lockedTag"
+msgid "Gesperrt"
+msgstr "Locked"
+
+msgctxt "call.participantCountLabel"
+msgid "Teilnehmende"
+msgstr "Participants"
+
+msgctxt "call.ownTileName"
+msgid "Du"
+msgstr "You"
+
+msgctxt "call.waitingTitle"
+msgid "Warten auf andere"
+msgstr "Waiting for others"
+
+msgctxt "call.waitingText"
+msgid "Lade Leute ein, diesem Anruf beizutreten."
+msgstr "Invite people to join this call."
+
+msgctxt "call.waitingCopyLinkButton"
+msgid "Link kopieren"
+msgstr "Copy link"
+
+msgctxt "call.waitingShareButton"
+msgid "Teilen"
+msgstr "Share"
+
+msgctxt "call.controlBarLabel"
+msgid "Anrufsteuerung"
+msgstr "Call controls"
+
+msgctxt "call.muteButton"
+msgid "Stummschalten"
+msgstr "Mute"
+
+msgctxt "call.cameraOffButton"
+msgid "Kamera ausschalten"
+msgstr "Turn camera off"
+
+msgctxt "call.shareScreenButton"
+msgid "Bildschirm teilen"
+msgstr "Share screen"
+
+msgctxt "call.inviteButton"
+msgid "Einladen"
+msgstr "Invite"
+
+msgctxt "call.chatButton"
+msgid "Chat"
+msgstr "Chat"
+
+msgctxt "call.moreButton"
+msgid "Mehr"
+msgstr "More"
+
+msgctxt "call.leaveButton"
+msgid "Verlassen"
+msgstr "Leave"
+
+msgctxt "call.statusNotConnected"
+msgid "Nicht verbunden"
+msgstr "Not connected"
+
+msgctxt "call.statusJoining"
+msgid "Verbunden, Beitritt läuft …"
+msgstr "Connected, joining …"
+
+msgctxt "call.statusInCall"
+msgid "Im Anruf"
+msgstr "In call"
+
+msgctxt "call.statusReconnecting.one"
+msgid "Neu verbinden in {count} Sekunde …"
+msgstr "Reconnecting in {count} second …"
+
+msgctxt "call.statusReconnecting.other"
+msgid "Neu verbinden in {count} Sekunden …"
+msgstr "Reconnecting in {count} seconds …"
+
+msgctxt "call.statusConnectionLost"
+msgid "Verbindung verloren"
+msgstr "Connection lost"
+
+msgctxt "call.statusDisconnected"
+msgid "Getrennt"
+msgstr "Disconnected"
+
+msgctxt "call.statusConnectionError"
+msgid "Verbindungsfehler"
+msgstr "Connection error"
+
+msgctxt "call.statusCameraMissing"
+msgid "Keine Kamera gefunden ({errorName})"
+msgstr "No camera found ({errorName})"
+
+msgctxt "call.statusScreenShareFailed"
+msgid "Bildschirmfreigabe fehlgeschlagen ({errorName})"
+msgstr "Screen sharing failed ({errorName})"
+
+msgctxt "call.statusIceServersFailed"
+msgid "Die Server für die Verbindung konnten nicht geladen werden ({status})."
+msgstr "The connection servers could not be loaded ({status})."
+
+msgctxt "call.addOnLoadFailedToast"
+msgid "Ein Zusatzmodul konnte nicht geladen werden."
+msgstr "An add-on could not be loaded."
+
+msgctxt "end.accountButton"
+msgid "Konto"
+msgstr "Account"
+
+msgctxt "end.retryButton"
+msgid "Erneut versuchen"
+msgstr "Try again"
+
+msgctxt "end.homeButton"
+msgid "Zurück zum Start"
+msgstr "Back to start"
+
+msgctxt "end.rejoinButton"
+msgid "Wieder beitreten"
+msgstr "Rejoin"
+
+msgctxt "end.callEndedTitle"
+msgid "Der Anruf ist beendet"
+msgstr "The call has ended"
+
+msgctxt "end.endedByHostNamedText"
+msgid "{name} hat den Anruf für alle beendet."
+msgstr "{name} ended the call for everyone."
+
+msgctxt "end.endedByHostUnnamedText"
+msgid "Der Host hat den Anruf für alle beendet."
+msgstr "The host ended the call for everyone."
+
+msgctxt "end.hostGoneNamedText"
+msgid "{name} ist nicht innerhalb von {seconds} Sekunden zurückgekommen, deshalb wurde der Anruf für alle beendet."
+msgstr "{name} did not come back within {seconds} seconds, so the call ended for everyone."
+
+msgctxt "end.hostGoneUnnamedText"
+msgid "Der Host ist nicht innerhalb von {seconds} Sekunden zurückgekommen, deshalb wurde der Anruf für alle beendet."
+msgstr "The host did not come back within {seconds} seconds, so the call ended for everyone."
+
+msgctxt "end.leftTitle"
+msgid "Du hast den Anruf verlassen"
+msgstr "You left the call"
+
+msgctxt "end.leftText"
+msgid "Die anderen sprechen noch."
+msgstr "The others are still talking."
+
+msgctxt "end.expiredTitle"
+msgid "Dieser Link ist abgelaufen"
+msgstr "This link has expired"
+
+msgctxt "end.expiredText"
+msgid "Der Anruf ist vorbei. Bitte um einen neuen Link."
+msgstr "The call is over. Ask for a new link."
+
+msgctxt "end.lockedTitle"
+msgid "Der Anruf ist gesperrt"
+msgstr "The call is locked"
+
+msgctxt "end.lockedText"
+msgid "Der Host lässt gerade niemanden Neues herein. Versuch es gleich noch einmal."
+msgstr "The host is not letting anyone new in right now. Try again in a moment."
+
+msgctxt "end.fullTitle"
+msgid "Der Anruf ist voll"
+msgstr "The call is full"
+
+msgctxt "end.fullPill"
+msgid "{capacity}/{capacity}"
+msgstr "{capacity}/{capacity}"
+
+msgctxt "end.fullText"
+msgid "In einem Anruf ist Platz für {capacity} Personen."
+msgstr "A call has room for {capacity} people."
+
+msgctxt "end.tooManyCallsTitle"
+msgid "Zu viele offene Anrufe"
+msgstr "Too many open calls"
+
+msgctxt "end.tooManyCallsText"
+msgid "Dein Konto ist schon in {limit} Anrufen. Verlass einen, um diesem beizutreten."
+msgstr "Your account is already in {limit} calls. Leave one to join this one."
+
+msgctxt "home.accountButton"
+msgid "Konto"
+msgstr "Account"
+
+msgctxt "home.greetingUnnamed"
+msgid "Hallo"
+msgstr "Hello"
+
+msgctxt "home.greetingNamed"
+msgid "Hallo, {name}"
+msgstr "Hello, {name}"
+
+msgctxt "home.invitation"
+msgid "Starte einen Anruf und schick den Link dann an die Leute, die du dabeihaben möchtest."
+msgstr "Start a call, then send the link to the people you want with you."
+
+msgctxt "home.startButton"
+msgid "Anruf starten"
+msgstr "Start a call"
+
+msgctxt "prejoin.accountButton"
+msgid "Konto"
+msgstr "Account"
+
+msgctxt "prejoin.backButton"
+msgid "Zurück"
+msgstr "Back"
+
+msgctxt "prejoin.muteButton"
+msgid "Stummschalten"
+msgstr "Mute"
+
+msgctxt "prejoin.cameraOffButton"
+msgid "Kamera ausschalten"
+msgstr "Turn camera off"
+
+msgctxt "prejoin.unopenedHeading"
+msgid "HopIn"
+msgstr "HopIn"
+
+msgctxt "prejoin.hostTitle"
+msgid "Neuer Anruf"
+msgstr "New call"
+
+msgctxt "prejoin.hostHeading"
+msgid "Bereit zum Starten?"
+msgstr "Ready to start?"
+
+msgctxt "prejoin.hostSubLine"
+msgid "Du bekommst einen Link, mit dem du andere einladen kannst."
+msgstr "You get a link to invite others with."
+
+msgctxt "prejoin.hostStartCameraAndMicrophone"
+msgid "Mit Kamera und Mikrofon starten"
+msgstr "Start with camera and microphone"
+
+msgctxt "prejoin.hostStartCameraOnly"
+msgid "Nur mit Kamera starten"
+msgstr "Start with camera only"
+
+msgctxt "prejoin.hostStartMicrophoneOnly"
+msgid "Nur mit Mikrofon starten"
+msgstr "Start with microphone only"
+
+msgctxt "prejoin.hostStartWithoutDevices"
+msgid "Ohne Kamera und Mikrofon starten"
+msgstr "Start without camera and microphone"
+
+msgctxt "prejoin.guestTitle"
+msgid "Anruf beitreten"
+msgstr "Join call"
+
+msgctxt "prejoin.guestHeading"
+msgid "Bereit zum Beitreten?"
+msgstr "Ready to join?"
+
+msgctxt "prejoin.guestJoinCameraAndMicrophone"
+msgid "Mit Kamera und Mikrofon beitreten"
+msgstr "Join with camera and microphone"
+
+msgctxt "prejoin.guestJoinCameraOnly"
+msgid "Nur mit Kamera beitreten"
+msgstr "Join with camera only"
+
+msgctxt "prejoin.guestJoinMicrophoneOnly"
+msgid "Nur mit Mikrofon beitreten"
+msgstr "Join with microphone only"
+
+msgctxt "prejoin.guestJoinWithoutDevices"
+msgid "Ohne Kamera und Mikrofon beitreten"
+msgstr "Join without camera and microphone"
+
+msgctxt "prejoin.mediaRefused"
+msgid "Weder Kamera noch Mikrofon verfügbar ({errorName}). Schließ ein Gerät an oder erlaub den Zugriff und versuch es noch einmal."
+msgstr "Neither camera nor microphone is available ({errorName}). Connect a device or allow access and try again."
+
+msgctxt "more.menuLabel"
+msgid "Mehr"
+msgstr "More"
+
+msgctxt "more.lockSwitch"
+msgid "Anruf sperren"
+msgstr "Lock call"
+
+msgctxt "more.lockLineLocked"
+msgid "Niemand Neues kann beitreten"
+msgstr "Nobody new can join"
+
+msgctxt "more.lockLineUnlocked"
+msgid "Neue Leute können beitreten"
+msgstr "New people can join"
+
+msgctxt "more.lockedToast"
+msgid "Anruf gesperrt"
+msgstr "Call locked"
+
+msgctxt "more.unlockedToast"
+msgid "Anruf entsperrt"
+msgstr "Call unlocked"
+
+msgctxt "invite.menuLabel"
+msgid "Leute einladen"
+msgstr "Invite people"
+
+msgctxt "invite.heading"
+msgid "Leute einladen"
+msgstr "Invite people"
+
+msgctxt "invite.closeButton"
+msgid "Schließen"
+msgstr "Close"
+
+msgctxt "invite.copyButton"
+msgid "Kopieren"
+msgstr "Copy"
+
+msgctxt "invite.membersNote"
+msgid "Nur HopIn-Mitglieder können beitreten."
+msgstr "Only HopIn members can join."
+
+msgctxt "invite.copyLinkButton"
+msgid "Link kopieren"
+msgstr "Copy link"
+
+msgctxt "invite.shareButton"
+msgid "Teilen"
+msgstr "Share"
+
+msgctxt "invite.linkCopiedToast"
+msgid "Link kopiert"
+msgstr "Link copied"
+
+msgctxt "invite.copyFailedToast"
+msgid "Der Link konnte nicht kopiert werden"
+msgstr "The link could not be copied"
+
+msgctxt "invite.shareFailedToast"
+msgid "Der Link konnte nicht geteilt werden"
+msgstr "The link could not be shared"
+
+msgctxt "chat.header"
+msgid "Chat"
+msgstr "Chat"
+
+msgctxt "chat.inputPlaceholder"
+msgid "Schreib eine Nachricht …"
+msgstr "Write a message …"
+
+msgctxt "chat.inputLabel"
+msgid "Chatnachricht"
+msgstr "Chat message"
+
+msgctxt "chat.sendButton"
+msgid "Senden"
+msgstr "Send"
+
+msgctxt "chat.closeButton"
+msgid "Chat schließen"
+msgstr "Close chat"
+
+msgctxt "account.menuLabel"
+msgid "Konto"
+msgstr "Account"
+
+msgctxt "account.unnamedMenuName"
+msgid "Konto"
+msgstr "Account"
+
+msgctxt "account.unnamedRowName"
+msgid "Du"
+msgstr "You"
+
+msgctxt "signIn.logOutButton"
+msgid "Abmelden"
+msgstr "Sign out"
+
+msgctxt "tile.removeButton"
+msgid "Entfernen"
+msgstr "Remove"
+
+msgctxt "tile.aiBadge"
+msgid "KI"
+msgstr "AI"
+
+msgctxt "tile.lookMarkLabel"
+msgid "{name} schaut hin"
+msgstr "{name} is looking"
+
+msgctxt "tile.agentThinkingLabel"
+msgid "{name}, KI, denkt nach"
+msgstr "{name}, AI, is thinking"
+
+msgctxt "tile.agentWaitingLabel"
+msgid "{name}, KI, wartet auf Antworten"
+msgstr "{name}, AI, is waiting for answers"
+
+msgctxt "tile.agentSpeakingLabel"
+msgid "{name}, KI, spricht"
+msgstr "{name}, AI, is speaking"
+
+msgctxt "tile.agentPresentLabel"
+msgid "{name}, KI, ist im Anruf"
+msgstr "{name}, AI, is in the call"
+
+msgctxt "game.masterName"
+msgid "Quizmaster"
+msgstr "Quiz master"
+
+msgctxt "game.startButton"
+msgid "Quiz starten"
+msgstr "Start quiz"
+
+msgctxt "game.startHint"
+msgid "{name} fragt die Runde"
+msgstr "{name} asks the group"
+
+msgctxt "game.runningLabel"
+msgid "Quiz läuft"
+msgstr "Quiz running"
+
+msgctxt "game.endButton"
+msgid "Quiz beenden"
+msgstr "End quiz"
+
+msgctxt "game.thinkingButton"
+msgid "{name} denkt nach …"
+msgstr "{name} is thinking …"
+
+msgctxt "game.thinkingLabel"
+msgid "{name} denkt nach"
+msgstr "{name} is thinking"
+
+msgctxt "game.voiceLabel"
+msgid "{name}-Stimme"
+msgstr "{name} voice"
+
+msgctxt "game.voiceOn"
+msgid "An"
+msgstr "On"
+
+msgctxt "game.voiceOff"
+msgid "Aus"
+msgstr "Off"
+
+msgctxt "game.questionCardLabel"
+msgid "Quizfrage"
+msgstr "Quiz question"
+
+msgctxt "game.revealButton"
+msgid "Auflösen"
+msgstr "Reveal"
+
+msgctxt "game.answerLabel"
+msgid "Deine Antwort"
+msgstr "Your answer"
+
+msgctxt "game.sendButton"
+msgid "Senden"
+msgstr "Send"
+
+msgctxt "game.questionProgress"
+msgid "Frage {round} von {rounds}"
+msgstr "Question {round} of {rounds}"
+
+msgctxt "game.answerCountStatus"
+msgid "{answered} von {players} haben geantwortet"
+msgstr "{answered} of {players} have answered"
+
+msgctxt "game.answerSentCountStatus"
+msgid "Antwort gesendet · {answered} von {players} haben geantwortet"
+msgstr "Answer sent · {answered} of {players} have answered"
+
+msgctxt "game.busyRetryToast.one"
+msgid "{name} ist gerade beschäftigt. Versuch es in {count} Sekunde noch einmal."
+msgstr "{name} is busy right now. Try again in {count} second."
+
+msgctxt "game.busyRetryToast.other"
+msgid "{name} ist gerade beschäftigt. Versuch es in {count} Sekunden noch einmal."
+msgstr "{name} is busy right now. Try again in {count} seconds."
+
+msgctxt "game.unavailableToast"
+msgid "{name} ist gerade nicht erreichbar."
+msgstr "{name} cannot be reached right now."
+
+msgctxt "game.noAccessToast"
+msgid "Dein Konto hat keinen KI-Zugang."
+msgstr "Your account has no AI access."
+
+msgctxt "game.signInAgainToast"
+msgid "Melde dich noch einmal an, um {name} zu nutzen."
+msgstr "Sign in again to use {name}."
+
+msgctxt "game.signInButton"
+msgid "Anmelden"
+msgstr "Sign in"
+
+msgctxt "game.budgetSpentToast"
+msgid "Dein KI-Budget ist vorerst aufgebraucht."
+msgstr "Your AI budget is used up for now."
+
+msgctxt "game.alreadyAnsweringToast"
+msgid "{name} antwortet schon."
+msgstr "{name} is already answering."
+
+msgctxt "game.quizRunningToast"
+msgid "Es läuft schon ein Quiz."
+msgstr "A quiz is already running."
+
+msgctxt "game.notStarterToast"
+msgid "Nur wer das Quiz gestartet hat, kann auflösen."
+msgstr "Only the person who started the quiz can reveal."
+
+msgctxt "game.notStarterOrHostToast"
+msgid "Nur wer das Quiz gestartet hat oder der Host kann es beenden."
+msgstr "Only the person who started the quiz or the host can end it."
+
+msgctxt "game.answerClosedToast"
+msgid "Diese Frage ist schon abgeschlossen."
+msgstr "This question is already closed."
+
+msgctxt "game.answerTooLongToast"
+msgid "Deine Antwort ist zu lang. Kürz sie und schick sie noch einmal."
+msgstr "Your answer is too long. Shorten it and send it again."
+
+msgctxt "game.endedToast"
+msgid "Quiz beendet."
+msgstr "Quiz ended."
+
+msgctxt "game.endedByLeaverToast"
+msgid "Quiz beendet: {leaver} ist gegangen."
+msgstr "Quiz ended: {leaver} left."
+
+msgctxt "skat.menuTitle"
+msgid "Skat-Tisch zeigen"
+msgstr "Show Skat table"
+
+msgctxt "skat.menuHint"
+msgid "Link eines Tisches einfügen"
+msgstr "Paste a table's link"
+
+msgctxt "skat.linkLabel"
+msgid "Link des Skat-Tisches"
+msgstr "Skat table link"
+
+msgctxt "skat.showButton"
+msgid "Zeigen"
+msgstr "Show"
+
+msgctxt "skat.badLinkToast"
+msgid "Das ist kein Link zu einem Skat-Tisch."
+msgstr "That is not a link to a Skat table."
+
+msgctxt "skat.busyToast"
+msgid "Auf der Bühne steht schon ein Skat-Tisch."
+msgstr "A Skat table is already on the stage."
+
+msgctxt "skat.notRemovedToast"
+msgid "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen."
+msgstr "Only the person who brought the table or the host can remove it."
+
+msgctxt "skat.frameTitle"
+msgid "Skat-Tisch"
+msgstr "Skat table"
+
+msgctxt "skat.removeButton"
+msgid "Tisch entfernen"
+msgstr "Remove table"
+
+msgctxt "agent.notRemovedToast"
+msgid "Nur wer die KI geholt hat oder der Host kann sie entfernen."
+msgstr "Only the person who brought the AI or the host can remove it."
+
+msgctxt "agent.badge"
+msgid "AI"
+msgstr "AI"
+
+msgctxt "chat.closeGlyph"
+msgid "x"
+msgstr "x"
