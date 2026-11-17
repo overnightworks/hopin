@@ -1,0 +1,8 @@
+claim_id = "0783ae1edb264d4f9fcb0b0a41ccbf7e"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "c59a7a07858278eb01abe0da59ca3e305355517d"
+branch = "claude/issue-913-agents-malformed-check"
+scope = ["docs/call.md", "pyproject.toml", "src/hopin/agent/tools.py", "tests/agent/test_tools_malformed_invitation.py", "uv.lock"]
+opened_commit = "998851dd54f1728379dd383c2b05c5fc9821e4c0"
+whole_reason = "The pin and the removal of the check it replaces move together."
