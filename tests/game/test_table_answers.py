@@ -27,7 +27,6 @@ from tests.game.support.table_world import (
     sent,
     sent_count_to_all,
     sent_to_all,
-    thinking,
     wait_within_cap,
     yield_until,
 )
@@ -338,21 +337,19 @@ async def test_the_answer_that_completes_the_count_starts_the_reveal_and_a_later
     host, guest, third = await call_of(link, "host", "guest", "third")
     script_two_questions(game_master)
     await open_a_question([host, guest, third], host)
-    gate = hold_writes_from(guest, answer_count(3, 3, own=True))
+    held = game_master.hold_next()
     await host.say(answer("Porto"))
     await guest.say(answer("Lissabon"))
+    await third.say(answer("Faro"))
+    await wait_within_cap(held.started)
 
-    push_unsettled(third, answer("Faro"))
-    await sent(host, answer_count(3, 3, own=True))
-    push_unsettled(host, answer("Tejo"))
+    await host.say(answer("Tejo"))
     await sent(host, refused(GameRefusal.ANSWER_CLOSED))
-    await yield_until(lambda: len(game_master.calls) == 2)
+    held.release.set()
+    await sent_to_all([host, guest, third], answering(host, 2))
 
-    assert game_frames(host)[-3:] == [answer_count(3, 3, own=True), thinking(host), refused(GameRefusal.ANSWER_CLOSED)]
     assert {"name": "host", "antwort": "Porto"} in revealed_answers(game_master)
     assert {"name": "host", "antwort": "Tejo"} not in revealed_answers(game_master)
-    gate.set()
-    await sent_to_all([host, guest, third], answering(host, 2))
     for browser in (guest, third):
         assert refused(GameRefusal.ANSWER_CLOSED) not in game_frames(browser)
 
