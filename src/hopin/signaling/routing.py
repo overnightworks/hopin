@@ -30,10 +30,9 @@ from hopin.signaling.frames import (
 from hopin.signaling.replay import Supersedes
 from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Seats
-from hopin.signaling.transition import Transition
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Sequence
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.scheduler import Deadlines
@@ -64,7 +63,7 @@ class RoomRouting:
         room_manager: RoomManager,
         deadlines: Deadlines,
         on_room_ended: Callable[[str], None],
-        on_seat_left: Callable[[Departure, Transition], Awaitable[None]],
+        on_seat_left: Callable[[Departure, Sequence[tuple[PeerId, JsonObject]]], Awaitable[None]],
         on_seat_changed: Callable[[PeerId], None],
         on_chat_said: Callable[[PeerId, str, str], None],
     ) -> None:
@@ -230,13 +229,13 @@ class RoomRouting:
     async def announce(self, departure: Departure | None) -> None:
         if departure is None:
             return
-        told = Transition()
+        told: list[tuple[PeerId, JsonObject]] = []
         # Read now, not at the leave: a host back before the announcement has cancelled the grace.
         grace = self._graces.get(departure.room_id)
         for peer_id in departure.remaining:
             if departure.host_left and grace is not None:
-                told.send(PeerId(peer_id), self._host_away_frame(grace).to_json())
-            told.send(PeerId(peer_id), ParticipantLeftFrame(participant_id=departure.peer_id).to_json())
+                told.append((PeerId(peer_id), self._host_away_frame(grace).to_json()))
+            told.append((PeerId(peer_id), ParticipantLeftFrame(participant_id=departure.peer_id).to_json()))
         await logger.ainfo("participant.left", room_ref=room_reference(departure.room_id), peer_id=departure.peer_id)
         await self._on_seat_left(departure, told)
 

@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.features import CallFeature, FeatureFactory
+    from hopin.signaling.frames import JsonObject
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Deadlines, Scheduler, TimerHandle
 
@@ -85,10 +86,13 @@ class SignalingHandler:
         for feature in self._features:
             feature.chat_said(peer_id, room_id, message)
 
-    async def _seat_left(self, departure: Departure, told: Transition) -> None:
+    async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
         """The room is told of the departure in one commit with what each feature on transitions answers it, so a
         feature's frame supersedes its own outdated ones before any reaches a seat; the other features hear it
         after, even when a seat's write of that commit broke."""
+        told = Transition()
+        for peer_id, frame in told_frames:
+            told.send(peer_id, frame)
         committed = [Committed(told, self._store.commit(RoomView(), told))]
         committed += [
             feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
