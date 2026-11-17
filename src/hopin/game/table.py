@@ -418,7 +418,7 @@ class Game(TransitionFeature):
         if live.stopped:
             return
         frame = self._voice_frame(room.room_id, _voice_of(live.voice))
-        await room.apply(partial(_send_voice_frame, key, frame, recipients))
+        await room.apply(partial(_send_voice_frame, frame, recipients))
 
     def _voice_frame(self, room_id: str, wav: bytes | None) -> VoiceFrame | SilentVoiceFrame:
         """The line's voice, or, with none, the word that none follows."""
@@ -494,15 +494,13 @@ def _tell_thinking(key: str, live: _LiveRun, view: RoomView, transition: Transit
 
 
 def _send_voice_frame(
-    key: str,
     frame: VoiceFrame | SilentVoiceFrame,
     recipients: tuple[PeerId, ...],
     view: RoomView,
     transition: Transition,
 ) -> None:
-    if _table_of(view).is_live(key):
-        transition.log_broken_writes_as(_RUN_WRITE_BROKE)
-        _send_each(transition, (seat for seat in recipients if seat in view.members), frame)
+    transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+    _send_each(transition, (seat for seat in recipients if seat in view.members), frame)
 
 
 def _forget(key: str, view: RoomView, transition: Transition) -> None:

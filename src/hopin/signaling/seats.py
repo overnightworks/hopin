@@ -141,8 +141,7 @@ class Seats:
             await self.deliver(peer_id)
 
     async def send(self, peer_id: str, data: JsonObject, supersedes: Supersedes | None = None) -> None:
-        if self.log(PeerId(peer_id), data, supersedes):
-            await self.deliver(PeerId(peer_id))
+        await self.send_all([peer_id], data, supersedes)
 
     def log(self, peer_id: PeerId, data: JsonObject, supersedes: Supersedes | None = None) -> bool:
         """Give the frame the seat's next seq in its log, dropping the frames it supersedes there, and say whether the
