@@ -319,14 +319,21 @@ class Game(TransitionFeature):
         live = self._live.setdefault(work.key, _LiveRun())
         previous, self._latest[room.room_id] = self._latest.get(room.room_id), live
         try:
-            starter = live_seats.connection_of(work.seat)
             with StepTimer("game_master_run.ended", _STEPS, room_ref=room_reference(room.room_id)) as step:
                 step.handled()  # its broken writes are logged where they happen
                 if previous is not None:
                     with StepTimer("run_wait.ended", _STEPS, room_ref=room_reference(room.room_id)):
                         await previous.ended.wait()
-                quiz = _asked_quiz(work.key, live, await room.view())
-                self._start_ask(work.key, live, starter, quiz)
+                view = await room.view()
+                if work.seat not in view.members:
+                    # The starter left before its run began: its seat is gone, and its leave, still to commit, ends
+                    # the quiz.
+                    live.stop()
+                quiz = _asked_quiz(work.key, live, view)
+                starter = None
+                if quiz is not None:
+                    starter = live_seats.connection_of(work.seat)
+                    self._start_ask(work.key, live, starter, quiz)
                 await room.apply(partial(_tell_thinking, work.key, live))
                 outcome = await self._outcome(work.key, live)
                 self._start_voice(work.key, live, starter, outcome)
@@ -345,10 +352,9 @@ class Game(TransitionFeature):
                 del self._latest[room.room_id]
             live.ended.set()
 
-    def _start_ask(self, key: str, live: _LiveRun, starter: HTTPConnection, quiz: Quiz | None) -> None:
-        if quiz is not None and not live.stopped:
-            live.ask = asyncio.create_task(self._game_master.ask(starter, quiz.transcript))
-            self._deadlines.set(DeadlineKind.GAME_RUN, key, GAME_RUN_DEADLINE_SECONDS)
+    def _start_ask(self, key: str, live: _LiveRun, starter: HTTPConnection, quiz: Quiz) -> None:
+        live.ask = asyncio.create_task(self._game_master.ask(starter, quiz.transcript))
+        self._deadlines.set(DeadlineKind.GAME_RUN, key, GAME_RUN_DEADLINE_SECONDS)
 
     async def _outcome(self, key: str, live: _LiveRun) -> GameOutcome:
         if live.ask is None:
@@ -357,9 +363,9 @@ class Game(TransitionFeature):
         self._deadlines.cancel(DeadlineKind.GAME_RUN, key)
         return _outcome_of(live.ask)
 
-    def _start_voice(self, key: str, live: _LiveRun, starter: HTTPConnection, outcome: GameOutcome) -> None:
+    def _start_voice(self, key: str, live: _LiveRun, starter: HTTPConnection | None, outcome: GameOutcome) -> None:
         """Start making the line's voice on its own deadline as the line is delivered; the line never waits for it."""
-        if self._voice is not None and isinstance(outcome, Line) and not live.stopped:
+        if starter is not None and self._voice is not None and isinstance(outcome, Line) and not live.stopped:
             live.voice = asyncio.create_task(self._voice.speak(starter, outcome.text))
             self._deadlines.set(DeadlineKind.GAME_VOICE, key, VOICE_DEADLINE_SECONDS)
 

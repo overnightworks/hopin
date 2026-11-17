@@ -88,16 +88,18 @@ class SignalingHandler:
     async def _seat_left(self, departure: Departure, told: Transition) -> None:
         """The room is told of the departure in one commit with what each feature on transitions answers it, so a
         feature's frame supersedes its own outdated ones before any reaches a seat; the other features hear it
-        after."""
+        after, even when a seat's write of that commit broke."""
         committed = [Committed(told, self._store.commit(RoomView(), told))]
         committed += [
             feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
             for feature in self._features
             if isinstance(feature, TransitionHost)
         ]
-        await self._store.wake_committed(committed)
-        for feature in self._features:
-            await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
+        try:
+            await self._store.wake_committed(committed)
+        finally:
+            for feature in self._features:
+                await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
 
     async def shut_down(self) -> None:
         """Shut the call's features down in order and wait until each has cleaned up; the calls' feature state ends with
