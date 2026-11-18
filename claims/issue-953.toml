@@ -1,0 +1,8 @@
+claim_id = "21825b2a3ddb42faa993ad91fc75a18c"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "e8b2395ed0408678ca5e27bd296002859f2a7471"
+branch = "claude/issue-953-design-v037"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src", "pyproject.toml", "uv.lock"]
+opened_commit = "b6c6f2856789bcb1da423df640d518d51ff03926"
+whole_reason = "A kit bump whose token exit and heading change touch the stylesheet and the components that show typed headings."
