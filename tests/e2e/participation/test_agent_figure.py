@@ -6,17 +6,23 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import pytest
+from agents.member import SPEAK_TOOL, PlaceRef
 from playwright.sync_api import expect
+from speech_client.wire import VoiceId
 
+from hopin.agent.speech_settings import SpeechService
+from hopin.agent.tools import CALL_KIND
 from hopin.participation.settings import ParticipationSettings
-from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE
+from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, FigureMood
 from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT
+from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, room_of_link
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
 from tests.support.agent_adders import ADDERS_GROUP
+from tests.support.loopback_origin import Origin
+from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, silent_wav, speaking
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -59,13 +65,26 @@ def figure_origin() -> FigureOrigin:
 
 
 @pytest.fixture(scope="module")
-def figure_server(tmp_path_factory: pytest.TempPathFactory, figure_origin: FigureOrigin) -> Iterator[RunningServer]:
-    """HopIn with participation that allows figures from the test source, fetched through `figure_origin`."""
+def speech_origin() -> Iterator[Origin]:
+    origin = Origin()
+    offering(origin, *VoiceId)
+    yield origin
+    origin.close()
+
+
+@pytest.fixture(scope="module")
+def figure_server(
+    tmp_path_factory: pytest.TempPathFactory, figure_origin: FigureOrigin, speech_origin: Origin
+) -> Iterator[RunningServer]:
+    """HopIn with participation that allows figures from the test source, fetched through `figure_origin`, and lets
+    agents speak through `speech_origin`."""
     loopback = loopback_sign_in(tmp_path_factory.mktemp("figure-sign-in"))
     with running_hopin(
         loopback,
         tmp_path_factory.mktemp("figure-tls"),
         participation=True,
+        speaks=True,
+        speech=SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
         agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
         figure_sources=ParticipationSettings(figure_sources=[SOURCE_PREFIX]).figure_sources,
         figure_transport=figure_origin,
@@ -94,17 +113,21 @@ def figure_faked() -> bool:
 
 
 # Stands in for figure's drawing chunk: it draws nothing and records the id of each element the page hands `listen`,
-# null for nobody.
+# null for nobody, and of each sentence the page hands `speak` whether its voice is an audio node and its mood, null for
+# none.
 FAKE_FIGURE = """
 export async function mount(canvas, bytes, options) {
     window.figureListens = [];
+    window.figureSentences = [];
     options.onSignal?.("drawn");
     const ignore = () => undefined;
     return {
         signal: "drawn",
         dispose: ignore,
         think: ignore,
-        speak: ignore,
+        speak: (sentence) => void window.figureSentences.push(
+            sentence === null ? null : { voice: sentence.voice instanceof AudioNode, mood: sentence.mood ?? null },
+        ),
         gesture: ignore,
         listen: (speaker) => void window.figureListens.push(speaker === null ? null : speaker.id),
     };
@@ -406,3 +429,33 @@ def test_the_figure_turns_toward_the_tile_of_whoever_speaks_on_every_page_and_to
 
     for person in scene.everyone:
         person.wait_for_function(LISTENS_LAST_TO, arg=None)
+
+
+SENTENCE_SECONDS = 1.0
+SPOKEN_WAIT_MILLISECONDS = 15_000
+
+
+@pytest.mark.parametrize("figure_faked", [True])
+def test_the_figure_speaks_an_agents_sentence_with_its_voice_and_mood_on_every_page_and_stops_at_its_end(
+    scene_of: Callable[[dict[str, Any]], Scene], speech_origin: Origin
+) -> None:
+    """CALL-67: While an agent's sentence plays, its figure on every seat's page is handed the sound's audio node and
+    the mood the agent named, and once the sentence ended, no sentence."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds_and_the_agent_accepts(figure_of(DRAWABLE_URL, DRAWABLE))
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute("data-figure", "drawn")
+    speaking(speech_origin, chunked_wav(silent_wav(SENTENCE_SECONDS)))
+    place = PlaceRef(kind=CALL_KIND, id=room_of_link(scene.link))
+
+    spoken = scene.agent.call(
+        SPEAK_TOOL, {"place": place.model_dump(), "text": "Guten Tag", "mood": FigureMood.HAPPY.value}
+    )
+
+    assert spoken == {"spoken": True}
+    for person in scene.everyone:
+        person.wait_for_function("() => window.figureSentences.length === 2", timeout=SPOKEN_WAIT_MILLISECONDS)
+        assert person.evaluate("() => window.figureSentences") == [
+            {"voice": True, "mood": FigureMood.HAPPY.value},
+            None,
+        ]

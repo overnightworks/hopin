@@ -391,6 +391,7 @@ describe("an agent tile's figure", () => {
             stop: ReturnType<typeof vi.fn>;
             gesture: ReturnType<typeof vi.fn>;
             listen: ReturnType<typeof vi.fn>;
+            speak: ReturnType<typeof vi.fn>;
         }[] = [];
         const drawer = (
             host: HTMLElement,
@@ -401,8 +402,9 @@ describe("an agent tile's figure", () => {
             const stop = vi.fn();
             const gesture = vi.fn();
             const listen = vi.fn();
-            started.push({ host, path, gestures, show, stop, gesture, listen });
-            return { stop, gesture, listen };
+            const speak = vi.fn();
+            started.push({ host, path, gestures, show, stop, gesture, listen, speak });
+            return { stop, gesture, listen, speak };
         };
         return { drawer, started };
     }
@@ -544,6 +546,21 @@ describe("an agent tile's figure", () => {
         gestureAgentFigure(KEY, "wave");
 
         expect(started[0]?.gesture).not.toHaveBeenCalled();
+    });
+
+    it("CALL-67: makes the figure drawn for the tile key speak each sentence and stop, and drops one for a tile without a figure", async () => {
+        const { agentFigure, drawAgentFigures, speakAgentFigure } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+        agentFigure(document.createElement("div"), { key: "agent-a2", path: PATH });
+        const sentence = { voice: {} as AudioNode, mood: "happy" };
+
+        speakAgentFigure(KEY, sentence);
+        speakAgentFigure(KEY, null);
+        speakAgentFigure("agent-none", sentence);
+
+        expect([started[0]?.speak.mock.calls, started[1]?.speak.mock.calls]).toEqual([[[sentence], [null]], []]);
     });
 
     // The tiles the layout and the tile list render, by the ids the stage names them with.

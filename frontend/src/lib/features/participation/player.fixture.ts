@@ -9,6 +9,7 @@ export interface FakeSound {
 }
 
 export interface FakePlayer {
+    readonly tap: AudioNode;
     readonly sounds: FakeSound[];
     readonly stoppers: (() => Promise<void>)[];
     readonly mutes: (() => Promise<void>)[];
@@ -26,9 +27,17 @@ async function settled() {
 export function fakePlayers() {
     const created: FakePlayer[] = [];
     const createPlayer = (): Player => {
-        const fake: FakePlayer = { sounds: [], stoppers: [], mutes: [], closed: false, muted: false };
+        const fake: FakePlayer = {
+            tap: {} as AudioNode,
+            sounds: [],
+            stoppers: [],
+            mutes: [],
+            closed: false,
+            muted: false,
+        };
         created.push(fake);
         return {
+            tap: fake.tap,
             play: (sound) => {
                 const started = Promise.withResolvers<PlaybackStart>();
                 const ended = Promise.withResolvers<PlaybackEnd>();
@@ -60,6 +69,11 @@ export function fakePlayers() {
                 fake.muted = muted;
                 if (muted) for (const muteSound of fake.mutes.splice(0)) void muteSound();
             },
+            // The feature neither pauses nor resumes a player: these two only satisfy the Player type, so no test reaches them.
+            /* v8 ignore start */
+            pause: () => undefined,
+            resume: () => undefined,
+            /* v8 ignore stop */
             close: () => {
                 fake.closed = true;
             },

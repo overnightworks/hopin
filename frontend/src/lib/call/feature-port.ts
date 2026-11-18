@@ -30,11 +30,18 @@ export const AGENT_FIGURE = {
 } as const;
 export type AgentFigure = (typeof AGENT_FIGURE)[keyof typeof AGENT_FIGURE];
 
-/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody, and one given while the figure loads holds once it is drawn. */
+/** A sentence the agent speaks: the audio node its voice plays through, which the mouth follows, and the name of the mood its face shows; a field it lacks leaves the mouth still or the face neutral. */
+export interface AgentSentence {
+    voice?: AudioNode;
+    mood?: string;
+}
+
+/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody; `speak` makes the figure speak the sentence, null makes it stop; one `listen` or `speak` given while the figure loads holds once it is drawn. */
 export interface AgentFigureHandle {
     stop: () => void;
     gesture: (name: string) => void;
     listen: (speaker: Element | null) => void;
+    speak: (sentence: AgentSentence | null) => void;
 }
 
 /** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */
@@ -109,6 +116,8 @@ export interface FeatureCore<Frames extends object = object> {
     drawAgentFigures(drawer: AgentFigureDrawer): void;
     /** Play the gesture on the figure of the agent tile shown under `key`; dropped when that tile has no drawn figure. */
     gestureAgentFigure(key: string, gesture: string): void;
+    /** Make the figure of the agent tile shown under `key` speak the sentence, null stop; dropped when that tile has no figure. */
+    speakAgentFigure(key: string, sentence: AgentSentence | null): void;
     /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */
     showStage(view: FeatureView | null): void;
     /** Register a handler for the person's microphone; it is told the current state at once and then on every change: a stream that holds only the local microphone track while the person is in a call and the microphone is on, and null otherwise (the pre-join included). The stream is never a screen share's audio, a peer's or an agent's. */

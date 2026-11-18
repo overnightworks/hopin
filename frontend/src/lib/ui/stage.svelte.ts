@@ -7,6 +7,7 @@ import {
     type AgentFigureDrawer,
     type AgentFigureHandle,
     type AgentGestureClips,
+    type AgentSentence,
     type AgentTile,
 } from "#lib/call/feature-port.ts";
 import type { ConnectionQuality, RemoteMediaState } from "#lib/call/stage-port.ts";
@@ -86,6 +87,11 @@ const drawnFigures = new Map<string, DrawnFigure>();
 /** Play the gesture on the figure of the agent tile under `key`; a tile with no drawn figure drops it. */
 export function gestureAgentFigure(key: string, gesture: string) {
     drawnFigures.get(key)?.handle.gesture(gesture);
+}
+
+/** Make the figure of the agent tile under `key` speak the sentence, null stop; a tile with no figure drops it. */
+export function speakAgentFigure(key: string, sentence: AgentSentence | null) {
+    drawnFigures.get(key)?.handle.speak(sentence);
 }
 
 let ownSpeaking = false;

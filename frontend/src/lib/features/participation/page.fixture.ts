@@ -1,6 +1,6 @@
 import { flushSync } from "svelte";
 import { expect, vi } from "vitest";
-import type { AgentTile, FeatureCore, PictureBounds } from "#lib/call/feature-port.ts";
+import type { AgentSentence, AgentTile, FeatureCore, PictureBounds } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -8,6 +8,16 @@ import { install, installWith } from "./index.ts";
 import { fakePlayers } from "./player.fixture.ts";
 
 export const ME = "me";
+
+export const joined = (sponsorId: string, agentId = "a1") => ({
+    agent_id: agentId,
+    name: "Claude",
+    sponsor: "Ada",
+    sponsor_id: sponsorId,
+});
+
+export const tileActivities = (page: { tiles: Map<string, AgentTile> }) =>
+    [...page.tiles.values()].map(({ activity }) => activity);
 
 export async function installedParticipation(installOn?: typeof install) {
     const players = fakePlayers();
@@ -18,6 +28,8 @@ export async function installedParticipation(installOn?: typeof install) {
     const tiles = new Map<string, AgentTile>();
     // The tile key and gesture of each call the page made to an agent's figure.
     const gestures: [string, string][] = [];
+    // The tile key and sentence of each call the page made to an agent's figure's speak, null for none.
+    const figureSentences: [string, AgentSentence | null][] = [];
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
@@ -45,6 +57,9 @@ export async function installedParticipation(installOn?: typeof install) {
         drawAgentFigures: vi.fn(),
         gestureAgentFigure: (key, gesture) => {
             gestures.push([key, gesture]);
+        },
+        speakAgentFigure: (key, sentence) => {
+            figureSentences.push([key, sentence]);
         },
         closeMore: vi.fn(),
         showAgentTile: (tile, key = "agent") => {
@@ -90,6 +105,7 @@ export async function installedParticipation(installOn?: typeof install) {
         sentTransient,
         tiles,
         gestures,
+        figureSentences,
         toasts,
         lines,
         offers: () => onThePage().flatMap((item) => [...item.querySelectorAll("li")]),
