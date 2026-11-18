@@ -651,12 +651,22 @@ class TestThinking:
             pytest.param(lambda room_id: {"kind": "table", "id": room_id}, id="a place of another kind with its id"),
         ],
     )
-    def test_call_68_a_statement_at_a_call_the_agent_holds_no_place_in_is_not_held(self, gesturing, place):
+    def test_call_68_a_statement_at_a_place_the_agent_does_not_hold_is_not_held(self, gesturing, place):
         arguments = {"place": place(gesturing.owner.room_id), "thinking": True}
 
         stated = gesturing.call.call(gesturing.token, SET_TURN_STATE_TOOL, arguments)
 
         assert (stated.is_error, stated.outcome) == (True, {"refused": "not_held"})
+
+    def test_call_68_a_statement_while_the_sponsors_seat_is_parked_is_accepted_and_told(self, gesturing, seat_changes):
+        seat_changes.clear()
+        gesturing.owner.drop()
+        assert seat_changes.wait(timeout=10)
+
+        stated = call_in(gesturing, tool=SET_TURN_STATE_TOOL, thinking=True)
+
+        assert not stated.is_error
+        assert thinking_told(gesturing.member) == (gesturing.agent_id, True)
 
     def test_call_68_a_thinking_whose_agent_left_tells_no_seat_its_end_at_the_cap(self, thinking):
         thinking.call.call(thinking.token, LEAVE_CALL, {"room": thinking.owner.room_id})

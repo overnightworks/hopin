@@ -150,6 +150,24 @@ describe("an agent's voice", () => {
         ]);
     });
 
+    it("CALL-68: names the agent's tile as thinking while its thinking holds and no sound of it plays", async () => {
+        const page = await pageWithAgents("a1");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a1", on: true });
+        const whileThinking = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+        const whileSpeaking = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a1", on: false });
+        await page.players.created[0]?.sounds[0]?.end({ kind: "played", playedSeconds: 1 });
+
+        expect([whileThinking, whileSpeaking, tileActivities(page)]).toEqual([
+            [AGENT_ACTIVITY.THINKING],
+            [AGENT_ACTIVITY.SPEAKING],
+            [AGENT_ACTIVITY.PRESENT],
+        ]);
+    });
+
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {
         const page = await pageWithAgents("a1", "a2");
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
