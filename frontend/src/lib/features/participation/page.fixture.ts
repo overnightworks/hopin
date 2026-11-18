@@ -9,6 +9,9 @@ import { fakePlayers } from "./player.fixture.ts";
 
 export const ME = "me";
 
+export const tileActivities = (page: { tiles: Map<string, AgentTile> }) =>
+    [...page.tiles.values()].map(({ activity }) => activity);
+
 export async function installedParticipation(installOn?: typeof install) {
     const players = fakePlayers();
     const handlers = new Map<string, (frame: never) => void>();
