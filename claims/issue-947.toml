@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "bb815606613733d4901d06a8dfb607421597922c"
 branch = "claude/issue-947-figure-listens"
-scope = ["docs/call.md", "frontend/src/lib/call", "frontend/src/lib/features/figure", "frontend/src/lib/ui"]
+scope = ["docs/call.md", "frontend/src/lib/call", "frontend/src/lib/features/figure", "frontend/src/lib/ui", "frontend/src/routes/(call)/+layout.svelte", "frontend/src/routes/(call)/start-up.ts", "tests/e2e/participation/test_agent_figure.py", "tests/e2e/support/media.py", "tests/e2e/test_speaking.py"]
 opened_commit = "8ddad6af837f4c53623feda6d08876c02535fa48"
 whole_reason = "The speaking fact, the tile element and the figure handle meet in the call core's seam; one slice wires them."
