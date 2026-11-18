@@ -14,7 +14,7 @@ from logline.testing import configured
 from speech_client.hearing import OPENING_SECONDS, Refused
 from speech_client.outcomes import Cut, Unreachable
 from speech_client.realtime_wire import SessionInput, SessionUpdate
-from speech_client.relay import HOP_FRAME_SAMPLES, HopClose
+from speech_client.relay import HOP_FRAME_SAMPLES, HopClose, RuleBroken
 from speech_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, Language, RefusalCode
 from starlette.websockets import WebSocketDisconnect
 
@@ -735,6 +735,8 @@ class TestHowAHopEndsInTheLog:
             (Cut(), "cut"),
             (Unreachable(), "unreachable"),
             (Refused(HTTPStatus.BAD_REQUEST, None), "refused"),
+            (RuleBroken(HopClose.TEXT_FRAME), "text_frame"),
+            (RuleBroken(HopClose.FRAME_TOO_LARGE), "frame_too_large"),
         ],
     )
     def test_call_58_an_outcome_that_served_nobody_is_named_by_its_closed_reason(self, outcome, reason):
