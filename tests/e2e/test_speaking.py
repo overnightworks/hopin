@@ -4,7 +4,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
-from tests.e2e.support.media import OTHER_TILE, RECORD_PEER_CONNECTIONS
+from tests.e2e.support.media import LOUD, OTHER_TILE, RECORD_PEER_CONNECTIONS, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
@@ -20,49 +20,9 @@ OBSERVATION_MILLISECONDS = 2_000
 HUM_OBSERVATION_MILLISECONDS = 3_000
 PAUSE_MILLISECONDS = 500
 WAVE_BAR_COUNT = 3
-LOUD = 1
 HUM_UNDER_THE_FLOOR = 0.005
-SILENCE = 0
 DESKTOP_DARK = {**DESKTOP, "color_scheme": "dark"}
 DESKTOP_REDUCED_MOTION = {**DESKTOP, "reduced_motion": "reduce"}
-# The fake microphone is a steady beep, so a test could not tell speech from quiet.
-# This one is an oscillator behind a gain the test sets, and every tile's class changes are logged.
-SPEAK_ON_DEMAND = """
-(() => {
-    const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    let voice = null;
-    window.speak = (gain) => { voice.gain.gain.value = gain; };
-    navigator.mediaDevices.getUserMedia = async (constraints) => {
-        const stream = await nativeGetUserMedia({ ...constraints, audio: false });
-        if (!constraints.audio) return stream;
-        if (!voice) {
-            const context = new AudioContext();
-            const oscillator = context.createOscillator();
-            const gain = context.createGain();
-            gain.gain.value = 0;
-            oscillator.connect(gain);
-            oscillator.start();
-            voice = { context, gain };
-        }
-        const destination = voice.context.createMediaStreamDestination();
-        voice.gain.connect(destination);
-        [window.voiceTrack] = destination.stream.getAudioTracks();
-        stream.addTrack(window.voiceTrack);
-        return stream;
-    };
-    window.speakingLog = [];
-    const lastSeen = new Map();
-    new MutationObserver((records) => {
-        for (const { target } of records) {
-            const speaking = target.classList.contains("speaking");
-            if (target.classList.contains("tile") && speaking !== (lastSeen.get(target.id) ?? false)) {
-                lastSeen.set(target.id, speaking);
-                window.speakingLog.push({ id: target.id, speaking });
-            }
-        }
-    }).observe(document, { attributes: true, attributeFilter: ["class"], subtree: true });
-})();
-"""
 TILES_THAT_RANG = "() => [...new Set(window.speakingLog.filter((entry) => entry.speaking).map((entry) => entry.id))]"
 RING_CHANGES_SO_FAR = """
 () => window.speakingLog.map((entry) => entry.speaking).join()
