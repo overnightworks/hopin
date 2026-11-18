@@ -1,0 +1,8 @@
+claim_id = "0187dacf29114952bbe157b6100868ab"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "dccc63f89a0f781d111fbcc04693e26bd6233c2a"
+branch = "claude/issue-948-an-agent-s-figure-shows-that-its-model-i"
+scope = ["docs/call.md", "frontend/src/lib/call", "frontend/src/lib/features/figure", "frontend/src/lib/features/participation", "frontend/src/lib/ui", "pyproject.toml", "src/hopin/agent", "src/hopin/participation", "tests/participation", "uv.lock"]
+opened_commit = "ccd0addea296472eee081e7ba127f84e8da3f17d"
+whole_reason = "The stated thinking value crosses from the agent's wire through the server frame to the figure; one path."
