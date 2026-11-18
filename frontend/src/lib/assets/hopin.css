@@ -21,14 +21,9 @@
     --toast-ink: #f4f6f8;
     --toast-act: #7aa7f0;
     /* The video stage is dark in both themes; these never change. */
-    --stage: #0d1013;
     --stage-2: #171b20;
     --stage-3: #252b32;
-    --on-stage: #f4f6f8;
-    --on-stage-soft: rgba(244, 246, 248, 0.72);
-    --glass: rgba(255, 255, 255, 0.15);
     --glass-hover: rgba(255, 255, 255, 0.24);
-    --glass-dark: rgba(12, 14, 17, 0.55);
     --vignette: rgba(6, 8, 10, 0.42);
     --busy-stage: #edb656;
     --accent-stage: #7aa7f0;
@@ -1084,7 +1079,6 @@ textarea {
     font-size: 30px;
     line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -0.025em;
     text-wrap: balance;
 }
 .home p {
@@ -1143,7 +1137,6 @@ textarea {
     font-size: 30px;
     line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -0.025em;
     text-wrap: balance;
 }
 .count-pill {
@@ -1747,7 +1740,6 @@ textarea {
         font-size: 30px;
         line-height: 1.15;
         font-weight: 700;
-        letter-spacing: -0.025em;
     }
     .prejoin-sub {
         margin: -6px 0 6px;
