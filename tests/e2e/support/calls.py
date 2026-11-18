@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
+from hopin.words import text
 from tests.e2e.support.media import (
     LOCAL_VIDEO_PLAYING,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
@@ -77,6 +78,13 @@ def open_prejoin_by_link(person: Page, invite_link: str) -> None:
 def join_by_link(person: Page, invite_link: str, *, with_camera: bool = True) -> None:
     open_prejoin_by_link(person, invite_link)
     press_through_the_prejoin(person, with_camera=with_camera)
+
+
+def wait_until_in_the_call(person: Page) -> None:
+    """The server has admitted `person` to the call's room, so a line said from now on reaches them."""
+    expect(person.locator("#status")).to_have_text(
+        text("de", "call.statusInCall"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+    )
 
 
 def join(
