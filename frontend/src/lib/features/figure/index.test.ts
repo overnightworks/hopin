@@ -13,6 +13,7 @@ interface Mounting {
     dispose: ReturnType<typeof vi.fn>;
     gesture: ReturnType<typeof vi.fn>;
     listen: ReturnType<typeof vi.fn>;
+    think: ReturnType<typeof vi.fn>;
 }
 
 // The package draws with WebGL, which jsdom has none of: a fake `mount` stands in and the test decides what it signals and when it resolves.
@@ -27,17 +28,19 @@ function fakeMount(
         const dispose = vi.fn();
         const gesture = vi.fn();
         const listen = vi.fn();
+        const think = vi.fn();
         drawing.mounts.push({
             canvas,
             bytes,
             gestures: options.gestures,
             give: options.onSignal,
             resolve: () => {
-                resolve({ signal: "drawn", dispose, gesture, listen });
+                resolve({ signal: "drawn", dispose, gesture, listen, think });
             },
             dispose,
             gesture,
             listen,
+            think,
         });
     });
 }
@@ -86,8 +89,8 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
 function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
-    const { stop, gesture, listen } = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure), gestures);
-    return { host, shown, stop, gesture, listen };
+    const { stop, gesture, listen, think } = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure), gestures);
+    return { host, shown, stop, gesture, listen, think };
 }
 
 // The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
@@ -323,6 +326,29 @@ describe("a figure on an agent's tile", () => {
         await settled();
 
         expect(mounting.listen.mock.calls).toEqual([[speaker]]);
+    });
+
+    it("CALL-67: shows through the mounted figure that its agent thinks, and that it stopped", async () => {
+        fetchedBytes();
+        const { think, mounting } = await mounted(await installedDrawer());
+        mounting.resolve();
+        await settled();
+
+        think(true);
+        think(false);
+
+        expect(mounting.think.mock.calls).toEqual([[true], [false]]);
+    });
+
+    it("CALL-67: a figure whose agent began thinking while it loaded thinks once it is drawn", async () => {
+        fetchedBytes();
+        const { think, mounting } = await mounted(await installedDrawer());
+
+        think(true);
+        mounting.resolve();
+        await settled();
+
+        expect(mounting.think.mock.calls).toEqual([[true]]);
     });
 });
 

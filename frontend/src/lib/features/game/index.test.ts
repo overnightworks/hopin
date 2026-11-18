@@ -67,6 +67,7 @@ async function installedGame({
         showStage: () => undefined,
         drawAgentFigures: () => undefined,
         gestureAgentFigure: () => undefined,
+        thinkAgentFigure: () => undefined,
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
         onMicrophone: () => undefined,

@@ -482,6 +482,19 @@ describe("an agent's voice", () => {
         expect(page.gestures).toEqual([]);
     });
 
+    it("CALL-67: hands the thinking the server tells to the figure of the agent it names, and drops an unknown agent's", async () => {
+        const page = await pageWithAgents("a1", "a2");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a2", on: true });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "unknown", on: true });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a2", on: false });
+
+        expect(page.thoughts).toEqual([
+            ["agent-a2", true],
+            ["agent-a2", false],
+        ]);
+    });
+
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {
         const page = await pageWithAgents("a1", "a2");
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));

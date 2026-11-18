@@ -18,6 +18,7 @@ export async function installedParticipation(installOn?: typeof install) {
     const tiles = new Map<string, AgentTile>();
     // The tile key and gesture of each call the page made to an agent's figure.
     const gestures: [string, string][] = [];
+    const thoughts: [string, boolean][] = [];
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
@@ -45,6 +46,9 @@ export async function installedParticipation(installOn?: typeof install) {
         drawAgentFigures: vi.fn(),
         gestureAgentFigure: (key, gesture) => {
             gestures.push([key, gesture]);
+        },
+        thinkAgentFigure: (key, thinking) => {
+            thoughts.push([key, thinking]);
         },
         closeMore: vi.fn(),
         showAgentTile: (tile, key = "agent") => {
@@ -90,6 +94,7 @@ export async function installedParticipation(installOn?: typeof install) {
         sentTransient,
         tiles,
         gestures,
+        thoughts,
         toasts,
         lines,
         offers: () => onThePage().flatMap((item) => [...item.querySelectorAll("li")]),

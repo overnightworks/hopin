@@ -272,6 +272,9 @@ export async function installWith(
     core.on(PARTICIPATION_SIGNAL.AGENT_GESTURE, (frame) => {
         if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
     });
+    core.on(PARTICIPATION_SIGNAL.AGENT_THINKING, (frame) => {
+        if (shown.has(frame.agent_id)) core.thinkAgentFigure(tileKey(frame.agent_id), frame.on);
+    });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);
     core.on(PARTICIPATION_SIGNAL.AGENT_LINE, (frame) => {

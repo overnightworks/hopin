@@ -31,6 +31,7 @@ function drawFigure(
     let canvas: HTMLCanvasElement | undefined;
     let handle: FigureHandle | undefined;
     let speaker: Element | null = null;
+    let thinking = false;
     let over = false;
     // A function, so the checks after an await do not read as settled.
     const hasEnded = () => over;
@@ -91,6 +92,7 @@ function drawFigure(
         }
         handle = mounted;
         if (speaker !== null) handle.listen(speaker);
+        if (thinking) handle.think(true);
     }
 
     run().catch(() => {
@@ -107,6 +109,10 @@ function drawFigure(
         listen: (next) => {
             speaker = next;
             handle?.listen(next);
+        },
+        think: (working) => {
+            thinking = working;
+            handle?.think(working);
         },
     };
 }
