@@ -10,16 +10,22 @@ from tests.support.agent_speak import TEXT
 pytestmark = pytest.mark.integration
 
 
+PLACES_OF_A_CALL_IT_IS_NOT_IN = [
+    pytest.param({"place": {"kind": "elsewhere", "id": "x"}}, id="another-kind-of-place"),
+    pytest.param({"place": {"kind": CALL_KIND, "id": "no-such-call"}}, id="a-call-it-is-not-in"),
+]
+
+
+# A speak that names no place does not fit the agents contract's arguments, so the agents library answers it.
 @pytest.mark.parametrize(
-    ("tool", "named"),
-    [pytest.param(SPEAK_TOOL, {"text": TEXT}, id="speak"), pytest.param(LOOK, {}, id="look")],
-)
-@pytest.mark.parametrize(
-    "place",
+    ("tool", "named", "place"),
     [
-        pytest.param({"place": {"kind": "elsewhere", "id": "x"}}, id="another-kind-of-place"),
-        pytest.param({"place": {"kind": CALL_KIND, "id": "no-such-call"}}, id="a-call-it-is-not-in"),
-        pytest.param({}, id="no-place"),
+        *(
+            pytest.param(SPEAK_TOOL, {"text": TEXT}, *place.values, id=f"speak-{place.id}")
+            for place in PLACES_OF_A_CALL_IT_IS_NOT_IN
+        ),
+        *(pytest.param(LOOK, {}, *place.values, id=f"look-{place.id}") for place in PLACES_OF_A_CALL_IT_IS_NOT_IN),
+        pytest.param(LOOK, {}, {}, id="look-no-place"),
     ],
 )
 def test_call_60_63_a_place_the_agent_holds_no_joined_place_in_is_not_active(joined_agent, tool, named, place):

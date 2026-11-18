@@ -36,6 +36,7 @@ from agents.member import (
     StopSpeakingRefused,
     Written,
     gesture_tool,
+    member_arguments,
 )
 from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -295,34 +296,6 @@ def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
     return ToolOutcome(StopSpeakingRefused(refused=refusal).model_dump_json(), is_error=True)
 
 
-@dataclass(frozen=True)
-class _SpeakRequest:
-    place: PlaceRef
-    text: str
-    language: str | None
-    style: str | None
-
-
-def _speak_request(arguments: JsonObject) -> _SpeakRequest | None:
-    """The place, the sentence, the language and the style a `speak` call names, or nothing when the arguments name no
-    place. A sentence the schema refuses, a missing or an empty one, is no text, which participation answers once the
-    place holds an agent; a language or a style it refuses is one no voice speaks or takes, which the voice answers once
-    the sentence is rendered."""
-    try:
-        spoken = SpeakArguments.model_validate(arguments)
-    except ValidationError as invalid:
-        refused = {error["loc"][:1] for error in invalid.errors()}
-        if not refused <= {("text",), ("language",), ("style",)}:
-            return None
-        return _SpeakRequest(
-            PlaceRef.model_validate(arguments["place"]),
-            "" if ("text",) in refused else _text_of(arguments, "text"),
-            _text_of(arguments, "language") if ("language",) in refused else None,
-            _text_of(arguments, "style") if ("style",) in refused else None,
-        )
-    return _SpeakRequest(spoken.place, spoken.text, spoken.language, spoken.style)
-
-
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
     if isinstance(outcome, DialedAgent):
         return ToolOutcome(json.dumps({"room": outcome.room_id, "name": outcome.name}), is_error=False)
@@ -334,29 +307,13 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _refused_fields(invalid: ValidationError) -> list[str]:
-    """The names of the refused fields only: the error carries the input, which can hold anything."""
-    return sorted({str(error["loc"][0]) for error in invalid.errors() if error["loc"]})
-
-
-def _invalid_arguments(invalid: ValidationError) -> ToolOutcome:
-    """A tool error naming the invalid field paths, so the agent can correct the call; never the input values."""
-    paths = sorted({".".join(str(part) for part in error["loc"]) for error in invalid.errors() if error["loc"]})
-    return ToolOutcome(f"Invalid arguments: {', '.join(paths)}", is_error=True)
-
-
 def _figure_of(ref: FigureRef) -> Figure:
     clips = tuple(Clip(gesture.value, clip.url, clip.sha256) for gesture, clip in ref.gestures.items())
     return Figure(ref.url, ref.sha256, clips)
 
 
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
-    try:
-        # The strict model reads a list of voices only as JSON, which the arguments are.
-        accepted = AcceptInvitationArguments.model_validate_json(json.dumps(arguments))
-    except ValidationError as invalid:
-        await logger.awarning("invitation_accept.refused", reason="malformed", fields=_refused_fields(invalid))
-        return _invalid_arguments(invalid)
+    accepted = member_arguments(AcceptInvitationArguments, arguments)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     figure = None if accepted.figure is None else _figure_of(accepted.figure)
@@ -372,11 +329,7 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
 
 
 async def _declined(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
-    try:
-        declined = DeclineInvitationArguments.model_validate(arguments)
-    except ValidationError as invalid:
-        await logger.awarning("invitation_decline.refused", reason="malformed", fields=_refused_fields(invalid))
-        return _invalid_arguments(invalid)
+    declined = member_arguments(DeclineInvitationArguments, arguments)
     if declined.place.kind != CALL_KIND:
         return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
     refusal = await participation.decline(
@@ -390,8 +343,8 @@ async def _declined(participation: Participation, caller: Caller, arguments: Jso
 async def _spoken(
     participation: Participation, voice: AgentVoice | None, caller: Caller, arguments: JsonObject
 ) -> ToolOutcome:
-    request = _speak_request(arguments)
-    if request is None or request.place.kind != CALL_KIND:
+    request = member_arguments(SpeakArguments, arguments)
+    if request.place.kind != CALL_KIND:
         return _speak_refused(SpeakRefusal.NOT_ACTIVE)
     if len(one_line(request.text)) > SPEAK_MAX_CHARACTERS:
         return _speak_refused(SpeakRefusal.TOO_LONG)
@@ -414,10 +367,7 @@ async def _spoken(
 
 
 async def _stopped(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
-    try:
-        stopping = StopSpeakingArguments.model_validate(arguments)
-    except ValidationError:
-        return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
+    stopping = member_arguments(StopSpeakingArguments, arguments)
     if stopping.place.kind != CALL_KIND:
         return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
     outcome = await participation.stop_speaking(caller.person, stopping.place.id)
@@ -427,11 +377,7 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
 
 
 async def _gestured(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
-    try:
-        gesturing = GestureArguments.model_validate(arguments)
-    except ValidationError:
-        await logger.awarning("gesture.refused", reason="malformed")
-        return _gesture_refused()
+    gesturing = member_arguments(GestureArguments, arguments)
     if gesturing.place.kind != CALL_KIND:
         return _gesture_refused()
     gesture = FigureGesture(gesturing.gesture.value)
