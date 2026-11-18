@@ -644,7 +644,16 @@ class TestThinking:
 
         assert thinking_told(thinking.owner) == (thinking.agent_id, False)
 
-    def test_call_67_a_statement_at_a_call_the_agent_holds_no_place_in_is_not_held(self, gesturing):
-        stated = call_in(gesturing, "no-such-room", tool=SET_TURN_STATE_TOOL, thinking=True)
+    @pytest.mark.parametrize(
+        "place",
+        [
+            pytest.param(lambda room_id: {"kind": "call", "id": "no-such-room"}, id="another room"),
+            pytest.param(lambda room_id: {"kind": "table", "id": room_id}, id="a place of another kind with its id"),
+        ],
+    )
+    def test_call_67_a_statement_at_a_call_the_agent_holds_no_place_in_is_not_held(self, gesturing, place):
+        arguments = {"place": place(gesturing.owner.room_id), "thinking": True}
+
+        stated = gesturing.call.call(gesturing.token, SET_TURN_STATE_TOOL, arguments)
 
         assert (stated.is_error, stated.outcome) == (True, {"refused": "not_held"})
