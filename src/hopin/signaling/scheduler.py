@@ -23,8 +23,9 @@ class Clock(Protocol):
 
 
 class Scheduler(Clock, Protocol):
-    """Timers owned by a live connection or by the process: the socket recheck, the hearing socket's recheck and the
-    session sweep. Every other timer outlives a connection and is a deadline of a named kind on `Deadlines`."""
+    """Timers owned by a live connection or by the process: the socket recheck, the hearing socket's recheck, the
+    session sweep and the renewal of an agent's hearing token after the call that found it due. Every other timer
+    outlives a connection and is a deadline of a named kind on `Deadlines`."""
 
     def call_later(self, delay_seconds: float, callback: Callable[[], Awaitable[None]]) -> TimerHandle:
         """Run the callback once the delay is due."""
