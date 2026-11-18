@@ -11,6 +11,7 @@ from agents.member import (
     ACCEPT_INVITATION_TOOL,
     DECLINE_INVITATION_TOOL,
     GESTURE_TOOL,
+    SET_TURN_STATE_TOOL,
     SPEAK_TOOL,
     STOP_SPEAKING_TOOL,
     AcceptInvitationArguments,
@@ -26,6 +27,9 @@ from agents.member import (
     GestureRefused,
     PlaceRef,
     Relayed,
+    SetTurnStateArguments,
+    SetTurnStateRefusal,
+    SetTurnStateRefused,
     SpeakArguments,
     SpeakRefusal,
     SpeakRefused,
@@ -100,6 +104,7 @@ AUDIENCE_OF_TOOL: Final = {
     SPEAK_TOOL: Audience.EVERY_AGENT,
     STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
     GESTURE_TOOL: Audience.EVERY_AGENT,
+    SET_TURN_STATE_TOOL: Audience.EVERY_AGENT,
     LOOK: Audience.EVERY_AGENT,
 }
 
@@ -234,6 +239,18 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
     effect=ToolEffect.SIDE_EFFECTING,
 )
 
+_SET_TURN_STATE_DECLARATION: Final = ToolDeclaration(
+    name=SET_TURN_STATE_TOOL,
+    description=(
+        "State at the call you joined whether a turn of yours is running: thinking true when one starts, and after "
+        "it ends none, or why your turns there stop. While you think, your figure shows it to everyone in the call, "
+        "until your next speak, gesture or statement there, or two minutes. It is refused as not_held when you hold "
+        "no place there."
+    ),
+    parameters=SetTurnStateArguments.model_json_schema(),
+    effect=ToolEffect.SIDE_EFFECTING,
+)
+
 
 class LookArguments(BaseModel):
     """The arguments of `look`: the place whose person's camera the agent looks at."""
@@ -290,6 +307,10 @@ def _look_refused(refusal: LookRefusal) -> ToolOutcome:
 
 def _gesture_refused() -> ToolOutcome:
     return ToolOutcome(GestureRefused(refused=GestureRefusal.NOT_ACTIVE).model_dump_json(), is_error=True)
+
+
+def _turn_state_refused() -> ToolOutcome:
+    return ToolOutcome(SetTurnStateRefused(refused=SetTurnStateRefusal.NOT_HELD).model_dump_json(), is_error=True)
 
 
 def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
@@ -386,6 +407,15 @@ async def _gestured(participation: Participation, caller: Caller, arguments: Jso
     return ToolOutcome(Relayed(relayed=True).model_dump_json(), is_error=False)
 
 
+async def _turn_stated(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    stating = member_arguments(SetTurnStateArguments, arguments)
+    if stating.place.kind != CALL_KIND:
+        return _turn_state_refused()
+    if await participation.figures.state_turn(caller.person, stating.place.id, thinking=stating.thinking) is not None:
+        return _turn_state_refused()
+    return ToolOutcome(json.dumps({}), is_error=False)
+
+
 async def _looked(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     try:
         looking = LookArguments.model_validate(arguments)
@@ -434,6 +464,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def gesture(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _gestured(participation(), caller, arguments)
 
+    async def set_turn_state(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _turn_stated(participation(), caller, arguments)
+
     async def look(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _looked(participation(), caller, arguments)
 
@@ -446,5 +479,6 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_SPEAK_DECLARATION, speak),
         CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
         CallerTool(gesture_tool(), gesture),
+        CallerTool(_SET_TURN_STATE_DECLARATION, set_turn_state),
         CallerTool(_LOOK_DECLARATION, look),
     )
