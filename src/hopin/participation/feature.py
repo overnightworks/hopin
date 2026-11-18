@@ -18,7 +18,7 @@ from hopin.participation.frames import (
     joined_frame,
 )
 from hopin.participation.live_agents import LiveAgents
-from hopin.participation.memberships import Membership
+from hopin.participation.memberships import Membership, SeatViews
 from hopin.participation.offers import Offers
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
 from hopin.participation.places import (
@@ -112,7 +112,8 @@ class Participation:
         self._figure_sources = figure_sources
         self._hearing = hearing
         self._places = Places()
-        self._offers = Offers(self._places, adders, listens_to_standing, self._transitions.is_working)
+        self._seat_views = SeatViews()
+        self._offers = Offers(self._places, adders, listens_to_standing, self._transitions.is_working, self._seat_views)
         self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed, deadlines)
         self._speaking = Speaking(
             voices, deadlines, self._sentence_started, self.speech.sentence_ended, self._write_line
@@ -443,7 +444,7 @@ class Participation:
     def _seat_joined(self, peer_id: PeerId, view: RoomView, transition: Transition) -> None:
         if view.room_id is None:  # pragma: no cover - a seat is in its room when it is announced
             return
-        self._offers.seat_joined(peer_id, view.room_id)
+        self._seat_views.joined(peer_id, view.room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
             self._announce_joined(view, agent, [peer_id], transition)
             self.figures.tell_thinking(agent, peer_id, transition)
@@ -461,7 +462,7 @@ class Participation:
         ]
         room = self._transitions.seat_view(peer_id)
         if room.room_id is None:
-            seat_room = self._offers.room_of(peer_id)
+            seat_room = self._seat_views.room_of(peer_id)
             if seat_room is not None:
                 self._transitions.commit_now(seat_room, partial(self._take_out_places_of_departed, peer_id, bound))
         elif room.is_parked(peer_id):
@@ -477,7 +478,7 @@ class Participation:
         self, peer_id: PeerId, bound: list[tuple[Person, str, Place]], view: RoomView, transition: Transition
     ) -> None:
         del view
-        seat_room = self._offers.seat_left(peer_id)
+        seat_room = self._seat_views.left(peer_id)
         invitations = [
             AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
             for person, room_id, place in bound
@@ -534,7 +535,7 @@ class Participation:
             del self._departed[sponsor]
         for sponsor in [sponsor for sponsor, gone in self._abandoned.items() if gone[0].room_id == room_id]:
             del self._abandoned[sponsor]
-        self._offers.room_ended(room_id)
+        self._seat_views.room_ended(room_id)
 
     async def shut_down(self) -> None:
         await self._transitions.shut_down()
@@ -548,7 +549,7 @@ class Participation:
             self._seeing.ended(agent)
         self._departed.clear()
         self._abandoned.clear()
-        self._offers.clear()
+        self._seat_views.clear()
         self._live = LiveAgents()
 
     async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:
@@ -781,7 +782,7 @@ class Participation:
         await self._transitions.apply(room_id, partial(self._send, peer_ids=seats, frame=frame))
 
     async def _update_every_room_offers(self) -> None:
-        for room_id in self._offers.rooms():
+        for room_id in self._seat_views.rooms():
             await self._update_offers(room_id)
 
     async def _update_offers(self, room_id: str, *, read: bool = True) -> None:
