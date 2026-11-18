@@ -1,8 +1,0 @@
-claim_id = "e889c9a5859b4ff4a52ac998fac470c9"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "7936b86f480599b14bc34defb531c05f77b4ff75"
-branch = "claude/issue-950-every-hopin-process-answers-whether-an-a"
-scope = ["src/hopin/agent/mcp.py", "src/hopin/participation/feature.py", "tests/participation", "tests/stores"]
-opened_commit = "3144055eef1f7bf930016211900824ef97e58d0e"
-whole_reason = "The listener record, its cache and the offers that read it move together across the agent and participation owners."
