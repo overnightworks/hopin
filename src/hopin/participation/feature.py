@@ -57,7 +57,7 @@ from hopin.signaling.replay import Supersedes
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Mapping, Sequence
+    from collections.abc import Callable, Collection, Coroutine, Mapping, Sequence
 
     from hopin.participation.figures import FigureVerdict
     from hopin.participation.group_reads import GroupsOf, GroupsRead
@@ -76,6 +76,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 INVITATION_CLOSED_EVENT: Final = "agent_invitation.closed"
 """The log event of an invitation that ends, with the reason it ended."""
+ANNOUNCEMENT_FAILED_EVENT: Final = "agent_announcement.failed"
+"""The log event of a step of an agent's sentences that failed, such as showing a started one."""
 
 
 class Participation:
@@ -116,7 +118,7 @@ class Participation:
         self._offers = Offers(self._places, adders, listens_to_standing, self._transitions.is_working, self._seat_views)
         self.speech = SpeechInWindows(self._places, hearing, rooms, on_window_changed, deadlines)
         self._speaking = Speaking(
-            voices, deadlines, self._sentence_started, self.speech.sentence_ended, self._write_line
+            voices, deadlines, self._sentence_started, self.speech.sentence_ended, self._write_line, self._in_own_turn
         )
         self.figures = ShownFigures(self._places, deadlines, self._active_agent, self._tell, self._recipients)
         self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
@@ -245,7 +247,7 @@ class Participation:
         cut = self._speaking.stop(agent)
         if cut is None:
             return SpeakStop.NOTHING_PLAYING
-        await self._tell(room_id, self._recipients(room_id), AgentStopFrame(agent.agent_id))
+        await self._tell(room_id, self._recipients(room_id), AgentStopFrame(agent.agent_id), _voices_of(agent))
         return cut
 
     async def look(self, person: Person, room_id: str) -> Picture:
@@ -733,16 +735,24 @@ class Participation:
         self._seeing.ended(agent)
 
     async def _sentence_started(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
-        """A sentence of the agent begins to play: it enters the call's chat as the agent's line, and every seat is told
-        its voice."""
+        """A sentence of the agent begins to play: in one transition it enters the call's chat as the agent's line and
+        every seat is told its voice, unless the agent's end came first; a stop that came first leaves the line
+        without a voice."""
+        await self._transitions.apply(agent.room_id, partial(self._announce_sentence, agent, sentence))
+
+    def _announce_sentence(
+        self, agent: DialedAgent, sentence: QueuedSentence, view: RoomView, transition: Transition
+    ) -> None:
+        if not self._speaking.speaks(agent):
+            return
         self.speech.sentence_started(agent)
-        recipients = self._recipients(agent.room_id)
-        await self._tell(agent.room_id, recipients, AgentLineFrame(agent.agent_id, agent.name, sentence.text))
-        for peer_id in recipients:
-            if not self._speaking.is_playing(agent, sentence):
-                return
+        self._send(view, transition, view.members, AgentLineFrame(agent.agent_id, agent.name, sentence.text))
+        if self._speaking.is_playing(agent, sentence):
             voice = AgentVoiceFrame(agent.agent_id, sentence.voice.id, sentence.mood)
-            await self._tell(agent.room_id, [peer_id], voice)
+            self._send(view, transition, view.members, voice, _voices_of(agent))
+
+    def _in_own_turn(self, agent: DialedAgent, step: Coroutine[None, None, None]) -> None:
+        self._transitions.in_own_turn(step, ANNOUNCEMENT_FAILED_EVENT, agent_id=agent.agent_id)
 
     def _recipients(self, room_id: str) -> list[PeerId]:
         """The room's seats now, none once the room has ended."""
@@ -755,8 +765,11 @@ class Participation:
         self._announce_removed(agent, view.members, transition)
 
     def _announce_removed(self, agent: DialedAgent, recipients: Sequence[PeerId], transition: Transition) -> None:
-        # A tile not yet written to a seat never shows there once its agent has left.
-        unannounced = Supersedes(frozenset({ParticipationSignal.AGENT_JOINED}), holding=("agent_id", agent.agent_id))
+        # A tile or a voice not yet written to a seat never reaches it once its agent has left.
+        unannounced = Supersedes(
+            frozenset({ParticipationSignal.AGENT_JOINED, ParticipationSignal.AGENT_VOICE}),
+            holding=("agent_id", agent.agent_id),
+        )
         for peer_id in recipients:
             transition.send(peer_id, AgentLeftFrame(agent.agent_id).to_json(), unannounced)
         logger.info("agent.left", room_ref=room_reference(agent.room_id), agent_id=agent.agent_id)
@@ -770,16 +783,24 @@ class Participation:
             transition.send(peer_id, frame.to_json())
 
     @staticmethod
-    def _send(view: RoomView, transition: Transition, peer_ids: Sequence[PeerId], frame: ParticipationFrame) -> None:
+    def _send(
+        view: RoomView,
+        transition: Transition,
+        peer_ids: Sequence[PeerId],
+        frame: ParticipationFrame,
+        supersedes: Supersedes | None = None,
+    ) -> None:
         """Send to each seat that still sits in the room."""
         for peer_id in peer_ids:
             if view.room_of(peer_id) is not None:
-                transition.send(peer_id, frame.to_json())
+                transition.send(peer_id, frame.to_json(), supersedes)
 
-    async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame) -> None:
+    async def _tell(
+        self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame, supersedes: Supersedes | None = None
+    ) -> None:
         """Send to each seat that still sits in the room: a room that has ended gets nothing more."""
         seats = [PeerId(peer_id) for peer_id in peer_ids]
-        await self._transitions.apply(room_id, partial(self._send, peer_ids=seats, frame=frame))
+        await self._transitions.apply(room_id, partial(self._send, peer_ids=seats, frame=frame, supersedes=supersedes))
 
     async def _update_every_room_offers(self) -> None:
         for room_id in self._seat_views.rooms():
@@ -790,3 +811,8 @@ class Participation:
 
     def _offer(self, view: RoomView, transition: Transition, *, read: bool = True) -> None:
         self._offers.send(view, transition, self._live, read=read)
+
+
+def _voices_of(agent: DialedAgent) -> Supersedes:
+    """The agent's voices not yet written to a seat, which a later voice, a stop or a leave of the agent makes moot."""
+    return Supersedes(frozenset({ParticipationSignal.AGENT_VOICE}), holding=("agent_id", agent.agent_id))

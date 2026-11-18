@@ -13,7 +13,7 @@ import structlog
 from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Coroutine, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
@@ -296,6 +296,7 @@ class FeatureTransitions:
         self._store = store
         self._live_seats = live_seats
         self._works: dict[str, _RunningWork] = {}
+        self._steps: set[asyncio.Task[None]] = set()
 
     def view(self, room_id: str | None) -> RoomView:
         """The room's view now; an ended room or none is the view of no room."""
@@ -376,6 +377,20 @@ class FeatureTransitions:
         finally:
             del self._works[work.key]
 
+    def in_own_turn(self, step: Coroutine[None, None, None], failed_event: str, **context: str) -> None:
+        """Run a step of the feature, such as a transition whose seats are woken, in a turn of its own, so its caller
+        never waits on a seat's write; a step that fails is logged under the event with the context, by the error's
+        type alone, and the shutdown cancels a step that still runs."""
+        task = asyncio.create_task(step)
+        self._steps.add(task)
+        task.add_done_callback(partial(self._step_ended, failed_event, context))
+
+    def _step_ended(self, failed_event: str, context: Mapping[str, str], task: asyncio.Task[None]) -> None:
+        self._steps.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None:
+            # Only the type is logged, never what the step carried.
+            logger.error(failed_event, error_type=type(error).__name__, **context)
+
     def cancel(self, key: str) -> None:
         """Cancel the work of that key, which runs, for a worker whose work ends only so."""
         self._works[key].task.cancel()
@@ -388,7 +403,10 @@ class FeatureTransitions:
                 self._worker.stop_work(key)
 
     async def shut_down(self) -> None:
-        """Stop the work and wait until it has ended."""
+        """Stop the work and the steps and wait until they have ended."""
+        for step in self._steps:
+            step.cancel()
+        await asyncio.gather(*self._steps, return_exceptions=True)
         while self._works:
             for key in tuple(self._works):
                 self._worker.stop_work(key)
