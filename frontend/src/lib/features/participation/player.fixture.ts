@@ -69,9 +69,11 @@ export function fakePlayers() {
                 fake.muted = muted;
                 if (muted) for (const muteSound of fake.mutes.splice(0)) void muteSound();
             },
-            // The feature neither pauses nor resumes a player.
+            // The feature neither pauses nor resumes a player: these two only satisfy the Player type, so no test reaches them.
+            /* v8 ignore start */
             pause: () => undefined,
             resume: () => undefined,
+            /* v8 ignore stop */
             close: () => {
                 fake.closed = true;
             },
