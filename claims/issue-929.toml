@@ -1,8 +1,0 @@
-claim_id = "2353e72af05441a7a14b7c836587d5db"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "08cde7e1bc957e3bee92f40b09f43cf13df62d23"
-branch = "claude/issue-929-agents-v059"
-scope = ["README.md", "compose.yaml", "docs/ARCHITECTURE.md", "pyproject.toml", "scripts/remove_feature.py", "src/hopin", "tests", "uv.lock"]
-opened_commit = "b0cd0fa396c7bb7dc8c5354807e410d8985d9b47"
-whole_reason = "One breaking library pin whose removed config key touches settings, docs, compose and tests together."
