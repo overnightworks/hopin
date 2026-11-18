@@ -30,10 +30,11 @@ export const AGENT_FIGURE = {
 } as const;
 export type AgentFigure = (typeof AGENT_FIGURE)[keyof typeof AGENT_FIGURE];
 
-/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading. */
+/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody, and one given while the figure loads holds once it is drawn. */
 export interface AgentFigureHandle {
     stop: () => void;
     gesture: (name: string) => void;
+    listen: (speaker: Element | null) => void;
 }
 
 /** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */

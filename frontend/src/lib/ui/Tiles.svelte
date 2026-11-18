@@ -4,7 +4,7 @@
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
     import { language, words } from "#lib/words.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
-    import { agentFigure, agentTiles, remoteTiles } from "#lib/ui/stage.svelte.ts";
+    import { agentFigure, agentTiles, remoteTiles, tileIdOf } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
         [AGENT_ACTIVITY.THINKING]: words["tile.agentThinkingLabel"],
@@ -26,7 +26,7 @@
 </script>
 
 {#each remoteTiles as tile (tile.id)}
-    <div class="tile" class:speaking={tile.isSpeaking} id={"container-" + tile.id}>
+    <div class="tile" class:speaking={tile.isSpeaking} id={tileIdOf(tile.id)}>
         <video
             id={"video-" + tile.id}
             autoplay
@@ -59,7 +59,7 @@
 {/each}
 {#each [...agentTiles] as [key, agent] (key)}
     {@const tileClass = "tile agent activity-" + agent.activity}
-    {@const tileId = "container-" + key}
+    {@const tileId = tileIdOf(key)}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
     {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
     <div

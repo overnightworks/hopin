@@ -30,6 +30,7 @@ function drawFigure(
     const fetching = new AbortController();
     let canvas: HTMLCanvasElement | undefined;
     let handle: FigureHandle | undefined;
+    let speaker: Element | null = null;
     let over = false;
     // A function, so the checks after an await do not read as settled.
     const hasEnded = () => over;
@@ -84,8 +85,12 @@ function drawFigure(
         canvas.style.height = "100%";
         host.prepend(canvas);
         const mounted = await mount(canvas, bytes, { onSignal: heard, gestures });
-        if (hasEnded()) mounted.dispose();
-        else handle = mounted;
+        if (hasEnded()) {
+            mounted.dispose();
+            return;
+        }
+        handle = mounted;
+        if (speaker !== null) handle.listen(speaker);
     }
 
     run().catch(() => {
@@ -98,6 +103,10 @@ function drawFigure(
         // The handle drops a name that is no gesture of figure's, so the page checks none.
         gesture: (name) => {
             handle?.gesture(name as FigureGesture);
+        },
+        listen: (next) => {
+            speaker = next;
+            handle?.listen(next);
         },
     };
 }
