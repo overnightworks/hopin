@@ -1,8 +1,8 @@
-"""How fast an agent may act: the times of its lines or looks inside a sliding window. Pure, with the time passed in."""
+"""How fast an agent may act: the times of its looks inside a sliding window. Pure, with the time passed in."""
 
 from dataclasses import dataclass
 
-from hopin.participation.vocabulary import LINE_WINDOW_SECONDS, LINES_PER_WINDOW, LOOK_WINDOW_SECONDS, LOOKS_PER_WINDOW
+from hopin.participation.vocabulary import LOOK_WINDOW_SECONDS, LOOKS_PER_WINDOW
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,6 @@ class Rate:
     window_seconds: float
 
 
-LINE_RATE = Rate(LINES_PER_WINDOW, LINE_WINDOW_SECONDS)
 LOOK_RATE = Rate(LOOKS_PER_WINDOW, LOOK_WINDOW_SECONDS)
 
 

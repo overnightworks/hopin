@@ -181,8 +181,6 @@ class Participation:
         line = clean_line(text)
         if line is None:
             return AgentRefusal.BAD_LINE
-        if not self._places.take_line(person, room_id, self._deadlines.now()):
-            return AgentRefusal.TOO_FAST
         await self._write_line(agent, line)
         return None
 
@@ -635,11 +633,9 @@ class Participation:
         return AgentRefusal.SPONSOR_AWAY if self._rooms.is_parked(agent.sponsor) else agent
 
     def _no_room_to_speak(self, agent: DialedAgent) -> SpeakFailure | None:
-        """Why the agent may not queue one more sentence, or nothing when it may and takes a line slot for it."""
+        """Why the agent may not queue one more sentence, or nothing when it may."""
         if self._speaking.is_full(agent):
             return SpeakFailure.QUEUE_FULL
-        if not self._places.take_line(agent.person, agent.room_id, self._deadlines.now()):
-            return SpeakFailure.TOO_FAST
         return None
 
     def _unavailable(self, agent: DialedAgent, text: str, failure: SpeakFailure) -> AgentRefusal:
