@@ -657,3 +657,12 @@ class TestThinking:
         stated = gesturing.call.call(gesturing.token, SET_TURN_STATE_TOOL, arguments)
 
         assert (stated.is_error, stated.outcome) == (True, {"refused": "not_held"})
+
+    def test_call_67_a_thinking_whose_agent_left_tells_no_seat_its_end_at_the_cap(self, thinking):
+        thinking.call.call(thinking.token, LEAVE_CALL, {"room": thinking.owner.room_id})
+        thinking.owner.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
+
+        outlast_the_cap(thinking)
+        thinking.owner.settle()
+
+        assert [frame["on"] for frame in thinking.owner.received if frame["type"] == THINKING] == [True]
