@@ -93,7 +93,7 @@ class SpeechInWindows:
         """Add a written line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
         agent said it, whose window marks it own."""
         for person, window in self._places.windows_in(room_id).items():
-            if window.append(kind, name, text, own=person == sayer):
+            if window.append(kind, name, text, own=person == sayer, traceparent=current_traceparent()):
                 self._line_entered(person, room_id, window, EntryKind.WRITTEN)
                 self._on_window_changed(person, room_id)
                 self._pulse_sent(person, room_id, window)
@@ -207,7 +207,13 @@ class SpeechInWindows:
         for person, window in self._places.windows_in(agent.room_id).items():
             own = person == agent.person
             changed = window.append(
-                LineKind.AGENT, agent.name, sentence.text, own=own, spoken=True, cut=end is SentenceEnd.CUT
+                LineKind.AGENT,
+                agent.name,
+                sentence.text,
+                own=own,
+                spoken=True,
+                cut=end is SentenceEnd.CUT,
+                traceparent=current_traceparent(),
             )
             if own and end is not SentenceEnd.CONTINUED:
                 changed = window.set_playing(playing=False) or changed
@@ -223,7 +229,7 @@ class SpeechInWindows:
             return
         for person, window in self._places.windows_in(room_id).items():
             appended = person in heard.hearers and window.append(
-                heard.kind, heard.name, heard.text, own=False, spoken=True
+                heard.kind, heard.name, heard.text, own=False, spoken=True, traceparent=current_traceparent()
             )
             turn_ended = window.turn_ended(seat)
             if appended:

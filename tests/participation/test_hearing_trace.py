@@ -11,6 +11,7 @@ from logline.testing import configured
 from speech_client.wire import TRACEPARENT_HEADER, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
+from hopin.agent.tools import SAY
 from tests.support.agent_speak import speak
 from tests.support.fake_speech import a_sentence
 from tests.support.hearing_socket import SOUND, closed_with, hop
@@ -65,6 +66,36 @@ def test_a_heard_turn_runs_in_the_trace_the_transcript_names_and_line_entered_na
         {by_event[event]["trace_id"] for event in ("transcript_relay.ended", "line.entered", "pulse.sent")},
         by_event["line.entered"]["item_id"],
     ) == ({turn.trace_id}, turn.item_id)
+
+
+def logged(capsys):
+    return [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+
+def trace_id_of(traceparent):
+    return traceparent.split("-")[1]
+
+
+def a_traceparent():
+    return f"00-{secrets.token_hex(16)}-{secrets.token_hex(8)}-01"
+
+
+def test_a_heard_line_enters_the_agents_place_with_the_trace_of_its_turn(sponsored, fake_speech, turn):
+    hear_the_turn(sponsored, fake_speech, turn)
+
+    [entry] = sponsored.entries()
+    assert trace_id_of(entry["traceparent"]) == turn.trace_id
+
+
+def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(joined_agent):
+    request_trace = a_traceparent()
+
+    joined_agent.call.call(
+        joined_agent.token, SAY, {"room": joined_agent.owner.room_id, "text": "hello"}, traceparent=request_trace
+    )
+
+    [entry] = joined_agent.entries()
+    assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
 
 
 def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_turns_trace(

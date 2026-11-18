@@ -30,6 +30,8 @@ class WindowVoice(StrEnum):
 
 @dataclass(frozen=True)
 class WindowLine:
+    """One line of a window; `traceparent` is the trace it entered in, none when it entered outside a trace."""
+
     seq: int
     kind: LineKind
     name: str
@@ -37,6 +39,7 @@ class WindowLine:
     own: bool
     spoken: bool = False
     cut: bool = False
+    traceparent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,15 +93,23 @@ class ChatWindow:
         self._voice: WindowVoice | None = None
 
     def append(
-        self, kind: LineKind, name: str, text: str, *, own: bool, spoken: bool = False, cut: bool = False
+        self,
+        kind: LineKind,
+        name: str,
+        text: str,
+        *,
+        own: bool,
+        spoken: bool = False,
+        cut: bool = False,
+        traceparent: str | None = None,
     ) -> bool:
         """Add the line and evict the oldest past the bounds; say whether it was added. A line whose name or text is
-        empty or does not encode as UTF-8 is refused and takes no `seq`. `spoken` marks a sentence heard aloud and
-        `cut` one that was cut before its end."""
+        empty or does not encode as UTF-8 is refused and takes no `seq`. `spoken` marks a sentence heard aloud, `cut`
+        one that was cut before its end, and `traceparent` names the trace the line entered in."""
         size = utf8_length(text)
         if size is None or utf8_length(name) is None:
             return False
-        self._lines.append((WindowLine(self._next_seq, kind, name, text, own, spoken, cut), size))
+        self._lines.append((WindowLine(self._next_seq, kind, name, text, own, spoken, cut, traceparent), size))
         self._next_seq += 1
         self._text_bytes += size
         while len(self._lines) > LINES_PER_WINDOW or self._text_bytes > TEXT_BYTES_PER_WINDOW:
