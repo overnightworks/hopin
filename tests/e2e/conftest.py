@@ -61,7 +61,8 @@ def browser_type_launch_args(browser_type_launch_args: dict[str, Any]) -> dict[s
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args: dict[str, Any]) -> dict[str, Any]:
-    return {**browser_context_args, "permissions": MEDIA_PERMISSIONS, "ignore_https_errors": True}
+    # The suite reads the German words; without a locale Chromium asks for English, which HopIn offers too.
+    return {**browser_context_args, "permissions": MEDIA_PERMISSIONS, "ignore_https_errors": True, "locale": "de-DE"}
 
 
 @pytest.fixture
