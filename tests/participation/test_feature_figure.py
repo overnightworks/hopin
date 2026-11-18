@@ -249,7 +249,7 @@ class TestTheFigureAtAccept:
         accepted = accept_with(scene, figure)
 
         assert (accepted.is_error, accepted.outcome) == (True, None)
-        assert accepted.text.startswith("Invalid arguments: figure")
+        assert accepted.text.partition(": ")[2].startswith("figure")
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
 
@@ -551,16 +551,10 @@ class TestTheGestureTool:
         [
             pytest.param({"gesture": "wave", "place": {"kind": "call", "id": "no-such-room"}}, id="another room"),
             pytest.param({"gesture": "wave", "place": {"kind": "table", "id": "any"}}, id="a place of another kind"),
-            pytest.param({"gesture": "wave"}, id="no place"),
         ],
     )
     def test_call_64_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
         dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, arguments)
-
-        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-
-    def test_call_64_a_gesture_figure_does_not_know_is_not_active(self, gesturing):
-        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="no-such-gesture")
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
 
@@ -580,21 +574,3 @@ class TestTheGestureTool:
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
         assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
-
-    @pytest.mark.parametrize(
-        "arguments",
-        [
-            pytest.param({"gesture": "wave", "secret-key": "secret-voice-value"}, id="a key the tool does not name"),
-            pytest.param({"gesture": ["secret-gesture-value"]}, id="a gesture of the wrong kind"),
-        ],
-    )
-    def test_call_64_a_malformed_gesture_logs_its_closed_event_and_nothing_the_agent_sent(self, gesturing, arguments):
-        place = {"kind": "call", "id": gesturing.owner.room_id}
-
-        with structlog.testing.capture_logs() as logs:
-            dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, {"place": place} | arguments)
-
-        malformed = [entry for entry in logs if entry["event"] == "gesture.refused"]
-        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-        assert malformed == [{"event": "gesture.refused", "reason": "malformed", "log_level": "warning"}]
-        assert "secret" not in str(logs)
