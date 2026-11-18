@@ -1,0 +1,8 @@
+claim_id = "59b4800d6c074345af9870500a648c0f"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "dc7e1a4db62ffe139a8639d74d5b9a8c6c45cf7a"
+branch = "claude/issue-966-speaking-voices-looking-seeing-hearing-a"
+scope = ["docs/ARCHITECTURE.md", "src/hopin/agent", "src/hopin/participation", "src/hopin/signaling", "tests/participation", "tests/signaling"]
+opened_commit = "272e7bb33291cc706eac309c1fde05c68f5e8212"
+whole_reason = "The plan's C3b: participation's second half moves onto the transition contract and the old contract goes in one review, about 6 files and 350 lines."
