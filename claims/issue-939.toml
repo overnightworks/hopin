@@ -1,8 +1,0 @@
-claim_id = "e54af96e83dc4ae9996d80519b31c200"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "2b64ffa6c4b2884b5915576d58d0cb544186f255"
-branch = "claude/issue-939-design-quality-pins"
-scope = [".github/workflows", "frontend/.prettierignore", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/words", "pyproject.toml", "src/hopin/words.py", "uv.lock"]
-opened_commit = "a7bd67c0dbdbeb37150be7411ac8c85dfc602964"
-whole_reason = "Two toolchain pins and the regeneration they need; nothing else changes."
