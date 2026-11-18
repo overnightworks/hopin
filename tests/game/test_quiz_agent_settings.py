@@ -2,7 +2,6 @@ import secrets
 
 import pytest
 from agents.agent_file import load_agent
-from agents.config import BackendKind
 from pydantic import ValidationError
 
 from hopin.agent.backend import QUIZ_AGENT_FILE
@@ -16,7 +15,6 @@ from tests.support.settings_refusal import assert_refused_without_echo
 pytestmark = pytest.mark.integration
 
 GATEWAY_ENVIRONMENT = {
-    "HOPIN_AGENT__BACKEND": BackendKind.LITELLM.value,
     "HOPIN_AGENT__GATEWAY__ORIGIN": "http://gateway.test:4000",
     "HOPIN_AGENT__GATEWAY__KEY_FILE": "/run/secrets/scenario-key",
     "HOPIN_AGENT__API_GROUP": "/services/scenario/api",
@@ -24,7 +22,6 @@ GATEWAY_ENVIRONMENT = {
 CA_FILE = "HOPIN_AGENT__GATEWAY__CA_FILE"
 SECRET_SHAPED = f"not-a-value-{secrets.token_hex(8)}"
 MALFORMED_SETTINGS = [
-    pytest.param("HOPIN_AGENT__BACKEND", SECRET_SHAPED, id="a-nonsense-backend"),
     pytest.param(
         "HOPIN_AGENT__GATEWAY__ORIGIN", f"http://gateway.test:4000/{SECRET_SHAPED}", id="an-origin-with-a-path"
     ),
@@ -42,10 +39,9 @@ def agent_environment(monkeypatch):
     return monkeypatch
 
 
-def test_the_four_settings_load_as_the_clients_agent_section(agent_environment):
+def test_the_three_settings_load_as_the_clients_agent_section(agent_environment):
     agent = AgentSettings().agent
 
-    assert agent.backend is BackendKind.LITELLM
     assert agent.gateway.origin == GATEWAY_ENVIRONMENT["HOPIN_AGENT__GATEWAY__ORIGIN"]
     assert str(agent.gateway.key_file) == GATEWAY_ENVIRONMENT["HOPIN_AGENT__GATEWAY__KEY_FILE"]
     assert agent.api_group == GATEWAY_ENVIRONMENT["HOPIN_AGENT__API_GROUP"]
