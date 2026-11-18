@@ -11,6 +11,21 @@ class SequencedFrame:
     frame: JsonObject
 
 
+@dataclass(frozen=True)
+class Supersedes:
+    """The earlier frames in a seat's queue that a frame makes moot, so they are dropped as it is queued: those of
+    `types`, every frame when `types` is None, and only `sender`'s when it names one. A frame whose write has begun
+    is written all the same."""
+
+    types: frozenset[str] | None
+    sender: str | None = None
+
+    def covers(self, frame: JsonObject) -> bool:
+        return (self.types is None or frame[TYPE_KEY] in self.types) and (
+            self.sender is None or frame.get(SENDER_KEY) == self.sender
+        )
+
+
 DESCRIPTION_TYPES = frozenset({SignalType.OFFER, SignalType.ANSWER})
 SUPERSEDED_BY_A_DESCRIPTION = DESCRIPTION_TYPES | {SignalType.ICE_CANDIDATE}
 
@@ -27,9 +42,13 @@ class ReplayLog:
     def __len__(self) -> int:
         return len(self._frames)
 
-    def append(self, frame: JsonObject) -> JsonObject:
+    def append(self, frame: JsonObject, supersedes: Supersedes | None = None) -> JsonObject:
+        """Number the frame and keep it, after dropping the frames it supersedes; a description supersedes its
+        sender's earlier descriptions and candidates."""
         if frame[TYPE_KEY] in DESCRIPTION_TYPES:
-            self._drop_superseded_by(frame)
+            supersedes = Supersedes(SUPERSEDED_BY_A_DESCRIPTION, sender=str(frame[SENDER_KEY]))
+        if supersedes is not None:
+            self._frames = deque(kept for kept in self._frames if not supersedes.covers(kept.frame))
         self._last_seq += 1
         sequenced = SequencedFrame(self._last_seq, {**frame, SEQUENCE_KEY: self._last_seq})
         self._frames.append(sequenced)
@@ -42,11 +61,3 @@ class ReplayLog:
 
     def since(self, last_seq: int) -> list[SequencedFrame]:
         return [kept for kept in self._frames if kept.seq > last_seq]
-
-    def _drop_superseded_by(self, description: JsonObject) -> None:
-        sender = description.get(SENDER_KEY)
-        self._frames = deque(
-            kept
-            for kept in self._frames
-            if not (kept.frame[TYPE_KEY] in SUPERSEDED_BY_A_DESCRIPTION and kept.frame.get(SENDER_KEY) == sender)
-        )

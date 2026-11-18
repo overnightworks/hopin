@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from functools import partial
 from random import SystemRandom
 from typing import TYPE_CHECKING
 
@@ -72,15 +71,14 @@ class GameFeature:
     ) -> BuiltGameFeature:
         del scheduler, transaction
         starter_person = StarterPerson(relying_party, sessions, auth_config, request_language)
-        factory = partial(
-            Game,
+        game = Game(
             deadlines=deadlines,
             game_master=QuizGameMaster(self.backend, starter_person),
             topic_drawer=draw_quiz_topics,
             voice=self._voice(relying_party, starter_person),
             voices=self.voices,
         )
-        return BuiltGameFeature(factory, APIRouter())
+        return BuiltGameFeature(game, APIRouter())
 
     def _voice(self, relying_party: OidcRelyingParty, starter_person: StarterPerson) -> SpeechVoice | None:
         service = self.speech.service

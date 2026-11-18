@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.frames import ForeignFrame, JsonObject, PeerId
     from hopin.signaling.routing import RoomRouting
-    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Transition
+    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Transition, Work, WorkRoom
 
 
 class CallRooms:
@@ -124,7 +124,7 @@ class CallFeature(Protocol):
 class TransitionFeature(ABC):
     """An optional feature of the call whose hooks are transitions: each reads the room's view and changes the
     feature's sections and sends frames only through its transition, which commits them together. A hook does store
-    work only, never a call to another service or a socket."""
+    work only, never a call to another service or a socket: such a call is work, which the transition dispatches."""
 
     @property
     @abstractmethod
@@ -155,6 +155,21 @@ class TransitionFeature(ABC):
         """As `CallFeature.seat_left`; the view is of the room the seat left. A room's end drops the feature's
         sections in it."""
 
+    def room_ended(self, room_id: str) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """Release what the feature keeps for the room beside its sections; its sections are dropped and its work
+        stopped already."""
+
+    async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """Run a work the feature dispatched, on the process holding its seat's socket: the only place a connection
+        is reached, through `live_seats`. Its results re-enter the room through `room`, each as a transition."""
+
+    def stop_work(self, key: str) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """Make the running work of that key end soon, its room's end, a transition or the shutdown asks it to; called
+        only while the work runs."""
+
+    async def shut_down(self) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """Release what the feature holds, once its work has ended."""
+
 
 type FeatureFactory = Callable[[CallRooms], CallFeature] | TransitionFeature
 """How the call core gets a feature: a factory it hands its rooms, or a feature on transitions, which needs none."""
@@ -168,10 +183,10 @@ class FeatureClashError(ValueError):
 
 
 def build_features(
-    factories: Sequence[FeatureFactory], rooms: CallRooms, store: InMemoryCallStore
+    factories: Sequence[FeatureFactory], rooms: CallRooms, store: InMemoryCallStore, live_seats: LiveSeats
 ) -> tuple[CallFeature, ...]:
     features = tuple(
-        TransitionHost(factory, store) if isinstance(factory, TransitionFeature) else factory(rooms)
+        TransitionHost(factory, store, live_seats) if isinstance(factory, TransitionFeature) else factory(rooms)
         for factory in factories
     )
     clashes = _clashes(features)

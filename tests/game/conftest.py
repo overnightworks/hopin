@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 
 import pytest
 import pytest_asyncio
@@ -54,9 +53,7 @@ def voices():
 @pytest.fixture
 def game(deadlines, game_master, voice, voices):
     """The game as `create_app` builds it, its game master a fake."""
-    return partial(
-        Game, deadlines=deadlines, game_master=game_master, topic_drawer=fixed_topics, voice=voice, voices=voices
-    )
+    return Game(deadlines=deadlines, game_master=game_master, topic_drawer=fixed_topics, voice=voice, voices=voices)
 
 
 @pytest.fixture
