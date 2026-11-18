@@ -78,9 +78,7 @@ class TestASentenceStarts:
 
         assert answered == SpeakStarted.SPOKEN
 
-    async def test_call_60_more_than_ten_sentences_within_a_minute_are_all_spoken(
-        self, participation, call, scheduler
-    ):
+    async def test_call_60_more_than_ten_sentences_within_a_minute_are_all_spoken(self, participation, call, scheduler):
         host, *_ = call
         answers = []
         for number in range(SENTENCES_WAITING_PER_AGENT + 2):
