@@ -13,15 +13,9 @@ from logline import Outcome
 from logline.testing import configured
 from speech_client.hearing import OPENING_SECONDS, Closed, Refused
 from speech_client.outcomes import Cut, Unreachable
+from speech_client.realtime_wire import SessionInput, SessionUpdate
 from speech_client.relay import HOP_FRAME_SAMPLES, BrowserLeft, HopClose
-from speech_client.wire import (
-    AUTHORIZATION_HEADER,
-    WORKLOAD_TOKEN_HEADER,
-    Language,
-    RefusalCode,
-    SessionInput,
-    SessionUpdate,
-)
+from speech_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, Language, RefusalCode
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.agent import hearing_route
