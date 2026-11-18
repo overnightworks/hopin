@@ -4,7 +4,8 @@ speech services on loopback ports, and the talked-over record read through the r
 import time
 
 import pytest
-from speech_client.wire import SpeechStarted, TranscriptDelta, VoiceId
+from speech_client.realtime_wire import SpeechStarted, TranscriptDelta
+from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.participation.vocabulary import ParticipationSignal
