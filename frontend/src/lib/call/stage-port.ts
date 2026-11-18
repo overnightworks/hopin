@@ -19,6 +19,7 @@ export interface StagePort {
     showRemoteName(participantId: string): void;
     setRemoteMediaState(participantId: string, mediaState: RemoteMediaState): void;
     setRemoteSpeaking(participantId: string, speaking: boolean): void;
+    setOwnSpeaking(speaking: boolean): void;
     setConnectionQuality(participantId: string, quality: ConnectionQuality): void;
 }
 
@@ -56,6 +57,9 @@ export const setRemoteMediaState: StagePort["setRemoteMediaState"] = (participan
 };
 export const setRemoteSpeaking: StagePort["setRemoteSpeaking"] = (participantId, speaking) => {
     installedStage().setRemoteSpeaking(participantId, speaking);
+};
+export const setOwnSpeaking: StagePort["setOwnSpeaking"] = (speaking) => {
+    installedStage().setOwnSpeaking(speaking);
 };
 export const setConnectionQuality: StagePort["setConnectionQuality"] = (participantId, quality) => {
     installedStage().setConnectionQuality(participantId, quality);

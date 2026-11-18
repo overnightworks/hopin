@@ -24,6 +24,48 @@ OTHER_CAMERA_OFF = f"{OTHER_TILE} .vid.off"
 PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
 ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
 
+# The fake microphone is a steady beep, so a test could not tell speech from quiet.
+# This one is an oscillator behind a gain the test sets, and every tile's class changes are logged.
+SPEAK_ON_DEMAND = """
+(() => {
+    const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    let voice = null;
+    window.speak = (gain) => { voice.gain.gain.value = gain; };
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+        const stream = await nativeGetUserMedia({ ...constraints, audio: false });
+        if (!constraints.audio) return stream;
+        if (!voice) {
+            const context = new AudioContext();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            gain.gain.value = 0;
+            oscillator.connect(gain);
+            oscillator.start();
+            voice = { context, gain };
+        }
+        const destination = voice.context.createMediaStreamDestination();
+        voice.gain.connect(destination);
+        [window.voiceTrack] = destination.stream.getAudioTracks();
+        stream.addTrack(window.voiceTrack);
+        return stream;
+    };
+    window.speakingLog = [];
+    const lastSeen = new Map();
+    new MutationObserver((records) => {
+        for (const { target } of records) {
+            const speaking = target.classList.contains("speaking");
+            if (target.classList.contains("tile") && speaking !== (lastSeen.get(target.id) ?? false)) {
+                lastSeen.set(target.id, speaking);
+                window.speakingLog.push({ id: target.id, speaking });
+            }
+        }
+    }).observe(document, { attributes: true, attributeFilter: ["class"], subtree: true });
+})();
+"""
+# The gains `window.speak` takes: a voice far above the speaking floor, and none.
+LOUD = 1
+SILENCE = 0
+
 RECORD_PEER_CONNECTIONS = """
 window.recordedConfigurations = [];
 window.recordedConnections = [];

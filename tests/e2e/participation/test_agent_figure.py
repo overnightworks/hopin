@@ -10,8 +10,9 @@ from playwright.sync_api import expect
 
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE
-from tests.e2e.support.client_manifest import urls_of_the_chunks_of
+from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT
+from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
@@ -88,6 +89,36 @@ def clock_faked() -> bool:
 
 
 @pytest.fixture
+def figure_faked() -> bool:
+    return False
+
+
+# Stands in for figure's drawing chunk: it draws nothing and records the id of each element the page hands `listen`,
+# null for nobody.
+FAKE_FIGURE = """
+export async function mount(canvas, bytes, options) {
+    window.figureListens = [];
+    options.onSignal?.("drawn");
+    const ignore = () => undefined;
+    return {
+        signal: "drawn",
+        dispose: ignore,
+        think: ignore,
+        speak: ignore,
+        gesture: ignore,
+        listen: (speaker) => void window.figureListens.push(speaker === null ? null : speaker.id),
+    };
+}
+"""
+LISTENS_LAST_TO = "(tileId) => window.figureListens?.at(-1) === tileId"
+
+
+def figure_drawing_chunk_urls(base_url: str) -> set[str]:
+    """The URLs of the page build's files that hold figure's package, without the feature's own chunk."""
+    return figure_chunk_urls(base_url) - {f"{base_url}/{entry_of(FIGURE_MODULE)['file']}"}
+
+
+@pytest.fixture
 def clip_answers() -> dict[Page, list[int]]:
     """The statuses each page got for the clips it asked the server for. A faked page clock fakes the page's resource
     timing, so they are taken from the responses."""
@@ -96,11 +127,16 @@ def clip_answers() -> dict[Page, list[int]]:
 
 @pytest.fixture
 def open_person(
-    open_person: Callable[..., Page], clock_faked: bool, clip_answers: dict[Page, list[int]]
+    open_person: Callable[..., Page],
+    clock_faked: bool,
+    figure_faked: bool,
+    clip_answers: dict[Page, list[int]],
+    e2e_server: RunningServer,
 ) -> Callable[..., Page]:
     """Opens each page recording its clip answers and, when `clock_faked`, with the page clock faked from its first
     load, so the figure's animation keeps one time base when the test later holds the clock; the faked clock runs with
-    real time until then."""
+    real time until then. When `figure_faked`, figure's drawing chunk is `FAKE_FIGURE` and the microphone speaks on
+    demand."""
 
     def open_recording(**options: Any) -> Page:
         page = open_person(**options)
@@ -113,6 +149,10 @@ def open_person(
         )
         if clock_faked:
             page.clock.install()
+        if figure_faked:
+            for url in figure_drawing_chunk_urls(e2e_server.base_url):
+                page.route(url, lambda route: route.fulfill(content_type="text/javascript", body=FAKE_FIGURE))
+            page.add_init_script(SPEAK_ON_DEMAND)
         return page
 
     return open_recording
@@ -336,3 +376,33 @@ def test_a_clip_that_cannot_play_leaves_the_neutral_wave_and_the_figure_drawn(
 
     assert answers == [[answer]] * len(at_rest)
     assert min(top for wave in waves for top in wave) > PERSONA_ARM_SHARE
+
+
+# The tile of a person that rings as speaking on another seat's page, never an agent's.
+SPEAKING_PERSON_TILE = "#videoGrid .tile.speaking:not(.agent):not(.self)"
+OWN_TILE = "#videoGrid .tile.self"
+
+
+@pytest.mark.parametrize("figure_faked", [True])
+def test_the_figure_turns_toward_the_tile_of_whoever_speaks_on_every_page_and_toward_nobody_in_silence(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-66: While a person speaks, the figure on each seat's page listens to that person's tile, the own tile on
+    the speaker's page, and to nobody once they are silent."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds_and_the_agent_accepts(figure_of(DRAWABLE_URL, DRAWABLE))
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute("data-figure", "drawn")
+    listeners = [scene.host, scene.member]
+
+    scene.owner.evaluate(f"window.speak({LOUD})")
+
+    scene.owner.wait_for_function(LISTENS_LAST_TO, arg=scene.owner.locator(OWN_TILE).get_attribute("id"))
+    for person in listeners:
+        expect(person.locator(SPEAKING_PERSON_TILE)).to_have_count(1)
+        person.wait_for_function(LISTENS_LAST_TO, arg=person.locator(SPEAKING_PERSON_TILE).get_attribute("id"))
+
+    scene.owner.evaluate(f"window.speak({SILENCE})")
+
+    for person in scene.everyone:
+        person.wait_for_function(LISTENS_LAST_TO, arg=None)

@@ -39,6 +39,7 @@ import {
 } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { installStage, showLocalStream, showRemoteName } from "#lib/call/stage-port.ts";
+import { monitorOwnSpeaking } from "#lib/call/speaking.ts";
 import * as stageModule from "#lib/ui/stage.svelte.ts";
 import { state } from "#lib/call/state.ts";
 import { hideParticipantCount, setStatus, showLockIndicator, showParticipantCount } from "#lib/ui/status.svelte.ts";
@@ -222,6 +223,7 @@ function registerSessionHandlers() {
 
 export function startUp() {
     installStage(stageModule);
+    monitorOwnSpeaking();
     registerMeshHandlers();
     registerChatHandlers();
     registerMediaStateHandlers();

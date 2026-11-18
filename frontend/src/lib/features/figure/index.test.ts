@@ -12,6 +12,7 @@ interface Mounting {
     resolve: () => void;
     dispose: ReturnType<typeof vi.fn>;
     gesture: ReturnType<typeof vi.fn>;
+    listen: ReturnType<typeof vi.fn>;
 }
 
 // The package draws with WebGL, which jsdom has none of: a fake `mount` stands in and the test decides what it signals and when it resolves.
@@ -25,16 +26,18 @@ function fakeMount(
     return new Promise((resolve) => {
         const dispose = vi.fn();
         const gesture = vi.fn();
+        const listen = vi.fn();
         drawing.mounts.push({
             canvas,
             bytes,
             gestures: options.gestures,
             give: options.onSignal,
             resolve: () => {
-                resolve({ signal: "drawn", dispose, gesture });
+                resolve({ signal: "drawn", dispose, gesture, listen });
             },
             dispose,
             gesture,
+            listen,
         });
     });
 }
@@ -83,8 +86,8 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
 function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
-    const { stop, gesture } = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure), gestures);
-    return { host, shown, stop, gesture };
+    const { stop, gesture, listen } = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure), gestures);
+    return { host, shown, stop, gesture, listen };
 }
 
 // The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
@@ -295,6 +298,31 @@ describe("a figure on an agent's tile", () => {
         await settled();
 
         expect(mounting.gesture).not.toHaveBeenCalled();
+    });
+
+    it("CALL-66: turns the mounted figure toward each speaker it is given, and toward nobody", async () => {
+        fetchedBytes();
+        const { listen, mounting } = await mounted(await installedDrawer());
+        mounting.resolve();
+        await settled();
+        const speaker = document.createElement("div");
+
+        listen(speaker);
+        listen(null);
+
+        expect(mounting.listen.mock.calls).toEqual([[speaker], [null]]);
+    });
+
+    it("CALL-66: turns a figure toward the speaker it was given while it loaded once it is drawn", async () => {
+        fetchedBytes();
+        const { listen, mounting } = await mounted(await installedDrawer());
+        const speaker = document.createElement("div");
+
+        listen(speaker);
+        mounting.resolve();
+        await settled();
+
+        expect(mounting.listen.mock.calls).toEqual([[speaker]]);
     });
 });
 

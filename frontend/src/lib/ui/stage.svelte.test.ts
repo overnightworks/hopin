@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
-import { AGENT_FIGURE, type AgentFigure } from "#lib/call/feature-port.ts";
+import { AGENT_ACTIVITY, AGENT_FIGURE, type AgentFigure } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 
 // The modules hold their state, so each case loads fresh copies.
@@ -390,6 +390,7 @@ describe("an agent tile's figure", () => {
             show: (figure: AgentFigure) => void;
             stop: ReturnType<typeof vi.fn>;
             gesture: ReturnType<typeof vi.fn>;
+            listen: ReturnType<typeof vi.fn>;
         }[] = [];
         const drawer = (
             host: HTMLElement,
@@ -399,8 +400,9 @@ describe("an agent tile's figure", () => {
         ) => {
             const stop = vi.fn();
             const gesture = vi.fn();
-            started.push({ host, path, gestures, show, stop, gesture });
-            return { stop, gesture };
+            const listen = vi.fn();
+            started.push({ host, path, gestures, show, stop, gesture, listen });
+            return { stop, gesture, listen };
         };
         return { drawer, started };
     }
@@ -542,5 +544,93 @@ describe("an agent tile's figure", () => {
         gestureAgentFigure(KEY, "wave");
 
         expect(started[0]?.gesture).not.toHaveBeenCalled();
+    });
+
+    // The tiles the layout and the tile list render, by the ids the stage names them with.
+    function tilesOnThePage(...ids: string[]) {
+        document.body.replaceChildren(...ids.map((id) => Object.assign(document.createElement("div"), { id })));
+        return (id: string) => document.getElementById(id);
+    }
+
+    function agentTile(activity: (typeof AGENT_ACTIVITY)[keyof typeof AGENT_ACTIVITY]) {
+        return { name: "Ada", activity, figure: PATH };
+    }
+
+    it("CALL-66: turns every figure toward the one who speaks, keeps it there while a second joins in, and toward nobody in silence", async () => {
+        const stage = await freshStage();
+        const { drawer, started } = drawerOf();
+        stage.drawAgentFigures(drawer);
+        stage.addRemoteTile("p1");
+        stage.addRemoteTile("p2");
+        const tile = tilesOnThePage(stage.tileIdOf("p1"), stage.tileIdOf("p2"));
+        stage.agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+        stage.agentFigure(document.createElement("div"), { key: "agent-a2", path: PATH });
+
+        stage.setRemoteSpeaking("p2", true);
+        stage.setRemoteSpeaking("p1", true);
+        stage.setRemoteSpeaking("p2", false);
+        stage.setRemoteSpeaking("p1", false);
+
+        const turns = [[tile("container-p2")], [tile("container-p1")], [null]];
+        expect([started[0]?.listen.mock.calls, started[1]?.listen.mock.calls]).toEqual([turns, turns]);
+    });
+
+    it("CALL-66: turns a figure toward the person's own tile while they speak", async () => {
+        const stage = await freshStage();
+        const { drawer, started } = drawerOf();
+        stage.drawAgentFigures(drawer);
+        const tile = tilesOnThePage(stage.OWN_TILE_ID);
+        stage.agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+
+        stage.setOwnSpeaking(true);
+        stage.setOwnSpeaking(false);
+
+        expect(started[0]?.listen.mock.calls).toEqual([[tile(stage.OWN_TILE_ID)], [null]]);
+    });
+
+    it("CALL-66: turns the other figures toward a speaking agent's tile, never the agent's own figure", async () => {
+        const stage = await freshStage();
+        const { drawer, started } = drawerOf();
+        stage.drawAgentFigures(drawer);
+        const tile = tilesOnThePage(stage.tileIdOf(KEY), stage.tileIdOf("agent-a2"));
+        stage.agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+        stage.agentFigure(document.createElement("div"), { key: "agent-a2", path: PATH });
+
+        stage.showAgentTile(agentTile(AGENT_ACTIVITY.SPEAKING), KEY);
+
+        expect([started[0]?.listen.mock.calls, started[1]?.listen.mock.calls]).toEqual([
+            [],
+            [[tile(stage.tileIdOf(KEY))]],
+        ]);
+    });
+
+    it("CALL-66: turns a figure toward nobody when the speaking person mutes or leaves", async () => {
+        const stage = await freshStage();
+        const { drawer, started } = drawerOf();
+        stage.drawAgentFigures(drawer);
+        stage.addRemoteTile("p1");
+        stage.addRemoteTile("p2");
+        const tile = tilesOnThePage(stage.tileIdOf("p1"), stage.tileIdOf("p2"));
+        stage.agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+
+        stage.setRemoteSpeaking("p1", true);
+        stage.setRemoteMediaState("p1", { audio: false, video: true });
+        stage.setRemoteSpeaking("p2", true);
+        stage.removeRemoteTile("p2");
+
+        expect(started[0]?.listen.mock.calls).toEqual([[tile("container-p1")], [null], [tile("container-p2")], [null]]);
+    });
+
+    it("CALL-66: turns a figure drawn while someone speaks toward them at once", async () => {
+        const stage = await freshStage();
+        const { drawer, started } = drawerOf();
+        stage.drawAgentFigures(drawer);
+        stage.addRemoteTile("p1");
+        const tile = tilesOnThePage(stage.tileIdOf("p1"));
+        stage.setRemoteSpeaking("p1", true);
+
+        stage.agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+
+        expect(started[0]?.listen.mock.calls).toEqual([[tile("container-p1")]]);
     });
 });
