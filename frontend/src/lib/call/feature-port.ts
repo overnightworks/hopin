@@ -36,12 +36,13 @@ export interface AgentSentence {
     mood?: string;
 }
 
-/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody; `speak` makes the figure speak the sentence, null makes it stop; one `listen` or `speak` given while the figure loads holds once it is drawn. */
+/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody; `speak` makes the figure speak the sentence, null makes it stop; `think` shows whether its agent thinks; one `listen`, `speak` or `think` given while the figure loads holds once it is drawn. */
 export interface AgentFigureHandle {
     stop: () => void;
     gesture: (name: string) => void;
     listen: (speaker: Element | null) => void;
     speak: (sentence: AgentSentence | null) => void;
+    think: (working: boolean) => void;
 }
 
 /** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */
@@ -118,6 +119,8 @@ export interface FeatureCore<Frames extends object = object> {
     gestureAgentFigure(key: string, gesture: string): void;
     /** Make the figure of the agent tile shown under `key` speak the sentence, null stop; dropped when that tile has no figure. */
     speakAgentFigure(key: string, sentence: AgentSentence | null): void;
+    /** Show whether the agent of the tile under `key` thinks, until the next call or the tile goes; a figure drawn on that tile meanwhile starts so. */
+    thinkAgentFigure(key: string, thinking: boolean): void;
     /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */
     showStage(view: FeatureView | null): void;
     /** Register a handler for the person's microphone; it is told the current state at once and then on every change: a stream that holds only the local microphone track while the person is in a call and the microphone is on, and null otherwise (the pre-join included). The stream is never a screen share's audio, a peer's or an agent's. */

@@ -38,6 +38,7 @@ function drawFigure(
     let handle: FigureHandle | undefined;
     let speaker: Element | null = null;
     let sentence: AgentSentence | null = null;
+    let thinking = false;
     let over = false;
     // A function, so the checks after an await do not read as settled.
     const hasEnded = () => over;
@@ -99,6 +100,7 @@ function drawFigure(
         handle = mounted;
         if (speaker !== null) handle.listen(speaker);
         if (sentence !== null) speakTo(handle, sentence);
+        if (thinking) handle.think(true);
     }
 
     run().catch(() => {
@@ -119,6 +121,10 @@ function drawFigure(
         speak: (next) => {
             sentence = next;
             if (handle !== undefined) speakTo(handle, next);
+        },
+        think: (working) => {
+            thinking = working;
+            handle?.think(working);
         },
     };
 }

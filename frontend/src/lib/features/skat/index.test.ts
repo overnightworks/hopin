@@ -33,6 +33,7 @@ async function installedSkat() {
         drawAgentFigures: () => undefined,
         gestureAgentFigure: () => undefined,
         speakAgentFigure: () => undefined,
+        thinkAgentFigure: () => undefined,
         closeMore: () => void closed.push(true),
         addMoreItems: (...items) => void moreItems.push(...items),
         receiveChatLine: () => undefined,

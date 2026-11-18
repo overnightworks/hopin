@@ -39,6 +39,7 @@ class DeadlineKind(StrEnum):
     INVITATION = "invitation"
     SENTENCE_END = "sentence_end"
     LOOK_ANSWER = "look_answer"
+    THINKING = "thinking"
     WINDOW_RECOVERY = "window_recovery"
     GAME_RUN = "game_run"
     GAME_VOICE = "game_voice"

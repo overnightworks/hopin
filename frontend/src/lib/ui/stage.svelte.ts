@@ -54,8 +54,10 @@ export const remoteTiles = $state<RemoteTile[]>([]);
 export const agentTiles = new SvelteMap<string, AgentTile>();
 
 export function showAgentTile(tile: AgentTile | null, key: string = DEFAULT_AGENT_KEY) {
-    if (tile === null) agentTiles.delete(key);
-    else agentTiles.set(key, tile);
+    if (tile === null) {
+        agentTiles.delete(key);
+        thinkingKeys.delete(key);
+    } else agentTiles.set(key, tile);
     refreshListening();
 }
 
@@ -92,6 +94,17 @@ export function gestureAgentFigure(key: string, gesture: string) {
 /** Make the figure of the agent tile under `key` speak the sentence, null stop; a tile with no figure drops it. */
 export function speakAgentFigure(key: string, sentence: AgentSentence | null) {
     drawnFigures.get(key)?.handle.speak(sentence);
+}
+
+// The keys of the agent tiles whose agent thinks, kept apart from the drawn figures so a figure drawn later starts thinking.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
+const thinkingKeys = new Set<string>();
+
+/** Show whether the agent of the tile under `key` thinks, on its figure now and on one drawn there later. */
+export function thinkAgentFigure(key: string, thinking: boolean) {
+    if (thinking) thinkingKeys.add(key);
+    else thinkingKeys.delete(key);
+    drawnFigures.get(key)?.handle.think(thinking);
 }
 
 let ownSpeaking = false;
@@ -164,6 +177,7 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
             gestures,
         );
         drawnFigures.set(key, { handle: drawn, listensTo: null });
+        if (thinkingKeys.has(key)) drawn.think(true);
         refreshListening();
     }
 

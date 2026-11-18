@@ -392,6 +392,7 @@ describe("an agent tile's figure", () => {
             gesture: ReturnType<typeof vi.fn>;
             listen: ReturnType<typeof vi.fn>;
             speak: ReturnType<typeof vi.fn>;
+            think: ReturnType<typeof vi.fn>;
         }[] = [];
         const drawer = (
             host: HTMLElement,
@@ -403,8 +404,9 @@ describe("an agent tile's figure", () => {
             const gesture = vi.fn();
             const listen = vi.fn();
             const speak = vi.fn();
-            started.push({ host, path, gestures, show, stop, gesture, listen, speak });
-            return { stop, gesture, listen, speak };
+            const think = vi.fn();
+            started.push({ host, path, gestures, show, stop, gesture, listen, speak, think });
+            return { stop, gesture, listen, speak, think };
         };
         return { drawer, started };
     }
@@ -561,6 +563,31 @@ describe("an agent tile's figure", () => {
         speakAgentFigure("agent-none", sentence);
 
         expect([started[0]?.speak.mock.calls, started[1]?.speak.mock.calls]).toEqual([[[sentence], [null]], []]);
+    });
+
+    it("CALL-68: shows the thinking of the agent of the tile key on its figure, and its end", async () => {
+        const { agentFigure, drawAgentFigures, thinkAgentFigure } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+        agentFigure(document.createElement("div"), { key: "agent-a2", path: PATH });
+
+        thinkAgentFigure(KEY, true);
+        thinkAgentFigure(KEY, false);
+
+        expect([started[0]?.think.mock.calls, started[1]?.think.mock.calls]).toEqual([[[true], [false]], []]);
+    });
+
+    it("CALL-68: a figure drawn on a tile whose agent thinks starts thinking, and none once its tile went", async () => {
+        const { agentFigure, drawAgentFigures, thinkAgentFigure, showAgentTile } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        thinkAgentFigure(KEY, true);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH }).destroy();
+        showAgentTile(null, KEY);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+
+        expect([started[0]?.think.mock.calls, started[1]?.think.mock.calls]).toEqual([[[true]], []]);
     });
 
     // The tiles the layout and the tile list render, by the ids the stage names them with.

@@ -137,6 +137,37 @@ describe("an agent's voice", () => {
         expect(page.gestures).toEqual([]);
     });
 
+    it("CALL-68: hands the thinking the server tells to the figure of the agent it names, and drops an unknown agent's", async () => {
+        const page = await pageWithAgents("a1", "a2");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a2", on: true });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "unknown", on: true });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a2", on: false });
+
+        expect(page.thoughts).toEqual([
+            ["agent-a2", true],
+            ["agent-a2", false],
+        ]);
+    });
+
+    it("CALL-68: names the agent's tile as thinking while its thinking holds and no sound of it plays", async () => {
+        const page = await pageWithAgents("a1");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a1", on: true });
+        const whileThinking = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+        const whileSpeaking = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a1", on: false });
+        await page.players.created[0]?.sounds[0]?.end({ kind: "played", playedSeconds: 1 });
+
+        expect([whileThinking, whileSpeaking, tileActivities(page)]).toEqual([
+            [AGENT_ACTIVITY.THINKING],
+            [AGENT_ACTIVITY.SPEAKING],
+            [AGENT_ACTIVITY.PRESENT],
+        ]);
+    });
+
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {
         const page = await pageWithAgents("a1", "a2");
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));

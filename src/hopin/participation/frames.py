@@ -140,6 +140,17 @@ class AgentGestureFrame:
 
 
 @dataclass(frozen=True)
+class AgentThinkingFrame:
+    TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_THINKING
+
+    agent_id: str
+    on: bool
+
+    def to_json(self) -> JsonObject:
+        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "on": self.on}
+
+
+@dataclass(frozen=True)
 class AgentOffersFrame:
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_OFFERS
 
@@ -199,6 +210,7 @@ type ParticipationFrame = (
     | AgentVoiceFrame
     | AgentStopFrame
     | AgentGestureFrame
+    | AgentThinkingFrame
     | AgentOffersFrame
     | AgentInvitationEndedFrame
     | AgentLineFrame

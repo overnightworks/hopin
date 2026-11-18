@@ -35,6 +35,8 @@ LOOK_MAX_PARTS = 24
 LOOK_ANSWER_SECONDS = 10
 LOOKS_PER_WINDOW = 6
 LOOK_WINDOW_SECONDS = 60
+# The longest a figure shows the thinking its agent stated, so a runner that died leaves no agent thinking for ever.
+THINKING_MAX_SECONDS = 120
 # The hearing socket of a seat is this path and the seat's id.
 HEARING_PATH = "/ws/hearing"
 # A voice is fetched at this path and the voice's id; the game's lines and an agent's sentences are served alike.
@@ -53,6 +55,7 @@ class ParticipationSignal(StrEnum):
     AGENT_VOICE = "agent_voice"
     AGENT_STOP = "agent_stop"
     AGENT_GESTURE = "agent_gesture"
+    AGENT_THINKING = "agent_thinking"
     AGENT_SEEING = "agent_seeing"
     AGENT_LOOK_REQUEST = "agent_look_request"
     AGENT_LOOK_PART = "agent_look_part"

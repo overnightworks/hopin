@@ -12,6 +12,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_VOICE = "agent_voice",
     AGENT_STOP = "agent_stop",
     AGENT_GESTURE = "agent_gesture",
+    AGENT_THINKING = "agent_thinking",
     AGENT_SEEING = "agent_seeing",
     AGENT_LOOK_REQUEST = "agent_look_request",
     AGENT_LOOK_PART = "agent_look_part",
@@ -131,6 +132,12 @@ export type AgentGestureFrame = {
     gesture: FIGURE_GESTURE;
 };
 
+export type AgentThinkingFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_THINKING;
+    agent_id: string;
+    on: boolean;
+};
+
 export type AgentOffersFrame = {
     type: PARTICIPATION_SIGNAL.AGENT_OFFERS;
     shown: boolean;
@@ -166,6 +173,7 @@ export type ParticipationFrameByType = {
     [PARTICIPATION_SIGNAL.AGENT_VOICE]: AgentVoiceFrame;
     [PARTICIPATION_SIGNAL.AGENT_STOP]: AgentStopFrame;
     [PARTICIPATION_SIGNAL.AGENT_GESTURE]: AgentGestureFrame;
+    [PARTICIPATION_SIGNAL.AGENT_THINKING]: AgentThinkingFrame;
     [PARTICIPATION_SIGNAL.AGENT_OFFERS]: AgentOffersFrame;
     [PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED]: AgentInvitationEndedFrame;
     [PARTICIPATION_SIGNAL.AGENT_LINE]: AgentLineFrame;

@@ -71,6 +71,8 @@ export async function installWith(
         // Only a player that is still open reports, and `hide` closes the player of an agent before it leaves `shown`.
         if (speaking.has(agentId) !== wasSpeaking) draw(shown.get(agentId) as ShownAgent);
     });
+    // Agents that stated that a turn of theirs runs: their tile is named as thinking while none of their sound plays.
+    const thinking = new Set<string>();
     // Agents whose switch the person pressed off and whose record has not answered yet: until it does, the capture
     // stays closed, for no sound sent after the press may reach them, whichever other agents still hear the person.
     const pressedOff = new Set<string>();
@@ -84,11 +86,16 @@ export async function installWith(
         return isHost || frame.sponsor_id === seatId;
     }
 
+    function activityOf(agentId: string) {
+        if (speaking.has(agentId)) return AGENT_ACTIVITY.SPEAKING;
+        return thinking.has(agentId) ? AGENT_ACTIVITY.THINKING : AGENT_ACTIVITY.PRESENT;
+    }
+
     function draw({ joined: frame, hearing, seeing, looking }: ShownAgent) {
         core.showAgentTile(
             {
                 name: frame.name,
-                activity: speaking.has(frame.agent_id) ? AGENT_ACTIVITY.SPEAKING : AGENT_ACTIVITY.PRESENT,
+                activity: activityOf(frame.agent_id),
                 sponsor: frame.sponsor,
                 figure: frame.figure,
                 gestures: frame.gestures,
@@ -237,6 +244,7 @@ export async function installWith(
         shown.delete(agentId);
         pressedOff.delete(agentId);
         speaking.delete(agentId);
+        thinking.delete(agentId);
         clearTimeout(markTimers.get(agentId));
         markTimers.delete(agentId);
         voices.close(agentId);
@@ -273,6 +281,14 @@ export async function installWith(
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_GESTURE, (frame) => {
         if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
+    });
+    core.on(PARTICIPATION_SIGNAL.AGENT_THINKING, (frame) => {
+        const agent = shown.get(frame.agent_id);
+        if (agent === undefined) return;
+        core.thinkAgentFigure(tileKey(frame.agent_id), frame.on);
+        if (frame.on) thinking.add(frame.agent_id);
+        else thinking.delete(frame.agent_id);
+        draw(agent);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);

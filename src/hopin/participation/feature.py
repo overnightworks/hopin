@@ -117,7 +117,7 @@ class Participation:
         self._speaking = Speaking(
             voices, deadlines, self._sentence_started, self.speech.sentence_ended, self._write_line
         )
-        self.figures = ShownFigures(self._places, self._active_agent, self._tell, self._recipients)
+        self.figures = ShownFigures(self._places, deadlines, self._active_agent, self._tell, self._recipients)
         self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
         self._switches = Switches(self._places, hearing, self.speech, self._seeing)
         self._live = LiveAgents()
@@ -219,10 +219,12 @@ class Participation:
         sound, and answer that it plays when the sentence starts, not when it is queued; the refusal when the agent
         holds no active place there or the sentence cannot be spoken: no text, no renderer, past the agent's waiting
         queue, or an end of its speaking meanwhile; a sound that could not be made is written as a line instead, and
-        `offered` then says when the voice is back, which turns the window's voice available without a sentence."""
+        `offered` then says when the voice is back, which turns the window's voice available without a sentence. Any
+        speak at its active place ends the agent's thinking."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
+        await self.figures.end_thinking(agent)
         sentence = clean_line(one_line(text))
         if sentence is None or render is None:
             return self._unavailable(
@@ -444,6 +446,7 @@ class Participation:
         self._offers.seat_joined(peer_id, view.room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
             self._announce_joined(view, agent, [peer_id], transition)
+            self.figures.tell_thinking(agent, peer_id, transition)
         self._offer(view, transition)
 
     def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:

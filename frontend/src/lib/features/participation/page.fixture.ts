@@ -30,6 +30,7 @@ export async function installedParticipation(installOn?: typeof install) {
     const gestures: [string, string][] = [];
     // The tile key and sentence of each call the page made to an agent's figure's speak, null for none.
     const figureSentences: [string, AgentSentence | null][] = [];
+    const thoughts: [string, boolean][] = [];
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
@@ -60,6 +61,9 @@ export async function installedParticipation(installOn?: typeof install) {
         },
         speakAgentFigure: (key, sentence) => {
             figureSentences.push([key, sentence]);
+        },
+        thinkAgentFigure: (key, thinking) => {
+            thoughts.push([key, thinking]);
         },
         closeMore: vi.fn(),
         showAgentTile: (tile, key = "agent") => {
@@ -106,6 +110,7 @@ export async function installedParticipation(installOn?: typeof install) {
         tiles,
         gestures,
         figureSentences,
+        thoughts,
         toasts,
         lines,
         offers: () => onThePage().flatMap((item) => [...item.querySelectorAll("li")]),

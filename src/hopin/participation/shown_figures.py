@@ -1,12 +1,13 @@
-"""The figures the joined agents show on their tiles: which a digest names, whether an agent shows one, and the
-gestures it makes with it."""
+"""The figures the joined agents show on their tiles: which a digest names, whether an agent shows one, the
+gestures it makes with it and whether it thinks."""
 
 from typing import TYPE_CHECKING
 
 from hopin.participation.figures import NamedFigure
-from hopin.participation.frames import AgentGestureFrame, ParticipationFrame
+from hopin.participation.frames import AgentGestureFrame, AgentThinkingFrame, ParticipationFrame
 from hopin.participation.participants import DialedAgent
-from hopin.participation.vocabulary import AgentRefusal, FigureGesture
+from hopin.participation.vocabulary import THINKING_MAX_SECONDS, AgentRefusal, FigureGesture
+from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -14,23 +15,31 @@ if TYPE_CHECKING:
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
     from hopin.signaling.frames import PeerId
+    from hopin.signaling.scheduler import Deadlines
+    from hopin.signaling.transition import Transition
 
 
 class ShownFigures:
     """`active_agent` names a person's joined agent in a room or why it is not; `tell` sends a frame to seats and
-    `recipients` names the seats of a room."""
+    `recipients` names the seats of a room. An agent thinks from its statement until its next speak, gesture or
+    statement at its place, or `THINKING_MAX_SECONDS`; nothing else starts it."""
 
     def __init__(
         self,
         places: Places,
+        deadlines: Deadlines,
         active_agent: Callable[[Person, str], DialedAgent | AgentRefusal],
         tell: Callable[[str, Sequence[PeerId], ParticipationFrame], Awaitable[None]],
         recipients: Callable[[str], list[PeerId]],
     ) -> None:
         self._places = places
+        self._deadlines = deadlines
         self._active_agent = active_agent
         self._tell = tell
         self._recipients = recipients
+        # The agents that think, by their id; an agent that ended meanwhile stays here until its deadline.
+        self._thinking: dict[str, DialedAgent] = {}
+        deadlines.register(DeadlineKind.THINKING, self._thinking_ran_out)
 
     def named(self, sha256: str) -> tuple[NamedFigure, ...]:
         """The URLs the joined agents name for the digest."""
@@ -62,7 +71,42 @@ class ShownFigures:
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
+        await self.end_thinking(agent)
         if agent.figure is None:
             return AgentRefusal.GONE
         await self._tell(room_id, self._recipients(room_id), AgentGestureFrame(agent.agent_id, gesture))
         return None
+
+    async def state_turn(self, person: Person, room_id: str, *, thinking: bool) -> AgentRefusal | None:
+        """Take the turn state the person's agent states at its place, active or paused: its stated thinking, or an
+        end of it; why not when it holds no place there. A repeated thinking runs its deadline afresh."""
+        agent = self._places.get(person, room_id)
+        if not isinstance(agent, DialedAgent):
+            return AgentRefusal.GONE
+        if not thinking:
+            await self.end_thinking(agent)
+            return None
+        self._deadlines.set(DeadlineKind.THINKING, agent.agent_id, THINKING_MAX_SECONDS)
+        if agent.agent_id in self._thinking:
+            return None
+        self._thinking[agent.agent_id] = agent
+        await self._tell(room_id, self._recipients(room_id), AgentThinkingFrame(agent.agent_id, on=True))
+        return None
+
+    async def end_thinking(self, agent: DialedAgent) -> None:
+        """The agent spoke or gestured at its place: tell every seat it no longer thinks, when it did."""
+        if self._thinking.pop(agent.agent_id, None) is None:
+            return
+        self._deadlines.cancel(DeadlineKind.THINKING, agent.agent_id)
+        await self._tell(agent.room_id, self._recipients(agent.room_id), AgentThinkingFrame(agent.agent_id, on=False))
+
+    def tell_thinking(self, agent: DialedAgent, peer_id: PeerId, transition: Transition) -> None:
+        """Tell a seat that joined later, in the transition that announces the agent to it, that the agent thinks,
+        when it does."""
+        if agent.agent_id in self._thinking:
+            transition.send(peer_id, AgentThinkingFrame(agent.agent_id, on=True).to_json())
+
+    async def _thinking_ran_out(self, agent_id: str) -> None:
+        agent = self._thinking.pop(agent_id, None)
+        if agent is not None and self._places.get(agent.person, agent.room_id) == agent:
+            await self._tell(agent.room_id, self._recipients(agent.room_id), AgentThinkingFrame(agent_id, on=False))

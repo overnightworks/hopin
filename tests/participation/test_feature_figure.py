@@ -3,7 +3,14 @@ told, and the route that serves the verified file while a joined agent names it.
 
 import pytest
 import structlog.testing
-from agents.member import ACCEPT_INVITATION_TOOL, GESTURE_TOOL, LEASE_SECONDS, STANDING_URI
+from agents.member import (
+    ACCEPT_INVITATION_TOOL,
+    GESTURE_TOOL,
+    LEASE_SECONDS,
+    SET_TURN_STATE_TOOL,
+    SPEAK_TOOL,
+    STANDING_URI,
+)
 
 from hopin.agent.tools import LEAVE_CALL
 from hopin.config.constants import CALL_FEATURES_PATH
@@ -15,6 +22,7 @@ from hopin.participation.vocabulary import (
     FEATURE_NAME,
     FIGURE_MODULE,
     FIGURE_PATH,
+    THINKING_MAX_SECONDS,
     FigureRefusal,
     ParticipationSignal,
 )
@@ -39,6 +47,7 @@ pytestmark = pytest.mark.integration
 JOINED = ParticipationSignal.AGENT_JOINED.value
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 GESTURED = ParticipationSignal.AGENT_GESTURE.value
+THINKING = ParticipationSignal.AGENT_THINKING.value
 SECOND_OWNER = "subject-second-owner"
 FILE = glb(b"mozart" * 8)
 CLIP = glb(b"wave" * 8)
@@ -508,14 +517,15 @@ def offered_tools(scene):
     return {tool["name"] for tool in answer["result"]["tools"]}
 
 
-class TestTheGestureTool:
-    @pytest.fixture
-    def gesturing(self, scene, figure_origin):
-        """The scene with the agent joined with a shown figure."""
-        joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
-        scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
-        return scene
+@pytest.fixture
+def gesturing(scene, figure_origin):
+    """The scene with the agent joined with a shown figure."""
+    joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
+    scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
+    return scene
 
+
+class TestTheGestureTool:
     def test_call_64_an_agent_with_a_shown_figure_is_offered_the_gesture_tool(self, gesturing):
         assert GESTURE_TOOL in offered_tools(gesturing)
 
@@ -574,3 +584,95 @@ class TestTheGestureTool:
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
         assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
+
+
+def thinking_told(seat):
+    """The next thinking frame the seat is told, as the agent's id and whether it thinks."""
+    told = seat.frame_of_type(THINKING)
+    return told["agent_id"], told["on"]
+
+
+def outlast_the_cap(scene):
+    """Let the thinking's cap run out while a call of the agent keeps its lease, which runs as long."""
+    scene.call.pass_time(THINKING_MAX_SECONDS - 1)
+    offered_tools(scene)
+    scene.call.pass_time(1)
+
+
+class TestThinking:
+    @pytest.fixture
+    def thinking(self, gesturing):
+        """The scene with the agent stating that a turn of it runs, which every seat has been told."""
+        stated = call_in(gesturing, tool=SET_TURN_STATE_TOOL, thinking=True)
+        assert not stated.is_error
+        for seat in (gesturing.owner, gesturing.member):
+            assert thinking_told(seat) == (gesturing.agent_id, True)
+        return gesturing
+
+    def test_call_68_a_stated_thinking_is_told_to_every_seat_and_to_a_later_one(self, thinking):
+        _, later_login = thinking.call.member()
+        later = thinking.call.seat(later_login, thinking.owner.room_id)
+        later.frame_of_type(JOINED)
+
+        assert thinking_told(later) == (thinking.agent_id, True)
+
+    @pytest.mark.parametrize(
+        "ending",
+        [
+            pytest.param(lambda scene: call_in(scene, tool=SPEAK_TOOL, text="Hallo"), id="a speak"),
+            pytest.param(lambda scene: call_in(scene, tool=GESTURE_TOOL, gesture="wave"), id="a gesture"),
+            pytest.param(lambda scene: call_in(scene, tool=SET_TURN_STATE_TOOL), id="a statement of none"),
+            pytest.param(lambda scene: call_in(scene, tool=SET_TURN_STATE_TOOL, stopped="busy"), id="a stop"),
+            pytest.param(outlast_the_cap, id="the cap"),
+        ],
+    )
+    def test_call_68_every_seat_is_told_the_thinking_ended(self, thinking, ending):
+        ending(thinking)
+
+        for seat in (thinking.owner, thinking.member):
+            assert thinking_told(seat) == (thinking.agent_id, False)
+
+    def test_call_68_a_repeated_thinking_runs_the_cap_afresh(self, thinking):
+        thinking.call.pass_time(THINKING_MAX_SECONDS - 1)
+        call_in(thinking, tool=SET_TURN_STATE_TOOL, thinking=True)
+        thinking.call.pass_time(THINKING_MAX_SECONDS - 1)
+        offered_tools(thinking)
+        thinking.owner.settle()
+        assert [frame["on"] for frame in thinking.owner.received if frame["type"] == THINKING] == [True]
+
+        thinking.call.pass_time(1)
+
+        assert thinking_told(thinking.owner) == (thinking.agent_id, False)
+
+    @pytest.mark.parametrize(
+        "place",
+        [
+            pytest.param(lambda room_id: {"kind": "call", "id": "no-such-room"}, id="another room"),
+            pytest.param(lambda room_id: {"kind": "table", "id": room_id}, id="a place of another kind with its id"),
+        ],
+    )
+    def test_call_68_a_statement_at_a_place_the_agent_does_not_hold_is_not_held(self, gesturing, place):
+        arguments = {"place": place(gesturing.owner.room_id), "thinking": True}
+
+        stated = gesturing.call.call(gesturing.token, SET_TURN_STATE_TOOL, arguments)
+
+        assert (stated.is_error, stated.outcome) == (True, {"refused": "not_held"})
+
+    def test_call_68_a_statement_while_the_sponsors_seat_is_parked_is_accepted_and_told(self, gesturing, seat_changes):
+        seat_changes.clear()
+        gesturing.owner.drop()
+        assert seat_changes.wait(timeout=10)
+
+        stated = call_in(gesturing, tool=SET_TURN_STATE_TOOL, thinking=True)
+
+        assert not stated.is_error
+        assert thinking_told(gesturing.member) == (gesturing.agent_id, True)
+
+    def test_call_68_a_thinking_whose_agent_left_tells_no_seat_its_end_at_the_cap(self, thinking):
+        thinking.call.call(thinking.token, LEAVE_CALL, {"room": thinking.owner.room_id})
+        thinking.owner.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
+
+        outlast_the_cap(thinking)
+        thinking.owner.settle()
+
+        assert [frame["on"] for frame in thinking.owner.received if frame["type"] == THINKING] == [True]
