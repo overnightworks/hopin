@@ -1,8 +1,0 @@
-claim_id = "61b867b234434e6f9fee58b8d1e9c105"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "bb815606613733d4901d06a8dfb607421597922c"
-branch = "claude/issue-914-agent-trace"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/agent", "src/hopin/participation/chat_window.py", "src/hopin/participation/speech_in_windows.py", "tests/participation", "tests/support/agent_speak.py", "tests/support/dialed_call.py"]
-opened_commit = "58e18a81645574ea35e10d6a6dc806d5f499fc80"
-whole_reason = "Both ends of an agent's trace are set in the agent package and its speech window; one bundle keeps the trace contract in one review."
