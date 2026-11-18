@@ -78,6 +78,17 @@ class TestASentenceStarts:
 
         assert answered == SpeakStarted.SPOKEN
 
+    async def test_call_60_more_than_ten_sentences_within_a_minute_are_all_spoken(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        answers = []
+        for number in range(SENTENCES_WAITING_PER_AGENT + 2):
+            answers.append(await speak(participation, f"sentence {number}", room_id=room_of(host)))
+            await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert answers == [SpeakStarted.SPOKEN] * (SENTENCES_WAITING_PER_AGENT + 2)
+
     async def test_call_60_every_seat_is_told_one_voice_of_the_agent_with_the_sound_stored_under_it(
         self, participation, call, voices
     ):

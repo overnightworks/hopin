@@ -189,7 +189,7 @@ class Participation:
     ) -> SpeakResult:
         """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer that
         it plays when the sentence starts, not when it is queued; the refusal when the agent holds no active place
-        there or the sentence cannot be spoken: no text, no renderer, past the agent's line rate or waiting queue, or an
+        there or the sentence cannot be spoken: no text, no renderer, past the agent's waiting queue, or an
         end of its speaking meanwhile; a sound that could not be made is written as a line instead, and `offered` then
         says when the voice is back, which turns the window's voice available without a sentence."""
         agent = self._active_agent(person, room_id)
