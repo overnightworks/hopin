@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from functools import partial
 from typing import TYPE_CHECKING, Final, Protocol
 
 import structlog
@@ -33,25 +34,34 @@ from hopin.game.vocabulary import (
 )
 from hopin.game.voice import GAME_SPEAKER, GAME_VOICES_KEPT, VOICE_DEADLINE_CUT
 from hopin.rooms.reference import room_reference
-from hopin.signaling.frames import JsonObject, PeerId
+from hopin.signaling.features import TransitionFeature
+from hopin.signaling.replay import Supersedes
 from hopin.signaling.scheduler import DeadlineKind
+from hopin.signaling.transition import Section, Work
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
     from starlette.requests import HTTPConnection
 
     from hopin.game.quiz import Turn
     from hopin.game.voice import StoredVoice, Voice, VoiceShelf
-    from hopin.signaling.features import CallRooms
-    from hopin.signaling.frames import ForeignFrame
+    from hopin.signaling.frames import ForeignFrame, JsonObject, PeerId
     from hopin.signaling.scheduler import Deadlines
+    from hopin.signaling.transition import LiveSeats, RoomView, Transition, WorkRoom
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
 
 RUN_ENDED_REASON: Final = "ended"
 RUN_KEY_BYTES: Final = 8
+# How a broken write is logged, by the frames it should have carried.
+_RUN_WRITE_BROKE: Final = "game_driver.failed"
+_END_WRITE_BROKE: Final = "game_end.failed"
+_COUNT_WRITE_BROKE: Final = "game_answer_count.failed"
+# A seat a slow write holds back gets only the newest count, and nothing of a run an end has ended.
+_A_NEWER_COUNT: Final = Supersedes(frozenset({GameSignal.GAME_ANSWER_COUNT}))
+_AN_END: Final = Supersedes(frozenset({GameSignal.GAME_LINE, GameSignal.GAME_VOICE, GameSignal.GAME_ANSWER_COUNT}))
 
 
 @dataclass(frozen=True)
@@ -92,57 +102,81 @@ def _refusal_frame(refusal: Refused) -> BusyRefusedFrame | RefusedFrame:
     return RefusedFrame(refusal.reason)
 
 
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class _Phase:
     """A room's phase other than idle, and the seats already told it, so each seat is told once."""
 
     frame: QuizPhaseFrame
-    told: set[str] = field(default_factory=set)
+    told: frozenset[PeerId] = frozenset()
 
 
-@dataclass(eq=False)
-class _VoiceRun:
-    """A line's voice being made, which its run's voice deadline cuts."""
-
-    task: asyncio.Task[bytes | None]
-
-    def stop(self) -> None:
-        self.task.cancel()
-
-
-@dataclass(eq=False)
+@dataclass(frozen=True)
 class _Run:
-    """A room's run; the record itself is the run's generation, and it starts once its previous run has ended."""
+    """A run of the room's quiz, which the room keeps until the run's work has ended, so a new quiz never overlaps
+    it; an end marks it ended first."""
 
+    key: str
     quiz: Quiz
-    starter: HTTPConnection
-    previous: asyncio.Task[None] | None
-    ask: asyncio.Task[GameOutcome]
-    broken_writes: list[Exception] = field(default_factory=list)
     ended: bool = False
-    driver: asyncio.Task[None] = field(init=False)
-    voice: _VoiceRun | None = None
-    key: str = field(default_factory=lambda: secrets.token_hex(RUN_KEY_BYTES))
+
+
+@dataclass(frozen=True)
+class _Table:
+    """A room's game: its quiz, its phase and its runs, the oldest first."""
+
+    quiz: Quiz | None = None
+    phase: _Phase | None = None
+    runs: tuple[_Run, ...] = ()
+
+    def run(self, key: str) -> _Run | None:
+        return next((run for run in self.runs if run.key == key), None)
+
+    def is_live(self, key: str) -> bool:
+        run = self.run(key)
+        return run is not None and not run.ended
+
+
+TABLE = Section[_Table](FEATURE_NAME)
+
+
+@dataclass(frozen=True)
+class _Delivery:
+    """What a run's outcome left to do once its frames are sent: the seats its line reached, and the quiz whose next
+    request runs at once."""
+
+    ended: bool = False
+    recipients: tuple[PeerId, ...] = ()
+    chained: Quiz | None = None
+
+
+@dataclass(eq=False)
+class _LiveRun:
+    """A run's work on this process: its calls, which its deadlines and a stop cancel, and its end, which the room's
+    next run waits for."""
+
+    ended: asyncio.Event = field(default_factory=asyncio.Event)
+    stopped: bool = False
+    ask: asyncio.Task[GameOutcome] | None = None
+    voice: asyncio.Task[bytes | None] | None = None
 
     def stop(self) -> None:
-        self.ask.cancel()
-        if self.voice is not None:
-            self.voice.stop()
+        self.stopped = True
+        for call in (self.ask, self.voice):
+            if call is not None:
+                call.cancel()
 
 
-class Game:
-    """Runs one quiz per room: its runs one after another, each run's frames to the room's seats in order."""
+class Game(TransitionFeature):
+    """Runs one quiz per room: its runs one after another, each run's work on the starter's process."""
 
     def __init__(
         self,
-        rooms: CallRooms,
         deadlines: Deadlines,
         game_master: GameMaster,
         topic_drawer: Callable[[], tuple[str, ...]],
         voice: Voice | None,
         voices: VoiceShelf,
     ) -> None:
-        self._rooms = rooms
         self._deadlines = deadlines
         deadlines.register(DeadlineKind.GAME_RUN, self._expire_run)
         deadlines.register(DeadlineKind.GAME_VOICE, self._expire_voice)
@@ -150,10 +184,8 @@ class Game:
         self._game_master = game_master
         self._voice = voice
         self._voices = voices
-        self._quizzes: dict[str, Quiz] = {}
-        self._runs: dict[str, list[_Run]] = {}
-        self._phases: dict[str, _Phase] = {}
-        self._drivers: set[asyncio.Task[None]] = set()
+        self._live: dict[str, _LiveRun] = {}
+        self._latest: dict[str, _LiveRun] = {}
 
     @property
     def name(self) -> str:
@@ -167,287 +199,226 @@ class Game:
     def signal_types(self) -> Mapping[str, str]:
         return SIGNAL_TYPES
 
-    async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
+    def on_frame(self, view: RoomView, peer_id: PeerId, frame: ForeignFrame, transition: Transition) -> bool:
+        if view.room_of(peer_id) is None:
+            return frame.signal_type in SIGNAL_TYPES.values()
         match frame.signal_type:
             case GameSignal.GAME_START:
-                await self._start(peer_id)
+                self._start(view, peer_id, transition)
             case GameSignal.GAME_REVEAL:
-                await self._reveal(peer_id)
+                self._reveal(view, peer_id, transition)
             case GameSignal.GAME_ANSWER:
-                await self._answer(peer_id, frame.data)
+                self._answer(view, peer_id, frame.data, transition)
             case GameSignal.GAME_END:
-                await self._end(peer_id)
+                self._end(view, peer_id, transition)
             case _:
                 return False
         return True
 
-    async def _start(self, peer_id: PeerId) -> None:
-        room_id = self._rooms.room_of(peer_id)
-        if room_id is None:
-            return
-        if room_id in self._runs:
-            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.ALREADY_ANSWERING).to_json())
-        elif room_id in self._quizzes:
-            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.QUIZ_RUNNING).to_json())
+    def _start(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
+        table = _table_of(view)
+        if table.runs:
+            transition.send(peer_id, RefusedFrame(GameRefusal.ALREADY_ANSWERING).to_json())
+        elif table.quiz is not None:
+            transition.send(peer_id, RefusedFrame(GameRefusal.QUIZ_RUNNING).to_json())
         else:
-            self._run(room_id, Quiz.opening(peer_id, self._topic_drawer()))
+            self._run(table, Quiz.opening(peer_id, self._topic_drawer()), transition)
 
-    async def _reveal(self, peer_id: PeerId) -> None:
-        room_id = self._rooms.room_of(peer_id)
-        if room_id is None:
-            return
-        quiz = self._quizzes.get(room_id)
+    def _reveal(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
+        table = _table_of(view)
+        quiz = table.quiz
         if quiz is not None and quiz.may_reveal(peer_id):
-            self._run(room_id, quiz.revealing())
+            self._run(table, quiz.revealing(), transition)
         elif quiz is None or quiz.starter != peer_id:
-            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.NOT_STARTER).to_json())
+            transition.send(peer_id, RefusedFrame(GameRefusal.NOT_STARTER).to_json())
 
-    async def _end(self, peer_id: PeerId) -> None:
-        """End the room's quiz for everyone; it runs in the ender's receive loop, which never waits on a driver."""
-        room_id = self._rooms.room_of(peer_id)
-        quiz = None if room_id is None else self._quizzes.get(room_id)
-        if room_id is None or quiz is None or quiz.is_over:
+    def _end(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
+        """End the room's quiz for everyone."""
+        table = _table_of(view)
+        if table.quiz is None:
             return
-        if not quiz.may_end(peer_id, hosts_call=self._rooms.is_host(peer_id)):
-            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.NOT_STARTER_OR_HOST).to_json())
+        if not table.quiz.may_end(peer_id, hosts_call=view.is_host(peer_id)):
+            transition.send(peer_id, RefusedFrame(GameRefusal.NOT_STARTER_OR_HOST).to_json())
             return
-        await self._end_for_everyone(room_id, quiz, EndedFrame())
+        _end_for_everyone(view, table, EndedFrame(), transition)
 
-    async def _end_for_everyone(self, room_id: str, quiz: Quiz, notice: EndedFrame) -> None:
-        """Send the room's seats the notice, then idle, and remove the quiz; the quiz is not over yet."""
-        ended = quiz.ended()
-        self._quizzes[room_id] = ended
-        self._phases.pop(room_id, None)
-        for run in self._runs.get(room_id, []):
-            # The room keeps the run until its call has closed, so a new quiz never overlaps it.
-            run.ended = True
-            self._stop(run)
-        recipients = self._rooms.members(room_id)
-        try:
-            for frame in (notice, IdlePhaseFrame(GamePhase.IDLE)):
-                broken_writes = await self._send_isolated(
-                    recipients, frame, lambda: self._quizzes.get(room_id) is ended
-                )
-                for error in broken_writes:
-                    # Only the type is logged, never a name or an answer.
-                    logger.error("game_end.failed", error_type=type(error).__name__)
-        finally:
-            if self._quizzes.get(room_id) is ended:
-                del self._quizzes[room_id]
-
-    async def _answer(self, peer_id: PeerId, data: JsonObject) -> None:
-        room_id = self._rooms.room_of(peer_id)
-        if room_id is None:
-            return
+    def _answer(self, view: RoomView, peer_id: PeerId, data: JsonObject, transition: Transition) -> None:
         text = data.get("text")
         if not isinstance(text, str) or not text.strip():
             raise InvalidMessageError("An answer needs text")
-        quiz = self._quizzes.get(room_id)
+        table = _table_of(view)
+        quiz = table.quiz
         if quiz is None or not quiz.may_answer(peer_id):
-            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.ANSWER_CLOSED).to_json())
+            transition.send(peer_id, RefusedFrame(GameRefusal.ANSWER_CLOSED).to_json())
             return
         if len(text.strip()) > GAME_ANSWER_MAX_CHARACTERS:
-            await self._rooms.send(peer_id, RefusedFrame(GameRefusal.ANSWER_TOO_LONG).to_json())
+            transition.send(peer_id, RefusedFrame(GameRefusal.ANSWER_TOO_LONG).to_json())
             return
-        answered = quiz.with_answer(peer_id, self._rooms.name_of(peer_id), text.strip())
-        self._quizzes[room_id] = answered
-        await self._count_and_reveal_when_due(room_id, answered)
+        answered = quiz.with_answer(peer_id, view.name_of(peer_id), text.strip())
+        self._count_and_reveal_when_due(view, table, answered, transition)
 
-    async def _count_and_reveal_when_due(self, room_id: str, quiz: Quiz) -> None:
-        present = self._present_players(room_id, quiz)
-        await self._send_answer_count(room_id, quiz, present)
-        if self._reveal_is_due(room_id, quiz, present):
-            self._run(room_id, quiz.revealing())
-
-    def _present_players(self, room_id: str, quiz: Quiz) -> frozenset[PeerId]:
-        """The players still in the room; a parked seat stays in it until its grace ends."""
-        return frozenset(player for player in quiz.players if self._rooms.room_of(player) == room_id)
-
-    async def _send_answer_count(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> None:
-        broken_writes: list[Exception] = []
-        for seat in self._rooms.members(room_id):
+    def _count_and_reveal_when_due(self, view: RoomView, table: _Table, quiz: Quiz, transition: Transition) -> None:
+        """Put the table with the quiz, tell each seat the count, then reveal if everyone answered."""
+        table = replace(table, quiz=quiz)
+        present = frozenset(player for player in quiz.players if player in view.members)
+        transition.put(TABLE, table)
+        transition.log_broken_writes_as(_COUNT_WRITE_BROKE)
+        for seat in view.members:
             frame = AnswerCountFrame(
                 answered=quiz.answered_count(present),
                 players=len(quiz.players & present),
-                own_answer_counted=True if PeerId(seat) in quiz.counted_players(present) else None,
+                own_answer_counted=True if seat in quiz.counted_players(present) else None,
             )
-            broken_writes += await self._send_isolated([seat], frame, lambda: self._quizzes.get(room_id) is quiz)
-        for error in broken_writes:
-            # The sender's connection and the reveal check go on; only the type is logged, never the text.
-            logger.error("game_answer_count.failed", error_type=type(error).__name__)
+            transition.send(seat, frame.to_json(), _A_NEWER_COUNT)
+        if quiz.everyone_answered(present) and quiz.starter in view.members:
+            self._run(table, quiz.revealing(), transition)
 
-    def _reveal_is_due(self, room_id: str, quiz: Quiz, present: frozenset[PeerId]) -> bool:
-        return (
-            self._quizzes.get(room_id) is quiz
-            and quiz.everyone_answered(present)
-            and self._rooms.room_of(quiz.starter) == room_id
-        )
+    def _run(self, table: _Table, quiz: Quiz, transition: Transition) -> None:
+        """Dispatch the quiz's next run; it asks once the room's run before it has ended."""
+        run = _Run(secrets.token_hex(RUN_KEY_BYTES), quiz)
+        phase = _Phase(QuizPhaseFrame(GamePhase.THINKING, quiz.round, QUIZ_ROUNDS, quiz.starter))
+        transition.put(TABLE, _Table(quiz, phase, (*table.runs, run)))
+        transition.dispatch(Work(run.key, quiz.starter))
 
-    def _run(self, room_id: str, quiz: Quiz) -> None:
-        # The quiz, the run, its tasks and its deadline exist before any await, so a second tap already finds them.
-        # A reveal can arrive while the question run still delivers answering; it then waits for that run's end.
-        starter = self._rooms.connection_of(quiz.starter)
-        runs = self._runs.setdefault(room_id, [])
-        previous = runs[-1].driver if runs else None
-        run = _Run(
-            quiz=quiz,
-            starter=starter,
-            previous=previous,
-            ask=asyncio.create_task(self._ask_after(previous, starter, quiz.transcript)),
-        )
-        run.driver = asyncio.create_task(self._drive(room_id, run))
-        self._deadlines.set(DeadlineKind.GAME_RUN, run.key, GAME_RUN_DEADLINE_SECONDS)
-        self._quizzes[room_id] = quiz
-        runs.append(run)
-        self._phases[room_id] = _Phase(QuizPhaseFrame(GamePhase.THINKING, quiz.round, QUIZ_ROUNDS, quiz.starter))
-        self._drivers.add(run.driver)
-        run.driver.add_done_callback(self._driver_finished)
-
-    async def seat_joined(self, peer_id: PeerId) -> None:
+    def seat_joined(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
         """Tell a seat that just joined its room's phase; a fresh seat gets no question until the next one."""
-        room_id = self._rooms.room_of(peer_id)
-        phase = None if room_id is None else self._phases.get(room_id)
+        table = _table_of(view)
+        phase = table.phase
         if phase is not None and peer_id not in phase.told:
-            phase.told.add(peer_id)
-            await self._rooms.send(peer_id, phase.frame.to_json())
+            transition.put(TABLE, replace(table, phase=replace(phase, told=phase.told | {peer_id})))
+            transition.send(peer_id, phase.frame.to_json())
 
-    async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
-        """The starter's leave ends the quiz for everyone; a player's leave shrinks the count of an answered question.
-
-        An ending that came first has left no quiz, or an over one, and the notice then sends nothing.
-        """
-        quiz = self._quizzes.get(room_id)
-        if quiz is None or quiz.is_over:
+    def seat_left(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
+        """The starter's leave ends the quiz for everyone; a player's leave shrinks the count of an answered
+        question."""
+        table = _table_of(view)
+        quiz = table.quiz
+        if quiz is None:
             return
         if peer_id == quiz.starter:
-            await self._end_for_everyone(room_id, quiz, EndedFrame(leaver=name))
+            _end_for_everyone(view, table, EndedFrame(leaver=view.name_of(peer_id)), transition)
         elif quiz.counts_leave_of(peer_id):
-            # Replacing the quiz first makes a count or a reveal check still in flight find its quiz replaced.
-            shrunk = quiz.without_player(peer_id)
-            self._quizzes[room_id] = shrunk
-            await self._count_and_reveal_when_due(room_id, shrunk)
-
-    def seat_changed(self, peer_id: PeerId) -> None:
-        """A seat's standing changes nothing at the table."""
-
-    def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
-        """The game never reads the call's chat."""
+            self._count_and_reveal_when_due(view, table, quiz.without_player(peer_id), transition)
 
     def room_ended(self, room_id: str) -> None:
-        """Forget the room's quiz and runs; each run's driver finishes on its own and sends nothing more."""
-        self._quizzes.pop(room_id, None)
-        self._phases.pop(room_id, None)
         self._voices.forget_speaker(room_id, GAME_SPEAKER)
-        for run in self._runs.pop(room_id, []):
-            self._stop(run)
 
     async def shut_down(self) -> None:
-        # A quiz waiting for its reveal has no run, and a run delivering idle has no quiz any more.
-        for room_id in {*self._quizzes, *self._runs}:
-            self.room_ended(room_id)
-        if self._drivers:
-            await asyncio.wait(self._drivers)
         await self._game_master.aclose()
 
-    async def _drive(self, room_id: str, run: _Run) -> None:
-        # Never cancelled, so no socket write is cut short; the room's end only cancels `ask`. A seat's
-        # broken write is held until the run is delivered, so the room keeps the run until `ask` has ended.
+    def stop_work(self, key: str) -> None:
+        self._deadlines.cancel(DeadlineKind.GAME_RUN, key)
+        self._deadlines.cancel(DeadlineKind.GAME_VOICE, key)
+        # A work stopped before it began finds its run stopped when it begins.
+        self._live.setdefault(key, _LiveRun()).stop()
+
+    async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:
+        """Run the quiz's run on the starter's socket once the room's run before it has ended: tell the room it
+        thinks, ask, deliver the line with the phase it leads to, then its voice."""
+        live = self._live.setdefault(work.key, _LiveRun())
+        previous, self._latest[room.room_id] = self._latest.get(room.room_id), live
         try:
-            with StepTimer("game_master_run.ended", _STEPS, room_ref=room_reference(room_id)) as step:
-                step.handled()  # the driver's done callback writes the error once
-                await self._wait_for_previous(room_id, run)
-                await self._announce_thinking(room_id, run)
-                await asyncio.wait({run.ask})
-                outcome = _outcome_of(run.ask)
-                self._deadlines.cancel(DeadlineKind.GAME_RUN, run.key)
-                reason = _refusal_reason(run, outcome)
+            with StepTimer("game_master_run.ended", _STEPS, room_ref=room_reference(room.room_id)) as step:
+                step.handled()  # its broken writes are logged where they happen
+                if previous is not None:
+                    with StepTimer("run_wait.ended", _STEPS, room_ref=room_reference(room.room_id)):
+                        await previous.ended.wait()
+                view = await room.view()
+                if work.seat not in view.members:
+                    # The starter left before its run began: its seat is gone, and its leave, still to commit, ends
+                    # the quiz.
+                    live.stop()
+                quiz = _asked_quiz(work.key, live, view)
+                starter = None
+                if quiz is not None:
+                    starter = live_seats.connection_of(work.seat)
+                    self._start_ask(work.key, live, starter, quiz)
+                await room.apply(partial(_tell_thinking, work.key, live))
+                outcome = await self._outcome(work.key, live)
+                self._start_voice(work.key, live, starter, outcome)
+                delivery = await room.apply(partial(self._settle, work.key, live, outcome))
+                reason = _refusal_reason(delivery.ended, outcome)
                 if reason is not None:
                     step.refuse(reason)
-                await self._deliver(room_id, run, outcome)
+                if live.voice is not None and not delivery.ended:
+                    await self._send_voice(room, work.key, live, delivery.recipients)
+                if delivery.chained is not None:
+                    await room.apply(partial(self._chain, work.key, live, delivery.chained))
         finally:
-            await self._stop_voice(run)
-            if self._holds(room_id, run):
-                self._forget(room_id, run)
-        if run.broken_writes:
-            raise run.broken_writes[0]
+            await room.apply(partial(_forget, work.key))
+            del self._live[work.key]
+            if self._latest.get(room.room_id) is live:
+                del self._latest[room.room_id]
+            live.ended.set()
 
-    @staticmethod
-    async def _wait_for_previous(room_id: str, run: _Run) -> None:
-        if run.previous is not None:
-            with StepTimer("run_wait.ended", _STEPS, room_ref=room_reference(room_id)):
-                await asyncio.wait({run.previous})
+    def _start_ask(self, key: str, live: _LiveRun, starter: HTTPConnection, quiz: Quiz) -> None:
+        live.ask = asyncio.create_task(self._game_master.ask(starter, quiz.transcript))
+        self._deadlines.set(DeadlineKind.GAME_RUN, key, GAME_RUN_DEADLINE_SECONDS)
 
-    async def _deliver(self, room_id: str, run: _Run, outcome: GameOutcome) -> None:
-        if not self._is_live(room_id, run):
-            return
-        recipients: list[str] = []
+    async def _outcome(self, key: str, live: _LiveRun) -> GameOutcome:
+        if live.ask is None:
+            return Refused(GameRefusal.UNAVAILABLE)
+        await asyncio.wait({live.ask})
+        self._deadlines.cancel(DeadlineKind.GAME_RUN, key)
+        return _outcome_of(live.ask)
+
+    def _start_voice(self, key: str, live: _LiveRun, starter: HTTPConnection | None, outcome: GameOutcome) -> None:
+        """Start making the line's voice on its own deadline as the line is delivered; the line never waits for it."""
+        if starter is not None and self._voice is not None and isinstance(outcome, Line) and not live.stopped:
+            live.voice = asyncio.create_task(self._voice.speak(starter, outcome.text))
+            self._deadlines.set(DeadlineKind.GAME_VOICE, key, VOICE_DEADLINE_SECONDS)
+
+    def _settle(
+        self, key: str, live: _LiveRun, outcome: GameOutcome, view: RoomView, transition: Transition
+    ) -> _Delivery:
+        """Deliver the run's outcome to the seats and move the quiz on by it, the line's recipients its players: the
+        line for every seat, or the refusal for the starter and, past the opening, the end for the others; then the
+        phase it leads to."""
+        table = _table_of(view)
+        run = table.run(key)
+        if live.stopped or run is None or run.ended:
+            return _Delivery(ended=run is not None and run.ended)
+        transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+        recipients = view.members
+        quiz = None
         if isinstance(outcome, Line):
-            recipients = self._rooms.members(room_id)
-            self._start_voice(run, outcome)
-            frame = LineFrame(
+            line = LineFrame(
                 outcome.text,
                 voiced=True if self._voice is not None else None,
                 round=run.quiz.round if run.quiz.is_asking else None,
             )
-            await self._send_each(room_id, run, recipients, frame)
-            quiz = run.quiz.heard(outcome.text, frozenset(PeerId(seat) for seat in recipients))
+            _send_each(transition, recipients, line)
+            quiz = run.quiz.heard(outcome.text, frozenset(recipients))
         else:
-            await self._deliver_refusal(room_id, run, outcome)
-            quiz = None
-        if not self._is_live(room_id, run):
-            return
-        # Each phase's recipients are read in the same step that sets it, so every seat seated now is told
-        # here, a seat that joins later is greeted by `seat_joined`, and idle greets no one.
-        chained: Quiz | None = None
+            transition.send(run.quiz.starter, _refusal_frame(outcome).to_json())
+            if not run.quiz.is_opening:
+                _send_each(transition, (seat for seat in recipients if seat != run.quiz.starter), EndedFrame())
+        # Each phase's recipients are read in the same step that sets it, so every seat seated now is told here, a
+        # seat that joins later is greeted by `seat_joined`, and idle greets no one.
+        chained = None
         if quiz is None or quiz.is_over:
-            await self._end_quiz(room_id, run)
+            transition.put(TABLE, replace(table, quiz=None, phase=None))
+            _send_each(transition, recipients, IdlePhaseFrame(GamePhase.IDLE))
         elif quiz.awaits_game_master:
             chained = quiz
         else:
-            await self._open_question(room_id, run, quiz)
-        await self._send_voice(room_id, run, recipients)
-        if chained is not None and self._is_live(room_id, run):
-            self._chain(room_id, chained)
+            answering = QuizPhaseFrame(GamePhase.ANSWERING, quiz.round, QUIZ_ROUNDS, quiz.starter)
+            phase = _Phase(answering, frozenset(recipients))
+            transition.put(TABLE, replace(table, quiz=quiz, phase=phase))
+            _send_each(transition, recipients, phase.frame)
+        return _Delivery(recipients=recipients, chained=chained)
 
-    async def _deliver_refusal(self, room_id: str, run: _Run, refusal: Refused) -> None:
-        # The refusal ends the quiz: it is over before the first write, so no End starts a second ending.
-        self._quizzes[room_id] = run.quiz.ended()
-        seated = self._rooms.members(room_id)
-        await self._send_each(room_id, run, [run.quiz.starter], _refusal_frame(refusal))
-        if not run.quiz.is_opening:
-            others = [seat for seat in seated if seat != run.quiz.starter]
-            await self._send_each(room_id, run, others, EndedFrame())
-
-    def _start_voice(self, run: _Run, line: Line) -> None:
-        """Make the line's voice beside the run, on its own deadline; the line and its phase never wait for it."""
-        if self._voice is not None:
-            task = asyncio.create_task(self._voice.speak(run.starter, line.text))
-            run.voice = _VoiceRun(task)
-            self._deadlines.set(DeadlineKind.GAME_VOICE, run.key, VOICE_DEADLINE_SECONDS)
-
-    def _stop(self, run: _Run) -> None:
-        self._deadlines.cancel(DeadlineKind.GAME_RUN, run.key)
-        self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)
-        run.stop()
-
-    async def _expire_run(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
-        # A run that already ended has a finished `ask`, so the cancel is a no-op then.
-        self._run_keyed(key).ask.cancel()
-
-    async def _expire_voice(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
-        voice = self._run_keyed(key).voice
-        assert voice is not None  # noqa: S101 - the voice's deadline is set with it and cancelled before it goes
-        voice.task.cancel(VOICE_DEADLINE_CUT)
-
-    def _run_keyed(self, key: str) -> _Run:
-        # A run leaves the table only after its deadlines are cancelled, so a due deadline finds its run.
-        return next(run for runs in self._runs.values() for run in runs if run.key == key)
-
-    async def _stop_voice(self, run: _Run) -> None:
-        self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)
-        if run.voice is not None:
-            run.voice.stop()
-            await asyncio.wait({run.voice.task})
+    async def _send_voice(self, room: WorkRoom, key: str, live: _LiveRun, recipients: tuple[PeerId, ...]) -> None:
+        """Wait for the line's voice, then send its one frame, made or empty, to the line's recipients still seated
+        while the run is live."""
+        assert live.voice is not None  # noqa: S101 - only a run whose voice started sends it
+        with StepTimer("voice_wait.ended", _STEPS, room_ref=room_reference(room.room_id)):
+            await asyncio.wait({live.voice})
+        self._deadlines.cancel(DeadlineKind.GAME_VOICE, key)
+        if live.stopped:
+            return
+        frame = self._voice_frame(room.room_id, _voice_of(live.voice))
+        await room.apply(partial(_send_voice_frame, frame, recipients))
 
     def _voice_frame(self, room_id: str, wav: bytes | None) -> VoiceFrame | SilentVoiceFrame:
         """The line's voice, or, with none, the word that none follows."""
@@ -456,105 +427,91 @@ class Game:
         voice = self._keep(room_id, wav)
         return VoiceFrame(voice.id, voice.path)
 
-    async def _send_voice(self, room_id: str, run: _Run, recipients: list[str]) -> None:
-        """Wait for the run's voice and send its one frame, made or empty, to the recipients still seated, if live."""
-        if run.voice is None:
-            return
-        with StepTimer("voice_wait.ended", _STEPS, room_ref=room_reference(room_id)):
-            await asyncio.wait({run.voice.task})
-        self._deadlines.cancel(DeadlineKind.GAME_VOICE, run.key)
-        wav = _voice_of(run.voice.task)
-        if not self._is_live(room_id, run):
-            return
-        seated = [seat for seat in recipients if self._rooms.room_of(PeerId(seat)) == room_id]
-        await self._send_each(room_id, run, seated, self._voice_frame(room_id, wav))
-
     def _keep(self, room_id: str, wav: bytes) -> StoredVoice:
         """Keep the sound as the room's latest voice; the voice after the next or the room's end replaces it."""
         voice = self._voices.put(room_id, GAME_SPEAKER, wav)
         self._voices.keep_latest(room_id, GAME_SPEAKER, GAME_VOICES_KEPT)
         return voice
 
-    def _chain(self, room_id: str, quiz: Quiz) -> None:
+    def _chain(self, key: str, live: _LiveRun, quiz: Quiz, view: RoomView, transition: Transition) -> None:
         """Run the quiz's next request at once, on the starter's token and with no idle in between.
 
         A starter whose seat is gone gets no run: that seat's `seat_left` notice ends the quiz.
         """
-        if self._rooms.room_of(quiz.starter) is not None:
-            self._run(room_id, quiz)
+        table = _table_of(view)
+        if not live.stopped and table.is_live(key) and quiz.starter in view.members:
+            self._run(table, quiz, transition)
 
-    async def _open_question(self, room_id: str, run: _Run, quiz: Quiz) -> None:
-        self._quizzes[room_id] = quiz
-        seated = self._rooms.members(room_id)
-        phase = _Phase(QuizPhaseFrame(GamePhase.ANSWERING, quiz.round, QUIZ_ROUNDS, quiz.starter), told=set(seated))
-        self._phases[room_id] = phase
-        await self._send_each(room_id, run, seated, phase.frame)
+    async def _expire_run(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        # A run cancels its deadline before its work ends, so a due deadline finds its call.
+        ask = self._live[key].ask
+        assert ask is not None  # noqa: S101 - the run's deadline is set with its call
+        ask.cancel()
 
-    async def _end_quiz(self, room_id: str, run: _Run) -> None:
-        del self._quizzes[room_id]
-        del self._phases[room_id]
-        await self._send_to_room(room_id, run, IdlePhaseFrame(GamePhase.IDLE))
-
-    async def _ask_after(
-        self, previous: asyncio.Task[None] | None, starter: HTTPConnection, transcript: tuple[Turn, ...]
-    ) -> GameOutcome:
-        if previous is not None:
-            await asyncio.wait({previous})
-        return await self._game_master.ask(starter, transcript)
-
-    def _holds(self, room_id: str, run: _Run) -> bool:
-        return run in self._runs.get(room_id, [])
-
-    def _is_live(self, room_id: str, run: _Run) -> bool:
-        return not run.ended and self._holds(room_id, run)
-
-    def _forget(self, room_id: str, run: _Run) -> None:
-        runs = self._runs[room_id]
-        runs.remove(run)
-        if not runs:
-            del self._runs[room_id]
-
-    async def _announce_thinking(self, room_id: str, run: _Run) -> None:
-        # A seat greeted while the run was starting already holds its thinking frame; each seat gets one.
-        if not self._is_live(room_id, run):
-            return
-        phase = self._phases[room_id]
-        recipients = [peer_id for peer_id in self._rooms.members(room_id) if peer_id not in phase.told]
-        phase.told.update(recipients)
-        await self._send_each(room_id, run, recipients, phase.frame)
-
-    async def _send_to_room(self, room_id: str, run: _Run, frame: GameFrame) -> None:
-        # Each caller has checked, in this same step, that the run is still the room's, so the room exists.
-        await self._send_each(room_id, run, self._rooms.members(room_id), frame)
-
-    async def _send_each(self, room_id: str, run: _Run, recipients: list[str], frame: GameFrame) -> None:
-        # Re-raised by the driver once every other seat has its frames.
-        run.broken_writes.extend(await self._send_isolated(recipients, frame, lambda: self._is_live(room_id, run)))
-
-    async def _send_isolated(
-        self, recipients: list[str], frame: GameFrame, still_wanted: Callable[[], bool]
-    ) -> list[Exception]:
-        """Send the frame to each recipient while it is wanted; a seat's broken write never keeps the others from it."""
-        broken_writes: list[Exception] = []
-        wire_frame = frame.to_json()
-        for peer_id in recipients:
-            if not still_wanted():
-                break
-            try:
-                await self._rooms.send(peer_id, wire_frame)
-            except Exception as error:
-                broken_writes.append(error)
-        return broken_writes
-
-    def _driver_finished(self, driver: asyncio.Task[None]) -> None:
-        self._drivers.discard(driver)
-        if not driver.cancelled() and (error := driver.exception()) is not None:
-            logger.error("game_driver.failed", error_type=type(error).__name__)
+    async def _expire_voice(self, key: str) -> None:  # NOSONAR(S7503) the deadlines await it
+        voice = self._live[key].voice
+        assert voice is not None  # noqa: S101 - the voice's deadline is set with it and cancelled before it goes
+        voice.cancel(VOICE_DEADLINE_CUT)
 
 
-def _refusal_reason(run: _Run, outcome: GameOutcome) -> str | None:
+def _table_of(view: RoomView) -> _Table:
+    return view.section(TABLE) or _Table()
+
+
+def _send_each(
+    transition: Transition, recipients: Iterable[PeerId], frame: GameFrame, supersedes: Supersedes | None = None
+) -> None:
+    wire_frame = frame.to_json()
+    for peer_id in recipients:
+        transition.send(peer_id, wire_frame, supersedes)
+
+
+def _end_for_everyone(view: RoomView, table: _Table, notice: EndedFrame, transition: Transition) -> None:
+    """Send the room's seats the notice, then idle, and remove the quiz; its runs stop and stay until they end."""
+    for run in table.runs:
+        transition.stop(run.key)
+    transition.put(TABLE, _Table(runs=tuple(replace(run, ended=True) for run in table.runs)))
+    transition.log_broken_writes_as(_END_WRITE_BROKE)
+    _send_each(transition, view.members, notice, _AN_END)
+    _send_each(transition, view.members, IdlePhaseFrame(GamePhase.IDLE))
+
+
+def _asked_quiz(key: str, live: _LiveRun, view: RoomView) -> Quiz | None:
+    """The quiz the run asks for; a stopped run asks nothing."""
+    run = _table_of(view).run(key)
+    return None if live.stopped or run is None or run.ended else run.quiz
+
+
+def _tell_thinking(key: str, live: _LiveRun, view: RoomView, transition: Transition) -> None:
+    """Tell each seat of the run's room not told yet that the game master thinks, while the run is live."""
+    table = _table_of(view)
+    if live.stopped or not table.is_live(key) or table.phase is None:
+        return
+    recipients = [seat for seat in view.members if seat not in table.phase.told]
+    transition.put(TABLE, replace(table, phase=replace(table.phase, told=table.phase.told | set(recipients))))
+    transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+    _send_each(transition, recipients, table.phase.frame)
+
+
+def _send_voice_frame(
+    frame: VoiceFrame | SilentVoiceFrame,
+    recipients: tuple[PeerId, ...],
+    view: RoomView,
+    transition: Transition,
+) -> None:
+    transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+    _send_each(transition, (seat for seat in recipients if seat in view.members), frame)
+
+
+def _forget(key: str, view: RoomView, transition: Transition) -> None:
+    table = _table_of(view)
+    if table.run(key) is not None:
+        transition.put(TABLE, replace(table, runs=tuple(run for run in table.runs if run.key != key)))
+
+
+def _refusal_reason(ended: bool, outcome: GameOutcome) -> str | None:
     """Why the run showed no line, a code from a closed set: an end that cancelled it, else the refusal's own reason."""
-    if run.ended:
+    if ended:
         return RUN_ENDED_REASON
     return None if isinstance(outcome, Line) else outcome.reason.value
 

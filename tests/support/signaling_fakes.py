@@ -13,7 +13,7 @@ from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT
 from hopin.errors import InvalidMessageError
 from hopin.rooms.models import Account
 from hopin.signaling.features import TransitionFeature
-from hopin.signaling.transition import Section
+from hopin.signaling.transition import Section, Work
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -239,6 +239,43 @@ class StagingFeature(TransitionFeature):
 
     def seat_left(self, view, peer_id, transition):
         pass
+
+
+class WorkingFeature(TransitionFeature):
+    """A call feature on transitions with work: `work` dispatches a work of its key on the sender's seat, which runs
+    until it is stopped, or raises at once when its key is `failing`; `stop` stops the work of its key. It records the
+    keys it is asked to stop."""
+
+    name = "working"
+    browser_modules = ()
+    signal_types = MappingProxyType({"WORK": "work", "STOP": "stop"})
+
+    def __init__(self):
+        self.stop_asked: list[str] = []
+        self._stops: dict[str, asyncio.Event] = {}
+
+    def on_frame(self, view, peer_id, frame, transition):
+        key = frame.data["key"]
+        if frame.signal_type == "work":
+            transition.dispatch(Work(key, peer_id))
+        else:
+            transition.stop(key)
+        return True
+
+    def seat_joined(self, view, peer_id, transition):
+        pass
+
+    def seat_left(self, view, peer_id, transition):
+        pass
+
+    async def run_work(self, work, live_seats, room):
+        if work.key == "failing":
+            raise RuntimeError("the work broke")
+        await self._stops.setdefault(work.key, asyncio.Event()).wait()
+
+    def stop_work(self, key):
+        self.stop_asked.append(key)
+        self._stops.setdefault(key, asyncio.Event()).set()
 
 
 @dataclass(frozen=True)

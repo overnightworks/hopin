@@ -17,7 +17,7 @@ from hopin.config.constants import (
 )
 from hopin.errors import ResumeRefusedError, TooManyCallsError
 from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumedFrame, ResumeFrame, error_frame
-from hopin.signaling.replay import ReplayLog
+from hopin.signaling.replay import ReplayLog, Supersedes
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
@@ -62,6 +62,7 @@ class Peer:
     received_seq: int = 0
     delivered_seq: int = 0
     replaying: bool = False
+    writers_started: int = 0
     park: Park | None = None
 
 
@@ -133,28 +134,37 @@ class Seats:
     def connection_of(self, peer_id: PeerId) -> HTTPConnection:
         return self._peers[peer_id].websocket
 
-    async def send_all(self, peer_ids: list[str], data: JsonObject) -> None:
-        for peer_id in peer_ids:
-            await self.send(peer_id, data)
+    async def send_all(self, peer_ids: list[str], data: JsonObject, supersedes: Supersedes | None = None) -> None:
+        """Log the frame for every seat first, so what it supersedes is gone at each before any write, then write."""
+        logged = [PeerId(peer_id) for peer_id in peer_ids if self.log(PeerId(peer_id), data, supersedes)]
+        for peer_id in logged:
+            await self.deliver(peer_id)
 
-    async def send(self, peer_id: str, data: JsonObject) -> None:
-        if self.log(PeerId(peer_id), data):
-            await self.deliver(PeerId(peer_id))
+    async def send(self, peer_id: str, data: JsonObject, supersedes: Supersedes | None = None) -> None:
+        await self.send_all([peer_id], data, supersedes)
 
-    def log(self, peer_id: PeerId, data: JsonObject) -> bool:
-        """Give the frame the seat's next seq in its log, and say whether the seat is there to have it."""
+    def log(self, peer_id: PeerId, data: JsonObject, supersedes: Supersedes | None = None) -> bool:
+        """Give the frame the seat's next seq in its log, dropping the frames it supersedes there, and say whether the
+        seat is there to have it."""
         peer = self._peers.get(peer_id)
         if peer is None:
             return False
-        peer.log.append(data)
+        peer.log.append(data, supersedes)
         return True
 
     async def deliver(self, peer_id: PeerId) -> None:
         """Write the logged frames the seat's socket has not had; held while the seat is parked or replaying."""
-        # The browser drops frames at or below the last seq it dispatched, so each write starts in the order
-        # of the seq, claimed with no await before it starts; a slow write never holds the next one back.
+        # The browser drops frames at or below the last seq it dispatched, so each write starts in the order of the
+        # seq, claimed with no await before it starts; a slow write never holds the next one back, and a writer whose
+        # slow write ends leaves the frames after it to the newer writer, so none of them overtakes the newer one's.
         peer = self._peers.get(peer_id)
-        while peer is not None and self.find(peer_id) is peer and not peer.replaying and peer.park is None:
+        if peer is None:
+            return
+        peer.writers_started += 1
+        writer = peer.writers_started
+        while (
+            self.find(peer_id) is peer and not peer.replaying and peer.park is None and peer.writers_started == writer
+        ):
             pending = peer.log.since(peer.delivered_seq)
             if not pending:
                 return

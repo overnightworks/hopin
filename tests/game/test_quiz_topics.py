@@ -1,5 +1,3 @@
-from functools import partial
-
 import pytest
 
 from hopin.agent.feature import draw_quiz_topics
@@ -26,8 +24,7 @@ def test_a_draw_gives_one_listed_topic_per_round_and_none_twice():
 def game(deadlines, game_master, voice, voices):
     drawn = iter([FIRST_QUIZ, SECOND_QUIZ])
 
-    return partial(
-        Game,
+    return Game(
         deadlines=deadlines,
         game_master=game_master,
         topic_drawer=lambda: next(drawn),
