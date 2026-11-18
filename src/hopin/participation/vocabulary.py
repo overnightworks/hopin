@@ -6,8 +6,6 @@ FEATURE_NAME = "participation"
 FIGURE_MODULE = "figure"
 AGENT_NAME_MAX_CHARACTERS = 32
 AGENT_LINE_MAX_CHARACTERS = 600
-LINES_PER_WINDOW = 10
-LINE_WINDOW_SECONDS = 60
 SENTENCES_WAITING_PER_AGENT = 10
 # How often the speech service is asked whether a voice is back while a window states its voice unavailable.
 VOICE_RECOVERY_SECONDS = 5
@@ -82,7 +80,6 @@ class AgentRefusal(StrEnum):
     STALE_INVITATION = "stale_invitation"
     UNAVAILABLE = "unavailable"
     BAD_LINE = "bad_line"
-    TOO_FAST = "too_fast"
 
 
 class InvitationOutcome(StrEnum):
@@ -166,7 +163,6 @@ class SpeakFailure(StrEnum):
 
     NO_TEXT = "no_text"
     SPEAKING_OFF = "speaking_off"
-    TOO_FAST = "too_fast"
     QUEUE_FULL = "queue_full"
 
 
