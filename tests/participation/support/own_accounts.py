@@ -37,7 +37,7 @@ async def agent_stops_listening(participation, listeners):
 
 
 def _running_reads():
-    return [task for task in asyncio.all_tasks() if task.get_name() == GROUPS_READ_TASK_NAME]
+    return [task for task in asyncio.all_tasks() if task.get_name().startswith(GROUPS_READ_TASK_NAME)]
 
 
 async def let_reads_finish():

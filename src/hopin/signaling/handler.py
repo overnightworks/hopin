@@ -32,7 +32,7 @@ from hopin.signaling.frames import (
 )
 from hopin.signaling.routing import Departure, RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
-from hopin.signaling.transition import Committed, InMemoryCallStore, RoomView, Transition, TransitionHost
+from hopin.signaling.transition import CommitsSeatLeft, Committed, InMemoryCallStore, RoomView, Transition
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -64,7 +64,7 @@ class SignalingHandler:
         self._seats = self._routing.seats
         self._store = InMemoryCallStore(self._routing, room_manager)
         self._features = build_features(
-            features, CallRooms(self._routing, room_manager, self._seats), self._store, self._seats
+            features, CallRooms(self._routing, self._store, self._seats), self._store, self._seats
         )
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
@@ -87,9 +87,9 @@ class SignalingHandler:
             feature.chat_said(peer_id, room_id, message)
 
     async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
-        """The room is told of the departure in one commit with what each feature on transitions answers it, so a
-        feature's frame supersedes its own outdated ones before any reaches a seat; the other features hear it
-        after, even when a seat's write of that commit broke."""
+        """The room is told of the departure in one commit with what each feature that commits its answer answers
+        it, so a feature's frame supersedes its own outdated ones before any reaches a seat; the other features hear
+        it after, even when a seat's write of that commit broke."""
         told = Transition()
         for peer_id, frame in told_frames:
             told.send(peer_id, frame)
@@ -97,7 +97,7 @@ class SignalingHandler:
         committed += [
             feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
             for feature in self._features
-            if isinstance(feature, TransitionHost)
+            if isinstance(feature, CommitsSeatLeft)
         ]
         try:
             await self._store.wake_committed(committed)

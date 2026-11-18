@@ -3,38 +3,31 @@ from collections import Counter
 from typing import TYPE_CHECKING, Protocol
 
 from hopin.config.constants import SignalType
-from hopin.signaling.transition import TransitionHost
+from hopin.signaling.transition import FeatureTransitions, TransitionHost
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-    from starlette.requests import HTTPConnection
-
-    from hopin.rooms.manager import RoomManager
-    from hopin.signaling.frames import ForeignFrame, JsonObject, PeerId
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.routing import RoomRouting
-    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Transition, Work, WorkRoom
+    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Transition, Work, Worker, WorkRoom
 
 
 class CallRooms:
-    """What a feature not yet on transitions may read of the calls and send into them; a new feature is a
-    `TransitionFeature`."""
+    """What a feature not yet wholly on transitions may read of the calls, and the transitions its other parts run
+    on; a new feature is a `TransitionFeature`."""
 
-    def __init__(self, routing: RoomRouting, room_manager: RoomManager, live_seats: LiveSeats) -> None:
+    def __init__(self, routing: RoomRouting, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
         self._routing = routing
-        self._room_manager = room_manager
+        self._store = store
         self._live_seats = live_seats
+
+    def transitions_for(self, worker: Worker) -> FeatureTransitions:
+        """The transitions of a feature that runs only partly on them, for those of its parts that do."""
+        return FeatureTransitions(worker, self._store, self._live_seats)
 
     def room_of(self, peer_id: PeerId) -> str | None:
         return self._routing.room_of(peer_id)
-
-    def members(self, room_id: str) -> list[str]:
-        """The room's seats now; the room must exist."""
-        return self._room_manager.get_room(room_id).participant_ids
-
-    async def send(self, peer_id: str, frame: JsonObject) -> None:
-        """Send as the call core sends: logged for a resume, held while the seat is parked or replaying."""
-        await self._routing.seats.send(peer_id, frame)
 
     def name_of(self, peer_id: PeerId) -> str:
         """The name the call shows for the seat; the seat must exist."""
@@ -48,33 +41,9 @@ class CallRooms:
             if self._routing.room_of(peer_id) == room_id
         ]
 
-    def has_free_place(self, room_id: str) -> bool:
-        """Whether the room has a place left for another joined agent; the room must exist."""
-        return self._room_manager.has_free_place_for_agent(room_id)
-
-    def take_agent_place(self, room_id: str, agent_id: str) -> None:
-        """Seat the joined agent among the room's people; the room must exist. Raises `RoomFullError` with no place
-        left."""
-        self._room_manager.add_agent(room_id, agent_id)
-
-    def release_agent_place(self, room_id: str, agent_id: str) -> None:
-        """Free the agent's place; a room that has ended holds none."""
-        self._room_manager.remove_agent(room_id, agent_id)
-
     def is_parked(self, peer_id: PeerId) -> bool:
         """Whether the seat has lost its socket and waits for a resume; the seat must exist."""
         return self._routing.seats.seat(peer_id).park is not None
-
-    def is_host(self, peer_id: PeerId) -> bool:
-        """Whether the seat's account hosts the call it sits in; the seat must be in a room."""
-        room_id = self.room_of(peer_id)
-        return room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(
-            self._routing.seats.account_of(peer_id)
-        )
-
-    def connection_of(self, peer_id: PeerId) -> HTTPConnection:
-        """The connection that serves the seat now, carrying its sign-in."""
-        return self._live_seats.connection_of(peer_id)
 
 
 class CallFeature(Protocol):

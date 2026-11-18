@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from hopin.participation.places import Places
     from hopin.signaling.frames import PeerId
     from hopin.signaling.scheduler import Deadlines
+    from hopin.signaling.transition import Transition
 
 
 class ShownFigures:
@@ -99,10 +100,11 @@ class ShownFigures:
         self._deadlines.cancel(DeadlineKind.THINKING, agent.agent_id)
         await self._tell(agent.room_id, self._recipients(agent.room_id), AgentThinkingFrame(agent.agent_id, on=False))
 
-    async def tell_thinking(self, agent: DialedAgent, peer_id: PeerId) -> None:
-        """Tell a seat that joined later that the agent thinks, when it does."""
+    def tell_thinking(self, agent: DialedAgent, peer_id: PeerId, transition: Transition) -> None:
+        """Tell a seat that joined later, in the transition that announces the agent to it, that the agent thinks,
+        when it does."""
         if agent.agent_id in self._thinking:
-            await self._tell(agent.room_id, [peer_id], AgentThinkingFrame(agent.agent_id, on=True))
+            transition.send(peer_id, AgentThinkingFrame(agent.agent_id, on=True).to_json())
 
     async def _thinking_ran_out(self, agent_id: str) -> None:
         agent = self._thinking.pop(agent_id, None)
