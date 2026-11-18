@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "3c38299f9397d039219640c6b6829a48e315e9eb"
 branch = "claude/issue-956-an-agent-s-lines-have-no-rate-limit"
-scope = ["docs/call.md", "src/hopin/participation/feature.py", "src/hopin/participation/line_rate.py", "src/hopin/participation/places.py", "src/hopin/participation/vocabulary.py", "tests/participation"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/wire.ts", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "src/hopin/participation/line_rate.py", "src/hopin/participation/look_rate.py", "src/hopin/participation/places.py", "src/hopin/participation/vocabulary.py", "tests/participation"]
 opened_commit = "d4a9df752577e3e83224ca05788fe982e0883dec"
 whole_reason = "The rate, its two callers, its tests and its ruled sentences go together."
