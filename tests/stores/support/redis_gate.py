@@ -3,17 +3,47 @@
 import contextlib
 import socket
 import threading
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from redis import Redis
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOCALHOST = "127.0.0.1"
 CHUNK_BYTES = 65536
+# The tail of every RESP command that subscribes: SUBSCRIBE, PSUBSCRIBE and SSUBSCRIBE.
+SUBSCRIBING_COMMAND_TAIL = b"SUBSCRIBE\r\n"
 
 
-def _pump(source: socket.socket, target: socket.socket) -> None:
+@dataclass
+class _Forward:
+    """One client connection through the gate and the Redis connection it is forwarded to."""
+
+    client: socket.socket
+    upstream: socket.socket
+    subscribing: bool = False
+
+    def ends(self) -> tuple[socket.socket, socket.socket]:
+        return self.client, self.upstream
+
+    def note_sent(self, chunk: bytes) -> None:
+        if SUBSCRIBING_COMMAND_TAIL in chunk.upper():
+            self.subscribing = True
+
+
+def _drop(forwards: list[_Forward]) -> None:
+    for forward in forwards:
+        for end in forward.ends():
+            with contextlib.suppress(OSError):
+                end.shutdown(socket.SHUT_RDWR)
+            end.close()
+
+
+def _pump(source: socket.socket, target: socket.socket, sent: Callable[[bytes], None] = lambda _: None) -> None:
     with contextlib.suppress(OSError):
         while chunk := source.recv(CHUNK_BYTES):
+            sent(chunk)
             target.sendall(chunk)
     for end in (source, target):
         with contextlib.suppress(OSError):
@@ -23,13 +53,11 @@ def _pump(source: socket.socket, target: socket.socket) -> None:
 class RedisGate:
     def __init__(self, redis_url: str, port: int = 0) -> None:
         target = urlsplit(redis_url)
-        self._redis_url = redis_url
         self._target = (target.hostname or LOCALHOST, target.port or 6379)
-        self._upstream_ports: set[int] = set()
         self._listener = socket.socket()
         self._listener.bind((LOCALHOST, port))
         self._listener.listen()
-        self._connections: list[socket.socket] = []
+        self._forwards: list[_Forward] = []
         self._lock = threading.Lock()
         self.url = f"redis://{LOCALHOST}:{self._listener.getsockname()[1]}{target.path}"
         threading.Thread(target=self._accept, daemon=True).start()
@@ -40,23 +68,20 @@ class RedisGate:
                 client, _ = self._listener.accept()
             except OSError:
                 return
-            upstream = socket.create_connection(self._target)
+            forward = _Forward(client, socket.create_connection(self._target))
             with self._lock:
-                self._connections += [client, upstream]
-                self._upstream_ports.add(upstream.getsockname()[1])
-            threading.Thread(target=_pump, args=(client, upstream), daemon=True).start()
-            threading.Thread(target=_pump, args=(upstream, client), daemon=True).start()
+                self._forwards.append(forward)
+            threading.Thread(target=_pump, args=(client, forward.upstream, forward.note_sent), daemon=True).start()
+            threading.Thread(target=_pump, args=(forward.upstream, client), daemon=True).start()
 
     def refuse_requests(self) -> None:
         """Redis answers no request of this gate's clients any more while their subscriptions stay up: no connection
-        opens through the gate, and Redis drops every open one that is not a subscription."""
+        opens through the gate, and the gate drops every open one that never subscribed."""
         self._stop_listening()
         with self._lock:
-            ports = set(self._upstream_ports)
-        with Redis.from_url(self._redis_url) as admin:
-            for client in admin.client_list(_type="normal"):
-                if int(client["addr"].rsplit(":", 1)[1]) in ports:
-                    admin.client_kill_filter(_id=client["id"])
+            refused = [forward for forward in self._forwards if not forward.subscribing]
+            self._forwards = [forward for forward in self._forwards if forward.subscribing]
+        _drop(refused)
 
     def _stop_listening(self) -> None:
         # A listener that another thread is blocked in accept() on keeps listening after close() until it is shut down.
@@ -67,8 +92,5 @@ class RedisGate:
     def close(self) -> None:
         self._stop_listening()
         with self._lock:
-            connections, self._connections = self._connections, []
-        for connection in connections:
-            with contextlib.suppress(OSError):
-                connection.shutdown(socket.SHUT_RDWR)
-            connection.close()
+            forwards, self._forwards = self._forwards, []
+        _drop(forwards)
