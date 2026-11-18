@@ -1,8 +1,0 @@
-claim_id = "f1890f5c8eaa43fdabaff15cbb4cdf36"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "c59a7a07858278eb01abe0da59ca3e305355517d"
-branch = "claude/issue-923-english-catalog"
-scope = ["README.md", "docs/ARCHITECTURE.md", "frontend/.prettierignore", "frontend/scripts/browser-coverage-report.js", "frontend/src/lib/catalogs", "frontend/src/lib/words", "quality/config.toml", "sonar-project.properties", "src/hopin/words.py", "tests"]
-opened_commit = "7483b484afb09581c5e7f64280ddb22e52b66734"
-whole_reason = "One catalog and the modules generated from it."
