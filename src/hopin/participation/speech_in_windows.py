@@ -10,13 +10,12 @@ the agent is offered again, and the window turns available once it is, with no s
 nothing is asked.
 """
 
-from contextlib import AbstractContextManager, contextmanager, nullcontext
+from contextlib import contextmanager
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final, NamedTuple
-from weakref import WeakKeyDictionary
+from typing import TYPE_CHECKING, Final
 
 import structlog
-from logline import current_traceparent, unit_trace
+from logline import current_traceparent
 
 from hopin.participation.chat_window import LineKind
 from hopin.participation.participants import DialedAgent
@@ -51,13 +50,6 @@ class EntryKind(StrEnum):
     WRITTEN = "written"
 
 
-class _PulsedTurn(NamedTuple):
-    """The trace of a heard sentence's turn and the `seq` of the line it entered, which the agent's pulse told."""
-
-    seq: int
-    traceparent: str
-
-
 def _note_rendering(step: StepTimer, rendered: RenderedSentence | VoiceFailure | None) -> None:
     """End the speak step for what the render made: its first sound, the failure of the voice, or no voice to ask."""
     if rendered is None:
@@ -87,32 +79,23 @@ class SpeechInWindows:
         self._deadlines = deadlines
         deadlines.register(DeadlineKind.WINDOW_RECOVERY, self._ask_whether_voices_are_back)
         self._recovery_offered: VoicesOffered | None = None
-        self._turn_traces: WeakKeyDictionary[ChatWindow, _PulsedTurn] = WeakKeyDictionary()
 
     def line_said(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
         """Add a written line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
         agent said it, whose window marks it own."""
         for person, window in self._places.windows_in(room_id).items():
-            if window.append(kind, name, text, own=person == sayer):
+            if window.append(kind, name, text, own=person == sayer, traceparent=current_traceparent()):
                 self._line_entered(person, room_id, window, EntryKind.WRITTEN)
                 self._on_window_changed(person, room_id)
                 self._pulse_sent(person, room_id, window)
 
     @contextmanager
     def speak_step(self, agent: DialedAgent, text: str) -> Iterator[StepTimer]:
-        """The `speak.ended` timer of a sentence the agent's speaking asked for, with the `seq` its window has now. Its
-        line is written in the trace of the heard sentence the window's newest line is, so the sentence joins the turn
-        that caused it; once another line has entered the window, or with no heard sentence, it stays in the trace of
-        the call that carries the sentence."""
+        """The `speak.ended` timer of a sentence the agent's speaking asked for, with the `seq` its window has now; its
+        line is written in the trace of the call that carries the sentence."""
         window = self._places.window_of(agent.person, agent.room_id)
-        turn_trace = None if window is None else self._newest_line_trace(window)
-        in_turn: AbstractContextManager[None] = nullcontext() if turn_trace is None else unit_trace(turn_trace)
-        with in_turn, speak_timer(agent, text, seq=None if window is None else window.last_seq) as step:
+        with speak_timer(agent, text, seq=None if window is None else window.last_seq) as step:
             yield step
-
-    def _newest_line_trace(self, window: ChatWindow) -> str | None:
-        pulsed = self._turn_traces.get(window)
-        return pulsed.traceparent if pulsed is not None and pulsed.seq == window.last_seq else None
 
     def watching_voice(self, agent: DialedAgent, render: Renderer, offered: VoicesOffered | None) -> Renderer:
         """The renderer, and every sound or failure of the agent's voice it makes shown in the agent's window: a
@@ -207,7 +190,13 @@ class SpeechInWindows:
         for person, window in self._places.windows_in(agent.room_id).items():
             own = person == agent.person
             changed = window.append(
-                LineKind.AGENT, agent.name, sentence.text, own=own, spoken=True, cut=end is SentenceEnd.CUT
+                LineKind.AGENT,
+                agent.name,
+                sentence.text,
+                own=own,
+                spoken=True,
+                cut=end is SentenceEnd.CUT,
+                traceparent=current_traceparent(),
             )
             if own and end is not SentenceEnd.CONTINUED:
                 changed = window.set_playing(playing=False) or changed
@@ -223,7 +212,7 @@ class SpeechInWindows:
             return
         for person, window in self._places.windows_in(room_id).items():
             appended = person in heard.hearers and window.append(
-                heard.kind, heard.name, heard.text, own=False, spoken=True
+                heard.kind, heard.name, heard.text, own=False, spoken=True, traceparent=current_traceparent()
             )
             turn_ended = window.turn_ended(seat)
             if appended:
@@ -232,7 +221,6 @@ class SpeechInWindows:
                 self._on_window_changed(person, room_id)
             if appended:
                 self._pulse_sent(person, room_id, window)
-                self._remember_turn(window)
 
     def _line_entered(
         self, person: Person, room_id: str, window: ChatWindow, kind: EntryKind, item_id: str | None = None
@@ -248,11 +236,6 @@ class SpeechInWindows:
 
     def _pulse_sent(self, person: Person, room_id: str, window: ChatWindow) -> None:
         logger.info("pulse.sent", agent_id=self._agent_id_of(person, room_id), seq=window.last_seq)
-
-    def _remember_turn(self, window: ChatWindow) -> None:
-        turn_trace = current_traceparent()
-        if turn_trace is not None:
-            self._turn_traces[window] = _PulsedTurn(window.last_seq, turn_trace)
 
     def _agent_id_of(self, person: Person, room_id: str) -> str | None:
         agent = self._places.get(person, room_id)

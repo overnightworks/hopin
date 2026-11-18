@@ -46,7 +46,8 @@ class TestWhatTheWindowHolds:
 
         await host.say(chat("hello"))
 
-        assert lines_of(participation, guest) == (WindowLine(1, LineKind.PERSON, "host", "hello", own=False),)
+        [line] = lines_of(participation, guest)
+        assert (line.seq, line.kind, line.name, line.text, line.own) == (1, LineKind.PERSON, "host", "hello", False)
 
     async def test_call_54_an_agents_line_is_own_in_the_window_of_the_agent_that_said_it_only(
         self, link, participation

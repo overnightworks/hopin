@@ -109,7 +109,8 @@ class TestAFinishedSentence:
         closed = hear_one_sentence(sponsored, fake_speech)
 
         [entry] = entries_of(sponsored)
-        assert (closed, entry) == (
+        untraced = {field: value for field, value in entry.items() if field != "traceparent"}
+        assert (closed, untraced) == (
             HearingClose.NORMAL,
             {
                 "seq": entry["seq"],

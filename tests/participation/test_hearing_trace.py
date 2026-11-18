@@ -1,17 +1,20 @@
-"""The trace of a heard turn through HopIn's real `/ws` hearing route and `/mcp`, with a fake speech service for the
-hearing and a fake one for the agent's sentence: the turn runs in the trace the service's transcript names, and the
-agent's sentence reaches the service in it."""
+"""The trace of a heard turn and of an agent's speak through HopIn's real `/ws` hearing route and `/mcp`, with a fake
+speech service for the hearing and a fake one for the agent's sentence: the turn runs in the trace the service's
+transcript names, a line enters the agent's place with the trace it entered in, and a speak runs in the trace its
+request carries."""
 
 import json
 import secrets
 from dataclasses import dataclass
 
 import pytest
+from logline import unit_trace
 from logline.testing import configured
 from speech_client.wire import TRACEPARENT_HEADER, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
-from tests.support.agent_speak import speak
+from hopin.agent.tools import JOIN_CALL, SAY
+from tests.support.agent_speak import SENTENCE_SECONDS, speak
 from tests.support.fake_speech import a_sentence
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_requests
@@ -67,14 +70,100 @@ def test_a_heard_turn_runs_in_the_trace_the_transcript_names_and_line_entered_na
     ) == ({turn.trace_id}, turn.item_id)
 
 
-def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_turns_trace(
+def logged(capsys):
+    return [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+
+
+def trace_id_of(traceparent):
+    return traceparent.split("-")[1]
+
+
+def a_traceparent():
+    return f"00-{secrets.token_hex(16)}-{secrets.token_hex(8)}-01"
+
+
+def test_a_heard_line_enters_the_agents_place_with_the_trace_of_its_turn(sponsored, fake_speech, turn):
+    hear_the_turn(sponsored, fake_speech, turn)
+
+    [entry] = sponsored.entries()
+    assert trace_id_of(entry["traceparent"]) == turn.trace_id
+
+
+def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(joined_agent):
+    request_trace = a_traceparent()
+
+    joined_agent.call.call(
+        joined_agent.token, SAY, {"room": joined_agent.owner.room_id, "text": "hello"}, traceparent=request_trace
+    )
+
+    [entry] = joined_agent.entries()
+    assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
+
+
+def test_a_line_that_enters_outside_any_trace_reaches_the_agent_with_no_traceparent(joined_agent):
+    """The owner leaves while the owner's agent speaks, so the cut sentence enters the window of the other person's
+    agent outside any trace."""
+    member_token = joined_agent.call.token(joined_agent.member_account)
+    joined_agent.call.call(member_token, JOIN_CALL, {"room": joined_agent.owner.room_id, "name": "Bach"})
+    speak(joined_agent, seconds=None)
+
+    joined_agent.owner.drop(code=1000)
+
+    answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
+    [entry] = json.loads(answer["result"]["contents"][0]["text"])["entries"]
+    assert (entry["cut"], "traceparent" in entry) == (True, False)
+
+
+async def sentence_end_in(trace, scheduler, seconds):
+    """The clock moves past the sentence's end inside a unit of its own trace, as the server's timer runs it."""
+    with unit_trace(trace):
+        await scheduler.advance(seconds)
+
+
+def test_the_agents_spoken_line_enters_its_place_with_the_trace_its_sentence_ended_in(joined_agent):
+    speak(joined_agent, headers={"traceparent": a_traceparent()})
+    end_trace = a_traceparent()
+
+    joined_agent.call.client.portal.call(sentence_end_in, end_trace, joined_agent.call.scheduler, SENTENCE_SECONDS)
+
+    [entry] = joined_agent.entries()
+    assert (entry["spoken"], trace_id_of(entry["traceparent"])) == (True, trace_id_of(end_trace))
+
+
+@pytest.mark.parametrize("carrier", ["headers", "meta"])
+def test_a_speak_carrying_a_traceparent_after_a_heard_turn_writes_its_speak_line_in_that_trace(
+    sponsored, fake_speech, turn, capsys, carrier
+):
+    hear_the_turn(sponsored, fake_speech, turn)
+    speak_trace = a_traceparent()
+
+    with configured("hopin"):
+        speak(sponsored, **{carrier: {"traceparent": speak_trace}})
+
+    [spoken] = [line for line in logged(capsys) if line["event"] == "speak.ended"]
+    assert spoken["trace_id"] == trace_id_of(speak_trace)
+
+
+def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_trace_its_speak_carries(
     sponsored, fake_speech, speech_origin, turn
 ):
     hear_the_turn(sponsored, fake_speech, turn)
-    speak(sponsored)
+    speak_trace = a_traceparent()
+
+    speak(sponsored, headers={"traceparent": speak_trace})
 
     [request] = speech_requests(speech_origin)
-    assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == turn.trace_id
+    assert trace_id_of(header_of(request, TRACEPARENT_HEADER)) == trace_id_of(speak_trace)
+
+
+def test_a_speak_without_a_traceparent_after_a_heard_turn_joins_no_turn(sponsored, fake_speech, turn, capsys):
+    hear_the_turn(sponsored, fake_speech, turn)
+
+    with configured("hopin"):
+        speak(sponsored)
+
+    [spoken] = [line for line in logged(capsys) if line["event"] == "speak.ended"]
+    assert spoken["trace_id"] not in {None, turn.trace_id}
 
 
 def test_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(sponsored, fake_speech, turn):
