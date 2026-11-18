@@ -29,6 +29,7 @@ LOG_OUT = f"{MENU} >> role=button[name='{kit_text('de', 'account.logOut')}']"
 MENU_NAME = f"{MENU} a[href='{ACCOUNT_CONSOLE_PATH}'] .as-typed"
 LONG_USERNAME = "felix-hummert-mit-einem-sehr-langen-namen-der-nicht-in-das-menu-passt"
 UNBROKEN_USERNAME = "x" * 64
+MIXED_CASE_USERNAME = "Mia-Sommer"
 ACCOUNT_SCRIM = "#accountScrim"
 HOME_START = "#homeStartBtn"
 PREJOIN_START = "#prejoinStartBtn"
@@ -396,6 +397,15 @@ def test_a_very_long_username_without_a_break_wraps_the_home_greeting_and_keeps_
     expect(person.locator("#homeGreeting")).to_contain_text(UNBROKEN_USERNAME)
     assert person.evaluate(BOX_FITS_THE_VIEWPORT, "#homeGreeting")
     expect(person.locator("[data-screen=home] .brand")).to_be_visible()
+
+
+def test_the_home_greeting_shows_the_username_in_the_case_it_was_typed(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    person = open_home(open_person, base_url, page_errors, username=MIXED_CASE_USERNAME)
+
+    expect(person.locator("#homeGreeting")).to_contain_text(MIXED_CASE_USERNAME)
+    assert MIXED_CASE_USERNAME in person.locator("#homeGreeting").inner_text()
 
 
 def test_home_asks_for_the_account_once(

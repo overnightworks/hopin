@@ -224,8 +224,8 @@ msgid "Hallo"
 msgstr "Hello"
 
 msgctxt "home.greetingNamed"
-msgid "Hallo, {name}"
-msgstr "Hello, {name}"
+msgid "Hallo, {#typed}{name}{/typed}"
+msgstr "Hello, {#typed}{name}{/typed}"
 
 msgctxt "home.invitation"
 msgid "Starte einen Anruf und schick den Link dann an die Leute, die du dabeihaben möchtest."

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { AccountMenu, LegalLinks } from "overnightworks-design";
+    import { AccountMenu, LegalLinks, Marked } from "overnightworks-design";
     import { onMount } from "svelte";
     import type { LayoutProps } from "./$types";
     import { LEGAL_LINKS } from "#lib/legal.ts";
@@ -116,6 +116,8 @@
     </div>
 </main>
 
+{#snippet typed({ text }: { text: string })}<span class="as-typed">{text}</span>{/snippet}
+
 <!-- prettier-ignore -->
 <main class="home page" class:hidden={screens.current !== SCREEN.HOME} data-screen="home">
     <div class="topbar">
@@ -124,7 +126,7 @@
     </div>
     <div class="halo"></div>
     <span class="brand-mark brand-mark-xl"><svg class="icon" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg></span>
-    <h2 id="homeGreeting" aria-busy={greeting.isBusy || undefined}>{greeting.name === null ? words["home.greetingUnnamed"] : words["home.greetingNamed"]({ name: greeting.name })}</h2>
+    <h2 id="homeGreeting" aria-busy={greeting.isBusy || undefined}>{#if greeting.name === null}{words["home.greetingUnnamed"]}{:else}<Marked parts={words["home.greetingNamed"]({ name: greeting.name })} marked={{ typed }} />{/if}</h2>
     <p>{words["home.invitation"]}</p>
     <button id="homeStartBtn" class="button button-primary button-lg" onclick={requestStart}><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.8"/><path d="M15.5 10.4l4.6-2.6a.9.9 0 0 1 1.4.8v6.8a.9.9 0 0 1-1.4.8l-4.6-2.6"/></svg>{words["home.startButton"]}</button>
 </main>

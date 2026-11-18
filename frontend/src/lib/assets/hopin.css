@@ -1079,7 +1079,6 @@ textarea {
     font-size: 30px;
     line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -0.025em;
     text-wrap: balance;
 }
 .home p {
@@ -1138,7 +1137,6 @@ textarea {
     font-size: 30px;
     line-height: 1.15;
     font-weight: 700;
-    letter-spacing: -0.025em;
     text-wrap: balance;
 }
 .count-pill {
@@ -1742,7 +1740,6 @@ textarea {
         font-size: 30px;
         line-height: 1.15;
         font-weight: 700;
-        letter-spacing: -0.025em;
     }
     .prejoin-sub {
         margin: -6px 0 6px;

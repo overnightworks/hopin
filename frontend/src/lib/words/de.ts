@@ -59,7 +59,7 @@ export type Words = {
     readonly "end.tooManyCallsText": (gaps: { readonly limit: string }) => string;
     readonly "home.accountButton": string;
     readonly "home.greetingUnnamed": string;
-    readonly "home.greetingNamed": (gaps: { readonly name: string }) => string;
+    readonly "home.greetingNamed": (gaps: { readonly name: string }) => readonly (string | { readonly marker: "typed"; readonly text: string })[];
     readonly "home.invitation": string;
     readonly "home.startButton": string;
     readonly "prejoin.accountButton": string;
@@ -220,7 +220,7 @@ export const words: Words = {
     "end.tooManyCallsText": (gaps: { readonly limit: string }) => "Dein Konto ist schon in " + gaps.limit + " Anrufen. Verlass einen, um diesem beizutreten.",
     "home.accountButton": "Konto",
     "home.greetingUnnamed": "Hallo",
-    "home.greetingNamed": (gaps: { readonly name: string }) => "Hallo, " + gaps.name,
+    "home.greetingNamed": (gaps: { readonly name: string }): readonly (string | { readonly marker: "typed"; readonly text: string })[] => ["Hallo, ", { marker: "typed", text: gaps.name }],
     "home.invitation": "Starte einen Anruf und schick den Link dann an die Leute, die du dabeihaben möchtest.",
     "home.startButton": "Anruf starten",
     "prejoin.accountButton": "Konto",
