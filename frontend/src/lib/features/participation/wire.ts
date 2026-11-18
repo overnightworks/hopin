@@ -62,6 +62,14 @@ export enum FIGURE_GESTURE {
     WAVE = "wave",
 }
 
+export enum FIGURE_MOOD {
+    HAPPY = "happy",
+    ANGRY = "angry",
+    SAD = "sad",
+    RELAXED = "relaxed",
+    SURPRISED = "surprised",
+}
+
 export interface Offer {
     agent_key: string;
     name: string;
@@ -109,6 +117,7 @@ export type AgentVoiceFrame = {
     type: PARTICIPATION_SIGNAL.AGENT_VOICE;
     agent_id: string;
     voice_id: string;
+    mood?: FIGURE_MOOD;
 };
 
 export type AgentStopFrame = {

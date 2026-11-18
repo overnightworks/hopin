@@ -20,6 +20,7 @@ from hopin.participation.chat_window import utf8_length
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
+    FigureMood,
     SpeakFallback,
     SpeakStarted,
     SpeakStop,
@@ -93,11 +94,12 @@ now."""
 
 @dataclass(frozen=True)
 class QueuedSentence:
-    """A sentence that waits or plays: its text, its sound's place in the store, which grows while `filling` reads the
-    renderer's stream, how long it plays or why its stream broke off once that is known (`ended`), and its speaker's
-    answer, which is that it started, or why it never does."""
+    """A sentence that waits or plays: its text, the mood its agent's figure shows while it plays, its sound's place in
+    the store, which grows while `filling` reads the renderer's stream, how long it plays or why its stream broke off
+    once that is known (`ended`), and its speaker's answer, which is that it started, or why it never does."""
 
     text: str
+    mood: FigureMood | None
     voice: StoredVoice
     ended: asyncio.Future[int | VoiceFailure] = field(repr=False, compare=False)
     filling: asyncio.Task[None] = field(repr=False, compare=False)
@@ -157,12 +159,12 @@ class Speaking:
         self._queues: dict[str, _Queue] = {}
         self._announcements: dict[str, set[asyncio.Task[None]]] = {}
 
-    async def speak(self, agent: DialedAgent, text: str, render: Renderer) -> SpeakResult:
-        """Begin the sentence's sound and keep it as it grows, starting the sentence at once when the agent is silent,
-        else after the ones before it. Answers when it starts that it plays, that it was written when its voice failed
-        before any sound, or why it never does: no sound came for a reason that is no failure of the voice, a stop
-        dropped it while it was rendered or waited, or an end dropped the agent's queue meanwhile, which a rejoin or a
-        resume does not undo."""
+    async def speak(self, agent: DialedAgent, text: str, render: Renderer, mood: FigureMood | None) -> SpeakResult:
+        """Begin the sentence's sound, which plays with `mood`, and keep it as it grows, starting the sentence at once
+        when the agent is silent, else after the ones before it. Answers when it starts that it plays, that it was
+        written when its voice failed before any sound, or why it never does: no sound came for a reason that is no
+        failure of the voice, a stop dropped it while it was rendered or waited, or an end dropped the agent's queue
+        meanwhile, which a rejoin or a resume does not undo."""
         queue = self._queues.setdefault(agent.agent_id, _Queue(agent))
         stops = queue.stops
         queue.rendering += 1
@@ -181,7 +183,7 @@ class Speaking:
         sentence: WaitingSentence = (
             WrittenSentence(text, answer)
             if isinstance(rendered, VoiceFailure)
-            else self._queued(agent, text, rendered, answer)
+            else self._queued(agent, text, mood, rendered, answer)
         )
         if queue.playing is not None or queue.waiting:
             queue.waiting.append(sentence)
@@ -200,13 +202,18 @@ class Speaking:
         return None
 
     def _queued(
-        self, agent: DialedAgent, text: str, rendered: RenderedSentence, answer: asyncio.Future[SpeakResult]
+        self,
+        agent: DialedAgent,
+        text: str,
+        mood: FigureMood | None,
+        rendered: RenderedSentence,
+        answer: asyncio.Future[SpeakResult],
     ) -> QueuedSentence:
         voice = self._voices.open(agent.room_id, agent.agent_id)
         voice.append(rendered.first)
         ended: asyncio.Future[int | VoiceFailure] = asyncio.get_running_loop().create_future()
         filling = asyncio.ensure_future(_fill(voice, ended, rendered.rest))
-        return QueuedSentence(text, voice, ended, filling, answer)
+        return QueuedSentence(text, mood, voice, ended, filling, answer)
 
     def stop(self, agent: DialedAgent) -> str | None:
         """Cut the sentence the agent plays and drop every other sentence of it, rendered or waiting, each answered as

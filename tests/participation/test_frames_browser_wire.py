@@ -25,6 +25,7 @@ from hopin.participation.vocabulary import (
     BROWSER_ENUMS,
     AgentRefusal,
     FigureGesture,
+    FigureMood,
     InvitationOutcome,
     ParticipationSignal,
 )
@@ -41,7 +42,7 @@ FULLY_SET_FRAMES = [
     AgentSeeingFrame("a1", on=False),
     AgentLookRequestFrame("r1"),
     AgentLookedFrame("a1"),
-    AgentVoiceFrame("a1", "v1"),
+    AgentVoiceFrame("a1", "v1", FigureMood.HAPPY),
     AgentStopFrame("a1"),
     AgentGestureFrame("a1", FigureGesture.WAVE),
     AgentOffersFrame(shown=True, full=False, offers=[Offer("k", "Bach", pending=True)]),

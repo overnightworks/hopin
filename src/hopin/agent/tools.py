@@ -51,6 +51,7 @@ from hopin.participation.vocabulary import (
     LOOKS_PER_WINDOW,
     AgentRefusal,
     FigureGesture,
+    FigureMood,
     InvitationOutcome,
     LookRefusal,
     SpeakFallback,
@@ -353,7 +354,12 @@ async def _spoken(
     )
     try:
         outcome = await participation.speak(
-            caller.person, request.place.id, request.text, render, None if voice is None else voice.offers
+            caller.person,
+            request.place.id,
+            request.text,
+            render,
+            None if voice is None else voice.offers,
+            None if request.mood is None else FigureMood(request.mood.value),
         )
     except LanguageUnavailableError:
         return _speak_refused(SpeakRefusal.LANGUAGE_UNAVAILABLE)
