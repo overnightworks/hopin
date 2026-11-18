@@ -1,6 +1,7 @@
-"""The trace of a heard turn through HopIn's real `/ws` hearing route and `/mcp`, with a fake speech service for the
-hearing and a fake one for the agent's sentence: the turn runs in the trace the service's transcript names, and the
-agent's sentence reaches the service in it."""
+"""The trace of a heard turn and of an agent's speak through HopIn's real `/ws` hearing route and `/mcp`, with a fake
+speech service for the hearing and a fake one for the agent's sentence: the turn runs in the trace the service's
+transcript names, a line enters the agent's place with the trace it entered in, and a speak runs in the trace its
+request carries."""
 
 import json
 import secrets
@@ -98,14 +99,39 @@ def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(
     assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
 
 
-def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_turns_trace(
+def test_a_speak_carrying_a_traceparent_after_a_heard_turn_writes_its_speak_line_in_that_trace(
+    sponsored, fake_speech, turn, capsys
+):
+    hear_the_turn(sponsored, fake_speech, turn)
+    speak_trace = a_traceparent()
+
+    with configured("hopin"):
+        speak(sponsored, headers={"traceparent": speak_trace})
+
+    [spoken] = [line for line in logged(capsys) if line["event"] == "speak.ended"]
+    assert spoken["trace_id"] == trace_id_of(speak_trace)
+
+
+def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_the_trace_its_speak_carries(
     sponsored, fake_speech, speech_origin, turn
 ):
     hear_the_turn(sponsored, fake_speech, turn)
-    speak(sponsored)
+    speak_trace = a_traceparent()
+
+    speak(sponsored, headers={"traceparent": speak_trace})
 
     [request] = speech_requests(speech_origin)
-    assert header_of(request, TRACEPARENT_HEADER).split("-")[1] == turn.trace_id
+    assert trace_id_of(header_of(request, TRACEPARENT_HEADER)) == trace_id_of(speak_trace)
+
+
+def test_a_speak_without_a_traceparent_after_a_heard_turn_joins_no_turn(sponsored, fake_speech, turn, capsys):
+    hear_the_turn(sponsored, fake_speech, turn)
+
+    with configured("hopin"):
+        speak(sponsored)
+
+    [spoken] = [line for line in logged(capsys) if line["event"] == "speak.ended"]
+    assert spoken["trace_id"] not in {None, turn.trace_id}
 
 
 def test_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(sponsored, fake_speech, turn):
