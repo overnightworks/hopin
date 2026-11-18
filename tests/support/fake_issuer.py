@@ -74,6 +74,7 @@ class FakeIssuer:
         self.refuses_client_credentials_grants = False
         self.refuses_token_exchange_grants = False
         self.token_exchange_refusal_error = "access_denied"
+        self.token_exchange_lifetime_seconds = TOKEN_LIFETIME_SECONDS
         self.omits_the_id_token_of_a_refresh_grant = False
         self._guard = threading.Lock()
         self._subjects_of_refresh_tokens: dict[str, str] = {}
@@ -230,7 +231,7 @@ class FakeIssuer:
             "access_token": secrets.token_urlsafe(ACCESS_TOKEN_BYTES),
             "issued_token_type": ACCESS_TOKEN_TYPE,
             "token_type": "Bearer",
-            "expires_in": TOKEN_LIFETIME_SECONDS,
+            "expires_in": self.token_exchange_lifetime_seconds,
         }
         return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
 

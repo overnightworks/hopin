@@ -32,6 +32,12 @@ class Agent:
     def calls(self, token):
         return self._call.request(token, "resources/list")
 
+    def calls_and_renews(self, token):
+        """A call, then the renewal it started after itself, which the app's scheduler runs."""
+        response = self.calls(token)
+        self._call.pass_time(0)
+        return response
+
     def held(self):
         token = self._call.hearing_tokens().held(Person(self._call.issuer.issuer, self.subject))
         return None if token is None else token.get_secret_value()
@@ -103,7 +109,7 @@ class TestExchangingForAnAgent:
         newest = agent.token(username="agent-two")
 
         adding_call.pass_time(TOKEN_LIFETIME_SECONDS - LEASE_SECONDS + margin_seconds)
-        agent.calls(newest)
+        agent.calls_and_renews(newest)
 
         [_, (request, _)] = exchanges(adding_call)
         assert request.form["subject_token"] == newest
@@ -125,7 +131,7 @@ class TestExchangingForAnAgent:
     ):
         agent.calls(agent.token())
         adding_call.pass_time(TOKEN_LIFETIME_SECONDS - LEASE_SECONDS + margin_seconds)
-        agent.calls(agent.token(username="agent-two"))
+        agent.calls_and_renews(agent.token(username="agent-two"))
 
         adding_call.client.portal.call(adding_call.scheduler.run_cancelled)
 
@@ -191,6 +197,60 @@ class TestExchangingForAnAgent:
         assert {request.form["grant_type"] for request, _ in adding_call.issuer.exchanges} == {TOKEN_EXCHANGE_GRANT}
 
 
+class TestRenewingOffTheRequestPath:
+    def test_a_due_renewal_serves_the_call_on_the_held_token_and_exchanges_after_it(
+        self, adding_call, agent, margin_seconds
+    ):
+        agent.calls(agent.token())
+        kept = agent.held()
+        adding_call.pass_time(TOKEN_LIFETIME_SECONDS - LEASE_SECONDS + margin_seconds)
+
+        response = agent.calls(agent.token(username="agent-two"))
+        served_with = (agent.held(), len(exchanges(adding_call)))
+        adding_call.pass_time(0)
+
+        assert (response.status_code, served_with) == (200, (kept, 1))
+        assert agent.held() == adding_call.issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT)[1]
+
+
+class TestAShortLivedToken:
+    """A token the issuer grants for less than a lease, as Keycloak may when it caps the exchanged token at the
+    remaining life of the token presented."""
+
+    @pytest.fixture
+    def lifetime_seconds(self, adding_call):
+        lifetime = LEASE_SECONDS // 2
+        adding_call.issuer.token_exchange_lifetime_seconds = lifetime
+        return lifetime
+
+    def test_calls_early_in_its_life_exchange_only_once(self, adding_call, agent, lifetime_seconds):
+        token = agent.token()
+
+        for _ in range(3):
+            agent.calls(token)
+            adding_call.pass_time(1)
+
+        assert len(exchanges(adding_call)) == 1
+
+    def test_calls_late_in_its_life_renew_it_once(self, adding_call, agent, lifetime_seconds, margin_seconds):
+        token = agent.token()
+        agent.calls(token)
+        adding_call.pass_time(lifetime_seconds - margin_seconds)
+
+        agent.calls(token)
+        agent.calls_and_renews(token)
+
+        assert len(exchanges(adding_call)) == 2
+
+    def test_the_exchange_logs_the_lifetime_the_issuer_granted(self, adding_call, agent, lifetime_seconds):
+        with captured_lines() as logs:
+            agent.calls(agent.token())
+
+        [ended] = [entry for entry in logs if entry["event"] == "token_exchange.ended"]
+        # The issuer's whole second may turn between the holder's read of the wall clock and the exchange's own.
+        assert ended["expires_in"] in {lifetime_seconds, lifetime_seconds + 1}
+
+
 class TestNoHearing:
     @pytest.fixture
     def hearing_service(self):
@@ -251,7 +311,7 @@ class TestRefusedExchange:
         kept = agent.held()
 
         adding_call.pass_time(TOKEN_LIFETIME_SECONDS - LEASE_SECONDS)
-        agent.calls(token)
+        agent.calls_and_renews(token)
 
         assert (agent.held(), len(exchanges(adding_call))) == (kept, 2)
 

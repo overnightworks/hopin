@@ -455,7 +455,7 @@ class ParticipationFeature:
             voices=self.voices,
             places=RedisPlaceStore(self.redis, key_prefix=REDIS_AGENTS_KEY_PREFIX),
         )
-        hearing_tokens = self._hearing_tokens(deadlines, auth_config)
+        hearing_tokens = self._hearing_tokens(deadlines, scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
         store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
         clip_store = self._clip_store()
@@ -574,10 +574,14 @@ class ParticipationFeature:
         )
         return AgentVoice(renderer, tokens)
 
-    def _hearing_tokens(self, deadlines: Deadlines, auth_config: WebAuthConfig) -> HearingTokens:
+    def _hearing_tokens(self, deadlines: Deadlines, scheduler: Scheduler, auth_config: WebAuthConfig) -> HearingTokens:
         """HopIn holds an agent's token for the scopes of each service the agent hears or speaks through."""
         services = [service for service in (self.hearing, self.speaking) if service is not None]
         scopes = tuple(dict.fromkeys(service.audience_scope for service in services))
         return HearingTokens(
-            scopes, lease_seconds=LEASE_SECONDS, deadlines=deadlines, wall_clock=auth_config.wall_clock
+            scopes,
+            lease_seconds=LEASE_SECONDS,
+            deadlines=deadlines,
+            scheduler=scheduler,
+            wall_clock=auth_config.wall_clock,
         )
