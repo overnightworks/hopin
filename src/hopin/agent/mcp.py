@@ -6,7 +6,7 @@ import logging
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
@@ -528,7 +528,8 @@ class ParticipationFeature:
             async with asyncio.timeout(self.subscription_wait_seconds):
                 await stack.enter_async_context(front.running())
         except TimeoutError:
-            logger.error(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, wait_seconds=self.subscription_wait_seconds)
+            wait_ms = timedelta(seconds=self.subscription_wait_seconds) / timedelta(milliseconds=1)
+            logger.error(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, wait_ms=wait_ms)
             raise
 
     def _front(
