@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
-from agents.config import AgentConfig, BackendKind, ChatGateway
+from agents.config import AgentConfig, ChatGateway
 from starlette.requests import HTTPConnection
 from webauth.admission import AppRole
 from webauth.languages import AppLanguages
@@ -119,4 +119,4 @@ async def cancelled(task):
 
 def agent_settings(key_file: Path) -> AgentSettings:
     gateway = ChatGateway(origin="http://gateway.test:4000", key_file=key_file)
-    return AgentSettings(agent=AgentConfig(backend=BackendKind.LITELLM, gateway=gateway, api_group=API_GROUP))
+    return AgentSettings(agent=AgentConfig(gateway=gateway, api_group=API_GROUP))
