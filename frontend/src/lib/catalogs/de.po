@@ -224,7 +224,7 @@ msgid "Hallo"
 msgstr ""
 
 msgctxt "home.greetingNamed"
-msgid "Hallo, {name}"
+msgid "Hallo, {#typed}{name}{/typed}"
 msgstr ""
 
 msgctxt "home.invitation"

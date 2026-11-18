@@ -66,7 +66,7 @@ const translated = {
     "end.tooManyCallsText": (gaps: { readonly limit: string }) => "Your account is already in " + gaps.limit + " calls. Leave one to join this one.",
     "home.accountButton": "Account",
     "home.greetingUnnamed": "Hello",
-    "home.greetingNamed": (gaps: { readonly name: string }) => "Hello, " + gaps.name,
+    "home.greetingNamed": (gaps: { readonly name: string }): readonly (string | { readonly marker: "typed"; readonly text: string })[] => ["Hello, ", { marker: "typed", text: gaps.name }],
     "home.invitation": "Start a call, then send the link to the people you want with you.",
     "home.startButton": "Start a call",
     "prejoin.accountButton": "Account",
