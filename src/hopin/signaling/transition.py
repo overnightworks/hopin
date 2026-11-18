@@ -56,7 +56,9 @@ class RoomView:
 
     def naming(self, peer_id: PeerId, name: str) -> RoomView:
         """This view with the name of a seat it no longer holds, for the transition that hears that seat's leave."""
-        return replace(self, names=MappingProxyType({**self.names, peer_id: name}))
+        names = MappingProxyType({**self.names, peer_id: name})
+        # A field-by-field copy drops each field it leaves out; `replace` keeps all and returns its argument type.
+        return replace(self, names=names)  # NOSONAR(S5886) replace returns a RoomView here
 
     def is_host(self, peer_id: PeerId) -> bool:
         """Whether the seat's account hosts the room."""
