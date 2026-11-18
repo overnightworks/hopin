@@ -36,7 +36,6 @@ export enum AGENT_REFUSAL {
     STALE_INVITATION = "stale_invitation",
     UNAVAILABLE = "unavailable",
     BAD_LINE = "bad_line",
-    TOO_FAST = "too_fast",
 }
 
 export enum INVITATION_OUTCOME {

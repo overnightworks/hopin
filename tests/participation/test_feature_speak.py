@@ -11,8 +11,7 @@ from logline import Outcome
 from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import (
-    LINE_WINDOW_SECONDS,
-    LINES_PER_WINDOW,
+    SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     ParticipationSignal,
     SpeakStarted,
@@ -49,20 +48,11 @@ VOICE = ParticipationSignal.AGENT_VOICE
 LINE = ParticipationSignal.AGENT_LINE
 
 
-async def a_full_window(participation, room_id, scheduler):
-    """The room where the agent plays a sentence with the window's other lines waiting."""
-    await speak(participation, room_id=room_id)
-    for _ in range(LINES_PER_WINDOW - 1):
-        await waiting_to_speak(participation, room_id=room_id)
-    return room_id
-
-
 async def nine_waiting_in(participation, room_id, scheduler):
-    """The room where the agent plays an hour-long sentence with nine waiting, its slots free again."""
+    """The room where the agent plays an hour-long sentence with nine waiting."""
     await speak(participation, room_id=room_id, render=LONG)
-    for _ in range(LINES_PER_WINDOW - 1):
+    for _ in range(SENTENCES_WAITING_PER_AGENT - 1):
         await waiting_to_speak(participation, room_id=room_id, render=LONG)
-    await scheduler.advance(LINE_WINDOW_SECONDS)
     return room_id
 
 
@@ -75,7 +65,7 @@ async def a_full_queue(participation, room_id, scheduler):
 
 @pytest_asyncio.fixture
 async def nine_waiting(participation, call, scheduler):
-    """The room where the guest's agent plays an hour-long sentence with nine waiting, its slots free again."""
+    """The room where the guest's agent plays an hour-long sentence with nine waiting."""
     host, *_ = call
     return await nine_waiting_in(participation, room_of(host), scheduler)
 
@@ -87,6 +77,15 @@ class TestASentenceStarts:
         answered = await speak(participation, room_id=room_of(host))
 
         assert answered == SpeakStarted.SPOKEN
+
+    async def test_call_60_more_than_ten_sentences_within_a_minute_are_all_spoken(self, participation, call, scheduler):
+        host, *_ = call
+        answers = []
+        for number in range(SENTENCES_WAITING_PER_AGENT + 2):
+            answers.append(await speak(participation, f"sentence {number}", room_id=room_of(host)))
+            await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert answers == [SpeakStarted.SPOKEN] * (SENTENCES_WAITING_PER_AGENT + 2)
 
     async def test_call_60_every_seat_is_told_one_voice_of_the_agent_with_the_sound_stored_under_it(
         self, participation, call, voices
@@ -547,34 +546,10 @@ class TestASentenceThatIsNotSpoken:
 
 
 class TestTheBounds:
-    async def test_call_60_a_sentence_is_spoken_again_once_the_window_has_passed(self, participation, call, scheduler):
-        host, *_ = call
-        room_id = room_of(host)
-        await speak(participation, room_id=room_id)
-        for _ in range(LINES_PER_WINDOW - 1):
-            await waiting_to_speak(participation, room_id=room_id)
-
-        await scheduler.advance(LINE_WINDOW_SECONDS)
-
-        assert await speak(participation, room_id=room_id) == SpeakStarted.SPOKEN
-
-    async def test_call_60_a_line_the_agent_said_takes_a_slot_the_sentences_share(self, participation, call):
-        host, *_ = call
-        room_id = room_of(host)
-        for _ in range(LINES_PER_WINDOW):
-            assert await participation.say(GUEST, room_id, "Hallo") is None
-
-        refused = await speak(participation, room_id=room_id)
-
-        assert refused is AgentRefusal.UNAVAILABLE
-
-    @pytest.mark.parametrize(
-        ("arranged", "outcome"), [(a_full_window, "too_fast"), (a_full_queue, "queue_full")], ids=["window", "queue"]
-    )
-    async def test_call_60_a_sentence_over_a_bound_is_refused_not_rendered_and_logs_its_outcome(
-        self, participation, call, scheduler, arranged, outcome
+    async def test_call_60_a_sentence_over_the_queue_is_refused_not_rendered_and_logs_its_outcome(
+        self, participation, call, scheduler
     ):
-        room_id = await arranged(participation, room_of(call[0]), scheduler)
+        room_id = await a_full_queue(participation, room_of(call[0]), scheduler)
         rendered = []
 
         async def render(sentence, voice):
@@ -586,7 +561,7 @@ class TestTheBounds:
         assert (refused, rendered, speak_failures(logs)) == (
             AgentRefusal.UNAVAILABLE,
             [],
-            [outcome],
+            ["queue_full"],
         )
 
     async def test_call_60_sentences_rendering_at_once_never_leave_more_than_the_queue_allows_waiting(

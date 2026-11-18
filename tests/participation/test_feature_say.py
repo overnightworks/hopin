@@ -11,8 +11,7 @@ pytestmark = pytest.mark.integration
 
 NAME = "Claude"
 LINE = ParticipationSignal.AGENT_LINE.value
-WINDOW_SECONDS = 60
-LINES_PER_WINDOW = 10
+LINES_IN_A_MINUTE = 11
 
 
 @pytest.fixture
@@ -106,43 +105,14 @@ class TestAnAgentWritesALine:
         assert dialed.outcome == refusal_of(AgentRefusal.BAD_LINE)
 
 
-class TestTheRateOfLines:
-    def test_an_eleventh_line_within_the_window_is_refused_and_no_seat_reads_it(self, dialed_call, own_agent):
+class TestNoRateOfLines:
+    def test_more_than_ten_lines_within_a_minute_are_all_read(self, dialed_call, own_agent):
         token, seat, other = own_agent
-        for number in range(LINES_PER_WINDOW):
+        for number in range(LINES_IN_A_MINUTE):
             assert said(dialed_call, token, seat, f"line {number}").outcome == {}
 
-        dialed = said(dialed_call, token, seat, "one too many")
-
-        assert (dialed.is_error, dialed.outcome) == (True, refusal_of(AgentRefusal.TOO_FAST))
         drained(seat, other)
-        assert [frame["text"] for frame in lines_of(other)] == [f"line {number}" for number in range(LINES_PER_WINDOW)]
-
-    def test_a_line_after_the_window_has_passed_is_read(self, dialed_call, own_agent):
-        token, seat, _ = own_agent
-        for number in range(LINES_PER_WINDOW):
-            said(dialed_call, token, seat, f"line {number}")
-        dialed_call.pass_time(WINDOW_SECONDS)
-
-        dialed = said(dialed_call, token, seat, "later")
-
-        assert dialed.outcome == {}
-
-    def test_a_refused_line_does_not_count_against_the_window(self, dialed_call, own_agent):
-        token, seat, _ = own_agent
-        for _ in range(LINES_PER_WINDOW + 1):
-            said(dialed_call, token, seat, "")
-
-        assert said(dialed_call, token, seat, "fine").outcome == {}
-
-    def test_an_agent_that_rejoins_starts_a_new_window(self, dialed_call, own_agent):
-        token, seat, _ = own_agent
-        for number in range(LINES_PER_WINDOW):
-            said(dialed_call, token, seat, f"line {number}")
-        dialed_call.call(token, LEAVE_CALL, {"room": seat.room_id})
-        dialed_call.call(token, JOIN_CALL, join_arguments(seat, NAME))
-
-        assert said(dialed_call, token, seat, "again").outcome == {}
+        assert [frame["text"] for frame in lines_of(other)] == [f"line {number}" for number in range(LINES_IN_A_MINUTE)]
 
 
 class TestAnAgentThatIsNotJoined:
