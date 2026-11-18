@@ -178,7 +178,9 @@ class TestServerLogging:
     async def test_invalid_request_still_leaves_a_warning(self, started_server: Output) -> None:
         await _send_raw(started_server.port, b"\x00\x01 not http\r\n\r\n")
 
-        assert "Invalid HTTP request received" in started_server.read()
+        lines = [json.loads(line) for line in started_server.read().splitlines()]
+        refusals = [(line["level"], line.get("reason")) for line in lines if line["event"] == "http_request.refused"]
+        assert refusals == [("warning", "invalid_request")]
 
     def test_logger_state_is_restored_when_the_fixture_ends(self) -> None:
         with preserved_uvicorn_loggers():
