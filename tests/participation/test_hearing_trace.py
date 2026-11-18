@@ -116,14 +116,15 @@ def test_the_agents_spoken_line_enters_its_place_with_the_trace_its_sentence_end
     assert (entry["spoken"], trace_id_of(entry["traceparent"])) == (True, trace_id_of(end_trace))
 
 
+@pytest.mark.parametrize("carrier", ["headers", "meta"])
 def test_a_speak_carrying_a_traceparent_after_a_heard_turn_writes_its_speak_line_in_that_trace(
-    sponsored, fake_speech, turn, capsys
+    sponsored, fake_speech, turn, capsys, carrier
 ):
     hear_the_turn(sponsored, fake_speech, turn)
     speak_trace = a_traceparent()
 
     with configured("hopin"):
-        speak(sponsored, headers={"traceparent": speak_trace})
+        speak(sponsored, **{carrier: {"traceparent": speak_trace}})
 
     [spoken] = [line for line in logged(capsys) if line["event"] == "speak.ended"]
     assert spoken["trace_id"] == trace_id_of(speak_trace)

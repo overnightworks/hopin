@@ -241,19 +241,20 @@ class DialedCall:
             extra_claims={"agent_owner": owner, "agent_name": agent_name, **username},
         )
 
-    def call(self, token, tool, arguments, **headers):
+    def call(self, token, tool, arguments, *, meta=None, **headers):
         response = self.request(
-            token, "tools/call", {"name": tool, "arguments": arguments}, routing_name=tool, **headers
+            token, "tools/call", {"name": tool, "arguments": arguments}, routing_name=tool, meta=meta, **headers
         )
         return self._dialed(response)
 
-    def request(self, token, method, params=None, *, routing_name=None, **headers):
-        """One 2026-07-28 request: the version and capabilities in `_meta`, the routing headers beside it."""
+    def request(self, token, method, params=None, *, routing_name=None, meta=None, **headers):
+        """One 2026-07-28 request: the version and capabilities in `_meta` beside what else `meta` names, the routing
+        headers beside it."""
         return self.mcp(
             "POST",
             token,
             extra_headers={**self._routing(method, routing_name), **headers},
-            content=self._request_body(method, params),
+            content=self._request_body(method, params, meta),
         )
 
     def listen(self, token, uris):
@@ -303,8 +304,8 @@ class DialedCall:
         return routing
 
     @staticmethod
-    def _request_body(method, params):
-        meta = {PROTOCOL_VERSION_META_KEY: PROTOCOL_VERSION, CLIENT_CAPABILITIES_META_KEY: {}}
+    def _request_body(method, params, extra_meta=None):
+        meta = {PROTOCOL_VERSION_META_KEY: PROTOCOL_VERSION, CLIENT_CAPABILITIES_META_KEY: {}, **(extra_meta or {})}
         return json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": {**(params or {}), "_meta": meta}})
 
     def standing(self, token):
