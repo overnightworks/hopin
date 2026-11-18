@@ -13,7 +13,7 @@ from logline.testing import configured
 from speech_client.wire import TRACEPARENT_HEADER, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
-from hopin.agent.tools import SAY
+from hopin.agent.tools import JOIN_CALL, SAY
 from tests.support.agent_speak import SENTENCE_SECONDS, speak
 from tests.support.fake_speech import a_sentence
 from tests.support.hearing_socket import SOUND, closed_with, hop
@@ -98,6 +98,20 @@ def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(
 
     [entry] = joined_agent.entries()
     assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
+
+
+def test_a_line_that_enters_outside_any_trace_reaches_the_agent_with_no_traceparent(joined_agent):
+    """The owner leaves while the owner's agent speaks, so the cut sentence enters the window of the other person's
+    agent outside any trace."""
+    member_token = joined_agent.call.token(joined_agent.member_account)
+    joined_agent.call.call(member_token, JOIN_CALL, {"room": joined_agent.owner.room_id, "name": "Bach"})
+    speak(joined_agent, seconds=None)
+
+    joined_agent.owner.drop(code=1000)
+
+    answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
+    [entry] = json.loads(answer["result"]["contents"][0]["text"])["entries"]
+    assert (entry["cut"], "traceparent" in entry) == (True, False)
 
 
 async def sentence_end_in(trace, scheduler, seconds):

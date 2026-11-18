@@ -359,20 +359,6 @@ class TestWhatIsHeard:
         )
         assert window_changes == [(GUEST, room_of(host))]
 
-    async def test_a_line_that_enters_outside_any_trace_reaches_the_agent_with_no_traceparent(
-        self, participation, dialed
-    ):
-        host, guest, _agent = dialed
-        heard(participation, guest.peer_id, "said aloud", began_at=0.0)
-        resources = _MemberResources(lambda: participation)
-
-        window = await resources.read(
-            Principal(iss=GUEST.issuer, sub=GUEST.subject),
-            place_window_uri(PlaceRef(kind=CALL_KIND, id=room_of(host))),
-        )
-
-        assert [entry.traceparent for entry in window.entries] == [None]
-
     async def test_call_57_the_agent_reads_a_heard_sentence_as_a_spoken_entry_of_its_window(
         self, participation, dialed
     ):
