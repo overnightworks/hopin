@@ -8,12 +8,13 @@ import secrets
 from dataclasses import dataclass
 
 import pytest
+from logline import unit_trace
 from logline.testing import configured
 from speech_client.wire import TRACEPARENT_HEADER, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import SAY
-from tests.support.agent_speak import speak
+from tests.support.agent_speak import SENTENCE_SECONDS, speak
 from tests.support.fake_speech import a_sentence
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_requests
@@ -97,6 +98,22 @@ def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(
 
     [entry] = joined_agent.entries()
     assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
+
+
+async def sentence_end_in(trace, scheduler, seconds):
+    """The clock moves past the sentence's end inside a unit of its own trace, as the server's timer runs it."""
+    with unit_trace(trace):
+        await scheduler.advance(seconds)
+
+
+def test_the_agents_spoken_line_enters_its_place_with_the_trace_its_sentence_ended_in(joined_agent):
+    speak(joined_agent, headers={"traceparent": a_traceparent()})
+    end_trace = a_traceparent()
+
+    joined_agent.call.client.portal.call(sentence_end_in, end_trace, joined_agent.call.scheduler, SENTENCE_SECONDS)
+
+    [entry] = joined_agent.entries()
+    assert (entry["spoken"], trace_id_of(entry["traceparent"])) == (True, trace_id_of(end_trace))
 
 
 def test_a_speak_carrying_a_traceparent_after_a_heard_turn_writes_its_speak_line_in_that_trace(
