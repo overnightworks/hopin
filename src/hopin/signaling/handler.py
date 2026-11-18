@@ -32,13 +32,14 @@ from hopin.signaling.frames import (
 )
 from hopin.signaling.routing import Departure, RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
-from hopin.signaling.transition import InMemoryCallStore
+from hopin.signaling.transition import Committed, InMemoryCallStore, RoomView, Transition, TransitionHost
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from hopin.rooms.manager import RoomManager
     from hopin.signaling.features import CallFeature, FeatureFactory
+    from hopin.signaling.frames import JsonObject
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Deadlines, Scheduler, TimerHandle
 
@@ -61,10 +62,9 @@ class SignalingHandler:
             room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
         )
         self._seats = self._routing.seats
+        self._store = InMemoryCallStore(self._routing, room_manager)
         self._features = build_features(
-            features,
-            CallRooms(self._routing, room_manager, self._seats),
-            InMemoryCallStore(self._routing, room_manager),
+            features, CallRooms(self._routing, room_manager, self._seats), self._store, self._seats
         )
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
@@ -86,14 +86,31 @@ class SignalingHandler:
         for feature in self._features:
             feature.chat_said(peer_id, room_id, message)
 
-    async def _seat_left(self, departure: Departure) -> None:
-        for feature in self._features:
-            await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
+    async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
+        """The room is told of the departure in one commit with what each feature on transitions answers it, so a
+        feature's frame supersedes its own outdated ones before any reaches a seat; the other features hear it
+        after, even when a seat's write of that commit broke."""
+        told = Transition()
+        for peer_id, frame in told_frames:
+            told.send(peer_id, frame)
+        committed = [Committed(told, self._store.commit(RoomView(), told))]
+        committed += [
+            feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
+            for feature in self._features
+            if isinstance(feature, TransitionHost)
+        ]
+        try:
+            await self._store.wake_committed(committed)
+        finally:
+            for feature in self._features:
+                await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
 
     async def shut_down(self) -> None:
-        """Shut the call's features down in order and wait until each has cleaned up."""
+        """Shut the call's features down in order and wait until each has cleaned up; the calls' feature state ends with
+        them."""
         for feature in self._features:
             await feature.shut_down()
+        self._store.end_all()
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""

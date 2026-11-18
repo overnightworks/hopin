@@ -3,6 +3,7 @@ from functools import partial
 
 import pytest
 import pytest_asyncio
+import structlog
 
 from hopin.config.constants import (
     REPLAY_LOG_LIMIT,
@@ -26,6 +27,7 @@ from tests.support.signaling_fakes import (
     RecordingFeature,
     SocketAccountResolver,
     StagingFeature,
+    WorkingFeature,
     account_named,
     disconnect_frame,
     text_frame,
@@ -243,6 +245,20 @@ class TestSeatLeft:
         assert heard_after_the_refusal == []
         assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
 
+    async def test_a_leave_whose_announcement_write_broke_is_still_heard_and_the_break_is_raised(self, link_with):
+        link = link_with({"handles": frozenset()})
+        host, guest = await host_and_guest(link)
+
+        async def broken_write(_text):
+            raise RuntimeError("a write that broke")
+
+        host.socket.send_text = broken_write
+
+        with pytest.raises(RuntimeError, match="a write that broke"):
+            await guest.drop(1000)
+
+        assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
+
     async def test_a_park_a_resume_and_the_rooms_end_are_no_leave(self, link_with, scheduler):
         link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
@@ -423,3 +439,36 @@ class TestTransitions:
         assert (staged_lines(host), staged_lines(guest)) == (["kept"], ["kept", "kept"])
         assert host.frames(SignalType.ERROR)
         await link.close_all()
+
+    async def test_a_work_that_raised_is_logged_by_its_type_and_has_ended_for_a_later_stop(
+        self, room_manager, scheduler
+    ):
+        feature = WorkingFeature()
+        link = Link(handler_with(room_manager, scheduler, feature))
+        host, _guest = await host_and_guest(link)
+
+        with structlog.testing.capture_logs() as logs:
+            await host.say({"type": "work", "key": "failing"})
+        await host.say({"type": "stop", "key": "failing"})
+
+        assert [(entry["event"], entry["error_type"]) for entry in logs if entry["log_level"] == "error"] == [
+            ("feature_work.failed", "RuntimeError")
+        ]
+        assert feature.stop_asked == []
+        await link.close_all()
+        await link.handler.shut_down()
+
+    async def test_a_rooms_end_stops_only_the_work_dispatched_in_that_room(self, room_manager, scheduler):
+        feature = WorkingFeature()
+        link = Link(handler_with(room_manager, scheduler, feature))
+        ending, _ = await host_and_guest(link)
+        staying, _ = await host_and_guest(link)
+        await ending.say({"type": "work", "key": "ending"})
+        await staying.say({"type": "work", "key": "staying"})
+
+        await ending.say({"type": SignalType.END_ROOM.value})
+        stopped_by_the_end = list(feature.stop_asked)
+        await link.close_all()
+        await link.handler.shut_down()
+
+        assert stopped_by_the_end == ["ending"]

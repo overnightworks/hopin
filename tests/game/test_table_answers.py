@@ -330,25 +330,28 @@ async def test_the_starters_reveal_before_everyone_answered_lists_only_those_who
     assert revealed_answers(game_master) == [{"name": "guest", "antwort": "Porto"}]
 
 
-async def test_the_reveal_run_gets_the_newest_answer_when_two_players_answers_race(link, game_master):
+async def test_the_answer_that_completes_the_count_starts_the_reveal_and_a_later_overwrite_is_refused_as_closed(
+    link, game_master
+):
+    """GM-17: The reveal starts the moment everyone present has answered; a later overwrite is refused to its sender."""
     host, guest, third = await call_of(link, "host", "guest", "third")
     script_two_questions(game_master)
     await open_a_question([host, guest, third], host)
-    gate = hold_writes_from(guest, answer_count(3, 3, own=True))
+    held = game_master.hold_next()
     await host.say(answer("Porto"))
     await guest.say(answer("Lissabon"))
+    await third.say(answer("Faro"))
+    await wait_within_cap(held.started)
 
-    push_unsettled(third, answer("Faro"))
-    await sent(host, answer_count(3, 3, own=True))
-    push_unsettled(host, answer("Tejo"))
-    await sent(host, answer_count(3, 3, own=True), times=2)
-    gate.set()
+    await host.say(answer("Tejo"))
+    await sent(host, refused(GameRefusal.ANSWER_CLOSED))
+    held.release.set()
     await sent_to_all([host, guest, third], answering(host, 2))
-    await let_every_task_run()
 
-    assert len(game_master.calls) == 3
-    assert {"name": "host", "antwort": "Tejo"} in revealed_answers(game_master)
-    assert {"name": "host", "antwort": "Porto"} not in revealed_answers(game_master)
+    assert {"name": "host", "antwort": "Porto"} in revealed_answers(game_master)
+    assert {"name": "host", "antwort": "Tejo"} not in revealed_answers(game_master)
+    for browser in (guest, third):
+        assert refused(GameRefusal.ANSWER_CLOSED) not in game_frames(browser)
 
 
 async def test_an_answer_over_the_cap_is_refused_to_its_sender_alone_and_counts_nothing(link, game_master):
