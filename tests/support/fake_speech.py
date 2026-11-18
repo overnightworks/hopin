@@ -7,10 +7,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from speech_client.wire import (
-    REALTIME_PATH,
+from speech_client.realtime_wire import (
     ErrorEvent,
-    RefusalCode,
     SessionCreated,
     SpeechStarted,
     SpeechStopped,
@@ -18,8 +16,8 @@ from speech_client.wire import (
     TranscriptDelta,
     TranscriptionSession,
     error_event,
-    refusal,
 )
+from speech_client.wire import REALTIME_PATH, RefusalCode, refusal
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import serve
 
@@ -27,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from http import HTTPStatus
 
-    from speech_client.wire import ServerEvent
+    from speech_client.realtime_wire import ServerEvent
     from websockets.http11 import Request, Response
     from websockets.sync.server import Server, ServerConnection
 
