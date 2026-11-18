@@ -251,7 +251,7 @@ async def end_by_the_host(participation, host, guest):
 
 
 async def shut_down(participation, host, guest):
-    await participation.shut_down()
+    await host.link.handler.shut_down()
 
 
 @pytest.mark.asyncio

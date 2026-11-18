@@ -655,7 +655,8 @@ class TestAnEndWhileTheSentenceIsAnnounced:
 
         async def end_the_agent():
             if end == "room_ended":
-                participation.room_ended(room_id)
+                [participation_host] = host.link.handler.features
+                participation_host.room_ended(room_id)
             else:
                 await participation.leave(GUEST, room_id)
 

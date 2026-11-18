@@ -336,17 +336,19 @@ class DialedCall:
         return self._mcp_front().hearing_tokens
 
     def shut_down(self):
-        """Shut participation down as the app's lifespan does, while the sockets of the test are still open."""
-        self.client.portal.call(self._mcp_front().participation().shut_down)
+        """Shut the call's features down as the app's lifespan does, while the sockets of the test are still open."""
+        self.client.portal.call(self._signaling_handler().shut_down)
 
     def end_room_after(self, room_id, before):
-        """End the call's room on the app's own loop in the same turn as `before`, which runs first: what `before`
-        queues for a reader of the loop is already waiting when the end is set."""
-        participation = self._mcp_front().participation()
+        """End the call's room for participation on the app's own loop in the same turn as `before`, which runs first:
+        what `before` queues for a reader of the loop is already waiting when the end is set."""
+        [participation_host] = [
+            host for host in self._signaling_handler().features if host.feature is self.participation.feature
+        ]
 
         def ending():
             before()
-            participation.room_ended(room_id)
+            participation_host.room_ended(room_id)
 
         self.client.portal.call(ending)
 
@@ -361,6 +363,11 @@ class DialedCall:
         that dropped the last one: the sentence of that sound has ended and entered the windows by then."""
         self.voices.wait_for_released(released, timeout_seconds)
         self.client.portal.call(asyncio.sleep, 0)
+
+    def _signaling_handler(self):
+        """The app's signaling handler, whose bound method serves the call's socket."""
+        [route] = [route for route in _routes_of(self.client.app.router) if route.path == WEBSOCKET_PATH]
+        return route.endpoint.__self__
 
     def _mcp_front(self):
         [route] = [route for route in self.participation.router.routes if route.path == MCP_ENDPOINT_PATH]
@@ -418,6 +425,16 @@ class _ParticipationBuilt:
     def __call__(self, **parts):
         self.built = self._feature(**parts)
         return self.built
+
+
+def _routes_of(router):
+    """The routes a router serves, those of the routers it includes among them."""
+    for route in router.routes:
+        included = getattr(route, "original_router", None)
+        if included is None:
+            yield route
+        else:
+            yield from _routes_of(included)
 
 
 def _no_figure_source(url, timeout_seconds):
