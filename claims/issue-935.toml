@@ -1,8 +1,0 @@
-claim_id = "5108551a8b0844aebf1965ba61712673"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "6aa23297bc216ee042a4efc18e0b6c105082da27"
-branch = "claude/issue-935-an-agent-s-figure-moves-its-mouth-to-its"
-scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/call", "frontend/src/lib/features/figure", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat/index.test.ts", "frontend/src/lib/ui", "frontend/src/routes/(call)/start-up.ts", "src/hopin/agent", "src/hopin/participation", "tests/agent/test_tools_figure_vocabulary.py", "tests/agent/test_tools_gesture.py", "tests/e2e/participation", "tests/participation"]
-opened_commit = "4aaa5ad5958abc696d4cbe5e8e549e41cd78129d"
-whole_reason = "The mood crosses from the agent's speak through the server frame to the tile's figure, and the voice node from the player to the figure; one path, reviewed once."
