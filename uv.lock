@@ -463,7 +463,7 @@ dev = [
     { name = "fakeredis", extras = ["lua"], specifier = ">=2.35,<3" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "mypy", specifier = ">=1.19.1" },
-    { name = "overnightworks-design", extras = ["catalogs"], url = "https://github.com/overnightworks/design/releases/download/v0.34.0/overnightworks_design-0.34.0-py3-none-any.whl" },
+    { name = "overnightworks-design", extras = ["catalogs"], url = "https://github.com/overnightworks/design/releases/download/v0.36.1/overnightworks_design-0.36.1-py3-none-any.whl" },
     { name = "pyjwt", specifier = ">=2.15.1" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
@@ -800,10 +800,10 @@ redis = [
 
 [[package]]
 name = "overnightworks-design"
-version = "0.34.0"
-source = { url = "https://github.com/overnightworks/design/releases/download/v0.34.0/overnightworks_design-0.34.0-py3-none-any.whl" }
+version = "0.36.1"
+source = { url = "https://github.com/overnightworks/design/releases/download/v0.36.1/overnightworks_design-0.36.1-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/overnightworks/design/releases/download/v0.34.0/overnightworks_design-0.34.0-py3-none-any.whl", hash = "sha256:49ecbc76c21ed3ffcf824d9a60b1c8a2ee37aeec495dc57d80be45a4a8d5be7d" },
+    { url = "https://github.com/overnightworks/design/releases/download/v0.36.1/overnightworks_design-0.36.1-py3-none-any.whl", hash = "sha256:f1aab12547533f01450196e3d8d60567dd06749901a2b8231247e4d71edd9f99" },
 ]
 
 [package.optional-dependencies]
@@ -812,8 +812,11 @@ catalogs = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "babel", marker = "extra == 'catalogs'", specifier = ">=2.18,<3" }]
-provides-extras = ["catalogs"]
+requires-dist = [
+    { name = "babel", marker = "extra == 'po'", specifier = ">=2.18,<3" },
+    { name = "overnightworks-design", extras = ["po"], marker = "extra == 'catalogs'" },
+]
+provides-extras = ["catalogs", "po"]
 
 [[package]]
 name = "overnightworks-logline"
