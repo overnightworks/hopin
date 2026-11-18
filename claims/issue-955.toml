@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "82b12a1e88687f24b979c51ce09ff5619b85f0ec"
 branch = "claude/issue-955-an-agent-s-hearing-token-is-not-exchange"
-scope = ["src/hopin/agent/hearing_token.py", "tests/agent", "tests/participation"]
+scope = ["docs/ARCHITECTURE.md", "src/hopin/agent/hearing_token.py", "src/hopin/agent/mcp.py", "src/hopin/signaling/scheduler.py", "tests/agent", "tests/participation", "tests/support/fake_issuer.py"]
 opened_commit = "63f74452147c8b88ad633971b05e67e1feedfcee"
 whole_reason = "The renewal rule and the tests that prove it sit with the token holder."
