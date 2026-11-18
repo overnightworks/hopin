@@ -1,6 +1,7 @@
 import { SvelteMap } from "svelte/reactivity";
 import { untrack } from "svelte";
 import {
+    AGENT_ACTIVITY,
     AGENT_FIGURE,
     DEFAULT_AGENT_KEY,
     type AgentFigureDrawer,
@@ -54,6 +55,15 @@ export const agentTiles = new SvelteMap<string, AgentTile>();
 export function showAgentTile(tile: AgentTile | null, key: string = DEFAULT_AGENT_KEY) {
     if (tile === null) agentTiles.delete(key);
     else agentTiles.set(key, tile);
+    refreshListening();
+}
+
+/** The id of the person's own tile in the layout. */
+export const OWN_TILE_ID = "localContainer";
+
+/** The id of the tile of a person or an agent, by its participant id or its key. */
+export function tileIdOf(key: string) {
+    return "container-" + key;
 }
 
 // The call core draws no figure itself: the feature that does hands over its drawer, and a tile without one or without a path stays as it is.
@@ -63,13 +73,54 @@ export function drawAgentFigures(drawer: AgentFigureDrawer) {
     figureDrawer = drawer;
 }
 
+interface DrawnFigure {
+    handle: AgentFigureHandle;
+    // The id of the tile the figure was last turned toward, null for nobody.
+    listensTo: string | null;
+}
+
 // The drawn figures by the key of their tile, which is how a gesture finds its agent; not reactive, as the media maps below.
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
-const drawnFigures = new Map<string, AgentFigureHandle>();
+const drawnFigures = new Map<string, DrawnFigure>();
 
 /** Play the gesture on the figure of the agent tile under `key`; a tile with no drawn figure drops it. */
 export function gestureAgentFigure(key: string, gesture: string) {
-    drawnFigures.get(key)?.gesture(gesture);
+    drawnFigures.get(key)?.handle.gesture(gesture);
+}
+
+let ownSpeaking = false;
+
+/** The ids of the tiles of everyone who speaks now, in the stage's order: the own tile, the people's, the agents'. */
+function speakingTileIds(): string[] {
+    return [
+        ...(ownSpeaking ? [OWN_TILE_ID] : []),
+        ...remoteTiles.filter((tile) => tile.isSpeaking).map((tile) => tileIdOf(tile.id)),
+        ...[...agentTiles]
+            .filter(([, agent]) => agent.activity === AGENT_ACTIVITY.SPEAKING)
+            .map(([key]) => tileIdOf(key)),
+    ];
+}
+
+/** Whom a figure listens to: the one it listens to while they still speak, else the first who speaks; never its own tile, and nobody in silence. */
+function listeningTarget(current: string | null, speaking: readonly string[], ownTile: string): string | null {
+    const others = speaking.filter((tileId) => tileId !== ownTile);
+    if (current !== null && others.includes(current)) return current;
+    return others[0] ?? null;
+}
+
+function refreshListening() {
+    const speaking = speakingTileIds();
+    for (const [key, figure] of drawnFigures) {
+        const target = listeningTarget(figure.listensTo, speaking, tileIdOf(key));
+        if (target === figure.listensTo) continue;
+        figure.listensTo = target;
+        figure.handle.listen(target === null ? null : document.getElementById(target));
+    }
+}
+
+export function setOwnSpeaking(speaking: boolean) {
+    ownSpeaking = speaking;
+    refreshListening();
 }
 
 interface AgentFigureSpot {
@@ -106,7 +157,8 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
             },
             gestures,
         );
-        drawnFigures.set(key, drawn);
+        drawnFigures.set(key, { handle: drawn, listensTo: null });
+        refreshListening();
     }
 
     draw(drawnPath, spot.gestures);
@@ -217,6 +269,7 @@ export function removeRemoteTile(participantId: string) {
     const index = remoteTiles.findIndex((tile) => tile.id === participantId);
     if (index === -1) return false;
     remoteTiles.splice(index, 1);
+    refreshListening();
     return true;
 }
 
@@ -235,10 +288,12 @@ export function showRemoteName(participantId: string) {
 export function setRemoteMediaState(participantId: string, mediaState: RemoteMediaState) {
     mediaStates.set(participantId, mediaState);
     refreshPictureReady(participantId);
+    refreshListening();
 }
 
 export function setRemoteSpeaking(participantId: string, speaking: boolean) {
     speakingByParticipant.set(participantId, speaking);
+    refreshListening();
 }
 
 export function setConnectionQuality(participantId: string, quality: ConnectionQuality) {

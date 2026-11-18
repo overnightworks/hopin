@@ -1,11 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installStage, type StagePort } from "./stage-port.ts";
-import { isSpeaking, monitorSpeaking } from "./speaking.ts";
+import { isSpeaking, monitorOwnSpeaking, monitorSpeaking } from "./speaking.ts";
+
+const microphoneHandlers: ((stream: MediaStream | null) => void)[] = [];
+vi.mock("./microphone.ts", () => ({
+    onMicrophone: (handler: (stream: MediaStream | null) => void) => {
+        microphoneHandlers.push(handler);
+        handler(null);
+    },
+}));
 
 const speakingReports: [string, boolean][] = [];
+const ownSpeakingReports: boolean[] = [];
 installStage({
     setRemoteSpeaking: (participantId, speaking) => {
         speakingReports.push([participantId, speaking]);
+    },
+    setOwnSpeaking: (speaking) => {
+        ownSpeakingReports.push(speaking);
     },
 } as StagePort);
 
@@ -135,6 +147,81 @@ describe("monitorSpeaking", () => {
         vi.advanceTimersByTime(1000);
 
         expect(speakingReports).toEqual([]);
+        expect(vi.getTimerCount()).toBe(0);
+    });
+});
+
+/** An audio context whose analyser hears the given sample, the same at every point of its window. */
+function audioContextHearing(microphone: { sample: number }) {
+    return class {
+        createAnalyser() {
+            return {
+                fftSize: 32,
+                getFloatTimeDomainData: (samples: Float32Array) => {
+                    samples.fill(microphone.sample);
+                },
+            };
+        }
+        createMediaStreamSource() {
+            return { connect: () => undefined };
+        }
+        close() {
+            return Promise.resolve();
+        }
+    };
+}
+
+describe("monitorOwnSpeaking", () => {
+    const microphone = { sample: 0 };
+    const handMicrophone = (stream: MediaStream | null) => {
+        for (const handler of microphoneHandlers) handler(stream);
+    };
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.stubGlobal("AudioContext", audioContextHearing(microphone));
+        microphoneHandlers.length = 0;
+        ownSpeakingReports.length = 0;
+        microphone.sample = 0;
+        monitorOwnSpeaking();
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
+
+    it("reports the person speaking while their microphone is loud and silent once the hold has passed", () => {
+        handMicrophone({} as MediaStream);
+        microphone.sample = 0.5;
+        vi.advanceTimersByTime(100);
+        expect(ownSpeakingReports).toEqual([true]);
+
+        microphone.sample = 0;
+        vi.advanceTimersByTime(799);
+        expect(ownSpeakingReports).toEqual([true]);
+
+        vi.advanceTimersByTime(101);
+        expect(ownSpeakingReports).toEqual([true, false]);
+    });
+
+    it("reports a hum under the floor as silence", () => {
+        handMicrophone({} as MediaStream);
+        microphone.sample = 0.005;
+
+        vi.advanceTimersByTime(1000);
+
+        expect(ownSpeakingReports).toEqual([]);
+    });
+
+    it("reports the person silent and stops measuring once the microphone is gone", () => {
+        handMicrophone({} as MediaStream);
+        microphone.sample = 0.5;
+        vi.advanceTimersByTime(100);
+
+        handMicrophone(null);
+        vi.advanceTimersByTime(1000);
+
+        expect(ownSpeakingReports).toEqual([true, false]);
         expect(vi.getTimerCount()).toBe(0);
     });
 });
