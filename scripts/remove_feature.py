@@ -1,7 +1,7 @@
 """Remove one optional feature from a throwaway copy of this checkout.
 
 CI runs it on a copy and then proves the call still works. Removing the AI game is
-this deletion, plus the compose network, the four `HOPIN_AGENT__` variables, the
+this deletion, plus the compose network, the three `HOPIN_AGENT__` variables, the
 `litellm_key` mount and declaration, and the doc paragraphs. Participation and its
 MCP connector (`agent/mcp.py`, `agent/tools.py`) stay, and with them the agent
 runtime's client without its `backend` extra, and the speech settings
