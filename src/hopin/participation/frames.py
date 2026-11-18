@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, get_args
 
 from hopin.participation.figures import clip_path, figure_path
-from hopin.participation.vocabulary import AgentRefusal, FigureGesture, InvitationOutcome, ParticipationSignal
+from hopin.participation.vocabulary import (
+    AgentRefusal,
+    FigureGesture,
+    FigureMood,
+    InvitationOutcome,
+    ParticipationSignal,
+)
 from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, with_present
 
 if TYPE_CHECKING:
@@ -105,9 +111,11 @@ class AgentVoiceFrame:
 
     agent_id: str
     voice_id: str
+    mood: FigureMood | None = None
 
     def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "voice_id": self.voice_id}
+        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "voice_id": self.voice_id}
+        return with_present(frame, mood=None if self.mood is None else self.mood.value)
 
 
 @dataclass(frozen=True)

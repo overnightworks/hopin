@@ -476,6 +476,24 @@ class TestTheStyleOfASentence:
         assert refusal_of(dialed) == (True, {"refused": "style_unavailable"})
 
 
+@pytest.mark.parametrize(
+    ("named", "told"),
+    [
+        pytest.param({"mood": "happy"}, {"mood": "happy"}, id="with a mood"),
+        pytest.param({}, {}, id="without a mood"),
+    ],
+)
+def test_call_67_every_seat_is_told_the_voice_with_the_mood_of_the_sentence_and_no_mood_it_does_not_name(
+    joined_agent, named, told
+):
+    speak(joined_agent, **named)
+    drained(joined_agent)
+
+    for seat in (joined_agent.owner, joined_agent.member):
+        [frame] = frames_of(seat, VOICE)
+        assert {key: frame[key] for key in frame.keys() & {"mood"}} == told
+
+
 class TestAVoiceThatTakesNoStyle:
     def test_call_60_a_style_for_a_voice_without_styles_is_style_unavailable_and_speech_is_not_called(
         self, joined_agent, speech_origin

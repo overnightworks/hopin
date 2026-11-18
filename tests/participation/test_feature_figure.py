@@ -609,7 +609,7 @@ class TestThinking:
             assert thinking_told(seat) == (gesturing.agent_id, True)
         return gesturing
 
-    def test_call_67_a_stated_thinking_is_told_to_every_seat_and_to_a_later_one(self, thinking):
+    def test_call_68_a_stated_thinking_is_told_to_every_seat_and_to_a_later_one(self, thinking):
         _, later_login = thinking.call.member()
         later = thinking.call.seat(later_login, thinking.owner.room_id)
         later.frame_of_type(JOINED)
@@ -626,13 +626,13 @@ class TestThinking:
             pytest.param(outlast_the_cap, id="the cap"),
         ],
     )
-    def test_call_67_every_seat_is_told_the_thinking_ended(self, thinking, ending):
+    def test_call_68_every_seat_is_told_the_thinking_ended(self, thinking, ending):
         ending(thinking)
 
         for seat in (thinking.owner, thinking.member):
             assert thinking_told(seat) == (thinking.agent_id, False)
 
-    def test_call_67_a_repeated_thinking_runs_the_cap_afresh(self, thinking):
+    def test_call_68_a_repeated_thinking_runs_the_cap_afresh(self, thinking):
         thinking.call.pass_time(THINKING_MAX_SECONDS - 1)
         call_in(thinking, tool=SET_TURN_STATE_TOOL, thinking=True)
         thinking.call.pass_time(THINKING_MAX_SECONDS - 1)
@@ -651,14 +651,14 @@ class TestThinking:
             pytest.param(lambda room_id: {"kind": "table", "id": room_id}, id="a place of another kind with its id"),
         ],
     )
-    def test_call_67_a_statement_at_a_call_the_agent_holds_no_place_in_is_not_held(self, gesturing, place):
+    def test_call_68_a_statement_at_a_call_the_agent_holds_no_place_in_is_not_held(self, gesturing, place):
         arguments = {"place": place(gesturing.owner.room_id), "thinking": True}
 
         stated = gesturing.call.call(gesturing.token, SET_TURN_STATE_TOOL, arguments)
 
         assert (stated.is_error, stated.outcome) == (True, {"refused": "not_held"})
 
-    def test_call_67_a_thinking_whose_agent_left_tells_no_seat_its_end_at_the_cap(self, thinking):
+    def test_call_68_a_thinking_whose_agent_left_tells_no_seat_its_end_at_the_cap(self, thinking):
         thinking.call.call(thinking.token, LEAVE_CALL, {"room": thinking.owner.room_id})
         thinking.owner.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
 

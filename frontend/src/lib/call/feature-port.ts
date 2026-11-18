@@ -30,11 +30,18 @@ export const AGENT_FIGURE = {
 } as const;
 export type AgentFigure = (typeof AGENT_FIGURE)[keyof typeof AGENT_FIGURE];
 
-/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody, and one given while the figure loads holds once it is drawn; `think` shows whether its agent thinks, and one given while the figure loads holds once it is drawn. */
+/** A sentence the agent speaks: the audio node its voice plays through, which the mouth follows, and the name of the mood its face shows; a field it lacks leaves the mouth still or the face neutral. */
+export interface AgentSentence {
+    voice?: AudioNode;
+    mood?: string;
+}
+
+/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody; `speak` makes the figure speak the sentence, null makes it stop; `think` shows whether its agent thinks; one `listen`, `speak` or `think` given while the figure loads holds once it is drawn. */
 export interface AgentFigureHandle {
     stop: () => void;
     gesture: (name: string) => void;
     listen: (speaker: Element | null) => void;
+    speak: (sentence: AgentSentence | null) => void;
     think: (working: boolean) => void;
 }
 
@@ -110,6 +117,8 @@ export interface FeatureCore<Frames extends object = object> {
     drawAgentFigures(drawer: AgentFigureDrawer): void;
     /** Play the gesture on the figure of the agent tile shown under `key`; dropped when that tile has no drawn figure. */
     gestureAgentFigure(key: string, gesture: string): void;
+    /** Make the figure of the agent tile shown under `key` speak the sentence, null stop; dropped when that tile has no figure. */
+    speakAgentFigure(key: string, sentence: AgentSentence | null): void;
     /** Show whether the agent of the tile under `key` thinks, until the next call or the tile goes; a figure drawn on that tile meanwhile starts so. */
     thinkAgentFigure(key: string, thinking: boolean): void;
     /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */

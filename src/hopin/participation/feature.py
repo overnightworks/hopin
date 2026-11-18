@@ -45,6 +45,7 @@ from hopin.participation.vocabulary import (
     FIGURE_MODULE,
     SIGNAL_TYPES,
     AgentRefusal,
+    FigureMood,
     HearingRefusal,
     InvitationOutcome,
     LookRefusal,
@@ -185,14 +186,20 @@ class Participation:
         return None
 
     async def speak(
-        self, person: Person, room_id: str, text: str, render: Renderer | None, offered: VoicesOffered | None = None
+        self,
+        person: Person,
+        room_id: str,
+        text: str,
+        render: Renderer | None,
+        offered: VoicesOffered | None = None,
+        mood: FigureMood | None = None,
     ) -> SpeakResult:
-        """Queue the person's agent's sentence behind its earlier ones once `render` made its sound, and answer that
-        it plays when the sentence starts, not when it is queued; the refusal when the agent holds no active place
-        there or the sentence cannot be spoken: no text, no renderer, past the agent's waiting queue, or an
-        end of its speaking meanwhile; a sound that could not be made is written as a line instead, and `offered` then
-        says when the voice is back, which turns the window's voice available without a sentence. Any speak at its
-        active place ends the agent's thinking."""
+        """Queue the person's agent's sentence, which plays with `mood`, behind its earlier ones once `render` made its
+        sound, and answer that it plays when the sentence starts, not when it is queued; the refusal when the agent
+        holds no active place there or the sentence cannot be spoken: no text, no renderer, past the agent's waiting
+        queue, or an end of its speaking meanwhile; a sound that could not be made is written as a line instead, and
+        `offered` then says when the voice is back, which turns the window's voice available without a sentence. Any
+        speak at its active place ends the agent's thinking."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -205,7 +212,7 @@ class Participation:
         failure = self._no_room_to_speak(agent)
         if failure is not None:
             return self._unavailable(agent, text, failure)
-        return await self._speaking.speak(agent, sentence, self.speech.watching_voice(agent, render, offered))
+        return await self._speaking.speak(agent, sentence, self.speech.watching_voice(agent, render, offered), mood)
 
     async def stop_speaking(self, person: Person, room_id: str) -> StopResult:
         """Cut the sentence the person's agent plays in every seat and drop its others; the text of the cut sentence's
@@ -663,7 +670,8 @@ class Participation:
         for peer_id in recipients:
             if not self._speaking.is_playing(agent, sentence):
                 return
-            await self._tell(agent.room_id, [peer_id], AgentVoiceFrame(agent.agent_id, sentence.voice.id))
+            voice = AgentVoiceFrame(agent.agent_id, sentence.voice.id, sentence.mood)
+            await self._tell(agent.room_id, [peer_id], voice)
 
     def _sole_seat(self, room_id: str, owner_subject: str) -> PeerId | AgentRefusal:
         seats = self._rooms.seats_in(room_id, owner_subject)

@@ -99,6 +99,16 @@ class FigureGesture(StrEnum):
     WAVE = "wave"
 
 
+class FigureMood(StrEnum):
+    """A mood a figure's face shows while its agent speaks a sentence, as a seat is told it."""
+
+    HAPPY = "happy"
+    ANGRY = "angry"
+    SAD = "sad"
+    RELAXED = "relaxed"
+    SURPRISED = "surprised"
+
+
 class Sense(StrEnum):
     """What a sponsor's switch lets a joined agent do with them: hear their sound or see their camera."""
 
@@ -238,4 +248,5 @@ BROWSER_ENUMS = {
     "INVITATION_OUTCOME": InvitationOutcome,
     "HEARING_CLOSE": HearingClose,
     "FIGURE_GESTURE": FigureGesture,
+    "FIGURE_MOOD": FigureMood,
 }

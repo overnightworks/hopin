@@ -4,9 +4,10 @@ import {
     type AgentFigureDrawer,
     type AgentFigureHandle,
     type AgentGestureClips,
+    type AgentSentence,
     type FeatureCore,
 } from "#lib/call/feature-port.ts";
-import type { FigureGesture, FigureHandle, FigureSignal, MountOptions } from "overnightworks-figure/draw";
+import type { FigureGesture, FigureHandle, FigureMood, FigureSignal, MountOptions } from "overnightworks-figure/draw";
 
 type FigureDrawing = Promise<typeof import("overnightworks-figure/draw")>;
 
@@ -17,6 +18,11 @@ async function fetchBytes(from: string, signal: AbortSignal) {
     const response = await fetch(from, { signal });
     if (!response.ok) throw new Error(`${from} answered ${String(response.status)}`);
     return new Uint8Array(await response.arrayBuffer());
+}
+
+// The figure shows no mood for a name that is no mood of its own, so the page checks none.
+function speakTo(handle: FigureHandle, sentence: AgentSentence | null) {
+    handle.speak(sentence === null ? null : { voice: sentence.voice, mood: sentence.mood as FigureMood | undefined });
 }
 
 // One figure on one tile: the bytes come over a stoppable fetch, and only then does a fresh canvas join the host.
@@ -31,6 +37,7 @@ function drawFigure(
     let canvas: HTMLCanvasElement | undefined;
     let handle: FigureHandle | undefined;
     let speaker: Element | null = null;
+    let sentence: AgentSentence | null = null;
     let thinking = false;
     let over = false;
     // A function, so the checks after an await do not read as settled.
@@ -92,6 +99,7 @@ function drawFigure(
         }
         handle = mounted;
         if (speaker !== null) handle.listen(speaker);
+        if (sentence !== null) speakTo(handle, sentence);
         if (thinking) handle.think(true);
     }
 
@@ -109,6 +117,10 @@ function drawFigure(
         listen: (next) => {
             speaker = next;
             handle?.listen(next);
+        },
+        speak: (next) => {
+            sentence = next;
+            if (handle !== undefined) speakTo(handle, next);
         },
         think: (working) => {
             thinking = working;

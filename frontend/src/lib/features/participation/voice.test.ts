@@ -6,8 +6,8 @@ import { VOICE_PATH } from "./wire.ts";
 function voices() {
     const players = fakePlayers();
     const reported: [string, boolean][] = [];
-    const agentVoices = createAgentVoices(players.createPlayer, (agentId, speaking) => {
-        reported.push([agentId, speaking]);
+    const agentVoices = createAgentVoices(players.createPlayer, (agentId, sentence) => {
+        reported.push([agentId, sentence !== null]);
     });
     return { players, reported, agentVoices };
 }
@@ -112,7 +112,7 @@ describe("whether an agent is speaking", () => {
         expect(reported).toEqual([]);
     });
 
-    it("keeps reporting the agent speaking while a later sound starts as the one before ends", async () => {
+    it("reports the agent speaking at each start and never silent while a later sound starts as the one before ends", async () => {
         const { players, reported, agentVoices } = voices();
         agentVoices.play("a1", "first");
         agentVoices.play("a1", "second");
@@ -123,7 +123,10 @@ describe("whether an agent is speaking", () => {
         await first?.end({ kind: "played", playedSeconds: 1 });
         await next;
 
-        expect(reported).toEqual([["a1", true]]);
+        expect(reported).toEqual([
+            ["a1", true],
+            ["a1", true],
+        ]);
     });
 
     it("reports each agent on its own while two agents' sounds overlap", async () => {

@@ -13,6 +13,7 @@ interface Mounting {
     dispose: ReturnType<typeof vi.fn>;
     gesture: ReturnType<typeof vi.fn>;
     listen: ReturnType<typeof vi.fn>;
+    speak: ReturnType<typeof vi.fn>;
     think: ReturnType<typeof vi.fn>;
 }
 
@@ -28,6 +29,7 @@ function fakeMount(
         const dispose = vi.fn();
         const gesture = vi.fn();
         const listen = vi.fn();
+        const speak = vi.fn();
         const think = vi.fn();
         drawing.mounts.push({
             canvas,
@@ -35,11 +37,12 @@ function fakeMount(
             gestures: options.gestures,
             give: options.onSignal,
             resolve: () => {
-                resolve({ signal: "drawn", dispose, gesture, listen, think });
+                resolve({ signal: "drawn", dispose, gesture, listen, speak, think });
             },
             dispose,
             gesture,
             listen,
+            speak,
             think,
         });
     });
@@ -89,8 +92,13 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
 function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
-    const { stop, gesture, listen, think } = drawer(host, FIGURE_PATH, (figure) => void shown.push(figure), gestures);
-    return { host, shown, stop, gesture, listen, think };
+    const { stop, gesture, listen, speak, think } = drawer(
+        host,
+        FIGURE_PATH,
+        (figure) => void shown.push(figure),
+        gestures,
+    );
+    return { host, shown, stop, gesture, listen, speak, think };
 }
 
 // The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
@@ -328,7 +336,35 @@ describe("a figure on an agent's tile", () => {
         expect(mounting.listen.mock.calls).toEqual([[speaker]]);
     });
 
-    it("CALL-67: shows through the mounted figure that its agent thinks, and that it stopped", async () => {
+    it("CALL-67: hands the mounted figure each sentence with its voice and mood, and its end", async () => {
+        fetchedBytes();
+        const { speak, mounting } = await mounted(await installedDrawer());
+        mounting.resolve();
+        await settled();
+        const voice = {} as AudioNode;
+
+        speak({ voice, mood: "happy" });
+        speak({ voice });
+        speak(null);
+
+        expect(mounting.speak.mock.calls).toEqual([[{ voice, mood: "happy" }], [{ voice }], [null]]);
+    });
+
+    it.each([
+        { given: "a sentence", sentence: { voice: {} as AudioNode, mood: "sad" }, told: [[{ mood: "sad" }]] },
+        { given: "its end", sentence: null, told: [] },
+    ])("CALL-67: hands a figure $given given while it loaded once it is drawn", async ({ sentence, told }) => {
+        fetchedBytes();
+        const { speak, mounting } = await mounted(await installedDrawer());
+
+        speak(sentence);
+        mounting.resolve();
+        await settled();
+
+        expect(mounting.speak.mock.calls).toMatchObject(told);
+    });
+
+    it("CALL-68: shows through the mounted figure that its agent thinks, and that it stopped", async () => {
         fetchedBytes();
         const { think, mounting } = await mounted(await installedDrawer());
         mounting.resolve();
@@ -340,7 +376,7 @@ describe("a figure on an agent's tile", () => {
         expect(mounting.think.mock.calls).toEqual([[true], [false]]);
     });
 
-    it("CALL-67: a figure whose agent began thinking while it loaded thinks once it is drawn", async () => {
+    it("CALL-68: a figure whose agent began thinking while it loaded thinks once it is drawn", async () => {
         fetchedBytes();
         const { think, mounting } = await mounted(await installedDrawer());
 

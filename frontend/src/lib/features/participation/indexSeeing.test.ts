@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REMEMBERED_REQUESTS } from "./looking.ts";
-import { ME, installedParticipation } from "./page.fixture.ts";
+import { ME, installedParticipation, joined } from "./page.fixture.ts";
 import {
     LOOK_ANSWER_SECONDS,
     LOOK_MAX_BYTES,
@@ -13,13 +13,6 @@ import {
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
     globalThis.AudioContext = function AudioContextStub() {} as unknown as typeof AudioContext;
-});
-
-const joined = (sponsorId: string, agentId = "a1") => ({
-    agent_id: agentId,
-    name: "Claude",
-    sponsor: "Ada",
-    sponsor_id: sponsorId,
 });
 
 type Page = Awaited<ReturnType<typeof installedParticipation>>;

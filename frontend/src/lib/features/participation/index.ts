@@ -63,11 +63,13 @@ export async function installWith(
     );
     // Agents whose sound plays now: their tile shows them speaking.
     const speaking = new Set<string>();
-    const voices = createAgentVoices(createPlayer, (agentId, isSpeaking) => {
-        if (isSpeaking) speaking.add(agentId);
-        else speaking.delete(agentId);
+    const voices = createAgentVoices(createPlayer, (agentId, sentence) => {
+        core.speakAgentFigure(tileKey(agentId), sentence);
+        const wasSpeaking = speaking.has(agentId);
+        if (sentence === null) speaking.delete(agentId);
+        else speaking.add(agentId);
         // Only a player that is still open reports, and `hide` closes the player of an agent before it leaves `shown`.
-        draw(shown.get(agentId) as ShownAgent);
+        if (speaking.has(agentId) !== wasSpeaking) draw(shown.get(agentId) as ShownAgent);
     });
     // Agents whose switch the person pressed off and whose record has not answered yet: until it does, the capture
     // stays closed, for no sound sent after the press may reach them, whichever other agents still hear the person.
@@ -264,7 +266,7 @@ export async function installWith(
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_LOOKED, showLooked);
     core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame) => {
-        if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id);
+        if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id, frame.mood);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame) => {
         voices.stop(frame.agent_id);

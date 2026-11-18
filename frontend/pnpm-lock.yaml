@@ -216,8 +216,8 @@ importers:
         specifier: https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz
         version: https://github.com/overnightworks/figure/releases/download/v0.8.0/overnightworks-figure-0.8.0.tgz
       overnightworks-speech-browser:
-        specifier: https://github.com/overnightworks/speech/releases/download/v0.17.0/overnightworks-speech-browser-0.17.0.tgz
-        version: https://github.com/overnightworks/speech/releases/download/v0.17.0/overnightworks-speech-browser-0.17.0.tgz
+        specifier: https://github.com/overnightworks/speech/releases/download/v0.22.1/overnightworks-speech-browser-0.22.1.tgz
+        version: https://github.com/overnightworks/speech/releases/download/v0.22.1/overnightworks-speech-browser-0.22.1.tgz
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -1251,9 +1251,9 @@ packages:
     version: 0.8.0
     hasBin: true
 
-  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.17.0/overnightworks-speech-browser-0.17.0.tgz:
-    resolution: {integrity: sha512-sphz41SAE5oa8wr/dKymL9DwfP3cDoROOjERw3f5yZrjuLJ3VeJqenKREhBCeeu629gXjKUTqwWXdefKBIru6g==, tarball: https://github.com/overnightworks/speech/releases/download/v0.17.0/overnightworks-speech-browser-0.17.0.tgz}
-    version: 0.17.0
+  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.22.1/overnightworks-speech-browser-0.22.1.tgz:
+    resolution: {integrity: sha512-WwIeuFDjBASevCxjpX8KkYtgivdseF94gSrM6tGemIMK7gUPZ6T41uRbPAOda5Xa0sWGzMbgaDBAz9DTvz/XAw==, tarball: https://github.com/overnightworks/speech/releases/download/v0.22.1/overnightworks-speech-browser-0.22.1.tgz}
+    version: 0.22.1
 
   p-limit@3.1.0:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
@@ -2611,7 +2611,7 @@ snapshots:
       '@pixiv/three-vrm-animation': 3.5.5(three@0.187.0)
       three: 0.187.0
 
-  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.17.0/overnightworks-speech-browser-0.17.0.tgz: {}
+  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.22.1/overnightworks-speech-browser-0.22.1.tgz: {}
 
   p-limit@3.1.0:
     dependencies:
