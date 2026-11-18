@@ -304,16 +304,17 @@ class Participation:
         outcome = await self._transitions.apply(
             room_id, partial(self._accept, person, invitation_id, epoch, verdict, voices)
         )
-        if isinstance(outcome, AgentRefusal):
-            return outcome
-        await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
-        if verdict.refusal is not None:
-            await logger.ainfo("agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value)
-        for gesture, clip_refusal in verdict.clip_refusals.items():
-            await logger.ainfo(
-                "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
-            )
-        await self._update_offers(room_id)
+        if not isinstance(outcome, AgentRefusal):
+            await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
+            if verdict.refusal is not None:
+                await logger.ainfo(
+                    "agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value
+                )
+            for gesture, clip_refusal in verdict.clip_refusals.items():
+                await logger.ainfo(
+                    "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
+                )
+            await self._update_offers(room_id)
         return outcome
 
     def _accept(
