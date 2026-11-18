@@ -3,3 +3,5 @@ node_modules/
 build/
 pnpm-lock.yaml
 coverage/
+# design-catalogs writes these; make lint checks they are current.
+src/lib/words/

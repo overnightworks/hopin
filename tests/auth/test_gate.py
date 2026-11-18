@@ -428,7 +428,7 @@ class TestBackchannelLogout:
         assert application.get(HEALTH_PATH).headers.get("cache-control") != "no-store"
 
 
-TWO_LANGUAGES = AppLanguages(offered=("de", "en"), default="de")
+GERMAN_ALONE = AppLanguages(offered=("de",), default="de")
 LANG_ATTRIBUTE = re.compile(r'<html lang="([^"]*)"')
 
 
@@ -439,42 +439,39 @@ def page_language(response) -> str:
 
 
 class TestPageLanguage:
-    @pytest.fixture
-    def two_languages(self, sign_in_settings) -> Application:
-        return Application(sign_in_settings(), TWO_LANGUAGES)
-
     @pytest.mark.parametrize("path", ["/", "/c/abc", "/login", "/no-access"])
-    def test_every_built_page_is_answered_in_the_browsers_language_with_its_own_etag(self, two_languages, path):
-        member = two_languages.seed()
-        with hosted_room(two_languages, member) as room_id:
-            german = two_languages.get(path.replace("abc", room_id), member, **{"accept-language": "de"})
-            english = two_languages.get(path.replace("abc", room_id), member, **{"accept-language": "en"})
+    def test_every_built_page_is_answered_in_the_browsers_language_with_its_own_etag(self, application, path):
+        member = application.seed()
+        with hosted_room(application, member) as room_id:
+            german = application.get(path.replace("abc", room_id), member, **{"accept-language": "de"})
+            english = application.get(path.replace("abc", room_id), member, **{"accept-language": "en"})
 
         assert (page_language(german), page_language(english)) == ("de", "en")
         assert german.headers["etag"] != english.headers["etag"]
 
-    def test_the_login_failed_page_is_answered_in_the_browsers_language(self, two_languages):
-        response = two_languages.get(f"{AUTH_CALLBACK_PATH}?state=x", **{"accept-language": "en"})
+    def test_the_login_failed_page_is_answered_in_the_browsers_language(self, application):
+        response = application.get(f"{AUTH_CALLBACK_PATH}?state=x", **{"accept-language": "en"})
 
         assert (response.status_code, page_language(response)) == (403, "en")
 
-    def test_the_accounts_tag_beats_the_browsers_header(self, two_languages):
-        member = two_languages.seed(account_language="en")
+    def test_the_accounts_tag_beats_the_browsers_header(self, application):
+        member = application.seed(account_language="en")
 
-        response = two_languages.get("/login", member, **{"accept-language": "de"})
+        response = application.get("/login", member, **{"accept-language": "de"})
 
         assert page_language(response) == "en"
 
     @pytest.mark.parametrize("header", ["fr", "xx-YY;q=1, fr;q=0.5", "not a header", None])
-    def test_a_language_nobody_offers_is_answered_in_german(self, two_languages, header):
+    def test_a_language_nobody_offers_is_answered_in_german(self, application, header):
         headers = {} if header is None else {"accept-language": header}
 
-        assert page_language(two_languages.get("/login", **headers)) == "de"
+        assert page_language(application.get("/login", **headers)) == "de"
 
-    def test_with_german_alone_every_request_is_answered_in_german(self, application):
-        member = application.seed(account_language="en")
+    def test_with_german_alone_every_request_is_answered_in_german(self, sign_in_settings):
+        german_alone = Application(sign_in_settings(), GERMAN_ALONE)
+        member = german_alone.seed(account_language="en")
 
-        response = application.get("/login", member, **{"accept-language": "en"})
+        response = german_alone.get("/login", member, **{"accept-language": "en"})
 
         assert page_language(response) == "de"
 

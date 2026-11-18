@@ -105,6 +105,18 @@ def test_the_route_announcer_stays_hidden_by_the_stylesheet_alone(
     assert announcer.evaluate(ANNOUNCER_STYLE_AS_COMPUTED) == ["absolute", "1px", "1px", "inset(50%)", "hidden"]
 
 
+@pytest.mark.parametrize(("locale", "language"), [("en-US", "en"), ("de-DE", "de")])
+def test_the_home_page_speaks_the_browsers_language(
+    open_person: Callable[..., Page], base_url: str, locale: str, language: str
+) -> None:
+    page = open_person(locale=locale, **DESKTOP)
+    page.goto(f"{base_url}/")
+
+    expect(page.locator("html")).to_have_attribute("lang", language)
+    expect(page.locator("#homeStartBtn")).to_have_text(text(language, "home.startButton"))
+    expect(page).to_have_title(text(language, "call.pageTitle"))
+
+
 FORM_CONTROL_FONTS_AS_COMPUTED = """
 () => {
     const family = (tag) => {
