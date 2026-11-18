@@ -7,8 +7,16 @@ import type { CaptureOptions } from "overnightworks-speech-browser";
 import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { ME, installedParticipation } from "./page.fixture.ts";
+import type { FakeSound } from "./player.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL, VOICE_PATH } from "./wire.ts";
+import {
+    AGENT_REFUSAL,
+    FIGURE_MOOD,
+    HEARING_PATH,
+    INVITATION_OUTCOME,
+    PARTICIPATION_SIGNAL,
+    VOICE_PATH,
+} from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -464,6 +472,63 @@ describe("an agent's voice", () => {
         await page.players.created[0]?.sounds[1]?.start();
 
         expect([afterStop, tileActivities(page)]).toEqual([[AGENT_ACTIVITY.PRESENT], [AGENT_ACTIVITY.SPEAKING]]);
+    });
+
+    it.each([
+        { end: "plays out", ends: (sound?: FakeSound) => sound?.end({ kind: "played", playedSeconds: 1 }) },
+        { end: "breaks off", ends: (sound?: FakeSound) => sound?.end({ kind: "failed" }) },
+    ])(
+        "CALL-67: hands the agent's figure its player's node and the sentence's mood while its sound plays, and no sentence once it $end",
+        async ({ ends }) => {
+            const page = await pageWithAgents("a1");
+            page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, { ...voiceOf("a1", "first"), mood: FIGURE_MOOD.HAPPY });
+            const [player] = page.players.created;
+
+            await player?.sounds[0]?.start();
+            await ends(player?.sounds[0]);
+
+            expect(page.figureSentences).toEqual([
+                ["agent-a1", { voice: player?.tap, mood: FIGURE_MOOD.HAPPY }],
+                ["agent-a1", null],
+            ]);
+        },
+    );
+
+    it("CALL-67: hands the figure no sentence once the server cuts the agent's sound", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_STOP, { agent_id: "a1" });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(page.figureSentences.at(-1)).toEqual(["agent-a1", null]);
+    });
+
+    it("CALL-67: hands the figure each next sentence as it starts while the agent keeps speaking, one without a mood with the voice alone", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, { ...voiceOf("a1", "first"), mood: FIGURE_MOOD.SAD });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "second"));
+        const [player] = page.players.created;
+
+        await player?.sounds[0]?.start();
+        await player?.sounds[1]?.start();
+        await player?.sounds[0]?.end({ kind: "played", playedSeconds: 1 });
+
+        expect(page.figureSentences).toEqual([
+            ["agent-a1", { voice: player?.tap, mood: FIGURE_MOOD.SAD }],
+            ["agent-a1", { voice: player?.tap }],
+        ]);
+    });
+
+    it("CALL-67: hands the figure nothing for a sound the browser refuses to play", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, { ...voiceOf("a1", "first"), mood: FIGURE_MOOD.HAPPY });
+
+        await page.players.created[0]?.sounds[0]?.end({ kind: "refused" });
+
+        expect(page.figureSentences).toEqual([]);
     });
 
     it("CALL-64: hands a gesture the server tells to the figure of the agent it names", async () => {
