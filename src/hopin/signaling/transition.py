@@ -379,7 +379,8 @@ class FeatureTransitions:
         self._works[key].task.cancel()
 
     def room_ended(self, room_id: str) -> None:
-        """Stop the work of a room that has ended."""
+        """Drop the sections of a room that has ended and stop its work."""
+        self._store.end(room_id)
         for key, running in tuple(self._works.items()):
             if running.room_id == room_id:
                 self._worker.stop_work(key)
@@ -399,7 +400,6 @@ class TransitionHost:
 
     def __init__(self, feature: TransitionFeature, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
         self._feature = feature
-        self._store = store
         self._transitions = FeatureTransitions(feature, store, live_seats)
 
     @property
@@ -440,7 +440,6 @@ class TransitionHost:
         """No feature on transitions reads the chat."""
 
     def room_ended(self, room_id: str) -> None:
-        self._store.end(room_id)
         self._transitions.room_ended(room_id)
         self._feature.room_ended(room_id)
 
