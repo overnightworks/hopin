@@ -1,0 +1,8 @@
+claim_id = "b7704e2017d246cba6e2903ccaf82af6"
+agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
+role = "builder"
+base = "6aa23297bc216ee042a4efc18e0b6c105082da27"
+branch = "claude/issue-938-hopin-runs-on-logline-0-7"
+scope = ["pyproject.toml", "src/hopin", "tests", "uv.lock"]
+opened_commit = "4c43e27fb75a98a357ffda0fccecb03b1eb76344"
+whole_reason = "A breaking logging pin whose renamed fields may touch call sites across the tree."
