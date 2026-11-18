@@ -7,7 +7,7 @@ from playwright.sync_api import Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
 from hopin.words import text
-from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call
+from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call, wait_until_in_the_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE, poll_until
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER
@@ -173,6 +173,7 @@ def test_a_username_that_looks_like_markup_is_shown_as_text(
         invite_link = start_call(host, base_url)
     guest = record_page_errors(open_person(username="ben", **DESKTOP), page_errors)
     join_by_link(guest, invite_link)
+    wait_until_in_the_call(guest)
     say_in_chat(host, "hello")
 
     expect(guest.locator(TILE_NAME)).to_have_text(MARKUP_NAME, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
