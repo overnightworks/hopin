@@ -3,10 +3,10 @@ state and frames together and wake the seats it sent to. Work a transition dispa
 results re-enter the room as transitions of their own."""
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
 import structlog
 
@@ -41,6 +41,10 @@ class RoomView:
     members: tuple[PeerId, ...] = ()
     hosts: frozenset[PeerId] = frozenset()
     names: Mapping[PeerId, str] = field(default_factory=lambda: MappingProxyType({}))
+    accounts: Mapping[PeerId, str] = field(default_factory=lambda: MappingProxyType({}))
+    parked: frozenset[PeerId] = frozenset()
+    has_free_place: bool = False
+    """Whether the room has a place left for another joined agent."""
     sections: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}))
 
     def room_of(self, peer_id: PeerId) -> str | None:
@@ -52,17 +56,21 @@ class RoomView:
 
     def naming(self, peer_id: PeerId, name: str) -> RoomView:
         """This view with the name of a seat it no longer holds, for the transition that hears that seat's leave."""
-        return RoomView(
-            room_id=self.room_id,
-            members=self.members,
-            hosts=self.hosts,
-            names=MappingProxyType({**self.names, peer_id: name}),
-            sections=self.sections,
-        )
+        names = MappingProxyType({**self.names, peer_id: name})
+        # A field-by-field copy drops each field it leaves out; `replace` keeps all and returns its argument type.
+        return replace(self, names=names)  # NOSONAR(S5886) replace returns a RoomView here
 
     def is_host(self, peer_id: PeerId) -> bool:
         """Whether the seat's account hosts the room."""
         return peer_id in self.hosts
+
+    def seats_in(self, account_id: str) -> tuple[PeerId, ...]:
+        """The seats the account holds in the room, parked ones included."""
+        return tuple(peer_id for peer_id in self.members if self.accounts[peer_id] == account_id)
+
+    def is_parked(self, peer_id: PeerId) -> bool:
+        """Whether the seat of the room has lost its socket and waits for a resume."""
+        return peer_id in self.parked
 
     def section[State](self, section: Section[State]) -> State | None:
         # Only `Transition.put` writes a section, and it takes the section's own state type.
@@ -96,6 +104,8 @@ class Transition:
     frames: list[Outbound] = field(default_factory=list)
     dispatched: list[Work] = field(default_factory=list)
     stopped: list[str] = field(default_factory=list)
+    seated_agents: list[str] = field(default_factory=list)
+    released_agents: list[str] = field(default_factory=list)
     broken_write_event: str | None = None
 
     def put[State](self, section: Section[State], state: State) -> None:
@@ -106,6 +116,14 @@ class Transition:
         drops the frames it supersedes from the seat's queue, so a seat a slow write holds back never gets an outdated
         one; a frame whose write has begun is written all the same."""
         self.frames.append(Outbound(peer_id, frame, supersedes))
+
+    def take_agent_place(self, agent_id: str) -> None:
+        """Seat the joined agent among the room's people; the view must have a free place for it."""
+        self.seated_agents.append(agent_id)
+
+    def release_agent_place(self, agent_id: str) -> None:
+        """Free the agent's place; a room that has ended holds none."""
+        self.released_agents.append(agent_id)
 
     def dispatch(self, work: Work) -> None:
         """Run the work once the transition has committed."""
@@ -127,6 +145,15 @@ class Committed:
 
     transition: Transition
     woken: tuple[PeerId, ...]
+
+
+@runtime_checkable
+class CommitsSeatLeft(Protocol):
+    """A feature that answers a seat's departure in the commit that tells the room of it."""
+
+    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
+        """Apply the feature's answer to the seat's leave to the room it left and commit it, leaving its seats to be
+        woken together with the departure."""
 
 
 class LiveSeats(Protocol):
@@ -164,13 +191,16 @@ class InMemoryCallStore:
         room = None if room_id is None else self._room_manager.find_room(room_id)
         if room is None:
             return RoomView()
-        account_of = self._routing.seats.account_of
+        seats = self._routing.seats
         members = tuple(PeerId(participant_id) for participant_id in room.participant_ids)
         return RoomView(
             room_id=room.room_id,
             members=members,
-            hosts=frozenset(peer_id for peer_id in members if room.is_hosted_by(account_of(peer_id))),
-            names=MappingProxyType({peer_id: account_of(peer_id).name for peer_id in members}),
+            hosts=frozenset(peer_id for peer_id in members if room.is_hosted_by(seats.account_of(peer_id))),
+            names=MappingProxyType({peer_id: seats.account_of(peer_id).name for peer_id in members}),
+            accounts=MappingProxyType({peer_id: seats.account_of(peer_id).id for peer_id in members}),
+            parked=frozenset(peer_id for peer_id in members if seats.seat(peer_id).park is not None),
+            has_free_place=self._room_manager.has_free_place_for_agent(room.room_id),
             sections=MappingProxyType(dict(self._sections.get(room.room_id, {}))),
         )
 
@@ -179,11 +209,18 @@ class InMemoryCallStore:
         return self.load(self._routing.room_of(peer_id))
 
     def commit(self, view: RoomView, transition: Transition) -> tuple[PeerId, ...]:
-        """Write the transition's sections into its room and log each frame for its seat, and name the seats to wake."""
-        if transition.puts:
-            if view.room_id is None:  # pragma: no cover - a hook keeps state only in the room it was offered
+        """Write the transition's sections and agent places into its room and log each frame for its seat, and name
+        the seats to wake."""
+        if view.room_id is None:
+            if transition.puts or transition.seated_agents:  # pragma: no cover - a hook keeps state only in its room
                 raise ValueError("A transition of no room keeps no state")
-            self._sections.setdefault(view.room_id, {}).update(transition.puts)
+        else:
+            if transition.puts:
+                self._sections.setdefault(view.room_id, {}).update(transition.puts)
+            for agent_id in transition.seated_agents:
+                self._room_manager.add_agent(view.room_id, agent_id)
+            for agent_id in transition.released_agents:
+                self._room_manager.remove_agent(view.room_id, agent_id)
         seats = self._routing.seats
         return tuple(
             dict.fromkeys(
@@ -236,6 +273,128 @@ class _RunningWork:
     task: asyncio.Task[None]
 
 
+class Worker(Protocol):
+    """What runs the work a feature's transitions dispatch."""
+
+    @property
+    def name(self) -> str:
+        """The feature's name."""
+
+    async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:
+        """As `TransitionFeature.run_work`."""
+
+    def stop_work(self, key: str) -> None:
+        """As `TransitionFeature.stop_work`."""
+
+
+class FeatureTransitions:
+    """One feature's transitions: each loads a room's view, applies a hook to it and commits what the hook changed,
+    and the work they dispatch runs here, where the seats' sockets are held."""
+
+    def __init__(self, worker: Worker, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
+        self._worker = worker
+        self._store = store
+        self._live_seats = live_seats
+        self._works: dict[str, _RunningWork] = {}
+
+    def view(self, room_id: str | None) -> RoomView:
+        """The room's view now; an ended room or none is the view of no room."""
+        return self._store.load(room_id)
+
+    def seat_view(self, peer_id: PeerId) -> RoomView:
+        """The view of the room the seat sits in."""
+        return self._store.load_seat(peer_id)
+
+    def is_working(self, key: str) -> bool:
+        """Whether the work of that key runs."""
+        return key in self._works
+
+    async def apply[Outcome](self, room_id: str | None, hook: Callable[[RoomView, Transition], Outcome]) -> Outcome:
+        """Apply the hook to the room's view now as one transition, commit it and wake its seats."""
+        [outcome] = await self.apply_each([room_id], hook)
+        return outcome
+
+    async def apply_at_seat[Outcome](self, peer_id: PeerId, hook: Callable[[RoomView, Transition], Outcome]) -> Outcome:
+        """Apply the hook to the view of the room the seat sits in, as `apply` does."""
+        return await self.apply(self._store.load_seat(peer_id).room_id, hook)
+
+    async def apply_each[Outcome](
+        self, room_ids: Sequence[str | None], hook: Callable[[RoomView, Transition], Outcome]
+    ) -> list[Outcome]:
+        """Apply the hook to each room's view as one transition per room, and commit every one of them before any seat
+        is woken."""
+        outcomes: list[Outcome] = []
+        committed: list[Committed] = []
+        try:
+            for room_id in room_ids:
+                view = self._store.load(room_id)
+                transition = Transition()
+                outcomes.append(hook(view, transition))
+                committed.append(self.commit(view, transition))
+        finally:
+            await self._store.wake_committed(committed)
+        return outcomes
+
+    async def run[Outcome](self, view: RoomView, hook: Callable[[Transition], Outcome]) -> Outcome:
+        """Apply the hook to the view it was given and commit what it changed; a hook that raises commits nothing."""
+        transition = Transition()
+        outcome = hook(transition)
+        await self._store.wake_committed([self.commit(view, transition)])
+        return outcome
+
+    def commit_now(self, room_id: str, hook: Callable[[RoomView, Transition], None]) -> Committed:
+        """Apply the hook to the room's view now and commit it before anything awaits, leaving its seats to be
+        woken."""
+        view = self._store.load(room_id)
+        transition = Transition()
+        hook(view, transition)
+        return self.commit(view, transition)
+
+    def commit(self, view: RoomView, transition: Transition) -> Committed:
+        """Commit the transition and start and stop its work, leaving its seats to be woken."""
+        committed = Committed(transition, self._store.commit(view, transition))
+        self._start_and_stop_work(view, transition)
+        return committed
+
+    def _start_and_stop_work(self, view: RoomView, transition: Transition) -> None:
+        for key in transition.stopped:
+            if key in self._works:
+                self._worker.stop_work(key)
+        for work in transition.dispatched:
+            if view.room_id is None:  # pragma: no cover - a hook dispatches work only in the room it was offered
+                raise ValueError("A transition of no room dispatches no work")
+            room = _WorkRoom(self, view.room_id)
+            task = asyncio.create_task(self._work(work, room), name=work.key)
+            self._works[work.key] = _RunningWork(view.room_id, task)
+
+    async def _work(self, work: Work, room: _WorkRoom) -> None:
+        try:
+            await self._worker.run_work(work, self._live_seats, room)
+        except Exception as error:
+            # Only the type is logged, never what the work carried.
+            logger.error("feature_work.failed", feature=self._worker.name, error_type=type(error).__name__)
+        finally:
+            del self._works[work.key]
+
+    def cancel(self, key: str) -> None:
+        """Cancel the work of that key, which runs, for a worker whose work ends only so."""
+        self._works[key].task.cancel()
+
+    def room_ended(self, room_id: str) -> None:
+        """Drop the sections of a room that has ended and stop its work."""
+        self._store.end(room_id)
+        for key, running in tuple(self._works.items()):
+            if running.room_id == room_id:
+                self._worker.stop_work(key)
+
+    async def shut_down(self) -> None:
+        """Stop the work and wait until it has ended."""
+        while self._works:
+            for key in tuple(self._works):
+                self._worker.stop_work(key)
+            await asyncio.wait([running.task for running in self._works.values()])
+
+
 class TransitionHost:
     """Runs a feature written on transitions where the call core calls the hooks of `CallFeature`: each hook it is
     offered is one transition of the seat's room, and the work those transitions dispatch runs here, where the
@@ -243,9 +402,7 @@ class TransitionHost:
 
     def __init__(self, feature: TransitionFeature, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
         self._feature = feature
-        self._store = store
-        self._live_seats = live_seats
-        self._works: dict[str, _RunningWork] = {}
+        self._transitions = FeatureTransitions(feature, store, live_seats)
 
     @property
     def name(self) -> str:
@@ -260,12 +417,12 @@ class TransitionHost:
         return self._feature.signal_types
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        view = self._store.load_seat(peer_id)
-        return await self._run(view, partial(self._feature.on_frame, view, peer_id, frame))
+        view = self._transitions.seat_view(peer_id)
+        return await self._transitions.run(view, partial(self._feature.on_frame, view, peer_id, frame))
 
     async def seat_joined(self, peer_id: PeerId) -> None:
-        view = self._store.load_seat(peer_id)
-        await self._run(view, partial(self._feature.seat_joined, view, peer_id))
+        view = self._transitions.seat_view(peer_id)
+        await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
         """A feature on transitions hears a seat's leave in the transition that tells the room, `commit_seat_left`."""
@@ -273,49 +430,10 @@ class TransitionHost:
     def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
         """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
         together with the departure that tells the room."""
-        view = self._store.load(room_id).naming(peer_id, name)
+        view = self._transitions.view(room_id).naming(peer_id, name)
         transition = Transition()
         self._feature.seat_left(view, peer_id, transition)
-        return self._commit(view, transition)
-
-    def view(self, room_id: str) -> RoomView:
-        return self._store.load(room_id)
-
-    async def apply[Outcome](self, room_id: str, hook: Callable[[RoomView, Transition], Outcome]) -> Outcome:
-        """Apply a work's result to its room's view now."""
-        view = self._store.load(room_id)
-        return await self._run(view, partial(hook, view))
-
-    async def _run[Outcome](self, view: RoomView, hook: Callable[[Transition], Outcome]) -> Outcome:
-        """Apply the hook to the view it was given and commit what it changed; a hook that raises commits nothing."""
-        transition = Transition()
-        outcome = hook(transition)
-        await self._store.wake_committed([self._commit(view, transition)])
-        return outcome
-
-    def _commit(self, view: RoomView, transition: Transition) -> Committed:
-        committed = Committed(transition, self._store.commit(view, transition))
-        self._start_and_stop_work(view, transition)
-        return committed
-
-    def _start_and_stop_work(self, view: RoomView, transition: Transition) -> None:
-        for key in transition.stopped:
-            if key in self._works:
-                self._feature.stop_work(key)
-        for work in transition.dispatched:
-            if view.room_id is None:  # pragma: no cover - a hook dispatches work only in the room it was offered
-                raise ValueError("A transition of no room dispatches no work")
-            room = _HostedWorkRoom(self, view.room_id)
-            self._works[work.key] = _RunningWork(view.room_id, asyncio.create_task(self._work(work, room)))
-
-    async def _work(self, work: Work, room: _HostedWorkRoom) -> None:
-        try:
-            await self._feature.run_work(work, self._live_seats, room)
-        except Exception as error:
-            # Only the type is logged, never what the work carried.
-            logger.error("feature_work.failed", feature=self.name, error_type=type(error).__name__)
-        finally:
-            del self._works[work.key]
+        return self._transitions.commit(view, transition)
 
     def seat_changed(self, peer_id: PeerId) -> None:
         """A feature on transitions hears a seat's leave as `seat_left`, in the transition that tells the room."""
@@ -324,28 +442,22 @@ class TransitionHost:
         """No feature on transitions reads the chat."""
 
     def room_ended(self, room_id: str) -> None:
-        self._store.end(room_id)
-        for key, running in tuple(self._works.items()):
-            if running.room_id == room_id:
-                self._feature.stop_work(key)
+        self._transitions.room_ended(room_id)
         self._feature.room_ended(room_id)
 
     async def shut_down(self) -> None:
         """Stop the feature's work, wait until it has ended, then shut the feature down."""
-        while self._works:
-            for key in tuple(self._works):
-                self._feature.stop_work(key)
-            await asyncio.wait([running.task for running in self._works.values()])
+        await self._transitions.shut_down()
         await self._feature.shut_down()
 
 
 @dataclass(frozen=True)
-class _HostedWorkRoom:
-    host: TransitionHost
+class _WorkRoom:
+    transitions: FeatureTransitions
     room_id: str
 
     async def view(self) -> RoomView:  # NOSONAR(S7503) the work reads the room between its awaits
-        return self.host.view(self.room_id)
+        return self.transitions.view(self.room_id)
 
     async def apply[Outcome](self, hook: Callable[[RoomView, Transition], Outcome]) -> Outcome:
-        return await self.host.apply(self.room_id, hook)
+        return await self.transitions.apply(self.room_id, hook)

@@ -14,15 +14,18 @@ class SequencedFrame:
 @dataclass(frozen=True)
 class Supersedes:
     """The earlier frames in a seat's queue that a frame makes moot, so they are dropped as it is queued: those of
-    `types`, every frame when `types` is None, and only `sender`'s when it names one. A frame whose write has begun
-    is written all the same."""
+    `types`, every frame when `types` is None, only `sender`'s when it names one, and only those whose key holds the
+    value `holding` names, when it names one. A frame whose write has begun is written all the same."""
 
     types: frozenset[str] | None
     sender: str | None = None
+    holding: tuple[str, str] | None = None
 
     def covers(self, frame: JsonObject) -> bool:
-        return (self.types is None or frame[TYPE_KEY] in self.types) and (
-            self.sender is None or frame.get(SENDER_KEY) == self.sender
+        return (
+            (self.types is None or frame[TYPE_KEY] in self.types)
+            and (self.sender is None or frame.get(SENDER_KEY) == self.sender)
+            and (self.holding is None or frame.get(self.holding[0]) == self.holding[1])
         )
 
 
