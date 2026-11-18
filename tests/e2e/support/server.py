@@ -70,10 +70,16 @@ class QuickRecheckScheduler(AsyncioScheduler):
         return super().call_later(delay_seconds, callback)
 
 
-def reserve_free_port() -> int:
-    with socket.socket() as probe:
-        probe.bind((LOOPBACK_HOST, 0))
-        return int(probe.getsockname()[1])
+def bound_loopback_socket() -> socket.socket:
+    """A socket bound to a free loopback port, for `serving` to hand to its server: the port stays taken from its
+    choice to the server's stop, so no other process can bind it in between."""
+    listener = socket.socket()
+    listener.bind((LOOPBACK_HOST, 0))
+    return listener
+
+
+def port_of(listener: socket.socket) -> int:
+    return int(listener.getsockname()[1])
 
 
 def _alternative_name(host: str) -> x509.GeneralName:
@@ -109,8 +115,9 @@ def write_self_signed_certificate(directory: Path, hosts: Sequence[str] = (LOOPB
 
 
 @contextmanager
-def serving(server: uvicorn.Server) -> Iterator[None]:
-    thread = threading.Thread(target=server.run, daemon=True)
+def serving(server: uvicorn.Server, listener: socket.socket) -> Iterator[None]:
+    """Run `server` on `listener` until the block ends; the listener is closed afterwards."""
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
     thread.start()
     deadline = time.monotonic() + READINESS_DEADLINE_SECONDS
     try:
@@ -124,6 +131,7 @@ def serving(server: uvicorn.Server) -> Iterator[None]:
     finally:
         server.should_exit = True
         thread.join(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+        listener.close()
         assert not thread.is_alive(), f"HopIn did not stop within {SERVER_STOP_TIMEOUT_SECONDS} seconds"
 
 
@@ -137,20 +145,25 @@ class RunningServer:
 
 @dataclass(frozen=True)
 class LoopbackSignIn:
-    """The sign-in of a HopIn on a free loopback port, its issuer a fake."""
+    """The sign-in of a HopIn on a free loopback port, held by `listener`, its issuer a fake."""
 
-    port: int
+    listener: socket.socket
     host: str
     sign_in: SignInSettings
     stores: SingleProcessStores
     issuer: FakeIssuer
     shared_stores: SharedStores
 
+    @property
+    def port(self) -> int:
+        return port_of(self.listener)
+
 
 def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> LoopbackSignIn:
     """The sign-in of a HopIn that listens on a free loopback port and is reached as `public_host`, which must
     resolve to the loopback address."""
-    port = reserve_free_port()
+    listener = bound_loopback_socket()
+    port = port_of(listener)
     sign_in = build_sign_in_settings(
         directory,
         host=LOOPBACK_HOST,
@@ -158,7 +171,9 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
         public_origin=f"https://{public_host}:{port}",
         trusted_proxies=LOOPBACK_HOST,
     )
-    return LoopbackSignIn(port, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in), in_thread_stores())
+    return LoopbackSignIn(
+        listener, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in), in_thread_stores()
+    )
 
 
 def participation_feature(
@@ -242,7 +257,8 @@ def running_hopin(
         ),
     )
     with serving(
-        tls_server(app, loopback.sign_in.settings, certificate or write_self_signed_certificate(tls_directory))
+        tls_server(app, loopback.sign_in.settings, certificate or write_self_signed_certificate(tls_directory)),
+        loopback.listener,
     ):
         yield RunningServer(
             f"https://{loopback.host}:{loopback.port}", installed_web_auth_config(app), loopback.stores, loopback.issuer
