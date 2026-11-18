@@ -636,10 +636,13 @@ class TestThinking:
         thinking.call.pass_time(THINKING_MAX_SECONDS - 1)
         call_in(thinking, tool=SET_TURN_STATE_TOOL, thinking=True)
         thinking.call.pass_time(THINKING_MAX_SECONDS - 1)
-        call_in(thinking, tool=GESTURE_TOOL, gesture="wave")
-        thinking.owner.frame_of_type(GESTURED)
+        offered_tools(thinking)
+        thinking.owner.settle()
+        assert [frame["on"] for frame in thinking.owner.received if frame["type"] == THINKING] == [True]
 
-        assert [frame["on"] for frame in thinking.owner.received if frame["type"] == THINKING] == [True, False]
+        thinking.call.pass_time(1)
+
+        assert thinking_told(thinking.owner) == (thinking.agent_id, False)
 
     def test_call_67_a_statement_at_a_call_the_agent_holds_no_place_in_is_not_held(self, gesturing):
         stated = call_in(gesturing, "no-such-room", tool=SET_TURN_STATE_TOOL, thinking=True)
