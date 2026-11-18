@@ -1,15 +1,15 @@
-import asyncio
+import itertools
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from hopin.participation.memberships import Membership, membership_in
+from hopin.signaling.transition import Work
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Mapping, Sequence
+    from collections.abc import Awaitable, Callable
 
     from starlette.requests import HTTPConnection
 
-    from hopin.participation.memberships import SeatView
-    from hopin.signaling.features import CallRooms
+    from hopin.participation.live_agents import LiveAgent
     from hopin.signaling.frames import PeerId
 
 type GroupsOf = Callable[[HTTPConnection], Awaitable[frozenset[str] | None]]
@@ -17,55 +17,27 @@ type GroupsOf = Callable[[HTTPConnection], Awaitable[frozenset[str] | None]]
 
 
 GROUPS_READ_TASK_NAME = "participation-groups-read"
+"""The start of every groups read's key, which names the read's task."""
+
+
+@dataclass(frozen=True)
+class GroupsRead(Work):
+    """A read of the groups of the seat's session, as work on the process that holds the seat's socket: for the
+    offers, or for the add of the agent registered as `adding`, whose owner sits in the room as `sponsor`."""
+
+    adding: LiveAgent | None = None
+    sponsor: PeerId | None = None
 
 
 class GroupReads:
-    """The reads of a seat's groups: one runs at a time per seat and room, and its result lands in the seat's view."""
+    """Names the reads of seats' groups: one read for the offers runs at a time per seat, and each add reads afresh."""
 
-    def __init__(
-        self,
-        rooms: CallRooms,
-        adders: Mapping[str, str],
-        groups_of: GroupsOf,
-        view_of: Callable[[PeerId, str], SeatView],
-        read_ended: Callable[[str], Awaitable[None]],
-    ) -> None:
-        self._rooms = rooms
-        self._adders = adders
-        self._groups_of = groups_of
-        self._view_of = view_of
-        self._read_ended = read_ended
-        self._reads: dict[tuple[PeerId, str], asyncio.Task[None]] = {}
+    def __init__(self) -> None:
+        self._adds = itertools.count()
 
-    def start(self, room_id: str, seats: Sequence[PeerId]) -> None:
-        """Read the groups of each seat whose membership in an adders group is unknown or failed to read."""
-        groups = set(self._adders.values())
-        for peer_id in seats:
-            memberships = self._view_of(peer_id, room_id).memberships
-            if any(memberships.get(group, Membership.FAILED) is Membership.FAILED for group in groups):
-                self._start_one(peer_id, room_id)
+    @staticmethod
+    def for_offers(peer_id: PeerId) -> GroupsRead:
+        return GroupsRead(f"{GROUPS_READ_TASK_NAME}:{peer_id}", peer_id)
 
-    async def cancel(self) -> None:
-        reads = list(self._reads.values())
-        for read in reads:
-            read.cancel()
-        await asyncio.gather(*reads, return_exceptions=True)
-
-    def _start_one(self, peer_id: PeerId, room_id: str) -> None:
-        key = (peer_id, room_id)
-        if key in self._reads:
-            return
-        read = asyncio.create_task(
-            self._read(peer_id, room_id, self._rooms.connection_of(peer_id)), name=GROUPS_READ_TASK_NAME
-        )
-        self._reads[key] = read
-        read.add_done_callback(lambda _: self._reads.pop(key, None))
-
-    async def _read(self, peer_id: PeerId, room_id: str, connection: HTTPConnection) -> None:
-        groups = await self._groups_of(connection)
-        if self._rooms.room_of(peer_id) != room_id:
-            return
-        memberships = self._view_of(peer_id, room_id).memberships
-        for group in set(self._adders.values()):
-            memberships[group] = membership_in(groups, group)
-        await self._read_ended(room_id)
+    def for_add(self, peer_id: PeerId, adding: LiveAgent, sponsor: PeerId) -> GroupsRead:
+        return GroupsRead(f"{GROUPS_READ_TASK_NAME}:{peer_id}:add:{next(self._adds)}", peer_id, adding, sponsor)

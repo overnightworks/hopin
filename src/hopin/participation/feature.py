@@ -1,10 +1,10 @@
 import secrets
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import structlog
 
-from hopin.errors import InvalidMessageError, RoomNotFoundError
+from hopin.errors import InvalidMessageError
 from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.figures import Figure, FigureSource, judge_figure
 from hopin.participation.frames import (
@@ -19,7 +19,7 @@ from hopin.participation.frames import (
     ParticipationFrame,
     joined_frame,
 )
-from hopin.participation.group_reads import GroupReads, GroupsOf
+from hopin.participation.group_reads import GroupReads, GroupsOf, GroupsRead
 from hopin.participation.live_agents import LiveAgents
 from hopin.participation.memberships import Membership, SeatView, membership_in
 from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccount, Person
@@ -54,11 +54,13 @@ from hopin.participation.vocabulary import (
 )
 from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import PeerId
+from hopin.signaling.replay import Supersedes
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping, Sequence
 
+    from hopin.participation.figures import FigureVerdict
     from hopin.participation.hearing import Hearing, HearingHandle
     from hopin.participation.live_agents import LiveAgent
     from hopin.participation.looking import Picture
@@ -68,6 +70,7 @@ if TYPE_CHECKING:
     from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import ForeignFrame
     from hopin.signaling.scheduler import Deadlines
+    from hopin.signaling.transition import Committed, LiveSeats, RoomView, Transition, Work, WorkRoom
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -93,6 +96,7 @@ class Participation:
         voices: VoiceStore,
     ) -> None:
         self._rooms = rooms
+        self._transitions = rooms.transitions_for(self)
         self._deadlines = deadlines
         deadlines.register(DeadlineKind.INVITATION, self._invitation_timer)
         deadlines.register(DeadlineKind.LEASE, self._lease_timer)
@@ -113,14 +117,12 @@ class Participation:
         )
         self.figures = ShownFigures(self._places, self._active_agent, self._tell, self._recipients)
         self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
-        self._switches = Switches(rooms, self._places, hearing, self.speech, self._seeing, self._tell, self._in_call)
+        self._switches = Switches(self._places, hearing, self.speech, self._seeing)
         self._live = LiveAgents()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
         self._abandoned: dict[PeerId, list[AbandonedInvitation]] = {}
         self._views: dict[PeerId, SeatView] = {}
-        self._group_reads = GroupReads(
-            rooms, adders, groups_of, self._view_of, partial(self._update_offers, read=False)
-        )
+        self._group_reads = GroupReads()
 
     @property
     def name(self) -> str:
@@ -139,38 +141,58 @@ class Participation:
         agent_name = clean_name(name)
         if agent_name is None:
             return AgentRefusal.BAD_NAME
-        seats = self._rooms.seats_in(room_id, person.subject)
+        outcome, seated = await self._transitions.apply(room_id, partial(self._dial_in, person, agent_name))
+        if seated is not None:
+            await logger.ainfo("agent.dialed_in", room_ref=room_reference(room_id), agent_id=seated.agent_id)
+            await self._update_offers(room_id)
+        return outcome
+
+    def _dial_in(
+        self, person: Person, agent_name: str, view: RoomView, transition: Transition
+    ) -> tuple[DialOutcome, DialedAgent | None]:
+        """The dial-in's outcome, and the agent when it seated a new one."""
+        seats = view.seats_in(person.subject)
         if not seats:
-            return AgentRefusal.NO_SEAT
+            return AgentRefusal.NO_SEAT, None
         if len(seats) > 1:
-            return AgentRefusal.TWO_SEATS
+            return AgentRefusal.TWO_SEATS, None
         [sponsor] = seats
-        if self._rooms.is_parked(sponsor):
-            return AgentRefusal.SPONSOR_AWAY
+        if view.is_parked(sponsor):
+            return AgentRefusal.SPONSOR_AWAY, None
+        room_id = cast("str", view.room_id)  # the person's seat sits in it
         existing = self._places.get(person, room_id)
         if isinstance(existing, DialedAgent) and existing.sponsor == sponsor:
-            return existing
+            return existing, None
         agent = DialedAgent(secrets.token_hex(AGENT_ID_BYTES), agent_name, person, sponsor, room_id)
-        if not self._takes_place(agent):
-            return AgentRefusal.BUSY
-        self._places.put(person, room_id, agent)
-        self._hearing.joined(agent, brought_by_sponsor=True)
-        self._on_changed(person)
-        await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(sponsor))
-        await self._switches.tell(agent)
-        await logger.ainfo("agent.dialed_in", room_ref=room_reference(room_id), agent_id=agent.agent_id)
-        await self._update_offers(room_id)
-        return agent
+        if not view.has_free_place:
+            return AgentRefusal.BUSY, None
+        self._seat(view, agent, transition, brought_by_sponsor=True)
+        return agent, agent
+
+    def _seat(self, view: RoomView, agent: DialedAgent, transition: Transition, *, brought_by_sponsor: bool) -> None:
+        """Give the agent its place and tile, and tell its sponsor its switches."""
+        transition.take_agent_place(agent.agent_id)
+        self._places.put(agent.person, agent.room_id, agent)
+        self._hearing.joined(agent, brought_by_sponsor=brought_by_sponsor)
+        self._on_changed(agent.person)
+        self._announce_joined(view, agent, view.members, transition)
+        self._switches.tell(view, agent, transition)
 
     async def leave(self, person: Person, room_id: str) -> AgentRefusal | None:
         """Take the person's agent out of the room's call; the refusal, or nothing when it is out. An open invitation
         is no place to leave."""
-        agent = self._places.get(person, room_id)
+        refusal = await self._transitions.apply(room_id, partial(self._leave, person))
+        if refusal is None:
+            await self._update_offers(room_id)
+        return refusal
+
+    def _leave(self, person: Person, view: RoomView, transition: Transition) -> AgentRefusal | None:
+        agent = None if view.room_id is None else self._places.get(person, view.room_id)
         if not isinstance(agent, DialedAgent):
             return AgentRefusal.GONE
-        if self._rooms.is_parked(agent.sponsor):
+        if view.is_parked(agent.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        await self._remove(agent)
+        self._remove(view, agent, transition)
         return None
 
     async def say(self, person: Person, room_id: str, text: str) -> AgentRefusal | None:
@@ -227,7 +249,7 @@ class Participation:
 
     def holds_seat(self, account_id: str, room_id: str) -> bool:
         """Whether the account holds a seat in the room now, a parked one included."""
-        return bool(self._rooms.seats_in(room_id, account_id))
+        return bool(self._transitions.view(room_id).seats_in(account_id))
 
     def window_rooms_of(self, person: Person) -> tuple[str, ...]:
         """The rooms where the person holds a joined agent, whose chat windows it may read."""
@@ -278,15 +300,45 @@ class Participation:
     ) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it, and the agent keeps `voices` for its sentences."""
-        live = self._live.by_person.get(person)
-        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._deadlines.now())
-        if live is None or invitation is None:
-            return AgentRefusal.STALE_INVITATION
-        if self._rooms.seats_in(room_id, live.owner_subject) != [invitation.sponsor]:
-            return AgentRefusal.TWO_SEATS
-        if self._rooms.is_parked(invitation.sponsor):
-            return AgentRefusal.SPONSOR_AWAY
         verdict = judge_figure(self._figure_sources, figure)
+        outcome = await self._transitions.apply(
+            room_id, partial(self._accept, person, invitation_id, epoch, verdict, voices)
+        )
+        if isinstance(outcome, AgentRefusal):
+            return outcome
+        await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
+        if verdict.refusal is not None:
+            await logger.ainfo("agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value)
+        for gesture, clip_refusal in verdict.clip_refusals.items():
+            await logger.ainfo(
+                "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
+            )
+        await self._update_offers(room_id)
+        return outcome
+
+    def _accept(
+        self,
+        person: Person,
+        invitation_id: str,
+        epoch: int,
+        verdict: FigureVerdict,
+        voices: tuple[str, ...],
+        view: RoomView,
+        transition: Transition,
+    ) -> DialOutcome:
+        live = self._live.by_person.get(person)
+        room_id = view.room_id
+        invitation = (
+            None
+            if room_id is None
+            else self._places.standing_invitation(person, room_id, invitation_id, epoch, self._deadlines.now())
+        )
+        if live is None or room_id is None or invitation is None:
+            return AgentRefusal.STALE_INVITATION
+        if view.seats_in(live.owner_subject) != (invitation.sponsor,):
+            return AgentRefusal.TWO_SEATS
+        if view.is_parked(invitation.sponsor):
+            return AgentRefusal.SPONSOR_AWAY
         agent = DialedAgent(
             secrets.token_hex(AGENT_ID_BYTES),
             live.name,
@@ -296,22 +348,10 @@ class Participation:
             verdict.shown,
             voices,
         )
-        if not self._takes_place(agent):
+        if not view.has_free_place:
             return AgentRefusal.BUSY
-        self._places.put(person, room_id, agent)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
-        self._hearing.joined(agent, brought_by_sponsor=invitation.adder == invitation.sponsor)
-        self._on_changed(person)
-        await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
-        if verdict.refusal is not None:
-            await logger.ainfo("agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value)
-        for gesture, clip_refusal in verdict.clip_refusals.items():
-            await logger.ainfo(
-                "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
-            )
-        await self._announce_joined(agent, self._rooms.members(room_id), self._rooms.name_of(invitation.sponsor))
-        await self._switches.tell(agent)
-        await self._update_offers(room_id)
+        self._seat(view, agent, transition, brought_by_sponsor=invitation.adder == invitation.sponsor)
         return agent
 
     async def decline(
@@ -319,10 +359,28 @@ class Participation:
     ) -> AgentRefusal | None:
         """End the agent's standing invitation as its expiry does and tell the seat that made it `outcome`; the refusal,
         or nothing when it ended. A decline seats nothing, so it needs no lease."""
-        invitation = self._places.standing_invitation(person, room_id, invitation_id, epoch, self._deadlines.now())
+        refusal = await self._transitions.apply(room_id, partial(self._decline, person, invitation_id, epoch, outcome))
+        if refusal is None:
+            await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="declined")
+        return refusal
+
+    def _decline(
+        self,
+        person: Person,
+        invitation_id: str,
+        epoch: int,
+        outcome: InvitationOutcome,
+        view: RoomView,
+        transition: Transition,
+    ) -> AgentRefusal | None:
+        invitation = (
+            None
+            if view.room_id is None
+            else self._places.standing_invitation(person, view.room_id, invitation_id, epoch, self._deadlines.now())
+        )
         if invitation is None:
             return AgentRefusal.STALE_INVITATION
-        await self._end_invitation(person, room_id, invitation, outcome, reason="declined")
+        self._end_invitation(view, person, invitation, outcome, transition)
         return None
 
     async def agent_called(self, person: Person, own_account: OwnAccount) -> None:
@@ -352,13 +410,15 @@ class Participation:
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
         match frame.signal_type:
             case ParticipationSignal.AGENT_REMOVE:
-                await self._on_remove(peer_id, frame)
+                removed_in = await self._transitions.apply_at_seat(peer_id, partial(self._on_remove, peer_id, frame))
+                if removed_in is not None:
+                    await self._update_offers(removed_in)
             case ParticipationSignal.AGENT_ADD:
-                await self._on_add(peer_id, frame)
+                await self._transitions.apply_at_seat(peer_id, partial(self._on_add, peer_id, frame))
             case ParticipationSignal.AGENT_HEARING if self._hearing.enabled:
-                await self._switches.on_frame(peer_id, frame)
+                await self._transitions.apply_at_seat(peer_id, partial(self._switches.on_frame, peer_id, frame))
             case ParticipationSignal.AGENT_SEEING:
-                await self._switches.on_frame(peer_id, frame)
+                await self._transitions.apply_at_seat(peer_id, partial(self._switches.on_frame, peer_id, frame))
             case ParticipationSignal.AGENT_LOOK_PART:
                 self._seeing.answered(peer_id, frame, part=True)
             case ParticipationSignal.AGENT_LOOK_NONE:
@@ -369,28 +429,32 @@ class Participation:
 
     async def seat_joined(self, peer_id: PeerId) -> None:
         """Show a seat that just joined the agents already in its room, and the agents it may add."""
-        room_id = self._rooms.room_of(peer_id)
-        if room_id is None:  # pragma: no cover - a seat is in its room when it is announced
+        await self._transitions.apply_at_seat(peer_id, partial(self._seat_joined, peer_id))
+
+    def _seat_joined(self, peer_id: PeerId, view: RoomView, transition: Transition) -> None:
+        if view.room_id is None:  # pragma: no cover - a seat is in its room when it is announced
             return
-        self._views[peer_id] = SeatView(room_id)
-        for agent in [agent for agent in self._places.joined() if agent.room_id == room_id]:
-            if self._in_call(agent):
-                await self._announce_joined(agent, [peer_id], self._rooms.name_of(agent.sponsor))
-        await self._update_offers(room_id)
+        self._views[peer_id] = SeatView(view.room_id)
+        for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
+            self._announce_joined(view, agent, [peer_id], transition)
+        self._offer(view, transition)
 
     def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
         """Add a person's line to the window of every agent joined in its room, under the name the call shows."""
         self.speech.line_said(room_id, LineKind.PERSON, self._rooms.name_of(peer_id), message, sayer=None)
 
     def seat_changed(self, peer_id: PeerId) -> None:
-        """A seat that left its room takes its places out of the state at once and holds its agents for `seat_left`;
-        a seat that left, parked or resumed tells the agents it sponsors."""
+        """A seat that left its room takes its places out in a transition of that room at once and holds its agents
+        for `commit_seat_left`; a seat that left, parked or resumed tells the agents it sponsors."""
         bound = [
             (person, room_id, place) for person, room_id, place in self._places.entries() if place.sponsor == peer_id
         ]
-        if self._rooms.room_of(peer_id) is None:
-            self._take_out_places_of_departed(peer_id, bound)
-        elif self._rooms.is_parked(peer_id):
+        room = self._transitions.seat_view(peer_id)
+        if room.room_id is None:
+            seat = self._views.get(peer_id)
+            if seat is not None:
+                self._transitions.commit_now(seat.room_id, partial(self._take_out_places_of_departed, peer_id, bound))
+        elif room.is_parked(peer_id):
             self._hearing.end_sound(peer_id)
             for _, _, place in bound:
                 if isinstance(place, DialedAgent):
@@ -399,8 +463,11 @@ class Participation:
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
 
-    def _take_out_places_of_departed(self, peer_id: PeerId, bound: list[tuple[Person, str, Place]]) -> None:
-        view = self._views.pop(peer_id, None)
+    def _take_out_places_of_departed(
+        self, peer_id: PeerId, bound: list[tuple[Person, str, Place]], view: RoomView, transition: Transition
+    ) -> None:
+        del view
+        seat_view = self._views.pop(peer_id)
         invitations = [
             AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
             for person, room_id, place in bound
@@ -412,28 +479,35 @@ class Participation:
             self._abandoned[peer_id] = invitations
         joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
         for agent in joined:
-            self._agent_ended(agent)
-        if view is not None:
-            self._hearing.seat_ended(view.room_id, peer_id)
+            self._agent_ended(agent, transition)
+        self._hearing.seat_ended(seat_view.room_id, peer_id)
         if joined:
             self._departed[peer_id] = joined
 
     async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
+        """Participation hears a seat's leave in the commit that tells the room, `commit_seat_left`."""
+
+    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
         """Announce the tiles of the agents the seat took with it and the agents the others may add now, then tell the
         seats that invited the owner's agents that the owner is away."""
         del name
+        return self._transitions.commit_now(room_id, partial(self._seat_left, peer_id))
+
+    def _seat_left(self, peer_id: PeerId, view: RoomView, transition: Transition) -> None:
         for agent in self._departed.pop(peer_id, []):
-            await self._announce_removed(agent, self._recipients(agent.room_id))
-        await self._update_offers(room_id)
+            self._announce_removed(agent, view.members, transition)
+        self._offer(view, transition)
         for invitation in self._abandoned.pop(peer_id, []):
-            await self._tell(
-                invitation.room_id,
+            self._send(
+                view,
+                transition,
                 [invitation.adder],
                 AgentInvitationEndedFrame(invitation.agent_key, InvitationOutcome.OWNER_ABSENT),
             )
 
     def room_ended(self, room_id: str) -> None:
         """Drop the room's places and seats; the room's seats hear the end itself."""
+        self._transitions.room_ended(room_id)
         self._forget_seats_of_ended_room(room_id)
         holders = {person for person, held_room, _ in self._places.entries() if held_room == room_id}
         self._hearing.room_ended(room_id)
@@ -454,7 +528,7 @@ class Participation:
             del self._views[peer_id]
 
     async def shut_down(self) -> None:
-        await self._group_reads.cancel()
+        await self._transitions.shut_down()
         for room_id in {agent.room_id for agent in self._places.joined()}:
             self._hearing.room_ended(room_id)
         ended = self._places.joined()
@@ -468,76 +542,98 @@ class Participation:
         self._views.clear()
         self._live = LiveAgents()
 
-    async def _on_remove(self, peer_id: PeerId, frame: ForeignFrame) -> None:
-        agent_id = frame.data.get("agent_id")
-        if not isinstance(agent_id, str):
-            raise InvalidMessageError("A removal needs the agent's id")
-        room_id = self._rooms.room_of(peer_id)
-        agent = next(
-            (agent for agent in self._places.joined() if agent.agent_id == agent_id and agent.room_id == room_id), None
-        )
-        if agent is None:
-            return
-        if peer_id != agent.sponsor and not self._rooms.is_host(peer_id):
-            await self._rooms.send(peer_id, AgentRefusedFrame(AgentRefusal.NOT_SPONSOR_OR_HOST).to_json())
-            return
-        await self._remove(agent)
+    async def run_work(self, work: Work, live_seats: LiveSeats, room: WorkRoom) -> None:
+        """Read the groups of the seat's session and apply what the read found to the room. The read starts before
+        anything awaits after the transition that dispatched it, so its seat still sits in the room."""
+        read = cast("GroupsRead", work)  # the only work participation dispatches
+        groups = await self._groups_of(live_seats.connection_of(read.seat))
+        await room.apply(partial(self._groups_read, read, groups))
 
-    async def _on_add(self, peer_id: PeerId, frame: ForeignFrame) -> None:
-        agent_key = frame.data.get("agent_key")
-        if not isinstance(agent_key, str):
-            raise InvalidMessageError("An add needs the agent's key")
-        room_id = self._rooms.room_of(peer_id)
-        live = None if room_id is None else self._live.by_key(agent_key)
-        if room_id is None or live is None:
-            await self._rooms.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
-            return
-        refusal = self._refusal_of_add(peer_id, room_id, live, membership_is_fresh=False)
-        if refusal is not None:
-            await self._rooms.send(peer_id, AgentRefusedFrame(refusal).to_json())
-            return
-        await self._add_after_a_fresh_read(peer_id, room_id, live)
+    def stop_work(self, key: str) -> None:
+        """A read waits on the issuer, so it ends only when cancelled."""
+        self._transitions.cancel(key)
 
-    async def _add_after_a_fresh_read(self, peer_id: PeerId, room_id: str, live: LiveAgent) -> None:
-        [sponsor] = self._rooms.seats_in(room_id, live.owner_subject)  # the checks before it found exactly one
-        groups = await self._groups_of(self._rooms.connection_of(peer_id))
-        if self._rooms.room_of(peer_id) != room_id:
+    def _groups_read(
+        self, read: GroupsRead, groups: frozenset[str] | None, view: RoomView, transition: Transition
+    ) -> None:
+        """Keep the memberships a read found and act on them, unless the seat has left meanwhile: the read for an add
+        decides the add, and a read for the offers asks for no other, so a failure retries at the next trigger."""
+        if view.room_of(read.seat) is None:
             return
-        group = self._adders[live.owner_subject]
-        memberships = self._view_of(peer_id, room_id).memberships
+        memberships = self._view_of(read.seat, cast("str", view.room_id)).memberships
+        if read.adding is None:
+            for group in set(self._adders.values()):
+                memberships[group] = membership_in(groups, group)
+            self._offer(view, transition, read=False)
+            return
+        group = self._adders[read.adding.owner_subject]
         memberships[group] = membership_in(groups, group)
         refusal: AgentRefusal | None
         if memberships[group] is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
         else:
-            refusal = self._refusal_of_add_now(peer_id, room_id, live, sponsor)
+            refusal = self._refusal_of_add_now(view, read.seat, read.adding, cast("PeerId", read.sponsor))
         if refusal is None:
-            await self._invite(peer_id, room_id, live, sponsor)
-        await self._update_offers(room_id)
+            self._invite(view, read.seat, read.adding, cast("PeerId", read.sponsor))
+        self._offer(view, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
-            await self._rooms.send(peer_id, AgentRefusedFrame(refusal).to_json())
+            transition.send(read.seat, AgentRefusedFrame(refusal).to_json())
+
+    def _on_remove(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition) -> str | None:
+        """Remove the agent the frame names; the room it was removed from, or nothing."""
+        agent_id = frame.data.get("agent_id")
+        if not isinstance(agent_id, str):
+            raise InvalidMessageError("A removal needs the agent's id")
+        agent = next(
+            (agent for agent in self._places.joined() if agent.agent_id == agent_id and agent.room_id == view.room_id),
+            None,
+        )
+        if agent is None:
+            return None
+        if peer_id != agent.sponsor and not view.is_host(peer_id):
+            transition.send(peer_id, AgentRefusedFrame(AgentRefusal.NOT_SPONSOR_OR_HOST).to_json())
+            return None
+        self._remove(view, agent, transition)
+        return agent.room_id
+
+    def _on_add(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition) -> None:
+        """Refuse an add that cannot stand, or read the adder's groups afresh, which then decides it."""
+        agent_key = frame.data.get("agent_key")
+        if not isinstance(agent_key, str):
+            raise InvalidMessageError("An add needs the agent's key")
+        live = None if view.room_id is None else self._live.by_key(agent_key)
+        if live is None:
+            transition.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
+            return
+        refusal = self._refusal_of_add(view, peer_id, live, membership_is_fresh=False)
+        if refusal is not None:
+            transition.send(peer_id, AgentRefusedFrame(refusal).to_json())
+            return
+        [sponsor] = view.seats_in(live.owner_subject)  # the checks before it found exactly one
+        transition.dispatch(self._group_reads.for_add(peer_id, live, sponsor))
 
     def _refusal_of_add_now(
-        self, peer_id: PeerId, room_id: str, live: LiveAgent, sponsor: PeerId
+        self, view: RoomView, peer_id: PeerId, live: LiveAgent, sponsor: PeerId
     ) -> AgentRefusal | None:
         """The add as it stands after the fresh read: the same registration and the same single seat of the owner."""
         current = self._live.by_person.get(live.person)
         if current is None or current.generation != live.generation:
             return AgentRefusal.GONE
-        refusal = self._refusal_of_add(peer_id, room_id, live, membership_is_fresh=True)
-        if refusal is None and self._rooms.seats_in(room_id, live.owner_subject) != [sponsor]:
+        refusal = self._refusal_of_add(view, peer_id, live, membership_is_fresh=True)
+        if refusal is None and view.seats_in(live.owner_subject) != (sponsor,):
             return AgentRefusal.NO_SEAT
         return refusal
 
     def _refusal_of_add(
-        self, peer_id: PeerId, room_id: str, live: LiveAgent, *, membership_is_fresh: bool
+        self, view: RoomView, peer_id: PeerId, live: LiveAgent, *, membership_is_fresh: bool
     ) -> AgentRefusal | None:
         """The refusals an add meets; a membership read before this add decides nothing, only the fresh one does."""
-        sponsor = self._sole_seat(room_id, live.owner_subject)
+        room_id = cast("str", view.room_id)  # the adder sits in it
+        sponsor = self._sole_seat(view, live.owner_subject)
         if isinstance(sponsor, AgentRefusal):
             return sponsor
-        if self._rooms.is_parked(sponsor):
+        if view.is_parked(sponsor):
             return AgentRefusal.SPONSOR_AWAY
         group = self._adders.get(live.owner_subject)
         if group is None or (
@@ -546,11 +642,12 @@ class Participation:
             return AgentRefusal.NOT_ADDER
         if self._places.get(live.person, room_id) is not None:
             return AgentRefusal.ALREADY_THERE
-        if self._is_busy(room_id):
+        if not view.has_free_place:
             return AgentRefusal.BUSY
         return None
 
-    async def _invite(self, adder: PeerId, room_id: str, live: LiveAgent, sponsor: PeerId) -> None:
+    def _invite(self, view: RoomView, adder: PeerId, live: LiveAgent, sponsor: PeerId) -> None:
+        room_id = cast("str", view.room_id)  # the adder sits in it
         invitation = Invited(
             invitation_id=secrets.token_hex(AGENT_ID_BYTES),
             epoch=self._places.epoch_of(live.person, room_id),
@@ -561,25 +658,32 @@ class Participation:
         self._places.put(live.person, room_id, invitation)
         self._deadlines.set(DeadlineKind.INVITATION, invitation_key(live.person, room_id), self._invitation_seconds)
         self._on_changed(live.person)
-        await logger.ainfo("agent.invited", room_ref=room_reference(room_id))
+        logger.info("agent.invited", room_ref=room_reference(room_id))
 
     async def _invitation_timer(self, key: str) -> None:
         person, room_id = invitation_of(key)
-        place = self._places.get(person, room_id)
-        if isinstance(place, Invited):
-            await self._end_invitation(person, room_id, place, InvitationOutcome.NO_ANSWER, reason="expired")
+        if await self._transitions.apply(room_id, partial(self._invitation_ran_out, person)):
+            await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="expired")
 
-    async def _end_invitation(
-        self, person: Person, room_id: str, invitation: Invited, outcome: InvitationOutcome, *, reason: str
+    def _invitation_ran_out(self, person: Person, view: RoomView, transition: Transition) -> bool:
+        """End the person's open invitation in the room, and say whether one was open."""
+        place = None if view.room_id is None else self._places.get(person, view.room_id)
+        if not isinstance(place, Invited):
+            return False
+        self._end_invitation(view, person, place, InvitationOutcome.NO_ANSWER, transition)
+        return True
+
+    def _end_invitation(
+        self, view: RoomView, person: Person, invitation: Invited, outcome: InvitationOutcome, transition: Transition
     ) -> None:
-        agent_key = self._live.by_person[person].key  # read before the awaits: the lease may end during them
+        room_id = cast("str", view.room_id)  # the invitation is open in it
+        agent_key = self._live.by_person[person].key
         self._places.end_invitation(person, room_id)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._on_changed(person)
-        await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason=reason)
-        await self._update_offers(room_id)
+        self._offer(view, transition)
         # After the offers, which list the agent as available again: the outcome then marks that row.
-        await self._tell(room_id, [invitation.adder], AgentInvitationEndedFrame(agent_key, outcome))
+        self._send(view, transition, [invitation.adder], AgentInvitationEndedFrame(agent_key, outcome))
 
     def _arm(self, person: Person, seconds: float) -> None:
         self._deadlines.set(DeadlineKind.LEASE, person.key, seconds)
@@ -597,17 +701,20 @@ class Participation:
             await self._end_lease(check.ended)
 
     async def _end_lease(self, ended: LiveAgent) -> None:
-        """End every place of the agent in one synchronous step, then signal the standing and tell the rooms."""
-        departures: list[tuple[DialedAgent, list[PeerId]]] = []
-        for room_id, place in self._places.of_person(ended.person):
-            self._places.remove(ended.person, room_id)
-            if isinstance(place, DialedAgent):
-                self._agent_ended(place)
-                departures.append((place, self._recipients(room_id)))
+        """End every place of the agent, committing every room's transition before any seat hears of it; then signal
+        the standing and tell the rooms what they may add."""
+        rooms = [room_id for room_id, _ in self._places.of_person(ended.person)]
+        await self._transitions.apply_each(rooms, partial(self._lease_ended_in, ended.person))
         self._on_changed(ended.person)
-        for agent, recipients in departures:
-            await self._announce_removed(agent, recipients)
         await self._update_every_room_offers()
+
+    def _lease_ended_in(self, person: Person, view: RoomView, transition: Transition) -> None:
+        room_id = cast("str", view.room_id)  # the person's place is in it, and the room's end drops its places
+        place = self._places.get(person, room_id)
+        self._places.remove(person, room_id)
+        if isinstance(place, DialedAgent):
+            self._agent_ended(place, transition)
+            self._announce_removed(place, view.members, transition)
 
     def _standing_in(self, room_id: str, place: Invited | DialedAgent) -> PlaceStanding:
         if isinstance(place, Invited):
@@ -615,7 +722,7 @@ class Participation:
             return PlaceStanding(
                 room_id, PlaceState.INVITED, InvitationStanding(place.invitation_id, place.epoch, expires_at)
             )
-        state = PlaceState.PAUSED if self._rooms.is_parked(place.sponsor) else PlaceState.ACTIVE
+        state = PlaceState.PAUSED if self._transitions.view(room_id).is_parked(place.sponsor) else PlaceState.ACTIVE
         return PlaceStanding(room_id, state)
 
     async def _write_line(self, agent: DialedAgent, line: str) -> None:
@@ -644,9 +751,9 @@ class Participation:
             step.refuse(failure.value)
         return AgentRefusal.UNAVAILABLE
 
-    def _agent_ended(self, agent: DialedAgent) -> None:
+    def _agent_ended(self, agent: DialedAgent, transition: Transition) -> None:
         """The agent's removal, leave or lease end: it frees its place and hears and speaks nothing more."""
-        self._rooms.release_agent_place(agent.room_id, agent.agent_id)
+        transition.release_agent_place(agent.agent_id)
         self._hearing.agent_ended(agent)
         self._speaking.end(agent)
         self._seeing.ended(agent)
@@ -662,106 +769,114 @@ class Participation:
                 return
             await self._tell(agent.room_id, [peer_id], AgentVoiceFrame(agent.agent_id, sentence.voice.id))
 
-    def _sole_seat(self, room_id: str, owner_subject: str) -> PeerId | AgentRefusal:
-        seats = self._rooms.seats_in(room_id, owner_subject)
+    @staticmethod
+    def _sole_seat(view: RoomView, owner_subject: str) -> PeerId | AgentRefusal:
+        seats = view.seats_in(owner_subject)
         if not seats:
             return AgentRefusal.NO_SEAT
         if len(seats) > 1:
             return AgentRefusal.TWO_SEATS
         return seats[0]
 
-    def _is_busy(self, room_id: str) -> bool:
-        """The call has no place left for an agent."""
-        return not self._rooms.has_free_place(room_id)
-
-    def _takes_place(self, agent: DialedAgent) -> bool:
-        if self._is_busy(agent.room_id):
-            return False
-        self._rooms.take_agent_place(agent.room_id, agent.agent_id)
-        return True
-
-    def _in_call(self, agent: DialedAgent) -> bool:
-        """The agent holds its place, so its seat has not taken it away."""
-        return self._places.get(agent.person, agent.room_id) == agent
-
     def _view_of(self, peer_id: PeerId, room_id: str) -> SeatView:
         return self._views.setdefault(peer_id, SeatView(room_id))
 
     def _recipients(self, room_id: str) -> list[PeerId]:
         """The room's seats now, none once the room has ended."""
-        try:
-            return [PeerId(peer_id) for peer_id in self._rooms.members(room_id)]
-        except RoomNotFoundError:
-            return []
+        return list(self._transitions.view(room_id).members)
 
-    async def _remove(self, agent: DialedAgent) -> None:
-        recipients = self._recipients(agent.room_id)
+    def _remove(self, view: RoomView, agent: DialedAgent, transition: Transition) -> None:
         self._places.remove(agent.person, agent.room_id)
-        self._agent_ended(agent)
+        self._agent_ended(agent, transition)
         self._on_changed(agent.person)
-        await self._announce_removed(agent, recipients)
-        await self._update_offers(agent.room_id)
+        self._announce_removed(agent, view.members, transition)
 
-    async def _announce_removed(self, agent: DialedAgent, recipients: Sequence[str]) -> None:
-        await self._tell(agent.room_id, recipients, AgentLeftFrame(agent.agent_id))
-        await logger.ainfo("agent.left", room_ref=room_reference(agent.room_id), agent_id=agent.agent_id)
+    def _announce_removed(self, agent: DialedAgent, recipients: Sequence[PeerId], transition: Transition) -> None:
+        # A tile not yet written to a seat never shows there once its agent has left.
+        unannounced = Supersedes(frozenset({ParticipationSignal.AGENT_JOINED}), holding=("agent_id", agent.agent_id))
+        for peer_id in recipients:
+            transition.send(peer_id, AgentLeftFrame(agent.agent_id).to_json(), unannounced)
+        logger.info("agent.left", room_ref=room_reference(agent.room_id), agent_id=agent.agent_id)
 
-    async def _announce_joined(self, agent: DialedAgent, peer_ids: Sequence[str], sponsor_name: str) -> None:
-        """Tell the seats of the agent's tile, each only while the agent is still in the call."""
-        frame = joined_frame(agent, sponsor_name)
+    def _announce_joined(
+        self, view: RoomView, agent: DialedAgent, peer_ids: Sequence[PeerId], transition: Transition
+    ) -> None:
+        """Tell the seats of the agent's tile."""
+        frame = joined_frame(agent, view.name_of(agent.sponsor))
         for peer_id in peer_ids:
-            if not self._in_call(agent):
-                return
-            await self._tell(agent.room_id, [peer_id], frame)
+            transition.send(peer_id, frame.to_json())
+
+    @staticmethod
+    def _send(view: RoomView, transition: Transition, peer_ids: Sequence[PeerId], frame: ParticipationFrame) -> None:
+        """Send to each seat that still sits in the room."""
+        for peer_id in peer_ids:
+            if view.room_of(peer_id) is not None:
+                transition.send(peer_id, frame.to_json())
 
     async def _tell(self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame) -> None:
         """Send to each seat that still sits in the room: a room that has ended gets nothing more."""
-        for peer_id in peer_ids:
-            if self._rooms.room_of(PeerId(peer_id)) == room_id:
-                await self._rooms.send(peer_id, frame.to_json())
+        seats = [PeerId(peer_id) for peer_id in peer_ids]
+        await self._transitions.apply(room_id, partial(self._send, peer_ids=seats, frame=frame))
 
     async def _update_every_room_offers(self) -> None:
         for room_id in sorted({view.room_id for view in self._views.values()}):
             await self._update_offers(room_id)
 
     async def _update_offers(self, room_id: str, *, read: bool = True) -> None:
+        await self._transitions.apply(room_id, partial(self._offer, read=read))
+
+    def _offer(self, view: RoomView, transition: Transition, *, read: bool = True) -> None:
         """Send each seat the agents it may add, whether its control shows and whether no place is free for an agent,
         when they differ from what it was last sent. `read` starts the reads of memberships still unknown or failed;
         the read that just ended asks for none, so a failure retries at the next trigger."""
-        seats = self._recipients(room_id)
-        if not seats:  # the room has ended
+        if view.room_id is None:  # the room has ended
             return
         if read:
-            self._group_reads.start(room_id, seats)
-        full = self._is_busy(room_id)
-        for peer_id in seats:
-            view = self._view_of(peer_id, room_id)
-            offers = self._offers_for(peer_id, room_id)
-            shown = self._control_shown_to(peer_id, room_id, offers)
-            if (offers, shown, full) != (view.offered, view.shown, view.full):
-                view.offered = offers
-                view.shown = shown
-                view.full = full
-                await self._tell(room_id, [peer_id], AgentOffersFrame(shown=shown, full=full, offers=list(offers)))
+            self._read_groups(view, transition)
+        full = not view.has_free_place
+        for peer_id in view.members:
+            seat = self._view_of(peer_id, view.room_id)
+            offers = self._offers_for(view, peer_id)
+            shown = self._control_shown_to(view, peer_id, offers)
+            if (offers, shown, full) != (seat.offered, seat.shown, seat.full):
+                seat.offered = offers
+                seat.shown = shown
+                seat.full = full
+                transition.send(peer_id, AgentOffersFrame(shown=shown, full=full, offers=list(offers)).to_json())
 
-    def _control_shown_to(self, peer_id: PeerId, room_id: str, offers: Sequence[Offer]) -> bool:
+    def _read_groups(self, view: RoomView, transition: Transition) -> None:
+        """Read the groups of each seat whose membership in an adders group is unknown or failed to read, unless a
+        read of them runs."""
+        groups = set(self._adders.values())
+        for peer_id in view.members:
+            memberships = self._view_of(peer_id, cast("str", view.room_id)).memberships
+            read = self._group_reads.for_offers(peer_id)
+            if (
+                any(memberships.get(group, Membership.FAILED) is Membership.FAILED for group in groups)
+                and not self._transitions.is_working(read.key)
+                and read not in transition.dispatched
+            ):
+                transition.dispatch(read)
+
+    def _control_shown_to(self, view: RoomView, peer_id: PeerId, offers: Sequence[Offer]) -> bool:
         """The control shows to a seat with an offer, to the call's host and to a member of an adders group, even with
         no agent to list; it never waits on a fresh read."""
         if offers:
             return True
-        memberships = self._view_of(peer_id, room_id).memberships
-        return self._rooms.is_host(peer_id) or any(
+        memberships = self._view_of(peer_id, cast("str", view.room_id)).memberships
+        return view.is_host(peer_id) or any(
             memberships.get(group) is Membership.MEMBER for group in self._adders.values()
         )
 
-    def _offers_for(self, peer_id: PeerId, room_id: str) -> tuple[Offer, ...]:
+    def _offers_for(self, view: RoomView, peer_id: PeerId) -> tuple[Offer, ...]:
         """The agents a seat may add: each with a lease that runs and a listen on its standing that is open, or ended
         within its allowance."""
+        room_id = cast("str", view.room_id)
         memberships = self._view_of(peer_id, room_id).memberships
         offers = []
         for live in self._live.by_person.values():
             group = self._adders.get(live.owner_subject)
-            sponsor = self._sole_seat(room_id, live.owner_subject)
+            sponsor = self._sole_seat(view, live.owner_subject)
             if (
                 group is None
                 or isinstance(sponsor, AgentRefusal)
@@ -772,6 +887,6 @@ class Participation:
             place = self._places.get(live.person, room_id)
             if isinstance(place, Invited) and place.adder == peer_id:
                 offers.append(Offer(live.key, live.name, pending=True))
-            elif place is None and not self._is_busy(room_id):
+            elif place is None and view.has_free_place:
                 offers.append(Offer(live.key, live.name, pending=False))
         return tuple(offers)
