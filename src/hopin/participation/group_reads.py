@@ -21,12 +21,19 @@ GROUPS_READ_TASK_NAME = "participation-groups-read"
 
 
 @dataclass(frozen=True)
+class Adding:
+    """An add a groups read decides: the registered agent to add, whose owner sits in the room as its sponsor."""
+
+    agent: LiveAgent
+    sponsor: PeerId
+
+
+@dataclass(frozen=True)
 class GroupsRead(Work):
     """A read of the groups of the seat's session, as work on the process that holds the seat's socket: for the
-    offers, or for the add of the agent registered as `adding`, whose owner sits in the room as `sponsor`."""
+    offers, or for an add."""
 
-    adding: LiveAgent | None = None
-    sponsor: PeerId | None = None
+    adding: Adding | None = None
 
 
 class GroupReads:
@@ -40,4 +47,4 @@ class GroupReads:
         return GroupsRead(f"{GROUPS_READ_TASK_NAME}:{peer_id}", peer_id)
 
     def for_add(self, peer_id: PeerId, adding: LiveAgent, sponsor: PeerId) -> GroupsRead:
-        return GroupsRead(f"{GROUPS_READ_TASK_NAME}:{peer_id}:add:{next(self._adds)}", peer_id, adding, sponsor)
+        return GroupsRead(f"{GROUPS_READ_TASK_NAME}:{peer_id}:add:{next(self._adds)}", peer_id, Adding(adding, sponsor))

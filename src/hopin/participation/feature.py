@@ -175,7 +175,7 @@ class Participation:
         self._hearing.joined(agent, brought_by_sponsor=brought_by_sponsor)
         self._on_changed(agent.person)
         self._announce_joined(view, agent, view.members, transition)
-        self._switches.tell(view, agent, transition)
+        self._switches.tell(agent, transition)
 
     async def leave(self, person: Person, room_id: str) -> AgentRefusal | None:
         """Take the person's agent out of the room's call; the refusal, or nothing when it is out. An open invitation
@@ -560,18 +560,17 @@ class Participation:
         if view.room_of(read.seat) is None:
             return
         membership = self._offers.keep(read, groups, cast("str", view.room_id))
-        if read.adding is None:
+        adding = read.adding
+        if adding is None:
             self._offer(view, transition, read=False)
             return
         refusal: AgentRefusal | None
         if membership is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
         else:
-            refusal = self._offers.refusal_of_add_now(
-                view, read.seat, read.adding, cast("PeerId", read.sponsor), self._live
-            )
+            refusal = self._offers.refusal_of_add_now(view, read.seat, adding.agent, adding.sponsor, self._live)
         if refusal is None:
-            self._invite(view, read.seat, read.adding, cast("PeerId", read.sponsor))
+            self._invite(view, read.seat, adding.agent, adding.sponsor)
         self._offer(view, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.

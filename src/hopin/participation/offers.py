@@ -68,7 +68,7 @@ class Offers:
             for group in set(self._adders.values()):
                 memberships[group] = membership_in(groups, group)
             return None
-        group = self._adders[read.adding.owner_subject]
+        group = self._adders[read.adding.agent.owner_subject]
         memberships[group] = membership_in(groups, group)
         return memberships[group]
 

@@ -44,17 +44,16 @@ class Switches:
         elif frame.signal_type == ParticipationSignal.AGENT_HEARING:
             self._hearing.switch(agent, on=on)
             self._speech.hearing_switched(agent, on=on)
-            self.tell(view, agent, transition)
+            self.tell(agent, transition)
         else:
             self._hearing.switch_seeing(agent, on=on)
             if not on:
                 self._seeing.ended(agent, LookRefusal.NOT_ALLOWED)
-            self.tell(view, agent, transition)
+            self.tell(agent, transition)
 
-    def tell(self, view: RoomView, agent: DialedAgent, transition: Transition) -> None:
+    def tell(self, agent: DialedAgent, transition: Transition) -> None:
         """Tell the agent's sponsor, who sits in the room, the server's record of the agent's switches: the hearing
         one only while the call lets agents hear."""
-        del view
         hearing = self._hearing.switch_of(agent)
         if hearing is not None:
             transition.send(agent.sponsor, AgentHearingFrame(agent.agent_id, on=hearing).to_json())
