@@ -364,7 +364,7 @@ class TestWhatIsHeard:
     ):
         """CALL-57: The agent's read of the call's window marks a heard line spoken and not its own."""
         host, guest, _agent = dialed
-        participation.chat_said(host.peer_id, room_of(host), "written")
+        await host.say({"type": SignalType.CHAT.value, "message": "written"})
         heard(participation, guest.peer_id, "said aloud", began_at=0.0)
         resources = _MemberResources(lambda: participation)
 

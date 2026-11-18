@@ -14,7 +14,7 @@ from hopin.config.constants import (
     WEBSOCKET_DISCONNECT_EVENT,
 )
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
-from hopin.signaling.features import CallRooms, build_features
+from hopin.signaling.features import build_features
 from hopin.signaling.frames import (
     ChatFrame,
     DispatchedFrame,
@@ -32,13 +32,13 @@ from hopin.signaling.frames import (
 )
 from hopin.signaling.routing import Departure, RoomRouting
 from hopin.signaling.seats import Connection, Peer, SeatSnapshot
-from hopin.signaling.transition import CommitsSeatLeft, Committed, InMemoryCallStore, RoomView, Transition
+from hopin.signaling.transition import Committed, InMemoryCallStore, RoomView, Transition, TransitionHost
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from hopin.rooms.manager import RoomManager
-    from hopin.signaling.features import CallFeature, FeatureFactory
+    from hopin.signaling.features import TransitionFeature
     from hopin.signaling.frames import JsonObject
     from hopin.signaling.identity import IdentityResolver
     from hopin.signaling.scheduler import Deadlines, Scheduler, TimerHandle
@@ -53,7 +53,7 @@ class SignalingHandler:
         identity_resolver: IdentityResolver,
         scheduler: Scheduler,
         deadlines: Deadlines,
-        features: Sequence[FeatureFactory] = (),
+        features: Sequence[TransitionFeature] = (),
     ) -> None:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
@@ -63,15 +63,13 @@ class SignalingHandler:
         )
         self._seats = self._routing.seats
         self._store = InMemoryCallStore(self._routing, room_manager)
-        self._features = build_features(
-            features, CallRooms(self._routing, self._store, self._seats), self._store, self._seats
-        )
+        self._features = build_features(features, self._store, self._seats)
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
         }
 
     @property
-    def features(self) -> tuple[CallFeature, ...]:
+    def features(self) -> tuple[TransitionHost, ...]:
         return self._features
 
     def _room_ended(self, room_id: str) -> None:
@@ -87,23 +85,17 @@ class SignalingHandler:
             feature.chat_said(peer_id, room_id, message)
 
     async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
-        """The room is told of the departure in one commit with what each feature that commits its answer answers
-        it, so a feature's frame supersedes its own outdated ones before any reaches a seat; the other features hear
-        it after, even when a seat's write of that commit broke."""
+        """The room is told of the departure in one commit with each feature's answer to it, so a feature's frame
+        supersedes its own outdated ones before any reaches a seat."""
         told = Transition()
         for peer_id, frame in told_frames:
             told.send(peer_id, frame)
-        committed = [Committed(told, self._store.commit(RoomView(), told))]
+        committed = [Committed(self._store.commit(RoomView(), told))]
         committed += [
             feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
             for feature in self._features
-            if isinstance(feature, CommitsSeatLeft)
         ]
-        try:
-            await self._store.wake_committed(committed)
-        finally:
-            for feature in self._features:
-                await feature.seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
+        await self._store.wake_committed(committed)
 
     async def shut_down(self) -> None:
         """Shut the call's features down in order and wait until each has cleaned up; the calls' feature state ends with

@@ -228,7 +228,7 @@ class TestCreateApp:
     def test_the_policy_admits_exactly_the_origins_the_call_features_frame(
         self, sign_in_settings, frame_sources, expected
     ):
-        features = (WitnessFeatureBuilder(RecordingFeature, frame_sources=frame_sources),)
+        features = (WitnessFeatureBuilder(RecordingFeature(), frame_sources=frame_sources),)
         settings = sign_in_settings().settings
 
         response = TestClient(

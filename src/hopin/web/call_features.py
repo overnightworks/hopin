@@ -8,14 +8,14 @@ from hopin.config.constants import CALL_FEATURES_PATH, READ_METHODS
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hopin.signaling.features import CallFeature
+    from hopin.signaling.transition import TransitionHost
 
 
 class CallFeatureList(BaseModel):
     features: list[str]
 
 
-def create_call_features_router(features: Sequence[CallFeature]) -> APIRouter:
+def create_call_features_router(features: Sequence[TransitionHost]) -> APIRouter:
     router = APIRouter()
     modules = [module for feature in features for module in feature.browser_modules]
 

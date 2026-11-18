@@ -1,114 +1,52 @@
 from abc import ABC, abstractmethod
 from collections import Counter
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 from hopin.config.constants import SignalType
-from hopin.signaling.transition import FeatureTransitions, TransitionHost
+from hopin.signaling.transition import TransitionHost
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Mapping, Sequence
 
     from hopin.signaling.frames import ForeignFrame, PeerId
-    from hopin.signaling.routing import RoomRouting
-    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Transition, Work, Worker, WorkRoom
+    from hopin.signaling.transition import (
+        Change,
+        FeatureTransitions,
+        InMemoryCallStore,
+        LiveSeats,
+        RoomView,
+        Transition,
+        Work,
+        WorkRoom,
+    )
 
 
-class CallRooms:
-    """What a feature not yet wholly on transitions may read of the calls, and the transitions its other parts run
-    on; a new feature is a `TransitionFeature`."""
-
-    def __init__(self, routing: RoomRouting, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
-        self._routing = routing
-        self._store = store
-        self._live_seats = live_seats
-
-    def transitions_for(self, worker: Worker) -> FeatureTransitions:
-        """The transitions of a feature that runs only partly on them, for those of its parts that do."""
-        return FeatureTransitions(worker, self._store, self._live_seats)
-
-    def room_of(self, peer_id: PeerId) -> str | None:
-        return self._routing.room_of(peer_id)
-
-    def name_of(self, peer_id: PeerId) -> str:
-        """The name the call shows for the seat; the seat must exist."""
-        return self._routing.seats.account_of(peer_id).name
-
-    def seats_in(self, room_id: str, account_id: str) -> list[PeerId]:
-        """The seats the account holds in the room now, parked ones included."""
-        return [
-            peer_id
-            for peer_id, _ in self._routing.seats.held_by(account_id)
-            if self._routing.room_of(peer_id) == room_id
-        ]
-
-    def is_parked(self, peer_id: PeerId) -> bool:
-        """Whether the seat has lost its socket and waits for a resume; the seat must exist."""
-        return self._routing.seats.seat(peer_id).park is not None
-
-
-class CallFeature(Protocol):
-    """An optional feature of the call, offered each frame whose type it declares."""
+class TransitionFeature(ABC):
+    """An optional feature of the call, offered each frame whose type it declares. Its hooks are transitions: each
+    reads the room's view and changes the feature's sections and sends frames only through its transition, which
+    commits them together. A hook does store work only, never a call to another service or a socket: such a call is
+    work, which the transition dispatches."""
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """Its unique name."""
 
     @property
+    @abstractmethod
     def browser_modules(self) -> tuple[str, ...]:
         """The directories under `frontend/src/lib/features/` whose `install(core)` the page awaits before signaling
         connects; none for a feature the page does not know."""
 
     @property
+    @abstractmethod
     def signal_types(self) -> Mapping[str, str]:
         """The frame types it adds, by name; none may be a core type. Its browser module reads them from its own
         generated wire."""
 
-    async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        """Handle a frame of a type the feature declared and say so, or say it is none of the feature's."""
-
-    async def seat_joined(self, peer_id: PeerId) -> None:
-        """A seat has just joined a room; a resumed seat has not."""
-
-    async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
-        """A seat has left its room for good: its leave, its ended session, its grace run out or its unresumable
-        seat released; called after the room has heard it left. A parked or resumed seat has not left, and a
-        room's end calls `room_ended` instead."""
-
-    def seat_changed(self, peer_id: PeerId) -> None:
-        """A seat parked, a resume took it over, or it left its room; called at once after the change and before
-        the call core awaits anything."""
-
-    def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
-        """A seat's chat line is about to be relayed to the others in its room; called once per line the call core
-        admits, before the core awaits anything, so the room's seats and the sender's name are those of the moment
-        it was said."""
-
-    def room_ended(self, room_id: str) -> None:
-        """The room is gone; called before the call core awaits anything or tells a seat."""
-
-    async def shut_down(self) -> None:
-        """Cancel the feature's work and wait until it has cleaned up."""
-
-
-class TransitionFeature(ABC):
-    """An optional feature of the call whose hooks are transitions: each reads the room's view and changes the
-    feature's sections and sends frames only through its transition, which commits them together. A hook does store
-    work only, never a call to another service or a socket: such a call is work, which the transition dispatches."""
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Its unique name."""
-
-    @property
-    @abstractmethod
-    def browser_modules(self) -> tuple[str, ...]:
-        """As `CallFeature.browser_modules`."""
-
-    @property
-    @abstractmethod
-    def signal_types(self) -> Mapping[str, str]:
-        """As `CallFeature.signal_types`."""
+    def attach(self, transitions: FeatureTransitions) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """Take the transitions the call core runs the feature on, for the changes the feature starts itself; called
+        once, before any hook."""
 
     @abstractmethod
     def on_frame(self, view: RoomView, peer_id: PeerId, frame: ForeignFrame, transition: Transition) -> bool:
@@ -117,12 +55,23 @@ class TransitionFeature(ABC):
 
     @abstractmethod
     def seat_joined(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
-        """As `CallFeature.seat_joined`."""
+        """A seat has just joined a room; a resumed seat has not."""
 
     @abstractmethod
     def seat_left(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
-        """As `CallFeature.seat_left`; the view is of the room the seat left. A room's end drops the feature's
-        sections in it."""
+        """A seat has left its room for good: its leave, its ended session, its grace run out or its unresumable seat
+        released; the view is of the room the seat left, and the transition commits with the departure that tells the
+        room. A parked or resumed seat has not left, and a room's end drops the feature's sections in it instead."""
+
+    def seat_changed(self, view: RoomView, peer_id: PeerId, change: Change) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """A seat parked, a resume took it over, or it left its room; the view is of the seat's room now, none for a
+        seat that left, and the change commits at once, before the call core awaits anything. It sends nothing: a
+        leave is told to the room by `seat_left`."""
+
+    def chat_said(self, view: RoomView, peer_id: PeerId, message: str, change: Change) -> None:  # noqa: B027 - optional and a no-op for a feature without one
+        """A seat's chat line is about to be relayed to the others in its room; called once per line the call core
+        admits, its change committed before the core awaits anything, so the view's seats and the sender's name are
+        those of the moment it was said. It sends nothing: the call core relays the line."""
 
     def room_ended(self, room_id: str) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Release what the feature keeps for the room beside its sections; its sections are dropped and its work
@@ -137,11 +86,7 @@ class TransitionFeature(ABC):
         only while the work runs."""
 
     async def shut_down(self) -> None:  # noqa: B027 - optional and a no-op for a feature without one
-        """Release what the feature holds, once its work has ended."""
-
-
-type FeatureFactory = Callable[[CallRooms], CallFeature] | TransitionFeature
-"""How the call core gets a feature: a factory it hands its rooms, or a feature on transitions, which needs none."""
+        """Release what the feature holds, once its work and its steps have ended."""
 
 
 class FeatureClashError(ValueError):
@@ -152,19 +97,15 @@ class FeatureClashError(ValueError):
 
 
 def build_features(
-    factories: Sequence[FeatureFactory], rooms: CallRooms, store: InMemoryCallStore, live_seats: LiveSeats
-) -> tuple[CallFeature, ...]:
-    features = tuple(
-        TransitionHost(factory, store, live_seats) if isinstance(factory, TransitionFeature) else factory(rooms)
-        for factory in factories
-    )
+    features: Sequence[TransitionFeature], store: InMemoryCallStore, live_seats: LiveSeats
+) -> tuple[TransitionHost, ...]:
     clashes = _clashes(features)
     if clashes:
         raise FeatureClashError(clashes)
-    return features
+    return tuple(TransitionHost(feature, store, live_seats) for feature in features)
 
 
-def _clashes(features: tuple[CallFeature, ...]) -> list[str]:
+def _clashes(features: Sequence[TransitionFeature]) -> list[str]:
     core = {name for feature in features for name in feature.signal_types if name in SignalType.__members__} | {
         value for feature in features for value in feature.signal_types.values() if value in SignalType
     }

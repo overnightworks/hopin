@@ -1,5 +1,3 @@
-from functools import partial
-
 import pytest
 from agents.mcp_server.hearing import MemberHearing
 
@@ -44,15 +42,14 @@ def changed():
 def participation(room_manager, scheduler, deadlines, changed):
     """The participation of a call's handler that no seat ever reaches."""
     handler = SignalingHandler(
-        room_manager, SocketAccountResolver(), scheduler, deadlines, [partial(_participation, deadlines, changed)]
+        room_manager, SocketAccountResolver(), scheduler, deadlines, [_participation(deadlines, changed)]
     )
-    [feature] = handler.features
-    return feature
+    [host] = handler.features
+    return host.feature
 
 
-def _participation(deadlines, changed, rooms):
+def _participation(deadlines, changed):
     return Participation(
-        rooms=rooms,
         deadlines=deadlines,
         lease_seconds=LEASE,
         invitation_seconds=LEASE,

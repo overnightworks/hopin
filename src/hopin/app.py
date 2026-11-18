@@ -64,7 +64,7 @@ if TYPE_CHECKING:
     from webauth.single_process_stores import SingleProcessSessionStore
 
     from hopin.config.settings import ServerSettings
-    from hopin.signaling.features import FeatureFactory
+    from hopin.signaling.features import TransitionFeature
     from hopin.stores.shared import SharedStores
     from hopin.web.page_build import PageBuild
 
@@ -72,12 +72,12 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 class BuiltCallFeature(Protocol):
-    """What a call feature adds to the app: the factory its signaling handler builds it with, its routes and the one
-    bearer-token door it may open."""
+    """What a call feature adds to the app: the feature its signaling handler runs, its routes and the one bearer-token
+    door it may open."""
 
     @property
-    def factory(self) -> FeatureFactory:
-        """The factory the signaling handler builds the feature with, once it has its rooms."""
+    def feature(self) -> TransitionFeature:
+        """The feature the signaling handler runs on its transitions."""
 
     @property
     def router(self) -> APIRouter:
@@ -111,7 +111,7 @@ class CallFeatureBuilder(Protocol):
         transaction: SignInTransaction,
         request_language: RequestLanguage,
     ) -> BuiltCallFeature:
-        """The feature's factory, its router and its bearer resource."""
+        """The feature, its router and its bearer resource."""
 
 
 class _ExpiredSessionSweep:
@@ -274,7 +274,7 @@ def create_app(
         SessionIdentityResolver(sign_in_stores.sessions),
         timers,
         deadlines,
-        [built.factory for built in built_features],
+        [built.feature for built in built_features],
     )
 
     app = FastAPI(

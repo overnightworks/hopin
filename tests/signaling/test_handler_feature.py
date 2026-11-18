@@ -1,5 +1,4 @@
 import asyncio
-from functools import partial
 
 import pytest
 import pytest_asyncio
@@ -65,7 +64,7 @@ async def link_with(room_manager, scheduler):
     links = []
 
     def make(*feature_options):
-        factories = [partial(RecordingFeature, **options) for options in feature_options]
+        factories = [RecordingFeature(**options) for options in feature_options]
         links.append(Link(handler_with(room_manager, scheduler, *factories)))
         return links[-1]
 
@@ -97,7 +96,7 @@ class TestUnknownSignalType:
         await say_twice(host, {"type": FOREIGN_TYPE, "answer": 42})
 
         assert unknown_type_refusals(host) == [refusal_of_unknown(FOREIGN_TYPE)]
-        assert link.handler.features[0].offered == [
+        assert link.handler.features[0].feature.offered == [
             (host.peer_id, ForeignFrame(FOREIGN_TYPE, {"type": FOREIGN_TYPE, "answer": 42, "seq": 1}))
         ]
 
@@ -108,7 +107,7 @@ class TestUnknownSignalType:
         await say_twice(host, {"type": FOREIGN_TYPE})
 
         assert unknown_type_refusals(host) == []
-        assert [frame for _, frame in link.handler.features[0].offered] == [
+        assert [frame for _, frame in link.handler.features[0].feature.offered] == [
             ForeignFrame(FOREIGN_TYPE, {"type": FOREIGN_TYPE, "seq": 1})
         ]
 
@@ -123,14 +122,14 @@ class TestSeatJoined:
         await guest.resume()
 
         assert guest.frames(SignalType.RESUMED)
-        assert link.handler.features[0].joined == [host.peer_id, guest.peer_id]
+        assert link.handler.features[0].feature.joined == [host.peer_id, guest.peer_id]
 
     async def test_it_does_not_fire_for_a_refused_join(self, link_with):
         link = link_with({"handles": frozenset()})
         stranger = await link.join("stranger", "no-such-room")
 
         assert stranger.frames(SignalType.ERROR)
-        assert link.handler.features[0].joined == []
+        assert link.handler.features[0].feature.joined == []
 
 
 def room_id_of(browser):
@@ -220,7 +219,7 @@ class TestSeatLeft:
         await ending(link, host, guest, scheduler)
         await scheduler.advance(RESUME_WINDOW_SECONDS)
 
-        assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
+        assert link.handler.features[0].feature.left == [(guest.peer_id, room_id_of(host), "guest")]
 
     @pytest.mark.parametrize(
         "refusal",
@@ -239,11 +238,11 @@ class TestSeatLeft:
 
         await guest.drop()
         await refusal(link, host, guest, scheduler)
-        heard_after_the_refusal = list(link.handler.features[0].left)
+        heard_after_the_refusal = list(link.handler.features[0].feature.left)
         await scheduler.advance(RESUME_WINDOW_SECONDS)
 
         assert heard_after_the_refusal == []
-        assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
+        assert link.handler.features[0].feature.left == [(guest.peer_id, room_id_of(host), "guest")]
 
     async def test_a_leave_whose_announcement_write_broke_is_still_heard_and_the_break_is_raised(self, link_with):
         link = link_with({"handles": frozenset()})
@@ -257,7 +256,7 @@ class TestSeatLeft:
         with pytest.raises(RuntimeError, match="a write that broke"):
             await guest.drop(1000)
 
-        assert link.handler.features[0].left == [(guest.peer_id, room_id_of(host), "guest")]
+        assert link.handler.features[0].feature.left == [(guest.peer_id, room_id_of(host), "guest")]
 
     async def test_a_park_a_resume_and_the_rooms_end_are_no_leave(self, link_with, scheduler):
         link = link_with({"handles": frozenset()})
@@ -269,7 +268,7 @@ class TestSeatLeft:
         await scheduler.advance(RESUME_WINDOW_SECONDS)
         await host.say({"type": SignalType.END_ROOM.value})
 
-        assert link.handler.features[0].left == []
+        assert link.handler.features[0].feature.left == []
 
 
 @pytest.mark.asyncio
@@ -280,13 +279,13 @@ class TestSeatChanged:
 
         await guest.drop()
 
-        assert link.handler.features[0].changed == [(guest.peer_id, True, True)]
+        assert link.handler.features[0].feature.changed == [(guest.peer_id, True, True)]
 
     async def test_a_resume_is_heard_before_the_acknowledgement_is_written(self, link_with):
         link = link_with({"handles": frozenset()})
         _host, guest = await host_and_guest(link)
         await guest.drop()
-        feature = link.handler.features[0]
+        feature = link.handler.features[0].feature
         feature.changed.clear()
         guest.sockets.append(await link.open(account_named("guest")))
         acknowledging = HeldWrite(guest.socket)
@@ -301,7 +300,7 @@ class TestSeatChanged:
     async def test_a_leave_is_heard_before_the_departure_is_announced(self, link_with):
         link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
-        feature = link.handler.features[0]
+        feature = link.handler.features[0].feature
         feature.changed.clear()
         closing = HeldWrite(host.socket)
 
@@ -317,7 +316,7 @@ class TestSeatChanged:
         link = link_with({"handles": frozenset()})
         _host, guest = await host_and_guest(link)
         await guest.drop()
-        feature = link.handler.features[0]
+        feature = link.handler.features[0].feature
         feature.changed.clear()
 
         await guest.resume(token="wrong")
@@ -330,7 +329,7 @@ class TestChatSaid:
     async def test_a_relayed_line_is_heard_with_its_seat_and_room_before_the_relay_sends(self, link_with):
         link = link_with({"handles": frozenset()})
         host, guest = await host_and_guest(link)
-        feature = link.handler.features[0]
+        feature = link.handler.features[0].feature
         relaying = HeldWrite(guest.socket)
 
         relayed = asyncio.create_task(host.say({"type": SignalType.CHAT.value, "message": "hello"}))
@@ -347,7 +346,7 @@ class TestChatSaid:
 
         await say_twice(host, {"type": SignalType.CHAT.value, "message": "hello"})
 
-        assert link.handler.features[0].said == [(host.peer_id, host.room_id, "hello")]
+        assert link.handler.features[0].feature.said == [(host.peer_id, host.room_id, "hello")]
 
     async def test_an_empty_line_is_not_heard(self, link_with):
         link = link_with({"handles": frozenset()})
@@ -355,7 +354,7 @@ class TestChatSaid:
 
         await host.say({"type": SignalType.CHAT.value, "message": ""})
 
-        assert link.handler.features[0].said == []
+        assert link.handler.features[0].feature.said == []
 
     async def test_a_line_from_a_seat_in_no_room_is_not_heard(self, link_with):
         link = link_with({"handles": frozenset()})
@@ -364,7 +363,7 @@ class TestChatSaid:
         socket.push(text_frame({"type": SignalType.CHAT.value, "message": "hello"}))
         await link.settle(socket)
 
-        assert link.handler.features[0].said == []
+        assert link.handler.features[0].feature.said == []
 
 
 class TestClashAtStart:
@@ -376,7 +375,7 @@ class TestClashAtStart:
         ],
     )
     def test_a_feature_signal_type_that_reuses_a_core_one_is_refused(self, room_manager, scheduler, signal_types):
-        clashing = partial(RecordingFeature, signal_types=signal_types)
+        clashing = RecordingFeature(signal_types=signal_types)
 
         with pytest.raises(FeatureClashError):
             handler_with(room_manager, scheduler, clashing)
@@ -390,7 +389,7 @@ class TestClashAtStart:
         ],
     )
     def test_two_features_that_share_a_name_are_refused(self, room_manager, scheduler, first, second):
-        features = [partial(RecordingFeature, **first), partial(RecordingFeature, **second)]
+        features = [RecordingFeature(**first), RecordingFeature(**second)]
 
         with pytest.raises(FeatureClashError):
             handler_with(room_manager, scheduler, *features)
@@ -408,7 +407,7 @@ class TestSeveralFeatures:
 
         await host.say({"type": "second_frame"})
 
-        first, second = link.handler.features
+        first, second = (each.feature for each in link.handler.features)
         assert [frame.signal_type for _, frame in first.offered] == []
         assert [frame.signal_type for _, frame in second.offered] == ["second_frame"]
 
@@ -418,8 +417,10 @@ class TestSeveralFeatures:
 
         await guest.drop(1000)
 
-        assert [feature.joined for feature in link.handler.features] == [[host.peer_id, guest.peer_id]] * 2
-        assert [feature.left for feature in link.handler.features] == [[(guest.peer_id, room_id_of(host), "guest")]] * 2
+        assert [each.feature.joined for each in link.handler.features] == [[host.peer_id, guest.peer_id]] * 2
+        assert [each.feature.left for each in link.handler.features] == [
+            [(guest.peer_id, room_id_of(host), "guest")]
+        ] * 2
 
 
 def staged_lines(browser):

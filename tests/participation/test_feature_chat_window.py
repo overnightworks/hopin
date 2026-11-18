@@ -8,6 +8,7 @@ from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.rooms.reference import room_reference
+from hopin.signaling.transition import Change, RoomView
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import HeldWrite, host_and_guest
 from tests.support.log_lines import captured_lines
@@ -25,6 +26,13 @@ def chat(message):
 
 async def dial(participation, browser, name=AGENT_NAME):
     return await participation.dial_in(person_named(browser.name), room_of(browser), name)
+
+
+def said_beyond_a_frame(participation, browser, text):
+    """The browser's chat line handed to participation's hook as the call core hands it, for a line longer than one
+    frame carries."""
+    view = RoomView(room_id=room_of(browser), members=(browser.peer_id,), names={browser.peer_id: browser.name})
+    participation.chat_said(view, browser.peer_id, text, Change())
 
 
 def window_of(participation, browser):
@@ -119,7 +127,7 @@ class TestTheBound:
         await dial(participation, guest)
 
         for text in texts:
-            participation.chat_said(host.peer_id, room_of(host), text)
+            said_beyond_a_frame(participation, host, text)
 
         window = window_of(participation, guest)
         assert (window.starts_at, len(window.lines)) == (starts_at, held)
