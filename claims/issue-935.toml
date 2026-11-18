@@ -1,8 +1,0 @@
-claim_id = "1a0e2cce0c384f04912409da783f3233"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "bb815606613733d4901d06a8dfb607421597922c"
-branch = "claude/issue-935-figure-mouth-mood"
-scope = ["docs/call.md", "frontend/src/lib/call", "frontend/src/lib/features/figure", "frontend/src/lib/features/participation", "frontend/src/lib/ui", "src/hopin/agent", "src/hopin/participation", "tests/e2e/participation", "tests/participation"]
-opened_commit = "d32cb6ab0915a3d78e4c506094d2842ad0b431e0"
-whole_reason = "The mood crosses from the agent's speak through the server frame to the tile's figure, and the voice node from the player to the figure; one path, reviewed once."
