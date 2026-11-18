@@ -1,6 +1,6 @@
 import secrets
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Final, cast
 
 import structlog
 
@@ -73,6 +73,9 @@ if TYPE_CHECKING:
     from hopin.signaling.transition import Committed, LiveSeats, RoomView, Transition, Work, WorkRoom
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+INVITATION_CLOSED_EVENT: Final = "agent_invitation.closed"
+"""The log event of an invitation that ends, with the reason it ended."""
 
 
 class Participation:
@@ -305,7 +308,7 @@ class Participation:
             room_id, partial(self._accept, person, invitation_id, epoch, verdict, voices)
         )
         if not isinstance(outcome, AgentRefusal):
-            await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="accepted")
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="accepted")
             if verdict.refusal is not None:
                 await logger.ainfo(
                     "agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value
@@ -362,7 +365,7 @@ class Participation:
         or nothing when it ended. A decline seats nothing, so it needs no lease."""
         refusal = await self._transitions.apply(room_id, partial(self._decline, person, invitation_id, epoch, outcome))
         if refusal is None:
-            await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="declined")
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="declined")
         return refusal
 
     def _decline(
@@ -664,7 +667,7 @@ class Participation:
     async def _invitation_timer(self, key: str) -> None:
         person, room_id = invitation_of(key)
         if await self._transitions.apply(room_id, partial(self._invitation_ran_out, person)):
-            await logger.ainfo("agent_invitation.closed", room_ref=room_reference(room_id), reason="expired")
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="expired")
 
     def _invitation_ran_out(self, person: Person, view: RoomView, transition: Transition) -> bool:
         """End the person's open invitation in the room, and say whether one was open."""
