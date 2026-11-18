@@ -2,20 +2,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
-import { installedParticipation, tileActivities } from "./page.fixture.ts";
+import { installedParticipation, joined, tileActivities } from "./page.fixture.ts";
 import type { FakeSound } from "./player.fixture.ts";
 import { FIGURE_MOOD, PARTICIPATION_SIGNAL, VOICE_PATH } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
     globalThis.AudioContext = function AudioContextStub() {} as unknown as typeof AudioContext;
-});
-
-const joined = (sponsorId: string, agentId = "a1") => ({
-    agent_id: agentId,
-    name: "Claude",
-    sponsor: "Ada",
-    sponsor_id: sponsorId,
 });
 
 describe("an agent's voice", () => {

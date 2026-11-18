@@ -6,7 +6,7 @@ import { SIGNAL_TYPE } from "#lib/wire.ts";
 import type { CaptureOptions } from "overnightworks-speech-browser";
 import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
-import { ME, installedParticipation, tileActivities } from "./page.fixture.ts";
+import { ME, installedParticipation, joined, tileActivities } from "./page.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL } from "./wire.ts";
 
@@ -22,13 +22,6 @@ vi.mock("overnightworks-speech-browser", async (importActual) => ({
     ...(await importActual<typeof import("overnightworks-speech-browser")>()),
     startCapture: (options: CaptureOptions) => captures.startCapture(options),
 }));
-
-const joined = (sponsorId: string, agentId = "a1") => ({
-    agent_id: agentId,
-    name: "Claude",
-    sponsor: "Ada",
-    sponsor_id: sponsorId,
-});
 
 describe("dialed-in agents", () => {
     it("CALL-50: shows the tile under the name its sponsor gave, with the sponsor's name", async () => {

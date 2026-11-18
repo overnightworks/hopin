@@ -9,6 +9,13 @@ import { fakePlayers } from "./player.fixture.ts";
 
 export const ME = "me";
 
+export const joined = (sponsorId: string, agentId = "a1") => ({
+    agent_id: agentId,
+    name: "Claude",
+    sponsor: "Ada",
+    sponsor_id: sponsorId,
+});
+
 export const tileActivities = (page: { tiles: Map<string, AgentTile> }) =>
     [...page.tiles.values()].map(({ activity }) => activity);
 
