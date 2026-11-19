@@ -9,6 +9,7 @@ from tests.e2e.game.game_page import (
     CARD,
     GAME_MASTER_NAME_GAP,
     START_QUIZ,
+    THINKING_BUTTON_LABEL,
     call_of_two,
     open_chat,
     relaying_frames,
@@ -38,6 +39,8 @@ def test_a_second_start_while_the_game_master_runs_is_refused_to_its_sender_alon
     held = Holds()
     agent_backend.answer_next(held)
     start_quiz(host)
+    open_more(guest)
+    expect(guest.locator(START_QUIZ)).to_contain_text(THINKING_BUTTON_LABEL)
 
     guest_frames.send({"type": GameSignal.GAME_START})
 
