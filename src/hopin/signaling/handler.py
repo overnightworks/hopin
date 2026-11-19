@@ -208,11 +208,11 @@ class SignalingHandler:
         connection.recheck.cancel()
         if not self._holds_seat(connection):
             return
-        if connection.dropped and self._routing.room_of(connection.peer_id) is not None:
-            await self._seats.park(connection.peer_id, self._seats.seat(connection.peer_id))
-        else:
-            # Outside the socket's session trace, like a frame: the line a leaver cuts wakes another agent's turn.
-            with unit_trace(None):
+        # Outside the socket's session trace, like a frame: the line a leaver cuts wakes another agent's turn.
+        with unit_trace(None):
+            if connection.dropped and self._routing.room_of(connection.peer_id) is not None:
+                await self._seats.park(connection.peer_id, self._seats.seat(connection.peer_id))
+            else:
                 await self._routing.handle_disconnect(connection.peer_id)
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:

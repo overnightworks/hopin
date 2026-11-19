@@ -100,8 +100,9 @@ def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(
     assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
 
 
+@pytest.mark.parametrize("close_code", [1000, 1006])
 def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_leavers_session_trace(
-    joined_agent, capsys
+    joined_agent, capsys, close_code
 ):
     """The owner leaves while the owner's agent speaks, so the cut sentence enters the window of the other person's
     agent, and the turn it wakes must not join the owner's socket session."""
@@ -110,7 +111,7 @@ def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_
     speak(joined_agent, seconds=None)
 
     with configured("hopin"):
-        joined_agent.owner.drop(code=1000)
+        joined_agent.owner.drop(code=close_code)
         answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
 
     [socket_end] = [line for line in logged(capsys) if line["event"] == "websocket.ended"]
