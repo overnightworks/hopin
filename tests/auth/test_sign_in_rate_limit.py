@@ -252,16 +252,10 @@ class TestAddressResolution:
 
         assert statuses[-1] == HTTPStatus.TOO_MANY_REQUESTS
 
-    def test_a_peer_outside_the_trusted_proxies_cannot_choose_the_budget(self, make_deployment):
-        deployment = make_deployment(trusted_proxies=TRUSTED_PROXIES)
+    @pytest.mark.parametrize("trusted_proxies", ["", TRUSTED_PROXIES], ids=["no_proxy_trusted", "other_proxy_trusted"])
+    def test_a_peer_outside_the_trusted_proxies_cannot_choose_the_budget(self, make_deployment, trusted_proxies):
+        deployment = make_deployment(trusted_proxies=trusted_proxies)
 
-        statuses = self.exhaust_starts(
-            lambda index: deployment.client(FIRST_ADDRESS, headers={"x-forwarded-for": f"192.0.2.{index}"})
-        )
-
-        assert statuses[-1] == HTTPStatus.TOO_MANY_REQUESTS
-
-    def test_without_trusted_proxies_the_forwarded_header_is_ignored(self, deployment):
         statuses = self.exhaust_starts(
             lambda index: deployment.client(FIRST_ADDRESS, headers={"x-forwarded-for": f"192.0.2.{index}"})
         )
