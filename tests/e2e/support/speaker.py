@@ -35,13 +35,16 @@ if TYPE_CHECKING:
 
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
 
-# Each page records the length of every sound its players start and how many sources it stopped. A player starts a
+# Each page records the length of every sound its players start, how many sources it stopped and how often a player
+# suspended and resumed its context, which is what a pause and its resume do. A player starts a
 # sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its own context's clock,
 # so the chunks of one context that join up are one sound, whichever other player starts between them.
 RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
     window.soundsStopped = 0;
+    window.contextsSuspended = 0;
+    window.contextsResumed = 0;
     const lastSoundOf = new WeakMap();
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (when, ...args) {
@@ -57,6 +60,13 @@ RECORD_PLAYBACK = """
         window.soundsStopped += 1;
         return stop.apply(this, args);
     };
+    for (const [name, counter] of [['suspend', 'contextsSuspended'], ['resume', 'contextsResumed']]) {
+        const original = AudioContext.prototype[name];
+        AudioContext.prototype[name] = function (...args) {
+            window[counter] += 1;
+            return original.apply(this, args);
+        };
+    }
 }
 """
 

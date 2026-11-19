@@ -9,9 +9,7 @@ from speech_client.realtime_wire import SpeechStarted, TranscriptDelta
 from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechService
-from hopin.agent.tools import CALL_KIND, participation_tools
-from hopin.participation.participants import Caller
-from hopin.participation.vocabulary import ParticipationSignal, SpeakStop
+from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.speaking_scene import refusal_of
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
@@ -232,21 +230,3 @@ class TestTheAgentContinuesWhileHeld:
         refused = call_in(held_agent, "no-such-room", tool=CONTINUE_SPEAKING_TOOL, interrupted="1")
 
         assert refusal_of(refused) == (True, {"refused": "not_active"})
-
-
-class TestAStopThatCutNothingThatHadStarted:
-    @pytest.mark.asyncio
-    async def test_call_69_it_answers_dropped(self):
-        class HeldWithNothingStarted:
-            async def stop_speaking(self, person, room_id, interrupted=None):
-                return SpeakStop.DROPPED
-
-        [stop] = [
-            tool
-            for tool in participation_tools(HeldWithNothingStarted, None)
-            if tool.declaration.name == STOP_SPEAKING_TOOL
-        ]
-
-        answered = await stop.handler(Caller(None), {"place": {"kind": CALL_KIND, "id": "room"}})
-
-        assert (answered.is_error, answered.content) == (False, '{"dropped":true}')

@@ -4,7 +4,10 @@ at participation's real feature and the agents library's real record of who may 
 import asyncio
 
 import pytest
+from agents.member import STOP_SPEAKING_TOOL
 
+from hopin.agent.tools import CALL_KIND, participation_tools
+from hopin.participation.participants import Caller
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
@@ -347,6 +350,28 @@ class TestAStopWhileHeld:
         await participation.stop_speaking(GUEST, room_id, "1")
 
         assert await waiting == SpeakStop.STOPPED
+
+
+class TestTheStopToolOverAHoldWithNoStartedSentence:
+    async def test_call_69_it_answers_dropped_true_through_the_tool(self, participation, call):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        rendered = asyncio.Event()
+        rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
+        try:
+            await asyncio.sleep(0)
+            await participation.person_started(room_id, guest.peer_id)
+            [stop] = [
+                tool
+                for tool in participation_tools(lambda: participation, None)
+                if tool.declaration.name == STOP_SPEAKING_TOOL
+            ]
+
+            answered = await stop.handler(Caller(GUEST), {"place": {"kind": CALL_KIND, "id": room_id}})
+
+            assert (answered.is_error, answered.content) == (False, '{"dropped":true}')
+        finally:
+            rendering_sentence.cancel()
 
 
 class TestTheHoldEnds:
