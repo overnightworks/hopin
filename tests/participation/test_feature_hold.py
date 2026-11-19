@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 
 from hopin.participation.vocabulary import (
+    SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     HoldRefusal,
     ParticipationSignal,
@@ -128,19 +129,22 @@ class TestAPersonStartsSpeaking:
         room_id = room_of(host)
         rendered = asyncio.Event()
         rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
-        await asyncio.sleep(0)
-        await participation.person_started(room_id, guest.peer_id)
+        try:
+            await asyncio.sleep(0)
+            await participation.person_started(room_id, guest.peer_id)
 
-        rendered.set()
-        await asyncio.sleep(0.01)
+            rendered.set()
+            for _ in range(20):
+                await asyncio.sleep(0)
 
-        assert (standing(participation, room_id), rendering_sentence.done(), voice_ids(host), stops(host)) == (
-            ("1", False),
-            False,
-            [],
-            [],
-        )
-        rendering_sentence.cancel()
+            assert (standing(participation, room_id), rendering_sentence.done(), voice_ids(host), stops(host)) == (
+                ("1", False),
+                False,
+                [],
+                [],
+            )
+        finally:
+            rendering_sentence.cancel()
 
     async def test_call_69_nothing_is_held_while_the_agent_is_silent(self, participation, call):
         host, guest, _ = call
@@ -233,6 +237,20 @@ class TestASpeakWhileHeld:
         ) == (SpeakStarted.SPOKEN, None, [("Eins", True, True)])
         assert (len(voice_ids(host)), voice_ids(host)[: len(voice_before)]) == (2, voice_before)
 
+    async def test_call_69_a_speak_with_the_hold_plays_at_once_although_the_queue_behind_it_is_full(
+        self, participation, call
+    ):
+        host, guest, _ = call
+        room_id = room_of(host)
+        await speak(participation, room_id=room_id, render=LONG)
+        for _ in range(SENTENCES_WAITING_PER_AGENT):
+            await waiting_to_speak(participation, room_id=room_id, render=LONG)
+        await participation.person_started(room_id, guest.peer_id)
+
+        answered = await speak(participation, "Zwei", room_id=room_id, interrupted="1")
+
+        assert answered == SpeakStarted.SPOKEN
+
     async def test_call_69_a_speak_with_the_hold_answers_the_queued_speaks_stopped(self, participation, call):
         room_id, waiting = await hold_with_a_sentence_waiting(participation, call)
 
@@ -311,7 +329,7 @@ class TestAStopWhileHeld:
 
 
 class TestTheHoldEnds:
-    async def test_call_69_a_voice_failure_while_held_enters_the_started_sentence_cut_and_leaves_the_hold(
+    async def test_call_69_a_voice_failure_while_held_enters_the_started_sentence_cut_and_the_hold_stands(
         self, participation, call
     ):
         host, guest, _ = call
