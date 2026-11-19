@@ -6,9 +6,9 @@ import contextlib
 
 import pytest
 import pytest_asyncio
+from agents.member import LEASE_SECONDS
 from logline import Outcome
 
-from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
@@ -18,20 +18,33 @@ from hopin.participation.vocabulary import (
     SpeakStop,
 )
 from hopin.rooms.reference import room_reference
-from tests.participation.support.ends import leave_by_the_agent
+from tests.participation.support.ends import (
+    end_by_the_host,
+    lease_runs_out,
+    leave_by_the_agent,
+    leave_by_the_sponsor,
+    pause_with_the_sponsors_seat,
+    remove_by_the_host,
+    remove_by_the_sponsor,
+    shut_down,
+)
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     LONG,
     SENTENCE_MS,
     a_sentence,
     answers_so_far,
+    queued_behind_a_playing_sentence,
     removed_by_the_host,
     rendering,
+    rendering_behind_a_playing_sentence,
+    rendering_while_held,
     renders_broken,
     renders_cancelled,
     renders_nothing,
     speak,
     voice_ids,
+    waiting_behind_a_hold,
     waiting_to_speak,
     window_texts,
 )
@@ -307,48 +320,63 @@ class TestTheOrder:
         assert [frame["agent_id"] for frame in host.frames(VOICE)] == [mozart.agent_id, salieri.agent_id]
 
 
-async def parked_with_its_sponsors_seat(participation, host, guest, agent):
-    await guest.drop()
-
-
-async def left_with_its_sponsors_seat(participation, host, guest, agent):
-    await guest.drop(code=1000)
-
-
-async def ended_with_the_call(participation, host, guest, agent):
-    await host.say({"type": SignalType.END_ROOM.value})
+SHORT_WAIT = 10 * SENTENCE_MS / 1000
+OPEN_STATES = [
+    pytest.param(queued_behind_a_playing_sentence, id="queued"),
+    pytest.param(waiting_behind_a_hold, id="held"),
+    pytest.param(rendering_behind_a_playing_sentence, id="rendering"),
+    pytest.param(rendering_while_held, id="rendering_held"),
+]
 
 
 class TestEveryEndDropsTheQueue:
+    @pytest.mark.parametrize("open_speak", OPEN_STATES)
     @pytest.mark.parametrize(
-        ("end", "next_refusal"),
+        ("end", "next_refusal", "passes"),
         [
-            pytest.param(removed_by_the_host, AgentRefusal.GONE, id="removal"),
-            pytest.param(leave_by_the_agent, AgentRefusal.GONE, id="leave"),
-            pytest.param(parked_with_its_sponsors_seat, AgentRefusal.SPONSOR_AWAY, id="pause"),
-            pytest.param(left_with_its_sponsors_seat, AgentRefusal.GONE, id="sponsor_leaves"),
-            pytest.param(ended_with_the_call, AgentRefusal.GONE, id="call_end"),
+            pytest.param(remove_by_the_host, AgentRefusal.GONE, SHORT_WAIT, id="removal"),
+            pytest.param(remove_by_the_sponsor, AgentRefusal.GONE, SHORT_WAIT, id="sponsor_removal"),
+            pytest.param(leave_by_the_agent, AgentRefusal.GONE, SHORT_WAIT, id="leave"),
+            pytest.param(pause_with_the_sponsors_seat, AgentRefusal.SPONSOR_AWAY, SHORT_WAIT, id="pause"),
+            pytest.param(leave_by_the_sponsor, AgentRefusal.GONE, SHORT_WAIT, id="sponsor_leaves"),
+            pytest.param(lease_runs_out, AgentRefusal.GONE, LEASE_SECONDS, id="lease_end"),
+            pytest.param(end_by_the_host, AgentRefusal.GONE, SHORT_WAIT, id="call_end"),
+            pytest.param(shut_down, AgentRefusal.GONE, SHORT_WAIT, id="shutdown"),
         ],
     )
-    async def test_call_60_the_waiting_sentences_never_start_the_sound_is_gone_and_the_next_speak_is_refused(
-        self, participation, call, scheduler, voices, end, next_refusal
+    async def test_call_60_the_open_speak_answers_not_active_its_sound_is_gone_and_the_next_speak_is_refused(
+        self, participation, call, scheduler, voices, open_speak, end, next_refusal, passes
     ):
         host, guest, mozart, _ = call
         room_id = room_of(host)
-        await speak(participation, room_id=room_id)
-        waiting = await waiting_to_speak(participation, room_id=room_id)
+        open_one = await open_speak(participation, host, guest)
         [playing] = voice_ids(host)
 
         await end(participation, host, guest, mozart)
-        await scheduler.advance(10 * SENTENCE_MS / 1000)
+        await scheduler.advance(passes)
         await scheduler.run_cancelled()  # a timer that had fired before its cancel
+        open_one.release.set()
+        async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+            answer = await open_one.answer
 
         assert (
             voice_ids(host),
             voices.get(playing),
-            await waiting,
+            answer,
             await speak(participation, room_id=room_id),
         ) == ([playing], None, AgentRefusal.GONE, next_refusal)
+
+    @pytest.mark.parametrize("open_speak", OPEN_STATES)
+    async def test_call_60_a_stop_answers_the_open_speak_stopped(self, participation, call, scheduler, open_speak):
+        host, guest, *_ = call
+        open_one = await open_speak(participation, host, guest)
+
+        await participation.stop_speaking(GUEST, room_of(host))
+        open_one.release.set()
+        async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+            answer = await open_one.answer
+
+        assert answer == SpeakStop.STOPPED
 
 
 def stop_frames(browser):
