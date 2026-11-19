@@ -5,8 +5,7 @@ import pytest
 
 from hopin.participation.vocabulary import THINKING_MAX_SECONDS, FigureGesture, HoldRefusal, ParticipationSignal
 from tests.participation.support.people import person_named, room_of
-from tests.participation.support.speaking import SENTENCE_MS, speak
-from tests.participation.test_feature_hold import hold_of_a_playing_sentence
+from tests.participation.support.speaking import SENTENCE_MS, hold_of_a_playing_sentence, speak
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
