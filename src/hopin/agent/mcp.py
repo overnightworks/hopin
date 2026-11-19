@@ -198,11 +198,15 @@ class _BuiltParticipation:
 
     async def _announce(self, principal: Principal, uri: str, *, tools_too: bool) -> None:
         """The change stands whether or not the store carries it: a failed signal is logged once, and the agent sees
-        the change at its next listen's read."""
+        the change at its next listen's read. The tools notice goes first, so that a runner that lists the tools again
+        on it has the new list when the change wakes its turn; a refused tools notice does not hold the wake back."""
         try:
-            await self.changes.changed(principal, uri)
             if tools_too:
-                await self.changes.tools_changed(principal)
+                try:
+                    await self.changes.tools_changed(principal)
+                except PlaceStoreError:
+                    logger.error(PLACE_SIGNAL_FAILED_EVENT)
+            await self.changes.changed(principal, uri)
         except PlaceStoreError:
             logger.error(PLACE_SIGNAL_FAILED_EVENT)
 

@@ -110,6 +110,7 @@ class Seat:
 
 ACKNOWLEDGED = b"subscriptions/acknowledged"
 RESOURCE_UPDATED = b"notifications/resources/updated"
+TOOLS_LIST_CHANGED = b"notifications/tools/list_changed"
 
 
 class OpenListen:
@@ -145,6 +146,11 @@ class OpenListen:
     def count(self, marker: bytes) -> int:
         with self._arrival:
             return sum(marker in frame for frame in self._frames)
+
+    def arrivals(self, *markers: bytes) -> list[bytes]:
+        """The markers of the frames written so far, in the order the frames arrived."""
+        with self._arrival:
+            return [marker for frame in self._frames for marker in markers if marker in frame]
 
     def wait_for(self, marker: bytes, seconds: float, *, times: int = 1) -> bool:
         """Whether `times` frames carrying the marker arrived within the seconds."""
@@ -265,10 +271,12 @@ class DialedCall:
             pass
 
     @contextmanager
-    def open_listen(self, token, uris) -> Iterator[OpenListen]:
-        """A `subscriptions/listen` that stays open, acknowledged on entry, and disconnects on exit."""
+    def open_listen(self, token, uris, *, tools=False) -> Iterator[OpenListen]:
+        """A `subscriptions/listen` that stays open, acknowledged on entry, and disconnects on exit; with `tools` it
+        also asks to be told when its tool list changes."""
         method = "subscriptions/listen"
-        body = self._request_body(method, {"notifications": {"resourceSubscriptions": list(uris)}})
+        notifications = {"resourceSubscriptions": list(uris)} | ({"toolsListChanged": True} if tools else {})
+        body = self._request_body(method, {"notifications": notifications})
         headers = {
             **self._mcp_headers(token, self._routing(method, None)),
             "host": urlsplit(str(self.client.base_url)).netloc,
