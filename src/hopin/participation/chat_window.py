@@ -1,5 +1,5 @@
-"""The window of a call's chat one joined agent reads: the lines said in its room since it joined, bounded, and the
-record of people talking over the agent's sentence.
+"""The window of a call's chat one joined agent reads: the lines said in its room since it joined, bounded, the
+record of people talking over the agent's sentence and the hold that record opens.
 
 Plain state with no clock and no I/O. It lives and dies with the agent's place and keeps no history beyond its
 bounds.
@@ -69,6 +69,7 @@ class WindowRead:
     lines: tuple[WindowLine, ...]
     talked_over: WindowTalkedOver | None = None
     voice: WindowVoice | None = None
+    interrupted: str | None = None
 
 
 def utf8_length(text: str) -> int | None:
@@ -87,9 +88,10 @@ class ChatWindow:
         self._lines: deque[tuple[WindowLine, int]] = deque()
         self._text_bytes = 0
         self._next_seq = 1
-        self._playing = False
         self._talked_over: _TalkedOver | None = None
         self._talked_over_count = 0
+        self._interrupted: str | None = None
+        self._interrupted_count = 0
         self._voice: WindowVoice | None = None
 
     def append(
@@ -121,18 +123,34 @@ class ChatWindow:
         """The `seq` of the newest line, 0 for a window that never held one."""
         return self._next_seq - 1
 
-    def talk_over(self, speaker: str, name: str) -> bool:
-        """A person starts speaking: they join the record that stands, or open one when a sentence of the agent plays
-        now; say whether the record changed. The record keeps its id until its last person's turn has ended."""
+    def talk_over(self, speaker: str, name: str, *, speaking: bool) -> bool:
+        """A person starts speaking: they join the record that stands, or open one when the agent is held or `speaking`,
+        which is when a sentence of it plays or waits; say whether the record changed. A record that opens while the
+        agent speaks holds it, in the same change, under an id of its own, and says no sentence plays. The record keeps
+        its id until its last person's turn has ended."""
         if self._talked_over is None:
-            if not self._playing:
-                return False
+            if self._interrupted is None:
+                if not speaking:
+                    return False
+                self._interrupted_count += 1
+                self._interrupted = str(self._interrupted_count)
             self._talked_over_count += 1
-            self._talked_over = _TalkedOver(str(self._talked_over_count), playing=True)
+            self._talked_over = _TalkedOver(str(self._talked_over_count), playing=False)
         elif speaker in self._talked_over.partials:
             return False
         self._talked_over.partials[speaker] = WindowPartial(name, "")
         return True
+
+    @property
+    def interrupted(self) -> str | None:
+        """The id of the hold that stands, none while the agent is not held."""
+        return self._interrupted
+
+    def end_hold(self) -> bool:
+        """The hold ends; say whether one stood."""
+        ended = self._interrupted is not None
+        self._interrupted = None
+        return ended
 
     def hear_partial(self, speaker: str, text: str) -> bool:
         """The words the speaker has said so far; say whether the record changed. Text that does not encode as UTF-8
@@ -160,7 +178,6 @@ class ChatWindow:
 
     def set_playing(self, *, playing: bool) -> bool:
         """Whether a sentence of the agent plays now; say whether the record that stands changed."""
-        self._playing = playing
         record = self._talked_over
         if record is None or record.playing == playing:
             return False
@@ -190,7 +207,14 @@ class ChatWindow:
         talked_over = (
             None if record is None else WindowTalkedOver(record.id, record.playing, tuple(record.partials.values()))
         )
-        return WindowRead(self._generation, lines[0].seq if lines else self._next_seq, lines, talked_over, self._voice)
+        return WindowRead(
+            self._generation,
+            lines[0].seq if lines else self._next_seq,
+            lines,
+            talked_over,
+            self._voice,
+            self._interrupted,
+        )
 
 
 @dataclass

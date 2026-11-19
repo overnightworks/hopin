@@ -1,4 +1,3 @@
-import re
 import time
 from contextlib import ExitStack
 from functools import partial
@@ -6,41 +5,29 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
 from playwright.sync_api import Page, expect
-from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
+from speech_client.wire import VoiceId
 
-from hopin.agent.speech_settings import SpeechService
-from hopin.agent.tools import CALL_KIND, LEAVE_CALL
 from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS
 from tests.e2e.support.people import FORM_FACTORS
-from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
-from tests.support.agent_adders import ADDERS_GROUP
-from tests.support.dialed_call import window_uri
+from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker, speaking_hopin
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import (
-    AUDIENCE_SCOPE,
-    chunked_wav,
-    chunked_wav_in_two,
     offering,
-    refusal_answer,
-    silent_wav,
-    speaking,
     speech_requests,
     spoken_request,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
-    from concurrent.futures import Future
+    from collections.abc import Callable, Iterator
 
     from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.participation_scene import Scene
+    from tests.e2e.support.server import RunningServer
 
 pytestmark = pytest.mark.e2e
 
-SPEAKING_TILE = re.compile(r"\bspeaking\b")
 AGENT_LINE = "#chatMessages .chat-msg:has(.participation-agent-sender)"
 ABORTED_VOICE_FAILURE = "net::ERR_INCOMPLETE_CHUNKED_ENCODING"
 ABORTED_VOICE_CONSOLE_LINE = f"Failed to load resource: {ABORTED_VOICE_FAILURE}"
@@ -49,30 +36,6 @@ LONGER_SOUND_SECONDS = 5.0
 POLL_SECONDS = 0.2
 LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
-# Each page records the length of every sound its players start and how many sources it stopped. A player starts a
-# sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its own context's clock,
-# so the chunks of one context that join up are one sound, whichever other player starts between them.
-RECORD_PLAYBACK = """
-() => {
-    window.soundsStarted = [];
-    window.soundsStopped = 0;
-    const lastSoundOf = new WeakMap();
-    const start = AudioBufferSourceNode.prototype.start;
-    AudioBufferSourceNode.prototype.start = function (when, ...args) {
-        const last = lastSoundOf.get(this.context);
-        let index = last?.index;
-        if (last?.joinsAt === when) window.soundsStarted[index] += this.buffer.duration;
-        else index = window.soundsStarted.push(this.buffer.duration) - 1;
-        lastSoundOf.set(this.context, { index, joinsAt: when + this.buffer.duration });
-        return start.call(this, when, ...args);
-    };
-    const stop = AudioBufferSourceNode.prototype.stop;
-    AudioBufferSourceNode.prototype.stop = function (...args) {
-        window.soundsStopped += 1;
-        return stop.apply(this, args);
-    };
-}
-"""
 
 
 @pytest.fixture(scope="module")
@@ -85,106 +48,13 @@ def speech_origin() -> Iterator[Origin]:
 
 @pytest.fixture(scope="module")
 def voicing_server(tmp_path_factory: pytest.TempPathFactory, speech_origin: Origin) -> Iterator[RunningServer]:
-    """HopIn with participation and the setting that lets agents speak on, speaking through `speech_origin`."""
-    loopback = loopback_sign_in(tmp_path_factory.mktemp("voice-sign-in"))
-    with running_hopin(
-        loopback,
-        tmp_path_factory.mktemp("voice-tls"),
-        participation=True,
-        speaks=True,
-        speech=SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
-    ) as server:
+    with speaking_hopin(tmp_path_factory, "voice", speech_origin.base_url) as server:
         yield server
 
 
 @pytest.fixture
 def e2e_server(voicing_server: RunningServer) -> RunningServer:
     return voicing_server
-
-
-class Speaker:
-    """The call of three people whose member added the owner's agent, a recording player on each page, and the agent's
-    sentences."""
-
-    def __init__(
-        self,
-        scene: Scene,
-        speech_origin: Origin,
-        *,
-        other: OwnAccountAgent | None = None,
-        voices: Sequence[str] | None = None,
-    ) -> None:
-        self.scene = scene
-        self.speech_origin = speech_origin
-        self.room = room_of_link(scene.link)
-        scene.member_adds_and_the_agent_accepts(voices=voices)
-        if other is not None:
-            scene.member_adds_and_accepts(other)
-        for person in scene.everyone:
-            person.evaluate(RECORD_PLAYBACK)
-            expect(person.locator(AGENT_TILE)).to_have_count(1 if other is None else 2)
-
-    def speak(self, seconds: float, text: str = "Guten Tag", agent: OwnAccountAgent | None = None) -> None:
-        """Say a sentence of an agent that is silent and return once it started; behind a playing sentence the wait
-        would hold the page routes, so `speak_behind` serves that."""
-        self.speak_behind(seconds, text, agent).result(REQUEST_SECONDS)
-
-    def speak_behind(
-        self, seconds: float, text: str = "Guten Tag", agent: OwnAccountAgent | None = None
-    ) -> Future[dict[str, Any]]:
-        """Say a sentence and return at once with its answer to come when it starts, behind the ones before it."""
-        speaking(self.speech_origin, chunked_wav(silent_wav(seconds)))
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return (self.scene.agent if agent is None else agent).call_unawaited(
-            SPEAK_TOOL, {"place": place.model_dump(), "text": text}
-        )
-
-    def speak_while_speech_pauses(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
-        """Say a sentence whose second half speech renders only once `finish_rendering` says so."""
-        return self._speak_with_second_half(seconds, text, lambda rest: rest)
-
-    def speak_while_speech_breaks(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
-        """Say a sentence whose stream speech breaks in its second half once `finish_rendering` says so."""
-        return self._speak_with_second_half(seconds, text, lambda rest: rest[: len(rest) // 2])
-
-    def _speak_with_second_half(
-        self, seconds: float, text: str, later_body: Callable[[bytes], bytes]
-    ) -> Future[dict[str, Any]]:
-        first, rest = chunked_wav_in_two(silent_wav(seconds))
-        self.speech_origin.serve(SPEECH_PATH, first, later=later_body(rest))
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
-
-    def speech_was_asked(self) -> bool:
-        """Whether the server asked speech to render the latest `speak_behind` sentence, so that a stop sent now
-        cannot overtake it."""
-        return self.speech_origin.received[SPEECH_PATH].wait(REQUEST_SECONDS)
-
-    def speech_has_rendered_the_rest(self) -> bool:
-        return self.speech_origin.resumed[SPEECH_PATH].is_set()
-
-    def finish_rendering(self) -> None:
-        self.speech_origin.resume[SPEECH_PATH].set()
-
-    def speak_with_a_failing_voice(self, text: str) -> dict[str, Any]:
-        """Say a sentence while the speech service is busy; it answers at once, for the sentence is written."""
-        speaking(self.speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
-
-    def window(self) -> dict[str, Any]:
-        return self.scene.agent.read(window_uri(self.room))
-
-    def stop(self) -> dict[str, Any]:
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call(STOP_SPEAKING_TOOL, {"place": place.model_dump()})
-
-    def leave(self) -> None:
-        self.scene.agent.call(LEAVE_CALL, {"room": self.room})
-
-    def started(self, person: Page) -> list[float]:
-        return [round(seconds, 2) for seconds in person.evaluate("() => window.soundsStarted")]
 
 
 @pytest.fixture

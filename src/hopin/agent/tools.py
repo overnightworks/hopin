@@ -21,6 +21,7 @@ from agents.member import (
     DeclineInvitationReason,
     DeclineInvitationRefusal,
     DeclineInvitationRefused,
+    DroppedSpeaking,
     FigureRef,
     GestureArguments,
     GestureRefusal,
@@ -56,6 +57,7 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     FigureGesture,
     FigureMood,
+    HoldRefusal,
     InvitationOutcome,
     LookRefusal,
     SpeakFallback,
@@ -117,12 +119,15 @@ _SPEAK_REFUSAL_OF: Final = {
     AgentRefusal.SPONSOR_AWAY: SpeakRefusal.NOT_ACTIVE,
     AgentRefusal.UNAVAILABLE: SpeakRefusal.UNAVAILABLE,
     SpeakStop.STOPPED: SpeakRefusal.STOPPED,
+    HoldRefusal.HELD: SpeakRefusal.HELD,
+    HoldRefusal.NOT_INTERRUPTED: SpeakRefusal.NOT_INTERRUPTED,
 }
 
 _STOP_REFUSAL_OF: Final = {
     AgentRefusal.GONE: StopSpeakingRefusal.NOT_ACTIVE,
     AgentRefusal.SPONSOR_AWAY: StopSpeakingRefusal.NOT_ACTIVE,
     SpeakStop.NOTHING_PLAYING: StopSpeakingRefusal.NOTHING_PLAYING,
+    HoldRefusal.NOT_INTERRUPTED: StopSpeakingRefusal.NOT_INTERRUPTED,
 }
 
 
@@ -220,8 +225,12 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
         "Name a style, such as louder and angrier, to have it spoken that way; the voice decides whether it can. "
         "It is refused as not_active when you are not joined there or your person's seat is away, as too_long above "
         "the bound, as language_unavailable when your voice does not speak the language, as style_unavailable when "
-        "your voice refuses the style, as stopped when a stop_speaking dropped it while it waited and as unavailable "
-        "when speaking is off or not allowed to you or you have reached a limit. When the voice fails, the sentence is "
+        "your voice refuses the style, as stopped when a stop_speaking or a speak naming your hold dropped it while it "
+        "waited and as unavailable when speaking is off or not allowed to you or you have reached a limit. While you "
+        "are held, because a person started speaking over you, nothing of yours plays or starts; a speak that does "
+        "not name the hold's id as interrupted is refused as held, one that names an id that is not the hold is "
+        "refused as not_interrupted, and one that names it drops what was held and plays at once. When the voice "
+        "fails, the sentence is "
         "written in the chat as your line instead, after the sentences before it have played, and the answer is "
         "written: true; the window's voice_state says whether your voice works there."
     ),
@@ -233,8 +242,10 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
     description=(
         "Cut the sentence you are saying aloud in the call you joined, in every seat, and drop every sentence of yours "
         "that waits behind it; each of those speak calls answers stopped. You may speak again at once. It answers the "
-        "text of the line the cut sentence left, nothing_playing when no sentence of yours plays and not_active when "
-        "you are not joined there or your person's seat is away."
+        "text of the line the cut sentence left, dropped: true when no sentence had started that it cut, as when "
+        "you were held before yours started, nothing_playing when no sentence of yours plays and not_active when "
+        "you are not joined there or your person's seat is away. It ends a hold, whose id you may name as "
+        "interrupted; an id that is not the hold is refused as not_interrupted."
     ),
     parameters=StopSpeakingArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
@@ -381,12 +392,13 @@ async def _spoken(
             render,
             None if voice is None else voice.offers,
             None if request.mood is None else FigureMood(request.mood.value),
+            request.interrupted,
         )
     except LanguageUnavailableError:
         return _speak_refused(SpeakRefusal.LANGUAGE_UNAVAILABLE)
     except StyleUnavailableError:
         return _speak_refused(SpeakRefusal.STYLE_UNAVAILABLE)
-    if isinstance(outcome, AgentRefusal | SpeakStop):
+    if isinstance(outcome, AgentRefusal | SpeakStop | HoldRefusal):
         return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
     if outcome is SpeakFallback.WRITTEN:
         return ToolOutcome(Written(written=True).model_dump_json(), is_error=False)
@@ -397,8 +409,10 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     stopping = member_arguments(StopSpeakingArguments, arguments)
     if stopping.place.kind != CALL_KIND:
         return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
-    outcome = await participation.stop_speaking(caller.person, stopping.place.id)
-    if isinstance(outcome, AgentRefusal | SpeakStop):
+    outcome = await participation.stop_speaking(caller.person, stopping.place.id, stopping.interrupted)
+    if outcome is SpeakStop.DROPPED:
+        return ToolOutcome(DroppedSpeaking(dropped=True).model_dump_json(), is_error=False)
+    if isinstance(outcome, AgentRefusal | SpeakStop | HoldRefusal):
         return _stop_refused(_STOP_REFUSAL_OF[outcome])
     return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
