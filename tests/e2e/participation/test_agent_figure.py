@@ -462,7 +462,10 @@ def test_the_figure_speaks_an_agents_sentence_with_its_voice_and_mood_on_every_p
         ]
 
 
-LONG_SENTENCE_SECONDS = 15.0
+# Longer than the test's real-time measuring takes on a loaded machine: a late seat's figure drawing and four seats
+# settling stay inside the sound.
+LONG_SENTENCE_SECONDS = 45.0
+LONG_SENTENCE_MILLISECONDS = int(LONG_SENTENCE_SECONDS * 1000)
 # The thinking look moves the arm far more than the idle sway does.
 THINKING_SHIFT = 0.04
 THINKING_EASE_SECONDS = 2.0
@@ -525,8 +528,9 @@ def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_
     )
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+        expect(person.locator(f"{AGENT_TILE} canvas")).to_be_visible(timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS)
     speaking_arm = {person: arm_top_at_rest_in_real_time(person) for person in scene.everyone}
     wait_until_arm_shifted_from(speaking_arm[scene.host], late)
     for person in scene.everyone:
-        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE, timeout=SPOKEN_WAIT_MILLISECONDS * 2)
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE, timeout=LONG_SENTENCE_MILLISECONDS)
         wait_until_arm_shifted_from(speaking_arm[person], person)
