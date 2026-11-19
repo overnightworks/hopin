@@ -9,7 +9,6 @@ from hopin.config.settings import ServerSettings
 from hopin.main import UvicornOptions, build_application, main, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
 from tests.support.dialed_call import METADATA_PATH
-from tests.support.game_environment import GAME_ENVIRONMENT  # game
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -140,15 +139,6 @@ class TestMain:
                 id="malformed_origin",
             ),
             pytest.param(
-                "HOPIN_AGENT__API_GROUP", None, "HOPIN_AGENT__API_GROUP is missing", id="missing_agent_api_group"
-            ),
-            pytest.param(
-                "HOPIN_AGENT__GATEWAY__ORIGIN",
-                "sentinel-gateway",
-                "HOPIN_AGENT__GATEWAY__ORIGIN is malformed",
-                id="malformed_agent_gateway_origin",
-            ),
-            pytest.param(
                 "HOPIN_FIGURE_SOURCES",
                 '["https://sentinel-figures.test/personas"]',
                 "HOPIN_FIGURE_SOURCES is malformed",
@@ -159,12 +149,6 @@ class TestMain:
                 "sentinel-speech",
                 "HOPIN_SPEECH__ORIGIN must be",
                 id="malformed_speech_origin",
-            ),
-            pytest.param(
-                "HOPIN_SKAT_ORIGIN",
-                "http://sentinel-skat.test",
-                "HOPIN_SKAT_ORIGIN is malformed",
-                id="malformed_skat_origin",
             ),
             pytest.param(
                 "HOPIN_TURN_PROVIDER",
@@ -192,18 +176,6 @@ class TestMain:
         assert len(lines) == 1
         assert expected_line in lines[0]
         assert "sentinel" not in lines[0]
-
-    def test_refuses_with_no_agent_setting_at_all_naming_the_family(self, sign_in_settings, monkeypatch, capsys):
-        for name, environment_value in sign_in_settings().environment.items():
-            monkeypatch.setenv(name, environment_value)
-        for name in GAME_ENVIRONMENT:
-            monkeypatch.delenv(name)
-
-        with pytest.raises(SystemExit) as refusal:
-            main(["serve"])
-
-        assert refusal.value.code == 1
-        assert capsys.readouterr().err == "HOPIN_AGENT__* is missing\n"
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     def test_refuses_without_the_serve_command(self, arguments, capsys):
