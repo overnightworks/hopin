@@ -9,22 +9,20 @@ from playwright.sync_api import Page, expect
 from speech_client.realtime_wire import SpeechStarted
 from speech_client.wire import VoiceId
 
-from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND
-from tests.e2e.participation.test_agent_speaks import AGENT_TILE, SPEAKING_TILE, Speaker
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, OWNER_SUBJECT, REQUEST_SECONDS
+from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQUEST_SECONDS
 from tests.e2e.support.hearing_hops import settle, until
 from tests.e2e.support.people import FORM_FACTORS
-from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
-from tests.support.agent_adders import ADDERS_GROUP
+from tests.e2e.support.speaker import SPEAKING_TILE, Speaker, speaking_hopin
 from tests.support.fake_speech import ITEM, FakeSpeech
 from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import AUDIENCE_SCOPE, offering
+from tests.support.speech_origin import offering
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
     from tests.e2e.support.participation_scene import Scene
+    from tests.e2e.support.server import RunningServer
     from tests.support.fake_speech import Session
 
 pytestmark = pytest.mark.e2e
@@ -55,16 +53,7 @@ def speech_service(speech_origin: Origin) -> Iterator[FakeSpeech]:
 @pytest.fixture(scope="module")
 def holding_server(tmp_path_factory: pytest.TempPathFactory, speech_service: FakeSpeech) -> Iterator[RunningServer]:
     """HopIn with participation, hearing and speaking on, through `speech_service`."""
-    loopback = loopback_sign_in(tmp_path_factory.mktemp("hold-sign-in"))
-    with running_hopin(
-        loopback,
-        tmp_path_factory.mktemp("hold-tls"),
-        participation=True,
-        hears=True,
-        speaks=True,
-        speech=SpeechService(speech_service.origin, VoiceId.THORSTEN, AUDIENCE_SCOPE),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
-    ) as server:
+    with speaking_hopin(tmp_path_factory, "hold", speech_service.origin, hears=True) as server:
         yield server
 
 
