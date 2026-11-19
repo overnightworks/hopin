@@ -209,7 +209,8 @@ STAGED_LINE = Section[str]("staged_line")
 
 class StagingFeature(TransitionFeature):
     """A call feature on transitions: `stage` keeps its line as the room's state and tells every seat the line; a line
-    `refused` is kept and told, then refused. `show` tells its sender the line the room keeps."""
+    `refused` is kept and told, then refused. `show` tells its sender the line the room keeps. A seat's leave keeps
+    `<name> left` as the line and follows with a hook that tells every seat still in the room the line it keeps."""
 
     name = "staging"
     browser_modules = ()
@@ -231,7 +232,12 @@ class StagingFeature(TransitionFeature):
         pass
 
     def seat_left(self, view, peer_id, transition):
-        pass
+        transition.put(STAGED_LINE, f"{view.name_of(peer_id)} left")
+        transition.follow(self._tell_the_line)
+
+    def _tell_the_line(self, view, transition):
+        for member in view.members:
+            transition.send(member, {"type": "staged", "line": view.section(STAGED_LINE)})
 
 
 class WorkingFeature(TransitionFeature):

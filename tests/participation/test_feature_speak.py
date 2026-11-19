@@ -651,14 +651,25 @@ class TestAnEndWhileTheSentenceRenders:
         assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
 
 
+async def removed_by_its_sponsor(participation, guest, mozart, room_id):
+    await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": mozart.agent_id})
+
+
+async def stopped_by_its_sponsor(participation, guest, mozart, room_id):
+    await participation.stop_speaking(GUEST, room_id)
+
+
 class TestAnEndWhileTheSentenceIsAnnounced:
-    async def test_call_60_a_removal_while_the_line_is_sent_stops_the_voice_to_every_seat(self, participation, call):
+    @pytest.mark.parametrize("end", [removed_by_its_sponsor, stopped_by_its_sponsor])
+    async def test_call_60_a_removal_or_a_stop_while_the_line_is_sent_gives_no_seat_the_voice(
+        self, participation, call, end
+    ):
         host, guest, mozart, _ = call
         held = HeldWrite(host.socket, first_only=True)
         speaking = asyncio.create_task(speak(participation, room_id=room_of(host)))
         await held.reached()
 
-        await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": mozart.agent_id})
+        await end(participation, guest, mozart, room_of(host))
         held.release.set()
         await speaking
 

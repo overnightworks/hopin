@@ -339,27 +339,17 @@ class FeatureTransitions:
                 view = self._store.load(room_id)
                 transition = Transition()
                 outcomes.append(hook(view, transition))
-                committed.append(self.commit(view, transition))
+                committed += self.commit(view, transition)
         finally:
             await self._store.wake_committed(committed)
         return outcomes
 
     async def run[Outcome](self, view: RoomView, hook: Callable[[Transition], Outcome]) -> Outcome:
-        """Apply the hook to the view it was given and commit what it changed, then each hook it follows with; a hook
-        that raises commits nothing."""
+        """Apply the hook to the view it was given and commit what it changed; a hook that raises commits nothing."""
         transition = Transition()
         outcome = hook(transition)
-        await self._store.wake_committed(self._commit_followed(view, transition))
+        await self._store.wake_committed(self.commit(view, transition))
         return outcome
-
-    def _commit_followed(self, view: RoomView, transition: Transition) -> list[Committed]:
-        committed = [self.commit(view, transition)]
-        for follower in transition.followers:
-            followed = self._store.load(view.room_id)
-            following = Transition()
-            follower(followed, following)
-            committed += self._commit_followed(followed, following)
-        return committed
 
     def change_now(self, room_id: str, hook: Callable[[RoomView, Change], None]) -> None:
         """Apply the hook to the room's view now and commit its change before anything awaits; it cannot send, so no
@@ -369,11 +359,17 @@ class FeatureTransitions:
         hook(view, change)
         self.commit(view, change)
 
-    def commit(self, view: RoomView, change: Change) -> Committed:
-        """Commit the change and start and stop its work, leaving its seats to be woken."""
+    def commit(self, view: RoomView, change: Change) -> list[Committed]:
+        """Commit the change and start and stop its work, then each hook a transition follows with, leaving the seats
+        of all of them to be woken."""
         event = change.broken_write_event if isinstance(change, Transition) else None
-        committed = Committed(self._store.commit(view, change), event)
+        committed = [Committed(self._store.commit(view, change), event)]
         self._start_and_stop_work(view, change)
+        for follower in change.followers if isinstance(change, Transition) else ():
+            followed = self._store.load(view.room_id)
+            following = Transition()
+            follower(followed, following)
+            committed += self.commit(followed, following)
         return committed
 
     def _start_and_stop_work(self, view: RoomView, change: Change) -> None:
@@ -461,7 +457,7 @@ class TransitionHost:
         view = self._transitions.seat_view(peer_id)
         await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
 
-    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
+    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
         """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
         together with the departure that tells the room."""
         view = self._transitions.view(room_id).naming(peer_id, name)

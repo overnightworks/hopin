@@ -91,10 +91,8 @@ class SignalingHandler:
         for peer_id, frame in told_frames:
             told.send(peer_id, frame)
         committed = [Committed(self._store.commit(RoomView(), told))]
-        committed += [
-            feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
-            for feature in self._features
-        ]
+        for feature in self._features:
+            committed += feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
         await self._store.wake_committed(committed)
 
     async def shut_down(self) -> None:

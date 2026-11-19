@@ -442,6 +442,17 @@ class TestTransitions:
         assert host.frames(SignalType.ERROR)
         await link.close_all()
 
+    async def test_a_hook_a_leave_follows_with_reads_the_leaves_state_and_its_frames_reach_the_room(
+        self, room_manager, scheduler
+    ):
+        link = Link(handler_with(room_manager, scheduler, StagingFeature()))
+        host, guest = await host_and_guest(link)
+
+        await guest.drop(1000)
+
+        assert staged_lines(host) == ["guest left"]
+        await link.close_all()
+
     async def test_a_work_that_raised_is_logged_by_its_type_and_has_ended_for_a_later_stop(
         self, room_manager, scheduler
     ):
