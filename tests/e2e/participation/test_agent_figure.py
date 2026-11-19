@@ -509,6 +509,8 @@ def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_
     speaking(speech_origin, chunked_wav(silent_wav(LONG_SENTENCE_SECONDS)))
     place = PlaceRef(kind=CALL_KIND, id=room_of_link(scene.link)).model_dump()
     scene.agent.call(SPEAK_TOOL, {"place": place, "text": "Guten Tag"})
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
 
     scene.agent.call(SET_TURN_STATE_TOOL, {"place": place, "thinking": True})
     time.sleep(THINKING_EASE_SECONDS)
