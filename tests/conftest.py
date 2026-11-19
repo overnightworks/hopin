@@ -38,6 +38,7 @@ def logging_restored() -> Iterator[None]:
 
 @pytest.fixture
 def game_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The settings environment a test needs when the game master is part of the build."""
     set_game_environment(monkeypatch)  # game
 
 
