@@ -5,6 +5,7 @@ request carries."""
 
 import json
 import secrets
+import time
 from dataclasses import dataclass
 
 import pytest
@@ -20,6 +21,8 @@ from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_requests
 
 pytestmark = pytest.mark.integration
+
+DROP_HANDLED_SECONDS = 10
 
 
 @dataclass(frozen=True)
@@ -112,10 +115,17 @@ def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_
 
     with configured("hopin"):
         joined_agent.owner.drop(code=close_code)
-        answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
+        lines, entries = [], []
+        deadline = time.monotonic() + DROP_HANDLED_SECONDS
+        while time.monotonic() < deadline and not (
+            entries and any(line["event"] == "websocket.ended" for line in lines)
+        ):
+            answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
+            entries = json.loads(answer["result"]["contents"][0]["text"])["entries"]
+            lines += logged(capsys)
 
-    [socket_end] = [line for line in logged(capsys) if line["event"] == "websocket.ended"]
-    [entry] = json.loads(answer["result"]["contents"][0]["text"])["entries"]
+    [socket_end] = [line for line in lines if line["event"] == "websocket.ended"]
+    [entry] = entries
     assert (entry["cut"], trace_id_of(entry["traceparent"]) != socket_end["trace_id"]) == (True, True)
 
 
