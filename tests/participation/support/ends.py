@@ -2,6 +2,7 @@
 and the agent, where the guest is the agent's sponsor."""
 
 from hopin.config.constants import SignalType
+from hopin.participation.participants import OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named, room_of
 
@@ -26,3 +27,16 @@ async def end_by_the_host(participation, host, guest, agent):
 
 async def shut_down(participation, host, guest, agent):
     await host.link.handler.shut_down()
+
+
+async def remove_by_the_sponsor(participation, host, guest, agent):
+    await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
+
+
+async def pause_with_the_sponsors_seat(participation, host, guest, agent):
+    await guest.drop()
+
+
+async def lease_runs_out(participation, host, guest, agent):
+    """Registers the agent's lease; it runs out once the scheduler's clock has moved on by the lease's length."""
+    await participation.agent_called(GUEST, OwnAccount("owner", "Claude"))

@@ -1,6 +1,7 @@
 """The agent's side of CALL-60 for the participation tests: a fake renderer and the calls that speak and wait."""
 
 import asyncio
+from dataclasses import dataclass
 
 from hopin.participation.speaking import RenderedSentence, SoundLength
 from hopin.participation.vocabulary import ParticipationSignal, VoiceFailure
@@ -245,3 +246,51 @@ async def hold_with_a_sentence_waiting(participation, call, text="Guten Tag", wa
     waiting = None if waiting_text is None else await waiting_to_speak(participation, waiting_text, room_id=room_id)
     await participation.person_started(room_id, guest.peer_id)
     return room_id, waiting
+
+
+@dataclass(frozen=True)
+class OpenSpeak:
+    """A `speak` of the call's agent that has not been answered: its `answer` task, and `release`, which lets its
+    render return where the sentence still renders."""
+
+    answer: asyncio.Task
+    release: asyncio.Event
+
+
+async def _open_speak(participation, room_id, *, rendering_it):
+    release = asyncio.Event()
+    entered = asyncio.Event()
+    if not rendering_it:
+        return OpenSpeak(await waiting_to_speak(participation, room_id=room_id), release)
+
+    async def gated(text, voice):
+        entered.set()
+        await release.wait()
+        return a_sentence()
+
+    answer = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", gated))
+    async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+        await entered.wait()
+    return OpenSpeak(answer, release)
+
+
+async def queued_behind_a_playing_sentence(participation, host, guest):
+    await speak(participation, room_id=room_of(host), render=LONG)
+    return await _open_speak(participation, room_of(host), rendering_it=False)
+
+
+async def waiting_behind_a_hold(participation, host, guest):
+    waiting = await queued_behind_a_playing_sentence(participation, host, guest)
+    await participation.person_started(room_of(host), guest.peer_id)
+    return waiting
+
+
+async def rendering_behind_a_playing_sentence(participation, host, guest):
+    await speak(participation, room_id=room_of(host), render=LONG)
+    return await _open_speak(participation, room_of(host), rendering_it=True)
+
+
+async def rendering_while_held(participation, host, guest):
+    rendering_one = await rendering_behind_a_playing_sentence(participation, host, guest)
+    await participation.person_started(room_of(host), guest.peer_id)
+    return rendering_one
