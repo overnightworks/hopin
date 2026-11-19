@@ -1,8 +1,0 @@
-claim_id = "fd31ec6d529349358777c7b5ac97cd67"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "e99caced8e4973690e30f087bdd67d9c26dcfb09"
-branch = "claude/issue-974-speech-0-22-3"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "pyproject.toml", "uv.lock"]
-opened_commit = "0b2c415ea6d73472517dcc5098c0ae5266ef807e"
-whole_reason = "One dependency bump of the two speech packages, which release together."
