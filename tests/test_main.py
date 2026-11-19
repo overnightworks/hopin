@@ -159,23 +159,9 @@ class TestMain:
         ],
     )
     def test_refuses_a_missing_or_malformed_setting_in_one_line_naming_it_and_never_its_value(
-        self, sign_in_settings, monkeypatch, capsys, setting, value, expected_line
+        self, serve_refusal, setting, value, expected_line
     ):
-        for name, environment_value in sign_in_settings().environment.items():
-            monkeypatch.setenv(name, environment_value)
-        if value is None:
-            monkeypatch.delenv(setting)
-        else:
-            monkeypatch.setenv(setting, value)
-
-        with pytest.raises(SystemExit) as refusal:
-            main(["serve"])
-
-        assert refusal.value.code == 1
-        lines = capsys.readouterr().err.splitlines()
-        assert len(lines) == 1
-        assert expected_line in lines[0]
-        assert "sentinel" not in lines[0]
+        serve_refusal(setting, value, expected_line)
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     def test_refuses_without_the_serve_command(self, arguments, capsys):

@@ -10,6 +10,7 @@ from logline.testing import configured
 pytest.register_assert_rewrite("tests.support", "tests.signaling.support", "tests.e2e.support")
 pytest.register_assert_rewrite("tests.game.support")  # game
 
+from hopin.main import main  # noqa: E402
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
@@ -34,6 +35,32 @@ def logging_restored() -> Iterator[None]:
     """A test that runs `hopin.main.main` leaves the process's logging as it found it."""
     with configured("hopin"):
         yield
+
+
+@pytest.fixture
+def serve_refusal(
+    sign_in_settings: Callable[..., SignInSettings], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> Callable[[str, str | None, str], None]:
+    """Asserts `hopin serve` refuses in one line naming the setting and never its value."""
+
+    def assert_refused(setting: str, value: str | None, expected_line: str) -> None:
+        for name, environment_value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, environment_value)
+        if value is None:
+            monkeypatch.delenv(setting)
+        else:
+            monkeypatch.setenv(setting, value)
+
+        with pytest.raises(SystemExit) as refusal:
+            main(["serve"])
+
+        assert refusal.value.code == 1
+        lines = capsys.readouterr().err.splitlines()
+        assert len(lines) == 1
+        assert expected_line in lines[0]
+        assert "sentinel" not in lines[0]
+
+    return assert_refused
 
 
 @pytest.fixture
