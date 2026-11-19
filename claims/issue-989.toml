@@ -1,8 +1,0 @@
-claim_id = "26930f1eff5a47df8b7538751896bd5d"
-agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
-role = "builder"
-base = "150d34125b07980f65883432f9fba4c593f8e515"
-branch = "claude/issue-989-tools-notice-first"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "src/hopin/agent/mcp.py", "tests/agent", "tests/participation/test_feature_figure.py", "tests/participation/test_feature_tools_notice_order.py", "tests/participation/test_hearing_trace.py", "tests/support/dialed_call.py"]
-opened_commit = "b778dceb1d9230635236672baf4d17dc6f84c89d"
-whole_reason = "The order, its test and the sentence that states it change together."
