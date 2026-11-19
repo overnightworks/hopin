@@ -77,10 +77,16 @@ class Seat:
     def hearing_session(self) -> Session:
         """The speech session of the one hop the owner's page holds open, once it sends sound."""
         until(self.page, lambda: len(self.hops.open_ones()) == 1, "exactly one open hop")
-        until(self.page, lambda: self.speech.sessions[-1].audio_appends() > 0, "sound at the speech service")
+        until(self.page, self._newest_session_hears_sound, "sound at the speech service")
         session = self.speech.sessions[-1]
         assert not session.closed.is_set()
         return session
+
+    def _newest_session_hears_sound(self) -> bool:
+        """Whether the newest speech session this seat opened has had sound; false while it opened none, as the
+        service's session follows the browser's hop."""
+        sessions = self.speech.sessions[self.sessions_before :]
+        return bool(sessions) and sessions[-1].audio_appends() > 0
 
     def says(self, text: str) -> None:
         session = self.hearing_session()

@@ -11,7 +11,13 @@ from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
-from tests.e2e.support.server import LOOPBACK_HOST, reserve_free_port, serving, write_self_signed_certificate
+from tests.e2e.support.server import (
+    LOOPBACK_HOST,
+    bound_loopback_socket,
+    port_of,
+    serving,
+    write_self_signed_certificate,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -108,18 +114,17 @@ def _app(stub: StubSkat) -> Starlette:
 @contextmanager
 def running_stub_skat(tls_directory: Path) -> Iterator[StubSkat]:
     """Serve the stub over https on a free loopback port until the block ends."""
-    port = reserve_free_port()
+    listener = bound_loopback_socket()
+    port = port_of(listener)
     key_file, certificate_file = write_self_signed_certificate(tls_directory)
     stub = StubSkat(f"https://{LOOPBACK_HOST}:{port}")
     server = uvicorn.Server(
         uvicorn.Config(
             _app(stub),
-            host=LOOPBACK_HOST,
-            port=port,
             ssl_keyfile=str(key_file),
             ssl_certfile=str(certificate_file),
             log_level="warning",
         )
     )
-    with serving(server):
+    with serving(server, listener):
         yield stub

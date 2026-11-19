@@ -189,6 +189,8 @@ def test_a_refusal_after_the_adders_right_was_revoked_shows_alone_and_leaves_whe
     scene = scene_of(form_factor)
     scene.agent_listens()
     open_more(scene.member)
+    # The offer shows once the read of the member's groups answered; a revocation before that read leaves no offer.
+    expect(scene.offer_of_agent(scene.member)).to_have_count(1)
     e2e_server.issuer.grant_groups(member_of(scene.member).account.id, ())
 
     scene.offer_of_agent(scene.member).get_by_role("button").click()

@@ -11,10 +11,10 @@ import structlog.testing
 from agents.member import LEASE_SECONDS
 from logline import Outcome
 from logline.testing import configured
-from speech_client.hearing import OPENING_SECONDS, Closed, Refused
+from speech_client.hearing import OPENING_SECONDS, Refused
 from speech_client.outcomes import Cut, Unreachable
 from speech_client.realtime_wire import SessionInput, SessionUpdate
-from speech_client.relay import HOP_FRAME_SAMPLES, BrowserLeft, HopClose
+from speech_client.relay import HOP_FRAME_SAMPLES, HopClose, RuleBroken
 from speech_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, Language, RefusalCode
 from starlette.websockets import WebSocketDisconnect
 
@@ -686,22 +686,45 @@ class TestHearingOff:
         )
 
 
-def the_browser_leaves(_session, socket):
+def the_browser_leaves(_scene, _session, socket):
     socket.close()
 
 
+def the_service_closes(_scene, session, socket):
+    session.hang_up()
+    closed_with(socket)
+
+
+def the_app_ends_it(scene, _session, socket):
+    switch_off(scene)
+    closed_with(socket)
+
+
 class TestHowAHopEndsInTheLog:
-    def test_call_58_a_hop_the_browser_leaves_ends_its_step_line_ok(self, sponsored, fake_speech):
+    @pytest.mark.parametrize(
+        "end",
+        [the_browser_leaves, the_service_closes, the_app_ends_it],
+        ids=["browser_leaves", "service_closes", "app_ends"],
+    )
+    def test_call_58_a_hop_that_ends_as_designed_ends_its_step_line_ok_and_names_no_reason(
+        self, sponsored, fake_speech, end
+    ):
         with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
             session.wait_for_audio(1)
-            the_browser_leaves(session, socket)
+            end(sponsored, session, socket)
             assert lines.wait_for_event("hearing.ended", WAIT_SECONDS), "the hop's ending was never logged"
 
         [ending] = [line for line in lines if line["event"] == "hearing.ended"]
-        assert (ending["outcome"], ending["room_ref"], isinstance(ending["duration_ms"], float)) == (
+        assert (
+            ending["outcome"],
+            "reason" in ending,
+            ending["room_ref"],
+            isinstance(ending["duration_ms"], float),
+        ) == (
             Outcome.OK,
+            False,
             room_reference(sponsored.owner.room_id),
             True,
         )
@@ -712,8 +735,8 @@ class TestHowAHopEndsInTheLog:
             (Cut(), "cut"),
             (Unreachable(), "unreachable"),
             (Refused(HTTPStatus.BAD_REQUEST, None), "refused"),
-            (Closed(), None),
-            (BrowserLeft(), None),
+            (RuleBroken(HopClose.TEXT_FRAME), "text_frame"),
+            (RuleBroken(HopClose.FRAME_TOO_LARGE), "frame_too_large"),
         ],
     )
     def test_call_58_an_outcome_that_served_nobody_is_named_by_its_closed_reason(self, outcome, reason):

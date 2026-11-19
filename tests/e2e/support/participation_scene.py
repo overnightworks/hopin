@@ -2,7 +2,14 @@ from typing import TYPE_CHECKING, Any
 
 from playwright.sync_api import expect
 
-from tests.e2e.support.calls import call_link_of, join_by_link, open_more, press_start_call, record_page_errors
+from tests.e2e.support.calls import (
+    call_link_of,
+    join_by_link,
+    open_more,
+    press_start_call,
+    record_page_errors,
+    wait_until_in_the_call,
+)
 from tests.e2e.support.dialed_agent import OWNER_USERNAME
 
 if TYPE_CHECKING:
@@ -48,6 +55,8 @@ class Scene:
         self.member = record_page_errors(open_person(**form_factor), page_errors)
         grant_adders(member_of(self.member).account.id)
         join_by_link(self.member, self.link)
+        wait_until_in_the_call(self.owner)
+        wait_until_in_the_call(self.member)
         self.adder = self.owner if owner_adds else self.member
         self.everyone = (self.host, self.owner, self.member)
 
