@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "37bfce8aecb5fbfa278bf0690706e127c9bb0f86"
 branch = "claude/issue-969-capture-context-stopped"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation/hearing.test.ts", "frontend/src/lib/features/participation/hearing.ts", "pyproject.toml", "tests/e2e/participation", "uv.lock"]
+scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation/hearing.test.ts", "frontend/src/lib/features/participation/hearing.ts", "pyproject.toml", "tests/e2e/participation", "uv.lock"]
 opened_commit = "dde2dbe178300ac54639cabf98312f16a41f5ea3"
 whole_reason = "One behaviour: the hearing capture treats speech 0.22.2's context-stopped end; the pin bump and its browser test belong to it."
