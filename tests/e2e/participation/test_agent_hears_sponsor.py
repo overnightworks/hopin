@@ -23,6 +23,20 @@ SWITCH = AGENT_HEARING_SWITCH
 MUTE = "#muteBtn"
 SENTENCE = "Guten Tag"
 WAKE_SECONDS = 20
+# The capture builds its audio context inside speech's package; the worklet node it streams through names it.
+RECORD_CAPTURE_CONTEXTS = """
+() => {
+    window.captureContexts = [];
+    const NativeWorkletNode = window.AudioWorkletNode;
+    window.AudioWorkletNode = class extends NativeWorkletNode {
+        constructor(context, ...rest) {
+            super(context, ...rest);
+            window.captureContexts.push(context);
+        }
+    };
+}
+"""
+STOP_THE_CAPTURE_CONTEXT = "(index) => window.captureContexts[index].suspend()"
 
 
 @pytest.fixture
@@ -126,3 +140,24 @@ def test_the_switch_and_the_microphone_each_end_the_sending_at_once_and_only_bot
     until(page, lambda: len(sponsor.hops.opened) == 3, "a new hop after the microphone went on")
     sponsor.session(3).wait_for_audio(1)
     expect(page.locator(SWITCH)).to_have_attribute("aria-checked", "true")
+
+
+def test_a_hop_whose_audio_context_stops_is_opened_once_more_and_a_second_stop_leaves_it_closed(
+    sponsor: Sponsor,
+) -> None:
+    """CALL-59: A capture whose audio context stops after it streamed, as a failed sound device stops it, closes its
+    hop and opens a new one that streams; when that one's context stops too, no third hop opens."""
+    page = sponsor.page
+    page.evaluate(RECORD_CAPTURE_CONTEXTS)
+    sponsor.press_the_switch()
+    sponsor.session(1).wait_for_audio(1)
+
+    page.evaluate(STOP_THE_CAPTURE_CONTEXT, 0)
+    until(page, lambda: sponsor.hops.opened[0].closed, "the hop's close after its audio context stopped")
+    until(page, lambda: len(sponsor.hops.opened) == 2, "a new hop after the audio context stopped")
+    sponsor.session(2).wait_for_audio(1)
+
+    page.evaluate(STOP_THE_CAPTURE_CONTEXT, 1)
+    until(page, lambda: sponsor.hops.opened[1].closed, "the new hop's close after its audio context stopped")
+    settle(page)
+    assert len(sponsor.hops.opened) == 2
