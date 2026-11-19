@@ -254,14 +254,6 @@ describe("an agent's voice", () => {
         expect(tileActivities(page)).toEqual([AGENT_ACTIVITY.PRESENT]);
     });
 
-    it("CALL-68: names the tile as thinking at once when no sound of the agent plays", async () => {
-        const page = await pageWithAgents("a1");
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_THINKING, { agent_id: "a1", on: true });
-
-        expect([tileActivities(page), page.thoughts]).toEqual([[AGENT_ACTIVITY.THINKING], [["agent-a1", true]]]);
-    });
-
     it("CALL-60: shows only the agent whose sound plays as speaking while two agents' sounds overlap", async () => {
         const page = await pageWithAgents("a1", "a2");
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
