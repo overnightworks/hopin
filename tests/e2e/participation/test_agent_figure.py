@@ -13,13 +13,13 @@ from speech_client.wire import VoiceId
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND
 from hopin.participation.settings import ParticipationSettings
-from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, FigureMood
+from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, VOICE_PATH, FigureMood
 from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, room_of_link
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
-from tests.e2e.support.speaker import SPEAKING_TILE
+from tests.e2e.support.speaker import SPEAKING_TILE, Speaker
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.loopback_origin import Origin
@@ -462,13 +462,13 @@ def test_the_figure_speaks_an_agents_sentence_with_its_voice_and_mood_on_every_p
         ]
 
 
-# Longer than the test's real-time measuring takes on a loaded machine: a late seat's figure drawing and four seats
-# settling stay inside the sound.
-LONG_SENTENCE_SECONDS = 45.0
-LONG_SENTENCE_MILLISECONDS = int(LONG_SENTENCE_SECONDS * 1000)
+# Far longer than the test looks at the figure: the sound ends when the agent is told to stop.
+LONG_SENTENCE_SECONDS = 120.0
 # The thinking look moves the arm far more than the idle sway does.
 THINKING_SHIFT = 0.04
-THINKING_EASE_SECONDS = 2.0
+THINKING_EASE_MILLISECONDS = 2_000
+# A page with its clock held is polled by the clock of the test, not the page's.
+POLL_MILLISECONDS = 100
 
 
 def arm_shifted_from(rest: float, person: Page) -> bool:
@@ -477,60 +477,57 @@ def arm_shifted_from(rest: float, person: Page) -> bool:
 
 
 def wait_until_arm_shifted_from(rest: float, person: Page) -> None:
-    deadline = time.monotonic() + SPOKEN_WAIT_MILLISECONDS / 1000
-    while not arm_shifted_from(rest, person):
-        assert time.monotonic() < deadline, "the figure never showed the thinking look"
-        time.sleep(0.2)
-
-
-def arm_top_at_rest_in_real_time(person: Page) -> float:
-    """The arm's top of a figure drawn in real time once two pictures a moment apart agree."""
-    previous = arm_top(person)
+    """Steps the held page clock until the arm shows the thinking look, as far as the look takes to ease in."""
     for _ in range(SETTLING_STEPS):
-        time.sleep(0.2)
-        top = arm_top(person)
-        if top is not None and previous is not None and abs(top - previous) <= SWAY:
-            return top
-        previous = top
-    pytest.fail("the arm did not stand still")
+        person.clock.run_for(STEP_MILLISECONDS)
+        if arm_shifted_from(rest, person):
+            return
+    pytest.fail("the figure never showed the thinking look")
+
+
+def arm_stays_while_the_look_eases(rest: float, person: Page) -> bool:
+    """Whether the arm stays where it rests through the time the thinking look takes to ease in, on the held clock."""
+    for _ in range(THINKING_EASE_MILLISECONDS // STEP_MILLISECONDS):
+        person.clock.run_for(STEP_MILLISECONDS)
+        if arm_shifted_from(rest, person):
+            return False
+    return True
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
+@pytest.mark.parametrize("clock_faked", [True])
 def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_and_thinks_once_it_ended(
-    scene_of: Callable[..., Scene], speech_origin: Origin, form_factor: dict[str, Any]
+    scene_of: Callable[..., Scene],
+    speech_origin: Origin,
+    form_factor: dict[str, Any],
+    e2e_server: RunningServer,
+    expected_request_failures: list[str],
 ) -> None:
     """CALL-68: An agent that states thinking while a sentence of it sounds keeps its speaking tile and its figure
     still, on every seat where the sound plays, and shows thinking once the sound ended; a seat that joined meanwhile,
-    where nothing plays, shows it at once."""
+    where nothing plays, shows it at once. Every page's clock is held, so no figure ends as too slow, and the
+    sound outlasts the test's looking, which ends it by stopping the agent."""
+    expected_request_failures.append(f"{e2e_server.base_url}{VOICE_PATH}/")
     scene = scene_of(form_factor)
-    scene.member_adds_and_the_agent_accepts(figure_of(DRAWABLE_URL, DRAWABLE))
+    speaker = Speaker(scene, speech_origin, figure=figure_of(DRAWABLE_URL, DRAWABLE))
     for person in scene.everyone:
-        expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
-            "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
-        )
-    rest = {person: arm_top_at_rest_in_real_time(person) for person in scene.everyone}
-    speaking(speech_origin, chunked_wav(silent_wav(LONG_SENTENCE_SECONDS)))
-    place = PlaceRef(kind=CALL_KIND, id=room_of_link(scene.link)).model_dump()
-    scene.agent.call(SPEAK_TOOL, {"place": place, "text": "Guten Tag"})
+        held_once_drawn(person)
+    rest = {person: arm_top_at_rest(person) for person in scene.everyone}
+    speaker.speak(LONG_SENTENCE_SECONDS)
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
 
+    place = PlaceRef(kind=CALL_KIND, id=speaker.room).model_dump()
     scene.agent.call(SET_TURN_STATE_TOOL, {"place": place, "thinking": True})
-    time.sleep(THINKING_EASE_SECONDS)
-
-    for person in scene.everyone:
-        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
-    assert [arm_shifted_from(rest[person], person) for person in scene.everyone] == [False] * len(scene.everyone)
-
+    still_while_sounding = [arm_stays_while_the_look_eases(rest[person], person) for person in scene.everyone]
     late = scene.person_joins_late()
-    expect(late.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
-        "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
-    )
+    held_once_drawn(late)
+    wait_until_arm_shifted_from(rest[scene.host], late)
+
+    assert still_while_sounding == [True] * len(scene.everyone)
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
-        expect(person.locator(f"{AGENT_TILE} canvas")).to_be_visible(timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS)
-    speaking_arm = {person: arm_top_at_rest_in_real_time(person) for person in scene.everyone}
-    wait_until_arm_shifted_from(speaking_arm[scene.host], late)
+    speaker.stop()
     for person in scene.everyone:
-        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE, timeout=LONG_SENTENCE_MILLISECONDS)
-        wait_until_arm_shifted_from(speaking_arm[person], person)
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+        wait_until_arm_shifted_from(rest[person], person)
