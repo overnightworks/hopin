@@ -3,6 +3,6 @@ agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
 role = "builder"
 base = "ebe91fa4f51b6ff305cf8c337a180f9e168be13c"
 branch = "claude/issue-976-talked-over-hold"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "src/hopin/agent/hearing_route.py", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation", "tests/e2e/participation", "tests/participation", "tests/support/fake_speech.py"]
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "src/hopin/agent/hearing_route.py", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation", "tests/e2e/participation", "tests/e2e/support/speaker.py", "tests/participation", "tests/support/fake_speech.py"]
 opened_commit = "01e1c65d66190dc0ff8deaac48467ee3df23d314"
 whole_reason = "The hold, its window record and its tool answers change together across the queue, the window and the agent tools."
