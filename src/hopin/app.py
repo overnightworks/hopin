@@ -21,7 +21,6 @@ from webauth.single_process_stores import SingleProcessStores
 
 from hopin.auth.account import create_account_router
 from hopin.auth.gate import bearer_gate, session_gate
-from hopin.auth.request_identity import RequestIdentityMiddleware
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
@@ -295,7 +294,6 @@ def create_app(
         app, relying_party, sign_in_stores.transaction, page_build, request_language, words_logout_button_label
     )
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
-    app.add_middleware(RequestIdentityMiddleware)
     app.add_middleware(RequestLineMiddleware)
 
     return app
