@@ -1,7 +1,0 @@
-claim_id = "6878e1814a2348c49471862c0d41504e"
-agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
-role = "builder"
-base = "b141260343520eff4daf7c0a0437d5bd8743ef85"
-branch = "dependabot/docker/node-e6bedef"
-scope = ["Dockerfile"]
-opened_commit = "26550b7df96a18b7f1688e3e90b740f82d139ae0"
