@@ -171,10 +171,11 @@ async def announced_since(known):
         await asyncio.wait(announcements)
 
 
-async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id, offered=None):
-    """The agent's answer once the sentence started and the announcement of it that follows the answer was sent."""
+async def speak(participation, text="Guten Tag", render=None, *, who=GUEST, room_id, offered=None, interrupted=None):
+    """The agent's answer once the sentence started and the announcement of it that follows the answer was sent;
+    `interrupted` names the hold the sentence answers."""
     watch = Watch(rendering() if render is None else render)
-    answer = await participation.speak(who, room_id, text, watch.render, offered)
+    answer = await participation.speak(who, room_id, text, watch.render, offered, interrupted=interrupted)
     await watch.until_settled()
     # A stream still being read is no announcement.
     await announced_since(watch.known)

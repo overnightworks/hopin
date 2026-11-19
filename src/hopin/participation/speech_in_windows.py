@@ -2,8 +2,9 @@
 people talking over a sentence of the agent stand in its window as a record until their turns end.
 
 The record is the agents library's talked-over record. HopIn opens it for each agent that hears a person who starts
-speaking while a sentence of that agent plays, updates it with the words heard, and removes it with the last person's
-turn. Every change tells the agent whose window changed once.
+speaking while a sentence of that agent plays or waits, or while it is held, updates it with the words heard, and
+removes it with the last person's turn. A record that opens while the agent speaks also holds it, and the window says
+so until the hold ends. Every change tells the agent whose window changed once.
 
 While a window states its agent's voice unavailable, the speech service is asked at a fixed interval whether a voice of
 the agent is offered again, and the window turns available once it is, with no sentence needed; with no such window
@@ -20,7 +21,14 @@ from logline import current_traceparent
 from hopin.participation.chat_window import LineKind
 from hopin.participation.participants import DialedAgent
 from hopin.participation.speaking import RenderedSentence, SentenceEnd, speak_timer
-from hopin.participation.vocabulary import NO_VOICE_REASON, VOICE_RECOVERY_SECONDS, VoiceFailure, VoiceRefusedError
+from hopin.participation.vocabulary import (
+    NO_VOICE_REASON,
+    VOICE_RECOVERY_SECONDS,
+    AgentRefusal,
+    SpeakFailure,
+    VoiceFailure,
+    VoiceRefusedError,
+)
 from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
@@ -120,6 +128,12 @@ class SpeechInWindows:
             return rendered
 
         return watched
+
+    def speak_refused(self, agent: DialedAgent, text: str, failure: SpeakFailure) -> AgentRefusal:
+        """Answer `unavailable` for a sentence never rendered, its closed cause on its speak line and nothing else."""
+        with self.speak_step(agent, text) as step:
+            step.refuse(failure.value)
+        return AgentRefusal.UNAVAILABLE
 
     def stop_recovery(self) -> None:
         """Stop asking whether a voice is back."""
@@ -240,12 +254,30 @@ class SpeechInWindows:
         agent = self._places.get(person, room_id)
         return agent.agent_id if isinstance(agent, DialedAgent) else None
 
-    def person_started(self, room_id: str, seat: PeerId) -> None:
-        """A person starts speaking: each agent that hears the seat is talked over while one of its sentences plays."""
+    def person_started(
+        self, room_id: str, seat: PeerId, is_speaking: Callable[[DialedAgent], bool]
+    ) -> dict[DialedAgent, str]:
+        """A person starts speaking: each agent that hears the seat is talked over while one of its sentences plays or
+        waits, as `is_speaking` says, or while it is held, and an agent that was not held is held by that. The ids of
+        the holds that arose, by the agent held."""
+        arisen: dict[DialedAgent, str] = {}
         for person in self._hearing.hearers(room_id, seat):
             window = self._places.window_of(person, room_id)
-            if window is not None and window.talk_over(seat, self._name_of(seat)):
+            agent = self._places.get(person, room_id)
+            assert window is not None  # noqa: S101 - only a joined agent hears
+            assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent hears
+            held_before = window.interrupted
+            if window.talk_over(seat, self._name_of(seat), speaking=is_speaking(agent)):
                 self._on_window_changed(person, room_id)
+            if held_before is None and window.interrupted is not None:
+                arisen[agent] = window.interrupted
+        return arisen
+
+    def hold_ended(self, agent: DialedAgent) -> None:
+        """The hold over the agent ended: the window stops saying that it is held."""
+        window = self._places.window_of(agent.person, agent.room_id)
+        if window is not None and window.end_hold():
+            self._on_window_changed(agent.person, agent.room_id)
 
     def words_heard(self, room_id: str, seat: PeerId, text: str) -> None:
         """The words the seat has said so far in its turn."""
