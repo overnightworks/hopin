@@ -4,7 +4,7 @@ import asyncio
 
 from hopin.participation.speaking import RenderedSentence, SoundLength
 from hopin.participation.vocabulary import ParticipationSignal, VoiceFailure
-from tests.participation.support.people import person_named
+from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 
 GUEST = person_named("guest")
@@ -228,3 +228,20 @@ def voice_ids(browser):
 
 def window_texts(participation, person, room_id):
     return [(line.text, line.own, line.cut) for line in participation.read_window(person, room_id).lines]
+
+
+async def hold_of_a_playing_sentence(participation, call, text="Guten Tag"):
+    """The call's room, where the guest's agent plays `text` and the guest has started speaking: its hold."""
+    room_id, _ = await hold_with_a_sentence_waiting(participation, call, text, None)
+    return room_id
+
+
+async def hold_with_a_sentence_waiting(participation, call, text="Guten Tag", waiting_text="Zwei", render=LONG):
+    """The room of `hold_of_a_playing_sentence` and the answer of a sentence that waited behind `text` when the hold
+    arose."""
+    host, guest, *_ = call
+    room_id = room_of(host)
+    await speak(participation, text, room_id=room_id, render=render)
+    waiting = None if waiting_text is None else await waiting_to_speak(participation, waiting_text, room_id=room_id)
+    await participation.person_started(room_id, guest.peer_id)
+    return room_id, waiting
