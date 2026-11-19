@@ -16,6 +16,7 @@ from hopin.signaling.frames import ForeignFrame
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import InMemoryDeadlines
 from tests.signaling.support.browsers import (
+    SETTLE_TIMEOUT_SECONDS,
     HeldWrite,
     Link,
     fill_server_log,
@@ -473,3 +474,15 @@ class TestTransitions:
         await link.handler.shut_down()
 
         assert stopped_by_the_end == ["ending"]
+
+    async def test_a_shutdown_cancels_a_step_that_still_runs_in_its_own_turn(self, room_manager, scheduler):
+        feature = WorkingFeature()
+        link = Link(handler_with(room_manager, scheduler, feature))
+        host, _guest = await host_and_guest(link)
+        await host.say({"type": "step", "key": "waiting"})
+
+        await link.close_all()
+        async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
+            await link.handler.shut_down()
+
+        assert feature.steps_cancelled == ["waiting"]

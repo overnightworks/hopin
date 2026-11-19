@@ -367,6 +367,24 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
 
         assert (cut, [stop_frames(seat) for seat in (host, guest)]) == ("Guten Tag", [[mozart.agent_id]] * 2)
 
+    async def test_call_60_a_stop_in_the_turn_after_the_answer_shows_the_line_and_tells_no_voice(
+        self, participation, call
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        stopping = []
+
+        async def render_then_stop_next_turn(sentence, voice):
+            stopping.append(asyncio.ensure_future(participation.stop_speaking(GUEST, room_id)))
+            return a_sentence(b"sound", SENTENCE_MS)
+
+        await participation.speak(GUEST, room_id, "Guten Tag", render_then_stop_next_turn)
+        await asyncio.gather(*stopping)
+
+        assert [([frame["text"] for frame in seat.frames(LINE)], seat.frames(VOICE)) for seat in (host, guest)] == [
+            (["Guten Tag"], [])
+        ] * 2
+
     async def test_call_60_the_cut_sentence_enters_every_window_as_a_cut_spoken_line_before_the_stop_answers(
         self, participation, call
     ):

@@ -446,10 +446,6 @@ class TransitionHost:
         return self._feature
 
     @property
-    def name(self) -> str:
-        return self._feature.name
-
-    @property
     def browser_modules(self) -> tuple[str, ...]:
         return self._feature.browser_modules
 

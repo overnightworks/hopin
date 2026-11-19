@@ -236,24 +236,39 @@ class StagingFeature(TransitionFeature):
 
 class WorkingFeature(TransitionFeature):
     """A call feature on transitions with work: `work` dispatches a work of its key on the sender's seat, which runs
-    until it is stopped, or raises at once when its key is `failing`; `stop` stops the work of its key. It records the
-    keys it is asked to stop."""
+    until it is stopped, or raises at once when its key is `failing`; `stop` stops the work of its key; `step` starts a
+    step in a turn of its own that waits until it is cancelled. It records the keys it is asked to stop and the keys of
+    the steps that were cancelled."""
 
     name = "working"
     browser_modules = ()
-    signal_types = MappingProxyType({"WORK": "work", "STOP": "stop"})
+    signal_types = MappingProxyType({"WORK": "work", "STOP": "stop", "STEP": "step"})
 
     def __init__(self):
         self.stop_asked: list[str] = []
+        self.steps_cancelled: list[str] = []
         self._stops: dict[str, asyncio.Event] = {}
+        self._transitions = None
+
+    def attach(self, transitions):
+        self._transitions = transitions
 
     def on_frame(self, view, peer_id, frame, transition):
         key = frame.data["key"]
         if frame.signal_type == "work":
             transition.dispatch(Work(key, peer_id))
+        elif frame.signal_type == "step":
+            self._transitions.in_own_turn(self._step(key), "working.step_failed")
         else:
             transition.stop(key)
         return True
+
+    async def _step(self, key):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.steps_cancelled.append(key)
+            raise
 
     def seat_joined(self, view, peer_id, transition):
         pass
