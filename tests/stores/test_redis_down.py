@@ -10,7 +10,6 @@ from hopin.agent.mcp import PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, ParticipationFea
 from hopin.app import create_app
 from hopin.config.constants import HEALTH_PATH, LOGIN_PATH
 from hopin.stores.redis import connect_shared_stores
-from tests.support.log_lines import captured_lines
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
@@ -68,13 +67,7 @@ class TestRedisDown:
     def test_health_answers_503(self, served_without_redis):
         assert served_without_redis.get(HEALTH_PATH).status_code == HTTPStatus.SERVICE_UNAVAILABLE
 
-    def test_a_start_whose_place_subscription_never_comes_up_fails_and_logs_once(self, started_without_subscription):
-        with captured_lines() as lines, pytest.raises(TimeoutError), started_without_subscription:
-            pass
-
-        assert [line["event"] for line in lines].count(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT) == 1
-
-    def test_the_timed_out_start_line_carries_its_wait_through_the_real_logger(
+    def test_a_start_whose_place_subscription_never_comes_up_fails_and_logs_its_wait_once_through_the_real_logger(
         self, started_without_subscription, capsys
     ):
         with configured("hopin"), pytest.raises(TimeoutError), started_without_subscription:
