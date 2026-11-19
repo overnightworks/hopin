@@ -4,7 +4,6 @@ at participation's real feature and the agents library's real record of who may 
 import asyncio
 
 import pytest
-import pytest_asyncio
 
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
@@ -26,7 +25,6 @@ from tests.participation.support.speaking import (
     waiting_to_speak,
     window_texts,
 )
-from tests.signaling.support.browsers import host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -39,15 +37,6 @@ VOICE = ParticipationSignal.AGENT_VOICE
 @pytest.fixture
 def hears():
     return True
-
-
-@pytest_asyncio.fixture
-async def call(link, participation):
-    """A host and a guest in one call, each with an agent of their own that hears them."""
-    host, guest = await host_and_guest(link)
-    mozart = await participation.dial_in(GUEST, room_of(guest), "Mozart")
-    await participation.dial_in(HOST, room_of(host), "Salieri")
-    return host, guest, mozart
 
 
 def still_rendering(rendered):
@@ -79,7 +68,7 @@ async def hold_of_a_playing_sentence(participation, call, text="Guten Tag"):
 async def hold_with_a_sentence_waiting(participation, call, text="Guten Tag", waiting_text="Zwei"):
     """The room of `hold_of_a_playing_sentence` and the answer of a sentence that waited behind `text` when the hold
     arose."""
-    host, guest, _ = call
+    host, guest, *_ = call
     room_id = room_of(host)
     await speak(participation, text, room_id=room_id, render=LONG)
     waiting = None if waiting_text is None else await waiting_to_speak(participation, waiting_text, room_id=room_id)
@@ -91,7 +80,7 @@ class TestAPersonStartsSpeaking:
     async def test_call_69_the_playing_sentence_is_held_and_the_window_shows_the_hold_and_playing_false_in_one_change(
         self, participation, call, window_changes
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
         window_changes.clear()
@@ -101,7 +90,7 @@ class TestAPersonStartsSpeaking:
         assert (standing(participation, room_id), window_changes) == (("1", False), [(GUEST, room_id)])
 
     async def test_call_69_every_seat_is_told_to_stop_the_agents_player_once(self, participation, call):
-        host, guest, mozart = call
+        host, guest, mozart, _ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
 
@@ -112,7 +101,7 @@ class TestAPersonStartsSpeaking:
     async def test_call_69_the_sentence_that_waits_does_not_start_when_the_played_one_would_have_ended(
         self, participation, call, scheduler
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id)
         waiting = await waiting_to_speak(participation, "Zwei", room_id=room_id)
@@ -125,7 +114,7 @@ class TestAPersonStartsSpeaking:
     async def test_call_69_a_sentence_still_rendering_counts_as_waiting_and_does_not_start_while_held(
         self, participation, call
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         rendered = asyncio.Event()
         rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
@@ -147,7 +136,7 @@ class TestAPersonStartsSpeaking:
             rendering_sentence.cancel()
 
     async def test_call_69_nothing_is_held_while_the_agent_is_silent(self, participation, call):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
 
         await participation.person_started(room_id, guest.peer_id)
@@ -155,7 +144,7 @@ class TestAPersonStartsSpeaking:
         assert (standing(participation, room_id), stops(host)) == ((None, None), [])
 
     async def test_call_69_only_the_agent_that_hears_the_person_is_held(self, participation, call):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
         await speak(participation, room_id=room_id, render=LONG, who=HOST)
@@ -167,7 +156,7 @@ class TestAPersonStartsSpeaking:
     async def test_call_69_a_person_starting_while_the_agent_is_held_opens_no_second_hold_and_tells_no_second_stop(
         self, participation, call
     ):
-        host, guest, mozart = call
+        host, guest, mozart, _ = call
         room_id = await hold_of_a_playing_sentence(participation, call)
         participation.speech.turn_ended(room_id, guest.peer_id)
 
@@ -176,7 +165,7 @@ class TestAPersonStartsSpeaking:
         assert (standing(participation, room_id), stops(host)) == (("1", False), [mozart.agent_id])
 
     async def test_call_69_nothing_leaves_the_hold_by_itself(self, participation, call, scheduler):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = await hold_of_a_playing_sentence(participation, call)
         participation.speech.turn_ended(room_id, guest.peer_id)
 
@@ -240,7 +229,7 @@ class TestASpeakWhileHeld:
     async def test_call_69_a_speak_with_the_hold_plays_at_once_although_the_queue_behind_it_is_full(
         self, participation, call
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
         for _ in range(SENTENCES_WAITING_PER_AGENT):
@@ -281,7 +270,7 @@ class TestAStopWhileHeld:
     async def test_call_69_a_stop_of_a_hold_with_no_started_sentence_answers_dropped_and_enters_no_line(
         self, participation, call
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         rendered = asyncio.Event()
         rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
@@ -332,7 +321,7 @@ class TestTheHoldEnds:
     async def test_call_69_a_voice_failure_while_held_enters_the_started_sentence_cut_and_the_hold_stands(
         self, participation, call
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         streamed = StreamedSentence()
         await participation.speak(GUEST, room_id, "Eins", streamed.render)
@@ -348,7 +337,7 @@ class TestTheHoldEnds:
     async def test_call_69_a_held_sentence_whose_sound_runs_out_changes_nothing_and_the_hold_stands(
         self, participation, call, scheduler
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         streamed = StreamedSentence()
         await participation.speak(GUEST, room_id, "Eins", streamed.render)
@@ -363,7 +352,7 @@ class TestTheHoldEnds:
         )
 
     async def test_call_69_a_pause_ends_the_hold_and_the_cut_line_enters(self, participation, call):
-        _, guest, _ = call
+        _, guest, *_ = call
         room_id = await hold_of_a_playing_sentence(participation, call)
 
         await guest.drop()
@@ -374,7 +363,7 @@ class TestTheHoldEnds:
     async def test_call_69_a_hold_that_arises_while_the_line_is_announced_gives_no_seat_the_voice(
         self, participation, call
     ):
-        host, guest, _ = call
+        host, guest, *_ = call
         room_id = room_of(host)
         started = asyncio.create_task(speak(participation, room_id=room_id, render=LONG))
         await asyncio.sleep(0)
