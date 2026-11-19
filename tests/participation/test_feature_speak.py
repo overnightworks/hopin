@@ -9,7 +9,6 @@ import pytest_asyncio
 from agents.member import LEASE_SECONDS
 from logline import Outcome
 
-from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
@@ -345,7 +344,7 @@ class TestEveryEndDropsTheQueue:
             pytest.param(shut_down, AgentRefusal.GONE, SHORT_WAIT, id="shutdown"),
         ],
     )
-    async def test_call_60_the_open_speak_answers_not_active_nothing_starts_the_sound_is_gone_and_the_next_speak_is_refused(
+    async def test_call_60_the_open_speak_answers_not_active_its_sound_is_gone_and_the_next_speak_is_refused(
         self, participation, call, scheduler, voices, open_speak, end, next_refusal, passes
     ):
         host, guest, mozart, _ = call
