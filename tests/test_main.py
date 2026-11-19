@@ -1,3 +1,5 @@
+import socket
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -6,7 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
-from hopin.main import UvicornOptions, build_application, main, serve, uvicorn_options
+from hopin.main import UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.in_thread_stores import in_thread_stores
@@ -51,6 +53,23 @@ class TestMain:
         options = serve_over_test_stores()
         assert options["access_log"] is False
         assert options["log_level"] == UVICORN_LOG_LEVEL
+
+    def test_hands_the_application_and_its_options_to_uvicorn_which_refuses_a_taken_port(
+        self, sign_in_settings, monkeypatch
+    ):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        with socket.socket() as taken:
+            taken.bind(("127.0.0.1", 0))
+            monkeypatch.setenv("HOPIN_HOST", "127.0.0.1")
+            monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
+            settings = ServerSettings()
+            application = build_application(settings, fixture_page_build(), in_thread_stores())
+
+            with pytest.raises(SystemExit) as refusal:
+                run_uvicorn(application, uvicorn_options(settings))
+
+        assert refusal.value.code != 0
 
     def test_leaves_uvicorn_no_logging_setup_of_its_own(self, sign_in_settings):
         assert uvicorn_options(sign_in_settings().settings)["log_config"] is None
