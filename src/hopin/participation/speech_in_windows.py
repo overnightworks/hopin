@@ -264,8 +264,8 @@ class SpeechInWindows:
         for person in self._hearing.hearers(room_id, seat):
             window = self._places.window_of(person, room_id)
             agent = self._places.get(person, room_id)
-            if window is None or not isinstance(agent, DialedAgent):
-                continue
+            assert window is not None  # noqa: S101 - only a joined agent hears
+            assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent hears
             held_before = window.interrupted
             if window.talk_over(seat, self._name_of(seat), speaking=is_speaking(agent)):
                 self._on_window_changed(person, room_id)
