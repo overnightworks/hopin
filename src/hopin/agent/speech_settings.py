@@ -59,10 +59,11 @@ class SpeechSettings(BaseSettings):
     def _origin_is_plain_http_and_names_its_scope(self) -> SpeechSettings:
         if self.origin is None:
             return self
+        prefix = self.model_config["env_prefix"]
         if not _is_plain_http_origin(self.origin):
-            raise ValueError("origin must be http://host[:port] with no path")
+            raise ValueError(f"{prefix}ORIGIN must be http://host[:port] with no path")
         if self.audience_scope is None:
-            raise ValueError("audience_scope is required when origin is set")
+            raise ValueError(f"{prefix}AUDIENCE_SCOPE is required when {prefix}ORIGIN is set")
         return self
 
     @model_validator(mode="after")
@@ -75,7 +76,10 @@ class SpeechSettings(BaseSettings):
     @model_validator(mode="after")
     def _hearing_and_speaking_need_a_service(self) -> SpeechSettings:
         if (self.hearing or self.speaking) and self.service is None:
-            raise ValueError("origin and audience_scope are required when hearing or speaking is on")
+            prefix = self.model_config["env_prefix"]
+            raise ValueError(
+                f"{prefix}ORIGIN and {prefix}AUDIENCE_SCOPE are required when {prefix}HEARING or {prefix}SPEAKING is on"
+            )
         return self
 
 

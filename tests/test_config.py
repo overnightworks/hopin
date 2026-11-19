@@ -138,9 +138,9 @@ class TestServerSettings:
     @pytest.mark.parametrize(
         ("given", "named"),
         [
-            ({"turn_key_id_file": "/key-id"}, ["turn_api_token_file"]),
-            ({"turn_api_token_file": "/token"}, ["turn_key_id_file"]),
-            ({}, ["turn_key_id_file", "turn_api_token_file"]),
+            ({"turn_key_id_file": "/key-id"}, ["HOPIN_TURN_API_TOKEN_FILE"]),
+            ({"turn_api_token_file": "/token"}, ["HOPIN_TURN_KEY_ID_FILE"]),
+            ({}, ["HOPIN_TURN_KEY_ID_FILE", "HOPIN_TURN_API_TOKEN_FILE"]),
         ],
     )
     def test_turn_on_without_a_key_file_is_refused_naming_each_missing_setting(self, sign_in_settings, given, named):

@@ -9,6 +9,7 @@ from hopin.config.settings import ServerSettings
 from hopin.main import UvicornOptions, build_application, main, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
 from tests.support.dialed_call import METADATA_PATH
+from tests.support.game_environment import GAME_ENVIRONMENT  # game
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -138,6 +139,39 @@ class TestMain:
                 "HOPIN_PUBLIC_ORIGIN is malformed",
                 id="malformed_origin",
             ),
+            pytest.param(
+                "HOPIN_AGENT__API_GROUP", None, "HOPIN_AGENT__API_GROUP is missing", id="missing_agent_api_group"
+            ),
+            pytest.param(
+                "HOPIN_AGENT__GATEWAY__ORIGIN",
+                "sentinel-gateway",
+                "HOPIN_AGENT__GATEWAY__ORIGIN is malformed",
+                id="malformed_agent_gateway_origin",
+            ),
+            pytest.param(
+                "HOPIN_FIGURE_SOURCES",
+                '["https://sentinel-figures.test/personas"]',
+                "HOPIN_FIGURE_SOURCES is malformed",
+                id="malformed_figure_sources",
+            ),
+            pytest.param(
+                "HOPIN_SPEECH__ORIGIN",
+                "sentinel-speech",
+                "HOPIN_SPEECH__ORIGIN must be",
+                id="malformed_speech_origin",
+            ),
+            pytest.param(
+                "HOPIN_SKAT_ORIGIN",
+                "http://sentinel-skat.test",
+                "HOPIN_SKAT_ORIGIN is malformed",
+                id="malformed_skat_origin",
+            ),
+            pytest.param(
+                "HOPIN_TURN_PROVIDER",
+                "cloudflare",
+                "HOPIN_TURN_KEY_ID_FILE and HOPIN_TURN_API_TOKEN_FILE must be set when HOPIN_TURN_PROVIDER is",
+                id="turn_without_key_files",
+            ),
         ],
     )
     def test_refuses_a_missing_or_malformed_setting_in_one_line_naming_it_and_never_its_value(
@@ -157,7 +191,19 @@ class TestMain:
         lines = capsys.readouterr().err.splitlines()
         assert len(lines) == 1
         assert expected_line in lines[0]
-        assert "sentinel-origin" not in lines[0]
+        assert "sentinel" not in lines[0]
+
+    def test_refuses_with_no_agent_setting_at_all_naming_the_family(self, sign_in_settings, monkeypatch, capsys):
+        for name, environment_value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, environment_value)
+        for name in GAME_ENVIRONMENT:
+            monkeypatch.delenv(name)
+
+        with pytest.raises(SystemExit) as refusal:
+            main(["serve"])
+
+        assert refusal.value.code == 1
+        assert capsys.readouterr().err == "HOPIN_AGENT__* is missing\n"
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     def test_refuses_without_the_serve_command(self, arguments, capsys):
