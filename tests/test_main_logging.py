@@ -6,9 +6,7 @@ import secrets
 import socket
 from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
-from functools import partial
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -17,15 +15,20 @@ import websockets
 from logline import REQUEST_EVENT
 from webauth.config import installed_web_auth_config
 
-from hopin.app import create_app
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
-from hopin.main import main
+from hopin.config.settings import ServerSettings
+from hopin.main import serve
 from tests.support.in_thread_stores import in_thread_stores
+from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+
+    from fastapi import FastAPI
+
+    from hopin.main import UvicornOptions
 
 LOCALHOST = "127.0.0.1"
 UVICORN_LOGGER_NAMES = ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi")
@@ -67,27 +70,28 @@ def uvicorn_loggers_restored() -> Iterator[None]:
 
 @pytest_asyncio.fixture
 async def started_server(
-    sign_in_settings, monkeypatch, capfd, uvicorn_loggers_restored, logging_restored, fixture_build_directory
+    sign_in_settings, monkeypatch, capfd, uvicorn_loggers_restored, logging_restored, game_environment
 ) -> AsyncIterator[Output]:
     for name, value in sign_in_settings(host=LOCALHOST).environment.items():
         monkeypatch.setenv(name, value)
     stores = single_process_stores()
     written = io.StringIO()
     # logline's handler keeps the stdout of its configure call, and capfd's differs between fixture setup and the test.
-    with (
-        patch("hopin.main.uvicorn.run") as run,
-        # The running app's place store waits for its Redis, and the test settings name none that answers.
-        patch("hopin.main.connect_shared_stores", return_value=in_thread_stores()),
-        patch("hopin.main.create_app", partial(create_app, stores=stores)),
-        redirect_stdout(written),
-    ):
-        main(["serve"])
-    app = run.call_args.args[0]
+    started: list[tuple[FastAPI, UvicornOptions]] = []
+    with redirect_stdout(written):
+        serve(
+            ServerSettings(),
+            fixture_page_build(),
+            in_thread_stores(),
+            stores=stores,
+            run=lambda application, options: started.append((application, options)),
+        )
+    ((app, options),) = started
     member = seed_member(stores, installed_web_auth_config(app))
     listening = socket.socket()
     listening.bind((LOCALHOST, 0))
     listening.listen()
-    server = uvicorn.Server(uvicorn.Config(app, **run.call_args.kwargs))
+    server = uvicorn.Server(uvicorn.Config(app, **options))
     serving = asyncio.create_task(server.serve(sockets=[listening]))
 
     def read() -> str:

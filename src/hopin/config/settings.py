@@ -65,8 +65,9 @@ class ServerSettings(BaseSettings):
     def _require_the_turn_key_files_when_turn_is_on(self) -> Self:
         if self.turn_provider is TurnProvider.OFF:
             return self
+        prefix = self.model_config["env_prefix"]
         missing = [
-            setting
+            f"{prefix}{setting}".upper()
             for setting, path in [
                 ("turn_key_id_file", self.turn_key_id_file),
                 ("turn_api_token_file", self.turn_api_token_file),
@@ -74,5 +75,5 @@ class ServerSettings(BaseSettings):
             if path is None
         ]
         if missing:
-            raise ValueError(f"{' and '.join(missing)} must be set when turn_provider is {self.turn_provider}")
+            raise ValueError(f"{' and '.join(missing)} must be set when {prefix}TURN_PROVIDER is {self.turn_provider}")
         return self
