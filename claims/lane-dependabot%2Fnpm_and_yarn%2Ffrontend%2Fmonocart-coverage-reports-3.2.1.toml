@@ -1,0 +1,7 @@
+claim_id = "aa3dea5abff942e8b420469f752691d0"
+agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
+role = "builder"
+base = "a566a8aa3f5084ec9bf411af1a1a30c1bb0bd890"
+branch = "dependabot/npm_and_yarn/frontend/monocart-coverage-reports-3.2.1"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml"]
+opened_commit = "b22e6420081eeff3bc22e65b8f2765baf22dcc9e"
