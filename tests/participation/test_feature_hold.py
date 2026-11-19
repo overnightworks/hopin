@@ -4,7 +4,7 @@ at participation's real feature and the agents library's real record of who may 
 import asyncio
 
 import pytest
-from agents.member import STOP_SPEAKING_TOOL
+from agents.member import CONTINUE_SPEAKING_TOOL, STOP_SPEAKING_TOOL
 
 from hopin.agent.tools import CALL_KIND, participation_tools
 from hopin.participation.participants import Caller
@@ -374,6 +374,21 @@ class TestTheStopToolOverAHoldWithNoStartedSentence:
             rendering_sentence.cancel()
 
 
+class TestTheContinueTool:
+    async def test_call_70_it_refuses_not_active_for_a_place_that_is_no_call(self, participation):
+        [continue_tool] = [
+            tool
+            for tool in participation_tools(lambda: participation, None)
+            if tool.declaration.name == CONTINUE_SPEAKING_TOOL
+        ]
+
+        answered = await continue_tool.handler(
+            Caller(GUEST), {"place": {"kind": "elsewhere", "id": "1"}, "interrupted": "1"}
+        )
+
+        assert (answered.is_error, answered.content) == (True, '{"refused":"not_active"}')
+
+
 class TestTheHoldEnds:
     async def test_call_69_a_voice_failure_while_held_enters_the_started_sentence_cut_and_the_hold_stands(
         self, participation, call
@@ -529,6 +544,25 @@ class TestContinuingSpeaking:
             None,
             SpeakStarted.SPOKEN,
             1,
+            (None, True),
+        )
+
+    async def test_call_70_a_continue_while_the_only_sentence_still_renders_ends_the_hold_and_it_plays_when_rendered(
+        self, participation, call
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        rendered = asyncio.Event()
+        rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
+        await asyncio.sleep(0)
+        await participation.person_started(room_id, guest.peer_id)
+
+        continued = await participation.continue_speaking(GUEST, room_id, "1")
+        rendered.set()
+
+        assert (continued, await rendering_sentence, standing(participation, room_id)) == (
+            None,
+            SpeakStarted.SPOKEN,
             (None, True),
         )
 
