@@ -1,8 +1,0 @@
-claim_id = "c56d0cef27674a1bbe40e47db202b533"
-agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
-role = "builder"
-base = "cd05d641376580fd0f7bc23be6435c1a3b72cdc3"
-branch = "claude/issue-986-logline-1-6"
-scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/agent/hearing_route.py", "src/hopin/signaling/handler.py", "tests/agent", "tests/participation/test_hearing_trace.py", "tests/signaling", "uv.lock"]
-opened_commit = "ed4cac8b476ce7e57ecb758eb2e5e35b01a2c9d9"
-whole_reason = "The pin, the two trace edits and the tests that judge them change together."
