@@ -211,7 +211,9 @@ class SignalingHandler:
         if connection.dropped and self._routing.room_of(connection.peer_id) is not None:
             await self._seats.park(connection.peer_id, self._seats.seat(connection.peer_id))
         else:
-            await self._routing.handle_disconnect(connection.peer_id)
+            # Outside the socket's session trace, like a frame: the line a leaver cuts wakes another agent's turn.
+            with unit_trace(None):
+                await self._routing.handle_disconnect(connection.peer_id)
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:
         peer_id = connection.peer_id

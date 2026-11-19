@@ -100,18 +100,22 @@ def test_a_line_the_agent_writes_enters_its_place_with_the_trace_of_its_request(
     assert trace_id_of(entry["traceparent"]) == trace_id_of(request_trace)
 
 
-def test_a_line_that_enters_outside_any_trace_reaches_the_agent_with_no_traceparent(joined_agent):
+def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_leavers_session_trace(
+    joined_agent, capsys
+):
     """The owner leaves while the owner's agent speaks, so the cut sentence enters the window of the other person's
-    agent outside any trace."""
+    agent, and the turn it wakes must not join the owner's socket session."""
     member_token = joined_agent.call.token(joined_agent.member_account)
     joined_agent.call.call(member_token, JOIN_CALL, {"room": joined_agent.owner.room_id, "name": "Bach"})
     speak(joined_agent, seconds=None)
 
-    joined_agent.owner.drop(code=1000)
+    with configured("hopin"):
+        joined_agent.owner.drop(code=1000)
+        answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
 
-    answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
+    [socket_end] = [line for line in logged(capsys) if line["event"] == "websocket.ended"]
     [entry] = json.loads(answer["result"]["contents"][0]["text"])["entries"]
-    assert (entry["cut"], "traceparent" in entry) == (True, False)
+    assert (entry["cut"], trace_id_of(entry["traceparent"]) != socket_end["trace_id"]) == (True, True)
 
 
 async def sentence_end_in(trace, scheduler, seconds):
@@ -170,3 +174,14 @@ def test_the_hearing_session_opens_its_socket_to_the_speech_service_in_a_trace(s
     hear_the_turn(sponsored, fake_speech, turn)
 
     assert fake_speech.next_session().headers.get(TRACEPARENT_HEADER) is not None
+
+
+def test_the_hearing_hops_lines_and_its_socket_end_share_the_trace_of_its_upgrade_to_the_service(
+    sponsored, fake_speech, turn, capsys
+):
+    with configured("hopin"):
+        hear_the_turn(sponsored, fake_speech, turn)
+    upgrade_trace = trace_id_of(fake_speech.next_session().headers[TRACEPARENT_HEADER])
+
+    [socket_end] = [line for line in logged(capsys) if line["event"] == "websocket.ended"]
+    assert socket_end["trace_id"] == upgrade_trace
