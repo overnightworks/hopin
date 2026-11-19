@@ -13,7 +13,13 @@ const freshCapture = () => createHearingCapture(() => "ws://page/hop", captures.
 const PAST_DEADLINE = { kind: "hop", close: HopClose.PAST_DEADLINE } as const;
 const ENDED_IN_ORDER = { kind: "hop", close: HopClose.NORMAL } as const;
 const OVER_THE_HOLD = { kind: "hop", close: HopClose.OVER_CAP } as const;
-const ENDS_THAT_REOPEN = [PAST_DEADLINE, ENDED_IN_ORDER, OVER_THE_HOLD] as const;
+const CONTEXT_STOPPED = { kind: "local", failure: "context-stopped" } as const;
+const ENDS_THAT_REOPEN = [
+    { how: HopClose.PAST_DEADLINE, end: PAST_DEADLINE },
+    { how: HopClose.NORMAL, end: ENDED_IN_ORDER },
+    { how: HopClose.OVER_CAP, end: OVER_THE_HOLD },
+    { how: "with its audio context stopped", end: CONTEXT_STOPPED },
+] as const;
 
 beforeEach(captures.clear);
 
@@ -89,8 +95,8 @@ describe("capturing the sponsor's microphone", () => {
 
 describe("a hop that ended", () => {
     it.each(ENDS_THAT_REOPEN)(
-        "CALL-59: is opened again once when it ended $close while an agent still hears the person",
-        async (end) => {
+        "CALL-59: is opened again once when it ended $how while an agent still hears the person",
+        async ({ end }) => {
             const capture = freshCapture();
             capture.setStream(stream("microphone"));
             capture.setHearers(1);
@@ -102,8 +108,8 @@ describe("a hop that ended", () => {
     );
 
     it.each(ENDS_THAT_REOPEN)(
-        "CALL-59: is not opened a second time when the reopened hop ends $close too",
-        async (end) => {
+        "CALL-59: is not opened a second time when the reopened hop ends $how too",
+        async ({ end }) => {
             const capture = freshCapture();
             capture.setStream(stream("microphone"));
             capture.setHearers(1);
@@ -116,11 +122,11 @@ describe("a hop that ended", () => {
     );
 
     it.each(
-        ENDS_THAT_REOPEN.flatMap((end) => [
-            { end, change: "the switch going off and on", counts: [0, 1] },
-            { end, change: "one of two agents stopping to hear the person", counts: [2, 1] },
+        ENDS_THAT_REOPEN.flatMap(({ how, end }) => [
+            { how, end, change: "the switch going off and on", counts: [0, 1] },
+            { how, end, change: "one of two agents stopping to hear the person", counts: [2, 1] },
         ]),
-    )("CALL-59: gets a new reopening after $change when the hop ended $end.close twice", async ({ end, counts }) => {
+    )("CALL-59: gets a new reopening after $change when the hop ended $how twice", async ({ end, counts }) => {
         const capture = freshCapture();
         capture.setStream(stream("microphone"));
         capture.setHearers(1);
@@ -166,8 +172,8 @@ describe("a hop that ended", () => {
     });
 
     it.each(ENDS_THAT_REOPEN)(
-        "CALL-59: is not opened again when it ended $close after the last agent stopped hearing the person",
-        async (end) => {
+        "CALL-59: is not opened again when it ended $how after the last agent stopped hearing the person",
+        async ({ end }) => {
             const capture = freshCapture();
             capture.setStream(stream("microphone"));
             capture.setHearers(1);
