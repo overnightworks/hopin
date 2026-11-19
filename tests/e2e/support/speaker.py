@@ -101,11 +101,12 @@ class Speaker:
         *,
         other: OwnAccountAgent | None = None,
         voices: Sequence[str] | None = None,
+        figure: dict[str, str] | None = None,
     ) -> None:
         self.scene = scene
         self.speech_origin = speech_origin
         self.room = room_of_link(scene.link)
-        scene.member_adds_and_the_agent_accepts(voices=voices)
+        scene.member_adds_and_the_agent_accepts(figure, voices)
         if other is not None:
             scene.member_adds_and_accepts(other)
         for person in scene.everyone:
