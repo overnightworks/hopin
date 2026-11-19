@@ -1,4 +1,7 @@
 import pytest
+from fastapi.testclient import TestClient
+from logline import REQUEST_EVENT
+from logline.testing import configured
 from starlette.websockets import WebSocketDisconnect
 from webauth.admission import AppRole
 
@@ -6,12 +9,42 @@ from hopin.agent.mcp import MCP_GROUP, MCP_SCOPE
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import CALL_FEATURES_PATH, LOGIN_GROUP, POLICY_VIOLATION_CLOSE_CODE, WEBSOCKET_PATH
 from hopin.participation.vocabulary import AgentRefusal
-from tests.support.dialed_call import METADATA_PATH, admin_groups, join_arguments
+from tests.support.dialed_call import METADATA_PATH, admin_groups, join_arguments, serving_dialed_call
+from tests.support.fake_issuer import FakeIssuer
+from tests.support.forwarded_clients import (
+    FORWARDED_CLIENT_CASES,
+    TRUSTED_PROXY,
+    forwarding_headers,
+    lines_of_event,
+)
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import handshake_headers
 
 pytestmark = pytest.mark.integration
 
 NAME = "Claude"
+
+
+@pytest.fixture
+def proxied_call(sign_in_settings):
+    sign_in = sign_in_settings(trusted_proxies=TRUSTED_PROXY)
+    with serving_dialed_call(sign_in, FakeIssuer(sign_in)) as call:
+        yield call
+
+
+class TestWhoseAddressARefusedCallNames:
+    @pytest.mark.parametrize(("peer", "forwarded_for", "client_address"), FORWARDED_CLIENT_CASES)
+    def test_a_refused_bearer_call_names_the_client_the_proxies_resolve(
+        self, proxied_call, capsys, peer, forwarded_for, client_address
+    ):
+        client = TestClient(proxied_call.client.app, base_url=TEST_PUBLIC_ORIGIN, client=(peer, 50000))
+
+        with configured("hopin"):
+            refused = client.post("/mcp", headers=forwarding_headers(forwarded_for))
+
+        (request,) = lines_of_event(capsys.readouterr().out, REQUEST_EVENT)
+        assert refused.status_code == 401
+        assert request["ip"] == client_address
 
 
 class TestWhoIsLetIn:

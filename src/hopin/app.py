@@ -8,7 +8,7 @@ import structlog
 from fastapi import FastAPI
 from logline import RequestLineMiddleware
 from webauth.config import install_web_auth_config
-from webauth.middleware import install_resource_metadata, install_web_auth_middleware
+from webauth.middleware import ClientAddressMiddleware, install_resource_metadata, install_web_auth_middleware
 from webauth.policies import (
     CacheControlRule,
     CspDirective,
@@ -294,6 +294,7 @@ def create_app(
         app, relying_party, sign_in_stores.transaction, page_build, request_language, words_logout_button_label
     )
     _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
+    app.add_middleware(ClientAddressMiddleware, trusted_proxies=sign_in_configs.trusted_proxies)
     app.add_middleware(RequestLineMiddleware)
 
     return app

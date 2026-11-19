@@ -66,6 +66,7 @@ class SignInConfigurationError(StartRefusedError):
 class SignInConfigs:
     oidc_client: OidcClientConfig
     web_auth: WebAuthConfig
+    trusted_proxies: TrustedProxies
 
 
 @dataclass(frozen=True)
@@ -92,10 +93,10 @@ def build_sign_in_configs(
         raise SignInConfigurationError(f"oidc_issuer and public_origin are refused: {refusal}") from None
     trusted_proxies = _parse_trusted_proxies(settings.trusted_proxies)
     try:
-        web_auth = _build_web_auth(settings, session_secret, trusted_proxies, rate_limits)
+        web_auth = _build_web_auth(settings, session_secret, rate_limits)
     except ValueError as refusal:
         raise SignInConfigurationError(f"session_secret_file is refused: {refusal}") from None
-    return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth)
+    return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies)
 
 
 def _parse_trusted_proxies(raw: str) -> TrustedProxies:
@@ -125,11 +126,10 @@ def _build_oidc_client(
 
 
 def _build_web_auth(
-    settings: ServerSettings, session_secret: SecretStr, trusted_proxies: TrustedProxies, rate_limits: RateLimitBackend
+    settings: ServerSettings, session_secret: SecretStr, rate_limits: RateLimitBackend
 ) -> WebAuthConfig:
     return WebAuthConfig(
         session_secret=session_secret,
-        trusted_proxies=trusted_proxies,
         rate_limits=rate_limits,
         allowed_hosts_exact=frozenset({urlsplit(settings.public_origin).netloc.lower()}),
         session_lifetime=SessionLifetime(
