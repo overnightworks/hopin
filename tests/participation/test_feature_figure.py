@@ -39,7 +39,7 @@ from tests.participation.support.figures import (
 )
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_adders import ADDERS_GROUP
-from tests.support.dialed_call import accept_arguments
+from tests.support.dialed_call import RESOURCE_UPDATED, TOOLS_LIST_CHANGED, accept_arguments
 from tests.support.signed_in import cookie_header
 
 pytestmark = pytest.mark.integration
@@ -94,6 +94,11 @@ def accept_with(scene, figure, *, token=None, name=None):
     else:
         scene.add(key_offered(scene, name))
         scene.member.frame_of_type(OFFERS)
+    return accept_invitation(scene, figure, token=token)
+
+
+def accept_invitation(scene, figure, *, token=None):
+    """The agent accepts the invitation it holds, with the figure or with none."""
     token = token or scene.token
     standing = next(item for item in scene.call.standing(token) if item["state"] == "invited")
     arguments = accept_arguments(standing) | ({} if figure is None else {"figure": figure})
@@ -538,6 +543,35 @@ class TestTheGestureTool:
         accept_with(scene, None)
 
         assert GESTURE_TOOL not in offered_tools(scene)
+
+    @pytest.mark.parametrize(
+        ("joined_before", "change", "gained"),
+        [
+            pytest.param(
+                False, lambda scene: accept_invitation(scene, figure_of(figure_url())), True, id="a figure shown"
+            ),
+            pytest.param(
+                True,
+                lambda scene: scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id}),
+                False,
+                id="the agent leaving",
+            ),
+        ],
+    )
+    def test_the_tools_notice_comes_before_the_wake_of_a_change_that_alters_the_gesture_tool(
+        self, scene, figure_origin, joined_before, change, gained
+    ):
+        figure_origin.serve(figure_url(), ok(FILE))
+        scene.invite()
+        if joined_before:
+            accept_invitation(scene, figure_of(figure_url()))
+        before = GESTURE_TOOL in offered_tools(scene)
+        with scene.call.open_listen(scene.token, [STANDING_URI], tools=True) as stream:
+            change(scene)
+            assert stream.wait_for(RESOURCE_UPDATED, 10)
+
+            assert (before, GESTURE_TOOL in offered_tools(scene)) == (not gained, gained)
+            assert stream.arrivals(TOOLS_LIST_CHANGED, RESOURCE_UPDATED) == [TOOLS_LIST_CHANGED, RESOURCE_UPDATED]
 
     def test_call_64_a_gesture_is_relayed_and_every_seat_is_told_it_with_the_agent_s_id(self, gesturing):
         gestured = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
