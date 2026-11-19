@@ -38,7 +38,7 @@ def test_the_front_no_longer_serves_an_agent_when_participation_shuts_down(sign_
     with serving_dialed_call(
         sign_in,
         FakeIssuer(sign_in),
-        more_call_features=(WitnessFeatureBuilder(lambda rooms: ShutdownWitness(rooms, observe=observe)),),
+        more_call_features=(WitnessFeatureBuilder(ShutdownWitness(observe=observe)),),
     ) as call:
         caller["call"], caller["token"] = call, call.agent_token(owner="owner-subject")
         assert call.request(caller["token"], "tools/list").status_code == 200

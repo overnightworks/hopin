@@ -25,4 +25,4 @@ async def end_by_the_host(participation, host, guest, agent):
 
 
 async def shut_down(participation, host, guest, agent):
-    await participation.shut_down()
+    await host.link.handler.shut_down()

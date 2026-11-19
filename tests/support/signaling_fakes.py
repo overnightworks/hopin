@@ -16,7 +16,7 @@ from hopin.signaling.features import TransitionFeature
 from hopin.signaling.transition import Section, Work
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Mapping
 
 ROOM_LIMIT = 5
 ARRIVAL_CAP_SECONDS = 5
@@ -172,43 +172,36 @@ class FakeSocket:
 
 
 @dataclass(eq=False)
-class RecordingFeature:
+class RecordingFeature(TransitionFeature):
     """A call feature that records what the call core hands it and handles only the frame types it is given."""
 
-    rooms: object
     handles: frozenset[str] = frozenset()
     name: str = "recording"
     browser_modules: tuple[str, ...] = ()
-    signal_types: dict[str, str] = field(default_factory=dict)
+    signal_types: Mapping[str, str] = MappingProxyType({})
     offered: list = field(default_factory=list)
     joined: list = field(default_factory=list)
     left: list = field(default_factory=list)
     changed: list = field(default_factory=list)
     said: list = field(default_factory=list)
 
-    async def on_frame(self, peer_id, frame):
+    def on_frame(self, view, peer_id, frame, transition):
         self.offered.append((peer_id, frame))
         return frame.signal_type in self.handles
 
-    async def seat_joined(self, peer_id):
+    def seat_joined(self, view, peer_id, transition):
         self.joined.append(peer_id)
 
-    async def seat_left(self, peer_id, *, room_id, name):
-        self.left.append((peer_id, room_id, name))
+    def seat_left(self, view, peer_id, transition):
+        self.left.append((peer_id, view.room_id, view.name_of(peer_id)))
 
-    def seat_changed(self, peer_id):
+    def seat_changed(self, view, peer_id, change):
         """Records the seat's standing as it is the moment the call core announces the change."""
-        in_room = self.rooms.room_of(peer_id) is not None
-        self.changed.append((peer_id, in_room, in_room and self.rooms.is_parked(peer_id)))
+        in_room = view.room_of(peer_id) is not None
+        self.changed.append((peer_id, in_room, in_room and view.is_parked(peer_id)))
 
-    def chat_said(self, peer_id, room_id, message):
-        self.said.append((peer_id, room_id, message))
-
-    def room_ended(self, room_id):
-        pass
-
-    async def shut_down(self):
-        pass
+    def chat_said(self, view, peer_id, message, change):
+        self.said.append((peer_id, view.room_id, message))
 
 
 STAGED_LINE = Section[str]("staged_line")
@@ -216,7 +209,8 @@ STAGED_LINE = Section[str]("staged_line")
 
 class StagingFeature(TransitionFeature):
     """A call feature on transitions: `stage` keeps its line as the room's state and tells every seat the line; a line
-    `refused` is kept and told, then refused. `show` tells its sender the line the room keeps."""
+    `refused` is kept and told, then refused. `show` tells its sender the line the room keeps. A seat's leave keeps
+    `<name> left` as the line and follows with a hook that tells every seat still in the room the line it keeps."""
 
     name = "staging"
     browser_modules = ()
@@ -238,29 +232,49 @@ class StagingFeature(TransitionFeature):
         pass
 
     def seat_left(self, view, peer_id, transition):
-        pass
+        transition.put(STAGED_LINE, f"{view.name_of(peer_id)} left")
+        transition.follow(self._tell_the_line)
+
+    def _tell_the_line(self, view, transition):
+        for member in view.members:
+            transition.send(member, {"type": "staged", "line": view.section(STAGED_LINE)})
 
 
 class WorkingFeature(TransitionFeature):
     """A call feature on transitions with work: `work` dispatches a work of its key on the sender's seat, which runs
-    until it is stopped, or raises at once when its key is `failing`; `stop` stops the work of its key. It records the
-    keys it is asked to stop."""
+    until it is stopped, or raises at once when its key is `failing`; `stop` stops the work of its key; `step` starts a
+    step in a turn of its own that waits until it is cancelled. It records the keys it is asked to stop and the keys of
+    the steps that were cancelled."""
 
     name = "working"
     browser_modules = ()
-    signal_types = MappingProxyType({"WORK": "work", "STOP": "stop"})
+    signal_types = MappingProxyType({"WORK": "work", "STOP": "stop", "STEP": "step"})
 
     def __init__(self):
         self.stop_asked: list[str] = []
+        self.steps_cancelled: list[str] = []
         self._stops: dict[str, asyncio.Event] = {}
+        self._transitions = None
+
+    def attach(self, transitions):
+        self._transitions = transitions
 
     def on_frame(self, view, peer_id, frame, transition):
         key = frame.data["key"]
         if frame.signal_type == "work":
             transition.dispatch(Work(key, peer_id))
+        elif frame.signal_type == "step":
+            self._transitions.in_own_turn(self._step(key), "working.step_failed")
         else:
             transition.stop(key)
         return True
+
+    async def _step(self, key):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.steps_cancelled.append(key)
+            raise
 
     def seat_joined(self, view, peer_id, transition):
         pass
@@ -280,12 +294,12 @@ class WorkingFeature(TransitionFeature):
 
 @dataclass(frozen=True)
 class WitnessFeatureBuilder:
-    """A call feature in the shape the app builds from a feature: `witness` makes the call feature from the call's
-    rooms, and the feature adds no route and no bearer resource."""
+    """A call feature in the shape the app builds from a feature: `witness` is the call feature, which adds no route
+    and no bearer resource."""
 
-    witness: Callable[[object], RecordingFeature]
+    witness: RecordingFeature
     sign_in_scopes: tuple[str, ...] = ()
     frame_sources: tuple[str, ...] = ()
 
     def __call__(self, **_options):
-        return SimpleNamespace(factory=self.witness, router=APIRouter(), bearer_resource=None)
+        return SimpleNamespace(feature=self.witness, router=APIRouter(), bearer_resource=None)

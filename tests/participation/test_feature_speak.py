@@ -367,6 +367,24 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
 
         assert (cut, [stop_frames(seat) for seat in (host, guest)]) == ("Guten Tag", [[mozart.agent_id]] * 2)
 
+    async def test_call_60_a_stop_in_the_turn_after_the_answer_shows_the_line_and_tells_no_voice(
+        self, participation, call
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        stopping = []
+
+        async def render_then_stop_next_turn(sentence, voice):
+            stopping.append(asyncio.ensure_future(participation.stop_speaking(GUEST, room_id)))
+            return a_sentence(b"sound", SENTENCE_MS)
+
+        await participation.speak(GUEST, room_id, "Guten Tag", render_then_stop_next_turn)
+        await asyncio.gather(*stopping)
+
+        assert [([frame["text"] for frame in seat.frames(LINE)], seat.frames(VOICE)) for seat in (host, guest)] == [
+            (["Guten Tag"], [])
+        ] * 2
+
     async def test_call_60_the_cut_sentence_enters_every_window_as_a_cut_spoken_line_before_the_stop_answers(
         self, participation, call
     ):
@@ -633,14 +651,25 @@ class TestAnEndWhileTheSentenceRenders:
         assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
 
 
+async def removed_by_its_sponsor(participation, guest, mozart, room_id):
+    await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": mozart.agent_id})
+
+
+async def stopped_by_its_sponsor(participation, guest, mozart, room_id):
+    await participation.stop_speaking(GUEST, room_id)
+
+
 class TestAnEndWhileTheSentenceIsAnnounced:
-    async def test_call_60_a_removal_while_the_line_is_sent_stops_the_voice_to_every_seat(self, participation, call):
+    @pytest.mark.parametrize("end", [removed_by_its_sponsor, stopped_by_its_sponsor])
+    async def test_call_60_a_removal_or_a_stop_while_the_line_is_sent_gives_no_seat_the_voice(
+        self, participation, call, end
+    ):
         host, guest, mozart, _ = call
         held = HeldWrite(host.socket, first_only=True)
         speaking = asyncio.create_task(speak(participation, room_id=room_of(host)))
         await held.reached()
 
-        await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": mozart.agent_id})
+        await end(participation, guest, mozart, room_of(host))
         held.release.set()
         await speaking
 
@@ -655,7 +684,8 @@ class TestAnEndWhileTheSentenceIsAnnounced:
 
         async def end_the_agent():
             if end == "room_ended":
-                participation.room_ended(room_id)
+                [participation_host] = host.link.handler.features
+                participation_host.room_ended(room_id)
             else:
                 await participation.leave(GUEST, room_id)
 

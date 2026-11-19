@@ -242,7 +242,8 @@ class TestAnInvitation:
         ending = asyncio.create_task(scheduler.advance(SESSION_RECHECK_SECONDS))
         await closing.reached()
 
-        invited.participation.room_ended(invited.owner.room_id)
+        [participation_host] = invited.owner.link.handler.features
+        participation_host.room_ended(invited.owner.room_id)
         closing.release.set()
         await ending
 

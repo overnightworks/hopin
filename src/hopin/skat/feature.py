@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionRecordStore, SignInTransaction
 
-    from hopin.signaling.features import FeatureFactory
     from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Deadlines, Scheduler
     from hopin.signaling.transition import RoomView, Transition
@@ -130,7 +129,7 @@ def _tell_room(view: RoomView, state: RoomState, transition: Transition) -> None
 class BuiltSkatFeature:
     """What Skat adds to the app: its call feature, and no route and no bearer resource."""
 
-    factory: FeatureFactory
+    feature: TransitionFeature
     router: APIRouter
     bearer_resource: ProtectedResource | None = None
 

@@ -4,7 +4,6 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from functools import partial
 from typing import NamedTuple
 
 import pytest
@@ -159,8 +158,7 @@ def handler(
         scheduler,
         deadlines,
         [
-            partial(
-                Participation,
+            Participation(
                 deadlines=deadlines,
                 lease_seconds=LEASE_SECONDS,
                 invitation_seconds=INVITATION_SECONDS,
@@ -176,15 +174,15 @@ def handler(
             )
         ],
     )
-    [feature] = handler.features
-    changes.watch(feature)
+    [host] = handler.features
+    changes.watch(host.feature)
     return handler
 
 
 @pytest.fixture
 def participation(handler) -> Participation:
-    [feature] = handler.features
-    return feature
+    [host] = handler.features
+    return host.feature
 
 
 @pytest_asyncio.fixture
@@ -203,7 +201,7 @@ class SeatChangeWitness(RecordingFeature):
 
     announced: threading.Event | None = None
 
-    def seat_changed(self, peer_id):
+    def seat_changed(self, view, peer_id, change):
         self.announced.set()
 
 
@@ -274,7 +272,7 @@ def adding_call(
         sign_in,
         FakeIssuer(sign_in),
         adding_call_adders,
-        more_call_features=(WitnessFeatureBuilder(lambda rooms: SeatChangeWitness(rooms, announced=seat_changes)),),
+        more_call_features=(WitnessFeatureBuilder(SeatChangeWitness(announced=seat_changes)),),
         figure_sources=figure_sources,
         figure_transport=figure_transport,
         hearing=hearing_service,

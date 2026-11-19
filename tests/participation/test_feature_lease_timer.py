@@ -1,5 +1,3 @@
-from functools import partial
-
 import pytest
 from agents.mcp_server.hearing import MemberHearing
 
@@ -41,18 +39,21 @@ def changed():
 
 
 @pytest.fixture
-def participation(room_manager, scheduler, deadlines, changed):
-    """The participation of a call's handler that no seat ever reaches."""
-    handler = SignalingHandler(
-        room_manager, SocketAccountResolver(), scheduler, deadlines, [partial(_participation, deadlines, changed)]
+def handler(room_manager, scheduler, deadlines, changed):
+    """A call's handler running participation, which no seat ever reaches."""
+    return SignalingHandler(
+        room_manager, SocketAccountResolver(), scheduler, deadlines, [_participation(deadlines, changed)]
     )
-    [feature] = handler.features
-    return feature
 
 
-def _participation(deadlines, changed, rooms):
+@pytest.fixture
+def participation(handler):
+    [host] = handler.features
+    return host.feature
+
+
+def _participation(deadlines, changed):
     return Participation(
-        rooms=rooms,
         deadlines=deadlines,
         lease_seconds=LEASE,
         invitation_seconds=LEASE,
@@ -111,9 +112,11 @@ class TestTheLeaseTimer:
 
         assert changed == [PERSON]
 
-    async def test_a_lease_timer_that_outlives_the_shut_down_adds_no_change(self, participation, scheduler, changed):
+    async def test_a_lease_timer_that_outlives_the_shut_down_adds_no_change(
+        self, handler, participation, scheduler, changed
+    ):
         await participation.agent_called(PERSON, OWNER)
-        await participation.shut_down()
+        await handler.shut_down()
 
         await scheduler.advance(LEASE)
 

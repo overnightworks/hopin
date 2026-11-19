@@ -50,7 +50,7 @@ class TestAGroupReadThatIsStillRunning:
         await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
 
-        await participation.shut_down()
+        await link.handler.shut_down()
         release.set()
         await let_reads_finish()
 

@@ -6,14 +6,14 @@ import asyncio
 from dataclasses import dataclass, field, replace
 from functools import partial
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast
 
 import structlog
 
 from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Coroutine, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
@@ -96,26 +96,18 @@ class Outbound:
 
 
 @dataclass
-class Transition:
-    """What one hook changes: the state of its sections, the frames it sends and the work it dispatches or stops,
-    applied only by the commit."""
+class Change:
+    """What a hook that sends nothing changes: the state of its sections, the agent places it takes or frees and the
+    work it dispatches or stops, applied only by the commit."""
 
     puts: dict[str, object] = field(default_factory=dict)
-    frames: list[Outbound] = field(default_factory=list)
     dispatched: list[Work] = field(default_factory=list)
     stopped: list[str] = field(default_factory=list)
     seated_agents: list[str] = field(default_factory=list)
     released_agents: list[str] = field(default_factory=list)
-    broken_write_event: str | None = None
 
     def put[State](self, section: Section[State], state: State) -> None:
         self.puts[section.name] = state
-
-    def send(self, peer_id: PeerId, frame: JsonObject, supersedes: Supersedes | None = None) -> None:
-        """Send as the call core sends: logged for a resume, held while the seat is parked or replaying. The commit
-        drops the frames it supersedes from the seat's queue, so a seat a slow write holds back never gets an outdated
-        one; a frame whose write has begun is written all the same."""
-        self.frames.append(Outbound(peer_id, frame, supersedes))
 
     def take_agent_place(self, agent_id: str) -> None:
         """Seat the joined agent among the room's people; the view must have a free place for it."""
@@ -126,34 +118,54 @@ class Transition:
         self.released_agents.append(agent_id)
 
     def dispatch(self, work: Work) -> None:
-        """Run the work once the transition has committed."""
+        """Run the work once the change has committed."""
         self.dispatched.append(work)
 
     def stop(self, key: str) -> None:
-        """Stop the feature's work of that key, if it still runs, once the transition has committed."""
+        """Stop the feature's work of that key, if it still runs, once the change has committed."""
         self.stopped.append(key)
+
+    def outbound(self) -> Sequence[Outbound]:
+        """The frames the commit logs: none for a change that cannot send."""
+        return ()
+
+
+@dataclass
+class Transition(Change):
+    """What one hook changes and the frames it sends, applied only by the commit; a hook it follows with runs on the
+    room's view once it has committed."""
+
+    frames: list[Outbound] = field(default_factory=list)
+    followers: list[Callable[[RoomView, Transition], None]] = field(default_factory=list)
+    broken_write_event: str | None = None
+
+    def send(self, peer_id: PeerId, frame: JsonObject, supersedes: Supersedes | None = None) -> None:
+        """Send as the call core sends: logged for a resume, held while the seat is parked or replaying. The commit
+        drops the frames it supersedes from the seat's queue, so a seat a slow write holds back never gets an outdated
+        one; a frame whose write has begun is written all the same."""
+        self.frames.append(Outbound(peer_id, frame, supersedes))
+
+    def follow(self, hook: Callable[[RoomView, Transition], None]) -> None:
+        """Apply the hook to the room's view as a transition of its own once this one has committed, so it reads what
+        this one changed; the seats of both are woken together."""
+        self.followers.append(hook)
 
     def log_broken_writes_as(self, event: str) -> None:
         """Log a seat's broken write of this transition's frames under the event, by the error's type alone, instead of
         raising it; every other seat has its frames either way."""
         self.broken_write_event = event
 
+    def outbound(self) -> Sequence[Outbound]:
+        return self.frames
+
 
 @dataclass(frozen=True)
 class Committed:
-    """A transition the store has committed, and the seats it logged frames for, which are still to be woken."""
+    """A change the store has committed: the seats it logged frames for, which are still to be woken, and the event a
+    broken write of them is logged under, none to raise it."""
 
-    transition: Transition
     woken: tuple[PeerId, ...]
-
-
-@runtime_checkable
-class CommitsSeatLeft(Protocol):
-    """A feature that answers a seat's departure in the commit that tells the room of it."""
-
-    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
-        """Apply the feature's answer to the seat's leave to the room it left and commit it, leaving its seats to be
-        woken together with the departure."""
+    broken_write_event: str | None = None
 
 
 class LiveSeats(Protocol):
@@ -208,24 +220,24 @@ class InMemoryCallStore:
         """The view of the room the seat sits in."""
         return self.load(self._routing.room_of(peer_id))
 
-    def commit(self, view: RoomView, transition: Transition) -> tuple[PeerId, ...]:
-        """Write the transition's sections and agent places into its room and log each frame for its seat, and name
-        the seats to wake."""
+    def commit(self, view: RoomView, change: Change) -> tuple[PeerId, ...]:
+        """Write the change's sections and agent places into its room and log each frame it sends for its seat, and
+        name the seats to wake."""
         if view.room_id is None:
-            if transition.puts or transition.seated_agents:  # pragma: no cover - a hook keeps state only in its room
+            if change.puts or change.seated_agents:  # pragma: no cover - a hook keeps state only in its room
                 raise ValueError("A transition of no room keeps no state")
         else:
-            if transition.puts:
-                self._sections.setdefault(view.room_id, {}).update(transition.puts)
-            for agent_id in transition.seated_agents:
+            if change.puts:
+                self._sections.setdefault(view.room_id, {}).update(change.puts)
+            for agent_id in change.seated_agents:
                 self._room_manager.add_agent(view.room_id, agent_id)
-            for agent_id in transition.released_agents:
+            for agent_id in change.released_agents:
                 self._room_manager.remove_agent(view.room_id, agent_id)
         seats = self._routing.seats
         return tuple(
             dict.fromkeys(
                 outbound.peer_id
-                for outbound in transition.frames
+                for outbound in change.outbound()
                 if seats.log(outbound.peer_id, outbound.frame, outbound.supersedes)
             )
         )
@@ -236,7 +248,7 @@ class InMemoryCallStore:
         is logged under."""
         woken = tuple(dict.fromkeys(peer_id for each in committed for peer_id in each.woken))
         broken_writes = await self.wake(woken)
-        events = [each.transition.broken_write_event for each in committed]
+        events = [each.broken_write_event for each in committed]
         if not broken_writes:
             return
         if None in events:
@@ -296,6 +308,7 @@ class FeatureTransitions:
         self._store = store
         self._live_seats = live_seats
         self._works: dict[str, _RunningWork] = {}
+        self._steps: set[asyncio.Task[None]] = set()
 
     def view(self, room_id: str | None) -> RoomView:
         """The room's view now; an ended room or none is the view of no room."""
@@ -314,10 +327,6 @@ class FeatureTransitions:
         [outcome] = await self.apply_each([room_id], hook)
         return outcome
 
-    async def apply_at_seat[Outcome](self, peer_id: PeerId, hook: Callable[[RoomView, Transition], Outcome]) -> Outcome:
-        """Apply the hook to the view of the room the seat sits in, as `apply` does."""
-        return await self.apply(self._store.load_seat(peer_id).room_id, hook)
-
     async def apply_each[Outcome](
         self, room_ids: Sequence[str | None], hook: Callable[[RoomView, Transition], Outcome]
     ) -> list[Outcome]:
@@ -330,7 +339,7 @@ class FeatureTransitions:
                 view = self._store.load(room_id)
                 transition = Transition()
                 outcomes.append(hook(view, transition))
-                committed.append(self.commit(view, transition))
+                committed += self.commit(view, transition)
         finally:
             await self._store.wake_committed(committed)
         return outcomes
@@ -339,28 +348,35 @@ class FeatureTransitions:
         """Apply the hook to the view it was given and commit what it changed; a hook that raises commits nothing."""
         transition = Transition()
         outcome = hook(transition)
-        await self._store.wake_committed([self.commit(view, transition)])
+        await self._store.wake_committed(self.commit(view, transition))
         return outcome
 
-    def commit_now(self, room_id: str, hook: Callable[[RoomView, Transition], None]) -> Committed:
-        """Apply the hook to the room's view now and commit it before anything awaits, leaving its seats to be
-        woken."""
+    def change_now(self, room_id: str, hook: Callable[[RoomView, Change], None]) -> None:
+        """Apply the hook to the room's view now and commit its change before anything awaits; it cannot send, so no
+        seat waits to be woken."""
         view = self._store.load(room_id)
-        transition = Transition()
-        hook(view, transition)
-        return self.commit(view, transition)
+        change = Change()
+        hook(view, change)
+        self.commit(view, change)
 
-    def commit(self, view: RoomView, transition: Transition) -> Committed:
-        """Commit the transition and start and stop its work, leaving its seats to be woken."""
-        committed = Committed(transition, self._store.commit(view, transition))
-        self._start_and_stop_work(view, transition)
+    def commit(self, view: RoomView, change: Change) -> list[Committed]:
+        """Commit the change and start and stop its work, then each hook a transition follows with, leaving the seats
+        of all of them to be woken."""
+        event = change.broken_write_event if isinstance(change, Transition) else None
+        committed = [Committed(self._store.commit(view, change), event)]
+        self._start_and_stop_work(view, change)
+        for follower in change.followers if isinstance(change, Transition) else ():
+            followed = self._store.load(view.room_id)
+            following = Transition()
+            follower(followed, following)
+            committed += self.commit(followed, following)
         return committed
 
-    def _start_and_stop_work(self, view: RoomView, transition: Transition) -> None:
-        for key in transition.stopped:
+    def _start_and_stop_work(self, view: RoomView, change: Change) -> None:
+        for key in change.stopped:
             if key in self._works:
                 self._worker.stop_work(key)
-        for work in transition.dispatched:
+        for work in change.dispatched:
             if view.room_id is None:  # pragma: no cover - a hook dispatches work only in the room it was offered
                 raise ValueError("A transition of no room dispatches no work")
             room = _WorkRoom(self, view.room_id)
@@ -376,6 +392,20 @@ class FeatureTransitions:
         finally:
             del self._works[work.key]
 
+    def in_own_turn(self, step: Coroutine[None, None, None], failed_event: str, **context: str) -> None:
+        """Run a step of the feature, such as a transition whose seats are woken, in a turn of its own, so its caller
+        never waits on a seat's write; a step that fails is logged under the event with the context, by the error's
+        type alone, and the shutdown cancels a step that still runs."""
+        task = asyncio.create_task(step)
+        self._steps.add(task)
+        task.add_done_callback(partial(self._step_ended, failed_event, context))
+
+    def _step_ended(self, failed_event: str, context: Mapping[str, str], task: asyncio.Task[None]) -> None:
+        self._steps.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None:
+            # Only the type is logged, never what the step carried.
+            logger.error(failed_event, error_type=type(error).__name__, **context)
+
     def cancel(self, key: str) -> None:
         """Cancel the work of that key, which runs, for a worker whose work ends only so."""
         self._works[key].task.cancel()
@@ -388,7 +418,10 @@ class FeatureTransitions:
                 self._worker.stop_work(key)
 
     async def shut_down(self) -> None:
-        """Stop the work and wait until it has ended."""
+        """Stop the work and the steps and wait until they have ended."""
+        for step in self._steps:
+            step.cancel()
+        await asyncio.gather(*self._steps, return_exceptions=True)
         while self._works:
             for key in tuple(self._works):
                 self._worker.stop_work(key)
@@ -396,17 +429,17 @@ class FeatureTransitions:
 
 
 class TransitionHost:
-    """Runs a feature written on transitions where the call core calls the hooks of `CallFeature`: each hook it is
-    offered is one transition of the seat's room, and the work those transitions dispatch runs here, where the
-    seats' sockets are held."""
+    """Runs a feature where the call core calls its hooks: each hook it is offered is one transition of the seat's
+    room, and the work those transitions dispatch runs here, where the seats' sockets are held."""
 
     def __init__(self, feature: TransitionFeature, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
         self._feature = feature
         self._transitions = FeatureTransitions(feature, store, live_seats)
+        feature.attach(self._transitions)
 
     @property
-    def name(self) -> str:
-        return self._feature.name
+    def feature(self) -> TransitionFeature:
+        return self._feature
 
     @property
     def browser_modules(self) -> tuple[str, ...]:
@@ -424,10 +457,7 @@ class TransitionHost:
         view = self._transitions.seat_view(peer_id)
         await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
 
-    async def seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> None:
-        """A feature on transitions hears a seat's leave in the transition that tells the room, `commit_seat_left`."""
-
-    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> Committed:
+    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
         """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
         together with the departure that tells the room."""
         view = self._transitions.view(room_id).naming(peer_id, name)
@@ -436,10 +466,19 @@ class TransitionHost:
         return self._transitions.commit(view, transition)
 
     def seat_changed(self, peer_id: PeerId) -> None:
-        """A feature on transitions hears a seat's leave as `seat_left`, in the transition that tells the room."""
+        """Apply the feature's `seat_changed` to the view of the seat's room now and commit it at once; it cannot send,
+        so no seat waits to be woken."""
+        view = self._transitions.seat_view(peer_id)
+        change = Change()
+        self._feature.seat_changed(view, peer_id, change)
+        self._transitions.commit(view, change)
 
     def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
-        """No feature on transitions reads the chat."""
+        """Apply the feature's `chat_said` to the room's view and commit it at once; it cannot send."""
+        view = self._transitions.view(room_id)
+        change = Change()
+        self._feature.chat_said(view, peer_id, message, change)
+        self._transitions.commit(view, change)
 
     def room_ended(self, room_id: str) -> None:
         self._transitions.room_ended(room_id)

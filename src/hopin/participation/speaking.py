@@ -30,7 +30,7 @@ from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Awaitable, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 
     from hopin.participation.participants import DialedAgent
     from hopin.participation.voice import StoredVoice, VoiceStore
@@ -140,15 +140,18 @@ class _Queue:
 
 class Speaking:
     """The queues of the joined agents' sentences. `start` shows a sentence that begins to play, `ended` tells how
-    the playing one ended, before the next one starts, and `write` posts a sentence that takes its turn as a line."""
+    the playing one ended, before the next one starts, and `write` posts a sentence that takes its turn as a line.
+    `in_own_turn` runs a step of an agent's queue, such as showing a started sentence, without holding its speaker's
+    answer back behind a browser's blocked write; each step finds whether an end or a stop came first."""
 
     def __init__(
         self,
         voices: VoiceStore,
         deadlines: Deadlines,
-        start: Callable[[DialedAgent, QueuedSentence], Awaitable[None]],
+        start: Callable[[DialedAgent, QueuedSentence], Coroutine[None, None, None]],
         ended: Callable[[DialedAgent, QueuedSentence, SentenceEnd], None],
         write: Callable[[DialedAgent, str], Awaitable[None]],
+        in_own_turn: Callable[[DialedAgent, Coroutine[None, None, None]], None],
     ) -> None:
         self._voices = voices
         self._deadlines = deadlines
@@ -156,8 +159,8 @@ class Speaking:
         self._start = start
         self._ended = ended
         self._write = write
+        self._in_own_turn = in_own_turn
         self._queues: dict[str, _Queue] = {}
-        self._announcements: dict[str, set[asyncio.Task[None]]] = {}
 
     async def speak(self, agent: DialedAgent, text: str, render: Renderer, mood: FigureMood | None) -> SpeakResult:
         """Begin the sentence's sound, which plays with `mood`, and keep it as it grows, starting the sentence at once
@@ -191,7 +194,7 @@ class Speaking:
         if isinstance(sentence, WrittenSentence):
             await self._written(agent, sentence)
         else:
-            self._run_in_background(agent, self._begin(agent, queue, sentence))
+            self._in_own_turn(agent, self._begin(agent, queue, sentence))
         return await answer
 
     def _dropped(self, agent: DialedAgent, queue: _Queue, stops: int) -> AgentRefusal | SpeakStop | None:
@@ -241,6 +244,10 @@ class Speaking:
         queue = self._queues.get(agent.agent_id)
         return queue is not None and len(queue.waiting) + queue.rendering >= SENTENCES_WAITING_PER_AGENT
 
+    def speaks(self, agent: DialedAgent) -> bool:
+        """Whether the agent's speaking has not ended since its first sentence."""
+        return agent.agent_id in self._queues
+
     def is_playing(self, agent: DialedAgent, sentence: QueuedSentence) -> bool:
         """Whether the sentence is the one the agent's queue plays now, no end having dropped it."""
         queue = self._queues.get(agent.agent_id)
@@ -258,28 +265,9 @@ class Speaking:
             if queue.playing is not None:
                 queue.playing.filling.cancel()
                 self._ended(agent, queue.playing, SentenceEnd.CUT)
-        for announcement in self._announcements.pop(agent.agent_id, ()):
-            announcement.cancel()
         self._voices.forget_speaker(agent.room_id, agent.agent_id)
 
-    def _run_in_background(self, agent: DialedAgent, announcement: Awaitable[None]) -> None:
-        """Run a step of the agent's queue, such as showing a started sentence, without holding its speaker's answer
-        back behind a browser's blocked write; the agent's end cancels it."""
-        task = asyncio.ensure_future(announcement)
-        pending = self._announcements.setdefault(agent.agent_id, set())
-        pending.add(task)
-        task.add_done_callback(partial(self._announced, agent.agent_id))
-
-    def _announced(self, agent_id: str, task: asyncio.Task[None]) -> None:
-        if not task.cancelled() and task.exception() is not None:
-            logger.error("agent_announcement.failed", agent_id=agent_id)
-        pending = self._announcements.get(agent_id)
-        if pending is not None:
-            pending.discard(task)
-            if not pending:
-                del self._announcements[agent_id]
-
-    def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> Awaitable[None]:
+    def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> Coroutine[None, None, None]:
         """Answer the sentence's speaker now and set its end once its sound's length or failure is known; the returned
         announcement shows it."""
         queue.playing = sentence
@@ -305,7 +293,7 @@ class Speaking:
             return
         outcome = ended.result()
         if isinstance(outcome, VoiceFailure):
-            self._run_in_background(agent, self._cut(agent, sentence))
+            self._in_own_turn(agent, self._cut(agent, sentence))
             return
         remaining = began_at + outcome / MILLISECONDS_PER_SECOND - self._deadlines.now()
         self._deadlines.set(DeadlineKind.SENTENCE_END, agent.agent_id, max(remaining, 0))

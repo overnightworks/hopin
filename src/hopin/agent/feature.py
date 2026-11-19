@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from hopin.agent.backend import QuizBackend
     from hopin.game.voice import VoiceShelf
-    from hopin.signaling.features import FeatureFactory
+    from hopin.signaling.features import TransitionFeature
     from hopin.signaling.scheduler import Deadlines, Scheduler
     from hopin.web.request_language import RequestLanguage
 
@@ -34,7 +34,7 @@ def draw_quiz_topics() -> tuple[str, ...]:
 class BuiltGameFeature:
     """What the game adds to the app: its call feature."""
 
-    factory: FeatureFactory
+    feature: TransitionFeature
     router: APIRouter
     bearer_resource: ProtectedResource | None = None
 

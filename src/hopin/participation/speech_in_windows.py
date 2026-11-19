@@ -34,7 +34,6 @@ if TYPE_CHECKING:
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
     from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
-    from hopin.signaling.features import CallRooms
     from hopin.signaling.frames import PeerId
     from hopin.signaling.scheduler import Deadlines
 
@@ -61,20 +60,20 @@ def _note_rendering(step: StepTimer, rendered: RenderedSentence | VoiceFailure |
 
 
 class SpeechInWindows:
-    """Writes speech into the windows of the agents joined in a room, the seats under the names the call shows;
-    `on_window_changed` tells an agent its window changed."""
+    """Writes speech into the windows of the agents joined in a room, the seats under the names the call shows, which
+    `name_of` reads; `on_window_changed` tells an agent its window changed."""
 
     def __init__(
         self,
         places: Places,
         hearing: Hearing,
-        rooms: CallRooms,
+        name_of: Callable[[PeerId], str],
         on_window_changed: Callable[[Person, str], None],
         deadlines: Deadlines,
     ) -> None:
         self._places = places
         self._hearing = hearing
-        self._rooms = rooms
+        self._name_of = name_of
         self._on_window_changed = on_window_changed
         self._deadlines = deadlines
         deadlines.register(DeadlineKind.WINDOW_RECOVERY, self._ask_whether_voices_are_back)
@@ -207,7 +206,7 @@ class SpeechInWindows:
         """A sentence the seat said, which began at `began_at` and which the speech service knows as `item_id`, enters
         the window of each agent that hears the seat under the name the call shows, in the change that takes the seat's
         words out of the record."""
-        heard = self._hearing.heard(room_id, seat, self._rooms.name_of(seat), text, began_at)
+        heard = self._hearing.heard(room_id, seat, self._name_of(seat), text, began_at)
         if heard is None:
             return
         for person, window in self._places.windows_in(room_id).items():
@@ -245,7 +244,7 @@ class SpeechInWindows:
         """A person starts speaking: each agent that hears the seat is talked over while one of its sentences plays."""
         for person in self._hearing.hearers(room_id, seat):
             window = self._places.window_of(person, room_id)
-            if window is not None and window.talk_over(seat, self._rooms.name_of(seat)):
+            if window is not None and window.talk_over(seat, self._name_of(seat)):
                 self._on_window_changed(person, room_id)
 
     def words_heard(self, room_id: str, seat: PeerId, text: str) -> None:

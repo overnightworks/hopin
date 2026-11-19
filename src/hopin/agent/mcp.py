@@ -80,7 +80,7 @@ if TYPE_CHECKING:
     from hopin.agent.speech_settings import SpeechService
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
     from hopin.participation.places import PlaceStanding
-    from hopin.signaling.features import CallFeature, CallRooms, FeatureFactory
+    from hopin.signaling.features import TransitionFeature
     from hopin.signaling.scheduler import Deadlines, Scheduler
     from hopin.web.request_language import RequestLanguage
 
@@ -108,9 +108,8 @@ PLACE_SUBSCRIPTION_TIMED_OUT_EVENT: Final = "place_subscription_start.timed_out"
 
 @dataclass
 class _BuiltParticipation:
-    """The participation the call's handler builds, which the tools reach once it exists. Its resource changes tell
-    the participation when an agent starts or stops listening on its standing; the place store carries them between
-    HopIn's processes."""
+    """The participation the call's handler runs and the tools reach. Its resource changes tell the participation when
+    an agent starts or stops listening on its standing; the place store carries them between HopIn's processes."""
 
     deadlines: Deadlines
     wall_clock: Callable[[], float]
@@ -131,10 +130,7 @@ class _BuiltParticipation:
         self.changes = ResourceChanges(
             self.places, listening_changed=self._listening_changed, listening_resynced=self._listening_resynced
         )
-
-    def build(self, rooms: CallRooms) -> CallFeature:
         self.participation = Participation(
-            rooms,
             self.deadlines,
             LEASE_SECONDS,
             INVITATION_SECONDS,
@@ -148,7 +144,6 @@ class _BuiltParticipation:
             Hearing(MemberHearingRecord(MemberHearing(now=self.deadlines.now)), enabled=self.hears),
             self.voices,
         )
-        return self.participation
 
     async def _groups_of(self, connection: HTTPConnection) -> frozenset[str] | None:
         async with StepTimer("group_read.ended", _STEPS) as step:
@@ -239,7 +234,7 @@ class _BuiltParticipation:
 class BuiltParticipationFeature:
     """What participation adds to the app: its call feature, the MCP route and the resource a token reaches it by."""
 
-    factory: FeatureFactory
+    feature: TransitionFeature
     router: APIRouter
     bearer_resource: ProtectedResource
 
@@ -483,7 +478,7 @@ class ParticipationFeature:
         _add_file_routes(router, store, clip_store, built.current)
         self._add_voice_route(router, built.current)
         self._add_hearing_route(router, built.current, relying_party, sessions, scheduler, hearing_tokens)
-        return BuiltParticipationFeature(built.build, router, self._resource(transaction))
+        return BuiltParticipationFeature(built.participation, router, self._resource(transaction))
 
     def _clip_store(self) -> FigureStore:
         """The store of the clips, with its own byte bound, cache and step line apart from the figure's."""
