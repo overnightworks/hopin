@@ -64,6 +64,62 @@ describe("an agent's voice", () => {
         expect([afterStop, tileActivities(page)]).toEqual([[AGENT_ACTIVITY.PRESENT], [AGENT_ACTIVITY.SPEAKING]]);
     });
 
+    it("CALL-70: pauses the agent's player when the server holds it, so its tile and figure leave speaking, and goes on where it paused at the continue", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        const [player] = page.players.created;
+        await player?.sounds[0]?.start();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "a1" });
+        const whileHeld = [player?.paused, tileActivities(page), page.figureSentences.at(-1)?.[1]];
+        page.emit(PARTICIPATION_SIGNAL.AGENT_CONTINUED, { agent_id: "a1" });
+
+        expect([whileHeld, player?.paused, tileActivities(page), player?.sounds.length]).toEqual([
+            [true, [AGENT_ACTIVITY.PRESENT], null],
+            false,
+            [AGENT_ACTIVITY.SPEAKING],
+            1,
+        ]);
+    });
+
+    it("CALL-70: holds a voice that is announced while the agent is held until the continue, and shows its tile speaking then", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "a1" });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        const [player] = page.players.created;
+
+        await player?.sounds[0]?.start();
+        const whileHeld = tileActivities(page);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_CONTINUED, { agent_id: "a1" });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect([whileHeld, tileActivities(page)]).toEqual([[AGENT_ACTIVITY.PRESENT], [AGENT_ACTIVITY.SPEAKING]]);
+    });
+
+    it("CALL-70: ends the sound of a stop that follows the hold and plays the voice after it, which a stop that left the pause would keep waiting", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "a1" });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_STOP, { agent_id: "a1" });
+        await Promise.resolve();
+        await Promise.resolve();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "later"));
+        await page.players.created[0]?.sounds[1]?.start();
+
+        expect([page.players.created[0]?.paused, tileActivities(page)]).toEqual([false, [AGENT_ACTIVITY.SPEAKING]]);
+    });
+
+    it("CALL-70: pauses nothing for an agent the stage does not show", async () => {
+        const page = await pageWithAgents();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "unknown" });
+
+        expect(page.players.created).toEqual([]);
+    });
+
     it.each([
         { end: "plays out", ends: (sound?: FakeSound) => sound?.end({ kind: "played", playedSeconds: 1 }) },
         { end: "breaks off", ends: (sound?: FakeSound) => sound?.end({ kind: "failed" }) },

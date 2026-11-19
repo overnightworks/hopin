@@ -4,7 +4,8 @@ import type { Player, PlaybackEnd, PlaybackStart, Sound } from "overnightworks-s
 export interface FakeSound {
     readonly sound: Sound;
     readonly ended: Promise<PlaybackEnd>;
-    start(): Promise<void>;
+    /** Starts the sound; while the player pauses it waits for the resume, unless it starts inside the pause's ramp. */
+    start(options?: { inRamp?: boolean }): Promise<void>;
     end(end: PlaybackEnd): Promise<void>;
 }
 
@@ -13,8 +14,11 @@ export interface FakePlayer {
     readonly sounds: FakeSound[];
     readonly stoppers: (() => Promise<void>)[];
     readonly mutes: (() => Promise<void>)[];
+    /** What a pause holds back: a sound's start, or the end of one that plays on, until `resume`. */
+    readonly held: (() => Promise<void>)[];
     closed: boolean;
     muted: boolean;
+    paused: boolean;
 }
 
 // The feature reads a playback one promise turn after it resolves.
@@ -23,7 +27,7 @@ async function settled() {
     await Promise.resolve();
 }
 
-/** The players a feature created, in order, and the `createPlayer` that creates them. */
+/** The players a feature created, in order, and the `createPlayer` that creates them. Like the player, a pause holds every sound where it is: a sound handed over meanwhile starts only at `resume`, one that plays does not play out, and a stop ends them at once and leaves the pause standing. */
 export function fakePlayers() {
     const created: FakePlayer[] = [];
     const createPlayer = (): Player => {
@@ -32,8 +36,10 @@ export function fakePlayers() {
             sounds: [],
             stoppers: [],
             mutes: [],
+            held: [],
             closed: false,
             muted: false,
+            paused: false,
         };
         created.push(fake);
         return {
@@ -46,14 +52,21 @@ export function fakePlayers() {
                     ended.resolve(how);
                     await settled();
                 };
+                const whenRunning = async (step: () => Promise<void>) => {
+                    if (fake.paused) fake.held.push(step);
+                    else await step();
+                };
                 fake.sounds.push({
                     sound,
                     ended: ended.promise,
-                    start: async () => {
-                        started.resolve({ kind: "playing", contextTime: 0, context: {} as AudioContext });
-                        await settled();
+                    start: (options) => {
+                        const begin = async () => {
+                            started.resolve({ kind: "playing", contextTime: 0, context: {} as AudioContext });
+                            await settled();
+                        };
+                        return options?.inRamp ? begin() : whenRunning(begin);
                     },
-                    end,
+                    end: (how) => whenRunning(() => end(how)),
                 });
                 fake.stoppers.push(() => end({ kind: "stopped", playedSeconds: 0 }));
                 fake.mutes.push(() => end({ kind: "muted", playedSeconds: 0 }));
@@ -64,16 +77,23 @@ export function fakePlayers() {
             stop: () => {
                 for (const stopSound of fake.stoppers.splice(0)) void stopSound();
             },
-            // Like the player: muting ends every sound handed over so far muted, and a sound handed over while muted ends muted at once.
+            // Like the player: muting ends every sound handed over so far muted, clears a pause, and a sound handed over while muted ends muted at once.
             setMuted: (muted) => {
                 fake.muted = muted;
-                if (muted) for (const muteSound of fake.mutes.splice(0)) void muteSound();
+                if (muted) {
+                    fake.paused = false;
+                    fake.held.length = 0;
+                    for (const muteSound of fake.mutes.splice(0)) void muteSound();
+                }
             },
-            // The feature neither pauses nor resumes a player: these two only satisfy the Player type, so no test reaches them.
-            /* v8 ignore start */
-            pause: () => undefined,
-            resume: () => undefined,
-            /* v8 ignore stop */
+            pause: () => {
+                fake.paused = true;
+            },
+            // Like the player: the sounds the pause held back go on, in the order they were held.
+            resume: () => {
+                fake.paused = false;
+                for (const step of fake.held.splice(0)) void step();
+            },
             close: () => {
                 fake.closed = true;
             },
