@@ -445,7 +445,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.123.7" },
     { name = "overnightworks-agents", extras = ["backend", "mcp-server", "redis"], git = "https://github.com/overnightworks/agents?rev=v0.60.0" },
     { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v1.4.0" },
-    { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.22.2" },
+    { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.22.3" },
     { name = "overnightworks-tandem", git = "https://github.com/overnightworks/tandem?rev=v0.12.1" },
     { name = "overnightworks-webauth", git = "https://github.com/overnightworks/webauth?rev=v0.40.1" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -829,8 +829,8 @@ dependencies = [
 
 [[package]]
 name = "overnightworks-speech-client"
-version = "0.22.2"
-source = { git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.22.2#81d12bc07c3480417a8c2fd458ed5ed4115ae1ec" }
+version = "0.22.3"
+source = { git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.22.3#704a185bb38f5005f677516676e4bb7629595992" }
 dependencies = [
     { name = "overnightworks-logline" },
     { name = "pydantic" },
