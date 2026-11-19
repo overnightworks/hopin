@@ -239,9 +239,7 @@ class Participation(TransitionFeature):
         holds no active place there or the sentence cannot be spoken: no text, no renderer, past the agent's waiting
         queue, or an end of its speaking meanwhile; a sound that could not be made is written as a line instead, and
         `offered` then says when the voice is back, which turns the window's voice available without a sentence. A held
-        agent speaks only a sentence that names its hold with `interrupted`, which drops the held rest; any other is
-        refused as held, one that names a hold that does not stand as not interrupted, and a refusal changes nothing.
-        Any other speak at its active place ends the agent's thinking."""
+        agent speaks only a sentence that names its hold as `interrupted`. Any other speak ends the agent's thinking."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -250,20 +248,18 @@ class Participation(TransitionFeature):
         await self.figures.end_thinking(agent)
         sentence = clean_line(one_line(text))
         if sentence is None or render is None:
-            return self._unavailable(
+            return self.speech.speak_refused(
                 agent, text, SpeakFailure.NO_TEXT if sentence is None else SpeakFailure.SPEAKING_OFF
             )
         if interrupted is None and self._speaking.is_full(agent):
-            return self._unavailable(agent, text, SpeakFailure.QUEUE_FULL)
+            return self.speech.speak_refused(agent, text, SpeakFailure.QUEUE_FULL)
         return await self._speaking.speak(
             agent, sentence, self.speech.watching_voice(agent, render, offered), mood, interrupted
         )
 
     async def stop_speaking(self, person: Person, room_id: str, interrupted: str | None = None) -> StopResult:
-        """Cut the sentence the person's agent plays, or the held one that had started, in every seat and drop its
-        others, which ends its hold; the text of the cut sentence's line, that only held or waiting sentences were
-        dropped, or why nothing was cut: the agent holds no active place there, no sentence of it plays, or
-        `interrupted` names a hold that does not stand."""
+        """Cut the sentence the person's agent plays or holds in every seat and drop its others, which ends its hold;
+        the cut sentence's text, that only others were dropped, or why nothing was cut."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -273,17 +269,15 @@ class Participation(TransitionFeature):
         return outcome
 
     async def person_started(self, room_id: str, seat: PeerId) -> None:
-        """A person starts speaking: each agent that hears the seat is talked over while one of its sentences plays or
-        waits and is held by that, its played sentence's sound ending in every seat. The windows say it first, then
-        the queues hold."""
+        """A person starts speaking: the windows say so, then each agent that hears the seat and speaks is held."""
         for agent, hold_id in self.speech.person_started(room_id, seat, self._speaking.is_speaking).items():
             if self._speaking.hold(agent, hold_id):
                 await self._stop_sound(agent)
 
     async def _stop_sound(self, agent: DialedAgent) -> None:
-        """Tell every seat in the agent's room to stop the agent's player."""
-        room_id = agent.room_id
-        await self._tell(room_id, self._recipients(room_id), AgentStopFrame(agent.agent_id), voices_of(agent))
+        await self._tell(
+            agent.room_id, self._recipients(agent.room_id), AgentStopFrame(agent.agent_id), voices_of(agent)
+        )
 
     async def look(self, person: Person, room_id: str) -> Picture:
         """The JPEG of the camera of the person's agent's sponsor, which the sponsor's seeing switch lets it take; why
@@ -738,12 +732,6 @@ class Participation(TransitionFeature):
         if not isinstance(agent, DialedAgent):
             return AgentRefusal.GONE
         return AgentRefusal.SPONSOR_AWAY if self._transitions.view(room_id).is_parked(agent.sponsor) else agent
-
-    def _unavailable(self, agent: DialedAgent, text: str, failure: SpeakFailure) -> AgentRefusal:
-        """Answer `unavailable` for a sentence never rendered, its closed cause on its speak line and nothing else."""
-        with self.speech.speak_step(agent, text) as step:
-            step.refuse(failure.value)
-        return AgentRefusal.UNAVAILABLE
 
     def _agent_ended(self, agent: DialedAgent, change: Change) -> None:
         """The agent's removal, leave or lease end: it frees its place and hears and speaks nothing more."""

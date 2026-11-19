@@ -289,10 +289,14 @@ class TestAStopWhileHeld:
 
         assert (refused, participation.read_window(GUEST, room_id).interrupted) == (HoldRefusal.NOT_INTERRUPTED, "1")
 
-    async def test_call_69_a_stop_with_an_id_while_no_hold_stands_is_refused_not_interrupted(self, participation, call):
+    @pytest.mark.parametrize("sentence_plays", [True, False], ids=["a sentence plays", "the agent never spoke"])
+    async def test_call_69_a_stop_with_an_id_while_no_hold_stands_is_refused_not_interrupted(
+        self, participation, call, sentence_plays
+    ):
         host, *_ = call
         room_id = room_of(host)
-        await speak(participation, room_id=room_id, render=LONG)
+        if sentence_plays:
+            await speak(participation, room_id=room_id, render=LONG)
 
         refused = await participation.stop_speaking(GUEST, room_id, "1")
 
@@ -321,6 +325,23 @@ class TestTheHoldEnds:
         assert (participation.read_window(GUEST, room_id).interrupted, window_texts(participation, GUEST, room_id)) == (
             "1",
             [("Eins", True, True)],
+        )
+
+    async def test_call_69_a_held_sentence_whose_sound_runs_out_changes_nothing_and_the_hold_stands(
+        self, participation, call, scheduler
+    ):
+        host, guest, _ = call
+        room_id = room_of(host)
+        streamed = StreamedSentence()
+        await participation.speak(GUEST, room_id, "Eins", streamed.render)
+        await participation.person_started(room_id, guest.peer_id)
+
+        await streamed.ends_after(SENTENCE_MS)
+        await scheduler.advance(10 * SENTENCE_MS / 1000)
+
+        assert (participation.read_window(GUEST, room_id).interrupted, window_texts(participation, GUEST, room_id)) == (
+            "1",
+            [],
         )
 
     async def test_call_69_a_pause_ends_the_hold_and_the_cut_line_enters(self, participation, call):

@@ -192,8 +192,9 @@ class Speaking:
         drops the held rest, cuts the held sentence that had started and starts at once, once its sound began. Answers
         when it starts that it plays, that it was written when its voice failed before any sound, or why it never
         does: no sound came for a reason that is no failure of the voice, a stop dropped it while it was rendered or
-        waited, an end dropped the agent's queue meanwhile, which a rejoin or a resume does not undo, or the hold it
-        names no longer stands."""
+        waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does not undo. `interrupted`
+        is a hold that stood when the sentence was asked for; it ends only by a stop or an end, which drop the sentence
+        too."""
         queue = self._queues.setdefault(agent.agent_id, _Queue(agent))
         stops = queue.stops
         queue.rendering += 1
@@ -203,7 +204,7 @@ class Speaking:
             queue.rendering -= 1
         if rendered is None:
             return AgentRefusal.UNAVAILABLE
-        dropped = self._dropped(agent, queue, stops, interrupted)
+        dropped = self._dropped(agent, queue, stops)
         if dropped is not None:
             if isinstance(rendered, RenderedSentence):
                 await rendered.rest.aclose()
@@ -225,15 +226,11 @@ class Speaking:
             self._in_own_turn(agent, self._begin(agent, queue, sentence))
         return await answer
 
-    def _dropped(
-        self, agent: DialedAgent, queue: _Queue, stops: int, interrupted: str | None
-    ) -> AgentRefusal | SpeakStop | HoldRefusal | None:
+    def _dropped(self, agent: DialedAgent, queue: _Queue, stops: int) -> AgentRefusal | SpeakStop | None:
         if self._queues.get(agent.agent_id) is not queue:
             return AgentRefusal.GONE
         if queue.stops != stops:
             return SpeakStop.STOPPED
-        if interrupted is not None and self._standing(queue) != interrupted:
-            return HoldRefusal.NOT_INTERRUPTED
         return None
 
     def _queued(
@@ -279,10 +276,8 @@ class Speaking:
     def hold(self, agent: DialedAgent, hold_id: str) -> bool:
         """Hold the agent under `hold_id`: the playing sentence stops where it is and its end is no longer timed, and
         no waiting sentence starts, until a stop or a sentence that names the id drops them; whether a sentence that
-        had started was held, whose sound ends at the seats."""
-        queue = self._queues.get(agent.agent_id)
-        if queue is None or queue.held is not None:
-            return False
+        had started was held, whose sound ends at the seats. The agent speaks and is not held."""
+        queue = self._queues[agent.agent_id]
         started = queue.playing
         self._deadlines.cancel(DeadlineKind.SENTENCE_END, agent.agent_id)
         queue.playing = None

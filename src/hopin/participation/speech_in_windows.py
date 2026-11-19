@@ -21,7 +21,14 @@ from logline import current_traceparent
 from hopin.participation.chat_window import LineKind
 from hopin.participation.participants import DialedAgent
 from hopin.participation.speaking import RenderedSentence, SentenceEnd, speak_timer
-from hopin.participation.vocabulary import NO_VOICE_REASON, VOICE_RECOVERY_SECONDS, VoiceFailure, VoiceRefusedError
+from hopin.participation.vocabulary import (
+    NO_VOICE_REASON,
+    VOICE_RECOVERY_SECONDS,
+    AgentRefusal,
+    SpeakFailure,
+    VoiceFailure,
+    VoiceRefusedError,
+)
 from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
@@ -121,6 +128,12 @@ class SpeechInWindows:
             return rendered
 
         return watched
+
+    def speak_refused(self, agent: DialedAgent, text: str, failure: SpeakFailure) -> AgentRefusal:
+        """Answer `unavailable` for a sentence never rendered, its closed cause on its speak line and nothing else."""
+        with self.speak_step(agent, text) as step:
+            step.refuse(failure.value)
+        return AgentRefusal.UNAVAILABLE
 
     def stop_recovery(self) -> None:
         """Stop asking whether a voice is back."""
