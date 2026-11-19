@@ -16,7 +16,6 @@ from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
 from tests.support.game_environment import set_game_environment  # noqa: E402  # game
-from tests.support.page_build import FIXTURE_DIRECTORY  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
 from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
 
@@ -38,11 +37,8 @@ def logging_restored() -> Iterator[None]:
 
 
 @pytest.fixture
-def fixture_build_directory(monkeypatch: pytest.MonkeyPatch) -> Path:
-    """`hopin.main` loads the committed fixture build, because the unit job has no Node and no build."""
-    monkeypatch.setattr("hopin.main.BUILD_DIRECTORY", FIXTURE_DIRECTORY)
+def game_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     set_game_environment(monkeypatch)  # game
-    return FIXTURE_DIRECTORY
 
 
 @pytest.fixture
