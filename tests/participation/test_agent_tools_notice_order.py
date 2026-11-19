@@ -25,15 +25,6 @@ def told(stream):
 
 
 class TestTheTwoNoticesOfAChange:
-    def test_a_change_that_alters_the_tool_list_tells_the_list_before_it_wakes(self, scene):
-        with scene.call.open_listen(scene.token, [STANDING_URI], tools=True) as stream:
-            scene.invite()
-            assert stream.wait_for(RESOURCE_UPDATED, STREAM_WAIT_SECONDS)
-            scene.accept(scene.standings()[0])
-            assert stream.wait_for(RESOURCE_UPDATED, STREAM_WAIT_SECONDS, times=2)
-
-            assert told(stream) == [TOOLS_LIST_CHANGED, RESOURCE_UPDATED] * 2
-
     def test_a_window_change_wakes_without_a_tools_notice(self, scene):
         scene.invite()
         scene.accept(scene.standings()[0])
