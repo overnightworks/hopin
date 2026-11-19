@@ -3,6 +3,6 @@ agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
 role = "builder"
 base = "dc7e1a4db62ffe139a8639d74d5b9a8c6c45cf7a"
 branch = "claude/issue-944-two-participation-e2e-tests-race-at-phon"
-scope = ["tests/e2e/participation", "tests/e2e/support", "tests/participation"]
+scope = ["tests/e2e/conftest.py", "tests/e2e/participation", "tests/e2e/skat/stub_skat.py", "tests/e2e/support", "tests/e2e/test_names.py", "tests/participation"]
 opened_commit = "48141734fb0671dc3be6f381a2c2e9bd8875d63f"
 whole_reason = "The flaky tests on main and their shared helpers: the two phone-width tests, the e2e server port race and the timing-dependent coverage of the hearing route's ending reason."
