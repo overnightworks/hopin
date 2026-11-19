@@ -1,8 +1,0 @@
-claim_id = "7b029c5f74d84ee68a7d51d44c6e8050"
-agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
-role = "builder"
-base = "506989176252f3fcf2f5c22ca0c05108b7239840"
-branch = "claude/issue-843-serve-seam"
-scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/agent/speech_settings.py", "src/hopin/config/settings.py", "src/hopin/main.py", "tests/conftest.py", "tests/e2e/game/test_game_master_refusals.py", "tests/game/test_quiz_agent_settings_refusal.py", "tests/game/test_table_feature_activation.py", "tests/pods", "tests/skat/test_settings_refusal.py", "tests/stores/support/serve_hopin.py", "tests/test_config.py", "tests/test_main.py", "tests/test_main_logging.py"]
-opened_commit = "f01b003258f9c58dfb48b70c2a24a00a2daa0dfc"
-whole_reason = "The serve seam and the tests that stop patching main change together."
