@@ -325,7 +325,9 @@ class TestAThinkingAgentWhileHeld:
                 id="the end statement",
             ),
             pytest.param(
-                lambda participation, room_id, scheduler: speak(participation, "Zwei", room_id=room_id, interrupted="1"),
+                lambda participation, room_id, scheduler: speak(
+                    participation, "Zwei", room_id=room_id, interrupted="1"
+                ),
                 id="a speak naming the hold",
             ),
             pytest.param(

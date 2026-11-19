@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import pytest
-from agents.member import SPEAK_TOOL, PlaceRef
+from agents.member import SET_TURN_STATE_TOOL, SPEAK_TOOL, PlaceRef
 from playwright.sync_api import expect
 from speech_client.wire import VoiceId
 
@@ -19,6 +19,7 @@ from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, room_of_li
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
+from tests.e2e.support.speaker import SPEAKING_TILE
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.loopback_origin import Origin
@@ -459,3 +460,71 @@ def test_the_figure_speaks_an_agents_sentence_with_its_voice_and_mood_on_every_p
             {"voice": True, "mood": FigureMood.HAPPY.value},
             None,
         ]
+
+
+LONG_SENTENCE_SECONDS = 15.0
+# The thinking look moves the arm far more than the idle sway does.
+THINKING_SHIFT = 0.04
+THINKING_EASE_SECONDS = 2.0
+
+
+def arm_shifted_from(rest: float, person: Page) -> bool:
+    top = arm_top(person)
+    return top is not None and abs(top - rest) > THINKING_SHIFT
+
+
+def wait_until_arm_shifted_from(rest: float, person: Page) -> None:
+    deadline = time.monotonic() + SPOKEN_WAIT_MILLISECONDS / 1000
+    while not arm_shifted_from(rest, person):
+        assert time.monotonic() < deadline, "the figure never showed the thinking look"
+        time.sleep(0.2)
+
+
+def arm_top_at_rest_in_real_time(person: Page) -> float:
+    """The arm's top of a figure drawn in real time once two pictures a moment apart agree."""
+    previous = arm_top(person)
+    for _ in range(SETTLING_STEPS):
+        time.sleep(0.2)
+        top = arm_top(person)
+        if top is not None and previous is not None and abs(top - previous) <= SWAY:
+            return top
+        previous = top
+    pytest.fail("the arm did not stand still")
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_and_thinks_once_it_ended(
+    scene_of: Callable[..., Scene], speech_origin: Origin, form_factor: dict[str, Any]
+) -> None:
+    """CALL-68: An agent that states thinking while a sentence of it sounds keeps its speaking tile and its figure
+    still, on every seat where the sound plays, and shows thinking once the sound ended; a seat that joined meanwhile,
+    where nothing plays, shows it at once."""
+    scene = scene_of(form_factor)
+    scene.member_adds_and_the_agent_accepts(figure_of(DRAWABLE_URL, DRAWABLE))
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
+            "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
+        )
+    rest = {person: arm_top_at_rest_in_real_time(person) for person in scene.everyone}
+    speaking(speech_origin, chunked_wav(silent_wav(LONG_SENTENCE_SECONDS)))
+    place = PlaceRef(kind=CALL_KIND, id=room_of_link(scene.link)).model_dump()
+    scene.agent.call(SPEAK_TOOL, {"place": place, "text": "Guten Tag"})
+
+    scene.agent.call(SET_TURN_STATE_TOOL, {"place": place, "thinking": True})
+    time.sleep(THINKING_EASE_SECONDS)
+
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+    assert [arm_shifted_from(rest[person], person) for person in scene.everyone] == [False] * len(scene.everyone)
+
+    late = scene.person_joins_late()
+    expect(late.locator(AGENT_TILE).locator(".vid")).to_have_attribute(
+        "data-figure", "drawn", timeout=WAIT_FOR_THE_FIGURE_MILLISECONDS
+    )
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+    speaking_arm = {person: arm_top_at_rest_in_real_time(person) for person in scene.everyone}
+    wait_until_arm_shifted_from(speaking_arm[scene.host], late)
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE, timeout=SPOKEN_WAIT_MILLISECONDS * 2)
+        wait_until_arm_shifted_from(speaking_arm[person], person)
