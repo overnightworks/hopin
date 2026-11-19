@@ -3,6 +3,7 @@ events, says what a test scripts, and refuses an upgrade when a test asks it to.
 
 import logging
 import queue
+import socket
 import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
 
 LOCALHOST = "127.0.0.1"
 WAIT_SECONDS = 10
+PEEK_BYTES = 65536
+UPGRADE_HEADER = b"upgrade: websocket"
 POLL_SECONDS = 0.02
 ITEM = "item_one"
 _QUIET = logging.getLogger("fake_speech")
@@ -130,12 +133,59 @@ def failing(code: RefusalCode) -> ErrorEvent:
     return error_event(code)
 
 
+def _pipe(source: socket.socket, sink: socket.socket) -> None:
+    """Copy what `source` sends to `sink` until `source` ends."""
+    try:
+        while chunk := source.recv(PEEK_BYTES):
+            sink.sendall(chunk)
+        sink.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+
+
+class _Front:
+    """One port in front of the Realtime server and an HTTP origin, as the speech service has one origin for both: a
+    connection that asks to upgrade to a WebSocket goes to the Realtime server, any other to the origin."""
+
+    def __init__(self, realtime_port: int, http_port: int) -> None:
+        self._ports = (realtime_port, http_port)
+        self._listener = socket.create_server((LOCALHOST, 0))
+        self.port = self._listener.getsockname()[1]
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def close(self) -> None:
+        self._listener.close()
+
+    def _accept(self) -> None:
+        while True:
+            try:
+                client, _ = self._listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._forward, args=(client,), daemon=True).start()
+
+    def _forward(self, client: socket.socket) -> None:
+        head = b""
+        while b"\r\n\r\n" not in head:
+            head = client.recv(PEEK_BYTES, socket.MSG_PEEK)
+            if not head:
+                client.close()
+                return
+        realtime, http = self._ports
+        upstream = socket.create_connection((LOCALHOST, realtime if UPGRADE_HEADER in head.lower() else http))
+        threading.Thread(target=_pipe, args=(upstream, client), daemon=True).start()
+        _pipe(client, upstream)
+
+
 class FakeSpeech:
     """The service: `sessions` fills as the app connects; `refusal` answers the next upgrades over HTTP, and while
-    `opening` is clear an upgrade waits, so the app holds the sound it is sent."""
+    `opening` is clear an upgrade waits, so the app holds the sound it is sent. With the loopback port of an HTTP
+    origin that speaks (its health and its sounds), the service's one origin serves both."""
 
-    def __init__(self) -> None:
+    def __init__(self, speaking_port: int | None = None) -> None:
         self.sessions: list[Session] = []
+        self._speaking_port = speaking_port
+        self._front: _Front | None = None
         self.refusal: Refusal | None = None
         self.opening = threading.Event()
         self.opening.set()
@@ -145,14 +195,19 @@ class FakeSpeech:
     @property
     def origin(self) -> str:
         assert self._server is not None
-        return f"http://{LOCALHOST}:{self._server.socket.getsockname()[1]}"
+        port = self._server.socket.getsockname()[1] if self._front is None else self._front.port
+        return f"http://{LOCALHOST}:{port}"
 
     def start(self) -> None:
         self._server = serve(self._converse, LOCALHOST, 0, process_request=self._maybe_refuse, logger=_QUIET)
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        if self._speaking_port is not None:
+            self._front = _Front(self._server.socket.getsockname()[1], self._speaking_port)
 
     def stop(self) -> None:
         assert self._server is not None
+        if self._front is not None:
+            self._front.close()
         self._server.shutdown()
 
     def next_session(self, number: int = 1) -> Session:
