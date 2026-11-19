@@ -1,7 +1,0 @@
-claim_id = "1af65c2411ac4a8fa88def0a86349a29"
-agent = "Claude ba573067-ca24-4151-9ed2-171489322f28"
-role = "builder"
-base = "cd05d641376580fd0f7bc23be6435c1a3b72cdc3"
-branch = "claude/issue-983-design-git-tag-pin"
-scope = [".github/dependabot.yml", "pyproject.toml", "uv.lock"]
-opened_commit = "577f5964747bf7607f6c474c392e79d9002eb72f"
