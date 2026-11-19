@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
@@ -14,7 +15,7 @@ from tests.e2e.support.camera_less_call import (
     start_camera_less_host_call,
 )
 from tests.e2e.support.dialed_agent import Agent
-from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS
+from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS, NO_SOUND_DEVICE_ENVIRONMENT
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.people import DESKTOP, PERSON_ADDRESS_BASE, person_address_offsets, playwright_cookie
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
@@ -56,7 +57,11 @@ def base_url(core_server: RunningServer) -> str:
 def browser_type_launch_args(browser_type_launch_args: dict[str, Any]) -> dict[str, Any]:
     # The test certificate is self-signed: the per-request waiver of ignore_https_errors restarts a request
     # once per failed handshake, up to Chromium's cap, and a stylesheet that hits it never loads.
-    return {**browser_type_launch_args, "args": [*FAKE_MEDIA_BROWSER_ARGS, "--ignore-certificate-errors"]}
+    return {
+        **browser_type_launch_args,
+        "args": [*FAKE_MEDIA_BROWSER_ARGS, "--ignore-certificate-errors"],
+        "env": {**os.environ, **NO_SOUND_DEVICE_ENVIRONMENT},
+    }
 
 
 @pytest.fixture(scope="session")

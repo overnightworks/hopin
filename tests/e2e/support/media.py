@@ -13,6 +13,11 @@ FAKE_MEDIA_BROWSER_ARGS = [
     "--use-fake-ui-for-media-stream",
     "--autoplay-policy=no-user-gesture-required",
 ]
+# The browsers reach no sound server and no ALSA device, so Chromium renders sound into its fake output, as on a CI
+# runner. On a machine with a sound server, browsers running in parallel meet its errors, and a page whose AudioContext
+# met one captures no microphone sound for its hop. Chromium's `--disable-audio-output` is no substitute: it also stops
+# the sound of a remote track, which the speaking ring reads.
+NO_SOUND_DEVICE_ENVIRONMENT = {"PULSE_SERVER": "unix:/dev/null", "ALSA_CONFIG_PATH": "/dev/null"}
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 
