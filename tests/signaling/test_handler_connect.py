@@ -31,8 +31,8 @@ class TestConnect:
         code = refused_with_code(client, handshake_headers(None), "/ws?id=someone")
 
         assert code == POLICY_VIOLATION_CODE
-        session_lines = [entry for entry in logs if entry["event"] != "handshake.refused"]
-        assert [entry for entry in session_lines if entry.get("sub") is not None or "someone" in str(entry)] == []
+        assert {entry["event"] for entry in logs} == {"handshake.refused", "websocket.ended"}
+        assert [entry for entry in logs if entry.get("sub") is not None or "someone" in str(entry)] == []
         assert events_named(logs, "handshake.refused") == [
             {"event": "handshake.refused", "reason": "no-session", "log_level": "info"}
         ]
