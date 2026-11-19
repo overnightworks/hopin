@@ -150,6 +150,22 @@ class TestASentenceThatPlaysWhileItRenders:
             [log["event"] for log in logs if log["log_level"] == "error"],
         ) == (1, [("Eins", True, True)], 0, [])
 
+    async def test_call_60_an_end_of_the_agent_in_the_turn_after_a_stream_ended_sets_no_timer(
+        self, participation, streaming, scheduler, room_id
+    ):
+        known = asyncio.all_tasks()
+        timers_before = len(scheduler.pending_timers())
+        leaves = []
+
+        def leave():
+            leaves.append(asyncio.create_task(participation.leave(GUEST, room_id), eager_start=True))
+
+        await streaming.streamed.ends_after(SENTENCE_MS, then=leave)
+        await asyncio.gather(*leaves)
+        await announced_since(known)
+
+        assert (len(leaves), len(scheduler.pending_timers()) - timers_before) == (1, 0)
+
     async def test_call_60_an_end_of_the_agent_answers_a_written_sentence_waiting_behind_its_sound_as_gone(
         self, participation, room_id
     ):
