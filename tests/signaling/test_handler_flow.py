@@ -18,7 +18,7 @@ from hopin.config.constants import (
     RoomClosedReason,
     SignalType,
 )
-from tests.signaling.support.flow import POLICY_VIOLATION_CODE, events_named, expires_at
+from tests.signaling.support.flow import POLICY_VIOLATION_CODE, events_named, expires_at, lines_of_the_handler
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
@@ -612,4 +612,4 @@ class TestCallCap:
         assert [set(entry) for entry in events_named(logs, "client.refused")] == [
             {"event", "reason", "limit", "log_level"}
         ]
-        assert [secret for secret in secrets_in_logs if secret in str(logs)] == []
+        assert [secret for secret in secrets_in_logs if secret in str(lines_of_the_handler(logs))] == []

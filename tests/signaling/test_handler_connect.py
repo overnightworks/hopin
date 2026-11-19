@@ -8,7 +8,7 @@ from hopin.config.constants import (
     ErrorReason,
     SignalType,
 )
-from tests.signaling.support.flow import POLICY_VIOLATION_CODE, events_named, expires_at
+from tests.signaling.support.flow import POLICY_VIOLATION_CODE, events_named, expires_at, lines_of_the_handler
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, handshake_headers, parsed_set_cookies
 
@@ -127,6 +127,7 @@ class TestConnect:
 
         cookie_values = [morsel.value for _, morsel in parsed_set_cookies(member.set_cookie_headers)]
         secrets_in_logs = [member.account.username, member.account.id, member.session.id]
-        assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in str(logs)] == []
+        written = str(lines_of_the_handler(logs))
+        assert [secret for secret in [*secrets_in_logs, *cookie_values] if secret in written] == []
         assert [set(entry) for entry in events_named(logs, "handshake.refused")] == [{"event", "reason", "log_level"}]
         assert [set(entry) for entry in events_named(logs, "session.expired")] == [{"event", "peer_id", "log_level"}]

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from logline import REQUEST_EVENT
 from logline.testing import configured
 from starlette.requests import Request
+from starlette.websockets import WebSocketDisconnect
 from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import new_session_id
@@ -33,11 +34,17 @@ from hopin.config.constants import (
 )
 from hopin.config.secret_files import StartRefusedError
 from tests.support.fake_issuer import FakeIssuer
+from tests.support.forwarded_clients import (
+    FORWARDED_CLIENT_CASES,
+    TRUSTED_PROXY,
+    forwarding_headers,
+    lines_of_event,
+)
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_ICON, SIGN_IN_STYLESHEET, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
-from tests.support.signed_in import cookie_header, new_id_token, seed_member
+from tests.support.signed_in import cookie_header, handshake_headers, new_id_token, seed_member
 from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
@@ -46,6 +53,7 @@ if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
 
 SESSION_COOKIE = "__Host-session_id"
+WEBSOCKET_EVENT = "websocket.ended"
 
 
 def signed_in_client(settings: ServerSettings) -> TestClient:
@@ -430,13 +438,12 @@ class TestRequestLine:
     def test_a_trusted_proxy_makes_the_forwarded_client_the_address_and_the_admitted_person_the_sub(
         self, sign_in_settings, capsys
     ):
-        proxy = "172.31.250.1"
-        settings = sign_in_settings(trusted_proxies=proxy).settings
+        settings = sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings
         stores = single_process_stores()
         app = create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
         member = seed_member(stores, installed_web_auth_config(app))
         headers = {"cookie": cookie_header(member.set_cookie_headers), "x-forwarded-for": "198.51.100.7"}
-        client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, client=(proxy, 50000))
+        client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, client=(TRUSTED_PROXY, 50000))
 
         with configured("hopin"):
             client.get(ACCOUNT_PATH)
@@ -446,10 +453,12 @@ class TestRequestLine:
         assert request["ip"] == "198.51.100.7"
         assert request["sub"] == member.account.id
 
-    def test_a_refused_request_still_carries_its_address_and_no_sub(self, sign_in_settings, capsys):
-        proxy = "172.31.250.1"
+    @pytest.mark.parametrize(("peer", "forwarded_for", "client_address"), FORWARDED_CLIENT_CASES)
+    def test_a_request_the_stack_answers_itself_names_the_client_the_proxies_resolve(
+        self, sign_in_settings, capsys, peer, forwarded_for, client_address
+    ):
         app = create_app(
-            sign_in_settings(trusted_proxies=proxy).settings,
+            sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
         )
@@ -457,14 +466,83 @@ class TestRequestLine:
             app,
             base_url=TEST_PUBLIC_ORIGIN,
             follow_redirects=False,
-            headers={"x-forwarded-for": "203.0.113.5"},
-            client=(proxy, 50000),
+            headers=forwarding_headers(forwarded_for),
+            client=(peer, 50000),
+        )
+
+        with configured("hopin"):
+            malformed = client.get("/%0a")
+
+        (request,) = lines_of_event(capsys.readouterr().out, REQUEST_EVENT)
+        assert malformed.status_code == HTTPStatus.BAD_REQUEST
+        assert request["ip"] == client_address
+
+    @pytest.mark.parametrize(("peer", "forwarded_for", "client_address"), FORWARDED_CLIENT_CASES)
+    def test_a_refused_page_request_names_the_client_the_proxies_resolve(
+        self, sign_in_settings, capsys, peer, forwarded_for, client_address
+    ):
+        app = create_app(
+            sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+        )
+        client = TestClient(
+            app,
+            base_url=TEST_PUBLIC_ORIGIN,
+            follow_redirects=False,
+            headers=forwarding_headers(forwarded_for),
+            client=(peer, 50000),
         )
 
         with configured("hopin"):
             client.get(ACCOUNT_PATH)
 
-        lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-        (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
-        assert request["ip"] == "203.0.113.5"
+        (request,) = lines_of_event(capsys.readouterr().out, REQUEST_EVENT)
+        assert request["ip"] == client_address
         assert request["sub"] is None
+
+    @pytest.mark.parametrize(("peer", "forwarded_for", "client_address"), FORWARDED_CLIENT_CASES)
+    def test_a_socket_session_names_its_person_and_the_client_the_proxies_resolve(
+        self, sign_in_settings, capsys, peer, forwarded_for, client_address
+    ):
+        stores = single_process_stores()
+        app = create_app(
+            sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            stores=stores,
+        )
+        member = seed_member(stores, installed_web_auth_config(app))
+        headers = {**handshake_headers(member), **forwarding_headers(forwarded_for)}
+        client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, client=(peer, 50000))
+
+        with configured("hopin"), client.websocket_connect(WEBSOCKET_PATH, headers=headers) as socket:
+            socket.send_text(json.dumps({"type": SignalType.JOIN.value}))
+            socket.receive_json()
+
+        (session,) = lines_of_event(capsys.readouterr().out, WEBSOCKET_EVENT)
+        assert session["sub"] == member.account.id
+        assert session["ip"] == client_address
+
+    @pytest.mark.parametrize(("peer", "forwarded_for", "client_address"), FORWARDED_CLIENT_CASES)
+    def test_a_refused_socket_upgrade_names_no_person_and_the_client_the_proxies_resolve(
+        self, sign_in_settings, capsys, peer, forwarded_for, client_address
+    ):
+        app = create_app(
+            sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+        )
+        client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, client=(peer, 50000))
+        headers = {**handshake_headers(None), **forwarding_headers(forwarded_for)}
+
+        with (
+            configured("hopin"),
+            pytest.raises(WebSocketDisconnect),
+            client.websocket_connect(WEBSOCKET_PATH, headers=headers),
+        ):
+            pass
+
+        (session,) = lines_of_event(capsys.readouterr().out, WEBSOCKET_EVENT)
+        assert session["sub"] is None
+        assert session["ip"] == client_address

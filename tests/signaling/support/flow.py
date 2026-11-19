@@ -1,8 +1,14 @@
 POLICY_VIOLATION_CODE = 1008
+SESSION_LINE_EVENT = "websocket.ended"
 
 
 def events_named(logs, event):
     return [entry for entry in logs if entry["event"] == event]
+
+
+def lines_of_the_handler(logs):
+    """The lines but the socket's session line, which logline writes with the admitted person as its `sub`."""
+    return [entry for entry in logs if entry["event"] != SESSION_LINE_EVENT]
 
 
 def expires_at(stores, member):

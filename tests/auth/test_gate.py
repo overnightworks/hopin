@@ -12,10 +12,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
 from webauth.languages import AppLanguages
-from webauth.middleware import install_web_auth_middleware
+from webauth.middleware import ClientAddressMiddleware, install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
 from webauth.policies import CsrfPolicy, SecurityHeadersPolicy, default_content_security_policy
 from webauth.ports import AccountEventKind
+from webauth.proxies import TrustedProxies
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
@@ -576,6 +577,7 @@ def install_gate(app: FastAPI, stores: SingleProcessStores) -> None:
         csrf_origin=CsrfPolicy(),
         session_gate=session_gate(stores.sessions, frozenset()),
     )
+    app.add_middleware(ClientAddressMiddleware, trusted_proxies=TrustedProxies())
 
 
 class TestSecurityHeaders:
