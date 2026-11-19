@@ -194,15 +194,10 @@ class TestTheHold:
         talked_over_while_speaking(window)
         window.turn_ended("seat-a")
 
-        ended = window.end_hold()
+        window.end_hold()
         talked_over_while_speaking(window, "seat-b", "Bo")
 
-        assert (ended, window.read().interrupted) == (True, "2")
-
-    def test_call_69_ending_a_hold_that_does_not_stand_changes_nothing(self):
-        window = ChatWindow("generation")
-
-        assert (window.end_hold(), window.read().interrupted) == (False, None)
+        assert window.read().interrupted == "2"
 
     def test_call_69_a_cut_line_is_marked_cut(self):
         window = ChatWindow("generation")

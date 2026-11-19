@@ -279,11 +279,10 @@ class SpeechInWindows:
         window = self._places.window_of(agent.person, agent.room_id)
         if window is None:
             return
-        changed = window.end_hold()
+        window.end_hold()
         if resumed:
-            changed = window.set_playing(playing=True) or changed
-        if changed:
-            self._on_window_changed(agent.person, agent.room_id)
+            window.set_playing(playing=True)
+        self._on_window_changed(agent.person, agent.room_id)
 
     def words_heard(self, room_id: str, seat: PeerId, text: str) -> None:
         """The words the seat has said so far in its turn."""

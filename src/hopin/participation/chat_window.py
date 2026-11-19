@@ -150,11 +150,9 @@ class ChatWindow:
         """The id of the hold that stands, none while the agent is not held."""
         return self._interrupted
 
-    def end_hold(self) -> bool:
-        """The hold ends; say whether one stood."""
-        ended = self._interrupted is not None
+    def end_hold(self) -> None:
+        """The hold ends."""
         self._interrupted = None
-        return ended
 
     def hear_partial(self, speaker: str, text: str) -> bool:
         """The words the speaker has said so far; say whether the record changed. Text that does not encode as UTF-8
