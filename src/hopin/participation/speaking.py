@@ -4,15 +4,15 @@ renderer streams it, so a sentence plays while it is rendered; it ends when its 
 clock, counted from its start, or when its stream fails, which cuts it. A sentence whose voice failed before any sound
 takes its turn in the same queue and is written as a chat line instead. A stop cuts the playing sentence and drops every
 other one of the agent. A hold keeps the playing sentence, if one plays, and the queue behind it from going on: no end
-is timed and no sentence starts until a stop or a sentence that names the hold's id drops them."""
+is timed and no sentence starts until a continue lets them go on, or a stop or a sentence that names the hold's id drops
+them. The queue keeps the time its playing sentence has played, which a continue counts the rest of its length from."""
 
 import asyncio
 import logging
 from collections import deque
 from dataclasses import dataclass, field
 from enum import StrEnum
-from functools import partial
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 import structlog
 from logline import StepTimer
@@ -132,7 +132,7 @@ class SentenceEnd(StrEnum):
 @dataclass
 class _Hold:
     """The hold that stands over an agent's queue: its id, and the sentence that had started when it arose, none once
-    that one was cut or when only waiting ones were held."""
+    that one was cut or when only waiting ones were held. A continue lets that sentence play on."""
 
     id: str
     started: QueuedSentence | None
@@ -142,7 +142,8 @@ class _Hold:
 class _Queue:
     """One agent's sentences, kept from its first one until its speaking ends; the queue itself names that span.
     `stops` counts the stops that dropped sentences, which a sentence still being rendered finds when it is done. While
-    `held` stands, no sentence plays."""
+    `held` stands, no sentence plays. The playing or held sentence has played `played` seconds in the runs before the
+    one that began at `resumed_at`, which none does while it is held."""
 
     agent: DialedAgent
     playing: QueuedSentence | None = None
@@ -150,12 +151,20 @@ class _Queue:
     rendering: int = 0
     stops: int = 0
     held: _Hold | None = None
+    played: float = 0.0
+    resumed_at: float | None = None
+
+    def played_at(self, now: float) -> float:
+        """The seconds the playing sentence has played at `now`, on the clock of the deadlines."""
+        return self.played if self.resumed_at is None else self.played + now - self.resumed_at
 
 
 class Speaking:
     """The queues of the joined agents' sentences. `start` shows a sentence that begins to play, `ended` tells how
     the playing one ended, before the next one starts, and `write` posts a sentence that takes its turn as a line.
-    `hold_ended` tells that the hold over the agent's queue ended, after the line of the sentence it cut was shown.
+    `hold_ended` tells that the hold over the agent's queue ended, after the line of the sentence it cut was shown, and
+    whether the held sentence plays on. `sound_ended` tells that the sound of a sentence that a hold kept ends at the
+    seats.
     `in_own_turn` runs a step of an agent's queue, such as showing a started sentence, without holding its speaker's
     answer back behind a browser's blocked write; each step finds whether an end or a stop came first."""
 
@@ -166,7 +175,8 @@ class Speaking:
         start: Callable[[DialedAgent, QueuedSentence], Coroutine[None, None, None]],
         ended: Callable[[DialedAgent, QueuedSentence, SentenceEnd], None],
         write: Callable[[DialedAgent, str], Awaitable[None]],
-        hold_ended: Callable[[DialedAgent], None],
+        hold_ended: Callable[[DialedAgent, bool], None],
+        sound_ended: Callable[[DialedAgent], None],
         in_own_turn: Callable[[DialedAgent, Coroutine[None, None, None]], None],
     ) -> None:
         self._voices = voices
@@ -176,6 +186,7 @@ class Speaking:
         self._ended = ended
         self._write = write
         self._hold_ended = hold_ended
+        self._sound_ended = sound_ended
         self._in_own_turn = in_own_turn
         self._queues: dict[str, _Queue] = {}
 
@@ -193,8 +204,8 @@ class Speaking:
         when it starts that it plays, that it was written when its voice failed before any sound, or why it never
         does: no sound came for a reason that is no failure of the voice, a stop dropped it while it was rendered or
         waited, or an end dropped the agent's queue meanwhile, which a rejoin or a resume does not undo. `interrupted`
-        is a hold that stood when the sentence was asked for; it ends only by a stop or an end, which drop the sentence
-        too."""
+        is a hold that stood when the sentence was asked for; a stop or an end drops the sentence too, and a continue
+        refuses it as no hold that stands."""
         queue = self._queues.setdefault(agent.agent_id, _Queue(agent))
         stops = queue.stops
         queue.rendering += 1
@@ -204,13 +215,14 @@ class Speaking:
             queue.rendering -= 1
         if rendered is None:
             return AgentRefusal.UNAVAILABLE
-        dropped = self._dropped(agent, queue, stops)
+        dropped = self._dropped(agent, queue, stops, interrupted)
         if dropped is not None:
             if isinstance(rendered, RenderedSentence):
                 await rendered.rest.aclose()
             return dropped
         if interrupted is not None:
             self._drop_all(agent, queue)
+            self._sound_ended(agent)
         answer: asyncio.Future[SpeakResult] = asyncio.get_running_loop().create_future()
         sentence: WaitingSentence = (
             WrittenSentence(text, answer)
@@ -226,11 +238,15 @@ class Speaking:
             self._in_own_turn(agent, self._begin(agent, queue, sentence))
         return await answer
 
-    def _dropped(self, agent: DialedAgent, queue: _Queue, stops: int) -> AgentRefusal | SpeakStop | None:
+    def _dropped(
+        self, agent: DialedAgent, queue: _Queue, stops: int, interrupted: str | None
+    ) -> AgentRefusal | SpeakStop | HoldRefusal | None:
         if self._queues.get(agent.agent_id) is not queue:
             return AgentRefusal.GONE
         if queue.stops != stops:
             return SpeakStop.STOPPED
+        if interrupted is not None and interrupted != self._standing(queue):
+            return HoldRefusal.NOT_INTERRUPTED
         return None
 
     def _queued(
@@ -273,16 +289,34 @@ class Speaking:
         queue = self._queues.get(agent.agent_id)
         return queue is not None and (queue.playing is not None or bool(queue.waiting) or queue.rendering > 0)
 
-    def hold(self, agent: DialedAgent, hold_id: str) -> bool:
-        """Hold the agent under `hold_id`: the playing sentence stops where it is and its end is no longer timed, and
-        no waiting sentence starts, until a stop or a sentence that names the id drops them; whether a sentence that
-        had started was held, whose sound ends at the seats. The agent speaks and is not held."""
+    def hold(self, agent: DialedAgent, hold_id: str) -> None:
+        """Hold the agent under `hold_id`: the playing sentence stops where it is, keeping the time it has played, and
+        its end is no longer timed, and no waiting sentence starts, until a continue lets them go on or a stop or a
+        sentence that names the id drops them. The agent speaks and is not held."""
         queue = self._queues[agent.agent_id]
-        started = queue.playing
+        queue.played = queue.played_at(self._deadlines.now())
+        queue.resumed_at = None
         self._deadlines.cancel(DeadlineKind.SENTENCE_END, agent.agent_id)
+        queue.held = _Hold(hold_id, queue.playing)
         queue.playing = None
-        queue.held = _Hold(hold_id, started)
-        return started is not None
+
+    def continue_speaking(self, agent: DialedAgent, interrupted: str) -> HoldRefusal | None:
+        """End the hold `interrupted` names: the held sentence that had started plays on, its end timed from the time it
+        has played, then the queue; the refusal when no such hold stands."""
+        queue = self._queues.get(agent.agent_id)
+        if queue is None or interrupted != self._standing(queue):
+            return HoldRefusal.NOT_INTERRUPTED
+        held = cast("_Hold", queue.held)  # the id names the standing hold
+        queue.held = None
+        resumed = held.started
+        if resumed is not None:
+            queue.playing = resumed
+            queue.resumed_at = self._deadlines.now()
+            self._sized(agent, queue, resumed)
+        elif queue.waiting:
+            self._in_own_turn(agent, self._advance(agent, queue))
+        self._hold_ended(agent, resumed is not None)
+        return None
 
     def _drop_all(self, agent: DialedAgent, queue: _Queue) -> str | None:
         """Cut the playing sentence or the held one that had started and drop every other sentence, which ends a hold;
@@ -302,7 +336,7 @@ class Speaking:
             self._discard(cut)
             self._ended(agent, cut, SentenceEnd.CUT)
         if held is not None:
-            self._hold_ended(agent)
+            self._hold_ended(agent, False)
         return None if cut is None else cut.text
 
     @staticmethod
@@ -319,13 +353,21 @@ class Speaking:
         """Whether the agent's speaking has not ended since its first sentence."""
         return agent.agent_id in self._queues
 
-    def is_playing(self, agent: DialedAgent, sentence: QueuedSentence) -> bool:
-        """Whether the sentence is the one the agent's queue plays now, no end having dropped it."""
+    def stands(self, agent: DialedAgent, sentence: QueuedSentence) -> bool:
+        """Whether the sentence is the one the agent's queue plays now or holds, no end or stop having dropped it."""
         queue = self._queues.get(agent.agent_id)
-        return queue is not None and queue.playing is sentence
+        return queue is not None and (
+            queue.playing is sentence or (queue.held is not None and queue.held.started is sentence)
+        )
 
-    def end(self, agent: DialedAgent) -> None:
-        """The agent's removal, leave, pause, lease end or call end: drop its queue and its sounds at once."""
+    def is_held(self, agent: DialedAgent) -> bool:
+        """Whether a hold stands over the agent's queue."""
+        queue = self._queues.get(agent.agent_id)
+        return queue is not None and queue.held is not None
+
+    def end(self, agent: DialedAgent) -> bool:
+        """The agent's removal, leave, pause, lease end or call end: drop its queue and its sounds at once; whether a
+        hold stood over it, whose sound the seats still keep paused."""
         queue = self._queues.pop(agent.agent_id, None)
         if queue is not None:
             self._deadlines.cancel(DeadlineKind.SENTENCE_END, agent.agent_id)
@@ -338,35 +380,30 @@ class Speaking:
                 started.filling.cancel()
                 self._ended(agent, started, SentenceEnd.CUT)
             if queue.held is not None:
-                self._hold_ended(agent)
+                self._hold_ended(agent, False)
         self._voices.forget_speaker(agent.room_id, agent.agent_id)
+        return queue is not None and queue.held is not None
 
     def _begin(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> Coroutine[None, None, None]:
         """Answer the sentence's speaker now and set its end once its sound's length or failure is known; the returned
         announcement shows it."""
         queue.playing = sentence
+        queue.played = 0.0
+        queue.resumed_at = self._deadlines.now()
         _answer(sentence, SpeakStarted.SPOKEN)
-        ending = partial(self._set_end, agent, queue, sentence, self._deadlines.now())
         if sentence.ended.done():
-            ending(sentence.ended)
+            self._sized(agent, queue, sentence)
         else:
-            sentence.ended.add_done_callback(ending)
+            sentence.ended.add_done_callback(lambda _ended: self._sized(agent, queue, sentence))
         return self._start(agent, sentence)
 
-    def _set_end(
-        self,
-        agent: DialedAgent,
-        queue: _Queue,
-        sentence: QueuedSentence,
-        began_at: float,
-        ended: asyncio.Future[int | VoiceFailure],
-    ) -> None:
-        """A sound that came whole ends when its length has run out since the sentence began; one that broke off ends,
-        cut, at once. A held sentence's end is never timed: it enters cut when its sound breaks off, and the hold
-        stands over the queue."""
-        if self._queues.get(agent.agent_id) is not queue:
+    def _sized(self, agent: DialedAgent, queue: _Queue, sentence: QueuedSentence) -> None:
+        """A sound that came whole ends when its length has run out of the time the sentence has played; one that broke
+        off ends, cut, at once; one whose length is not known yet is timed when it is. A held sentence's end is never
+        timed: it enters cut when its sound breaks off, and the hold stands over the queue."""
+        if self._queues.get(agent.agent_id) is not queue or not sentence.ended.done():
             return
-        outcome = ended.result()
+        outcome = sentence.ended.result()
         if queue.held is not None and queue.held.started is sentence:
             if isinstance(outcome, VoiceFailure):
                 queue.held.started = None
@@ -378,7 +415,7 @@ class Speaking:
         if isinstance(outcome, VoiceFailure):
             self._in_own_turn(agent, self._cut(agent, sentence))
             return
-        remaining = began_at + outcome / MILLISECONDS_PER_SECOND - self._deadlines.now()
+        remaining = outcome / MILLISECONDS_PER_SECOND - queue.played_at(self._deadlines.now())
         self._deadlines.set(DeadlineKind.SENTENCE_END, agent.agent_id, max(remaining, 0))
 
     async def _played(self, agent_id: str) -> None:

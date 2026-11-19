@@ -5,8 +5,10 @@ import pytest
 
 from hopin.participation.frames import (
     BROWSER_FRAMES,
+    AgentContinuedFrame,
     AgentGestureFrame,
     AgentHearingFrame,
+    AgentHeldFrame,
     AgentInvitationEndedFrame,
     AgentJoinedFrame,
     AgentLeftFrame,
@@ -45,6 +47,8 @@ FULLY_SET_FRAMES = [
     AgentLookedFrame("a1"),
     AgentVoiceFrame("a1", "v1", FigureMood.HAPPY),
     AgentStopFrame("a1"),
+    AgentHeldFrame("a1"),
+    AgentContinuedFrame("a1"),
     AgentGestureFrame("a1", FigureGesture.WAVE),
     AgentThinkingFrame("a1", on=True),
     AgentOffersFrame(shown=True, full=False, offers=[Offer("k", "Bach", pending=True)]),

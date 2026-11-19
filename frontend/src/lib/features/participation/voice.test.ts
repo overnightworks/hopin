@@ -208,6 +208,118 @@ describe("stopping an agent's voice", () => {
     });
 });
 
+describe("holding an agent's voice", () => {
+    async function speakingAgent() {
+        const scene = voices();
+        scene.agentVoices.play("a1", "first");
+        const [sound] = scene.players.created[0]?.sounds ?? [];
+        await sound?.start();
+        return { ...scene, sound };
+    }
+
+    it("reports the agent silent at the pause and speaking again at the resume while the same sound plays on", async () => {
+        const { players, reported, agentVoices, sound } = await speakingAgent();
+
+        agentVoices.pause("a1");
+        await sound?.end({ kind: "played", playedSeconds: 1 });
+        const whilePaused = [...reported];
+        agentVoices.resume("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect([players.created[0]?.paused, whilePaused, reported]).toEqual([
+            false,
+            [
+                ["a1", true],
+                ["a1", false],
+            ],
+            [
+                ["a1", true],
+                ["a1", false],
+                ["a1", true],
+                ["a1", false],
+            ],
+        ]);
+    });
+
+    it("keeps a sound that arrives during the pause waiting, and reports the agent speaking only once it starts after the resume", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.pause("a1");
+        agentVoices.play("a1", "first");
+        const [sound] = players.created[0]?.sounds ?? [];
+
+        await sound?.start();
+        const whilePaused = [...reported];
+        agentVoices.resume("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect([whilePaused, reported]).toEqual([[], [["a1", true]]]);
+    });
+
+    it("does not report the agent speaking for a sound that starts inside the pause's ramp until the resume", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        const [sound] = players.created[0]?.sounds ?? [];
+
+        agentVoices.pause("a1");
+        await sound?.start({ inRamp: true });
+        const whilePaused = [...reported];
+        agentVoices.resume("a1");
+
+        expect([whilePaused, reported]).toEqual([[], [["a1", true]]]);
+    });
+
+    it("ends the sound of a stop that comes during the pause and leaves the player ready, so the next voice plays", async () => {
+        const { players, reported, agentVoices } = await speakingAgent();
+        agentVoices.pause("a1");
+
+        agentVoices.stop("a1");
+        await Promise.resolve();
+        await Promise.resolve();
+        agentVoices.play("a1", "later");
+        await players.created[0]?.sounds[1]?.start();
+
+        expect([players.created[0]?.paused, reported]).toEqual([
+            false,
+            [
+                ["a1", true],
+                ["a1", false],
+                ["a1", true],
+            ],
+        ]);
+    });
+
+    it("leaves the player of an agent whose hold had no sound ready for the next voice after a stop", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.pause("a1");
+
+        agentVoices.stop("a1");
+        agentVoices.play("a1", "later");
+        await players.created[0]?.sounds[0]?.start();
+
+        expect([players.created[0]?.paused, reported]).toEqual([false, [["a1", true]]]);
+    });
+
+    it("pauses only the player of the agent it names", () => {
+        const { players, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a2", "second");
+
+        agentVoices.pause("a1");
+
+        expect(players.created.map((player) => player.paused)).toEqual([true, false]);
+    });
+
+    it("resumes nothing for an agent that never spoke or was never held", () => {
+        const { players, agentVoices } = voices();
+
+        agentVoices.resume("a1");
+
+        expect(players.created).toEqual([]);
+    });
+});
+
 describe("closing an agent's player", () => {
     it("closes only the player of the agent that leaves, and the other keeps playing", async () => {
         const { players, reported, agentVoices } = voices();

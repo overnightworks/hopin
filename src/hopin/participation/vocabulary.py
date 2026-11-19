@@ -54,6 +54,8 @@ class ParticipationSignal(StrEnum):
     AGENT_HEARING = "agent_hearing"
     AGENT_VOICE = "agent_voice"
     AGENT_STOP = "agent_stop"
+    AGENT_HELD = "agent_held"
+    AGENT_CONTINUED = "agent_continued"
     AGENT_GESTURE = "agent_gesture"
     AGENT_THINKING = "agent_thinking"
     AGENT_SEEING = "agent_seeing"

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final
 import structlog
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
+    CONTINUE_SPEAKING_TOOL,
     DECLINE_INVITATION_TOOL,
     GESTURE_TOOL,
     SET_TURN_STATE_TOOL,
@@ -17,6 +18,10 @@ from agents.member import (
     AcceptInvitationArguments,
     AcceptInvitationRefusal,
     AcceptInvitationRefused,
+    ContinuedSpeaking,
+    ContinueSpeakingArguments,
+    ContinueSpeakingRefusal,
+    ContinueSpeakingRefused,
     DeclineInvitationArguments,
     DeclineInvitationReason,
     DeclineInvitationRefusal,
@@ -106,6 +111,7 @@ AUDIENCE_OF_TOOL: Final = {
     SAY: Audience.EVERY_AGENT,
     SPEAK_TOOL: Audience.EVERY_AGENT,
     STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
+    CONTINUE_SPEAKING_TOOL: Audience.EVERY_AGENT,
     GESTURE_TOOL: Audience.EVERY_AGENT,
     SET_TURN_STATE_TOOL: Audience.EVERY_AGENT,
     LOOK: Audience.EVERY_AGENT,
@@ -128,6 +134,12 @@ _STOP_REFUSAL_OF: Final = {
     AgentRefusal.SPONSOR_AWAY: StopSpeakingRefusal.NOT_ACTIVE,
     SpeakStop.NOTHING_PLAYING: StopSpeakingRefusal.NOTHING_PLAYING,
     HoldRefusal.NOT_INTERRUPTED: StopSpeakingRefusal.NOT_INTERRUPTED,
+}
+
+_CONTINUE_REFUSAL_OF: Final = {
+    AgentRefusal.GONE: ContinueSpeakingRefusal.NOT_ACTIVE,
+    AgentRefusal.SPONSOR_AWAY: ContinueSpeakingRefusal.NOT_ACTIVE,
+    HoldRefusal.NOT_INTERRUPTED: ContinueSpeakingRefusal.NOT_INTERRUPTED,
 }
 
 
@@ -229,7 +241,8 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
         "waited and as unavailable when speaking is off or not allowed to you or you have reached a limit. While you "
         "are held, because a person started speaking over you, nothing of yours plays or starts; a speak that does "
         "not name the hold's id as interrupted is refused as held, one that names an id that is not the hold is "
-        "refused as not_interrupted, and one that names it drops what was held and plays at once. When the voice "
+        "refused as not_interrupted, and one that names it drops what was held and plays at once; "
+        "continue_speaking goes on with what was held instead. When the voice "
         "fails, the sentence is "
         "written in the chat as your line instead, after the sentences before it have played, and the answer is "
         "written: true; the window's voice_state says whether your voice works there."
@@ -248,6 +261,18 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
         "interrupted; an id that is not the hold is refused as not_interrupted."
     ),
     parameters=StopSpeakingArguments.model_json_schema(),
+    effect=ToolEffect.SIDE_EFFECTING,
+)
+_CONTINUE_SPEAKING_DECLARATION: Final = ToolDeclaration(
+    name=CONTINUE_SPEAKING_TOOL,
+    description=(
+        "Go on with what you were saying after a person started speaking over you and held you: name the hold's id, "
+        "which your window states as interrupted. The sentence that was held plays on, where it paused, faded back in "
+        "in every seat, then the sentences of yours that waited behind it, and the hold ends. It is refused as "
+        "not_interrupted when no hold stands or the id is another one and as not_active when you are not joined there "
+        "or your person's seat is away."
+    ),
+    parameters=ContinueSpeakingArguments.model_json_schema(),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 
@@ -327,6 +352,10 @@ def _turn_state_refused() -> ToolOutcome:
 
 def _stop_refused(refusal: StopSpeakingRefusal) -> ToolOutcome:
     return ToolOutcome(StopSpeakingRefused(refused=refusal).model_dump_json(), is_error=True)
+
+
+def _continue_refused(refusal: ContinueSpeakingRefusal) -> ToolOutcome:
+    return ToolOutcome(ContinueSpeakingRefused(refused=refusal).model_dump_json(), is_error=True)
 
 
 def _joined_or_refused(outcome: DialedAgent | AgentRefusal) -> ToolOutcome:
@@ -417,6 +446,16 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
 
 
+async def _continued(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    continuing = member_arguments(ContinueSpeakingArguments, arguments)
+    if continuing.place.kind != CALL_KIND:
+        return _continue_refused(ContinueSpeakingRefusal.NOT_ACTIVE)
+    refusal = await participation.continue_speaking(caller.person, continuing.place.id, continuing.interrupted)
+    if refusal is not None:
+        return _continue_refused(_CONTINUE_REFUSAL_OF[refusal])
+    return ToolOutcome(ContinuedSpeaking(continued=True).model_dump_json(), is_error=False)
+
+
 async def _gestured(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     gesturing = member_arguments(GestureArguments, arguments)
     if gesturing.place.kind != CALL_KIND:
@@ -481,6 +520,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     async def stop_speaking(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _stopped(participation(), caller, arguments)
 
+    async def continue_speaking(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _continued(participation(), caller, arguments)
+
     async def gesture(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _gestured(participation(), caller, arguments)
 
@@ -498,6 +540,7 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_SAY_DECLARATION, say),
         CallerTool(_SPEAK_DECLARATION, speak),
         CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
+        CallerTool(_CONTINUE_SPEAKING_DECLARATION, continue_speaking),
         CallerTool(gesture_tool(), gesture),
         CallerTool(_SET_TURN_STATE_DECLARATION, set_turn_state),
         CallerTool(_LOOK_DECLARATION, look),

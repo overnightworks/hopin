@@ -276,6 +276,12 @@ export async function installWith(
     core.on(PARTICIPATION_SIGNAL.AGENT_VOICE, (frame) => {
         if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id, frame.mood);
     });
+    core.on(PARTICIPATION_SIGNAL.AGENT_HELD, (frame) => {
+        if (shown.has(frame.agent_id)) voices.pause(frame.agent_id);
+    });
+    core.on(PARTICIPATION_SIGNAL.AGENT_CONTINUED, (frame) => {
+        voices.resume(frame.agent_id);
+    });
     core.on(PARTICIPATION_SIGNAL.AGENT_STOP, (frame) => {
         voices.stop(frame.agent_id);
     });

@@ -1,10 +1,10 @@
-"""CALL-69: a person's speech start holds the agent in real browsers, through a speech service that hears the sponsor's
-microphone and speaks the agent's sentences on one origin."""
+"""CALL-69 and CALL-70: a person's speech start holds the agent in real browsers, and the agent goes on or ends
+silent, through a speech service that hears the sponsor's microphone and speaks the agent's sentences on one origin."""
 
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
+from agents.member import CONTINUE_SPEAKING_TOOL, SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
 from playwright.sync_api import Page, expect
 from speech_client.realtime_wire import SpeechStarted
 from speech_client.wire import VoiceId
@@ -14,7 +14,7 @@ from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQ
 from tests.e2e.support.hearing_hops import settle, until
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker, speaking_hopin
-from tests.support.fake_speech import ITEM, FakeSpeech
+from tests.support.fake_speech import ITEM, FakeSpeech, completed
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import offering
 
@@ -78,9 +78,17 @@ class HeldAgent:
         for person in self.everyone:
             expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
 
-    def sponsor_starts_speaking(self) -> None:
-        self.session.say(SpeechStarted(item_id=ITEM, audio_start_ms=0))
-        until(self.speaker.scene.owner, lambda: "interrupted" in self.speaker.window(), "the agent's hold")
+    def sponsor_starts_speaking(self, item_id: str = ITEM, hold: str = "1") -> None:
+        self.session.say(SpeechStarted(item_id=item_id, audio_start_ms=0))
+        until(
+            self.speaker.scene.owner,
+            lambda: self.speaker.window().get("interrupted") == {"id": hold},
+            f"the agent's hold {hold}",
+        )
+
+    def sponsor_finishes_speaking(self) -> None:
+        self.session.say(completed("Ich bin fertig"))
+        until(self.speaker.scene.owner, lambda: "talked_over" not in self.speaker.window(), "the end of the turn")
 
     def call(self, tool: str, **named: Any) -> dict[str, Any]:
         place = PlaceRef(kind=CALL_KIND, id=self.speaker.room)
@@ -115,15 +123,16 @@ def held(
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_a_person_starting_to_speak_ends_the_agents_sound_in_every_browser_and_nothing_more_sounds(
+def test_a_person_starting_to_speak_pauses_the_agents_sound_in_every_browser_and_nothing_more_sounds(
     held: HeldAgent,
 ) -> None:
     """CALL-69: When the sponsor starts speaking while the agent's first sentence plays and a second waits, its sound
-    ends in every browser and its tile shows present, the window shows the hold and `talked_over.playing` false in one
-    read, and the second sentence never sounds and never answers without the agent's decision."""
+    pauses in every browser and its tile shows present, the window shows the hold and `talked_over.playing` false in
+    one read, and the second sentence never sounds and never answers without the agent's decision."""
     for person in held.everyone:
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
-        assert person.evaluate("() => window.soundsStopped") > 0
+        person.wait_for_function("() => window.contextsSuspended > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        assert person.evaluate("() => window.soundsStopped") == 0
     window = held.speaker.window()
 
     assert (window["interrupted"], window["talked_over"]["playing"], window["entries"]) == ({"id": "1"}, False, [])
@@ -147,6 +156,7 @@ def test_while_held_a_speak_without_the_hold_is_refused_and_one_with_it_plays_af
 
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        assert person.evaluate("() => window.soundsStopped") > 0
     window = held.speaker.window()
     assert ('"refused":"held"' in refused_without_the_hold, answered) == (True, {"spoken": True})
     assert '"refused":"stopped"' in held.waiting_speak_refusal()
@@ -157,20 +167,72 @@ def test_while_held_a_speak_without_the_hold_is_refused_and_one_with_it_plays_af
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_while_held_a_stop_with_a_stale_id_is_refused_and_one_with_the_hold_answers_the_cut_sentence(
+def test_while_held_a_stop_with_a_stale_id_is_refused_and_one_with_the_hold_ends_silent_and_a_later_speak_sounds(
     held: HeldAgent,
 ) -> None:
-    """CALL-69: A `stop_speaking` with an id that is not the hold's is refused `not_interrupted` and the hold stands;
-    one with the hold's id ends it silent and answers the text of the cut sentence, and nothing more sounds."""
+    """CALL-69 and CALL-70: A `stop_speaking` with an id that is not the hold's is refused `not_interrupted` and the
+    hold stands; one with the hold's id ends it silent in every browser and answers the text of the cut sentence, the
+    second sentence never sounds, and a `speak` after it sounds in every browser, which a player left paused would not
+    do."""
     stale = held.refusal_of(STOP_SPEAKING_TOOL, interrupted="9")
     standing = held.speaker.window()["interrupted"]
 
     stopped = held.call(STOP_SPEAKING_TOOL, interrupted="1")
-
     window = held.speaker.window()
     settle(held.speaker.scene.owner)
+    silent = [held.sounds_started(person) for person in held.everyone]
+    held.call(SPEAK_TOOL, text=ANSWERING_SENTENCE)
+
+    for person in held.everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
     assert ('"refused":"not_interrupted"' in stale, standing, stopped) == (True, {"id": "1"}, {"cut": HELD_SENTENCE})
-    assert ("interrupted" in window, [held.sounds_started(person) for person in held.everyone]) == (
-        False,
-        [[SENTENCE_SECONDS]] * len(held.everyone),
+    assert ("interrupted" in window, silent) == (False, [[SENTENCE_SECONDS]] * len(held.everyone))
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_the_queue_plays_after_it(
+    held: HeldAgent,
+) -> None:
+    """CALL-70: A `continue_speaking` with a stale id is refused `not_interrupted` and the hold stands; one with the
+    hold's id answers continued, the window drops `interrupted` in that change, the same sound goes on where it paused
+    in every browser and plays to its end, its whole line enters uncut, and the second sentence plays after it."""
+    stale = held.refusal_of(CONTINUE_SPEAKING_TOOL, interrupted="9")
+    standing = held.speaker.window()["interrupted"]
+
+    continued = held.call(CONTINUE_SPEAKING_TOOL, interrupted="1")
+    window = held.speaker.window()
+
+    for person in held.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+        person.wait_for_function("() => window.contextsResumed > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    until(
+        held.speaker.scene.owner,
+        lambda: [line["text"] for line in held.speaker.window()["entries"]] == [HELD_SENTENCE],
+        "the held sentence's line",
     )
+    for person in held.everyone:
+        person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    entries = held.speaker.window()["entries"]
+    assert ('"refused":"not_interrupted"' in stale, standing, continued) == (True, {"id": "1"}, {"continued": True})
+    assert ("interrupted" in window, [(line["text"], line.get("cut", False)) for line in entries]) == (
+        (False, [(HELD_SENTENCE, False)])
+    )
+    assert held.second_answer.result(REQUEST_SECONDS) == {"spoken": True}
+    assert [held.sounds_started(person) for person in held.everyone] == [[SENTENCE_SECONDS] * 2] * len(held.everyone)
+    assert [person.evaluate("() => window.soundsStopped") for person in held.everyone] == [0] * len(held.everyone)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_person_who_starts_afresh_after_a_continue_holds_the_agent_again_under_a_new_id(held: HeldAgent) -> None:
+    """CALL-70: After a `continue_speaking`, a person who starts speaking afresh holds the agent again, with a new id,
+    and its sound pauses in every browser again."""
+    held.call(CONTINUE_SPEAKING_TOOL, interrupted="1")
+    for person in held.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+    held.sponsor_finishes_speaking()
+
+    held.sponsor_starts_speaking("item_two", hold="2")
+
+    for person in held.everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)

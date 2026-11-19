@@ -2,6 +2,7 @@ import pytest
 from agents.mcp_wire import PROTOCOL_VERSION_HEADER
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
+    CONTINUE_SPEAKING_TOOL,
     DECLINE_INVITATION_TOOL,
     SET_TURN_STATE_TOOL,
     SPEAK_TOOL,
@@ -61,7 +62,7 @@ class TestAPersonsOwnAgent:
 
 
 class TestTheEndpoint:
-    def test_tools_list_holds_the_nine_tools_and_no_wait(self, dialed_call):
+    def test_tools_list_holds_the_ten_tools_and_no_wait(self, dialed_call):
         token = dialed_call.token(dialed_call.member()[0])
 
         tools = dialed_call.request(token, "tools/list").json()["result"]["tools"]
@@ -74,6 +75,7 @@ class TestTheEndpoint:
             SAY,
             SPEAK_TOOL,
             STOP_SPEAKING_TOOL,
+            CONTINUE_SPEAKING_TOOL,
             SET_TURN_STATE_TOOL,
             LOOK,
         }

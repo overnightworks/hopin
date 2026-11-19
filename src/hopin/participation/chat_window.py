@@ -125,20 +125,24 @@ class ChatWindow:
 
     def talk_over(self, speaker: str, name: str, *, speaking: bool) -> bool:
         """A person starts speaking: they join the record that stands, or open one when the agent is held or `speaking`,
-        which is when a sentence of it plays or waits; say whether the record changed. A record that opens while the
-        agent speaks holds it, in the same change, under an id of its own, and says no sentence plays. The record keeps
-        its id until its last person's turn has ended."""
-        if self._talked_over is None:
-            if self._interrupted is None:
-                if not speaking:
-                    return False
-                self._interrupted_count += 1
-                self._interrupted = str(self._interrupted_count)
-            self._talked_over_count += 1
-            self._talked_over = _TalkedOver(str(self._talked_over_count), playing=False)
-        elif speaker in self._talked_over.partials:
+        which is when a sentence of it plays or waits; say whether the record changed. A person who is not in the record
+        while the agent `speaking` is not held holds it, and so does the one who opens a record then, in the same
+        change, under an id of its own, and the record says no sentence plays. The record keeps its id until its last
+        person's turn has ended."""
+        record = self._talked_over
+        if record is not None and speaker in record.partials:
             return False
-        self._talked_over.partials[speaker] = WindowPartial(name, "")
+        if self._interrupted is None and speaking:
+            self._interrupted_count += 1
+            self._interrupted = str(self._interrupted_count)
+            if record is not None:
+                record.playing = False
+        elif record is None and self._interrupted is None:
+            return False
+        if record is None:
+            self._talked_over_count += 1
+            record = self._talked_over = _TalkedOver(str(self._talked_over_count), playing=False)
+        record.partials[speaker] = WindowPartial(name, "")
         return True
 
     @property
@@ -146,11 +150,9 @@ class ChatWindow:
         """The id of the hold that stands, none while the agent is not held."""
         return self._interrupted
 
-    def end_hold(self) -> bool:
-        """The hold ends; say whether one stood."""
-        ended = self._interrupted is not None
+    def end_hold(self) -> None:
+        """The hold ends."""
         self._interrupted = None
-        return ended
 
     def hear_partial(self, speaker: str, text: str) -> bool:
         """The words the speaker has said so far; say whether the record changed. Text that does not encode as UTF-8

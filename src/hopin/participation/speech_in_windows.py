@@ -273,11 +273,16 @@ class SpeechInWindows:
                 arisen[agent] = window.interrupted
         return arisen
 
-    def hold_ended(self, agent: DialedAgent) -> None:
-        """The hold over the agent ended: the window stops saying that it is held."""
+    def hold_ended(self, agent: DialedAgent, resumed: bool) -> None:
+        """The hold over the agent ended: the window stops saying that it is held, and that no sentence plays when the
+        held one goes on, in one change."""
         window = self._places.window_of(agent.person, agent.room_id)
-        if window is not None and window.end_hold():
-            self._on_window_changed(agent.person, agent.room_id)
+        if window is None:
+            return
+        window.end_hold()
+        if resumed:
+            window.set_playing(playing=True)
+        self._on_window_changed(agent.person, agent.room_id)
 
     def words_heard(self, room_id: str, seat: PeerId, text: str) -> None:
         """The words the seat has said so far in its turn."""
