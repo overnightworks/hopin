@@ -167,9 +167,7 @@ class HearingRoute:
         # grant on.
         recheck = _SessionRecheck(self._resolver, self._scheduler, websocket, handle.ended)
         try:
-            # The hop's own lines and the session's upgrade to the service share one trace, apart from each turn's.
-            with unit_trace(None):
-                await self._hear(websocket, handle)
+            await self._hear(websocket, handle)
         finally:
             recheck.close()
             self._participation().speech.turn_ended(handle.room_id, handle.seat)
