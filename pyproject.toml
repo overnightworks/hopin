@@ -31,6 +31,7 @@ build-backend = "hatchling.build"
 # overrides a global --no-build, so every other package still installs as a wheel.
 no-binary-package = [
     "overnightworks-agents",
+    "overnightworks-design",
     "overnightworks-logline",
     "overnightworks-speech-client",
     "overnightworks-tandem",
