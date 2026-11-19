@@ -4,7 +4,7 @@ speech services on loopback ports, and the talked-over record read through the r
 import time
 
 import pytest
-from agents.member import STOP_SPEAKING_TOOL
+from agents.member import CONTINUE_SPEAKING_TOOL, STOP_SPEAKING_TOOL
 from speech_client.realtime_wire import SpeechStarted, TranscriptDelta
 from speech_client.wire import VoiceId
 
@@ -163,11 +163,12 @@ def held_agent(agent_speaking, fake_speech):
 
 
 class TestTheAgentDecidesWhileHeld:
-    def test_call_69_a_speak_without_the_hold_is_refused_held(self, held_agent):
-        assert refusal_of(speak(held_agent, seconds=None)) == (True, {"refused": "held"})
-
-    def test_call_69_a_speak_with_a_stale_hold_is_refused_not_interrupted(self, held_agent):
-        assert refusal_of(speak(held_agent, seconds=None, interrupted="9")) == (True, {"refused": "not_interrupted"})
+    @pytest.mark.parametrize(
+        ("interrupted", "refusal"),
+        [pytest.param(None, "held", id="no id"), pytest.param("9", "not_interrupted", id="a stale id")],
+    )
+    def test_call_69_a_speak_that_names_no_hold_or_a_stale_one_is_refused(self, held_agent, interrupted, refusal):
+        assert refusal_of(speak(held_agent, seconds=None, interrupted=interrupted)) == (True, {"refused": refusal})
 
     def test_call_69_a_stop_with_a_stale_hold_is_refused_not_interrupted_and_the_hold_stands(self, held_agent):
         refused = call_in(held_agent, tool=STOP_SPEAKING_TOOL, interrupted="9")
@@ -206,6 +207,31 @@ class TestTheAgentDecidesWhileHeld:
             False,
             [(TEXT, True)],
         )
+
+
+class TestTheAgentContinuesWhileHeld:
+    def test_call_70_a_continue_with_the_hold_answers_continued_and_the_window_leaves_the_hold(self, held_agent):
+        continued = call_in(held_agent, tool=CONTINUE_SPEAKING_TOOL, interrupted="1")
+
+        window = held_agent.window()
+        assert ((continued.is_error, continued.outcome), "interrupted" in window, window["entries"]) == (
+            (False, {"continued": True}),
+            False,
+            [],
+        )
+
+    def test_call_70_a_continue_with_a_stale_hold_is_refused_not_interrupted_and_the_hold_stands(self, held_agent):
+        refused = call_in(held_agent, tool=CONTINUE_SPEAKING_TOOL, interrupted="9")
+
+        assert (refusal_of(refused), held_agent.window()["interrupted"]) == (
+            (True, {"refused": "not_interrupted"}),
+            {"id": "1"},
+        )
+
+    def test_call_70_a_continue_at_a_place_the_agent_does_not_hold_is_not_active(self, held_agent):
+        refused = call_in(held_agent, "no-such-room", tool=CONTINUE_SPEAKING_TOOL, interrupted="1")
+
+        assert refusal_of(refused) == (True, {"refused": "not_active"})
 
 
 class TestAStopThatCutNothingThatHadStarted:

@@ -5,14 +5,13 @@ from typing import TYPE_CHECKING, Final, cast
 import structlog
 
 from hopin.errors import InvalidMessageError
+from hopin.participation.agent_speech import AgentSpeech
 from hopin.participation.chat_window import LineKind, WindowRead
 from hopin.participation.figures import Figure, FigureSource, judge_figure
 from hopin.participation.frames import (
     AgentInvitationEndedFrame,
     AgentLineFrame,
     AgentRefusedFrame,
-    AgentStopFrame,
-    AgentVoiceFrame,
     ParticipationFrame,
 )
 from hopin.participation.live_agents import LiveAgents
@@ -31,11 +30,10 @@ from hopin.participation.places import (
 )
 from hopin.participation.seeing import Seeing
 from hopin.participation.shown_figures import ShownFigures
-from hopin.participation.speaking import Speaking, SpeakResult, StopResult
 from hopin.participation.speech_in_windows import SpeechInWindows
 from hopin.participation.switches import Switches
-from hopin.participation.telling import send_in_room, tell_joined, tell_left, voices_of
-from hopin.participation.text import clean_line, clean_name, one_line
+from hopin.participation.telling import send_in_room, tell_joined, tell_left
+from hopin.participation.text import clean_line, clean_name
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     FEATURE_NAME,
@@ -48,8 +46,6 @@ from hopin.participation.vocabulary import (
     InvitationOutcome,
     LookRefusal,
     ParticipationSignal,
-    SpeakFailure,
-    SpeakStop,
 )
 from hopin.rooms.reference import room_reference
 from hopin.signaling.features import TransitionFeature
@@ -57,7 +53,7 @@ from hopin.signaling.frames import PeerId
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Coroutine, Mapping, Sequence
+    from collections.abc import Callable, Collection, Mapping, Sequence
 
     from hopin.participation.figures import FigureVerdict
     from hopin.participation.group_reads import GroupsOf, GroupsRead
@@ -65,7 +61,7 @@ if TYPE_CHECKING:
     from hopin.participation.live_agents import LiveAgent
     from hopin.participation.looking import Picture
     from hopin.participation.places import Place
-    from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
+    from hopin.participation.speaking import Renderer, SpeakResult, StopResult, VoicesOffered
     from hopin.participation.voice import VoiceStore
     from hopin.signaling.frames import ForeignFrame
     from hopin.signaling.replay import Supersedes
@@ -84,8 +80,6 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 INVITATION_CLOSED_EVENT: Final = "agent_invitation.closed"
 """The log event of an invitation that ends, with the reason it ended."""
-ANNOUNCEMENT_FAILED_EVENT: Final = "agent_announcement.failed"
-"""The log event of a step of an agent's sentences that failed, such as showing a started one."""
 
 
 class Participation(TransitionFeature):
@@ -123,16 +117,10 @@ class Participation(TransitionFeature):
         self._seat_views = SeatViews()
         self._offers = Offers(self._places, adders, listens_to_standing, self._is_working, self._seat_views)
         self.speech = SpeechInWindows(self._places, hearing, self._name_of, on_window_changed, deadlines)
-        self._speaking = Speaking(
-            voices,
-            deadlines,
-            self._sentence_started,
-            self.speech.sentence_ended,
-            self._write_line,
-            self.speech.hold_ended,
-            self._in_own_turn,
-        )
         self.figures = ShownFigures(self._places, deadlines, self._active_agent, self._tell, self._recipients)
+        self._agent_speech = AgentSpeech(
+            voices, deadlines, self.speech, self.figures, self._write_line, self._tell_room
+        )
         self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
         self._switches = Switches(self._places, hearing, self.speech, self._seeing)
         self._live = LiveAgents()
@@ -145,6 +133,7 @@ class Participation(TransitionFeature):
 
     def attach(self, transitions: FeatureTransitions) -> None:
         self._transitions = transitions
+        self._agent_speech.attach(transitions)
 
     @property
     def browser_modules(self) -> tuple[str, ...]:
@@ -234,50 +223,34 @@ class Participation(TransitionFeature):
         mood: FigureMood | None = None,
         interrupted: str | None = None,
     ) -> SpeakResult:
-        """Queue the person's agent's sentence, which plays with `mood`, behind its earlier ones once `render` made its
-        sound, and answer that it plays when the sentence starts, not when it is queued; the refusal when the agent
-        holds no active place there or the sentence cannot be spoken: no text, no renderer, past the agent's waiting
-        queue, or an end of its speaking meanwhile; a sound that could not be made is written as a line instead, and
-        `offered` then says when the voice is back, which turns the window's voice available without a sentence. A held
-        agent speaks only a sentence that names its hold as `interrupted`. Any other speak ends the agent's thinking."""
+        """Queue the person's agent's sentence (`AgentSpeech.speak`); the refusal when the agent holds no active place
+        there."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
-        if (hold_refusal := self._speaking.hold_refusal(agent, interrupted)) is not None:
-            return hold_refusal
-        await self.figures.end_thinking(agent)
-        sentence = clean_line(one_line(text))
-        if sentence is None or render is None:
-            return self.speech.speak_refused(
-                agent, text, SpeakFailure.NO_TEXT if sentence is None else SpeakFailure.SPEAKING_OFF
-            )
-        if interrupted is None and self._speaking.is_full(agent):
-            return self.speech.speak_refused(agent, text, SpeakFailure.QUEUE_FULL)
-        return await self._speaking.speak(
-            agent, sentence, self.speech.watching_voice(agent, render, offered), mood, interrupted
-        )
+        return await self._agent_speech.speak(agent, text, render, offered, mood, interrupted)
 
     async def stop_speaking(self, person: Person, room_id: str, interrupted: str | None = None) -> StopResult:
-        """Cut the sentence the person's agent plays or holds in every seat and drop its others, which ends its hold;
-        the cut sentence's text, that only others were dropped, or why nothing was cut."""
+        """Cut the sentence the person's agent plays or holds and drop its others (`AgentSpeech.stop`); the refusal when
+        the agent holds no active place there."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
-        outcome = self._speaking.stop(agent, interrupted)
-        if not isinstance(outcome, SpeakStop | HoldRefusal):
-            await self._stop_sound(agent)
-        return outcome
+        return await self._agent_speech.stop(agent, interrupted)
+
+    async def continue_speaking(
+        self, person: Person, room_id: str, interrupted: str
+    ) -> AgentRefusal | HoldRefusal | None:
+        """End the hold of the person's agent that `interrupted` names (`AgentSpeech.continue_speaking`); the refusal,
+        or nothing when its held sentence goes on."""
+        agent = self._active_agent(person, room_id)
+        if isinstance(agent, AgentRefusal):
+            return agent
+        return await self._agent_speech.continue_speaking(agent, interrupted)
 
     async def person_started(self, room_id: str, seat: PeerId) -> None:
         """A person starts speaking: the windows say so, then each agent that hears the seat and speaks is held."""
-        for agent, hold_id in self.speech.person_started(room_id, seat, self._speaking.is_speaking).items():
-            if self._speaking.hold(agent, hold_id):
-                await self._stop_sound(agent)
-
-    async def _stop_sound(self, agent: DialedAgent) -> None:
-        await self._tell(
-            agent.room_id, self._recipients(agent.room_id), AgentStopFrame(agent.agent_id), voices_of(agent)
-        )
+        await self._agent_speech.person_started(room_id, seat)
 
     async def look(self, person: Person, room_id: str) -> Picture:
         """The JPEG of the camera of the person's agent's sponsor, which the sponsor's seeing switch lets it take; why
@@ -475,6 +448,7 @@ class Participation(TransitionFeature):
         for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
             tell_joined(view, agent, [peer_id], transition)
             self.figures.tell_thinking(agent, peer_id, transition)
+            self._agent_speech.tell_held(view, transition, agent, peer_id)
         self._offer(view, transition)
 
     def chat_said(self, view: RoomView, peer_id: PeerId, message: str, change: Change) -> None:
@@ -498,7 +472,7 @@ class Participation(TransitionFeature):
             self._hearing.end_sound(peer_id)
             for _, _, place in bound:
                 if isinstance(place, DialedAgent):
-                    self._speaking.end(place)
+                    self._agent_speech.park(place)
                     self._seeing.ended(place)
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
@@ -546,7 +520,7 @@ class Participation(TransitionFeature):
         ended = [agent for agent in self._places.joined() if agent.room_id == room_id]
         self._places.drop_room(room_id)
         for agent in ended:
-            self._speaking.end(agent)
+            self._agent_speech.end(agent)
             self._seeing.ended(agent)
         for person in holders:
             self._on_changed(person)
@@ -565,7 +539,7 @@ class Participation(TransitionFeature):
         self._places.clear()
         self.speech.stop_recovery()
         for agent in ended:
-            self._speaking.end(agent)
+            self._agent_speech.end(agent)
             self._seeing.ended(agent)
         self._departed.clear()
         self._abandoned.clear()
@@ -737,30 +711,8 @@ class Participation(TransitionFeature):
         """The agent's removal, leave or lease end: it frees its place and hears and speaks nothing more."""
         change.release_agent_place(agent.agent_id)
         self._hearing.agent_ended(agent)
-        self._speaking.end(agent)
+        self._agent_speech.end(agent)
         self._seeing.ended(agent)
-
-    async def _sentence_started(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
-        """A sentence of the agent begins to play: in one transition it enters the call's chat as the agent's line and
-        every seat is told its voice, unless the agent's end came first; a stop that came first leaves the line
-        without a voice."""
-        await self._transitions.apply(agent.room_id, partial(self._announce_sentence, agent, sentence))
-
-    def _announce_sentence(
-        self, agent: DialedAgent, sentence: QueuedSentence, view: RoomView, transition: Transition
-    ) -> None:
-        if not self._speaking.speaks(agent):
-            return
-        playing = self._speaking.is_playing(agent, sentence)
-        if playing:
-            self.speech.sentence_started(agent)
-        send_in_room(view, transition, view.members, AgentLineFrame(agent.agent_id, agent.name, sentence.text))
-        if playing:
-            voice = AgentVoiceFrame(agent.agent_id, sentence.voice.id, sentence.mood)
-            send_in_room(view, transition, view.members, voice, voices_of(agent))
-
-    def _in_own_turn(self, agent: DialedAgent, step: Coroutine[None, None, None]) -> None:
-        self._transitions.in_own_turn(step, ANNOUNCEMENT_FAILED_EVENT, agent_id=agent.agent_id)
 
     def _is_working(self, key: str) -> bool:
         return self._transitions.is_working(key)
@@ -778,6 +730,10 @@ class Participation(TransitionFeature):
         self._agent_ended(agent, transition)
         self._on_changed(agent.person)
         tell_left(agent, view.members, transition)
+
+    async def _tell_room(self, agent: DialedAgent, frame: ParticipationFrame, supersedes: Supersedes | None) -> None:
+        """Send the frame to every seat in the agent's room."""
+        await self._tell(agent.room_id, self._recipients(agent.room_id), frame, supersedes)
 
     async def _tell(
         self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame, supersedes: Supersedes | None = None
