@@ -40,7 +40,6 @@ GUEST = person_named("guest")
 STOP = ParticipationSignal.AGENT_STOP
 VOICE = ParticipationSignal.AGENT_VOICE
 HELD = ParticipationSignal.AGENT_HELD
-THINKING = ParticipationSignal.AGENT_THINKING
 CONTINUED = ParticipationSignal.AGENT_CONTINUED
 
 
