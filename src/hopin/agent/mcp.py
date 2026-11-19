@@ -20,6 +20,7 @@ from agents.member import (
     INVITATION_SECONDS,
     LEASE_SECONDS,
     STANDING_URI,
+    Interrupted,
     Invitation,
     MemberStanding,
     PartialSpeech,
@@ -326,6 +327,7 @@ def _window_of(window: WindowRead) -> PlaceWindow:
             for line in window.lines
         ),
         talked_over=None if window.talked_over is None else _talked_over_of(window.talked_over),
+        interrupted=None if window.interrupted is None else Interrupted(id=window.interrupted),
         voice_state=None if window.voice is None else VoiceState(window.voice.value),
     )
 

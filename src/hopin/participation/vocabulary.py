@@ -131,11 +131,20 @@ class LookRefusal(StrEnum):
 
 
 class SpeakStop(StrEnum):
-    """What a stop leaves of a sentence or of the agent's speaking: a sentence dropped before it started, and a stop
-    that found nothing playing."""
+    """What a stop leaves of a sentence or of the agent's speaking: a sentence dropped before it started, a stop that
+    found nothing playing, and a stop that dropped a held sentence that had not started or only the queue."""
 
     STOPPED = "stopped"
     NOTHING_PLAYING = "nothing_playing"
+    DROPPED = "dropped"
+
+
+class HoldRefusal(StrEnum):
+    """Why a `speak` or a stop is refused for the agent's hold: the agent is held and the sentence names no hold, or
+    the id it names is not the standing hold's."""
+
+    HELD = "held"
+    NOT_INTERRUPTED = "not_interrupted"
 
 
 class SpeakStarted(StrEnum):

@@ -198,9 +198,8 @@ class HearingRoute:
                 self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance), utterance.item_id)
             return asyncio.sleep(0)  # the client awaits its callback; hearing is synchronous
 
-        def on_speech_started(_: SpeechStart) -> Awaitable[None]:
-            self._participation().speech.person_started(handle.room_id, handle.seat)
-            return asyncio.sleep(0)
+        async def on_speech_started(_: SpeechStart) -> None:
+            await self._participation().person_started(handle.room_id, handle.seat)
 
         def on_partial(partial: Partial) -> Awaitable[None]:
             self._participation().speech.words_heard(handle.room_id, handle.seat, partial.text)
