@@ -1,8 +1,0 @@
-claim_id = "a68b81b85cc44019a76255370a872be5"
-agent = "Claude 6bdf46dc-310f-402d-8538-0c0323ad446c"
-role = "builder"
-base = "fbe919c2fcab14079c1f322b9c24025454ef47be"
-branch = "claude/issue-965-logline-1-4"
-scope = ["pyproject.toml", "src/hopin", "tests", "uv.lock"]
-opened_commit = "9b47e542f2e92f35fd5f87babbf8d21486e92417"
-whole_reason = "A library bump touches every caller of logline across src and tests at once; it cannot split without a half-migrated logger."
