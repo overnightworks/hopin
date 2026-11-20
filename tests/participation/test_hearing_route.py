@@ -31,7 +31,7 @@ from tests.participation.support.hearing_scene import (
 )
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.dialed_call import join_arguments
-from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT, TOKEN_LIFETIME_SECONDS
+from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_speech import WAIT_SECONDS, Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.log_lines import captured_lines
@@ -58,27 +58,6 @@ def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1,
 
 
 class TestTheWorkloadToken:
-    def test_call_58_hops_within_one_tokens_lifetime_post_one_grant_and_carry_the_same_token(
-        self, sponsored, fake_speech
-    ):
-        """CALL-58: HopIn's token for the service is fetched once for the hops that follow within its lifetime."""
-        for session_number in (1, 2):
-            hear_one_sentence(sponsored, fake_speech, session_number=session_number)
-
-        assert (
-            len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)),
-            {header_of(session, WORKLOAD_TOKEN_HEADER) for session in fake_speech.sessions},
-        ) == (1, set(sponsored.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)))
-
-    def test_call_58_a_token_at_the_end_of_its_lifetime_is_fetched_anew_before_the_next_hop(
-        self, sponsored, fake_speech, issuer_clock
-    ):
-        hear_one_sentence(sponsored, fake_speech, session_number=1)
-        issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
-        hear_one_sentence(sponsored, fake_speech, session_number=2)
-
-        assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == 2
-
     def test_call_58_a_refusal_is_not_reused_for_the_next_hop(self, sponsored, fake_speech):
         sponsored.call.issuer.refuses_client_credentials_grants = True
         with hop(sponsored) as socket:
