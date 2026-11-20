@@ -523,6 +523,7 @@ describe("calling an agent that has an account of its own", () => {
         const cleared = page.offers()[0]?.textContent.includes("Gerade ausgelastet");
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
         page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
         expect([cleared, names(page)]).toEqual([false, []]);
     });
