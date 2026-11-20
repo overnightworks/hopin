@@ -197,8 +197,8 @@ class PageBuild:
     def app_directory(self) -> Path:
         return self.directory / APP_DIRECTORY
 
-    @classmethod
-    def load(cls, directory: Path, languages: AppLanguages = APP_LANGUAGES) -> PageBuild:
+    @staticmethod
+    def _read_sign_in_pages(directory: Path, languages: AppLanguages) -> dict[str, dict[str, bytes]]:
         sign_in_paths = {
             name: {language: directory / language / name for language in languages.offered}
             for name in (SIGNED_OUT_FILE, LOGIN_FAILED_FILE, NO_ACCESS_FILE)
@@ -206,19 +206,28 @@ class PageBuild:
         page_paths = [directory / SHELL_FILE, *(path for paths in sign_in_paths.values() for path in paths.values())]
         if not all(path.is_file() for path in page_paths) or not (directory / APP_DIRECTORY).is_dir():
             raise PageBuildMissingError(f"The page build is missing at {directory}; run make frontend")
-        shell_bytes = (directory / SHELL_FILE).read_bytes()
-        sign_in_bytes = {
+        return {
             name: {language: path.read_bytes() for language, path in paths.items()}
             for name, paths in sign_in_paths.items()
         }
-        linked = [_linked_app_files(page) for pages in sign_in_bytes.values() for page in pages.values()]
-        stylesheets = frozenset().union(*(files.stylesheets for files in linked))
-        icons = frozenset().union(*(files.icons for files in linked))
+
+    @staticmethod
+    def _read_stylesheets(directory: Path, stylesheets: frozenset[str]) -> list[bytes]:
         stylesheet_bytes = []
         for stylesheet in stylesheets:
             if not (directory / stylesheet.removeprefix("/")).is_file():
                 raise PageBuildMissingError(f"The page build at {directory} lacks {stylesheet}; run make frontend")
             stylesheet_bytes.append((directory / stylesheet.removeprefix("/")).read_bytes())
+        return stylesheet_bytes
+
+    @classmethod
+    def load(cls, directory: Path, languages: AppLanguages = APP_LANGUAGES) -> PageBuild:
+        sign_in_bytes = cls._read_sign_in_pages(directory, languages)
+        shell_bytes = (directory / SHELL_FILE).read_bytes()
+        linked = [_linked_app_files(page) for pages in sign_in_bytes.values() for page in pages.values()]
+        stylesheets = frozenset().union(*(files.stylesheets for files in linked))
+        icons = frozenset().union(*(files.icons for files in linked))
+        stylesheet_bytes = cls._read_stylesheets(directory, stylesheets)
         scripts = _InlineScripts()
         scripts.feed(shell_bytes.decode("utf-8"))
         scripts.close()
