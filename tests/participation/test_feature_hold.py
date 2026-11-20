@@ -391,6 +391,26 @@ class TestTheContinueTool:
         assert (answered.is_error, answered.content) == (True, '{"refused":"not_active"}')
 
 
+class TestTheToolsWithTheSponsorParked:
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments"),
+        [(STOP_SPEAKING_TOOL, {}), (CONTINUE_SPEAKING_TOOL, {"interrupted": "1"})],
+    )
+    async def test_call_69_70_the_tool_refuses_not_active_while_the_sponsor_is_parked(
+        self, participation, call, tool_name, arguments
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        [tool] = [
+            tool for tool in participation_tools(lambda: participation, None) if tool.declaration.name == tool_name
+        ]
+        await guest.drop()
+
+        answered = await tool.handler(Caller(GUEST), {"place": {"kind": CALL_KIND, "id": room_id}, **arguments})
+
+        assert (answered.is_error, answered.content) == (True, '{"refused":"not_active"}')
+
+
 class TestTheHoldEnds:
     async def test_call_69_a_voice_failure_while_held_enters_the_started_sentence_cut_and_the_hold_stands(
         self, participation, call

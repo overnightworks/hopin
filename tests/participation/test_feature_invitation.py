@@ -153,10 +153,12 @@ class TestAnInvitation:
             [frame["type"] for frame in told[-2:]],
             told[-1].get("outcome"),
             told[-1].get("agent_key") == offer["agent_key"],
+            told[-1].get("name") == offer["name"],
             invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
         ) == (
             [ParticipationSignal.AGENT_OFFERS.value, ParticipationSignal.AGENT_INVITATION_ENDED.value],
             InvitationOutcome.NO_ANSWER.value,
+            True,
             True,
             [],
         )
@@ -176,7 +178,11 @@ class TestAnInvitation:
         await expiry
 
         [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
-        assert (ended["outcome"], ended["agent_key"]) == (InvitationOutcome.NO_ANSWER.value, offer["agent_key"])
+        assert (ended["outcome"], ended["agent_key"], ended["name"]) == (
+            InvitationOutcome.NO_ANSWER.value,
+            offer["agent_key"],
+            offer["name"],
+        )
 
     async def test_it_ends_with_the_lease_of_the_agent_it_was_made_for(self, invited, scheduler):
         await scheduler.advance(LEASE_SECONDS)
@@ -266,10 +272,11 @@ class TestAnInvitation:
             refusal,
             ended["outcome"],
             ended["agent_key"] == offer["agent_key"],
+            ended["name"] == offer["name"],
             invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
             invited.participation.standings_of(AGENT),
             offers_sent_to(invited.member)[0]["pending"],
-        ) == (None, InvitationOutcome.BUSY.value, True, [], (), False)
+        ) == (None, InvitationOutcome.BUSY.value, True, True, [], (), False)
 
     async def test_an_invitation_added_after_a_decline_has_the_epoch_of_the_declined_one(self, invited):
         old = invited.invitation
