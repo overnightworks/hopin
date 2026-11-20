@@ -44,10 +44,19 @@ class FakeChannel implements FileChannel {
         this.label = label;
     }
 
+    private readonly sendWaiters: { count: number; resolve: () => void }[] = [];
+
     send(data: ArrayBuffer) {
         this.sent.push(data);
         this.bufferedAmount += data.byteLength;
         this.peer?.deliver(data);
+        for (const waiter of this.sendWaiters) if (this.sent.length >= waiter.count) waiter.resolve();
+    }
+
+    /** Settles once at least `count` messages are sent. */
+    whenSent(count: number): Promise<void> {
+        if (this.sent.length >= count) return Promise.resolve();
+        return new Promise((resolve) => void this.sendWaiters.push({ count, resolve }));
     }
 
     deliver(data: unknown) {
@@ -135,6 +144,34 @@ function chunksOf(content: Uint8Array): ArrayBuffer[] {
         chunks.push(buffer(content.subarray(offset, offset + CHUNK)));
     }
     return chunks;
+}
+
+/** Follows the reads of a file's parts, so a case goes on when the exchange has read and not after a guess of how long that takes. */
+function watchReads(file: Blob) {
+    const reads: Promise<ArrayBuffer>[] = [];
+    const waiters: { count: number; resolve: () => void }[] = [];
+    const slice = file.slice.bind(file);
+    file.slice = (...range: Parameters<Blob["slice"]>) => {
+        const part = slice(...range);
+        const read = part.arrayBuffer.bind(part);
+        part.arrayBuffer = () => {
+            const reading = read();
+            reads.push(reading);
+            for (const waiter of waiters) if (reads.length >= waiter.count) waiter.resolve();
+            return reading;
+        };
+        return part;
+    };
+    return {
+        get requested() {
+            return reads.length;
+        },
+        /** Settles when the `count`th part is read and the exchange went on with it. */
+        async read(count: number) {
+            if (reads.length < count) await new Promise<void>((resolve) => void waiters.push({ count, resolve }));
+            await reads[count - 1];
+        },
+    };
 }
 
 describe("a small picture announced", () => {
@@ -366,6 +403,19 @@ describe("a file that does not reach its end", () => {
         expect([view("p1:1").state, view("p1:2").state]).toEqual([FILE_STATE.INCOMPLETE, FILE_STATE.INCOMPLETE]);
     });
 
+    it("is discarded when a chunk is empty, so empty chunks are never kept", () => {
+        const { files, view, transport } = exchange();
+        files.announced("p1", 1, { ...PAPER, size: 10 });
+        files.fetch("p1:1");
+        const [channel] = transport.opened as [FakeChannel];
+
+        channel.deliver(new ArrayBuffer(0));
+        channel.deliver(new ArrayBuffer(0));
+
+        expect(view("p1:1").state).toBe(FILE_STATE.INCOMPLETE);
+        expect(channel.readyState).toBe("closed");
+    });
+
     it("is gone when it waited for a tap and its sender left, and a file that is here stays", () => {
         const { files, view, transport } = exchange();
         files.announced("p1", 1, PAPER);
@@ -422,14 +472,12 @@ describe("a file posted", () => {
     });
 
     it("shows no picture for a file whose bytes are no raster picture", async () => {
-        const { files, view, announcements, urls } = exchange();
-        const svg = new TextEncoder().encode("<svg/>");
+        const { files, view, urls } = exchange();
+        const svg = post(new TextEncoder().encode("<svg/>"), "logo.svg", "image/svg+xml");
+        const reads = watchReads(svg);
 
-        files.post(post(svg, "logo.svg", "image/svg+xml"));
-        await vi.waitFor(() => {
-            expect(announcements).toHaveLength(1);
-        });
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        files.post(svg);
+        await reads.read(1);
 
         expect(view("own:1")).toMatchObject({ picture: false, url: null });
         expect(urls.size).toBe(0);
@@ -471,8 +519,10 @@ describe("a file served", () => {
     function sender() {
         const exchanged = exchange({ delivery: DELIVERY.DELIVERED });
         const content = bytes(3 * CHUNK + 5, PNG_HEAD);
-        exchanged.files.post(new File([buffer(content)], "holiday.png", { type: "image/png" }));
-        return { ...exchanged, content };
+        const file = new File([buffer(content)], "holiday.png", { type: "image/png" });
+        const reads = watchReads(file);
+        exchanged.files.post(file);
+        return { ...exchanged, content, reads };
     }
 
     function fetchedBy(participantId: string, id: number, files: ReturnType<typeof exchange>["files"]) {
@@ -485,10 +535,7 @@ describe("a file served", () => {
         const { files, content } = sender();
 
         const channel = fetchedBy("p1", 1, files);
-        await vi.waitFor(() => {
-            expect(channel.sent).toHaveLength(4);
-        });
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await channel.whenSent(4);
 
         expect(channel.readyState).toBe("open");
         expect(channel.sent.map((chunk) => chunk.byteLength)).toEqual([CHUNK, CHUNK, CHUNK, 5]);
@@ -496,32 +543,31 @@ describe("a file served", () => {
     });
 
     it("waits on the send buffer: it sends no more while the buffer is full and goes on when it is low again", async () => {
-        const { files } = sender();
+        const { files, reads } = sender();
         const channel = new FakeChannel("file:1");
         channel.bufferedAmount = 10 * 1024 * 1024;
+        const readsBefore = reads.requested;
 
         files.serve("p1", channel);
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        const readsWhileFull = reads.requested;
         const sentWhileFull = channel.sent.length;
         channel.drain();
+        await channel.whenSent(1);
 
-        await vi.waitFor(() => {
-            expect(channel.sent.length).toBeGreaterThan(sentWhileFull);
-        });
-        expect(sentWhileFull).toBe(0);
+        expect([readsWhileFull, sentWhileFull]).toEqual([readsBefore, 0]);
         expect(channel.bufferedAmountLowThreshold).toBeGreaterThanOrEqual(0);
     });
 
     it("stops when the receiver's channel closes under it", async () => {
-        const { files } = sender();
+        const { files, reads } = sender();
         const channel = new FakeChannel("file:1");
         channel.bufferedAmount = 10 * 1024 * 1024;
+        const readsBefore = reads.requested;
 
         files.serve("p1", channel);
-        await new Promise((resolve) => setTimeout(resolve, 0));
         channel.drop();
         channel.bufferedAmount = 0;
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await reads.read(readsBefore + 1);
 
         expect(channel.sent).toEqual([]);
     });
@@ -545,18 +591,31 @@ describe("a file served", () => {
         files.post(new File([buffer(bytes(10))], "second.bin"));
         const first = fetchedBy("p1", 1, files);
         const concurrent = fetchedBy("p1", 2, files);
-        await vi.waitFor(() => {
-            expect(first.sent).toHaveLength(4);
-        });
+        await first.whenSent(4);
         first.drop();
-        await new Promise((resolve) => setTimeout(resolve, 5));
         const again = fetchedBy("p1", 1, files);
-        const next = fetchedBy("p1", 2, files);
+        let next: FakeChannel | undefined;
+        // The channel that ended frees the person's place once the sender's send loop has returned.
         await vi.waitFor(() => {
-            expect(next.sent).toHaveLength(1);
+            next = fetchedBy("p1", 2, files);
+            expect(next.readyState).toBe("open");
         });
 
-        expect([concurrent.readyState, again.readyState, next.readyState]).toEqual(["closed", "closed", "open"]);
+        expect([concurrent.readyState, again.readyState, next?.readyState]).toEqual(["closed", "closed", "open"]);
+    });
+
+    it("keeps the sender's composer busy while a person fetches the file, though the announcement is answered, and frees it at the end", async () => {
+        const { files } = sender();
+        const second = () => files.post(new File([buffer(bytes(10))], "second.bin"));
+
+        const channel = fetchedBy("p1", 1, files);
+        const whileFetched = second();
+        channel.drop();
+        await vi.waitFor(() => {
+            expect(second()).toBeNull();
+        });
+
+        expect(whileFetched).toBe(POST_REFUSAL.BUSY);
     });
 
     it("serves nothing to a person who left, and nothing after the release", () => {

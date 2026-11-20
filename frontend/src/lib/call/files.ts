@@ -7,7 +7,8 @@
 // other file is offered as a download in a blob typed as opaque bytes. A file whose sender leaves, or whose channel
 // closes before its last byte, is discarded and shown incomplete. Every blob URL and held file is released with
 // `release`, at leave and at the call's end. An announcement is answered with the lines exchange's receipt when the
-// exchange is done with it, so the sender's file shows pending while a receiver still fetches it.
+// exchange is done with it, so the sender's file shows pending until every receiver is done with the announcement; the
+// composer stays busy while any receiver fetches a file from it.
 
 import {
     DOWNLOAD_TYPE,
@@ -20,7 +21,7 @@ import {
 } from "#lib/call/file.ts";
 import { DELIVERY, type Delivery, type FileAnnouncement, lines, type Posted } from "#lib/call/lines.ts";
 import { state } from "#lib/call/state.ts";
-import { FILE_MAX_RECEIVED_BYTES } from "#lib/wire.ts";
+import { FILE_MAX_IN_FLIGHT, FILE_MAX_RECEIVED_BYTES } from "#lib/wire.ts";
 
 export const FILE_STATE = {
     /** Announced and not fetched: it waits for a tap. */
@@ -126,7 +127,6 @@ interface FileRecord {
     received: number;
     channel: FileChannel | null;
     acknowledged: boolean;
-    settled: boolean;
 }
 
 interface Held {
@@ -153,10 +153,10 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
     const transports = new Map<string, FileTransport>();
     const records = new Map<string, FileRecord>();
     const held = new Map<number, Held>();
-    /** The sender's channel open to each person that fetches from it. */
-    const serving = new Map<string, FileChannel>();
-    /** The file each sender has in flight at this page. */
-    const fetching = new Map<string, FileRecord>();
+    /** The sender's channels open to each person that fetches from it. */
+    const serving = new Map<string, Set<FileChannel>>();
+    /** The files each sender has in flight at this page. */
+    const fetching = new Map<string, Set<FileRecord>>();
     let reserved = 0;
     /** Counts the releases: work that was under way when the call ended finds the count changed and leaves. */
     let generation = 0;
@@ -181,15 +181,15 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
         channel.close();
     }
 
+    function inFlightFrom(participantId: string): number {
+        return fetching.get(participantId)?.size ?? 0;
+    }
+
     function leaveFetching(record: FileRecord) {
-        if (record.participantId !== null && fetching.get(record.participantId) === record) {
-            fetching.delete(record.participantId);
-        }
+        fetching.get(record.participantId as string)?.delete(record);
     }
 
     function discard(record: FileRecord) {
-        if (record.settled) return;
-        record.settled = true;
         if (record.view.state === FILE_STATE.LOADING) reserved -= record.view.size - record.received;
         record.chunks = [];
         leaveFetching(record);
@@ -199,7 +199,6 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
     }
 
     function finish(record: FileRecord) {
-        record.settled = true;
         const pictureType = pictureTypeOf(headOf(record.chunks));
         const blob = new Blob(record.chunks, { type: pictureType ?? DOWNLOAD_TYPE });
         record.chunks = [];
@@ -210,8 +209,12 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
     }
 
     function receiveChunk(record: FileRecord, data: unknown) {
-        if (record.settled) return;
-        if (!(data instanceof ArrayBuffer) || record.received + data.byteLength > record.view.size) {
+        // A sender sends no empty chunk: empty ones would be kept without bringing the file nearer its end.
+        if (
+            !(data instanceof ArrayBuffer) ||
+            data.byteLength === 0 ||
+            record.received + data.byteLength > record.view.size
+        ) {
             discard(record);
             return;
         }
@@ -228,12 +231,8 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
     function fetchFile(record: FileRecord) {
         const { participantId, view } = record;
         if (participantId === null || view.state !== FILE_STATE.OFFERED) return;
-        const transport = transports.get(participantId);
-        if (transport === undefined) {
-            discard(record);
-            return;
-        }
-        if (fetching.has(participantId)) {
+        const transport = transports.get(participantId) as FileTransport;
+        if (inFlightFrom(participantId) >= FILE_MAX_IN_FLIGHT) {
             refuseFetch(record, FILE_PROBLEM.BUSY);
             return;
         }
@@ -242,7 +241,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
             return;
         }
         reserved += view.size;
-        fetching.set(participantId, record);
+        fetching.set(participantId, (fetching.get(participantId) ?? new Set()).add(record));
         const channel = transport.open(labelOf(view.id));
         channel.binaryType = "arraybuffer";
         channel.onmessage = (event) => {
@@ -303,7 +302,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 const unfinished = current === FILE_STATE.OFFERED || current === FILE_STATE.LOADING;
                 if (record.participantId === participantId && unfinished) discard(record);
             }
-            serving.get(participantId)?.close();
+            for (const channel of serving.get(participantId) ?? []) channel.close();
             serving.delete(participantId);
             for (const file of held.values()) file.audience.delete(participantId);
         },
@@ -334,7 +333,6 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 received: 0,
                 channel: null,
                 acknowledged: false,
-                settled: tooLarge,
             };
             show(record);
             if (!tooLarge && isFetchedAtOnce(announcement.mime, announcement.size)) {
@@ -354,10 +352,11 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
         post(file: File): PostRefusal | null {
             const refusal = fileRefusal(file.size);
             if (refusal !== null) return refusal;
-            const inFlight = [...records.values()].some(
+            const announcedInFlight = [...records.values()].some(
                 (record) => record.view.own && record.view.delivery === DELIVERY.PENDING,
             );
-            if (inFlight) return POST_REFUSAL.BUSY;
+            const served = [...serving.values()].some((channels) => channels.size > 0);
+            if (announcedInFlight || served) return POST_REFUSAL.BUSY;
             const name = safeFileName(file.name);
             const postedIn = generation;
             const posted = announcer.announce({ name, size: file.size, mime: file.type });
@@ -382,7 +381,6 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 received: 0,
                 channel: null,
                 acknowledged: true,
-                settled: true,
             };
             show(record);
             void file
@@ -407,28 +405,28 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
             const match = LABEL_PATTERN.exec(channel.label);
             const file = match === null ? undefined : held.get(Number(match[1]));
             const unknown = file === undefined || !file.audience.has(participantId) || file.served.has(participantId);
-            if (unknown || serving.has(participantId)) {
+            const channels = serving.get(participantId) ?? new Set<FileChannel>();
+            if (unknown || channels.size >= FILE_MAX_IN_FLIGHT) {
                 channel.close();
                 return;
             }
             file.served.add(participantId);
-            serving.set(participantId, channel);
+            serving.set(participantId, channels.add(channel));
             void sendChunks(file.file, channel).finally(() => {
-                if (serving.get(participantId) === channel) serving.delete(participantId);
+                channels.delete(channel);
             });
         },
 
         /** Free every blob URL and held file, close every channel and begin the next call with an empty count: at leave and at the call's end. */
         release() {
             generation += 1;
-            for (const channel of serving.values()) channel.close();
+            for (const channels of serving.values()) for (const channel of channels) channel.close();
             serving.clear();
             held.clear();
             fetching.clear();
             for (const record of records.values()) {
                 closeChannel(record);
                 if (record.view.url !== null) revokeUrl(record.view.url);
-                record.settled = true;
                 emit(record, { state: FILE_STATE.INCOMPLETE, problem: null, url: null });
             }
             records.clear();

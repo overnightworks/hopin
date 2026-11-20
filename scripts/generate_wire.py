@@ -298,6 +298,7 @@ def render_core() -> str:
         f'export const LINE_TRIMMED_CHARACTERS =\n{INDENT}"{_characters(LINE_LIMITS.trimmed)}";\n'
         f'export const LINE_REFUSED_CHARACTERS =\n{INDENT}"{_characters(LINE_LIMITS.refused)}";\n'
         f"export const FILE_MAX_BYTES = {FILE_LIMITS.max_bytes};\n"
+        f"export const FILE_MAX_IN_FLIGHT = {FILE_LIMITS.max_in_flight};\n"
         f"export const FILE_MAX_RECEIVED_BYTES = {FILE_LIMITS.max_received_bytes};\n"
         f"export const PICTURE_AUTO_FETCH_BYTES = {FILE_LIMITS.picture_auto_fetch_bytes};\n"
         f"export const FILE_NAME_MAX_CHARACTERS = {FILE_LIMITS.max_name_characters};\n"
