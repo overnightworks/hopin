@@ -135,6 +135,7 @@ class AgentInvitationEndedFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_INVITATION_ENDED
 
     agent_key: str
+    name: str
     outcome: InvitationOutcome
 
 

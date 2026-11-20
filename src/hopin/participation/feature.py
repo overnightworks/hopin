@@ -487,9 +487,10 @@ class Participation(TransitionFeature):
         del view
         seat_room = self._seat_views.left(peer_id)
         invitations = [
-            AbandonedInvitation(room_id, self._live.by_person[person].key, place.adder)
+            AbandonedInvitation(room_id, agent.key, agent.name, place.adder)
             for person, room_id, place in bound
             if isinstance(place, Invited)
+            for agent in [self._live.by_person[person]]
         ]
         for person, room_id, _ in bound:
             self._places.remove(person, room_id)
@@ -513,7 +514,7 @@ class Participation(TransitionFeature):
                 view,
                 transition,
                 [invitation.adder],
-                AgentInvitationEndedFrame(invitation.agent_key, InvitationOutcome.OWNER_ABSENT),
+                AgentInvitationEndedFrame(invitation.agent_key, invitation.name, InvitationOutcome.OWNER_ABSENT),
             )
 
     def room_ended(self, room_id: str) -> None:
@@ -649,13 +650,13 @@ class Participation(TransitionFeature):
         self, view: RoomView, person: Person, invitation: Invited, outcome: InvitationOutcome, transition: Transition
     ) -> None:
         room_id = cast("str", view.room_id)  # the invitation is open in it
-        agent_key = self._live.by_person[person].key
+        agent = self._live.by_person[person]
         self._places.end_invitation(person, room_id)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._on_changed(person)
         self._offer(view, transition)
         # After the offers, which list the agent as available again: the outcome then marks that row.
-        send_in_room(view, transition, [invitation.adder], AgentInvitationEndedFrame(agent_key, outcome))
+        send_in_room(view, transition, [invitation.adder], AgentInvitationEndedFrame(agent.key, agent.name, outcome))
 
     def _arm(self, person: Person, seconds: float) -> None:
         self._deadlines.set(DeadlineKind.LEASE, person.key, seconds)
