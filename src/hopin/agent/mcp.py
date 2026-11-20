@@ -3,9 +3,10 @@ serve it.
 
 The front reads the kind of agent from the admitted request and serves an agent with an own account its standing as a
 resource, signalling it on every change of a place. It runs inside the app's lifespan. Every admitted call of an own
-account, the opening of a listen included, renews its lease. The chat window of a call's place is read as a resource by
-the principal whose agent it is. The figure and clip routes answer any signed-in member the verified file of a digest a
-joined agent names: the first read fetches it through `participation.figures`, and the file is kept in memory.
+account, the opening of a listen included, renews its lease. The chat window of a call's place is mapped to the
+library's window and read as a resource by the principal whose agent it is. The figure and clip routes answer any
+signed-in member the verified file of a digest a joined agent names: the first read fetches it through
+`participation.figures`, and the file is kept in memory.
 """
 
 import asyncio

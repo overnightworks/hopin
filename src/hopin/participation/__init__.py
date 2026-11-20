@@ -4,9 +4,8 @@ switches it in, and it names no agent runtime and has no AI in it.
 An agent is dialed in by a seat, whichever seat sponsors it (`feature.py`: presence, bounds, the frames), and takes a
 place of the call that `rooms` counts with its people, of both kinds. A place (`places.py`) is an open invitation, bound
 to the owner's exact seat with an epoch, or a joined tile that holds the agent's chat window (`chat_window.py`: plain
-Python that names no agent runtime; `hopin.agent.mcp` maps it to the library's window and lists and reads it as the
-resource of the call's place for the principal whose agent it is). A seat's park, resume or departure signals the agents
-it sponsors through the call core's `seat_changed`.
+Python that names no agent runtime; `hopin.agent.mcp` maps and serves it). A seat's park, resume or departure signals
+the agents it sponsors through the call core's `seat_changed`.
 
 An agent with an account of its own is live while it calls, on a lease of the connector's `LEASE_SECONDS` that each
 admitted call renews; the lease's expiry, or a change of owner, ends its places and signals its standing
