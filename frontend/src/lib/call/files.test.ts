@@ -256,7 +256,7 @@ describe("a file that waits for a tap", () => {
     it("is offered under a sanitized name", () => {
         const { files, view } = exchange();
 
-        files.announced("p1", 1, { ...PAPER, name: "../..\\evil‮fdp.exe" });
+        files.announced("p1", 1, { ...PAPER, name: "../..\\evil\u202efdp.exe" });
 
         expect(view("p1:1").name).toBe("....evilfdp.exe");
     });
