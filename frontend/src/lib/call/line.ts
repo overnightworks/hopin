@@ -11,8 +11,8 @@ export function cleanLine(text: string): string | null {
     const characters = Array.from(text);
     let start = 0;
     let end = characters.length;
-    while (start < end && TRIMMED.has(characters[start] ?? "")) start++;
-    while (end > start && TRIMMED.has(characters[end - 1] ?? "")) end--;
+    while (start < end && TRIMMED.has(characters[start] as string)) start++;
+    while (end > start && TRIMMED.has(characters[end - 1] as string)) end--;
     const line = characters.slice(start, end);
     if (line.length === 0 || line.length > LINE_MAX_CHARACTERS) return null;
     if (line.some((character) => REFUSED.has(character))) return null;
