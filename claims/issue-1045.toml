@@ -3,6 +3,6 @@ agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
 role = "builder"
 base = "4b9b57e8366abf7cfc21b50068d02ddecb38dc5d"
 branch = "claude/issue-1045-songs-and-videos"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call", "frontend/src/lib/catalogs", "frontend/src/lib/ui", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "src/hopin/words.py", "tests/e2e"]
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call", "frontend/src/lib/catalogs", "frontend/src/lib/ui", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "sonar-project.properties", "src/hopin/words.py", "tests/e2e"]
 opened_commit = "6a41f743f2b92206e75ff349cc58f7150c01f898"
 whole_reason = "The container check, the player and the download fallback land together, so no media plays unchecked."
