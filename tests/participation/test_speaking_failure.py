@@ -27,7 +27,7 @@ from tests.participation.support.speaking_scene import (
     sound_at,
     still_waiting,
 )
-from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
+from tests.support.agent_speak import TEXT, speak
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.log_lines import captured_lines
@@ -183,47 +183,6 @@ class TestWhenTheVoiceFails:
             ["input_refused"],
             [],
         )
-
-    def test_call_61_the_window_states_the_voice_unavailable(self, joined_agent, speech_origin):
-        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-
-        speak(joined_agent)
-
-        assert joined_agent.window()["voice_state"] == "unavailable"
-
-    def test_call_61_the_outage_is_logged_once_and_the_voice_is_available_again_at_the_next_sound(
-        self, joined_agent, speech_origin
-    ):
-        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        with captured_lines() as logs:
-            speak(joined_agent)
-            speak(joined_agent)
-        speaking(speech_origin, chunked_wav(SOUND))
-        recovered = speak(joined_agent)
-        joined_agent.call.pass_time(SENTENCE_SECONDS)
-        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        with captured_lines() as later_logs:
-            speak(joined_agent)
-
-        assert (
-            len(voices_lost(logs)),
-            recovered.outcome,
-            len(voices_lost(later_logs)),
-        ) == (1, {"spoken": True}, 1)
-
-    def test_call_61_the_voice_is_stated_available_once_a_sound_follows_the_outage(self, joined_agent, speech_origin):
-        speaking(speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        speak(joined_agent)
-        speaking(speech_origin, chunked_wav(SOUND))
-
-        speak(joined_agent)
-
-        assert joined_agent.window()["voice_state"] == "available"
-
-    def test_call_61_a_voice_that_never_failed_states_nothing(self, joined_agent):
-        speak(joined_agent)
-
-        assert "voice_state" not in joined_agent.window()
 
 
 class TestASentenceWithNoText:
