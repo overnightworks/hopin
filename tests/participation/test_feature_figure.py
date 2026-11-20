@@ -743,6 +743,7 @@ class TestStatedTurnOutcome:
             pytest.param(lambda scene: call_in(scene, tool=SET_TURN_STATE_TOOL, thinking=True), id="a new turn"),
             pytest.param(lambda scene: call_in(scene, tool=SET_TURN_STATE_TOOL), id="a statement of none"),
             pytest.param(lambda scene: call_in(scene, tool=SPEAK_TOOL, text="Hallo"), id="a spoken line"),
+            pytest.param(lambda scene: call_in(scene, tool=GESTURE_TOOL, gesture="wave"), id="a gesture"),
             pytest.param(
                 lambda scene: scene.call.call(scene.token, SAY, {"room": scene.owner.room_id, "text": "Hallo"}),
                 id="a said line",
