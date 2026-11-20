@@ -37,12 +37,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 GUEST = person_named("guest")
 REQUEST = ParticipationSignal.AGENT_LOOK_REQUEST
 LOOKED = ParticipationSignal.AGENT_LOOKED
-SETTLE_TURNS = 20
-
-
-async def settle():
-    for _ in range(SETTLE_TURNS):
-        await asyncio.sleep(0)
 
 
 def seeing(agent_id, *, on):
@@ -55,6 +49,11 @@ def no_camera(request_id):
 
 def request_ids(browser):
     return [frame["request_id"] for frame in browser.frames(REQUEST)]
+
+
+async def asked_for_a_picture(browser, asked_before):
+    """Wait until the browser was asked for one more picture than `asked_before`."""
+    await browser.socket.wait_until(lambda: len(request_ids(browser)) > asked_before)
 
 
 @pytest_asyncio.fixture
@@ -72,8 +71,9 @@ def looking(participation, seen):
     _host, guest, _agent = seen
 
     async def start():
+        asked_before = len(request_ids(guest))
         look = asyncio.create_task(participation.look(GUEST, room_of(guest)))
-        await settle()
+        await asked_for_a_picture(guest, asked_before)
         return look
 
     return start
@@ -269,12 +269,12 @@ async def switched_off(participation, host, guest, agent):
 
 class TestASlowSocket:
     async def test_call_63_a_request_the_sponsors_socket_does_not_take_in_time_yields_no_answer(
-        self, scheduler, seen, looking
+        self, participation, scheduler, seen
     ):
         """CALL-63: One deadline bounds the whole look, the write of the request among it."""
         _host, guest, _agent = seen
         stalled = HeldWrite(guest.socket)
-        look = await looking()
+        look = asyncio.create_task(participation.look(GUEST, room_of(guest)))
         await stalled.reached()
 
         await scheduler.advance(LOOK_ANSWER_SECONDS)
@@ -339,7 +339,8 @@ class TestAnswersWhileTheLookIsShown:
         await host.say(seeing(salieri.agent_id, on=True))
         mine = asyncio.create_task(participation.look(GUEST, room_of(guest)))
         theirs = asyncio.create_task(participation.look(person_named("host"), room_of(host)))
-        await settle()
+        await asked_for_a_picture(guest, 0)
+        await asked_for_a_picture(host, 0)
 
         await guest.say(seeing(mozart.agent_id, on=False))
         await host.say(no_camera(request_ids(host)[-1]))
