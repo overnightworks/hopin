@@ -1313,11 +1313,12 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
   Hp = { ua: [-0.6, 0.5, 0.6], la: [0, 2.4, 0], h: [0, 0, 0] },
   Tt = { characters: new Set(), started: !1, cpu: 0, fps: 0, last: 0, burnMs: 0 },
   // Rahmung: Meter über und unter den Augen sowie halbe Breite, die die Kamera zeigen muss. "shoulders" ist das gesegnete Bild.
+  // Bei "upper" und "full" liegt der Kopf unter der Zeile der beiden Hör-Pillen, damit sie das Gesicht nicht verdecken.
   FR = {
     face: { r: 0.15, o: 0.15, a: 0.14 },
     shoulders: { r: 0.25, o: 0.4, a: 0.31 },
-    upper: { r: 0.3, o: 0.8, a: 0.45 },
-    full: { r: 0.3, o: 9, a: 0.6 },
+    upper: { r: 0.43, o: 0.75, a: 0.45 },
+    full: { r: 0.7, o: 9, a: 0.6 },
   },
   ih = class {
     constructor(e, t = {}) {
