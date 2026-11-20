@@ -62,7 +62,7 @@ async () => {
     canvas.width = 64;
     canvas.height = 48;
     const context = canvas.getContext("2d");
-    const recorder = new MediaRecorder(canvas.captureStream(10), { mimeType: "video/webm" });
+    const recorder = new MediaRecorder(canvas.captureStream(), { mimeType: "video/webm" });
     const parts = [];
     recorder.ondataavailable = (event) => parts.push(event.data);
     const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
@@ -70,7 +70,7 @@ async () => {
     for (let step = 0; step < 6; step += 1) {
         context.fillStyle = `hsl(${step * 60}, 90%, 50%)`;
         context.fillRect(0, 0, 64, 48);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
     }
     recorder.stop();
     await stopped;
