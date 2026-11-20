@@ -37,7 +37,7 @@ let seat: Seat | null = null;
 let sentLog = new SentLog();
 let lastDispatchedSeq = 0;
 let sessionLost = () => {};
-let sessionLive = () => {};
+let sessionLive: (replayed: readonly SentFrame[]) => void = () => {};
 let sessionEnded = () => {};
 
 function addHandler(type: string, handler: Handler) {
@@ -60,8 +60,8 @@ export function onSessionLost(callback: () => void) {
     sessionLost = callback;
 }
 
-/** The callback runs each time the socket turns live and its unacknowledged frames are written: after a join and after a resume. */
-export function onSessionLive(callback: () => void) {
+/** The callback runs each time the socket turns live and its unacknowledged frames are written, after the join or the resume's fallback join it sends: it is told the frames written again. */
+export function onSessionLive(callback: (replayed: readonly SentFrame[]) => void) {
     sessionLive = callback;
 }
 
@@ -127,12 +127,13 @@ function writeFirstFrame(current: WebSocket, message: OutgoingMessage | SentFram
     current.send(JSON.stringify(message));
 }
 
-function startWriting(current: WebSocket) {
+function startWriting(current: WebSocket): SentFrame[] {
     socketIsLive = true;
-    for (const frame of sentLog.unacknowledged()) {
+    const replayed = sentLog.unacknowledged();
+    for (const frame of replayed) {
         writeFirstFrame(current, frame);
     }
-    sessionLive();
+    return replayed;
 }
 
 function forgetSeat() {
@@ -147,14 +148,14 @@ function handleOpen(current: WebSocket) {
         writeFirstFrame(current, resumeMessage(seat));
     } else {
         writeFirstFrame(current, joinMessage());
-        startWriting(current);
+        sessionLive(startWriting(current));
     }
 }
 
 function handleResumed(current: WebSocket, heldSeat: Seat, data: ResumedFrame) {
     heldSeat.token = data.resume_token;
     sentLog.acknowledge(data.last_seq);
-    startWriting(current);
+    sessionLive(startWriting(current));
     state.reconnectAttempt = 0;
     setStatus(words["call.statusInCall"], "connected");
 }
@@ -162,7 +163,7 @@ function handleResumed(current: WebSocket, heldSeat: Seat, data: ResumedFrame) {
 function fallBackToJoin(current: WebSocket) {
     forgetSeat();
     sessionLost();
-    startWriting(current);
+    sessionLive(startWriting(current));
     send(joinMessage());
 }
 

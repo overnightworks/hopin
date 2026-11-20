@@ -236,8 +236,8 @@ export function startUp() {
     registerSessionHandlers();
     onPeersChanged(updateParticipantCount);
     onSessionLost(removeAllPeers);
-    onSessionLive(() => {
-        lines.resumeAgents();
+    onSessionLive((replayed) => {
+        lines.resumeAgents(replayed);
     });
     onSessionEnded(() => {
         tearDownCall();

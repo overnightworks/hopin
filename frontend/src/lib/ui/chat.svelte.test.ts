@@ -265,9 +265,9 @@ describe("what the composer says", () => {
         const { chat, readersNote, setLineReaders } = await freshChat();
         expect(readersNote()).toBeNull();
 
-        setLineReaders({ names: ["Claude", "Mozart"], send: () => {} });
+        setLineReaders({ names: ["Claude", "Mozart"], frameType: "line_for_agents", send: () => {} });
         expect(readersNote()).toBe(words["chat.readersNote"]({ names: "Claude, Mozart" }));
-        setLineReaders({ names: [], send: () => {} });
+        setLineReaders({ names: [], frameType: "line_for_agents", send: () => {} });
 
         expect(chat.readers).toEqual([]);
         expect(readersNote()).toBeNull();

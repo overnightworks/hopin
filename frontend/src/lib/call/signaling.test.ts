@@ -436,6 +436,21 @@ describe("resuming", () => {
         expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.JOIN, seq: 1 }]);
     });
 
+    it("tells the page which frames the resume wrote again", async () => {
+        const signaling = await freshSignaling();
+        const replayed: { type: string }[][] = [];
+        signaling.onSessionLive((frames) => void replayed.push([...frames]));
+        const socket = seatedSocket(signaling);
+        signaling.sendFeatureFrame({ type: "line_for_agents", text: "kept" });
+        socket.closeWith(1006);
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+
+        latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 0 });
+
+        expect(replayed.at(-1)).toEqual([{ type: "line_for_agents", text: "kept", seq: 1 }]);
+    });
+
     it("hands any other error on to its handlers", async () => {
         const { connect, on } = await freshSignaling();
         const handler = vi.fn();

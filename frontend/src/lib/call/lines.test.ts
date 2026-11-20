@@ -3,6 +3,7 @@ import { type Delivery, type LineChannel, createLines } from "#lib/call/lines.ts
 import { LINE_BURST, LINE_MAX_CHARACTERS } from "#lib/wire.ts";
 
 const SMILEY = "\u{1F600}";
+const AGENT_FRAME = "line_for_agents";
 
 class FakeChannel implements LineChannel {
     readyState: string;
@@ -431,9 +432,9 @@ describe("a line for the agents", () => {
         const agentLines: string[] = [];
         lines.send("nobody yet");
 
-        lines.linkAgents({ names: ["Claude"], send: (text) => void agentLines.push(text) });
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
         lines.send("hello");
-        lines.linkAgents({ names: [], send: (text) => void agentLines.push(text) });
+        lines.linkAgents({ names: [], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
         lines.send("nobody again");
 
         expect(agentLines).toEqual(["hello"]);
@@ -441,7 +442,7 @@ describe("a line for the agents", () => {
 
     it("does not make a line wait for the agents: it is delivered when only people are to receive it", () => {
         const { lines } = exchangeWithListener();
-        lines.linkAgents({ names: ["Claude"], send: () => {} });
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: () => {} });
 
         expect(lines.send("hello")?.delivery).toBe("delivered");
     });
@@ -449,7 +450,7 @@ describe("a line for the agents", () => {
     it("is paced like a person's, the rest dropped with the agents when they leave", () => {
         const { lines } = exchangeWithListener();
         const agentLines: string[] = [];
-        lines.linkAgents({ names: ["Claude"], send: (text) => void agentLines.push(text) });
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
 
         for (let number = 1; number <= LINE_BURST + 5; number++) lines.send(`line ${String(number)}`);
         const atOnce = agentLines.length;
@@ -463,13 +464,13 @@ describe("a line for the agents", () => {
         const { lines, session } = exchangeWithListener();
         const agentLines: string[] = [];
         session.live = false;
-        lines.linkAgents({ names: ["Claude"], send: (text) => void agentLines.push(text) });
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
 
         for (let number = 1; number <= LINE_BURST + 5; number++) lines.send(`line ${String(number)}`);
         vi.advanceTimersByTime(60_000);
         const whileDown = agentLines.length;
         session.live = true;
-        lines.resumeAgents();
+        lines.resumeAgents([]);
         const atOnce = agentLines.length;
         vi.advanceTimersByTime(60_000);
 
@@ -480,14 +481,32 @@ describe("a line for the agents", () => {
         const { lines } = exchangeWithListener();
 
         expect(() => {
-            lines.resumeAgents();
+            lines.resumeAgents([]);
         }).not.toThrow();
+    });
+
+    it("counts the lines a resume writes again before it lets the waiting ones go, so they never arrive beyond the burst together", () => {
+        const { lines, session } = exchangeWithListener();
+        const agentLines: string[] = [];
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
+        const deadWindow = 3;
+        for (let number = 1; number <= deadWindow; number++) lines.send(`sent ${String(number)}`);
+        session.live = false;
+        vi.advanceTimersByTime(60_000);
+        for (let number = 1; number <= LINE_BURST; number++) lines.send(`waited ${String(number)}`);
+        session.live = true;
+        const replayed = Array.from({ length: deadWindow }, () => ({ type: AGENT_FRAME }));
+        const written = agentLines.length;
+
+        lines.resumeAgents([...replayed, { type: "media_state" }]);
+
+        expect(deadWindow + agentLines.length - written).toBe(LINE_BURST - 1);
     });
 
     it("is paced to the end while the agents stay", () => {
         const { lines } = exchangeWithListener();
         const agentLines: string[] = [];
-        lines.linkAgents({ names: ["Claude"], send: (text) => void agentLines.push(text) });
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
 
         for (let number = 1; number <= LINE_BURST + 5; number++) lines.send(`line ${String(number)}`);
         vi.advanceTimersByTime(60_000);

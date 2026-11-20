@@ -136,6 +136,7 @@ export async function installWith(
     function readLines() {
         core.setLineReaders({
             names: [...shown.values()].map((agent) => agent.joined.name),
+            frameType: PARTICIPATION_SIGNAL.LINE_FOR_AGENTS,
             send: (text) => {
                 core.send({ type: PARTICIPATION_SIGNAL.LINE_FOR_AGENTS, text });
             },

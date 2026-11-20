@@ -29,8 +29,9 @@ const MESSAGE = {
     RECEIPT: "receipt",
 } as const;
 
-// The agents' link has no receipts, so its sender keeps one line of the burst unspent: jitter on the way to the
-// server then never makes an honest sender's lines arrive faster than the server's budget allows.
+// The agents' link has no receipts, so its sender cannot know when the server counts a line. It keeps one line of the
+// burst unspent as a margin for the two clocks and charges the lines a resume writes again, which arrive together;
+// a socket that stalls and then delivers everything at once is beyond it.
 const AGENT_BURST = LINE_BURST - 1;
 
 const CHANNEL_OPEN = "open";
@@ -47,6 +48,8 @@ export interface LineChannel {
 /** The agents the page shows as joined, by name, and how a line reaches them; the feature that knows them keeps it. */
 export interface AgentLink {
     names: readonly string[];
+    /** The type of the frame `send` writes: a resume writes a frame of it again when the server did not get it. */
+    frameType: string;
     send: (text: string) => void;
 }
 
@@ -245,9 +248,11 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
             settleAll(participantId);
         },
 
-        /** The session turned live: the lines for the agents that waited for it go now, paced. */
-        resumeAgents() {
-            if (agents !== null) drainAgents();
+        /** The session turned live and wrote `replayed` again: those lines for the agents arrive at once, so they are charged to the budget before the lines that waited for the session go, paced. */
+        resumeAgents(replayed: readonly { type: string }[]) {
+            if (agents === null) return;
+            agentBudget.charge(replayed.filter((frame) => frame.type === agents?.frameType).length);
+            drainAgents();
         },
 
         /** The agents the page shows and how to reach them; null, or none named, when no agent is shown. */

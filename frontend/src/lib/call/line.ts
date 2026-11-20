@@ -68,6 +68,12 @@ export class LineBudget {
         return true;
     }
 
+    /** Spends `count` lines at once; a budget that holds fewer is left empty. */
+    charge(count: number) {
+        this.#refill();
+        this.#lines = Math.max(0, this.#lines - count);
+    }
+
     /** Whether the budget holds `count` whole lines now. */
     holds(count: number): boolean {
         this.#refill();
