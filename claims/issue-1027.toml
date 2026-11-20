@@ -1,8 +1,0 @@
-claim_id = "fce7507a8e2446ec946434c910762f77"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "4b8c5721fb7c98da5c8df87c4c389fa9220b9f72"
-branch = "claude/issue-1027-test-proofs-determinism"
-scope = ["frontend/src/lib/features/game", "src/hopin/participation/agent_speech.py", "src/hopin/participation/ends.py", "src/hopin/participation/speaking.py", "tests/agent", "tests/e2e", "tests/participation", "tests/signaling"]
-opened_commit = "7c2b1238f63024814ce44a81b0b17e20919ad470"
-whole_reason = "One sweep of the test lines the reviews routed to #459; split by file it would be a dozen one-line lanes."
