@@ -43,7 +43,7 @@ CARD_AND_ACTION_WIDTHS = """(selectors) => {
     const content = card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
     return [document.querySelector(actionSelector).getBoundingClientRect().width, content];
 }"""
-BUILT_CARD_SELECTORS = ["main", "main .action"]
+BUILT_CARD_SELECTORS = ["main", "main .sign-in-action"]
 SIGN_IN_STATES = [
     pytest.param(LOGIN_PATH, kit_text("de", "signIn.logIn"), id="signed-out"),
     pytest.param(FORGED_CALLBACK, kit_text("de", "signIn.tryAgain"), id="login-failed"),

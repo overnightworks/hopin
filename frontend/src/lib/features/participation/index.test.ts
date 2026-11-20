@@ -686,6 +686,21 @@ describe("calling an agent that has an account of its own", () => {
         ]);
     });
 
+    it("CALL-51: says that no place is free beside the agents in the call only to a seat shown the control", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, full: true, offers: [] });
+        const notShown = [page.offers().length, (page.sentence() ?? "").includes("kein Platz")];
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, full: true, offers: [] });
+
+        expect([notShown, [page.offers().length, (page.sentence() ?? "").includes("kein Platz")]]).toEqual([
+            [1, false],
+            [1, true],
+        ]);
+    });
+
     it("keeps the agent's name as text, never as markup", async () => {
         const page = await installedParticipation();
 

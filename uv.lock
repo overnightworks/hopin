@@ -504,7 +504,7 @@ dev = [
     { name = "fakeredis", extras = ["lua"], specifier = ">=2.35,<3" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "mypy", specifier = ">=1.19.1" },
-    { name = "overnightworks-design", extras = ["catalogs"], git = "https://github.com/overnightworks/design?rev=v0.37.0" },
+    { name = "overnightworks-design", extras = ["catalogs"], git = "https://github.com/overnightworks/design?rev=v0.40.0" },
     { name = "pyjwt", specifier = ">=2.15.1" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
@@ -841,8 +841,8 @@ redis = [
 
 [[package]]
 name = "overnightworks-design"
-version = "0.37.0"
-source = { git = "https://github.com/overnightworks/design?rev=v0.37.0#5014da6e824ee2cec440862fd8c4bcdf278bdfba" }
+version = "0.40.0"
+source = { git = "https://github.com/overnightworks/design?rev=v0.40.0#bee26595da819209c136665e9e4d33b357938889" }
 
 [package.optional-dependencies]
 catalogs = [
