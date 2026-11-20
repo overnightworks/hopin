@@ -1316,7 +1316,7 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
   FR = {
     face: { r: 0.15, o: 0.15, a: 0.14 },
     shoulders: { r: 0.25, o: 0.4, a: 0.31 },
-    upper: { r: 0.3, o: 0.62, a: 0.45 },
+    upper: { r: 0.3, o: 0.8, a: 0.45 },
     full: { r: 0.3, o: 9, a: 0.6 },
   },
   ih = class {
@@ -1749,7 +1749,7 @@ var sh = class {
       this.root.innerHTML = "";
     }
   },
-  lt = { stage: null, count: 3, policy: "B" },
+  lt = { stage: null, count: 3, policy: "B", framing: "shoulders" },
   Dt = { a: null, b: null, speaker: "Anna" },
   Fr = [],
   FRAMES = [
@@ -1778,11 +1778,12 @@ function Sl() {
 }
 function kp() {
   (lt.stage?.dispose(),
-    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy }).build()),
+    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy, framing: lt.framing }).build()),
     (Rt("#mainCall").closest(".view").dataset.count = lt.count),
     Sl(),
     Di(Rt("#grpLayout"), String(lt.count)),
-    Di(Rt("#grpPolicy"), lt.policy));
+    Di(Rt("#grpPolicy"), lt.policy),
+    Di(Rt("#grpFraming"), lt.framing));
 }
 function gS() {
   (Dt.a?.dispose(), Dt.b?.dispose());
@@ -1805,21 +1806,20 @@ function ch(i) {
   ((Vp = i),
     ah("[data-tab]").forEach((e) => e.setAttribute("aria-pressed", String(e.dataset.tab === i))),
     ["stage", "gaze", "framing", "change"].forEach((v) => (Rt("#" + v + "View").hidden = i !== v)),
-    lt.stage?.dispose(),
-    (lt.stage = null),
+    i !== "stage" && (lt.stage?.dispose(), (lt.stage = null)),
     Dt.a?.dispose(),
     Dt.b?.dispose(),
     (Dt.a = Dt.b = null),
     Fr.forEach((c) => c.dispose()),
     (Fr = []),
-    i === "stage" ? kp() : i === "gaze" ? gS() : i === "framing" ? (Fr = fgrid("#framingGrid", FRAMES.map(([id, t, n]) => [id, t, n, id]))) : (Fr = fgrid("#changeGrid", STEPS.map(([t, n, m]) => [t.toLowerCase(), t, n, m]), !0)));
+    i === "stage" ? lt.stage || kp() : i === "gaze" ? gS() : i === "framing" ? (Fr = fgrid("#framingGrid", FRAMES.map(([id, t, n]) => [id, t, n, id]))) : (Fr = fgrid("#changeGrid", STEPS.map(([t, n, m]) => [t.toLowerCase(), t, n, m]), !0)));
 }
 var lo = {
   layout(i) {
     ((lt.count = Number(i)), kp());
   },
   framing(i) {
-    (lt.stage.mozart.character.setFraming(i), Di(Rt("#grpFraming"), i));
+    ((lt.framing = i), lt.stage.mozart.character.setFraming(i), Di(Rt("#grpFraming"), i));
   },
   policy(i) {
     ((lt.policy = i), lt.stage && (lt.stage.policy = i), Di(Rt("#grpPolicy"), i));
