@@ -23,6 +23,12 @@ from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_reques
 
 pytestmark = pytest.mark.integration
 
+
+@pytest.fixture
+def hearing_service(fake_speech_hearing):
+    return fake_speech_hearing
+
+
 DROP_HANDLED_SECONDS = 10
 SOCKET_ENDED = "websocket.ended"
 

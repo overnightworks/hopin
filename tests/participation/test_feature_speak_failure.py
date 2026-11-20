@@ -17,11 +17,11 @@ from hopin.participation.vocabulary import (
     VoiceFailure,
 )
 from hopin.rooms.reference import room_reference
+from tests.participation.support.ends import remove_by_the_host
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     SENTENCE_MS,
     answers_so_far,
-    removed_by_the_host,
     rendering,
     renders_broken,
     renders_cancelled,
@@ -155,7 +155,7 @@ class TestAVoiceThatFails:
         host, guest, mozart, _ = call
 
         async def fail_while_removed(sentence, voice):
-            await removed_by_the_host(participation, host, guest, mozart)
+            await remove_by_the_host(participation, host, guest, mozart)
             return VoiceFailure.BUSY
 
         refused = await speak(participation, render=fail_while_removed, room_id=room_of(host))
@@ -378,7 +378,7 @@ class TestTheVoiceComesBackWithoutASentence:
         room_id = room_of(host)
         offered = self.offering()
         await speak(participation, render=renders_failing, room_id=room_id, offered=offered)
-        await removed_by_the_host(participation, host, guest, mozart)
+        await remove_by_the_host(participation, host, guest, mozart)
 
         await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
 

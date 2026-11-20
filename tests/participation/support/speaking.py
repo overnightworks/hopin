@@ -219,10 +219,6 @@ async def renders_broken(sentence, voice):
     raise RuntimeError("the speech service broke")
 
 
-async def removed_by_the_host(participation, host, guest, agent):
-    await host.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-
-
 def voice_ids(browser):
     return [frame["voice_id"] for frame in browser.frames(ParticipationSignal.AGENT_VOICE)]
 

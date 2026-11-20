@@ -35,7 +35,6 @@ from tests.participation.support.speaking import (
     a_sentence,
     answers_so_far,
     queued_behind_a_playing_sentence,
-    removed_by_the_host,
     rendering,
     rendering_behind_a_playing_sentence,
     rendering_while_held,
@@ -383,7 +382,7 @@ class TestEveryEndDropsTheQueue:
         ) == ([playing], None, AgentRefusal.GONE, next_refusal)
 
     @pytest.mark.parametrize("open_speak", OPEN_STATES)
-    async def test_call_60_a_stop_answers_the_open_speak_stopped(self, participation, call, scheduler, open_speak):
+    async def test_call_60_a_stop_answers_the_open_speak_stopped(self, participation, call, open_speak):
         host, guest, *_ = call
         open_one = await open_speak(participation, host, guest)
 
@@ -534,7 +533,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         room_id = room_of(host)
         await speak(participation, "Guten Tag", room_id=room_id, render=LONG)
 
-        await removed_by_the_host(participation, host, guest, mozart)
+        await remove_by_the_host(participation, host, guest, mozart)
 
         assert window_texts(participation, HOST, room_id) == [("Guten Tag", False, True)]
 
@@ -598,7 +597,7 @@ class TestASentenceThatIsNotSpoken:
         host, guest, mozart, _ = call
 
         async def render_while_removed(sentence, voice):
-            await removed_by_the_host(participation, host, guest, mozart)
+            await remove_by_the_host(participation, host, guest, mozart)
             return a_sentence(b"sound", SENTENCE_MS)
 
         refused = await speak(participation, render=render_while_removed, room_id=room_of(host))
@@ -670,7 +669,7 @@ class TestAnEndWhileTheSentenceRenders:
         host, guest, mozart, _ = call
 
         async def render_while_replaced(sentence, voice):
-            await removed_by_the_host(participation, host, guest, mozart)
+            await remove_by_the_host(participation, host, guest, mozart)
             await participation.dial_in(GUEST, room_of(host), "Mozart")
             return a_sentence(b"sound", SENTENCE_MS)
 

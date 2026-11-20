@@ -20,6 +20,12 @@ from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, s
 
 pytestmark = pytest.mark.integration
 
+
+@pytest.fixture
+def hearing_service(fake_speech_hearing):
+    return fake_speech_hearing
+
+
 POLL_SECONDS = 0.005
 
 

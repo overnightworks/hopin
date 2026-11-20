@@ -38,6 +38,12 @@ from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
+
+@pytest.fixture
+def hearing_service(fake_speech_hearing):
+    return fake_speech_hearing
+
+
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 
 
