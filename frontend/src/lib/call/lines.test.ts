@@ -219,13 +219,14 @@ describe("a line to people", () => {
         expect(deliveries).toEqual([]);
     });
 
-    it("stays quiet before the chat listens, for a line that comes and for a receipt", () => {
+    it("stays quiet before the chat listens, for a line that comes, a file announced and a receipt", () => {
         const lines = createLines({ now: () => Date.now(), isLive: () => true, nameOf: () => "" });
         const channel = new FakeChannel();
         lines.addPeer("p1", channel);
         lines.send("hello");
 
         channel.deliver(lineMessage(1, "hi"));
+        channel.deliver(JSON.stringify({ type: "file", id: 2, name: "a.pdf", size: 3, mime: "application/pdf" }));
         channel.deliver(receiptFor(1));
 
         expect(channel.sent).toEqual([

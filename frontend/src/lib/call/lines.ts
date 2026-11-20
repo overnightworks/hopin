@@ -183,6 +183,10 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         }
     }
 
+    function sendReceipt(peer: Peer, id: number) {
+        peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
+    }
+
     function receiveLine(participantId: string, peer: Peer, message: Record<string, unknown>) {
         if (!peer.received.spend()) return;
         const { id, text } = message;
@@ -190,7 +194,7 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         const line = cleanLine(text);
         if (line === null) return;
         events.received(participantId, line);
-        peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
+        sendReceipt(peer, id as number);
     }
 
     function receiveFile(participantId: string, peer: Peer, message: Record<string, unknown>) {
@@ -329,7 +333,7 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         acknowledge(participantId: string, id: number) {
             const peer = peers.get(participantId);
             if (peer === undefined || peer.closed || peer.channel.readyState !== CHANNEL_OPEN) return;
-            peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
+            sendReceipt(peer, id);
         },
     };
 }
