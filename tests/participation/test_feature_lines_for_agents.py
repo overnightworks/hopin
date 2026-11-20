@@ -1,6 +1,8 @@
 """A person's line for the agents of its call, at participation's real feature and handler: the page sends it only
 while it shows a joined agent, and the server holds it in the windows of the agents joined when it arrives."""
 
+import json
+
 import pytest
 
 from hopin.config.constants import LINE_LIMITS
@@ -33,12 +35,14 @@ class TestWhereTheLineGoes:
     ):
         host, guest = await host_and_guest(link)
         await dial(participation, guest)
+        heard_before = (len(host.socket.sent), len(guest.socket.sent))
 
         await host.say(line_for_agents("hello"))
 
         window = participation.read_window(person_named("guest"), room_of(host))
         assert [(line.kind, line.name, line.text) for line in window.lines] == [(LineKind.PERSON, "host", "hello")]
-        assert [frame["type"] for frame in guest.socket.sent[-1:]] != [ParticipationSignal.LINE_FOR_AGENTS.value]
+        sent_since = host.socket.sent[heard_before[0] :] + guest.socket.sent[heard_before[1] :]
+        assert "hello" not in json.dumps(sent_since)
 
     async def test_a_line_for_an_agent_that_left_the_server_is_held_for_no_agent(self, link, participation):
         host, guest = await host_and_guest(link)
