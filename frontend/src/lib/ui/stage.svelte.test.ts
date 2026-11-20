@@ -387,7 +387,7 @@ describe("an agent tile's figure", () => {
             host: HTMLElement;
             path: string;
             gestures: Record<string, string> | undefined;
-            show: (figure: AgentFigure) => void;
+            show: (figure: AgentFigure, reason?: string) => void;
             stop: ReturnType<typeof vi.fn>;
             gesture: ReturnType<typeof vi.fn>;
             listen: ReturnType<typeof vi.fn>;
@@ -397,7 +397,7 @@ describe("an agent tile's figure", () => {
         const drawer = (
             host: HTMLElement,
             path: string,
-            show: (figure: AgentFigure) => void,
+            show: (figure: AgentFigure, reason?: string) => void,
             gestures?: Record<string, string>,
         ) => {
             const stop = vi.fn();
@@ -453,6 +453,34 @@ describe("an agent tile's figure", () => {
         started[0]?.show(AGENT_FIGURE.ENDED);
 
         expect(host.dataset.figure).toBe(AGENT_FIGURE.ENDED);
+    });
+
+    it("CALL-56: keeps the reason the figure ended with on the tile and hands it to the ended hook with the tile's key", async () => {
+        const { agentFigure, drawAgentFigures, onAgentFigureEnded } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const ended: [string, string][] = [];
+        onAgentFigureEnded((key, reason) => void ended.push([key, reason]));
+        const host = document.createElement("div");
+        agentFigure(host, { key: KEY, path: PATH });
+        const before = host.dataset.figureEnd;
+
+        started[0]?.show(AGENT_FIGURE.ENDED, "lost");
+
+        expect([before, host.dataset.figureEnd, ended]).toEqual([undefined, "lost", [[KEY, "lost"]]]);
+    });
+
+    it("CALL-56: takes the reason off the tile when the figure draws afresh", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        const host = document.createElement("div");
+        const spot = agentFigure(host, { key: KEY, path: PATH });
+        started[0]?.show(AGENT_FIGURE.ENDED, "slow");
+
+        spot.update({ key: KEY, path: "/api/participation/figures/other" });
+
+        expect([host.dataset.figure, host.dataset.figureEnd]).toEqual([AGENT_FIGURE.LOADING, undefined]);
     });
 
     it.each([

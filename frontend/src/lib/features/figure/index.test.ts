@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AGENT_FIGURE, type AgentFigure, type AgentFigureDrawer, type FeatureCore } from "#lib/call/feature-port.ts";
+import { FIGURE_END } from "#lib/features/participation/wire.ts";
 
 type Signal = "drawn" | "unsupported" | "refused" | "lost" | "slow";
 
@@ -92,13 +93,18 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
 function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
+    // The reason each report gave, undefined for none.
+    const reasons: (string | undefined)[] = [];
     const { stop, gesture, listen, speak, think } = drawer(
         host,
         FIGURE_PATH,
-        (figure) => void shown.push(figure),
+        (figure, reason) => {
+            shown.push(figure);
+            reasons.push(reason);
+        },
         gestures,
     );
-    return { host, shown, stop, gesture, listen, speak, think };
+    return { host, shown, reasons, stop, gesture, listen, speak, think };
 }
 
 // The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
@@ -166,11 +172,16 @@ describe("a figure on an agent's tile", () => {
         expect([shown, host.querySelectorAll("canvas").length]).toEqual([[AGENT_FIGURE.DRAWN], 1]);
     });
 
-    it.each(["unsupported", "refused", "lost", "slow"] as const)(
-        "CALL-56: ends the figure on %s: reports it, disposes it once and takes the canvas off the page",
-        async (signal) => {
+    it.each([
+        ["unsupported", FIGURE_END.UNSUPPORTED],
+        ["refused", FIGURE_END.REFUSED],
+        ["lost", FIGURE_END.LOST],
+        ["slow", FIGURE_END.SLOW],
+    ] as const)(
+        "CALL-56: ends the figure on %s: reports it with that reason, disposes it once and takes the canvas off the page",
+        async (signal, reason) => {
             fetchedBytes();
-            const { host, shown, mounting, stop } = await mounted(await installedDrawer());
+            const { host, shown, reasons, mounting, stop } = await mounted(await installedDrawer());
             mounting.resolve();
             await settled();
             mounting.give("drawn");
@@ -180,6 +191,7 @@ describe("a figure on an agent's tile", () => {
             mounting.give("drawn");
 
             expect(shown).toEqual([AGENT_FIGURE.DRAWN, AGENT_FIGURE.ENDED]);
+            expect(reasons).toEqual([undefined, reason]);
             expect(mounting.dispose).toHaveBeenCalledTimes(1);
             expect(host.querySelector("canvas")).toBeNull();
         },
@@ -255,23 +267,28 @@ describe("a figure on an agent's tile", () => {
         ["a figure the server does not hold", () => Promise.resolve(new Response("no", { status: 404 }))],
     ])("CALL-56: ends the figure with no canvas on %s", async (_name, answer) => {
         fetched(answer);
-        const { host, shown, stop } = draw(await installedDrawer());
+        const { host, shown, reasons, stop } = draw(await installedDrawer());
         await vi.waitFor(() => {
             expect(shown).toEqual([AGENT_FIGURE.ENDED]);
         });
         stop();
 
-        expect([drawing.mounts.length, shown, host.querySelector("canvas")]).toEqual([0, [AGENT_FIGURE.ENDED], null]);
+        expect([drawing.mounts.length, shown, reasons, host.querySelector("canvas")]).toEqual([
+            0,
+            [AGENT_FIGURE.ENDED],
+            [FIGURE_END.UNLOADED],
+            null,
+        ]);
     });
 
     it("CALL-56: ends the figure with no canvas when the figure's chunk fails to load", async () => {
         fetchedBytes();
-        const { host, shown } = draw(await installedDrawer(true));
+        const { host, shown, reasons } = draw(await installedDrawer(true));
         await vi.waitFor(() => {
             expect(shown).toEqual([AGENT_FIGURE.ENDED]);
         });
 
-        expect(host.querySelector("canvas")).toBeNull();
+        expect([reasons, host.querySelector("canvas")]).toEqual([[FIGURE_END.UNLOADED], null]);
     });
 
     it("CALL-56: a chunk that fails to load is no unhandled rejection before any figure awaits it", async () => {

@@ -154,7 +154,7 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 Each line: what the party sees and what HopIn trusts of it. 
 
-- **A member's browser** sends chat, media state and connection descriptions with a session; HopIn trusts none beyond the session: names come from the Keycloak account, senders are server-minted peer ids, host actions are checked against the account.
+- **A member's browser** sends chat, media state and connection descriptions with a session; HopIn trusts none beyond the session: names come from the Keycloak account, senders are server-minted peer ids, host actions are checked against the account. It reports why an agent's figure ended as one of five closed codes only, which HopIn checks against the set and logs with ids.
 - **Anyone without a session** reaches the sign-in routes and a few static files only (`auth/gate.py`); HopIn trusts nothing they send.
 - **Keycloak** decides who is a member and admin; HopIn trusts its signed tokens from the one issuer, and its logout token to end sessions, so that route stays off the public internet. The session row holds each login's ID token and refresh token, both secrets.
 - **The proxy hops** in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`; empty trusts none.

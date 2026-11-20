@@ -35,6 +35,7 @@ export async function installedParticipation(installOn?: typeof install) {
     const lines: FeatureView[] = [];
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
+    const figureEndedHooks: ((key: string, reason: string) => void)[] = [];
     // What the camera gives: a picture's base64 text, none or an error it fails with; the bounds each request named.
     let picture: string | Error | null | Promise<string | null> = null;
     const pictureBounds: PictureBounds[] = [];
@@ -56,6 +57,9 @@ export async function installedParticipation(installOn?: typeof install) {
         toastKind: TOAST_KIND,
         showStage: vi.fn(),
         drawAgentFigures: vi.fn(),
+        onAgentFigureEnded: (hook) => {
+            figureEndedHooks.push(hook);
+        },
         gestureAgentFigure: (key, gesture) => {
             gestures.push([key, gesture]);
         },
@@ -125,6 +129,12 @@ export async function installedParticipation(installOn?: typeof install) {
                 .flatMap((item) => [...item.querySelectorAll("p")])
                 .at(0)?.textContent,
         focused: () => moreItems.find((item) => item.contains(document.activeElement)),
+        // The tile under `key` ended its figure for `reason`, as the stage tells the feature.
+        endFigure: (key: string, reason: string) => {
+            figureEndedHooks.forEach((hook) => {
+                hook(key, reason);
+            });
+        },
         endCall: () => {
             callEndedHooks.forEach((hook) => {
                 hook();

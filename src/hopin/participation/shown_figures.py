@@ -3,10 +3,14 @@ gestures it makes with it and whether it thinks."""
 
 from typing import TYPE_CHECKING
 
+import structlog
+
+from hopin.errors import InvalidMessageError
 from hopin.participation.figures import NamedFigure
 from hopin.participation.frames import AgentGestureFrame, AgentThinkingFrame, ParticipationFrame
 from hopin.participation.participants import DialedAgent
-from hopin.participation.vocabulary import THINKING_MAX_SECONDS, AgentRefusal, FigureGesture
+from hopin.participation.vocabulary import THINKING_MAX_SECONDS, AgentRefusal, FigureEnd, FigureGesture
+from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
@@ -14,9 +18,11 @@ if TYPE_CHECKING:
 
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
-    from hopin.signaling.frames import PeerId
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Deadlines
-    from hopin.signaling.transition import Transition
+    from hopin.signaling.transition import RoomView, Transition
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
 class ShownFigures:
@@ -39,6 +45,8 @@ class ShownFigures:
         self._recipients = recipients
         # The agents that think, by their id; an agent that ended meanwhile stays here until its deadline.
         self._thinking: dict[str, DialedAgent] = {}
+        # The seats that reported an agent's figure ended, by the agent's id, for as long as the agent is joined.
+        self._ended: dict[str, set[PeerId]] = {}
         deadlines.register(DeadlineKind.THINKING, self._thinking_ran_out)
 
     def named(self, sha256: str) -> tuple[NamedFigure, ...]:
@@ -105,6 +113,26 @@ class ShownFigures:
         when it does."""
         if agent.agent_id in self._thinking:
             transition.send(peer_id, AgentThinkingFrame(agent.agent_id, on=True).to_json())
+
+    def ended(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView) -> None:
+        """Write down the closed code a seat reports for why an agent's figure ended, with ids and the code only; a
+        code outside the set is an invalid message, and a report for an agent not joined in the seat's room, or a
+        repeat of a seat for an agent, is dropped without an answer."""
+        agent_id = frame.data.get("agent_id")
+        code = frame.data.get("code")
+        if not isinstance(agent_id, str) or not isinstance(code, str) or code not in FigureEnd:
+            raise InvalidMessageError("A figure end needs the agent's id and one of the closed codes")
+        room_id = view.room_of(peer_id)
+        joined = {agent.agent_id: agent.room_id for agent in self._places.joined()}
+        self._ended = {agent: peers for agent, peers in self._ended.items() if agent in joined}
+        if room_id is None or joined.get(agent_id) != room_id or peer_id in self._ended.get(agent_id, ()):
+            return
+        self._ended.setdefault(agent_id, set()).add(peer_id)
+        logger.info("agent_figure.ended", room_ref=room_reference(room_id), agent_id=agent_id, code=code)
+
+    def seat_left(self, peer_id: PeerId) -> None:
+        """Forget the figure ends the seat reported, so a seat that comes back does not grow what is kept."""
+        self._ended = {agent: peers - {peer_id} for agent, peers in self._ended.items() if peers - {peer_id}}
 
     async def _thinking_ran_out(self, agent_id: str) -> None:
         agent = self._thinking.pop(agent_id, None)

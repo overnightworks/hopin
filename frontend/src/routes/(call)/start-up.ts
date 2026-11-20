@@ -66,6 +66,7 @@ const FEATURE_CORE: FeatureCore<never> = Object.freeze({
     showChatCard: showCard,
     showAgentTile: stageModule.showAgentTile,
     drawAgentFigures: stageModule.drawAgentFigures,
+    onAgentFigureEnded: stageModule.onAgentFigureEnded,
     gestureAgentFigure: stageModule.gestureAgentFigure,
     speakAgentFigure: stageModule.speakAgentFigure,
     thinkAgentFigure: stageModule.thinkAgentFigure,

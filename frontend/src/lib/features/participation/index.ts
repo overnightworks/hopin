@@ -317,6 +317,11 @@ export async function installWith(
             offersView.refusal = refusalOf(frame.reason);
         }
     });
+    core.onAgentFigureEnded((key, code) => {
+        const agentId = [...shown.keys()].find((id) => tileKey(id) === key);
+        if (agentId === undefined) return;
+        core.send({ type: PARTICIPATION_SIGNAL.AGENT_FIGURE_ENDED, agent_id: agentId, code });
+    });
     core.onMicrophone((stream) => {
         capture.setStream(stream);
     });
