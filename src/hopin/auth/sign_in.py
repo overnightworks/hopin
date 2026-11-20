@@ -85,17 +85,17 @@ ISSUER_OVER_HTTPS = IssuerTransports(
 def build_sign_in_configs(
     settings: ServerSettings, feature_scopes: tuple[str, ...], rate_limits: RateLimitBackend
 ) -> SignInConfigs:
-    client_secret = read_secret_file(settings.oidc_client_secret_file, "oidc_client_secret_file")
-    session_secret = read_secret_file(settings.session_secret_file, "session_secret_file")
+    client_secret = read_secret_file(settings.oidc_client_secret_file, "HOPIN_OIDC_CLIENT_SECRET_FILE")
+    session_secret = read_secret_file(settings.session_secret_file, "HOPIN_SESSION_SECRET_FILE")
     try:
         oidc_client = _build_oidc_client(settings, client_secret, feature_scopes)
     except ValueError as refusal:
-        raise SignInConfigurationError(f"oidc_issuer and public_origin are refused: {refusal}") from None
+        raise SignInConfigurationError(f"HOPIN_OIDC_ISSUER and HOPIN_PUBLIC_ORIGIN are refused: {refusal}") from None
     trusted_proxies = _parse_trusted_proxies(settings.trusted_proxies)
     try:
         web_auth = _build_web_auth(settings, session_secret, rate_limits)
     except ValueError as refusal:
-        raise SignInConfigurationError(f"session_secret_file is refused: {refusal}") from None
+        raise SignInConfigurationError(f"HOPIN_SESSION_SECRET_FILE is refused: {refusal}") from None
     return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies)
 
 
@@ -103,7 +103,7 @@ def _parse_trusted_proxies(raw: str) -> TrustedProxies:
     try:
         return TrustedProxies.parse(raw)
     except ValueError:
-        raise SignInConfigurationError("trusted_proxies is refused: name addresses or CIDR blocks") from None
+        raise SignInConfigurationError("HOPIN_TRUSTED_PROXIES is refused: name addresses or CIDR blocks") from None
 
 
 def _build_oidc_client(
