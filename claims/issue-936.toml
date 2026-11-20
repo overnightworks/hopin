@@ -1,0 +1,8 @@
+claim_id = "86624f2d73254a1e856bb38791ae8340"
+agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
+role = "builder"
+base = "d84a5d2d2226821920d8b6b31c36b0446a22c2ed"
+branch = "claude/issue-936-figure-end-reason"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/figure", "frontend/src/lib/features/participation", "frontend/src/lib/ui/stage.svelte.test.ts", "frontend/src/lib/ui/stage.svelte.ts", "src/hopin/participation/feature.py", "src/hopin/participation/shown_figures.py", "src/hopin/participation/vocabulary.py", "tests/e2e/participation/test_agent_figure.py", "tests/participation"]
+opened_commit = "e12442ac630c90c1db02aa7fad33321472c8671f"
+whole_reason = "One closed code carried from the figure's end through the tile and the signaling frame to the server log, with its tests and its rule."
