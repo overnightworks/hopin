@@ -190,10 +190,8 @@ def refusal_lines(settings_class: type[BaseSettings], invalid: ValidationError) 
 
 def unreadable_line(settings_class: type[BaseSettings], unreadable: SettingsError) -> str:
     """The line for a value its source cannot parse; the message holds the field, never the value."""
-    field = SETTINGS_FIELD_IN_MESSAGE.search(str(unreadable))
-    if field is None:
-        return f"{unreadable}\n"
-    return f"{settings_class.model_config['env_prefix']}{field[1]}".upper() + " is malformed\n"
+    (field,) = SETTINGS_FIELD_IN_MESSAGE.findall(str(unreadable))
+    return f"{settings_class.model_config['env_prefix']}{field}".upper() + " is malformed\n"
 
 
 def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
