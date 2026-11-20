@@ -5,7 +5,7 @@ description = "Self-hosted video call service using WebRTC"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.123.7",
-    "overnightworks-agents[backend,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.62.0",
+    "overnightworks-agents[backend,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.64.0",
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.6.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.22.3#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.13.0",

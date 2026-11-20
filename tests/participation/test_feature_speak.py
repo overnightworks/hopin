@@ -135,6 +135,22 @@ class TestASentenceStarts:
             (WindowLine(1, LineKind.AGENT, "Mozart", "Guten Tag", own=False, spoken=True),),
         ]
 
+    async def test_call_60_a_sentence_that_ended_with_the_next_one_waiting_enters_every_window_marked_continues(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        await speak(participation, "one", room_id=room_id)
+        second = await waiting_to_speak(participation, "two", room_id=room_id)
+
+        await answers_so_far(scheduler, SENTENCE_MS / 1000, second)
+        await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert [
+            [(line.text, line.continues) for line in participation.read_window(person, room_id).lines]
+            for person in (GUEST, HOST)
+        ] == [[("one", True), ("two", False)]] * 2
+
     async def test_a_sentences_speak_line_carries_the_newest_seq_of_the_agents_window(
         self, participation, call, scheduler
     ):

@@ -151,6 +151,17 @@ class TestSpeaking:
         )
         assert [len(frames_of(seat, LINE)) for seat in (joined_agent.owner, joined_agent.member)] == [1, 1]
 
+    def test_call_60_the_window_read_marks_the_line_whose_next_sentence_already_waits_as_continues(
+        self, joined_agent, spoken, speaking_behind
+    ):
+        second = speaking_behind()
+
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
+        second.result(timeout=ANSWER_SECONDS)
+        joined_agent.call.pass_time(SENTENCE_SECONDS)
+
+        assert [entry.get("continues", False) for entry in joined_agent.entries()] == [True, False]
+
     def test_call_60_the_sentence_goes_to_speech_on_the_agents_held_token_and_hopins_workload_token(
         self, joined_agent, spoken, speech_origin
     ):

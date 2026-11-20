@@ -434,6 +434,15 @@ class TestTheHoldEnds:
         window = participation.read_window(GUEST, room_id)
         assert (window.interrupted, [(line.text, line.cut) for line in window.lines]) == (None, [("Guten Tag", True)])
 
+    async def test_call_69_a_cut_line_is_never_marked_continues(self, participation, call):
+        _, guest, *_ = call
+        room_id = await hold_of_a_playing_sentence(participation, call)
+
+        await guest.drop()
+
+        window = participation.read_window(GUEST, room_id)
+        assert [(line.cut, line.continues) for line in window.lines] == [(True, False)]
+
     async def test_call_69_a_hold_that_arises_while_the_line_is_announced_still_gives_the_seats_the_voice_behind_it(
         self, participation, call
     ):

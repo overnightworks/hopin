@@ -209,6 +209,7 @@ class SpeechInWindows:
                 own=person == agent.person,
                 spoken=True,
                 cut=end is SentenceEnd.CUT,
+                continues=end is SentenceEnd.CONTINUED,
                 traceparent=current_traceparent(),
             )
             if changed:
