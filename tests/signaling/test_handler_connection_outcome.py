@@ -12,7 +12,8 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.rooms.reference import room_reference
-from tests.signaling.support.browsers import Link, host_and_guest
+from tests.signaling.support.browsers import Browser, Link, host_and_guest
+from tests.support.signaling_fakes import account_named
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -96,3 +97,13 @@ async def test_call_76_a_seat_in_a_full_room_is_written_down_for_every_connectio
     codes = [entry["outcome"] for entry in outcomes_in(logs)]
     assert codes.count(ConnectionOutcome.RESUMED.value) == other_seats
     assert len(codes) == other_seats * len(reports)
+
+
+async def test_call_76_a_seat_in_no_room_is_not_written_down(link):
+    loner = Browser(link, "loner")
+    loner.sockets.append(await link.open(account_named("loner")))
+
+    with structlog.testing.capture_logs() as logs:
+        await loner.say(report(ConnectionOutcome.DIRECT.value))
+
+    assert outcomes_in(logs) == []
