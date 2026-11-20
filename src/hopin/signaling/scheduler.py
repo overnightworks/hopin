@@ -1,3 +1,15 @@
+"""The clock and the timers of the call.
+
+Every timer that outlives a connection is a deadline of a named `DeadlineKind` behind the `Deadlines` port: its owner
+registers one handler per kind, sets a deadline by `(kind, key)` with a time from now and cancels it by the same pair.
+Setting a key again replaces the deadline, and the clock is `Deadlines.now()`. A timer owned by a live connection or by
+the process stays a process timer on `Scheduler`: a socket's session recheck (`signaling/handler.py`), the hearing
+socket's recheck, the session sweep (`app.py`) and the renewal of an agent's hearing token. `InMemoryDeadlines` holds
+the deadlines in this process and runs them on the `Scheduler`; the tests drive both with a manual clock.
+
+A timer runs as a unit of its own, in a trace of its own and not in the one of the frame that scheduled it.
+"""
+
 import asyncio
 from enum import StrEnum
 from functools import partial

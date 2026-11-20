@@ -1,3 +1,11 @@
+"""The session gate in front of every route and `/ws`, and the bearer gate in front of a feature's protected resource.
+
+Without a session only these pass: `PUBLIC_PATHS`; the stylesheets and the icon the built sign-in pages link under
+`/_app/` and the fonts those stylesheets reference (`sign_in_assets`, read from the page build); and the sign-in
+routes' own public rules, which webauth derives from `SIGN_IN_PATHS` (start, callback, and the POSTs of logout and
+Keycloak's back-channel logout). The resource's own public rule joins them when a feature serves one.
+"""
+
 from typing import TYPE_CHECKING
 
 from webauth.admission import AdmissionConfig
