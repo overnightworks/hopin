@@ -1,8 +1,0 @@
-claim_id = "daa7b2ec9cb44f9bb9cd9526187faaae"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "52f3b9746aa58cb268d804b30206c2920fda7ac6"
-branch = "claude/issue-1022-architecture-skeleton"
-scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/agent/mcp.py", "src/hopin/participation/__init__.py", "src/hopin/participation/figures.py"]
-opened_commit = "2da55ed59256efaf4c7a8c7b2854ddffcbcbba47"
-whole_reason = "One rewrite of the overview to its skeleton, with the two docstring duplicates and the README wording its reviews routed here."
