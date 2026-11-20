@@ -83,6 +83,15 @@ window.RTCPeerConnection = function (configuration, ...rest) {
 };
 window.RTCPeerConnection.prototype = NativePeerConnection.prototype;
 """
+# A person whose answers never come back: the channel sends every message but a receipt.
+WITHHOLD_RECEIPTS = """
+() => {
+    const nativeSend = RTCDataChannel.prototype.send;
+    RTCDataChannel.prototype.send = function (data) {
+        if (JSON.parse(data).type !== "receipt") nativeSend.call(this, data);
+    };
+}
+"""
 OPEN_PEER_COUNT_REACHED = """
 (count) => window.recordedConnections.filter((connection) => connection.signalingState !== "closed").length === count
 """

@@ -287,6 +287,35 @@ textarea {
     color: #e5e7eb;
     margin-top: 0.15rem;
 }
+.chat-msg .chat-picture {
+    display: block;
+    max-width: 100%;
+    max-height: 16rem;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+}
+.chat-msg .chat-file-name {
+    overflow-wrap: anywhere;
+}
+.chat-msg .chat-file-size {
+    font-size: 0.7rem;
+    color: #9ca3af;
+}
+.chat-msg.self .chat-file-size {
+    color: #e5e7eb;
+}
+.chat-msg .chat-file-action {
+    display: inline-block;
+    margin-top: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid #4b5563;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font-size: 0.75rem;
+    text-decoration: none;
+    cursor: pointer;
+}
 .chat-note {
     padding: 0.4rem 0.6rem 0;
     font-size: 0.75rem;

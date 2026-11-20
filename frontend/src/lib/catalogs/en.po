@@ -411,6 +411,58 @@ msgctxt "chat.readersNote"
 msgid "Mitlesende KI: {names}. Nachrichten gehen dafür über den Server."
 msgstr "AI reading along: {names}. Messages go through the server for it."
 
+msgctxt "chat.attachButton"
+msgid "Datei anhängen"
+msgstr "Attach a file"
+
+msgctxt "chat.fileLoadButton"
+msgid "Laden"
+msgstr "Load"
+
+msgctxt "chat.fileDownloadLink"
+msgid "Herunterladen"
+msgstr "Download"
+
+msgctxt "chat.fileLoading"
+msgid "Wird geladen …"
+msgstr "Loading …"
+
+msgctxt "chat.fileIncomplete"
+msgid "Nicht vollständig angekommen"
+msgstr "Did not arrive completely"
+
+msgctxt "chat.fileRefused"
+msgid "Abgelehnt: größer als {max} MB"
+msgstr "Refused: larger than {max} MB"
+
+msgctxt "chat.fileBusyReceiving"
+msgid "Eine andere Datei von {name} wird noch geladen. Versuch es danach noch einmal."
+msgstr "Another file from {name} is still loading. Try again after it."
+
+msgctxt "chat.fileTotalReceived"
+msgid "In diesem Anruf sind schon {max} MB angekommen, mehr nimmt die Seite nicht an."
+msgstr "This call has already brought {max} MB, and the page takes no more."
+
+msgctxt "chat.fileTooLarge"
+msgid "„{name}“ ist zu groß: Eine Datei hat höchstens {max} MB."
+msgstr "“{name}” is too large: A file holds at most {max} MB."
+
+msgctxt "chat.fileEmpty"
+msgid "„{name}“ ist leer und wird nicht gesendet."
+msgstr "“{name}” is empty and is not sent."
+
+msgctxt "chat.fileBusy"
+msgid "Eine Datei ist noch unterwegs. Warte, bis sie angekommen ist."
+msgstr "A file is still on its way. Wait until it has arrived."
+
+msgctxt "chat.fileSizeKilobytes"
+msgid "{size} KB"
+msgstr "{size} KB"
+
+msgctxt "chat.fileSizeMegabytes"
+msgid "{size} MB"
+msgstr "{size} MB"
+
 msgctxt "account.menuLabel"
 msgid "Konto"
 msgstr "Account"
