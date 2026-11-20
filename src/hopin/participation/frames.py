@@ -10,6 +10,7 @@ from hopin.participation.vocabulary import (
     FigureMood,
     InvitationOutcome,
     ParticipationSignal,
+    TurnOutcome,
 )
 from hopin.signaling.frames import WireFrame, WireRecord
 
@@ -122,6 +123,14 @@ class AgentThinkingFrame(WireFrame):
 
 
 @dataclass(frozen=True)
+class AgentTurnStateFrame(WireFrame):
+    TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_TURN_STATE
+
+    agent_id: str
+    outcome: TurnOutcome | None
+
+
+@dataclass(frozen=True)
 class AgentOffersFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_OFFERS
 
@@ -168,6 +177,7 @@ type ParticipationFrame = (
     | AgentContinuedFrame
     | AgentGestureFrame
     | AgentThinkingFrame
+    | AgentTurnStateFrame
     | AgentOffersFrame
     | AgentInvitationEndedFrame
     | AgentLineFrame

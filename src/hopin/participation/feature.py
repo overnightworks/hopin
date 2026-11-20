@@ -211,6 +211,7 @@ class Participation(TransitionFeature):
         line = clean_line(text)
         if line is None:
             return AgentRefusal.BAD_LINE
+        await self.figures.end_turn_state(agent)
         await self._write_line(agent, line)
         return None
 
@@ -456,7 +457,7 @@ class Participation(TransitionFeature):
         self._seat_views.joined(peer_id, view.room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
             tell_joined(view, agent, [peer_id], transition)
-            self.figures.tell_thinking(agent, peer_id, transition)
+            self.figures.tell_turn_state(agent, peer_id, transition)
             self._agent_speech.tell_held(view, transition, agent, peer_id)
         self._offer(view, transition)
 
@@ -544,6 +545,7 @@ class Participation(TransitionFeature):
         for agent in ended:
             self._agent_speech.end(agent)
             self._seeing.ended(agent)
+            self.figures.agent_ended(agent)
         for person in holders:
             self._on_changed(person)
 
@@ -563,6 +565,7 @@ class Participation(TransitionFeature):
         for agent in ended:
             self._agent_speech.end(agent)
             self._seeing.ended(agent)
+            self.figures.agent_ended(agent)
         self._departed.clear()
         self._abandoned.clear()
         self._seat_views.clear()
@@ -735,6 +738,7 @@ class Participation(TransitionFeature):
         self._hearing.agent_ended(agent)
         self._agent_speech.end(agent)
         self._seeing.ended(agent)
+        self.figures.agent_ended(agent)
 
     def _is_working(self, key: str) -> bool:
         return self._transitions.is_working(key)

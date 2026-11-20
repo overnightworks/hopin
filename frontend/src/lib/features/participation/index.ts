@@ -10,7 +10,7 @@ import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createLooks } from "./looking.ts";
-import { createAgentOffers, outcomeOf, refusalOf, rowsOf, type Ending } from "./offers.svelte.ts";
+import { createAgentOffers, hereRowOf, outcomeOf, refusalOf, rowsOf, type Ending } from "./offers.svelte.ts";
 import { createAgentVoices, type PlayerFactory } from "./voice.ts";
 import {
     AGENT_REFUSAL,
@@ -18,6 +18,7 @@ import {
     PARTICIPATION_SIGNAL,
     type Offer,
     type ParticipationFrameByType,
+    type TURN_OUTCOME,
 } from "./wire.ts";
 
 interface ShownAgent {
@@ -27,6 +28,8 @@ interface ShownAgent {
     readonly seeing?: boolean;
     // A look of the agent was shown lately.
     readonly looking?: boolean;
+    // Why the agent's turns do not answer, as it stated it last; absent when it states none.
+    readonly turnOutcome?: TURN_OUTCOME;
 }
 
 // How long the mark of a look stays on the agent's tile.
@@ -148,6 +151,7 @@ export async function installWith(
         const isNew = !shown.has(frame.agent_id);
         shown.set(frame.agent_id, agent);
         draw(agent);
+        drawOffers();
         if (isNew) readLines();
     }
 
@@ -235,7 +239,11 @@ export async function installWith(
     }
 
     function drawOffers() {
-        offersView.rows = rowsOf(offered, endings);
+        offersView.rows = rowsOf(
+            [...shown.values()].map(({ joined, turnOutcome }) => hereRowOf(joined.agent_id, joined.name, turnOutcome)),
+            offered,
+            endings,
+        );
     }
 
     // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
@@ -271,6 +279,7 @@ export async function installWith(
         markTimers.delete(agentId);
         voices.close(agentId);
         core.showAgentTile(null, tileKey(agentId));
+        drawOffers();
         capture.setHearers(hearingAgents());
         readLines();
     }
@@ -318,6 +327,12 @@ export async function installWith(
         if (frame.on) thinking.add(frame.agent_id);
         else thinking.delete(frame.agent_id);
         draw(agent);
+    });
+    core.on(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, (frame) => {
+        const agent = shown.get(frame.agent_id);
+        if (agent === undefined) return;
+        shown.set(frame.agent_id, { ...agent, turnOutcome: frame.outcome ?? undefined });
+        drawOffers();
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
     core.on(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, showEnding);

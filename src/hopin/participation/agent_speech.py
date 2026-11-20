@@ -81,10 +81,10 @@ class AgentSpeech:
         be spoken: no text, no renderer, past the agent's waiting queue, or an end of its speaking meanwhile; a sound
         that could not be made is written as a line instead, and `offered` then says when the voice is back, which
         turns the window's voice available without a sentence. A held agent speaks only a sentence that names its hold
-        as `interrupted`. Any other speak ends the agent's thinking."""
+        as `interrupted`. Any other speak ends the agent's thinking and its stated outcome."""
         if (hold_refusal := self._speaking.hold_refusal(agent, interrupted)) is not None:
             return hold_refusal
-        await self._figures.end_thinking(agent)
+        await self._figures.end_turn_state(agent)
         sentence = clean_line(one_line(text))
         if sentence is None or render is None:
             return self._speech.speak_refused(

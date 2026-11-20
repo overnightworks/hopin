@@ -72,6 +72,7 @@ from hopin.participation.vocabulary import (
     LookRefusal,
     SpeakFallback,
     SpeakStop,
+    TurnOutcome,
 )
 from hopin.rooms.reference import room_reference
 
@@ -475,7 +476,11 @@ async def _turn_stated(participation: Participation, caller: Caller, arguments: 
     stating = member_arguments(SetTurnStateArguments, arguments)
     if stating.place.kind != CALL_KIND:
         return _turn_state_refused()
-    if await participation.figures.state_turn(caller.person, stating.place.id, thinking=stating.thinking) is not None:
+    stopped = None if stating.stopped is None else TurnOutcome(stating.stopped.value)
+    refusal = await participation.figures.state_turn(
+        caller.person, stating.place.id, thinking=stating.thinking, stopped=stopped
+    )
+    if refusal is not None:
         return _turn_state_refused()
     return ToolOutcome(json.dumps({}), is_error=False)
 

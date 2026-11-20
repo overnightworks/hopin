@@ -14,3 +14,10 @@
     font-weight: 750;
     letter-spacing: 0.04em;
 }
+.participation-agent-full {
+    margin: 0;
+    padding: 0 14px 12px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.4;
+}
