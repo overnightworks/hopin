@@ -10,7 +10,7 @@ from playwright.sync_api import expect
 from hopin.config.constants import FILE_LIMITS, LINE_LIMITS
 from hopin.words import text
 from tests.e2e.support.calls import join, open_call, open_host, say_in_chat
-from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
+from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, WITHHOLD_RECEIPTS, wait_for_peer_count
 from tests.e2e.support.page_assertions import LIST_IS_AT_THE_BOTTOM, MESSAGES_IN_A_LONG_HISTORY
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.signaling import RECORD_SOCKET_FRAMES, SOCKET_FRAMES
@@ -177,10 +177,17 @@ def _png() -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
-def _post(person: Page, name: str, content: bytes, mime_type: str) -> None:
+def _choose(person: Page, files: Any) -> None:
+    """Pick the files the way a person does: the attach button opens the picker."""
     if not person.locator("#chatPanel.visible").count():
         person.click("#chatBtn")
-    person.set_input_files("#chatFile", {"name": name, "mimeType": mime_type, "buffer": content})
+    with person.expect_file_chooser() as picker:
+        person.click("#chatAttach")
+    picker.value.set_files(files)
+
+
+def _post(person: Page, name: str, content: bytes, mime_type: str) -> None:
+    _choose(person, {"name": name, "mimeType": mime_type, "buffer": content})
 
 
 def test_a_posted_picture_shows_in_both_other_pages_once_its_bytes_pass_the_raster_check_and_no_socket_carries_it(
@@ -239,6 +246,22 @@ def test_a_file_called_a_picture_whose_bytes_are_not_one_is_never_shown_inline(
     expect(host).not_to_have_title("ran")
 
 
+def test_a_picture_one_person_never_answered_turns_undelivered_for_them_when_they_leave(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    """CALL-72: A sender's file shows pending until every receiver has answered it; one who leaves is named."""
+    host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    guest.evaluate(WITHHOLD_RECEIPTS)
+
+    _post(host, "unanswered.png", _png(), "image/png")
+
+    expect(guest.locator(SHOWN_PICTURE)).to_have_count(1)
+    expect(host.locator(f"{SENT_FILE}.pending")).to_have_count(1)
+    guest.click("#leaveBtn")
+    expect(host.locator(f"{SENT_FILE}.pending")).to_have_count(0)
+    expect(host.locator(f"{SENT_FILE} .chat-delivery:not(.chat-file-note)")).to_have_count(1)
+
+
 def test_the_composer_names_a_file_over_the_per_file_cap_and_posts_none(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str], tmp_path: Path
 ) -> None:
@@ -249,7 +272,7 @@ def test_the_composer_names_a_file_over_the_per_file_cap_and_posts_none(
     with too_large.open("wb") as handle:
         handle.truncate(FILE_LIMITS.max_bytes + 1)
 
-    guest.set_input_files("#chatFile", too_large)
+    _choose(guest, too_large)
 
     expect(guest.locator("#chatFileProblem")).to_have_text(
         text("de", "chat.fileTooLarge", name="recording.mov", max=str(FILE_LIMITS.max_bytes // BYTES_PER_MEGABYTE))

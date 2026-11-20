@@ -11,6 +11,7 @@ from tests.e2e.support.calls import say_in_chat
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    WITHHOLD_RECEIPTS,
 )
 from tests.e2e.support.mesh_pair import (
     IN_CALL,
@@ -47,15 +48,6 @@ expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 HEARD_CHAT = "#chatMessages .chat-msg.other"
 SENT_LINE = "#chatMessages .chat-msg.self"
-# A person whose answers never come back: the channel sends every message but a receipt.
-WITHHOLD_RECEIPTS = """
-() => {
-    const nativeSend = RTCDataChannel.prototype.send;
-    RTCDataChannel.prototype.send = function (data) {
-        if (JSON.parse(data).type !== "receipt") nativeSend.call(this, data);
-    };
-}
-"""
 HOST_PRESENCE_NEWS = {SignalType.HOST_AWAY, SignalType.HOST_BACK}
 CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
 ANSWER_APPLIED = '() => window.recordedConnections[0].signalingState === "stable"'
