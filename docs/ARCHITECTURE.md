@@ -4,7 +4,7 @@ How HopIn is built, how a call runs and what it trusts. For what HopIn is and ho
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. Camera pictures and the call's sound never pass the server. Three things do: the game master's and agents' spoken sentences, which it has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, which it forwards unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory only until the agent has it. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume. For the game master it asks the fleet's LiteLLM gateway for quiz questions, their answers and a final score, and sends it the given answers with their players' names, for the person who tapped Quiz starten.
+A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. The camera video and the sound between people never pass the server. Three other things do: the game master's and agents' spoken sentences, which it has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, which it forwards unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory only until the agent has it. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume. For the game master it asks the fleet's LiteLLM gateway for quiz questions, their answers and a final score, and sends it the given answers with their players' names, for the person who tapped Quiz starten.
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
     subgraph platform["Platform (k3s)"]
         TU[Cloudflare tunnel] --> P[Traefik]
     end
-    A & B & C -- "https, WebSocket /ws; microphone sound while an agent hears, one picture per look" --> TU
+    A & B & C -- "https, WebSocket /ws and /ws/hearing; microphone sound while an agent hears, one picture per look" --> TU
     hopin -. "spoken voices" .-> A & B & C
     P --> G
     subgraph hopin["HopIn pod, namespace hopin"]
