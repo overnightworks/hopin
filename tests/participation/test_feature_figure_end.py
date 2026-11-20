@@ -5,19 +5,16 @@ import pytest_asyncio
 import structlog.testing
 
 from hopin.config.constants import ErrorReason, SignalType
-from hopin.participation.participants import DialedAgent
-from hopin.participation.places import Places
-from hopin.participation.shown_figures import ShownFigures
 from hopin.participation.vocabulary import FigureEnd, ParticipationSignal
 from hopin.rooms.reference import room_reference
-from hopin.signaling.frames import ForeignFrame, PeerId
+from hopin.signaling.frames import ForeignFrame
+from hopin.signaling.transition import RoomView, Transition
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 ENDED_EVENT = "agent_figure.ended"
-SEAT = PeerId("seat-1")
 
 
 def report(agent_id, code):
@@ -136,28 +133,17 @@ class TestAFigureEndReport:
         assert [entry["code"] for entry in endings_in(logs)] == [FigureEnd.SLOW.value]
 
 
-class SeatInRoom:
-    def __init__(self, room_id):
-        self._room_id = room_id
-
-    def room_of(self, peer_id):
-        return self._room_id
-
-
 class TestAFigureEndReportAfterItsSeatLeft:
-    async def test_call_56_a_seat_that_left_is_logged_again_when_the_same_seat_reports_anew(self, deadlines):
-        places = Places()
-        agent = DialedAgent("agent-1", "Claude", person_named("sponsor"), SEAT, "room-1")
-        places.put(agent.person, agent.room_id, agent)
-        figures = ShownFigures(places, deadlines, None, None, None)
+    async def test_call_56_a_seat_that_left_is_logged_again_when_the_same_seat_reports_anew(self, participation, dialed):
+        host, guest, agent = dialed
+        view = RoomView(room_id=room_of(host), members=(host.peer_id, guest.peer_id))
         frame = ForeignFrame(
             ParticipationSignal.AGENT_FIGURE_ENDED.value, {"agent_id": agent.agent_id, "code": FigureEnd.LOST.value}
         )
-        view = SeatInRoom(agent.room_id)
-        figures.ended(SEAT, frame, view)
+        participation.on_frame(view, guest.peer_id, frame, Transition())
 
-        figures.seat_left(SEAT)
+        participation.seat_left(view, guest.peer_id, Transition())
         with structlog.testing.capture_logs() as logs:
-            figures.ended(SEAT, frame, view)
+            participation.on_frame(view, guest.peer_id, frame, Transition())
 
         assert len(endings_in(logs)) == 1
