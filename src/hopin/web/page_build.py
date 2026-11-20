@@ -177,8 +177,8 @@ class PageBuild:
 
     The pages are held as read, one per offered language, so the served shell is the hashed shell even when a build
     rewrites the file while the server runs. The shell is one file for every language, which loads its words in the
-    browser; each sign-in page is prerendered once per language in `<language>/` and carries its text. `sign_in_assets` are the `/_app/` stylesheets and icon the three sign-in
-    pages link and the `/_app/` files those stylesheets reference (the fonts), the only build files a signed-out
+    browser; each sign-in page is prerendered once per language in `<language>/` and carries its text.
+    `sign_in_assets` are the `/_app/` stylesheets and icon the three sign-in pages link and the `/_app/` files those stylesheets reference (the fonts), the only build files a signed-out
     visitor may fetch.
     `announcer_style_sources` are the `style-src` sources that admit the route announcer's inline style.
     """

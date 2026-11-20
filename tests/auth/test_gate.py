@@ -45,12 +45,12 @@ from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import (
     FIXTURE_ANNOUNCER_HASH,
     FIXTURE_DIRECTORY,
-    SOURCE_LANGUAGE_DIRECTORY,
     FIXTURE_SCRIPT_HASH,
     IMMUTABLE_FILE,
     SIGN_IN_FONT,
     SIGN_IN_ICON,
     SIGN_IN_STYLESHEET,
+    SOURCE_LANGUAGE_DIRECTORY,
     VERSION_FILE,
     fixture_page_build,
 )
@@ -263,9 +263,7 @@ class TestSignInPages:
         assert member is None or application.stores.sessions.load(member.session.id) is not None
 
     @pytest.mark.parametrize("path", SIGN_IN_PAGES)
-    def test_the_page_is_the_prerender_of_the_language_the_browser_asks_for_and_varies_by_it(
-        self, application, path
-    ):
+    def test_the_page_is_the_prerender_of_the_language_the_browser_asks_for_and_varies_by_it(self, application, path):
         response = application.request("GET", path, None, **BROWSER_ACCEPT, **{"accept-language": "en"})
 
         assert response.content == (FIXTURE_DIRECTORY / "en" / SIGN_IN_PAGES[path].name).read_bytes()
