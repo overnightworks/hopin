@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isFetchedAtOnce, isWithinCap, PICTURE_TYPE, pictureTypeOf, safeFileName } from "#lib/call/file.ts";
+import {
+    isFetchedAtOnce,
+    fileRefusal,
+    FILE_REFUSAL,
+    PICTURE_TYPE,
+    pictureTypeOf,
+    safeFileName,
+} from "#lib/call/file.ts";
 import { FILE_MAX_BYTES, FILE_NAME_MAX_CHARACTERS, PICTURE_AUTO_FETCH_BYTES } from "#lib/wire.ts";
 
 function bytes(...values: (number | string)[]): Uint8Array {
@@ -41,11 +48,11 @@ describe("what is fetched at once", () => {
 });
 
 describe("the per-file cap", () => {
-    it("holds a file of one byte up to the cap", () => {
-        expect(isWithinCap(0)).toBe(false);
-        expect(isWithinCap(1)).toBe(true);
-        expect(isWithinCap(FILE_MAX_BYTES)).toBe(true);
-        expect(isWithinCap(FILE_MAX_BYTES + 1)).toBe(false);
+    it("refuses an empty file and one over the cap, and nothing between", () => {
+        expect(fileRefusal(0)).toBe(FILE_REFUSAL.EMPTY);
+        expect(fileRefusal(1)).toBeNull();
+        expect(fileRefusal(FILE_MAX_BYTES)).toBeNull();
+        expect(fileRefusal(FILE_MAX_BYTES + 1)).toBe(FILE_REFUSAL.TOO_LARGE);
     });
 });
 

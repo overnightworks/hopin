@@ -68,9 +68,16 @@ export function isFetchedAtOnce(announcedType: string, size: number): boolean {
     return PICTURE_TYPES.has(announcedType) && size <= PICTURE_AUTO_FETCH_BYTES;
 }
 
-/** Whether a file of this size is within the per-file cap and holds a byte. */
-export function isWithinCap(size: number): boolean {
-    return size >= 1 && size <= FILE_MAX_BYTES;
+export const FILE_REFUSAL = {
+    EMPTY: "empty",
+    TOO_LARGE: "too-large",
+} as const;
+export type FileRefusal = (typeof FILE_REFUSAL)[keyof typeof FILE_REFUSAL];
+
+/** Why a file of this size cannot be posted or received, or null when it holds a byte and is within the per-file cap. */
+export function fileRefusal(size: number): FileRefusal | null {
+    if (size < 1) return FILE_REFUSAL.EMPTY;
+    return size > FILE_MAX_BYTES ? FILE_REFUSAL.TOO_LARGE : null;
 }
 
 /** The name the page shows and offers for a download: no path, no control or reordering character, at most the limit's code points; a name left empty is "datei". */
