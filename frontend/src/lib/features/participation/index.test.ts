@@ -8,7 +8,14 @@ import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { ME, installedParticipation, joined, tileActivities } from "./page.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, FIGURE_END, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL } from "./wire.ts";
+import {
+    AGENT_REFUSAL,
+    FIGURE_END,
+    HEARING_PATH,
+    INVITATION_OUTCOME,
+    PARTICIPATION_SIGNAL,
+    TURN_OUTCOME,
+} from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -472,6 +479,37 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
 
         expect([names(page), page.buttons()]).toEqual([["Mozart"], []]);
+    });
+
+    it.each([
+        [TURN_OUTCOME.NOT_ENABLED, "Nicht freigeschaltet"],
+        [TURN_OUTCOME.BUSY, "Gerade ausgelastet"],
+        [TURN_OUTCOME.BUDGET_SPENT, "Budget aufgebraucht"],
+        [TURN_OUTCOME.UNAVAILABLE, "Gerade gestört"],
+    ])("CALL-72: shows the outcome %s an agent in the call stated beside its name", async (outcome, words) => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome });
+
+        expect([names(page), page.offers()[0]?.textContent]).toEqual([["Claude"], expect.stringContaining(words)]);
+    });
+
+    it("CALL-72: shows no outcome beside an agent whose outcome was cleared, and drops it with the agent", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: null });
+        const cleared = page.offers()[0]?.textContent.includes("Gerade ausgelastet");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
+
+        expect([cleared, names(page)]).toEqual([false, []]);
     });
 
     it("follows each frame exactly: the rows of the last frame are all there is", async () => {

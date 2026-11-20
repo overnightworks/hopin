@@ -12,7 +12,7 @@ from agents.member import (
     STANDING_URI,
 )
 
-from hopin.agent.tools import LEAVE_CALL
+from hopin.agent.tools import LEAVE_CALL, SAY
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
 from hopin.participation.settings import ParticipationSettings
@@ -48,6 +48,7 @@ JOINED = ParticipationSignal.AGENT_JOINED.value
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 GESTURED = ParticipationSignal.AGENT_GESTURE.value
 THINKING = ParticipationSignal.AGENT_THINKING.value
+TURN_STATE = ParticipationSignal.AGENT_TURN_STATE.value
 SECOND_OWNER = "subject-second-owner"
 FILE = glb(b"mozart" * 8)
 CLIP = glb(b"wave" * 8)
@@ -710,3 +711,57 @@ class TestThinking:
         thinking.owner.settle()
 
         assert [frame["on"] for frame in thinking.owner.received if frame["type"] == THINKING] == [True]
+
+
+def turn_state_told(seat):
+    """The next turn state frame the seat is told, as the agent's id and the stated outcome, none once cleared."""
+    told = seat.frame_of_type(TURN_STATE)
+    return told["agent_id"], told["outcome"]
+
+
+class TestStatedTurnOutcome:
+    @pytest.fixture
+    def stopped(self, gesturing):
+        """The scene with the agent stating that its turns there stop as busy, which every seat has been told."""
+        stated = call_in(gesturing, tool=SET_TURN_STATE_TOOL, stopped="busy")
+        assert not stated.is_error
+        for seat in (gesturing.owner, gesturing.member):
+            assert turn_state_told(seat) == (gesturing.agent_id, "busy")
+        return gesturing
+
+    def test_call_72_a_stated_outcome_is_told_to_every_seat_and_a_later_one_gets_the_current(self, stopped):
+        call_in(stopped, tool=SET_TURN_STATE_TOOL, stopped="budget_spent")
+        _, later_login = stopped.call.member()
+        later = stopped.call.seat(later_login, stopped.owner.room_id)
+        later.frame_of_type(JOINED)
+
+        assert turn_state_told(later) == (stopped.agent_id, "budget_spent")
+
+    @pytest.mark.parametrize(
+        "ending",
+        [
+            pytest.param(lambda scene: call_in(scene, tool=SET_TURN_STATE_TOOL, thinking=True), id="a new turn"),
+            pytest.param(lambda scene: call_in(scene, tool=SET_TURN_STATE_TOOL), id="a statement of none"),
+            pytest.param(lambda scene: call_in(scene, tool=SPEAK_TOOL, text="Hallo"), id="a spoken line"),
+            pytest.param(
+                lambda scene: scene.call.call(scene.token, SAY, {"room": scene.owner.room_id, "text": "Hallo"}),
+                id="a said line",
+            ),
+        ],
+    )
+    def test_call_72_every_seat_is_told_the_outcome_cleared(self, stopped, ending):
+        ending(stopped)
+
+        for seat in (stopped.owner, stopped.member):
+            assert turn_state_told(seat) == (stopped.agent_id, None)
+
+    def test_call_72_a_later_seat_is_told_no_outcome_once_cleared(self, stopped):
+        call_in(stopped, tool=SET_TURN_STATE_TOOL)
+        stopped.owner.frame_of_type(TURN_STATE)
+        _, later_login = stopped.call.member()
+        later = stopped.call.seat(later_login, stopped.owner.room_id)
+        later.frame_of_type(JOINED)
+        call_in(stopped, tool=SET_TURN_STATE_TOOL, thinking=True)
+
+        assert thinking_told(later) == (stopped.agent_id, True)
+        assert [frame for frame in later.received if frame["type"] == TURN_STATE] == []
