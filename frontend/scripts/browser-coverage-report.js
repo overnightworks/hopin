@@ -41,13 +41,15 @@ for (const file of await readdir(rawDirectory)) {
 }
 await report.generate();
 
-// Sources that run outside a browser: client-side rendering is off for the sign-in group, so they run at prerender only.
+// Sources that run outside a browser: client-side rendering is off for the sign-in group, so they run at prerender only (the language layout and entries included).
 // Any other missing source gets a test that loads it, or is deleted.
 const PRERENDER_ONLY = [
     "frontend/src/lib/ui/SignIn.svelte",
-    "frontend/src/routes/(sign-in)/login-failed/+page.svelte",
-    "frontend/src/routes/(sign-in)/login/+page.svelte",
-    "frontend/src/routes/(sign-in)/no-access/+page.svelte",
+    "frontend/src/routes/(sign-in)/[language]/+layout.ts",
+    "frontend/src/routes/(sign-in)/[language]/entries.ts",
+    "frontend/src/routes/(sign-in)/[language]/login-failed/+page.svelte",
+    "frontend/src/routes/(sign-in)/[language]/login/+page.svelte",
+    "frontend/src/routes/(sign-in)/[language]/no-access/+page.svelte",
 ];
 const repositoryRoot = path.resolve("..");
 

@@ -19,7 +19,7 @@ from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler, InMemoryDeadlines
 from hopin.web.routes import create_router
 from tests.support.in_thread_stores import in_thread_stores
-from tests.support.page_build import FIXTURE_DIRECTORY, SIGN_IN_PAGE_FILES, fixture_page_build
+from tests.support.page_build import SIGN_IN_PAGE_FILES, SOURCE_LANGUAGE_DIRECTORY, fixture_page_build
 from tests.support.page_inventory import (
     CSS_COMMENT,
     inventory_of,
@@ -117,7 +117,7 @@ class TestAppAssets:
 
     @pytest.mark.parametrize("page", SIGN_IN_PAGE_FILES)
     def test_every_stylesheet_and_icon_a_sign_in_page_links_is_a_hashed_file_answered_immutable(self, client, page):
-        inventory = inventory_of((FIXTURE_DIRECTORY / page).read_text())
+        inventory = inventory_of((SOURCE_LANGUAGE_DIRECTORY / page).read_text())
 
         linked = [*inventory.stylesheets, *inventory.icons]
         assert inventory.stylesheets

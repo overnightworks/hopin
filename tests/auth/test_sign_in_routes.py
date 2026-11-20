@@ -46,7 +46,7 @@ from hopin.web.request_language import RequestLanguage
 from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
-from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
+from tests.support.page_build import SOURCE_LANGUAGE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
 from tests.support.stores import single_process_stores
@@ -206,7 +206,7 @@ def cookie_scope(raw_cookie: str) -> tuple[str, frozenset[str]]:
 def assert_refused(harness: SignInHarness, response: Response, *, cleared_under_start_name: bool = True) -> None:
     assert response.status_code == 403
     assert response.headers["content-type"].startswith("text/html")
-    assert response.content == (FIXTURE_DIRECTORY / "login-failed.html").read_bytes()
+    assert response.content == (SOURCE_LANGUAGE_DIRECTORY / "login-failed.html").read_bytes()
     assert_pending_login_cleared(harness, response, cleared_under_start_name=cleared_under_start_name)
 
 
