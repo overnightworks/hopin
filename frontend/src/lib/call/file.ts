@@ -148,7 +148,9 @@ export function mediaTypeOf(head: Uint8Array): MediaType | null {
     if (textAt(head, ID3) || isMpegFrame(head)) return MEDIA_TYPE.MP3;
     if (isAdtsFrame(head)) return MEDIA_TYPE.AAC;
     if (textAt(head, FTYP, FTYP_BOX_TYPE_OFFSET)) {
-        return FTYP_BRANDS.get(String.fromCharCode(...head.subarray(FTYP_BRAND_OFFSET, FTYP_BRAND_OFFSET + 4))) ?? null;
+        return (
+            FTYP_BRANDS.get(String.fromCodePoint(...head.subarray(FTYP_BRAND_OFFSET, FTYP_BRAND_OFFSET + 4))) ?? null
+        );
     }
     if (startsWith(head, EBML_SIGNATURE)) return MEDIA_TYPE.WEBM;
     if (textAt(head, OGG)) return MEDIA_TYPE.OGG;
