@@ -114,9 +114,9 @@ sequenceDiagram
     H->>SP: the text, the agent's exchanged token, HopIn's workload token
     SP-->>H: sound, chunk by chunk (kept in memory)
     H-->>B: agent_voice frame over /ws
+    H-->>G: answers when the sentence starts
     B->>H: GET /api/game/voice/id
     H-->>B: the sound, unchanged
-    H-->>G: answers once the sentence has played or been cut
     Note over S,G: hearing hop, only while the sponsor's switch is on
     S->>H: microphone sound over /ws/hearing
     H->>SP: the sound, forwarded unread
@@ -124,9 +124,9 @@ sequenceDiagram
     H-->>G: the line in the agent's chat window (MCP resource)
 ```
 
-Caption: from `agent/tools.py`, `participation/speaking.py`, `agent/speaking.py`, `agent/hearing_route.py` and `participation/speech_in_windows.py`.
+Caption: from the `agent/` and `participation/` packages.
 
-The rules of a room (host, lock, resume window, host grace, Skat table, quiz run, hearing hop, speaking queue) are in [docs/call.md](call.md). The frames and their limits are in `src/hopin/signaling/__init__.py`.
+The rules of a room (host, lock, resume window, host grace, Skat table, quiz run, hearing hop, speaking queue) are in [docs/call.md](call.md). The frames are in `src/hopin/signaling/__init__.py`; the limits are constants in `config/constants.py`.
 
 ## 4. Deployment View
 
@@ -154,7 +154,7 @@ Each line: what the party sees and what HopIn trusts of it.
 
 - **A member's browser** sends chat, media state and connection descriptions with a session; HopIn trusts none beyond the session: names come from the Keycloak account, senders are server-minted peer ids, host actions are checked against the account.
 - **Anyone without a session** reaches the sign-in routes and a few static files only (`auth/gate.py`); HopIn trusts nothing they send.
-- **Keycloak** decides who is a member and admin; HopIn trusts its signed tokens from the one issuer, and its logout token to end sessions, so that route stays off the public internet.
+- **Keycloak** decides who is a member and admin; HopIn trusts its signed tokens from the one issuer, and its logout token to end sessions, so that route stays off the public internet. The session row holds each login's ID token and refresh token, both secrets.
 - **The proxy hops** in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`; empty trusts none.
 - **The other members of a call** see each other's addresses and relayed frames; they cannot address people outside their room or act as host.
 - **The STUN server** learns each asking browser's address; a wrong answer at worst prevents a connection.
@@ -165,7 +165,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - **A figure source** (`HOPIN_FIGURE_SOURCES`) is a host the operator allows; HopIn sends it one credential-less GET and trusts none of the answer beyond the size bound, the named sha256 and a glTF header.
 - **The LiteLLM gateway** receives per run HopIn's key, the quiz prompt, the given answers with players' names and the tapper's fingerprint; HopIn trusts one cut line from it, shown as text.
 - **The speech service** is the operator's own, on an isolated network over plain HTTP; it receives a line's text, the starter's or agent's token, HopIn's workload token and, while an agent hears, a member's microphone sound. HopIn trusts it to answer one bounded sound and serves that unchanged.
-- **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it.
+- **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it; anything that reaches it could read counted addresses or clear a budget.
 - **The operator's settings and secret files** are trusted fully; secrets are read from files and never enter the environment.
 
 ## 6. Constraints and reasons
