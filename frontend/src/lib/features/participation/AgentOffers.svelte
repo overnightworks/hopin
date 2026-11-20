@@ -11,4 +11,18 @@
 <!-- A refusal stays readable when the frame that refused also takes the control away. -->
 {#if view.shown || view.refusal || rows.length > 0}
     <AgentControl {rows} full={view.full} {onCall} refusal={view.refusal} {words} />
+    <!-- The control states a full call only in place of its rows, so agents in the call must not hide it. -->
+    {#if view.shown && view.full && rows.length > 0}
+        <p class="full">{words["agent.placeFull"]}</p>
+    {/if}
 {/if}
+
+<style>
+    .full {
+        margin: 0;
+        padding: 0 14px 12px;
+        color: var(--text-muted);
+        font-size: 13.5px;
+        line-height: 1.4;
+    }
+</style>
