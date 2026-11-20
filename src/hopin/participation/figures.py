@@ -3,9 +3,9 @@ route serves them from.
 
 The figure is kept on the joined place only when its URL lies under a prefix of `HOPIN_FIGURE_SOURCES`; otherwise the
 tile keeps its symbol and a closed code is logged. `agent_joined` then carries the route's path for its digest, which
-the page's `figure` module draws on the tile. The route `GET /api/participation/figures/{sha256}` (`hopin.agent.mcp`)
-serves any signed-in member the file of a digest a joined agent names. It is fetched on the first read through
-`figure_transport.py`, checked against the digest and the glTF binary header, and kept in memory.
+the page's `figure` module draws on the tile. The route that serves the file is `hopin.agent.mcp`'s; the store here
+fetches it on the first read through `figure_transport.py`, checks it against the digest and the glTF binary header and
+keeps it in memory.
 
 Apart from the transport port and the store's own two workers, nothing here does I/O; the clock comes in as a
 parameter.
