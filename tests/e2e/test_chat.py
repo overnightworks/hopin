@@ -1,3 +1,4 @@
+import base64
 import io
 import re
 import struct
@@ -54,6 +55,29 @@ const createObjectUrl = URL.createObjectURL.bind(URL);
 URL.createObjectURL = (blob) => { const url = createObjectUrl(blob); window.blobTypes[url] = blob.type; return url; };
 """
 BLOB_TYPE_OF_PLAYER = "(player) => window.blobTypes[player.src]"
+# A short WebM the page records from a canvas, as base64 text: the browser's own encoder makes a clip it can decode.
+RECORD_A_SHORT_VIDEO = """
+async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 48;
+    const context = canvas.getContext("2d");
+    const recorder = new MediaRecorder(canvas.captureStream(10), { mimeType: "video/webm" });
+    const parts = [];
+    recorder.ondataavailable = (event) => parts.push(event.data);
+    const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+    recorder.start();
+    for (let step = 0; step < 6; step += 1) {
+        context.fillStyle = `hsl(${step * 60}, 90%, 50%)`;
+        context.fillRect(0, 0, 64, 48);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    recorder.stop();
+    await stopped;
+    const bytes = new Uint8Array(await new Blob(parts).arrayBuffer());
+    return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
+}
+"""
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -286,6 +310,24 @@ def test_a_posted_song_waits_for_a_tap_and_then_plays_from_memory_without_starti
     assert host.locator(PLAYER).evaluate(BLOB_TYPE_OF_PLAYER) == "audio/wav"
     assert host.locator(PLAYER).evaluate(PLAYER_NEVER_STARTS)
     expect(guest.locator(PLAYER)).to_be_visible()
+
+
+def test_a_posted_video_waits_for_a_tap_and_then_plays_with_controls_without_starting_by_itself(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    """CALL-73: A video is fetched on a tap, plays with controls from a blob typed by its bytes, and never autoplays."""
+    host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP, RECORD_BLOB_TYPES)
+    host.click("#chatBtn")
+    clip = base64.b64decode(guest.evaluate(RECORD_A_SHORT_VIDEO))
+
+    _post(guest, "clip.webm", clip, "application/octet-stream")
+
+    expect(host.locator(VIDEO_PLAYER)).to_have_count(0)
+    host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
+    expect(host.locator(VIDEO_PLAYER)).to_be_visible()
+    expect(host.locator(VIDEO_PLAYER)).to_have_attribute("controls", "")
+    assert host.locator(VIDEO_PLAYER).evaluate(BLOB_TYPE_OF_PLAYER) == "video/webm"
+    assert host.locator(VIDEO_PLAYER).evaluate(PLAYER_NEVER_STARTS)
 
 
 @pytest.mark.parametrize(
