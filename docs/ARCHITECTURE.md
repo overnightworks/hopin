@@ -4,7 +4,7 @@ How HopIn is built, how a call runs and what it trusts. For what HopIn is and ho
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. HopIn's server never sees call audio or video; it fetches the game master's spoken lines from the speech service. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume. For the game master it asks the fleet's LiteLLM gateway for quiz questions, their answers and a final score, and sends it the given answers with their players' names, for the person who tapped Quiz starten.
+A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. The camera video and the sound between people never pass the server. Three other things do: the game master's and agents' spoken sentences, which it has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, which it forwards unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory only until the agent has it. It signs people in, hands out call rooms and relays the setup messages (offers, answers, candidates), chat lines and media state between the members of one room; it keeps recent frames in replay logs for a resume. For the game master it asks the fleet's LiteLLM gateway for quiz questions, their answers and a final score, and sends it the given answers with their players' names, for the person who tapped Quiz starten.
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,8 @@ flowchart LR
     subgraph platform["Platform (k3s)"]
         TU[Cloudflare tunnel] --> P[Traefik]
     end
-    A & B & C -- "https, WebSocket /ws" --> TU
+    A & B & C -- "https, WebSocket /ws and /ws/hearing; microphone sound while an agent hears, one picture per look" --> TU
+    hopin -. "spoken voices" .-> A & B & C
     P --> G
     subgraph hopin["HopIn pod, namespace hopin"]
         G{{Session gate}} --> S[Pages, API, signaling]
@@ -32,7 +33,7 @@ flowchart LR
     hopin -. TURN credentials, https .-> R
     hopin -. quiz run, http, HopIn's key .-> AG[LiteLLM gateway]
     hopin -. refresh grant, the tapper's groups and the starter's access token for the voice; client-credentials grant, the voice .-> K
-    hopin -. spoken lines, http, the tapper's and HopIn's tokens .-> SP[Speech service]
+    hopin -. spoken sentences and heard sound, http, the tapper's and HopIn's tokens .-> SP[Speech service]
 ```
 
 The session gate sits in front of every route and `/ws`; only the paths in `PUBLIC_PATHS` (`src/hopin/auth/gate.py`) plus the `/_app/` stylesheets and icon the built sign-in pages link, the fonts those stylesheets reference and the sign-in routes' own public rules (`SIGN_IN_PATHS`, `src/hopin/config/web_policy.py`: start, callback, and the POSTs of logout and Keycloak's back-channel logout) pass without a session. HopIn depends on Keycloak as an external service (the authorisation, token, JWKS and logout endpoints under the configured issuer, built in `auth/sign_in.py`, which also installs the routes webauth serves); the ICE servers are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay (an external service; only `web/turn_relay.py` and the configuration name its provider). Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted end to end between the browsers. The LiteLLM gateway is a fleet service on an internal network (`HOPIN_AGENT__GATEWAY__ORIGIN`); only the game's connector (`agent/`) speaks to it, through the `overnightworks-agents` package's `GatewayBackend`, import-linter contracts keep that client and `httpx2` out of the call core, and the speech service is likewise the connector's alone (the settings in `agent/speech_settings.py`, which stay with the game removed, and the game's voice in `agent/speech.py`, through the `overnightworks-speech-client` package's bounded `speak` call), kept out of the call core and of `main` and `app` by contracts; `tests/game/test_quiz_agent_connector_imports.py` holds the rest for the agents client (only `agent/backend.py` names it beyond its `config`, only `agent/settings.py` names `config`, and no other module names it or `httpx2`) and `tests/agent/test_speech_imports.py` for the speech client (only `agent/speech.py` and `agent/speech_settings.py` name it).
@@ -158,7 +159,7 @@ The model is HopIn's own; no operator ruling narrows it.
 
 ## 7. Not chosen
 
-- A media server (SFU) instead of the mesh: the server never sees media and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
+- A media server (SFU) instead of the mesh: the server relays no call media between members and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
 - A database: accounts, sessions, rooms and replay logs are lost on restart by design (see Risks); calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
 - Skat as a web component, or HopIn and Skat linked server to server: the sandboxed frame keeps Skat's code and sign-in out of HopIn's page and needs no shared secret; a table that must start from the call, not from a pasted link, reopens it.
 - An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through the `overnightworks-agents` package; a second consumer of the gateway needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
