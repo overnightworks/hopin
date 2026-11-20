@@ -553,6 +553,20 @@ describe("a file served", () => {
         expect(new Uint8Array(await new Blob(channel.sent).arrayBuffer())).toEqual(content);
     });
 
+    it("sends nothing while the channel is still connecting and starts when it opens", async () => {
+        const { files } = sender();
+        const channel = new FakeChannel("file:1");
+        channel.readyState = "connecting";
+
+        files.serve("p1", channel);
+        const sentWhileConnecting = channel.sent.length;
+        channel.readyState = "open";
+        channel.onopen?.();
+        await channel.whenSent(4);
+
+        expect(sentWhileConnecting).toBe(0);
+    });
+
     it("waits on the send buffer: it sends no more while the buffer is full and goes on when it is low again", async () => {
         const { files, reads } = sender();
         const channel = new FakeChannel("file:1");
@@ -581,6 +595,28 @@ describe("a file served", () => {
         await reads.read(readsBefore + 1);
 
         expect(channel.sent).toEqual([]);
+    });
+
+    it.each([
+        [
+            "a person leaves",
+            (files: Files) => {
+                files.removePeer("p1");
+            },
+        ],
+        [
+            "the call ends",
+            (files: Files) => {
+                files.release();
+            },
+        ],
+    ])("closes the channel it is serving when %s", (_case, end) => {
+        const { files } = sender();
+        const channel = fetchedBy("p1", 1, files);
+
+        end(files);
+
+        expect(channel.readyState).toBe("closed");
     });
 
     it.each([
