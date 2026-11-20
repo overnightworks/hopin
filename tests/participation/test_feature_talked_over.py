@@ -6,7 +6,7 @@ import pytest
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.hearing_scene import heard
 from tests.participation.support.people import person_named, room_of
-from tests.participation.support.speaking import LONG, SENTENCE_MS, speak, waiting_to_speak
+from tests.participation.support.speaking import LONG, SENTENCE_MS, renders_failing, speak, waiting_to_speak
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -21,6 +21,10 @@ def hears():
 
 def window_of(participation, person, room_id):
     return participation.read_window(person, room_id)
+
+
+def window_changes_of(window_changes, person):
+    return [change for change in window_changes if change[0] == person]
 
 
 def record_of(participation, person, room_id):
@@ -195,3 +199,34 @@ class TestTheRecordFollowsTheSentence:
 
         window = window_of(participation, GUEST, room_id)
         assert (window.talked_over.playing, [line.text for line in window.lines]) == (True, ["Eins", "Zwei"])
+
+    async def test_call_54_a_sentence_that_starts_at_once_after_a_continued_one_changes_the_window_only_for_the_line(
+        self, participation, call, scheduler, window_changes
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        await speak(participation, "Eins", room_id=room_id, render=LONG)
+        await participation.person_started(room_id, guest.peer_id)
+        await speak(participation, "Zwei", room_id=room_id, interrupted="1")
+        await waiting_to_speak(participation, "Drei", room_id=room_id)
+        window_changes.clear()
+
+        await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert window_changes_of(window_changes, GUEST) == [(GUEST, room_id)]
+
+    async def test_call_54_a_written_sentence_between_keeps_the_start_at_once(
+        self, participation, call, scheduler, window_changes
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        await speak(participation, "Eins", room_id=room_id, render=LONG)
+        await participation.person_started(room_id, guest.peer_id)
+        await speak(participation, "Zwei", room_id=room_id, interrupted="1")
+        await waiting_to_speak(participation, "Drei", room_id=room_id, render=renders_failing)
+        await waiting_to_speak(participation, "Vier", room_id=room_id)
+        window_changes.clear()
+
+        await scheduler.advance(SENTENCE_MS / 1000)
+
+        assert window_changes_of(window_changes, GUEST) == [(GUEST, room_id)] * 2
