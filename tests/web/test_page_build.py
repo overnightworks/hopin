@@ -5,6 +5,7 @@ from webauth.languages import AppLanguages
 
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.page_build import PageBuild, _css_asset_urls
+from hopin.words import LANGUAGES
 from tests.support.page_build import (
     FIXTURE_ANNOUNCER_HASH,
     FIXTURE_ANNOUNCER_STYLE,
@@ -38,8 +39,10 @@ def build_with_shell(
 ) -> Path:
     (root / "_app").mkdir(parents=True)
     (root / "index.html").write_text(shell, encoding="utf-8")
-    for name in SIGN_IN_PAGE_FILES:
-        (root / name).write_text(sign_in_page, encoding="utf-8")
+    for language in LANGUAGES:
+        (root / language).mkdir()
+        for name in SIGN_IN_PAGE_FILES:
+            (root / language / name).write_text(sign_in_page, encoding="utf-8")
     if immutable_chunks is None:
         immutable_chunks = {"announcer.js": announcer_template(FIXTURE_ANNOUNCER_STYLE)}
     write_immutable_chunks(root, immutable_chunks)
@@ -138,7 +141,7 @@ class TestLoad:
         }
         assert variants["de"].etag != variants["en"].etag
 
-    @pytest.mark.parametrize("page", ["index.html", *SIGN_IN_PAGE_FILES])
+    @pytest.mark.parametrize("page", ["index.html", *(f"en/{name}" for name in SIGN_IN_PAGE_FILES)])
     def test_a_page_without_an_html_lang_refuses_the_start_and_names_the_build_command(self, tmp_path, page):
         root = build_with_shell(tmp_path, HTML)
         (root / page).write_text("<html></html>", encoding="utf-8")
@@ -179,9 +182,11 @@ class TestLoad:
             (page_build.login_failed, "login-failed.html"),
             (page_build.no_access, "no-access.html"),
         ):
-            assert page.variants["de"].content == (FIXTURE_DIRECTORY / name).read_bytes()
+            assert page.variants["de"].content == (FIXTURE_DIRECTORY / "de" / name).read_bytes()
+            assert page.variants["en"].content == (FIXTURE_DIRECTORY / "en" / name).read_bytes()
             assert page.variants["de"].etag.startswith('"')
             assert page.variants["de"].etag.endswith('"')
+            assert page.variants["de"].etag != page.variants["en"].etag
 
     def test_the_sign_in_assets_are_the_app_stylesheets_and_icon_the_sign_in_pages_link_and_the_files_they_reference(
         self, tmp_path
@@ -193,13 +198,16 @@ class TestLoad:
             "no-access.html": ("/_app/c.css",),
         }
         for name, hrefs in links.items():
-            (root / name).write_text(HTML + "".join(f'<link rel="stylesheet" href="{href}">' for href in hrefs))
+            for language in LANGUAGES:
+                (root / language / name).write_text(
+                    HTML + "".join(f'<link rel="stylesheet" href="{href}">' for href in hrefs)
+                )
         other_links = [
             '<link rel="icon" href="/_app/i.svg">',
             '<link rel="icon" href="/other/i.svg">',
             '<link rel="modulepreload" href="/_app/m.js">',
         ]
-        (root / "login.html").write_text((root / "login.html").read_text() + "".join(other_links))
+        (root / "de" / "login.html").write_text((root / "de" / "login.html").read_text() + "".join(other_links))
         for stylesheet in ("a.css", "b.css", "c.css"):
             (root / "_app" / stylesheet).write_text("")
         (root / "_app" / "b.css").write_text("@font-face { src: url(/_app/f.woff2) }")
@@ -215,7 +223,7 @@ class TestLoad:
     @pytest.mark.parametrize("missing", SIGN_IN_PAGE_FILES)
     def test_a_directory_without_a_sign_in_page_refuses_the_start_and_names_the_build_command(self, tmp_path, missing):
         root = build_with_shell(tmp_path, HTML)
-        (root / missing).unlink()
+        (root / "en" / missing).unlink()
 
         with pytest.raises(StartRefusedError, match="make frontend"):
             PageBuild.load(root)
