@@ -132,21 +132,21 @@ The rules of a room (host, lock, resume window, host grace, Skat table, quiz run
 
 One container, built from `Dockerfile`, runs as the one pod of the `hopin` namespace on the platform (k3s with Flux) from its attested private GHCR image. The platform's repository owns the manifests under `apps/hopin/`, which hold the live settings; secret files come from `platform-secrets` under `/run/secrets`. The Cloudflare tunnel terminates https and runs through Traefik to HopIn on 8080; readiness is `GET /health`. Keycloak's back-channel logout does not reach HopIn there, so a sign-out at Keycloak ends a HopIn session only at its 12-hour lifetime ([platform#46](https://github.com/overnightworks/platform/issues/46)). `compose.yaml` serves only the rollback path on hal, behind the edge reverse proxy.
 
-Every process reaches one Redis at `HOPIN_REDIS_URL`, which holds the rate limit windows and the agent connector's member-place signals; the server refuses to start without it and `/health` is not ready while it does not answer. All other state lives in process memory, so a restart ends every call and session; there is no database.
+Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit windows and the agent connector's member-place signals; the server refuses to start without it and `/health` is not ready while it does not answer. All other state lives in memory, so a restart ends every call and session; there is no database.
 
 ## 5. Crosscutting Concepts
 
 **Sign-in and sessions.** webauth runs the OIDC code flow against Keycloak and the gate admits the members of `/apps/hopin` (`src/hopin/auth/__init__.py`).
 
-**Limits.** Request budgets, the body cap and the origin check are webauth's, set in `config/web_policy.py`; the windows live in Redis.
+**Limits.** Request budgets, the body cap and the origin check are webauth's, set in `config/web_policy.py`; Redis holds the windows.
 
 **Headers.** webauth's Content-Security-Policy with the build's script and style hashes, a Permissions-Policy and the build's cache rules (`web/page_build.py`).
 
-**Persistence.** Nothing outlasts a restart except Redis's rate limit windows and the connector's place records. What HopIn holds about a person is in the README under A Person's Data.
+**Persistence.** Nothing outlasts a restart except Redis's rate limit windows and the connector's place records. The README's A Person's Data says what HopIn holds about a person.
 
 **Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** The conventions are in the docstring of `src/hopin/main.py`.
 
-**Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright end-to-end tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis. CI merges their coverage into one report and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives each feature's deletion. [docs/call.md](call.md) maps each rule to its test.
+**Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis. CI merges their coverage and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives each feature's deletion. [docs/call.md](call.md) maps each rule to its test.
 
 ### Trust
 
@@ -165,7 +165,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - **A figure source** (`HOPIN_FIGURE_SOURCES`) is a host the operator allows; HopIn sends it one credential-less GET and trusts none of the answer beyond the size bound, the named sha256 and a glTF header.
 - **The LiteLLM gateway** receives per run HopIn's key, the quiz prompt, the given answers with players' names and the tapper's fingerprint; HopIn trusts one cut line from it, shown as text.
 - **The speech service** is the operator's own, on an isolated network over plain HTTP; it receives a line's text, the starter's or agent's token, HopIn's workload token and, while an agent hears, a member's microphone sound. HopIn trusts it to answer one bounded sound and serves that unchanged.
-- **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it; anything that reaches it could read counted addresses or clear a budget.
+- **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it; whoever reaches it could read counted addresses or clear a budget.
 - **The operator's settings and secret files** are trusted fully; secrets are read from files and never enter the environment.
 
 ## 6. Constraints and reasons
@@ -184,6 +184,6 @@ Each line: what the party sees and what HopIn trusts of it.
 ## 8. Risks and Technical Debt
 
 - Mesh upload grows with every participant, so a call is capped at `MAX_PARTICIPANTS_PER_ROOM`; with TURN off, calls on networks that block direct paths cannot connect.
-- TURN costs money and stops slowly: HopIn sets no cap of its own (the provider's usage alert is the guard), and a credential already handed out stays valid at the provider for up to 12 hours.
+- TURN costs money and stops slowly: HopIn sets no cap of its own (the provider's usage alert is the guard), and a credential already handed out stays valid at the provider up to 12 hours.
 - A restart ends every call and session.
-- Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone although calls in memory are intact.
+- Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone; calls in memory survive.
