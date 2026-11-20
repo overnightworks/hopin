@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
+import { FakeConnection, FakeDescription, FakeSender, type Frame } from "./mesh.fixture.ts";
 import type { StagePort } from "./stage-port.ts";
-
-type Frame = Record<string, unknown>;
 
 const signal = vi.hoisted(() => ({
     handlers: new Map<string, ((frame: Frame) => void)[]>(),
@@ -19,162 +18,6 @@ vi.mock("#lib/call/signaling.ts", () => ({
     isConnected: () => true,
     isLive: () => true,
 }));
-
-class FakeSender {
-    track: { kind: string } | null;
-    readonly setStreams: ((stream: unknown) => void) | undefined = vi.fn();
-    readonly replaceTrack = vi.fn((track: unknown) => Promise.resolve(track));
-    readonly capped: unknown[] = [];
-
-    constructor(track: { kind: string } | null) {
-        this.track = track;
-    }
-
-    getParameters() {
-        return { encodings: [{}] as { maxBitrate?: number }[] };
-    }
-
-    setParameters(parameters: { encodings: { maxBitrate?: number }[] }) {
-        this.capped.push(parameters.encodings[0]?.maxBitrate);
-        return Promise.resolve();
-    }
-}
-
-interface FakeTransceiver {
-    direction: string;
-    receiver: { track: { kind: string } };
-    sender: FakeSender;
-}
-
-class FakeConnection {
-    static instances: FakeConnection[] = [];
-    static offerGate: Promise<void> | null = null;
-    signalingState = "stable";
-    iceConnectionState = "new";
-    connectionState = "connected";
-    localDescription: Frame | null = null;
-    remoteDescriptions: unknown[] = [];
-    candidates: unknown[] = [];
-    transceivers: FakeTransceiver[] = [];
-    offerOptions: unknown[] = [];
-    ontrack: ((event: { streams: unknown[] }) => void) | null = null;
-    onicecandidate: ((event: { candidate: unknown }) => void) | null = null;
-    closeAfterRemoteDescription = false;
-    closeAfterAnswer = false;
-    receivers: unknown[] = [];
-    // What the connection was asked to do before its first offer, in order, and every data channel it made.
-    steps: string[] = [];
-    dataChannels: { label: string; options: unknown; sent: string[]; readyState: string }[] = [];
-    ondatachannel: ((event: { channel: unknown }) => void) | null = null;
-    private readonly listeners = new Map<string, (() => void)[]>();
-
-    constructor(readonly configuration: unknown) {
-        FakeConnection.instances.push(this);
-    }
-
-    createDataChannel(label: string, options: unknown) {
-        this.steps.push("data channel");
-        const channel = {
-            label,
-            options,
-            sent: [] as string[],
-            readyState: "connecting",
-            send: (data: string) => channel.sent.push(data),
-            close: () => {
-                channel.readyState = "closed";
-            },
-        };
-        this.dataChannels.push(channel);
-        return channel;
-    }
-
-    addTrack(track: { kind: string }) {
-        this.transceivers.push({
-            direction: "sendrecv",
-            receiver: { track: { kind: track.kind } },
-            sender: new FakeSender(track),
-        });
-    }
-
-    addTransceiver(kind: string, init: { direction: string }) {
-        this.transceivers.push({
-            direction: init.direction,
-            receiver: { track: { kind } },
-            sender: new FakeSender(null),
-        });
-    }
-
-    getTransceivers() {
-        return this.transceivers;
-    }
-
-    getSenders() {
-        return this.transceivers.map((transceiver) => transceiver.sender);
-    }
-
-    getReceivers() {
-        return this.receivers;
-    }
-
-    getStats() {
-        return Promise.resolve(
-            new Map([["pair", { type: "candidate-pair", state: "succeeded", currentRoundTripTime: 0.1 }]]),
-        );
-    }
-
-    removeTrack(sender: FakeSender) {
-        sender.track = null;
-    }
-
-    async createOffer(options?: unknown) {
-        this.steps.push("offer");
-        await FakeConnection.offerGate;
-        this.offerOptions.push(options);
-        return { type: "offer", sdp: `offer-${String(this.offerOptions.length)}` };
-    }
-
-    createAnswer() {
-        if (this.signalingState === "closed") return Promise.reject(new Error("connection closed"));
-        if (this.closeAfterAnswer) this.signalingState = "closed";
-        return Promise.resolve({ type: "answer", sdp: "answer" });
-    }
-
-    setLocalDescription(description: Frame) {
-        this.localDescription = description;
-        this.signalingState = description.type === "offer" ? "have-local-offer" : "stable";
-        return Promise.resolve();
-    }
-
-    setRemoteDescription(description: unknown) {
-        this.steps.push("remote description");
-        this.remoteDescriptions.push(description);
-        if (this.closeAfterRemoteDescription) this.signalingState = "closed";
-        else if ((description as Frame).type === "offer") this.signalingState = "have-remote-offer";
-        else this.signalingState = "stable";
-        return Promise.resolve();
-    }
-
-    addIceCandidate(candidate: unknown) {
-        this.candidates.push(candidate);
-        return Promise.resolve();
-    }
-
-    close() {
-        this.signalingState = "closed";
-    }
-
-    addEventListener(type: string, listener: () => void) {
-        this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-    }
-
-    dispatch(type: string) {
-        for (const listener of this.listeners.get(type) ?? []) listener();
-    }
-}
-
-class FakeDescription {
-    constructor(readonly init: Frame) {}
-}
 
 function track(kind: string) {
     return { kind } as unknown as MediaStreamTrack;
@@ -337,37 +180,6 @@ describe("the line channel", () => {
 
         expect(channel?.sent).toEqual([JSON.stringify({ type: "line", id: 1, text: "hello" })]);
         expect(sentLines).toEqual([[1, "undelivered"]]);
-    });
-});
-
-describe("a file channel", () => {
-    it("is opened by the page that fetches, in the person's connection, and a channel the person opens is served", async () => {
-        const mesh = await freshMesh();
-        const { files } = await import("./files.ts");
-        await meetPeer(mesh, "p1");
-        const connection = connectionOf();
-        const served: unknown[] = [];
-        const unknownFile = { label: "file:99", close: () => void served.push("closed") };
-
-        files.announced("p1", 3, { name: "a.png", size: 10, mime: "image/png" });
-        connection.ondatachannel?.({ channel: unknownFile });
-
-        expect(connection.dataChannels.map((channel) => channel.label)).toEqual(["line", "file:3"]);
-        expect(connection.dataChannels[1]?.options).toEqual({ ordered: true });
-        expect(served).toEqual(["closed"]);
-    });
-
-    it("stops fetching with the person who leaves", async () => {
-        const mesh = await freshMesh();
-        const { files } = await import("./files.ts");
-        const shown: string[] = [];
-        files.listen({ shown: () => {}, changed: (view) => void shown.push(view.state) });
-        await meetPeer(mesh, "p1");
-        files.announced("p1", 3, { name: "a.png", size: 10, mime: "image/png" });
-
-        deliver(SIGNAL_TYPE.PARTICIPANT_LEFT, { participant_id: "p1" });
-
-        expect(shown).toEqual(["loading", "incomplete"]);
     });
 });
 
