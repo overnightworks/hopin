@@ -1,8 +1,0 @@
-claim_id = "d085034905a0423095bd91b4dc404fd5"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "b1cfd7d8fe568e16ad2255b8ac6a211e40a35f50"
-branch = "claude/issue-1039-pictures-and-files"
-scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call", "frontend/src/lib/catalogs", "frontend/src/lib/ui", "frontend/src/lib/wire.ts", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "frontend/src/routes/(call)/start-up.ts", "frontend/vite.config.ts", "scripts/generate_wire.py", "src/hopin/config/constants.py", "src/hopin/words.py", "tests/e2e"]
-opened_commit = "3fbe6bfff0fc8f5bdb389ecb54afde03f70285b0"
-whole_reason = "One file transport, its receiver checks and the chat's display land together; a part alone shows or accepts files unchecked."
