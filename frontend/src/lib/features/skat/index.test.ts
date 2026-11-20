@@ -40,6 +40,7 @@ async function installedSkat() {
         receiveChatLine: () => undefined,
         pinLastChatLine: () => undefined,
         showChatCard: () => undefined,
+        setLineReaders: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
         onMicrophone: () => undefined,
         takePicture: () => Promise.resolve(null),

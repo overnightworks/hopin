@@ -136,6 +136,26 @@ describe("dialed-in agents", () => {
         void unmount(mounted);
     });
 
+    it("names the agents it shows to the chat, which sends each line for them through the page's frame", async () => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.lineReaders().send("hello");
+
+        expect(page.lineReaders().names).toEqual(["Claude", "Claude"]);
+        expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.LINE_FOR_AGENTS, text: "hello" }]);
+    });
+
+    it("names no agent to the chat once the last one left", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
+
+        expect(page.lineReaders().names).toEqual([]);
+    });
+
     it("takes the tile away when its agent leaves, and shows a repeated join once", async () => {
         const page = await installedParticipation();
         page.seat(false);

@@ -1,18 +1,13 @@
 // @vitest-environment jsdom
 import type { ComponentInternals } from "svelte";
-import type { FeatureView } from "#lib/ui/chat.svelte.ts";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type ChatBroadcastFrame, LINE_MAX_CHARACTERS, SIGNAL_TYPE } from "#lib/wire.ts";
+import type { ChatLine, FeatureView } from "#lib/ui/chat.svelte.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LINE_MAX_CHARACTERS } from "#lib/wire.ts";
+import { words } from "#lib/words.ts";
 
-const signaling = vi.hoisted(() => ({
-    isConnected: vi.fn(),
-    on: vi.fn<(type: string, handler: (data: unknown) => void) => void>(),
-    send: vi.fn(),
-}));
 const sounds = vi.hoisted(() => ({ playMessageSound: vi.fn() }));
 // jsdom renders no Svelte tree: a case sets what its flushSync puts in the list.
 const rendering = vi.hoisted(() => ({ render: vi.fn() }));
-vi.mock("#lib/call/signaling.ts", () => signaling);
 vi.mock("#lib/call/sounds.ts", () => sounds);
 vi.mock("svelte", () => ({ flushSync: () => void rendering.render() }));
 
@@ -21,7 +16,8 @@ async function freshChat() {
     vi.resetModules();
     const chatModule = await import("#lib/ui/chat.svelte.ts");
     const { state } = await import("#lib/call/state.ts");
-    return { ...chatModule, state };
+    const { lines } = await import("#lib/call/lines.ts");
+    return { ...chatModule, state, exchange: lines };
 }
 
 type Chat = Awaited<ReturnType<typeof freshChat>>;
@@ -31,14 +27,28 @@ function newView(): FeatureView {
     return () => ({});
 }
 
-function registeredChatHandler(): (data: ChatBroadcastFrame) => void {
-    const [type, handler] = signaling.on.mock.calls[0] ?? [];
-    expect(type).toBe(SIGNAL_TYPE.CHAT);
-    return handler as (data: ChatBroadcastFrame) => void;
+// A person's line channel as the mesh hands it over, which a case opens and reads from.
+class FakeChannel {
+    readyState = "open";
+    sent: string[] = [];
+    onopen: (() => void) | null = null;
+    onclose: (() => void) | null = null;
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+
+    send(data: string) {
+        this.sent.push(data);
+    }
+
+    receive(data: unknown) {
+        this.onmessage?.({ data: JSON.stringify(data) });
+    }
 }
 
-function receive(data: Omit<ChatBroadcastFrame, "type">) {
-    registeredChatHandler()({ type: SIGNAL_TYPE.CHAT, ...data });
+function seatPerson(chat: Chat, participantId: string, name: string) {
+    const channel = new FakeChannel();
+    chat.state.namesByParticipant.set(participantId, name);
+    chat.exchange.addPeer(participantId, channel);
+    return channel;
 }
 
 // jsdom computes no layout: the list is as tall as it has children.
@@ -46,10 +56,6 @@ function registerList(chat: Chat, list: HTMLElement) {
     Object.defineProperty(list, "scrollHeight", { get: () => list.childElementCount });
     return chat.chatList(list);
 }
-
-beforeEach(() => {
-    signaling.isConnected.mockReturnValue(true);
-});
 
 afterEach(() => {
     vi.clearAllMocks();
@@ -61,7 +67,15 @@ describe("opening and closing", () => {
     it("starts closed with nothing unread", async () => {
         const { chat } = await freshChat();
 
-        expect(chat).toMatchObject({ isOpen: false, unread: 0, draft: "", lines: [], pinned: null, card: null });
+        expect(chat).toMatchObject({
+            isOpen: false,
+            unread: 0,
+            draft: "",
+            lines: [],
+            pinned: null,
+            card: null,
+            readers: [],
+        });
     });
 
     it("opens and closes without clearing the lines", async () => {
@@ -143,14 +157,13 @@ describe("unread lines", () => {
 });
 
 describe("sending", () => {
-    it("sends the trimmed draft, shows it as an own line and clears the draft", async () => {
+    it("shows the trimmed draft as an own line, delivered when no one else is in the call, and clears the draft", async () => {
         const { chat, sendChatMessage } = await freshChat();
         chat.draft = "  hello  ";
 
         sendChatMessage();
 
-        expect(signaling.send).toHaveBeenCalledWith({ type: SIGNAL_TYPE.CHAT, message: "hello" });
-        expect(chat.lines).toEqual([{ kind: "self", text: "hello" }]);
+        expect(chat.lines).toEqual([{ kind: "self", id: 1, text: "hello", delivery: "delivered", missing: [] }]);
         expect(chat.draft).toBe("");
         expect(chat.unread).toBe(0);
     });
@@ -159,25 +172,14 @@ describe("sending", () => {
         ["empty", ""],
         ["blank", "   "],
         ["too long", "x".repeat(LINE_MAX_CHARACTERS + 1)],
-    ])("ignores an %s draft", async (_name, draft) => {
+        ["holding a control character", "two\nlines"],
+    ])("keeps an %s draft and shows no line", async (_name, draft) => {
         const { chat, sendChatMessage } = await freshChat();
         chat.draft = draft;
 
         sendChatMessage();
 
-        expect(signaling.send).not.toHaveBeenCalled();
-        expect(chat.lines).toEqual([]);
-    });
-
-    it("keeps the draft while the connection is lost", async () => {
-        signaling.isConnected.mockReturnValue(false);
-        const { chat, sendChatMessage } = await freshChat();
-        chat.draft = "hello";
-
-        sendChatMessage();
-
-        expect(signaling.send).not.toHaveBeenCalled();
-        expect(chat.draft).toBe("hello");
+        expect(chat.draft).toBe(draft);
         expect(chat.lines).toEqual([]);
     });
 
@@ -186,31 +188,113 @@ describe("sending", () => {
         chat.draft = "hello";
 
         sendOnEnter(new KeyboardEvent("keydown", { key: "a" }));
-        expect(signaling.send).not.toHaveBeenCalled();
+        expect(chat.lines).toEqual([]);
         sendOnEnter(new KeyboardEvent("keydown", { key: "Enter" }));
 
-        expect(signaling.send).toHaveBeenCalledOnce();
+        expect(chat.lines).toHaveLength(1);
+    });
+
+    it("shows an own line pending until the person's receipt and then delivered", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        chat.chat.draft = "hello";
+
+        chat.sendChatMessage();
+        expect(chat.chat.lines[0]).toMatchObject({ delivery: "pending" });
+        person.receive({ type: "receipt", id: 1 });
+
+        expect(chat.chat.lines[0]).toMatchObject({ delivery: "delivered", missing: [] });
+    });
+
+    it("names the person a line did not reach once the person left before its receipt", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        seatPerson(chat, "p1", "Ada");
+        chat.chat.draft = "hello";
+        chat.sendChatMessage();
+
+        chat.exchange.removePeer("p1");
+
+        const [line] = chat.chat.lines;
+        expect(line).toMatchObject({ delivery: "undelivered", missing: ["Ada"] });
+        expect(chat.undeliveredNote(line as ChatLine)).toBe(words["chat.lineUndelivered"]({ names: "Ada" }));
+    });
+
+    it("shows no note under a line that is not an own one", async () => {
+        const { undeliveredNote } = await freshChat();
+
+        expect(undeliveredNote({ kind: "other", text: "hi", sender: "Ada" })).toBeNull();
+    });
+
+    it("shows nothing for the delivery of a line the chat does not hold", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        seatPerson(chat, "p1", "Ada");
+        chat.exchange.send("not from the composer");
+
+        chat.exchange.removePeer("p1");
+
+        expect(chat.chat.lines).toEqual([]);
+    });
+});
+
+describe("what the composer says", () => {
+    it("says nothing for a draft that is a line", async () => {
+        const { chat, draftProblem } = await freshChat();
+        chat.draft = "x".repeat(LINE_MAX_CHARACTERS);
+
+        expect(draftProblem()).toBeNull();
+    });
+
+    it.each([
+        [
+            "is over the limit",
+            "x".repeat(LINE_MAX_CHARACTERS + 1),
+            words["chat.lineTooLong"]({ max: String(LINE_MAX_CHARACTERS) }),
+        ],
+        ["holds a control character", "a\tb", words["chat.lineRefusedCharacter"]],
+    ])("says why a draft that %s is not sent", async (_name, draft, expected) => {
+        const { chat, draftProblem } = await freshChat();
+        chat.draft = draft;
+
+        expect(draftProblem()).toBe(expected);
+    });
+
+    it("names the agents that read along while some are shown, and none when the last left", async () => {
+        const { chat, readersNote, setLineReaders } = await freshChat();
+        expect(readersNote()).toBeNull();
+
+        setLineReaders({ names: ["Claude", "Mozart"], frameType: "line_for_agents", send: () => {} });
+        expect(readersNote()).toBe(words["chat.readersNote"]({ names: "Claude, Mozart" }));
+        setLineReaders({ names: [], frameType: "line_for_agents", send: () => {} });
+
+        expect(chat.readers).toEqual([]);
+        expect(readersNote()).toBeNull();
     });
 });
 
 describe("receiving", () => {
-    it("shows another person's line with the sender's name and counts it", async () => {
+    it("shows another person's line under the name of the person whose channel carried it and counts it", async () => {
         const chat = await freshChat();
-        chat.state.namesByParticipant.set("p1", "Ada");
         chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
 
-        receive({ message: "hi", from: "p1" });
+        person.receive({ type: "line", id: 7, text: "hi" });
 
         expect(chat.chat.lines).toEqual([{ kind: "other", text: "hi", sender: "Ada" }]);
         expect(chat.chat.unread).toBe(1);
         expect(sounds.playMessageSound).toHaveBeenCalledOnce();
+        expect(person.sent).toEqual([JSON.stringify({ type: "receipt", id: 7 })]);
     });
 
-    it("shows an unknown sender with an empty name", async () => {
+    it("shows a line of a person whose name is not known under no name", async () => {
         const chat = await freshChat();
         chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        chat.state.namesByParticipant.clear();
 
-        receive({ message: "hi", from: "nobody" });
+        person.receive({ type: "line", id: 1, text: "hi" });
 
         expect(chat.chat.lines).toEqual([{ kind: "other", text: "hi", sender: "" }]);
     });

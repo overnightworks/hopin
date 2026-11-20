@@ -24,6 +24,8 @@ from tests.signaling.support.browsers import (
     Link,
     fill_server_log,
     host_and_guest,
+    note_for,
+    notes_heard,
     resume_holding_the_first_replayed_frame,
 )
 from tests.support.signaling_fakes import (
@@ -386,7 +388,7 @@ class TestResumeLogs:
     ):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        await fill_server_log(host, frames_beyond_the_log)
+        await fill_server_log(host, guest, frames_beyond_the_log)
 
         await guest.resume(**resume_options)
 
@@ -434,12 +436,12 @@ class TestResumeLogs:
         replayed = guest.frames(SignalType.OFFER, SignalType.ICE_CANDIDATE)
         assert [frame.get("sdp") or frame["candidate"] for frame in replayed] == ["new", "new-candidate"]
 
-    async def test_newcomer_offer_and_chat_missed_while_parked_are_replayed_in_order_after_resumed(self, link):
+    async def test_newcomer_offer_and_note_missed_while_parked_are_replayed_in_order_after_resumed(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
         newcomer = await link.join("newcomer", host.socket.sent[0]["room_id"])
         await newcomer.say({"type": SignalType.OFFER.value, "target": guest.peer_id, "sdp": "hello"})
-        await host.say({"type": SignalType.CHAT.value, "message": "hi"})
+        await host.say(note_for(guest, "hi"))
 
         await guest.resume()
 
@@ -447,12 +449,12 @@ class TestResumeLogs:
             SignalType.RESUMED.value,
             SignalType.PARTICIPANT_JOINED.value,
             SignalType.OFFER.value,
-            SignalType.CHAT.value,
+            SignalType.ICE_CANDIDATE.value,
         ]
         assert [frame["seq"] for frame in guest.socket.sent[1:]] == sorted(
             frame["seq"] for frame in guest.socket.sent[1:]
         )
-        assert host.socket.sent[-1]["type"] != SignalType.CHAT.value
+        assert host.socket.sent[-1]["type"] != SignalType.ICE_CANDIDATE.value
 
     async def test_parked_seat_is_written_nothing_while_it_is_away(self, link):
         host, guest = await host_and_guest(link)
@@ -460,23 +462,23 @@ class TestResumeLogs:
         await guest.drop()
         written_before = len(dropped_socket.sent)
 
-        await host.say({"type": SignalType.CHAT.value, "message": "hi"})
+        await host.say(note_for(guest, "hi"))
 
         assert len(dropped_socket.sent) == written_before
 
     async def test_frame_sent_while_a_replayed_frame_is_being_written_arrives_after_the_replayed_ones(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        await host.say({"type": SignalType.CHAT.value, "message": "missed 1"})
-        await host.say({"type": SignalType.CHAT.value, "message": "missed 2"})
+        await host.say(note_for(guest, "missed 1"))
+        await host.say(note_for(guest, "missed 2"))
         writing_replay = await resume_holding_the_first_replayed_frame(link, guest)
 
         await writing_replay.reached.wait()
-        await host.say({"type": SignalType.CHAT.value, "message": "live"})
+        await host.say(note_for(guest, "live"))
         writing_replay.release.set()
         await link.settle(guest.socket)
 
-        assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed 1", "missed 2", "live"]
+        assert notes_heard(guest) == ["missed 1", "missed 2", "live"]
         seqs = [frame["seq"] for frame in guest.socket.sent[1:]]
         assert seqs == sorted(set(seqs))
 
@@ -485,15 +487,15 @@ class TestResumeLogs:
     ):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        await host.say({"type": SignalType.CHAT.value, "message": "missed"})
+        await host.say(note_for(guest, "missed"))
         writing_replay = await resume_holding_the_first_replayed_frame(link, guest)
 
         await writing_replay.reached.wait()
-        await fill_server_log(host, REPLAY_LOG_LIMIT + 5)
+        await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
         writing_replay.release.set()
         await link.settle(guest.socket)
 
-        assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed"]
+        assert notes_heard(guest) == ["missed"]
         assert guest.socket.closed_with == SEAT_CLOSED_BY_SERVER_CODE
         [left] = host.frames(SignalType.PARTICIPANT_LEFT)
         assert left["participant_id"] == guest.peer_id
@@ -501,26 +503,26 @@ class TestResumeLogs:
     async def test_superseded_replay_overrunning_the_log_leaves_the_seat_of_the_newer_resume_alone(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        await host.say({"type": SignalType.CHAT.value, "message": "missed"})
+        await host.say(note_for(guest, "missed"))
         writing_replay = await resume_holding_the_first_replayed_frame(link, guest)
         await writing_replay.reached.wait()
         superseded_socket = guest.socket
         await guest.accept_resumption()
         newer_socket = await guest.resume()
-        await fill_server_log(host, REPLAY_LOG_LIMIT + 5)
+        await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
 
         writing_replay.release.set()
         await link.settle(superseded_socket)
 
         assert newer_socket.closed_with is None
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
-        await host.say({"type": SignalType.CHAT.value, "message": "live"})
-        assert newer_socket.sent[-1]["message"] == "live"
+        await host.say(note_for(guest, "live"))
+        assert newer_socket.sent[-1]["candidate"] == "live"
 
     async def test_replay_stops_when_the_socket_breaks_and_the_next_resume_gets_the_rest(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        await host.say({"type": SignalType.CHAT.value, "message": "missed"})
+        await host.say(note_for(guest, "missed"))
         failing = await link.open(account_named("guest"))
         deliver_resumed = failing.send_text
 
@@ -537,7 +539,7 @@ class TestResumeLogs:
         await guest.drop()
         await guest.resume()
 
-        assert [frame["message"] for frame in guest.frames(SignalType.CHAT)] == ["missed"]
+        assert notes_heard(guest) == ["missed"]
 
 
 class TestResumeSupersedesTheOldSocket:
@@ -547,14 +549,14 @@ class TestResumeSupersedesTheOldSocket:
         await guest.resume()
         heard_before = len(host.socket.sent)
 
-        old_socket.push(text_frame({"type": SignalType.CHAT.value, "message": "ghost", "seq": 1}))
+        old_socket.push(text_frame({**note_for(host, "ghost"), "seq": 1}))
         old_socket.push(disconnect_frame(1006))
         await link.tasks[old_socket]
 
         assert old_socket.closed_with == SEAT_CLOSED_BY_SERVER_CODE
         assert len(host.socket.sent) == heard_before
-        await guest.say({"type": SignalType.CHAT.value, "message": "from the new socket"})
-        assert host.socket.sent[-1]["message"] == "from the new socket"
+        await guest.say(note_for(host, "from the new socket"))
+        assert host.socket.sent[-1]["candidate"] == "from the new socket"
 
     async def test_resume_while_the_old_socket_is_already_gone_closes_nothing(self, link):
         _host, guest = await host_and_guest(link)
@@ -580,19 +582,19 @@ class TestResumeSupersedesTheOldSocket:
 class TestSequenceNumbers:
     async def test_frames_to_a_seat_carry_rising_sequence_numbers_including_its_credentials(self, link):
         host, guest = await host_and_guest(link)
-        await host.say({"type": SignalType.CHAT.value, "message": "hi"})
+        await host.say(note_for(guest, "hi"))
 
         assert [frame["seq"] for frame in guest.socket.sent] == [1, 2]
         assert host.socket.sent[0]["seq"] == 1
 
     async def test_frame_resent_at_or_below_the_received_number_is_not_relayed_twice(self, link):
         host, guest = await host_and_guest(link)
-        chat = {"type": SignalType.CHAT.value, "message": "once"}
-        await guest.say(chat)
+        note = note_for(host, "once")
+        await guest.say(note)
 
-        await guest.send_raw({**chat, "seq": 1})
+        await guest.send_raw({**note, "seq": 1})
 
-        assert [frame["message"] for frame in host.frames(SignalType.CHAT)] == ["once"]
+        assert notes_heard(host) == ["once"]
 
     async def test_frame_swallowed_before_the_cut_is_relayed_once_when_the_browser_resends_it_after_the_resume(
         self, link
@@ -613,37 +615,37 @@ class TestSequenceNumbers:
     @pytest.mark.parametrize("seq", [pytest.param(None, id="missing"), "1", 1.5, True, -1])
     async def test_later_frame_without_a_usable_sequence_number_is_answered_invalid_message(self, link, seq):
         host, guest = await host_and_guest(link)
-        frame = {"type": SignalType.CHAT.value, "message": "hi"}
+        frame = note_for(host, "hi")
 
         await guest.send_raw(frame if seq is None else {**frame, "seq": seq})
 
         assert only_error_reason(guest) == [ErrorReason.INVALID_MESSAGE.value]
-        assert host.frames(SignalType.CHAT) == []
+        assert notes_heard(host) == []
 
 
-def chat_frame_of_length(length, seq):
-    unpadded = json.dumps({"type": SignalType.CHAT.value, "message": "", "seq": seq})
-    return {"type": SignalType.CHAT.value, "message": "x" * (length - len(unpadded)), "seq": seq}
+def note_of_length(host, length, seq):
+    unpadded = json.dumps({**note_for(host, ""), "seq": seq})
+    return {**note_for(host, "x" * (length - len(unpadded))), "seq": seq}
 
 
 class TestFrameLength:
     async def test_frame_of_exactly_the_bound_is_relayed(self, link):
         host, guest = await host_and_guest(link)
 
-        await guest.send_raw(chat_frame_of_length(MAX_SIGNALING_FRAME_LENGTH, seq=1))
+        await guest.send_raw(note_of_length(host, MAX_SIGNALING_FRAME_LENGTH, seq=1))
 
-        assert len(host.frames(SignalType.CHAT)) == 1
+        assert len(notes_heard(host)) == 1
 
     async def test_frame_longer_than_the_bound_is_refused_and_neither_relayed_nor_replayed(self, link):
         host, guest = await host_and_guest(link)
 
-        await guest.send_raw(chat_frame_of_length(MAX_SIGNALING_FRAME_LENGTH + 1, seq=1))
+        await guest.send_raw(note_of_length(host, MAX_SIGNALING_FRAME_LENGTH + 1, seq=1))
 
         assert only_error_reason(guest) == [ErrorReason.INVALID_MESSAGE.value]
-        assert host.frames(SignalType.CHAT) == []
+        assert notes_heard(host) == []
         await host.drop()
         await host.resume()
-        assert host.frames(SignalType.CHAT) == []
+        assert notes_heard(host) == []
 
 
 class TestTokenStaysSecret:
@@ -667,7 +669,7 @@ class TestTokenStaysSecret:
         await guest.drop()
         await guest.resume()
         await guest.accept_resumption()
-        await guest.say({"type": SignalType.CHAT.value, "message": "hi"})
+        await guest.say(note_for(host, "hi"))
 
         heard_by_host = json.dumps(host.socket.sent[1:])
         assert guest.token not in heard_by_host

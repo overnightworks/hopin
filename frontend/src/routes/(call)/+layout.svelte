@@ -2,6 +2,7 @@
     import { AccountMenu, LegalLinks, Marked } from "overnightworks-design";
     import { onMount } from "svelte";
     import type { LayoutProps } from "./$types";
+    import { DELIVERY } from "#lib/call/lines.ts";
     import { LEGAL_LINKS } from "#lib/legal.ts";
     import { words } from "#lib/words.ts";
     import Tiles from "#lib/ui/Tiles.svelte";
@@ -14,9 +15,12 @@
         chatInput,
         chatList,
         closeChat,
+        draftProblem,
+        readersNote,
         sendChatMessage,
         sendOnEnter,
         toggleChat,
+        undeliveredNote,
     } from "#lib/ui/chat.svelte.ts";
     import { actionClasses, END_ACTION, END_ICON, rejoinCall, shownEndView } from "#lib/ui/end.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
@@ -226,11 +230,13 @@
         <div id="chatMessages" class="chat-messages" {@attach chatList}>
             {#each chat.lines as line (line)}
                 {#if line.kind === "feature"}<div class="chat-element"><line.view /></div>
-                {:else if line.kind === "self"}<div class="chat-msg self">{line.text}</div>
+                {:else if line.kind === "self"}<div class={["chat-msg", "self", line.delivery === DELIVERY.PENDING && "pending"]}>{line.text}{#if undeliveredNote(line) !== null}<div class="chat-delivery">{undeliveredNote(line)}</div>{/if}</div>
                 {:else}<div class="chat-msg other"><div class="chat-sender">{line.sender}</div>{line.text}</div>{/if}
             {/each}
             {#if chat.pinned !== null}<div class="chat-element"><chat.pinned /></div>{/if}
         </div>
+        {#if readersNote() !== null}<div id="chatReaders" class="chat-note">{readersNote()}</div>{/if}
+        {#if draftProblem() !== null}<div id="chatDraftProblem" class="chat-note chat-problem" role="status">{draftProblem()}</div>{/if}
         <div class="chat-input-row">
             <input id="chatInput" type="text" placeholder={words["chat.inputPlaceholder"]} autocomplete="off" aria-label={words["chat.inputLabel"]} bind:value={chat.draft} onkeydown={sendOnEnter} {@attach chatInput}>
             <button id="chatSend" class="btn-primary" onclick={sendChatMessage}>{words["chat.sendButton"]}</button>

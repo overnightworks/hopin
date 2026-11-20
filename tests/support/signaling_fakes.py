@@ -183,7 +183,6 @@ class RecordingFeature(TransitionFeature):
     joined: list = field(default_factory=list)
     left: list = field(default_factory=list)
     changed: list = field(default_factory=list)
-    said: list = field(default_factory=list)
 
     def on_frame(self, view, peer_id, frame, transition):
         self.offered.append((peer_id, frame))
@@ -199,9 +198,6 @@ class RecordingFeature(TransitionFeature):
         """Records the seat's standing as it is the moment the call core announces the change."""
         in_room = view.room_of(peer_id) is not None
         self.changed.append((peer_id, in_room, in_room and view.is_parked(peer_id)))
-
-    def chat_said(self, view, peer_id, message, change):
-        self.said.append((peer_id, view.room_id, message))
 
 
 STAGED_LINE = Section[str]("staged_line")

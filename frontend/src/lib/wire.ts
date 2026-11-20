@@ -15,7 +15,6 @@ export enum SIGNAL_TYPE {
     UNLOCK_ROOM = "unlock_room",
     ROOM_LOCKED = "room_locked",
     ROOM_UNLOCKED = "room_unlocked",
-    CHAT = "chat",
     MEDIA_STATE = "media_state",
     HOST_AWAY = "host_away",
     HOST_BACK = "host_back",
@@ -91,12 +90,6 @@ export type RoomUnlockedFrame = {
     type: SIGNAL_TYPE.ROOM_UNLOCKED;
 };
 
-export type ChatBroadcastFrame = {
-    type: SIGNAL_TYPE.CHAT;
-    message: string;
-    from: string;
-};
-
 export type MediaStateBroadcastFrame = {
     type: SIGNAL_TYPE.MEDIA_STATE;
     from: string;
@@ -140,7 +133,6 @@ export type ServerFrameByType = {
     [SIGNAL_TYPE.PARTICIPANT_LEFT]: ParticipantLeftFrame;
     [SIGNAL_TYPE.ROOM_LOCKED]: RoomLockedFrame;
     [SIGNAL_TYPE.ROOM_UNLOCKED]: RoomUnlockedFrame;
-    [SIGNAL_TYPE.CHAT]: ChatBroadcastFrame;
     [SIGNAL_TYPE.MEDIA_STATE]: MediaStateBroadcastFrame;
     [SIGNAL_TYPE.OFFER]: OfferRelayFrame;
     [SIGNAL_TYPE.ANSWER]: AnswerRelayFrame;
@@ -161,6 +153,8 @@ export const ACCOUNT_CONSOLE_PATH = "/account";
 export const RETURN_TO_QUERY_PARAMETER = "next";
 export const REPLAY_LOG_LIMIT = 256;
 export const LINE_MAX_CHARACTERS = 600;
+export const LINE_BURST = 10;
+export const LINES_PER_SECOND = 1;
 export const LINE_TRIMMED_CHARACTERS =
     "\u0009\u000a\u000b\u000c\u000d\u001c\u001d\u001e\u001f\u0020\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff";
 export const LINE_REFUSED_CHARACTERS =

@@ -336,7 +336,7 @@ class TestEndRoom:
         _late_ws, refusal = join_room(connect, "late", room_id)
         assert refusal["reason"] == ErrorReason.NOT_FOUND.value
 
-    def test_end_room_closes_the_guest_socket_and_a_chat_from_one_that_ignores_it_reaches_nobody(self, connect):
+    def test_end_room_closes_the_guest_socket_and_a_frame_from_one_that_ignores_it_reaches_nobody(self, connect):
         host_ws, room_id = open_room(connect, "host1")
         guest_ws, _existing = join_room(connect, "guest", room_id)
         host_ws.receive_json()
@@ -344,7 +344,7 @@ class TestEndRoom:
         assert guest_ws.receive_json()["type"] == SignalType.ROOM_CLOSED.value
         assert host_ws.receive_json()["type"] == SignalType.ROOM_CLOSED.value
 
-        guest_ws.send_json({"type": SignalType.CHAT.value, "message": "still here"})
+        guest_ws.send_json({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
 
         with pytest.raises(WebSocketDisconnect):
             guest_ws.receive_json()
@@ -365,9 +365,9 @@ class TestRelayStaysInTheRoom:
         intruder_ws.send_bytes(b"x")
         intruder_ws.send_text("not json")
         assert intruder_ws.receive_json()["reason"] == ErrorReason.INVALID_MESSAGE.value
-        victimguest_ws.send_json({"type": SignalType.CHAT.value, "message": "inside the room"})
+        victimguest_ws.send_json({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
 
-        assert victim_host_ws.receive_json()["type"] == SignalType.CHAT.value
+        assert victim_host_ws.receive_json()["type"] == SignalType.MEDIA_STATE.value
 
 
 @pytest.mark.integration
@@ -380,26 +380,6 @@ class TestNonTextFrames:
 
         response = ws.receive_json()
         assert response["type"] == SignalType.ROOM_CREATED.value
-
-
-@pytest.mark.integration
-class TestChat:
-    def test_chat_message_delivered_to_other_participants(self, connect):
-        host_ws = connect("host1")
-        host_ws.send_json({"type": SignalType.JOIN.value})
-        created = host_ws.receive_json()
-        room_id = created["room_id"]
-
-        p1_ws, existing = join_room(connect, "p1", room_id)
-        [host_peer_id] = existing["participants"]
-        host_ws.receive_json()
-
-        host_ws.send_json({"type": SignalType.CHAT.value, "message": "hello everyone"})
-
-        chat_msg = p1_ws.receive_json()
-        assert chat_msg["type"] == SignalType.CHAT.value
-        assert chat_msg["message"] == "hello everyone"
-        assert chat_msg["from"] == host_peer_id
 
 
 @pytest.mark.integration
@@ -491,24 +471,24 @@ class TestResume:
         resumed_ws = connect("guest")
         resumed_ws.send_json(resume_frame(seat))
         resumed = resumed_ws.receive_json()
-        resumed_ws.send_json({"type": SignalType.CHAT.value, "message": "back"})
+        resumed_ws.send_json({"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
 
         assert resumed["type"] == SignalType.RESUMED.value
         assert resumed["resume_token"] != seat["resume_token"]
-        assert host_ws.receive_json()["message"] == "back"
+        assert host_ws.receive_json()["audio"] is False
 
-    def test_chat_sent_while_the_guest_was_away_is_replayed_after_resumed(self, connect):
+    def test_media_state_sent_while_the_guest_was_away_is_replayed_after_resumed(self, connect):
         host_ws, room_id = open_room(connect, "host1")
         guest_ws, seat = join_room(connect, "guest", room_id)
         host_ws.receive_json()
         guest_ws.close(code=ABNORMAL_CLOSE_CODE)
-        host_ws.send_json({"type": SignalType.CHAT.value, "message": "while you were away"})
+        host_ws.send_json({"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
 
         resumed_ws = connect("guest")
         resumed_ws.send_json(resume_frame(seat))
 
         assert resumed_ws.receive_json()["type"] == SignalType.RESUMED.value
-        assert resumed_ws.receive_json()["message"] == "while you were away"
+        assert resumed_ws.receive_json()["video"] is True
 
     def test_refused_resume_leaves_the_socket_free_to_join_afresh(self, connect):
         host_ws, room_id = open_room(connect, "host1")

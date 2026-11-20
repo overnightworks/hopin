@@ -16,7 +16,6 @@ from hopin.config.constants import (
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
 from hopin.signaling.features import build_features
 from hopin.signaling.frames import (
-    ChatFrame,
     DispatchedFrame,
     EndRoomFrame,
     ForeignFrame,
@@ -58,9 +57,7 @@ class SignalingHandler:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
-        self._routing = RoomRouting(
-            room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed, self._chat_said
-        )
+        self._routing = RoomRouting(room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed)
         self._seats = self._routing.seats
         self._store = InMemoryCallStore(self._routing, room_manager)
         self._features = build_features(features, self._store, self._seats)
@@ -79,10 +76,6 @@ class SignalingHandler:
     def _seat_changed(self, peer_id: PeerId) -> None:
         for feature in self._features:
             feature.seat_changed(peer_id)
-
-    def _chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
-        for feature in self._features:
-            feature.chat_said(peer_id, room_id, message)
 
     async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
         """The room is told of the departure in one commit with each feature's answer to it, so a feature's frame
@@ -258,8 +251,6 @@ class SignalingHandler:
                 await self._routing.set_locked(peer_id, locked=True)
             case UnlockFrame():
                 await self._routing.set_locked(peer_id, locked=False)
-            case ChatFrame():
-                await self._routing.handle_chat(peer_id, frame)
             case MediaStateFrame():
                 await self._routing.handle_media_state(peer_id, frame)
             case EndRoomFrame():

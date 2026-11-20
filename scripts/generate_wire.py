@@ -47,7 +47,6 @@ from hopin.signaling.frames import (  # noqa: E402
     SEQUENCE_KEY,
     WIRE_FIELD_NAMES,
     AnswerRelayFrame,
-    ChatBroadcastFrame,
     ErrorFrame,
     ExistingParticipantsFrame,
     IceCandidateRelayFrame,
@@ -255,7 +254,6 @@ SERVER_FRAMES: dict[type[WireFrame], Mapping[object, str] | None] = {
     ParticipantLeftFrame: None,
     RoomLockedFrame: None,
     RoomUnlockedFrame: None,
-    ChatBroadcastFrame: None,
     MediaStateBroadcastFrame: None,
     OfferRelayFrame: RELAY_FIELD_TYPES,
     AnswerRelayFrame: RELAY_FIELD_TYPES,
@@ -294,6 +292,8 @@ def render_core() -> str:
         f'export const RETURN_TO_QUERY_PARAMETER = "{RETURN_TO_QUERY_PARAMETER}";\n'
         f"export const REPLAY_LOG_LIMIT = {REPLAY_LOG_LIMIT};\n"
         f"export const LINE_MAX_CHARACTERS = {LINE_LIMITS.max_characters};\n"
+        f"export const LINE_BURST = {LINE_LIMITS.burst_lines};\n"
+        f"export const LINES_PER_SECOND = {LINE_LIMITS.lines_per_second};\n"
         f'export const LINE_TRIMMED_CHARACTERS =\n{INDENT}"{_characters(LINE_LIMITS.trimmed)}";\n'
         f'export const LINE_REFUSED_CHARACTERS =\n{INDENT}"{_characters(LINE_LIMITS.refused)}";\n'
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)

@@ -21,6 +21,7 @@ from tests.signaling.support.browsers import (
     Link,
     fill_server_log,
     host_and_guest,
+    note_for,
     resume_holding_the_first_replayed_frame,
 )
 from tests.support.signaling_fakes import (
@@ -153,7 +154,7 @@ async def grace_runs_out(_link, _host, guest, _scheduler):
 
 async def refused_for_a_log_gap(_link, host, guest, _scheduler):
     await guest.drop()
-    await fill_server_log(host, REPLAY_LOG_LIMIT + 5)
+    await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
     await guest.resume(last_seq=0)
 
 
@@ -171,10 +172,10 @@ async def refused_for_a_browser_log_beyond_the_server_while_attached(link, _host
 
 async def overrun_by_the_log_while_replaying(link, host, guest, _scheduler):
     await guest.drop()
-    await host.say({"type": SignalType.CHAT.value, "message": "missed"})
+    await host.say(note_for(guest, "missed"))
     replay = await resume_holding_the_first_replayed_frame(link, guest)
     await replay.reached.wait()
-    await fill_server_log(host, REPLAY_LOG_LIMIT + 5)
+    await fill_server_log(host, guest, REPLAY_LOG_LIMIT + 5)
     replay.release.set()
     await link.settle(guest.socket)
     guest.socket.push(disconnect_frame(1006))
@@ -325,54 +326,12 @@ class TestSeatChanged:
         assert feature.changed == []
 
 
-@pytest.mark.asyncio
-class TestChatSaid:
-    async def test_a_relayed_line_is_heard_with_its_seat_and_room_before_the_relay_sends(self, link_with):
-        link = link_with({"handles": frozenset()})
-        host, guest = await host_and_guest(link)
-        feature = link.handler.features[0].feature
-        relaying = HeldWrite(guest.socket)
-
-        relayed = asyncio.create_task(host.say({"type": SignalType.CHAT.value, "message": "hello"}))
-        await relaying.reached()
-        heard_while_relaying = list(feature.said)
-        relaying.release.set()
-        await relayed
-
-        assert heard_while_relaying == [(host.peer_id, host.room_id, "hello")]
-
-    async def test_a_duplicate_frame_is_heard_once(self, link_with):
-        link = link_with({"handles": frozenset()})
-        host, _guest = await host_and_guest(link)
-
-        await say_twice(host, {"type": SignalType.CHAT.value, "message": "hello"})
-
-        assert link.handler.features[0].feature.said == [(host.peer_id, host.room_id, "hello")]
-
-    async def test_an_empty_line_is_not_heard(self, link_with):
-        link = link_with({"handles": frozenset()})
-        host, _guest = await host_and_guest(link)
-
-        await host.say({"type": SignalType.CHAT.value, "message": ""})
-
-        assert link.handler.features[0].feature.said == []
-
-    async def test_a_line_from_a_seat_in_no_room_is_not_heard(self, link_with):
-        link = link_with({"handles": frozenset()})
-        socket = await link.open(account_named("lonely"))
-
-        socket.push(text_frame({"type": SignalType.CHAT.value, "message": "hello"}))
-        await link.settle(socket)
-
-        assert link.handler.features[0].feature.said == []
-
-
 class TestClashAtStart:
     @pytest.mark.parametrize(
         "signal_types",
         [
             pytest.param({"JOIN": FOREIGN_TYPE}, id="a core name"),
-            pytest.param({"QUIZ_START": SignalType.CHAT.value}, id="a core value"),
+            pytest.param({"QUIZ_START": SignalType.MEDIA_STATE.value}, id="a core value"),
         ],
     )
     def test_a_feature_signal_type_that_reuses_a_core_one_is_refused(self, room_manager, scheduler, signal_types):

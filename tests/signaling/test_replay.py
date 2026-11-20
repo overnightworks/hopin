@@ -6,8 +6,8 @@ from hopin.signaling.replay import ReplayLog
 LOG_LIMIT = 3
 
 
-def chat(text="hello"):
-    return {"type": SignalType.CHAT.value, "message": text}
+def media(label="hello"):
+    return {"type": SignalType.MEDIA_STATE.value, "label": label}
 
 
 def description(signal_type, sender, sdp="sdp"):
@@ -26,13 +26,13 @@ class TestAppend:
     def test_numbers_each_frame_one_higher_than_the_last(self):
         log = ReplayLog()
 
-        numbered = [log.append(chat()), log.append(chat()), log.append(chat())]
+        numbered = [log.append(media()), log.append(media()), log.append(media())]
 
         assert seqs(numbered) == [1, 2, 3]
-        assert numbered[0]["message"] == "hello"
+        assert numbered[0]["label"] == "hello"
 
     def test_leaves_the_frame_it_was_given_unnumbered(self):
-        frame = chat()
+        frame = media()
 
         ReplayLog().append(frame)
 
@@ -45,7 +45,7 @@ class TestLength:
         assert len(log) == 0
 
         for text in "abcde":
-            log.append(chat(text))
+            log.append(media(text))
         assert len(log) == LOG_LIMIT
 
         log.append(description(SignalType.OFFER, "alice"))
@@ -57,13 +57,13 @@ class TestSince:
     def test_answers_the_kept_frames_after_the_given_seq_in_order(self):
         log = ReplayLog()
         for text in "abcd":
-            log.append(chat(text))
+            log.append(media(text))
 
-        assert [kept.frame["message"] for kept in log.since(2)] == ["c", "d"]
+        assert [kept.frame["label"] for kept in log.since(2)] == ["c", "d"]
 
     def test_answers_nothing_when_the_reader_is_caught_up(self):
         log = ReplayLog()
-        log.append(chat())
+        log.append(media())
 
         assert log.since(1) == []
 
@@ -72,7 +72,7 @@ class TestSizeLimit:
     def test_drops_the_oldest_frame_and_raises_the_floor_to_its_seq(self):
         log = ReplayLog(limit=LOG_LIMIT)
         for _ in range(LOG_LIMIT + 2):
-            log.append(chat())
+            log.append(media())
 
         assert [kept.seq for kept in log.since(0)] == [3, 4, 5]
         assert not log.reaches_back_to(1)
@@ -80,7 +80,7 @@ class TestSizeLimit:
 
     def test_reaches_back_to_anything_while_nothing_was_dropped(self):
         log = ReplayLog(limit=LOG_LIMIT)
-        log.append(chat())
+        log.append(media())
 
         assert log.reaches_back_to(0)
 
@@ -94,14 +94,14 @@ class TestSuperseding:
         log.append(description(SignalType.ANSWER, "alice"))
         log.append(description(SignalType.OFFER, "bob"))
         log.append(candidate("bob"))
-        log.append(chat())
+        log.append(media())
 
         log.append(description(newer, "alice", sdp="newest"))
 
         assert [(kept.frame["type"], kept.frame.get("from")) for kept in log.since(0)] == [
             (SignalType.OFFER.value, "bob"),
             (SignalType.ICE_CANDIDATE.value, "bob"),
-            (SignalType.CHAT.value, None),
+            (SignalType.MEDIA_STATE.value, None),
             (newer.value, "alice"),
         ]
 

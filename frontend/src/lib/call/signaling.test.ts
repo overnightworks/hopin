@@ -78,7 +78,7 @@ describe("connecting", () => {
         [
             "a frame",
             (signaling: Signaling) => {
-                signaling.send({ type: SIGNAL_TYPE.CHAT });
+                signaling.send({ type: SIGNAL_TYPE.MEDIA_STATE });
             },
         ],
         [
@@ -154,13 +154,13 @@ describe("sending", () => {
         const { connect, send } = await freshSignaling();
         connect();
 
-        send({ type: SIGNAL_TYPE.CHAT, text: "early" });
+        send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "early" });
         expect(latestSocket().sent).toEqual([]);
         latestSocket().open();
 
         expect(latestSocket().sent).toEqual([
             { type: SIGNAL_TYPE.JOIN },
-            { type: SIGNAL_TYPE.CHAT, text: "early", seq: 1 },
+            { type: SIGNAL_TYPE.MEDIA_STATE, text: "early", seq: 1 },
         ]);
     });
 
@@ -169,9 +169,34 @@ describe("sending", () => {
         connect();
         latestSocket().open();
 
-        send({ type: SIGNAL_TYPE.CHAT, text: "now" });
+        send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "now" });
 
-        expect(latestSocket().sent[1]).toEqual({ type: SIGNAL_TYPE.CHAT, text: "now", seq: 1 });
+        expect(latestSocket().sent[1]).toEqual({ type: SIGNAL_TYPE.MEDIA_STATE, text: "now", seq: 1 });
+    });
+});
+
+describe("being live", () => {
+    it("is live from the join on, not live while a reconnect waits and live again once resumed, each time telling the page", async () => {
+        const signaling = await freshSignaling();
+        const live: boolean[] = [];
+        signaling.onSessionLive(() => void live.push(signaling.isLive()));
+        const socket = seatedSocket(signaling);
+        const afterJoin = [signaling.isLive(), [...live]];
+        socket.closeWith(1006);
+        const whileDown = signaling.isLive();
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+        const whileResuming = signaling.isLive();
+
+        latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 0 });
+
+        expect([afterJoin, whileDown, whileResuming, signaling.isLive(), live.length]).toEqual([
+            [true, [true]],
+            false,
+            false,
+            true,
+            2,
+        ]);
     });
 });
 
@@ -180,10 +205,10 @@ describe("sending a transient frame", () => {
         const signaling = await freshSignaling();
         const socket = seatedSocket(signaling);
         signaling.sendFeatureFrame({ type: "game_picture", data: "part" }, { transient: true });
-        signaling.send({ type: SIGNAL_TYPE.CHAT, text: "kept" });
+        signaling.send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "kept" });
         expect(socket.sent.slice(-2)).toEqual([
             { type: "game_picture", data: "part", seq: 1 },
-            { type: SIGNAL_TYPE.CHAT, text: "kept", seq: 2 },
+            { type: SIGNAL_TYPE.MEDIA_STATE, text: "kept", seq: 2 },
         ]);
         socket.closeWith(1006);
         vi.advanceTimersByTime(1000);
@@ -191,7 +216,7 @@ describe("sending a transient frame", () => {
 
         latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 0 });
 
-        expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.CHAT, text: "kept", seq: 2 }]);
+        expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, text: "kept", seq: 2 }]);
     });
 
     it("is dropped, not held, while the socket is not live", async () => {
@@ -211,14 +236,14 @@ describe("receiving", () => {
         const first = vi.fn();
         const second = vi.fn();
         const other = vi.fn();
-        on(SIGNAL_TYPE.CHAT, first);
-        on(SIGNAL_TYPE.CHAT, second);
-        on(SIGNAL_TYPE.MEDIA_STATE, other);
+        on(SIGNAL_TYPE.MEDIA_STATE, first);
+        on(SIGNAL_TYPE.MEDIA_STATE, second);
+        on(SIGNAL_TYPE.ROOM_LOCKED, other);
         connect();
 
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT, text: "hi" });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE, text: "hi" });
 
-        expect(first).toHaveBeenCalledWith({ type: SIGNAL_TYPE.CHAT, text: "hi" });
+        expect(first).toHaveBeenCalledWith({ type: SIGNAL_TYPE.MEDIA_STATE, text: "hi" });
         expect(second).toHaveBeenCalledOnce();
         expect(other).not.toHaveBeenCalled();
     });
@@ -246,15 +271,15 @@ describe("receiving", () => {
     it("hands over frames without a number each time and drops a repeated number", async () => {
         const { connect, on } = await freshSignaling();
         const handler = vi.fn();
-        on(SIGNAL_TYPE.CHAT, handler);
+        on(SIGNAL_TYPE.MEDIA_STATE, handler);
         connect();
 
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT });
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT });
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT, seq: 4 });
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT, seq: 4 });
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT, seq: 3 });
-        latestSocket().receive({ type: SIGNAL_TYPE.CHAT, seq: 5 });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE, seq: 4 });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE, seq: 4 });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE, seq: 3 });
+        latestSocket().receive({ type: SIGNAL_TYPE.MEDIA_STATE, seq: 5 });
 
         expect(handler).toHaveBeenCalledTimes(4);
     });
@@ -344,7 +369,7 @@ describe("resuming", () => {
     it("reconnects after the first delay and asks to resume with what it saw and sent", async () => {
         const signaling = await freshSignaling();
         const socket = seatedSocket(signaling);
-        signaling.send({ type: SIGNAL_TYPE.CHAT, text: "kept" });
+        signaling.send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "kept" });
 
         socket.closeWith(1006);
         expect(signaling.statusLine).toEqual({
@@ -364,15 +389,15 @@ describe("resuming", () => {
     it("takes the seat back, drops what the server saw and resends the rest", async () => {
         const signaling = await freshSignaling();
         const socket = seatedSocket(signaling);
-        signaling.send({ type: SIGNAL_TYPE.CHAT, text: "seen" });
-        signaling.send({ type: SIGNAL_TYPE.CHAT, text: "missed" });
+        signaling.send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "seen" });
+        signaling.send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "missed" });
         socket.closeWith(1006);
         vi.advanceTimersByTime(1000);
         latestSocket().open();
 
         latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 1 });
 
-        expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.CHAT, text: "missed", seq: 2 }]);
+        expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, text: "missed", seq: 2 }]);
         expect(signaling.state.reconnectAttempt).toBe(0);
         expect(signaling.statusLine).toEqual({ text: words["call.statusInCall"], type: "connected" });
         latestSocket().closeWith(1006);
@@ -400,7 +425,7 @@ describe("resuming", () => {
         const lost = vi.fn();
         signaling.onSessionLost(lost);
         const socket = seatedSocket(signaling);
-        signaling.send({ type: SIGNAL_TYPE.CHAT, text: "old" });
+        signaling.send({ type: SIGNAL_TYPE.MEDIA_STATE, text: "old" });
         socket.closeWith(1006);
         vi.advanceTimersByTime(1000);
         latestSocket().open();
@@ -409,6 +434,39 @@ describe("resuming", () => {
 
         expect(lost).toHaveBeenCalledOnce();
         expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.JOIN, seq: 1 }]);
+    });
+
+    it("tells the page the session is live only after the fresh join is written, so a frame the page then sends follows the join", async () => {
+        const signaling = await freshSignaling();
+        const socket = seatedSocket(signaling);
+        socket.closeWith(1006);
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+        signaling.onSessionLive(() => {
+            signaling.sendFeatureFrame({ type: "line_for_agents", text: "waited" });
+        });
+
+        latestSocket().receive({ type: SIGNAL_TYPE.ERROR, reason: ERROR_REASON.RESUME_REFUSED });
+
+        expect(latestSocket().sent.slice(1)).toEqual([
+            { type: SIGNAL_TYPE.JOIN, seq: 1 },
+            { type: "line_for_agents", text: "waited", seq: 2 },
+        ]);
+    });
+
+    it("tells the page which frames the resume wrote again", async () => {
+        const signaling = await freshSignaling();
+        const replayed: { type: string }[][] = [];
+        signaling.onSessionLive((frames) => void replayed.push([...frames]));
+        const socket = seatedSocket(signaling);
+        signaling.sendFeatureFrame({ type: "line_for_agents", text: "kept" });
+        socket.closeWith(1006);
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+
+        latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 0 });
+
+        expect(replayed.at(-1)).toEqual([{ type: "line_for_agents", text: "kept", seq: 1 }]);
     });
 
     it("hands any other error on to its handlers", async () => {

@@ -104,8 +104,6 @@ class Scene:
     room_id: str
     refresh_token: str
     session_ids: list[str]
-    chat_text: str
-    ben_chat_text: str
     session_times: list[tuple[datetime, datetime]]
     ben_subject: str
     anna_frames_held: int
@@ -133,8 +131,6 @@ def scene(client, stores, person):
     refresh_token = secrets.token_urlsafe()
     older_id_token = new_id_token()
     older = an_older_session(stores, anna, refresh_token, older_id_token)
-    chat_text = secrets.token_urlsafe()
-    ben_chat_text = secrets.token_urlsafe()
     with ExitStack() as open_sockets:
         anna_socket = open_sockets.enter_context(
             client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(anna))
@@ -147,16 +143,14 @@ def scene(client, stores, person):
         ben_socket.send_json({"type": SignalType.JOIN.value, "room_id": created["room_id"]})
         ben_seat = ben_socket.receive_json()
         frames_to_anna = [created, anna_socket.receive_json()]
-        anna_socket.send_json({"type": SignalType.CHAT.value, "message": chat_text, "seq": 1})
+        anna_socket.send_json({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": False, "seq": 1})
         ben_socket.receive_json()
-        ben_socket.send_json({"type": SignalType.CHAT.value, "message": ben_chat_text, "seq": 1})
+        ben_socket.send_json({"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True, "seq": 1})
         frames_to_anna.append(anna_socket.receive_json())
         yield Scene(
             room_id=created["room_id"],
             refresh_token=refresh_token,
             session_ids=[anna.session.id, older.id],
-            chat_text=chat_text,
-            ben_chat_text=ben_chat_text,
             session_times=[
                 (older.created_at, anna.session.expires_at - timedelta(hours=2)),
                 (anna.session.created_at, anna.session.expires_at),
@@ -173,8 +167,6 @@ def scene(client, stores, person):
                 created["participant_id"],
                 ben_seat["resume_token"],
                 ben_seat["participant_id"],
-                chat_text,
-                ben_chat_text,
                 ben_subject,
             ],
         )

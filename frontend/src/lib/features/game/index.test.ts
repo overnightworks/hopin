@@ -63,6 +63,7 @@ async function installedGame({
         receiveChatLine: (view) => void lines.push(handedOver(view)),
         pinLastChatLine: (view) => void pinned.push(handedOver(view)),
         showChatCard: (view) => void cards.push(handedOver(view)),
+        setLineReaders: () => undefined,
         showAgentTile: (tile) => void agentTiles.push(tile),
         showStage: () => undefined,
         drawAgentFigures: () => undefined,

@@ -1,6 +1,7 @@
 import { flushSync } from "svelte";
 import { expect, vi } from "vitest";
 import type { AgentSentence, AgentTile, FeatureCore, PictureBounds } from "#lib/call/feature-port.ts";
+import type { AgentLink } from "#lib/call/lines.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -33,6 +34,8 @@ export async function installedParticipation(installOn?: typeof install) {
     const thoughts: [string, boolean][] = [];
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
+    // The link the page last handed the chat for the agents that read its lines.
+    let lineReaders: AgentLink = { names: [], frameType: "", send: vi.fn() };
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
     const figureEndedHooks: ((key: string, reason: string) => void)[] = [];
@@ -83,6 +86,9 @@ export async function installedParticipation(installOn?: typeof install) {
         },
         pinLastChatLine: vi.fn(),
         showChatCard: vi.fn(),
+        setLineReaders: (link) => {
+            lineReaders = link;
+        },
         onMicrophone: (handler) => {
             microphoneHandlers.push(handler);
             handler(null);
@@ -117,6 +123,7 @@ export async function installedParticipation(installOn?: typeof install) {
         thoughts,
         toasts,
         lines,
+        lineReaders: () => lineReaders,
         offers: () => onThePage().flatMap((item) => [...item.querySelectorAll("li")]),
         buttons: () => onThePage().flatMap((item) => [...item.querySelectorAll("button")]),
         alert: () =>

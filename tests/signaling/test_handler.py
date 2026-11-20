@@ -144,6 +144,9 @@ class TestHandleMessageRefusals:
                 id="unknown_type",
             ),
             pytest.param(
+                ErrorReason.INVALID_MESSAGE, stranger_sends({"type": "chat"}), "Unknown signal type: chat", id="no_chat"
+            ),
+            pytest.param(
                 ErrorReason.INVALID_MESSAGE, stranger_sends({"type": []}), "Missing signal type", id="non_string_type"
             ),
             pytest.param(
@@ -226,13 +229,13 @@ class TestJoinExistingRoom:
 
         await deliver(browsers["p1"], join_message(other_room.room_id))
         await deliver(browsers["p1"], join_message())
-        await deliver(browsers["p1"], {"type": SignalType.CHAT.value, "message": "still here"})
+        await deliver(browsers["p1"], {"type": SignalType.MEDIA_STATE.value, "audio": True, "video": False})
 
         assert [frame["reason"] for frame in frames_of_type(browsers["p1"], SignalType.ERROR)] == [
             ErrorReason.INVALID_MESSAGE.value
         ] * 2
-        assert frames_of_type(browsers["host1"], SignalType.CHAT) == [
-            {"type": SignalType.CHAT.value, "message": "still here", "from": browsers["p1"].peer_id}
+        assert frames_of_type(browsers["host1"], SignalType.MEDIA_STATE) == [
+            {"type": SignalType.MEDIA_STATE.value, "from": browsers["p1"].peer_id, "audio": True, "video": False}
         ]
         assert room.participant_ids == [browsers["host1"].peer_id, browsers["p1"].peer_id]
         assert other_room.participant_ids == ["host2"]
@@ -366,7 +369,6 @@ class TestPeerInNoRoom:
             pytest.param({"type": SignalType.LOCK_ROOM.value}, id="lock"),
             pytest.param({"type": SignalType.UNLOCK_ROOM.value}, id="unlock"),
             pytest.param({"type": SignalType.END_ROOM.value}, id="end_room"),
-            pytest.param({"type": SignalType.CHAT.value, "message": "hello"}, id="chat"),
             pytest.param({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True}, id="media_state"),
         ],
     )
@@ -528,9 +530,9 @@ class TestSend:
         room, browsers = await seat_in_room(link, room_manager, "host1", "c1")
         room_manager.add_participant(room.room_id, "unknown", account_named("unknown"))
 
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": "test"})
+        await deliver(browsers["host1"], {"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
 
-        assert sent_types(browsers["c1"]) == [SignalType.CHAT.value]
+        assert sent_types(browsers["c1"]) == [SignalType.MEDIA_STATE.value]
         assert browsers["host1"].socket.sent == []
 
     @pytest.mark.parametrize("closed_state", ["client_state", "application_state"])
@@ -538,7 +540,7 @@ class TestSend:
         _room, browsers = await seat_in_room(link, room_manager, "host1", "c1")
         setattr(browsers["c1"].socket, closed_state, WebSocketState.DISCONNECTED)
 
-        await deliver(browsers["host1"], {"type": SignalType.CHAT.value, "message": "test"})
+        await deliver(browsers["host1"], {"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
 
         assert browsers["c1"].socket.sent == []
 
@@ -661,13 +663,13 @@ class TestHostGrace:
         assert frames_of_type(browsers["p2"], SignalType.ROOM_CLOSED) == [closed]
         assert_room_removed(room_manager, room.room_id)
 
-    async def test_former_member_of_a_closed_room_cannot_lock_or_chat(self, link, room_manager, scheduler):
+    async def test_former_member_of_a_closed_room_cannot_lock_or_share_media_state(self, link, room_manager, scheduler):
         _room, browsers = await drop_host(link, room_manager, "p1", "p2")
         await scheduler.advance(60)
         frames_before = {name: len(sent_frames(browser)) for name, browser in browsers.items()}
 
         await deliver(browsers["p1"], {"type": SignalType.LOCK_ROOM.value})
-        await deliver(browsers["p1"], {"type": SignalType.CHAT.value, "message": "hi"})
+        await deliver(browsers["p1"], {"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
 
         assert {name: len(sent_frames(browser)) for name, browser in browsers.items()} == frames_before
 

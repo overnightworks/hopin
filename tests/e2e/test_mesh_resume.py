@@ -1,5 +1,6 @@
+import json
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from playwright.sync_api import Expect, Page
@@ -45,6 +46,16 @@ expect = Expect()
 expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 HEARD_CHAT = "#chatMessages .chat-msg.other"
+SENT_LINE = "#chatMessages .chat-msg.self"
+# A person whose answers never come back: the channel sends every message but a receipt.
+WITHHOLD_RECEIPTS = """
+() => {
+    const nativeSend = RTCDataChannel.prototype.send;
+    RTCDataChannel.prototype.send = function (data) {
+        if (JSON.parse(data).type !== "receipt") nativeSend.call(this, data);
+    };
+}
+"""
 HOST_PRESENCE_NEWS = {SignalType.HOST_AWAY, SignalType.HOST_BACK}
 CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
 ANSWER_APPLIED = '() => window.recordedConnections[0].signalingState === "stable"'
@@ -71,6 +82,10 @@ A_NEW_CONNECTION_IS_CONNECTED = """
 )
 """
 FIRST_CONNECTION_IS_CLOSED = '() => window.recordedConnections[0].signalingState === "closed"'
+
+
+def _signaling_carried(person_tap: Any, line: str) -> bool:
+    return any(line in json.dumps(frame) for frame in (*person_tap.upstream, *person_tap.downstream))
 
 
 def _wait_for_more_video_bytes_than(person: Page, baseline: int, deadline_seconds: int = PUMP_DEADLINE_SECONDS) -> int:
@@ -124,34 +139,33 @@ def test_restart_answer_swallowed_at_the_cut_is_resent_after_the_resume_and_both
     assert len(_frames_of(connected_pair.guest_tap, "downstream", SignalType.ANSWER)) == answers_before + 1
 
 
-def test_chat_swallowed_at_the_cut_reaches_the_other_side_exactly_once_after_the_resume(
+def test_line_said_while_the_signaling_socket_is_cut_reaches_the_other_side_once_over_the_channel(
     connected_pair: ConnectedPair,
 ) -> None:
+    """CALL-71: A line travels over the data channel, so a cut signaling socket neither loses nor repeats it."""
     guest = connected_pair.guest
-    connected_pair.guest_tap.swallow_upstream = 1
 
-    say_in_chat(guest, "lost in the cut")
-    pump_until(guest, lambda: connected_pair.guest_tap.swallow_upstream == 0)
-    connected_pair.cut(guest)
-    connected_pair.resume(guest)
+    with connected_pair.socket_down(guest):
+        say_in_chat(guest, "said in the cut")
+        expect(connected_pair.host.locator(HEARD_CHAT)).to_have_text([re.compile("said in the cut$")])
 
-    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_text([re.compile("lost in the cut$")])
-    assert len(_frames_of(connected_pair.host_tap, "downstream", SignalType.CHAT)) == 1
+    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(1)
+    expect(guest.locator("#chatMessages .chat-msg.self.pending")).to_have_count(0)
+    assert not _signaling_carried(connected_pair.guest_tap, "said in the cut")
 
 
-def test_chat_typed_while_the_socket_is_down_is_written_in_order_after_the_resume(
+def test_lines_typed_while_the_socket_is_down_arrive_in_order_and_none_crosses_a_socket(
     connected_pair: ConnectedPair,
 ) -> None:
+    """CALL-71: Lines said while the signaling socket is down arrive in order over the channel."""
     guest, guest_tap = connected_pair.guest, connected_pair.guest_tap
 
     with connected_pair.socket_down(guest):
         say_in_chat(guest, "first")
         say_in_chat(guest, "second")
 
-    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_count(2)
-    last_resume = max(index for index, message in enumerate(guest_tap.upstream) if message["type"] == SignalType.RESUME)
-    chats_after_it = _frames_of(guest_tap, "upstream", SignalType.CHAT, since=last_resume + 1)
-    assert [chat["message"] for chat in chats_after_it] == ["first", "second"]
+    expect(connected_pair.host.locator(HEARD_CHAT)).to_have_text([re.compile("first$"), re.compile("second$")])
+    assert not any(_signaling_carried(guest_tap, line) for line in ("first", "second"))
 
 
 def _retry_the_restart_while_the_first_reconnect_is_refused(person: Page, retry_made: Callable[[], bool]) -> None:
@@ -240,9 +254,10 @@ def test_events_of_a_replaced_socket_are_ignored(connected_pair: ConnectedPair) 
     wait_for_status(guest, IN_CALL)
 
 
-def test_chat_typed_while_the_socket_is_open_but_not_yet_resumed_waits_for_the_resumed_frame(
+def test_line_typed_while_the_socket_is_open_but_not_yet_resumed_does_not_wait_for_the_resumed_frame(
     connected_pair: ConnectedPair,
 ) -> None:
+    """CALL-71: A line does not wait for the signaling socket's resumed frame; the channel carries it."""
     guest, host, tap = connected_pair.guest, connected_pair.host, connected_pair.guest_tap
     tap.hold_resumed = True
     connected_pair.cut(guest)
@@ -250,11 +265,10 @@ def test_chat_typed_while_the_socket_is_open_but_not_yet_resumed_waits_for_the_r
     pump_until(guest, lambda: bool(tap.held_resumed))
 
     say_in_chat(guest, "typed while resuming")
-    tap.release_held_resumed()
 
     expect(host.locator(HEARD_CHAT)).to_have_count(1)
-    assert SignalType.CHAT not in tap.types(tap.upstream[: tap.sent_before_resumed_released])
-    assert len(_frames_of(connected_pair.host_tap, "downstream", SignalType.CHAT)) == 1
+    tap.release_held_resumed()
+    assert not _signaling_carried(tap, "typed while resuming")
 
 
 def test_refused_resume_falls_back_to_a_fresh_join_with_new_peer_connections(
@@ -274,6 +288,30 @@ def test_refused_resume_falls_back_to_a_fresh_join_with_new_peer_connections(
     assert [refusal["reason"] for refusal in refusals] == [ErrorReason.RESUME_REFUSED]
 
 
+def test_lines_pending_at_a_refused_resume_turn_undelivered_and_the_rejoined_page_reads_none_of_the_earlier_ones(
+    connected_pair: ConnectedPair,
+) -> None:
+    """CALL-71: A refused resume rebuilds the connections; a line still pending turns undelivered, none is resent."""
+    host, guest = connected_pair.host, connected_pair.guest
+    host.evaluate(WITHHOLD_RECEIPTS)
+    host.click("#chatBtn")
+    say_in_chat(host, "earlier from the host")
+    expect(guest.locator(HEARD_CHAT)).to_have_count(1)
+    say_in_chat(guest, "unanswered")
+    expect(host.locator(HEARD_CHAT)).to_have_count(1)
+    expect(guest.locator(f"{SENT_LINE}.pending")).to_have_count(1)
+    connected_pair.guest_tap.corrupt_resume_token = True
+
+    connected_pair.cut(guest)
+    connected_pair.reconnect(guest)
+    _wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
+
+    expect(guest.locator(f"{SENT_LINE}.pending")).to_have_count(0)
+    expect(guest.locator(f"{SENT_LINE} .chat-delivery")).to_have_count(1)
+    expect(guest.locator(HEARD_CHAT)).to_have_count(1)
+    expect(host.locator(HEARD_CHAT)).to_have_count(1)
+
+
 def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_window(
     connected_pair: ConnectedPair,
 ) -> None:
@@ -289,7 +327,7 @@ def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_
             wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
     wait_for_status(guest, text("de", "call.statusConnectionLost"))
     upstream_before = len(tap.upstream)
-    say_in_chat(guest, "nobody hears this")
+    say_in_chat(guest, "typed with the connection lost")
 
     assert len(tap.urls) == len(RECONNECT_DELAYS_MS) + 1
     assert len(tap.upstream) == upstream_before

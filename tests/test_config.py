@@ -57,10 +57,6 @@ class TestSignalType:
         actual = {s.value for s in SignalType}
         assert required.issubset(actual)
 
-    def test_contains_chat_type(self):
-        actual = {s.value for s in SignalType}
-        assert "chat" in actual
-
 
 class TestServerSettings:
     def test_defaults(self, sign_in_settings):

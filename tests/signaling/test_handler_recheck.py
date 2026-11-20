@@ -15,7 +15,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.signaling.handler import SignalingHandler
-from tests.signaling.support.browsers import HeldClose, HeldWrite, Link, host_and_guest
+from tests.signaling.support.browsers import HeldClose, HeldWrite, Link, host_and_guest, note_for, notes_heard
 from tests.support.signaling_fakes import account_named, disconnect_frame
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -151,20 +151,20 @@ class TestTick:
         host, guest = await host_and_guest(link)
         await scheduler.advance(SESSION_RECHECK_SECONDS)
         guest.socket.account = None
-        await guest.say({"type": SignalType.CHAT.value, "message": "still heard"})
+        await guest.say(note_for(host, "still heard"))
 
         assert guest.socket.closed_with is None
-        assert len(host.frames(SignalType.CHAT)) == 1
+        assert notes_heard(host) == ["still heard"]
         await scheduler.advance(SESSION_RECHECK_SECONDS)
 
         assert guest.socket.closed_with == SESSION_ENDED_CLOSE_CODE
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
 
     async def test_frame_does_not_read_the_session(self, link, resolver):
-        _, guest = await host_and_guest(link)
+        host, guest = await host_and_guest(link)
         consulted_before = list(resolver.consulted)
 
-        await guest.say({"type": SignalType.CHAT.value, "message": "hello"})
+        await guest.say(note_for(host, "hello"))
 
         assert resolver.consulted == consulted_before
 

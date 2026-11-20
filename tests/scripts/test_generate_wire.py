@@ -18,7 +18,6 @@ from hopin.participation.vocabulary import (
 from hopin.signaling.frames import (
     SEQUENCE_KEY,
     AnswerRelayFrame,
-    ChatBroadcastFrame,
     ErrorFrame,
     IceCandidateRelayFrame,
     MediaStateBroadcastFrame,
@@ -269,15 +268,6 @@ def test_render_frame_type_types_the_participant_lock_and_resumed_frames(frame_c
     ("frame_cls", "extra_field_types", "rendered"),
     [
         (
-            ChatBroadcastFrame,
-            None,
-            "export type ChatBroadcastFrame = {\n"
-            "    type: SIGNAL_TYPE.CHAT;\n"
-            "    message: string;\n"
-            "    from: string;\n"
-            "};\n",
-        ),
-        (
             MediaStateBroadcastFrame,
             None,
             "export type MediaStateBroadcastFrame = {\n"
@@ -330,7 +320,7 @@ def test_render_frame_type_types_the_participant_lock_and_resumed_frames(frame_c
         ),
     ],
 )
-def test_render_frame_type_types_the_error_chat_media_state_and_relay_frames(
+def test_render_frame_type_types_the_error_media_state_and_relay_frames(
     frame_cls: type, extra_field_types: dict[object, str] | None, rendered: str
 ) -> None:
     assert generate_wire.render_frame_type(frame_cls, extra_field_types) in generate_wire.render_core()

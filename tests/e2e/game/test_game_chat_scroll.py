@@ -32,8 +32,8 @@ def test_the_chat_stays_scrolled_to_the_newest_line_when_the_typing_bubble_and_t
     open_chat(guest)
     open_chat(host)
     for number in range(MESSAGES_IN_A_LONG_HISTORY):
-        guest.fill("#chatInput", f"line {number}")
-        guest.click("#chatSend")
+        host.fill("#chatInput", f"line {number}")
+        host.click("#chatSend")
     messages = host.locator("#chatMessages")
     expect(messages.locator(".chat-msg")).to_have_count(MESSAGES_IN_A_LONG_HISTORY)
     assert messages.evaluate(LIST_IS_AT_THE_BOTTOM)

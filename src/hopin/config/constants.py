@@ -76,11 +76,15 @@ UVICORN_LOG_LEVEL = "warning"
 class LineLimits:
     """What a chat line may be, for every writer and reader of one: the page's composer, an agent's line and an
     agent's spoken sentence. A line is 1 to `max_characters` code points once `trimmed` characters are cut from its
-    ends, and holds no `refused` character."""
+    ends, and holds no `refused` character. A person's lines to one reader hold within a budget of `burst_lines`, which
+    refills at `lines_per_second`: the sender paces its own lines to it and every receiver, the server included, drops
+    a line beyond it."""
 
     max_characters: int
     trimmed: frozenset[str]
     refused: frozenset[str]
+    burst_lines: int
+    lines_per_second: float
 
 
 # Explicit sets, because `str.strip()` and `String.trim()` differ (U+FEFF) and the page and the server must judge a
@@ -93,6 +97,8 @@ LINE_LIMITS = LineLimits(
         "\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
     ),
     refused=frozenset(map(chr, (*range(0x00, 0x20), *range(0x7F, 0xA0)))),
+    burst_lines=10,
+    lines_per_second=1,
 )
 
 
@@ -116,7 +122,6 @@ class SignalType(StrEnum):
     UNLOCK_ROOM = "unlock_room"
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
-    CHAT = "chat"
     MEDIA_STATE = "media_state"
     HOST_AWAY = "host_away"
     HOST_BACK = "host_back"

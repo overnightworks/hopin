@@ -141,8 +141,8 @@ def a_call_with_a_guest(sockets, host_label, guest_label):
     return host, guest, room_id
 
 
-def chat(ws, message):
-    ws.send_json({"type": SignalType.CHAT.value, "message": message, "seq": 1})
+def share_media_state(ws):
+    ws.send_json({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": False, "seq": 1})
 
 
 def close_code_of(ws):
@@ -151,19 +151,19 @@ def close_code_of(ws):
     return closed.value.code
 
 
-def next_chat_message(ws):
-    while (frame := ws.receive_json())["type"] != SignalType.CHAT.value:
+def next_media_state(ws):
+    while (frame := ws.receive_json())["type"] != SignalType.MEDIA_STATE.value:
         pass
-    return frame["message"]
+    return frame
 
 
 class TestSeatsOfAnErasedPerson:
-    def test_a_guest_who_chats_after_the_erasure_is_heard_until_the_tick_closes_it(self, sockets, erase, advance):
+    def test_a_guest_who_signals_after_the_erasure_is_heard_until_the_tick_closes_it(self, sockets, erase, advance):
         host, guest, _ = a_call_with_a_guest(sockets, "ben", "anna")
         assert erase("anna").is_success
 
-        chat(guest, "after the erasure")
-        assert next_chat_message(host) == "after the erasure"
+        share_media_state(guest)
+        assert next_media_state(host)["audio"] is True
         advance(SESSION_RECHECK_SECONDS)
 
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
@@ -218,7 +218,7 @@ class TestSeatsOfAnErasedPerson:
         assert refused.value.code == POLICY_VIOLATION_CLOSE_CODE
         assert host.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
 
-    def test_everyone_else_in_the_call_keeps_their_account_sessions_and_chat(
+    def test_everyone_else_in_the_call_keeps_their_account_sessions_and_signals(
         self, stores, members, sockets, erase, advance
     ):
         host, guest, room_id = a_call_with_a_guest(sockets, "ben", "anna")
@@ -230,9 +230,9 @@ class TestSeatsOfAnErasedPerson:
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         host.receive_json()
 
-        chat(host, "for carol")
+        share_media_state(host)
 
-        assert next_chat_message(third) == "for carol"
+        assert next_media_state(third)["audio"] is True
         assert stores.accounts.get("ben") == members("ben").account
         assert stores.sessions.load(members("ben").session.id) is not None
 
