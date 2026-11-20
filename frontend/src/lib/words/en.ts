@@ -124,6 +124,8 @@ const translated = {
     "chat.fileTooLarge": (gaps: { readonly max: string; readonly name: string }) => "“" + gaps.name + "” is too large: A file holds at most " + gaps.max + " MB.",
     "chat.fileEmpty": (gaps: { readonly name: string }) => "“" + gaps.name + "” is empty and is not sent.",
     "chat.fileBusy": "A file is still on its way. Wait until it has arrived.",
+    "chat.fileSizeKilobytes": (gaps: { readonly size: string }) => gaps.size + " KB",
+    "chat.fileSizeMegabytes": (gaps: { readonly size: string }) => gaps.size + " MB",
     "account.menuLabel": "Account",
     "account.unnamedMenuName": "Account",
     "account.unnamedRowName": "You",

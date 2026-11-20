@@ -137,8 +137,10 @@ export function unpostedNote(): string | null {
 
 /** The size of a file as the chat shows it. */
 export function fileSize(bytes: number): string {
-    if (bytes < BYTES_PER_MEGABYTE) return `${sizeFormat.format(bytes / BYTES_PER_KILOBYTE)} KB`;
-    return `${sizeFormat.format(bytes / BYTES_PER_MEGABYTE)} MB`;
+    if (bytes < BYTES_PER_MEGABYTE) {
+        return words["chat.fileSizeKilobytes"]({ size: sizeFormat.format(bytes / BYTES_PER_KILOBYTE) });
+    }
+    return words["chat.fileSizeMegabytes"]({ size: sizeFormat.format(bytes / BYTES_PER_MEGABYTE) });
 }
 
 /** The text under a file about where it stands, or null when there is nothing to say. */
@@ -196,7 +198,7 @@ export function pickFile() {
 /** The person picked a file in the picker: post it, and let the picker offer the same file again. */
 export function filePicked(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
-    const [file] = input.files ?? [];
+    const [file] = input.files as FileList;
     if (file !== undefined) postFile(file);
     input.value = "";
 }
@@ -262,7 +264,7 @@ export function registerChatHandlers() {
         },
         changed: (file) => {
             const line = chat.lines.find((each) => each.kind === "file" && each.file.key === file.key);
-            if (line?.kind === "file") Object.assign(line.file, file);
+            Object.assign((line as { file: FileView }).file, file);
         },
     });
 }

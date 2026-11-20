@@ -117,6 +117,8 @@ export type Words = {
     readonly "chat.fileTooLarge": (gaps: { readonly max: string; readonly name: string }) => string;
     readonly "chat.fileEmpty": (gaps: { readonly name: string }) => string;
     readonly "chat.fileBusy": string;
+    readonly "chat.fileSizeKilobytes": (gaps: { readonly size: string }) => string;
+    readonly "chat.fileSizeMegabytes": (gaps: { readonly size: string }) => string;
     readonly "account.menuLabel": string;
     readonly "account.unnamedMenuName": string;
     readonly "account.unnamedRowName": string;
@@ -293,6 +295,8 @@ export const words: Words = {
     "chat.fileTooLarge": (gaps: { readonly max: string; readonly name: string }) => "„" + gaps.name + "“ ist zu groß: Eine Datei hat höchstens " + gaps.max + " MB.",
     "chat.fileEmpty": (gaps: { readonly name: string }) => "„" + gaps.name + "“ ist leer und wird nicht gesendet.",
     "chat.fileBusy": "Eine Datei ist noch unterwegs. Warte, bis sie angekommen ist.",
+    "chat.fileSizeKilobytes": (gaps: { readonly size: string }) => gaps.size + " KB",
+    "chat.fileSizeMegabytes": (gaps: { readonly size: string }) => gaps.size + " MB",
     "account.menuLabel": "Konto",
     "account.unnamedMenuName": "Konto",
     "account.unnamedRowName": "Du",
