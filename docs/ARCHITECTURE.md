@@ -172,7 +172,7 @@ Each line: what the party sees and what HopIn trusts of it.
 
 ## 6. Constraints and reasons
 
-- The import-linter contracts hold the dependency direction between packages, so a new top-level module needs a layer decision, and the game and the agent connector can be deleted without touching a contract.
+- The import-linter contracts hold the dependency direction between packages, so a new top-level module needs a layer decision, and the game and Skat can be deleted without touching a contract.
 - HopIn's own markup holds no inline script, `<style>`, `style=` or `on*=` attribute: the page runs under webauth's policy, which admits only the SvelteKit bootstrap script and the announcer style by hash.
 - The wire tokens have one owner each in Python, and `make wire` generates the TypeScript, so a drifting token fails `make wire-check`.
 

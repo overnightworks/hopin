@@ -6,7 +6,7 @@ install:
 lint:
 	uv run ruff check .
 	uv run ruff format --check src tests
-	uv run mypy src
+	uv run mypy src scripts
 	$(MAKE) wire-check
 	uv run design-catalogs --check
 
