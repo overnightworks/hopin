@@ -172,9 +172,14 @@ describe("a figure on an agent's tile", () => {
         expect([shown, host.querySelectorAll("canvas").length]).toEqual([[AGENT_FIGURE.DRAWN], 1]);
     });
 
-    it.each(["unsupported", "refused", "lost", "slow"] as const)(
+    it.each([
+        ["unsupported", FIGURE_END.UNSUPPORTED],
+        ["refused", FIGURE_END.REFUSED],
+        ["lost", FIGURE_END.LOST],
+        ["slow", FIGURE_END.SLOW],
+    ] as const)(
         "CALL-56: ends the figure on %s: reports it with that reason, disposes it once and takes the canvas off the page",
-        async (signal) => {
+        async (signal, reason) => {
             fetchedBytes();
             const { host, shown, reasons, mounting, stop } = await mounted(await installedDrawer());
             mounting.resolve();
@@ -186,7 +191,7 @@ describe("a figure on an agent's tile", () => {
             mounting.give("drawn");
 
             expect(shown).toEqual([AGENT_FIGURE.DRAWN, AGENT_FIGURE.ENDED]);
-            expect(reasons).toEqual([undefined, FIGURE_END[signal.toUpperCase() as keyof typeof FIGURE_END]]);
+            expect(reasons).toEqual([undefined, reason]);
             expect(mounting.dispose).toHaveBeenCalledTimes(1);
             expect(host.querySelector("canvas")).toBeNull();
         },

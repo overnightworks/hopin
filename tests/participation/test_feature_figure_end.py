@@ -119,3 +119,16 @@ class TestAFigureEndReport:
             await guest.say(report(agent.agent_id, FigureEnd.LOST.value))
 
         assert endings_in(logs) == []
+
+    async def test_call_56_a_seat_that_left_and_came_back_is_logged_once_for_the_agent(self, link, dialed):
+        host, _, agent = dialed
+        visitor = await link.join("visitor", room_of(host))
+        await visitor.say(report(agent.agent_id, FigureEnd.LOST.value))
+        await visitor.drop(1000)
+        returned = await link.join("visitor", room_of(host))
+
+        with structlog.testing.capture_logs() as logs:
+            await returned.say(report(agent.agent_id, FigureEnd.SLOW.value))
+            await returned.say(report(agent.agent_id, FigureEnd.LOST.value))
+
+        assert [entry["code"] for entry in endings_in(logs)] == [FigureEnd.SLOW.value]

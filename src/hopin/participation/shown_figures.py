@@ -130,6 +130,10 @@ class ShownFigures:
         self._ended.setdefault(agent_id, set()).add(peer_id)
         logger.info("agent_figure.ended", room_ref=room_reference(room_id), agent_id=agent_id, code=code)
 
+    def seat_left(self, peer_id: PeerId) -> None:
+        """Forget the figure ends the seat reported, so a seat that comes back does not grow what is kept."""
+        self._ended = {agent: peers - {peer_id} for agent, peers in self._ended.items() if peers - {peer_id}}
+
     async def _thinking_ran_out(self, agent_id: str) -> None:
         agent = self._thinking.pop(agent_id, None)
         if agent is not None and self._places.get(agent.person, agent.room_id) == agent:

@@ -508,6 +508,7 @@ class Participation(TransitionFeature):
     def seat_left(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
         """Announce the tiles of the agents the seat took with it and the agents the others may add now, then tell the
         seats that invited the owner's agents that the owner is away."""
+        self.figures.seat_left(peer_id)
         for agent in self._departed.pop(peer_id, []):
             tell_left(agent, view.members, transition)
         self._offer(view, transition)
