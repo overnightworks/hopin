@@ -1,8 +1,0 @@
-claim_id = "09e7a698990c419daa95fded2f015ec9"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "8a2d496f8af881f6a296c7a6b0ed88c0f0b049db"
-branch = "claude/issue-1007-wire-frames-derive-json"
-scope = ["scripts/generate_wire.py", "src/hopin/game/frames.py", "src/hopin/participation/frames.py", "src/hopin/signaling/frames.py", "src/hopin/skat/frames.py", "tests/game/test_vocabulary_browser_wire.py", "tests/participation/test_frames_browser_wire.py", "tests/scripts/test_generate_wire.py", "tests/signaling", "tests/skat/test_frames_browser_wire.py", "tests/support/rendered_frames.py"]
-opened_commit = "c7259bdc250fab75ea87b32e84a6620e04f53de6"
-whole_reason = "One owner for wire serialisation replaces the same hand-written copy in all four frames modules, and the tests that only kept those copies in step go with them."
