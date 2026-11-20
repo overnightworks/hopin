@@ -1,4 +1,4 @@
-import { pinLast, receiveLine, registerChatHandlers, showCard } from "#lib/ui/chat.svelte.ts";
+import { pinLast, receiveLine, registerChatHandlers, setLineReaders, showCard } from "#lib/ui/chat.svelte.ts";
 import {
     addMoreItems,
     confirmLockChange,
@@ -64,6 +64,7 @@ const FEATURE_CORE: FeatureCore<never> = Object.freeze({
     receiveChatLine: receiveLine,
     pinLastChatLine: pinLast,
     showChatCard: showCard,
+    setLineReaders,
     showAgentTile: stageModule.showAgentTile,
     drawAgentFigures: stageModule.drawAgentFigures,
     onAgentFigureEnded: stageModule.onAgentFigureEnded,

@@ -395,6 +395,22 @@ msgctxt "chat.closeButton"
 msgid "Chat schließen"
 msgstr "Close chat"
 
+msgctxt "chat.lineTooLong"
+msgid "Zu lang: Eine Nachricht hat höchstens {max} Zeichen."
+msgstr "Too long: a message holds at most {max} characters."
+
+msgctxt "chat.lineRefusedCharacter"
+msgid "Diese Nachricht enthält Zeichen, die nicht gesendet werden können."
+msgstr "This message holds characters that cannot be sent."
+
+msgctxt "chat.lineUndelivered"
+msgid "Nicht angekommen bei {names}"
+msgstr "Not delivered to {names}"
+
+msgctxt "chat.readersNote"
+msgid "Mitlesende KI: {names}. Nachrichten gehen dafür über den Server."
+msgstr "AI reading along: {names}. Messages go through the server for it."
+
 msgctxt "account.menuLabel"
 msgid "Konto"
 msgstr "Account"

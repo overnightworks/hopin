@@ -279,6 +279,22 @@ textarea {
     background: #1e293b;
     align-self: flex-start;
 }
+.chat-msg.self.pending {
+    opacity: 0.6;
+}
+.chat-msg .chat-delivery {
+    font-size: 0.7rem;
+    color: #e5e7eb;
+    margin-top: 0.15rem;
+}
+.chat-note {
+    padding: 0.4rem 0.6rem 0;
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+.chat-note.chat-problem {
+    color: #fca5a5;
+}
 .chat-msg .chat-sender {
     font-size: 0.7rem;
     color: #9ca3af;

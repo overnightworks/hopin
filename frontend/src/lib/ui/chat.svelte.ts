@@ -4,11 +4,12 @@
 
 import { flushSync, type Component } from "svelte";
 import type { Attachment } from "svelte/attachments";
-import { cleanLine } from "#lib/call/line.ts";
-import { isConnected, on, send } from "#lib/call/signaling.ts";
+import { LINE_REFUSAL, lineRefusal } from "#lib/call/line.ts";
+import { type AgentLink, DELIVERY, type Delivery, lines } from "#lib/call/lines.ts";
 import { playMessageSound } from "#lib/call/sounds.ts";
 import { state } from "#lib/call/state.ts";
-import { SIGNAL_TYPE } from "#lib/wire.ts";
+import { LINE_MAX_CHARACTERS } from "#lib/wire.ts";
+import { words } from "#lib/words.ts";
 
 /** A feature's component with its props bound; core renders it and never looks inside. */
 export type FeatureView = Component;
@@ -22,7 +23,7 @@ export function featureView<Props extends Record<string, unknown>>(
 }
 
 export type ChatLine =
-    | { kind: "self"; text: string }
+    | { kind: "self"; id: number; text: string; delivery: Delivery; missing: readonly string[] }
     | { kind: "other"; text: string; sender: string }
     | { kind: "feature"; view: FeatureView };
 
@@ -33,7 +34,8 @@ export const chat: {
     lines: ChatLine[];
     pinned: FeatureView | null;
     card: FeatureView | null;
-} = $state({ isOpen: false, unread: 0, draft: "", lines: [], pinned: null, card: null });
+    readers: readonly string[];
+} = $state({ isOpen: false, unread: 0, draft: "", lines: [], pinned: null, card: null, readers: [] });
 
 let listElement: HTMLElement | null = null;
 let inputElement: HTMLElement | null = null;
@@ -85,12 +87,40 @@ export function closeChat() {
     chat.isOpen = false;
 }
 
+/** Why the draft is not sent, in the words the composer shows, or null when it is no problem. */
+export function draftProblem(): string | null {
+    switch (lineRefusal(chat.draft)) {
+        case LINE_REFUSAL.TOO_LONG:
+            return words["chat.lineTooLong"]({ max: String(LINE_MAX_CHARACTERS) });
+        case LINE_REFUSAL.REFUSED_CHARACTER:
+            return words["chat.lineRefusedCharacter"];
+        default:
+            return null;
+    }
+}
+
+/** The text the chat shows for the agents that read along, or null when none does. */
+export function readersNote(): string | null {
+    return chat.readers.length === 0 ? null : words["chat.readersNote"]({ names: chat.readers.join(", ") });
+}
+
+/** The text under a line that did not reach everyone, or null when it did or still may. */
+export function undeliveredNote(line: ChatLine): string | null {
+    if (line.kind !== "self" || line.delivery !== DELIVERY.UNDELIVERED) return null;
+    return words["chat.lineUndelivered"]({ names: line.missing.join(", ") });
+}
+
 export function sendChatMessage() {
-    const message = cleanLine(chat.draft);
-    if (message === null || !isConnected()) return;
-    send({ type: SIGNAL_TYPE.CHAT, message });
-    addLine({ kind: "self", text: message });
+    const sent = lines.send(chat.draft);
+    if (sent === null) return;
+    addLine({ kind: "self", ...sent });
     chat.draft = "";
+}
+
+/** Say which agents read the chat along, by name, and how a line reaches them; none named, when the last left. */
+export function setLineReaders(link: AgentLink) {
+    lines.linkAgents(link);
+    chat.readers = [...link.names];
 }
 
 export function sendOnEnter(event: KeyboardEvent) {
@@ -98,9 +128,17 @@ export function sendOnEnter(event: KeyboardEvent) {
 }
 
 export function registerChatHandlers() {
-    on(SIGNAL_TYPE.CHAT, (data) => {
-        addLine({ kind: "other", text: data.message, sender: state.namesByParticipant.get(data.from) ?? "" });
-        countUnread();
+    lines.listen({
+        received: (participantId, text) => {
+            addLine({ kind: "other", text, sender: state.namesByParticipant.get(participantId) ?? "" });
+            countUnread();
+        },
+        delivery: (id, delivery, missing) => {
+            const line = chat.lines.find((each) => each.kind === "self" && each.id === id);
+            if (line?.kind !== "self") return;
+            line.delivery = delivery;
+            line.missing = missing;
+        },
     });
 }
 

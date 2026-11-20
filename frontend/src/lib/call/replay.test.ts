@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { REPLAY_LOG_LIMIT, SIGNAL_TYPE } from "#lib/wire.ts";
 import { SentLog } from "#lib/call/replay.ts";
 
-const { ANSWER, CHAT, ICE_CANDIDATE, OFFER } = SIGNAL_TYPE;
+const { ANSWER, MEDIA_STATE, ICE_CANDIDATE, OFFER } = SIGNAL_TYPE;
 
 const keptAndFloorByFrameTypes: [string, SIGNAL_TYPE[], number[], number][] = [
-    ["chat frames are all kept", [CHAT, CHAT], [1, 2], 0],
+    ["media state frames are all kept", [MEDIA_STATE, MEDIA_STATE], [1, 2], 0],
     ["an offer supersedes the earlier offer and candidate", [OFFER, ICE_CANDIDATE, OFFER], [3], 0],
     [
         "an answer supersedes the earlier answer and candidate",
@@ -15,7 +15,7 @@ const keptAndFloorByFrameTypes: [string, SIGNAL_TYPE[], number[], number][] = [
     ],
     [
         "the log keeps the server's limit and raises the floor past what it drops",
-        new Array<SIGNAL_TYPE>(REPLAY_LOG_LIMIT + 3).fill(CHAT),
+        new Array<SIGNAL_TYPE>(REPLAY_LOG_LIMIT + 3).fill(MEDIA_STATE),
         Array.from({ length: REPLAY_LOG_LIMIT }, (_, index) => index + 4),
         3,
     ],
@@ -54,9 +54,9 @@ describe("a transient frame", () => {
     it("is numbered in order and never kept for a replay", () => {
         const log = new SentLog();
 
-        log.append({ type: "chat" });
+        log.append({ type: "media_state" });
         const transient = log.transient({ type: "game_move", cell: 4 });
-        log.append({ type: "chat" });
+        log.append({ type: "media_state" });
 
         expect(transient).toEqual({ type: "game_move", cell: 4, seq: 2 });
         expect(log.unacknowledged().map((frame) => frame.seq)).toEqual([1, 3]);

@@ -102,6 +102,10 @@ export type Words = {
     readonly "chat.inputLabel": string;
     readonly "chat.sendButton": string;
     readonly "chat.closeButton": string;
+    readonly "chat.lineTooLong": (gaps: { readonly max: string }) => string;
+    readonly "chat.lineRefusedCharacter": string;
+    readonly "chat.lineUndelivered": (gaps: { readonly names: string }) => string;
+    readonly "chat.readersNote": (gaps: { readonly names: string }) => string;
     readonly "account.menuLabel": string;
     readonly "account.unnamedMenuName": string;
     readonly "account.unnamedRowName": string;
@@ -263,6 +267,10 @@ export const words: Words = {
     "chat.inputLabel": "Chatnachricht",
     "chat.sendButton": "Senden",
     "chat.closeButton": "Chat schließen",
+    "chat.lineTooLong": (gaps: { readonly max: string }) => "Zu lang: Eine Nachricht hat höchstens " + gaps.max + " Zeichen.",
+    "chat.lineRefusedCharacter": "Diese Nachricht enthält Zeichen, die nicht gesendet werden können.",
+    "chat.lineUndelivered": (gaps: { readonly names: string }) => "Nicht angekommen bei " + gaps.names,
+    "chat.readersNote": (gaps: { readonly names: string }) => "Mitlesende KI: " + gaps.names + ". Nachrichten gehen dafür über den Server.",
     "account.menuLabel": "Konto",
     "account.unnamedMenuName": "Konto",
     "account.unnamedRowName": "Du",

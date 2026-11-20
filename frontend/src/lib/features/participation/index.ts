@@ -132,10 +132,22 @@ export async function installWith(
         );
     }
 
+    // The chat sends its lines to the agents shown now, and only then; the server holds them for the agents still joined.
+    function readLines() {
+        core.setLineReaders({
+            names: [...shown.values()].map((agent) => agent.joined.name),
+            send: (text) => {
+                if (core.isConnected()) core.send({ type: PARTICIPATION_SIGNAL.LINE_FOR_AGENTS, text });
+            },
+        });
+    }
+
     function show(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_JOINED]) {
         const agent: ShownAgent = { ...shown.get(frame.agent_id), joined: frame };
+        const isNew = !shown.has(frame.agent_id);
         shown.set(frame.agent_id, agent);
         draw(agent);
+        if (isNew) readLines();
     }
 
     function showHearing(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_HEARING]) {
@@ -259,6 +271,7 @@ export async function installWith(
         voices.close(agentId);
         core.showAgentTile(null, tileKey(agentId));
         capture.setHearers(hearingAgents());
+        readLines();
     }
 
     const seated = (

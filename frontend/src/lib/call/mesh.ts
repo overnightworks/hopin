@@ -1,6 +1,7 @@
 // The peer connections of the call and their signaling.
 
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
+import { LINE_CHANNEL_ID, LINE_CHANNEL_LABEL, lines } from "#lib/call/lines.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
 import { on, send } from "#lib/call/signaling.ts";
@@ -73,6 +74,11 @@ function capUploads() {
 async function createPeerConnection(participantId: string, initiator: boolean) {
     const connection = new RTCPeerConnection(rtcConfiguration);
     connectionsByParticipant.set(participantId, connection);
+    // Negotiated, so both sides make it with the connection before the first offer is made or applied.
+    lines.addPeer(
+        participantId,
+        connection.createDataChannel(LINE_CHANNEL_LABEL, { negotiated: true, id: LINE_CHANNEL_ID, ordered: true }),
+    );
 
     if (state.localStream) {
         for (const track of state.localStream.getTracks()) {
@@ -170,6 +176,7 @@ async function applyIceCandidate(data: IceCandidateRelayFrame) {
 }
 
 function removePeer(participantId: string) {
+    lines.removePeer(participantId);
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
     remoteSignalingByParticipant.delete(participantId);

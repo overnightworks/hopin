@@ -61,10 +61,26 @@ class FakeConnection {
     closeAfterRemoteDescription = false;
     closeAfterAnswer = false;
     receivers: unknown[] = [];
+    // What the connection was asked to do before its first offer, in order, and every data channel it made.
+    steps: string[] = [];
+    dataChannels: { label: string; options: unknown; sent: string[]; readyState: string }[] = [];
     private readonly listeners = new Map<string, (() => void)[]>();
 
     constructor(readonly configuration: unknown) {
         FakeConnection.instances.push(this);
+    }
+
+    createDataChannel(label: string, options: unknown) {
+        this.steps.push("data channel");
+        const channel = {
+            label,
+            options,
+            sent: [] as string[],
+            readyState: "connecting",
+            send: (data: string) => channel.sent.push(data),
+        };
+        this.dataChannels.push(channel);
+        return channel;
     }
 
     addTrack(track: { kind: string }) {
@@ -106,6 +122,7 @@ class FakeConnection {
     }
 
     async createOffer(options?: unknown) {
+        this.steps.push("offer");
         await FakeConnection.offerGate;
         this.offerOptions.push(options);
         return { type: "offer", sdp: `offer-${String(this.offerOptions.length)}` };
@@ -124,6 +141,7 @@ class FakeConnection {
     }
 
     setRemoteDescription(description: unknown) {
+        this.steps.push("remote description");
         this.remoteDescriptions.push(description);
         if (this.closeAfterRemoteDescription) this.signalingState = "closed";
         else if ((description as Frame).type === "offer") this.signalingState = "have-remote-offer";
@@ -269,6 +287,47 @@ describe("loading the ice servers", () => {
         await meetPeer(mesh, "p1");
 
         expect(connectionOf().configuration).toEqual({ iceServers: [] });
+    });
+});
+
+describe("the line channel", () => {
+    it("is negotiated with the same id on both sides and made before the first offer is made", async () => {
+        const mesh = await freshMesh();
+
+        await meetPeer(mesh, "p1");
+
+        expect(connectionOf().steps.slice(0, 2)).toEqual(["data channel", "offer"]);
+        expect(connectionOf().dataChannels).toMatchObject([
+            { label: "line", options: { negotiated: true, id: 0, ordered: true } },
+        ]);
+    });
+
+    it("is made before an offer is applied, for a person who calls", async () => {
+        const mesh = await freshMesh();
+
+        deliver(SIGNAL_TYPE.OFFER, { from: "p9", sdp: { type: "offer", sdp: "theirs" } });
+        await settle();
+
+        expect(connectionOf().steps.slice(0, 2)).toEqual(["data channel", "remote description"]);
+        expect(mesh.peerCount()).toBe(1);
+    });
+
+    it("carries a line to the person once it opens and drops with the person", async () => {
+        const mesh = await freshMesh();
+        const { lines } = await import("./lines.ts");
+        await meetPeer(mesh, "p1");
+        const channel = connectionOf().dataChannels[0];
+        const sentLines: unknown[] = [];
+        lines.listen({ received: () => {}, delivery: (id, delivery) => void sentLines.push([id, delivery]) });
+
+        lines.send("hello");
+        expect(channel?.sent).toEqual([]);
+        (channel as { readyState: string }).readyState = "open";
+        (channel as unknown as { onopen: () => void }).onopen();
+        deliver(SIGNAL_TYPE.PARTICIPANT_LEFT, { participant_id: "p1" });
+
+        expect(channel?.sent).toEqual([JSON.stringify({ type: "line", id: 1, text: "hello" })]);
+        expect(sentLines).toEqual([[1, "undelivered"]]);
     });
 });
 
