@@ -10,7 +10,7 @@ import enum
 import sys
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Literal, Protocol, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Literal, Union, get_args, get_origin
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY / "src"))
@@ -43,8 +43,8 @@ from hopin.participation.vocabulary import (  # noqa: E402
     VOICE_PATH,
 )
 from hopin.signaling.frames import (  # noqa: E402
-    SENDER_KEY,
     SEQUENCE_KEY,
+    WIRE_FIELD_NAMES,
     AnswerRelayFrame,
     ChatBroadcastFrame,
     ErrorFrame,
@@ -61,6 +61,8 @@ from hopin.signaling.frames import (  # noqa: E402
     RoomCreatedFrame,
     RoomLockedFrame,
     RoomUnlockedFrame,
+    WireFrame,
+    is_omitted_when_none,
 )
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
 from hopin.skat.frames import BROWSER_FRAMES as SKAT_FRAMES  # noqa: E402  # skat
@@ -69,11 +71,6 @@ from hopin.skat.vocabulary import BROWSER_ENUMS as SKAT_BROWSER_ENUMS  # noqa: E
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from enum import IntEnum, StrEnum
-
-    from _typeshed import DataclassInstance
-
-    class ServerFrame(DataclassInstance, Protocol):
-        TYPE: ClassVar[enum.StrEnum]
 
 
 CORE_OUTPUT = Path("frontend/src/lib/wire.ts")
@@ -125,7 +122,6 @@ ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REA
 ERROR_FIELD_TYPES: dict[object, str] = {ErrorReason: "ERROR_REASON"}
 RELAY_FIELD_TYPES: dict[object, str] = {JsonValue: "unknown"}
 CORE_ENUMS = {"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason}
-WIRE_FIELD_NAMES = {"from_": SENDER_KEY}
 
 
 def _exported_name(enums: Mapping[str, type[StrEnum | IntEnum]], vocabulary: type) -> str:
@@ -171,7 +167,7 @@ def _properties(
     lines = []
     for field in dataclasses.fields(record_cls):
         annotation = field.type
-        optional = "?" if field.default is not dataclasses.MISSING else ""
+        optional = "?" if is_omitted_when_none(field) else ""
         sends_null = False
         if get_origin(annotation) in (types.UnionType, Union):
             present_types = [part for part in get_args(annotation) if part is not types.NoneType]
@@ -206,7 +202,7 @@ def render_record_type(record_cls: type, enums: Mapping[str, type[StrEnum | IntE
 
 
 def render_frame_type(
-    frame_cls: type[ServerFrame],
+    frame_cls: type[WireFrame],
     extra_field_types: Mapping[object, str] | None = None,
     enums: Mapping[str, type[StrEnum | IntEnum]] = CORE_ENUMS,
 ) -> str:
@@ -224,7 +220,7 @@ def render_frame_type(
 
 
 def render_feature(
-    enums: Mapping[str, type[StrEnum | IntEnum]], frames: Sequence[type[ServerFrame]], constants: str = ""
+    enums: Mapping[str, type[StrEnum | IntEnum]], frames: Sequence[type[WireFrame]], constants: str = ""
 ) -> str:
     """A feature's enums, its frame types and `<Feature>FrameByType`: each signal to its frame or union of frames,
     then its constants."""
@@ -244,7 +240,7 @@ def render_feature(
     return _generated_file(body)
 
 
-SERVER_FRAMES: dict[type[ServerFrame], Mapping[object, str] | None] = {
+SERVER_FRAMES: dict[type[WireFrame], Mapping[object, str] | None] = {
     RoomClosedFrame: ROOM_CLOSED_FIELD_TYPES,
     ErrorFrame: ERROR_FIELD_TYPES,
     RoomCreatedFrame: None,

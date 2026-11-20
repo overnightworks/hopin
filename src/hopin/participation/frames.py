@@ -11,26 +11,23 @@ from hopin.participation.vocabulary import (
     InvitationOutcome,
     ParticipationSignal,
 )
-from hopin.signaling.frames import TYPE_KEY, JsonObject, JsonValue, with_present
+from hopin.signaling.frames import WireFrame, WireRecord
 
 if TYPE_CHECKING:
     from hopin.participation.participants import DialedAgent
 
 
 @dataclass(frozen=True)
-class Offer:
+class Offer(WireRecord):
     """An agent a seat may add: the agent's key, its name, and whether this seat's invitation of it is open."""
 
     agent_key: str
     name: str
     pending: bool
 
-    def to_json(self) -> JsonObject:
-        return {"agent_key": self.agent_key, "name": self.name, "pending": self.pending}
-
 
 @dataclass(frozen=True)
-class AgentJoinedFrame:
+class AgentJoinedFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_JOINED
 
     agent_id: str
@@ -40,184 +37,121 @@ class AgentJoinedFrame:
     figure: str | None = None
     gestures: dict[str, str] | None = None
 
-    def to_json(self) -> JsonObject:
-        frame: JsonObject = {
-            TYPE_KEY: self.TYPE.value,
-            "agent_id": self.agent_id,
-            "name": self.name,
-            "sponsor": self.sponsor,
-            "sponsor_id": self.sponsor_id,
-        }
-        # A copy: the frame goes into the seat's replay log, and dict[str, str] is not a JSON value.
-        gestures: JsonValue = None if self.gestures is None else {**self.gestures}
-        return with_present(frame, figure=self.figure, gestures=gestures)
-
 
 @dataclass(frozen=True)
-class AgentLeftFrame:
+class AgentLeftFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_LEFT
 
     agent_id: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id}
-
 
 @dataclass(frozen=True)
-class AgentHearingFrame:
+class AgentHearingFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_HEARING
 
     agent_id: str
     on: bool
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "on": self.on}
-
 
 @dataclass(frozen=True)
-class AgentSeeingFrame:
+class AgentSeeingFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_SEEING
 
     agent_id: str
     on: bool
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "on": self.on}
-
 
 @dataclass(frozen=True)
-class AgentLookRequestFrame:
+class AgentLookRequestFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_LOOK_REQUEST
 
     request_id: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "request_id": self.request_id}
-
 
 @dataclass(frozen=True)
-class AgentLookedFrame:
+class AgentLookedFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_LOOKED
 
     agent_id: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id}
-
 
 @dataclass(frozen=True)
-class AgentVoiceFrame:
+class AgentVoiceFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_VOICE
 
     agent_id: str
     voice_id: str
     mood: FigureMood | None = None
 
-    def to_json(self) -> JsonObject:
-        frame: JsonObject = {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "voice_id": self.voice_id}
-        return with_present(frame, mood=None if self.mood is None else self.mood.value)
-
 
 @dataclass(frozen=True)
-class AgentStopFrame:
+class AgentStopFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_STOP
 
     agent_id: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id}
-
 
 @dataclass(frozen=True)
-class AgentHeldFrame:
+class AgentHeldFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_HELD
 
     agent_id: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id}
-
 
 @dataclass(frozen=True)
-class AgentContinuedFrame:
+class AgentContinuedFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_CONTINUED
 
     agent_id: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id}
-
 
 @dataclass(frozen=True)
-class AgentGestureFrame:
+class AgentGestureFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_GESTURE
 
     agent_id: str
     gesture: FigureGesture
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "gesture": self.gesture.value}
-
 
 @dataclass(frozen=True)
-class AgentThinkingFrame:
+class AgentThinkingFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_THINKING
 
     agent_id: str
     on: bool
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "on": self.on}
-
 
 @dataclass(frozen=True)
-class AgentOffersFrame:
+class AgentOffersFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_OFFERS
 
     shown: bool
     full: bool
     offers: list[Offer]
 
-    def to_json(self) -> JsonObject:
-        return {
-            TYPE_KEY: self.TYPE.value,
-            "shown": self.shown,
-            "full": self.full,
-            "offers": [offer.to_json() for offer in self.offers],
-        }
-
 
 @dataclass(frozen=True)
-class AgentInvitationEndedFrame:
+class AgentInvitationEndedFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_INVITATION_ENDED
 
     agent_key: str
     outcome: InvitationOutcome
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_key": self.agent_key, "outcome": self.outcome.value}
-
 
 @dataclass(frozen=True)
-class AgentLineFrame:
+class AgentLineFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_LINE
 
     agent_id: str
     name: str
     text: str
 
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "agent_id": self.agent_id, "name": self.name, "text": self.text}
-
 
 @dataclass(frozen=True)
-class AgentRefusedFrame:
+class AgentRefusedFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_REFUSED
 
     reason: AgentRefusal
-
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "reason": self.reason.value}
 
 
 type ParticipationFrame = (
