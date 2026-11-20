@@ -1,4 +1,5 @@
 import base64
+import re
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -462,8 +463,10 @@ def test_the_figure_speaks_an_agents_sentence_with_its_voice_and_mood_on_every_p
         ]
 
 
-# Far longer than the test looks at the figure: the sound ends when the agent is told to stop.
+# Far longer than the test looks at the figure: the sound ends when the agent is told to stop. A sentence whose second
+# half speech withholds does not last: the tile stops speaking once the page played the first half.
 LONG_SENTENCE_SECONDS = 120.0
+THINKING_TILE = re.compile(r"\bactivity-thinking\b")
 # The thinking look moves the arm far more than the idle sway does.
 THINKING_SHIFT = 0.04
 THINKING_EASE_MILLISECONDS = 2_000
@@ -505,8 +508,8 @@ def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_
 ) -> None:
     """CALL-68: An agent that states thinking while a sentence of it sounds keeps its speaking tile and its figure
     still, on every seat where the sound plays, and shows thinking once the sound ended; a seat that joined meanwhile,
-    where nothing plays, shows it at once. Every page's clock is held, so no figure ends as too slow, and the
-    sound outlasts the test's looking, which ends it by stopping the agent."""
+    where nothing plays, shows a tile that does not speak and thinks at once. Every page's clock is held, so no figure
+    ends as too slow, and the sound outlasts the test's looking, which ends it by stopping the agent."""
     expected_request_failures.append(f"{e2e_server.base_url}{VOICE_PATH}/")
     scene = scene_of(form_factor)
     speaker = Speaker(scene, speech_origin, figure=figure_of(DRAWABLE_URL, DRAWABLE))
@@ -527,6 +530,8 @@ def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_
     assert still_while_sounding == [True] * len(scene.everyone)
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
+    expect(late.locator(AGENT_TILE)).to_have_class(THINKING_TILE)
+    expect(late.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
     speaker.stop()
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)

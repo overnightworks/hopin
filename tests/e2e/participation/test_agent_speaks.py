@@ -8,7 +8,7 @@ import pytest
 from playwright.sync_api import Page, expect
 from speech_client.wire import VoiceId
 
-from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS
+from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS, AgentRefusal
 from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker, speaking_hopin
@@ -172,17 +172,18 @@ def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_o
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_an_agent_that_leaves_takes_its_tile_and_the_sound_it_plays_from_every_browser(speaker: Speaker) -> None:
     """CALL-60: The agent's leave closes its player in every browser: the sound that plays ends and its tile is gone,
-    with no error shown."""
+    with no error shown, and the agent holds no place there any more, which a second leave answers."""
     everyone = speaker.scene.everyone
     speaker.speak(LATER_SOUND_SECONDS[0])
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
 
-    speaker.leave()
+    left = speaker.leave()
 
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
         assert person.evaluate("() => window.soundsStopped") > 0
+    assert (left, speaker.refusal_of_a_second_leave()) == ({"left": True}, AgentRefusal.GONE.value)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
