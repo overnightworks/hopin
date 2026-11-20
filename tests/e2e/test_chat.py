@@ -202,6 +202,67 @@ def test_the_composer_sends_a_line_at_the_limit_and_says_why_one_over_it_is_not_
     expect(guest.locator(SENT_LINE)).to_have_count(1)
 
 
+EMOJI_LINE = " ".join(
+    (
+        "\N{GRINNING FACE}",
+        "\N{FAMILY}\N{ZERO WIDTH JOINER}\N{GIRL}",
+        "\N{THUMBS UP SIGN}\N{EMOJI MODIFIER FITZPATRICK TYPE-4}",
+        "\N{REGIONAL INDICATOR SYMBOL LETTER D}\N{REGIONAL INDICATOR SYMBOL LETTER E}",
+        "1\ufe0f\u20e3",
+    )
+)
+# A family: man, woman and child joined by two zero width joiners, one glyph of five code points.
+FAMILY = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
+
+
+def _insert_as_a_keyboard_does(person: Page, text: str) -> None:
+    person.focus("#chatInput")
+    person.keyboard.insert_text(text)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_line_of_emoji_inserted_as_a_system_keyboard_does_arrives_unchanged_and_the_send_button_stays_whole(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str], form_factor: dict[str, Any]
+) -> None:
+    """CALL-75: Smileys come from the device's emoji keyboard: text it inserts into the composer arrives unchanged."""
+    host, guest, _ = open_call(open_person, base_url, page_errors, form_factor)
+    guest.click("#chatBtn")
+
+    _insert_as_a_keyboard_does(guest, EMOJI_LINE)
+    guest.click("#chatSend")
+
+    host.click("#chatBtn")
+    expect(host.locator(HEARD_LINE)).to_have_text(re.compile(f"{re.escape(EMOJI_LINE)}$"))
+    expect(guest.locator(SENT_LINE)).to_have_text(EMOJI_LINE)
+    panel = guest.locator("#chatPanel").bounding_box()
+    send = guest.locator("#chatSend").bounding_box()
+    assert panel["x"] <= send["x"]
+    assert send["x"] + send["width"] <= panel["x"] + panel["width"]
+    expect(guest.locator("#chatSend")).to_be_in_viewport(ratio=1)
+
+
+def test_the_composer_counts_an_emoji_line_by_code_points_and_refuses_one_over_the_limit_without_cutting_it(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    """CALL-75: A line of joined emoji at the limit is sent whole; one code point over is refused, never cut."""
+    _, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    guest.click("#chatBtn")
+    at_the_limit = FAMILY * (LINE_LIMITS.max_characters // len(FAMILY))
+    over_the_limit = at_the_limit + SMILEY
+
+    _insert_as_a_keyboard_does(guest, at_the_limit)
+    guest.click("#chatSend")
+    expect(guest.locator(SENT_LINE)).to_have_text(at_the_limit)
+
+    _insert_as_a_keyboard_does(guest, over_the_limit)
+    guest.click("#chatSend")
+
+    expect(guest.locator("#chatDraftProblem")).to_have_text(
+        text("de", "chat.lineTooLong", max=str(LINE_LIMITS.max_characters))
+    )
+    expect(guest.locator("#chatInput")).to_have_value(over_the_limit)
+
+
 def _png() -> bytes:
     """A small picture the browser decodes."""
 

@@ -345,6 +345,7 @@ textarea {
 }
 .chat-input-row input {
     flex: 1;
+    min-width: 0;
     padding: 0.5rem;
     background: #0f0f1a;
     border: 1px solid #4b5563;
