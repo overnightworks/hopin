@@ -4,6 +4,7 @@ function or object shows as text, `<html lang>` names the language and no text r
 from typing import TYPE_CHECKING, Any, get_args
 
 import pytest
+from design.words import text as kit_text
 from playwright.sync_api import Page, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, LOGIN_PATH, NO_ACCESS_PATH
@@ -48,11 +49,11 @@ def assert_renders_in(person: Page, language: Language) -> None:
 @pytest.mark.parametrize("language", FURTHER_LANGUAGES)
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 @pytest.mark.parametrize(
-    ("path", "status"),
+    ("path", "status", "kit_key"),
     [
-        pytest.param(LOGIN_PATH, 200, id="signed-out"),
-        pytest.param(FORGED_CALLBACK, 403, id="login-failed"),
-        pytest.param(NO_ACCESS_PATH, 200, id="no-access"),
+        pytest.param(LOGIN_PATH, 200, "signIn.loggedOut", id="signed-out"),
+        pytest.param(FORGED_CALLBACK, 403, "signIn.tryAgain", id="login-failed"),
+        pytest.param(NO_ACCESS_PATH, 200, "signIn.noAccess", id="no-access"),
     ],
 )
 def test_each_sign_in_page_renders_in_the_language_the_browser_asks_for(
@@ -63,6 +64,7 @@ def test_each_sign_in_page_renders_in_the_language_the_browser_asks_for(
     language: Language,
     path: str,
     status: int,
+    kit_key: str,
 ) -> None:
     person = record_page_errors(open_person(signed_in=False, locale=language, **form_factor), page_errors)
 
@@ -70,6 +72,7 @@ def test_each_sign_in_page_renders_in_the_language_the_browser_asks_for(
 
     assert response is not None
     assert response.status == status
+    expect(person.locator("body")).to_contain_text(kit_text(language, kit_key))
     assert_renders_in(person, language)
 
 
