@@ -389,6 +389,25 @@ describe("files", () => {
         expect(clicked).toEqual([["blob:paper", "paper.pdf"]]);
     });
 
+    it("plays a song the browser can decode and offers it as a download once the player fails on it", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        const channels = seatFileSender(chat, "p1");
+        vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("probably");
+        const revoked = fakeBlobUrls("blob:song");
+        person.receive({ ...PAPER, name: "song.mp3", mime: "audio/mpeg" });
+        const [{ file }] = chat.chat.lines as [{ kind: "file"; file: FileView }];
+        chat.loadFile(file.key);
+        channels[0]?.onmessage?.({ data: new Uint8Array([0x49, 0x44, 0x33, 3]).buffer });
+        const display = file.display;
+
+        chat.mediaUndecodable(file);
+
+        expect([display, file.display]).toEqual(["audio", null]);
+        expect(revoked).toEqual(["blob:song"]);
+    });
+
     it("offers no download of a file whose bytes are not here", async () => {
         const chat = await freshChat();
         chat.registerChatHandlers();
