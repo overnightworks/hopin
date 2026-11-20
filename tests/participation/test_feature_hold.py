@@ -12,21 +12,26 @@ from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     HoldRefusal,
-    ParticipationSignal,
     SpeakStarted,
     SpeakStop,
     VoiceFailure,
 )
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
+    CONTINUED,
+    HELD,
+    HOST,
     LONG,
     SENTENCE_MS,
+    STOP,
+    VOICE,
     StreamedSentence,
     a_sentence,
     hold_of_a_playing_sentence,
     hold_with_a_sentence_waiting,
     rendering,
     renders_failing,
+    sounds,
     speak,
     voice_ids,
     waiting_to_speak,
@@ -35,12 +40,7 @@ from tests.participation.support.speaking import (
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-HOST = person_named("host")
 GUEST = person_named("guest")
-STOP = ParticipationSignal.AGENT_STOP
-VOICE = ParticipationSignal.AGENT_VOICE
-HELD = ParticipationSignal.AGENT_HELD
-CONTINUED = ParticipationSignal.AGENT_CONTINUED
 
 
 @pytest.fixture
@@ -68,15 +68,6 @@ def holds(browser):
 
 def continues(browser):
     return [frame["agent_id"] for frame in browser.frames(CONTINUED)]
-
-
-def sounds(browser, agent=None):
-    """The kinds of the sound frames a seat was told, of one agent when named, in the order it was told them."""
-    return [
-        frame["type"]
-        for frame in browser.frames(VOICE, HELD, CONTINUED, STOP)
-        if agent is None or frame["agent_id"] == agent.agent_id
-    ]
 
 
 def standing(participation, room_id, person=GUEST):

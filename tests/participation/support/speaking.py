@@ -3,13 +3,20 @@
 import asyncio
 from dataclasses import dataclass
 
+from hopin.agent.hearing import MemberHearingRecord
+from hopin.participation.hearing import Hearing
 from hopin.participation.speaking import RenderedSentence, SoundLength
 from hopin.participation.vocabulary import ParticipationSignal, VoiceFailure
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 
 GUEST = person_named("guest")
+HOST = person_named("host")
 SENTENCE_MS = 1500
+STOP = ParticipationSignal.AGENT_STOP
+VOICE = ParticipationSignal.AGENT_VOICE
+HELD = ParticipationSignal.AGENT_HELD
+CONTINUED = ParticipationSignal.AGENT_CONTINUED
 LONG_MS = 60 * 60 * 1000
 
 
@@ -217,6 +224,32 @@ async def renders_cancelled(sentence, voice):
 
 async def renders_broken(sentence, voice):
     raise RuntimeError("the speech service broke")
+
+
+def sounds(browser, agent=None):
+    """The kinds of the sound frames a seat was told, of one agent when named, in the order it was told them."""
+    return [
+        frame["type"]
+        for frame in browser.frames(VOICE, HELD, CONTINUED, STOP)
+        if agent is None or frame["agent_id"] == agent.agent_id
+    ]
+
+
+class HearersHostFirst(frozenset):
+    """Hearers that iterate with the host first, so the hold of the host's agent comes before the others'."""
+
+    def __iter__(self):
+        return iter(sorted(frozenset.__iter__(self), key=lambda person: person != HOST))
+
+
+class RecordNamingTheHostFirst(MemberHearingRecord):
+    def sensing(self, room_id, seat, sense):
+        return HearersHostFirst(super().sensing(room_id, seat, sense))
+
+
+def hearing_naming_the_host_first(member_hearing, *, enabled):
+    """The hearing of a seat whose hearers are named with the host's agent first."""
+    return Hearing(RecordNamingTheHostFirst(member_hearing), enabled=enabled)
 
 
 def voice_ids(browser):
