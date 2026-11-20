@@ -4,6 +4,7 @@
 
 import { flushSync, type Component } from "svelte";
 import type { Attachment } from "svelte/attachments";
+import { cleanLine } from "#lib/call/line.ts";
 import { isConnected, on, send } from "#lib/call/signaling.ts";
 import { playMessageSound } from "#lib/call/sounds.ts";
 import { state } from "#lib/call/state.ts";
@@ -85,8 +86,8 @@ export function closeChat() {
 }
 
 export function sendChatMessage() {
-    const message = chat.draft.trim();
-    if (!message || !isConnected()) return;
+    const message = cleanLine(chat.draft);
+    if (message === null || !isConnected()) return;
     send({ type: SIGNAL_TYPE.CHAT, message });
     addLine({ kind: "self", text: message });
     chat.draft = "";

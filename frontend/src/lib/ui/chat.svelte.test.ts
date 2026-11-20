@@ -2,7 +2,7 @@
 import type { ComponentInternals } from "svelte";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type ChatBroadcastFrame, SIGNAL_TYPE } from "#lib/wire.ts";
+import { type ChatBroadcastFrame, LINE_MAX_CHARACTERS, SIGNAL_TYPE } from "#lib/wire.ts";
 
 const signaling = vi.hoisted(() => ({
     isConnected: vi.fn(),
@@ -158,6 +158,7 @@ describe("sending", () => {
     it.each([
         ["empty", ""],
         ["blank", "   "],
+        ["too long", "x".repeat(LINE_MAX_CHARACTERS + 1)],
     ])("ignores an %s draft", async (_name, draft) => {
         const { chat, sendChatMessage } = await freshChat();
         chat.draft = draft;

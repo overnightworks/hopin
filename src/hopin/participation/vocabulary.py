@@ -5,7 +5,6 @@ FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
 FIGURE_MODULE = "figure"
 AGENT_NAME_MAX_CHARACTERS = 32
-AGENT_LINE_MAX_CHARACTERS = 600
 SENTENCES_WAITING_PER_AGENT = 10
 # How often the speech service is asked whether a voice is back while a window states its voice unavailable.
 VOICE_RECOVERY_SECONDS = 5

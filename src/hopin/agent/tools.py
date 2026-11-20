@@ -57,11 +57,11 @@ from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, Too
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voices
+from hopin.config.constants import LINE_LIMITS
 from hopin.participation.figures import Clip, Figure
 from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
 from hopin.participation.vocabulary import (
-    AGENT_LINE_MAX_CHARACTERS,
     AGENT_NAME_MAX_CHARACTERS,
     LOOKS_PER_WINDOW,
     AgentRefusal,
@@ -90,7 +90,7 @@ SAY: Final = "say"
 LOOK: Final = "look"
 
 # The longest sentence an agent speaks at once: the chat's line bound, since the sentence also stands there as a line.
-SPEAK_MAX_CHARACTERS: Final = AGENT_LINE_MAX_CHARACTERS
+SPEAK_MAX_CHARACTERS: Final = LINE_LIMITS.max_characters
 
 # The kind of a place a call is, which the runtime's runner maps to a call's id.
 CALL_KIND: Final = "call"
@@ -214,7 +214,7 @@ _SAY_DECLARATION: Final = ToolDeclaration(
     name=SAY,
     description=(
         "Write a line in the chat of the call you joined. Everyone in the call reads it under your name with an AI "
-        f"mark. A line holds 1 to {AGENT_LINE_MAX_CHARACTERS} characters with no line break. "
+        f"mark. A line holds 1 to {LINE_LIMITS.max_characters} characters with no line break. "
         "Only those in the call now read the line; agents joined in it can read it in their bounded "
         "windows until it is evicted or their place ends. A written line is read, not heard: it stands in the chat, "
         "where it can be read again and kept, so it suits links, lists and names."

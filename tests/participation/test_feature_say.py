@@ -3,8 +3,8 @@
 import pytest
 
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL, SAY
-from hopin.config.constants import SignalType
-from hopin.participation.vocabulary import AGENT_LINE_MAX_CHARACTERS, AgentRefusal, ParticipationSignal
+from hopin.config.constants import LINE_LIMITS, SignalType
+from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.support.dialed_call import join_arguments
 
 pytestmark = pytest.mark.integration
@@ -77,7 +77,7 @@ class TestAnAgentWritesALine:
         [
             pytest.param("", id="empty"),
             pytest.param("   ", id="blank"),
-            pytest.param("x" * (AGENT_LINE_MAX_CHARACTERS + 1), id="too long"),
+            pytest.param("x" * (LINE_LIMITS.max_characters + 1), id="too long"),
             pytest.param("two\nlines", id="line break"),
             pytest.param("bell\x07", id="control character"),
         ],
@@ -93,7 +93,7 @@ class TestAnAgentWritesALine:
     def test_a_line_of_the_longest_length_is_read(self, dialed_call, own_agent):
         token, seat, _ = own_agent
 
-        dialed = said(dialed_call, token, seat, "x" * AGENT_LINE_MAX_CHARACTERS)
+        dialed = said(dialed_call, token, seat, "x" * LINE_LIMITS.max_characters)
 
         assert dialed.outcome == {}
 

@@ -21,6 +21,7 @@ from hopin.config.constants import (  # noqa: E402
     AUTH_START_PATH,
     CALL_FEATURES_PATH,
     ICE_SERVERS_PATH,
+    LINE_LIMITS,
     LOGOUT_PATH,
     REPLAY_LOG_LIMIT,
     SESSION_ENDED_CLOSE_CODE,
@@ -103,6 +104,11 @@ def _signal_types(exported_name: str, members: frozenset[SignalType]) -> str:
         return f"{one_line}\n"
     wrapped = "".join(f"{INDENT}{name},\n" for name in names)
     return f"{declaration}\n{wrapped}];\n"
+
+
+def _characters(characters: frozenset[str]) -> str:
+    """A string of the characters in code point order, each as a `\\u` escape so that none is read as itself."""
+    return "".join(f"\\u{ord(character):04x}" for character in sorted(characters))
 
 
 def _generated_file(body: str) -> str:
@@ -287,6 +293,9 @@ def render_core() -> str:
         f'export const ACCOUNT_CONSOLE_PATH = "{ACCOUNT_CONSOLE_PATH}";\n'
         f'export const RETURN_TO_QUERY_PARAMETER = "{RETURN_TO_QUERY_PARAMETER}";\n'
         f"export const REPLAY_LOG_LIMIT = {REPLAY_LOG_LIMIT};\n"
+        f"export const LINE_MAX_CHARACTERS = {LINE_LIMITS.max_characters};\n"
+        f'export const LINE_TRIMMED_CHARACTERS =\n{INDENT}"{_characters(LINE_LIMITS.trimmed)}";\n'
+        f'export const LINE_REFUSED_CHARACTERS =\n{INDENT}"{_characters(LINE_LIMITS.refused)}";\n'
         + _signal_types("DESCRIPTION_TYPES", DESCRIPTION_TYPES)
         + _signal_types("SUPERSEDED_BY_A_DESCRIPTION", SUPERSEDED_BY_A_DESCRIPTION)
     )

@@ -5,8 +5,9 @@ import pytest
 from agents.turn import RejectionCode
 from playwright.sync_api import Page, Route, expect
 
+from hopin.config.constants import LINE_LIMITS
 from hopin.game.quiz import QUIZ_ROUNDS
-from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GAME_LINE_MAX_CHARACTERS, GamePhase, GameSignal
+from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GamePhase, GameSignal
 from hopin.words import text
 from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.game.game_page import (
@@ -743,7 +744,7 @@ def test_a_long_answer_is_cut_and_markup_shows_as_text(
     expect(line).to_contain_text(markup)
     expect(line.locator("b, img")).to_have_count(0)
     question = line.evaluate("(element) => element.lastChild.textContent")
-    assert len(question) == GAME_LINE_MAX_CHARACTERS
+    assert len(question) == LINE_LIMITS.max_characters
     assert question.endswith("…")
 
 
