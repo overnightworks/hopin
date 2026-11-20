@@ -126,7 +126,8 @@ wait_for "Postgres" docker exec "${container}" pg_isready --username postgres
 postgres_port=$(docker port "${container}" 5432/tcp | head -n 1 | sed 's/.*://')
 
 rm -f "${scratch}/hopin-people.json"
-start hopin env PYTHONPATH="${hopin}" "${hopin_python}" -m tests.e2e.support.drive_hopin "${scratch}" "${skat_origin}"
+stage_apps=$(SKAT_ORIGIN="${skat_origin}" python3 -c 'import json, os; print(json.dumps([{"name": "skat", "title": "Skat", "origin": os.environ["SKAT_ORIGIN"], "frame_path": "/t/{context}"}]))')
+start hopin env PYTHONPATH="${hopin}" HOPIN_STAGE_APPS="${stage_apps}" "${hopin_python}" -m tests.e2e.support.drive_hopin "${scratch}"
 wait_for "HopIn" test -s "${scratch}/hopin-people.json"
 hopin_origin=$("${hopin_python}" -c 'import json, sys; print(json.load(open(sys.argv[1]))["baseUrl"])' "${scratch}/hopin-people.json")
 

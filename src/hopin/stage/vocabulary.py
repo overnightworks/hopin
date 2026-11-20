@@ -2,12 +2,15 @@ import re
 from enum import StrEnum
 
 FEATURE_NAME = "stage"
-TABLE_PATH_PREFIX = "/t/"
-TABLE_PATH_PATTERN = re.compile(re.escape(TABLE_PATH_PREFIX) + "[0-9a-f]{32}")
+APP_NAME_PATTERN = re.compile(r"[a-z][a-z0-9-]{0,31}")
+# The key of a table in an app: opaque to HopIn, which keeps one bound for every app; the app answers an unknown one.
+CONTEXT_KEY_PATTERN = r"[A-Za-z0-9_-]{1,64}"
+CONTEXT_PLACEHOLDER = "{context}"
 CALL_MODE_QUERY = "mode=call"
 
 
 class StageSignal(StrEnum):
+    STAGE_APPS = "stage_apps"
     STAGE_ATTACH = "stage_attach"
     STAGE_DETACH = "stage_detach"
     STAGE_TABLE = "stage_table"

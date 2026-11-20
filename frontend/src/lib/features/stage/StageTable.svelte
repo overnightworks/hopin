@@ -3,7 +3,7 @@
     import { greetingFor } from "./messages.ts";
     import type { Table } from "./table.svelte.ts";
 
-    let { src, table }: { src: string; table: Table } = $props();
+    let { src, table, title }: { src: string; table: Table; title: string } = $props();
 
     let frame = $state<HTMLIFrameElement>();
     const frameOrigin = $derived(new URL(src).origin);
@@ -28,7 +28,7 @@
     <iframe
         bind:this={frame}
         class="stage-frame"
-        title={words["skat.frameTitle"]}
+        title={words["stage.frameTitle"]({ title })}
         {src}
         sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         allow=""
@@ -40,7 +40,7 @@
             type="button"
             onclick={() => {
                 table.remove();
-            }}>{words["skat.removeButton"]}</button
+            }}>{words["stage.removeButton"]}</button
         >
     {/if}
 </div>

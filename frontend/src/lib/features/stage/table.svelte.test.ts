@@ -13,11 +13,20 @@ function stateOf(
     openerId: string | null = SOMEONE,
 ): StageFrameByType[STAGE_SIGNAL.STAGE_TABLE] {
     if (attachment === null)
-        return { type: STAGE_SIGNAL.STAGE_TABLE, revision, attachment, table: null, src: null, opener_id: null };
+        return {
+            type: STAGE_SIGNAL.STAGE_TABLE,
+            revision,
+            attachment,
+            app: null,
+            table: null,
+            src: null,
+            opener_id: null,
+        };
     return {
         type: STAGE_SIGNAL.STAGE_TABLE,
         revision,
         attachment,
+        app: "skat",
         table: TABLE,
         src: `https://skat.example/t/${String(attachment)}?mode=call`,
         opener_id: openerId,

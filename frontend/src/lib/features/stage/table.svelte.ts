@@ -18,6 +18,7 @@ export class Table {
     #openerId = $state<string | null>(null);
     #attachment = $state<number | null>(null);
     #tableId = $state<string | null>(null);
+    #app = $state<string | null>(null);
 
     constructor(stage: TableStage, send: (frame: OutgoingFrame) => void) {
         this.#stage = stage;
@@ -34,6 +35,11 @@ export class Table {
         return this.#attachment === null ? null : { attachment: this.#attachment, table: this.#tableId as string };
     }
 
+    /** The name of the app whose table is attached now, or null while none is. */
+    get app() {
+        return this.#app;
+    }
+
     seated(seatId: string, isHost: boolean) {
         this.#seatId = seatId;
         this.#isHost = isHost;
@@ -47,11 +53,13 @@ export class Table {
             if (this.#attachment !== null) this.#stage.hide();
             this.#attachment = null;
             this.#tableId = null;
+            this.#app = null;
             return;
         }
         if (frame.attachment === this.#attachment) return;
         this.#attachment = frame.attachment;
         this.#tableId = frame.table;
+        this.#app = frame.app;
         this.#stage.show(frame.src, this);
     }
 
@@ -63,6 +71,7 @@ export class Table {
         if (this.#attachment !== null) this.#stage.hide();
         this.#attachment = null;
         this.#tableId = null;
+        this.#app = null;
         this.#openerId = null;
         this.#highestRevision = -1;
     }

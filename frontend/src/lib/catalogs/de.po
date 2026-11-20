@@ -635,39 +635,39 @@ msgctxt "game.endedByLeaverToast"
 msgid "Quiz beendet: {leaver} ist gegangen."
 msgstr ""
 
-msgctxt "skat.menuTitle"
-msgid "Skat-Tisch zeigen"
+msgctxt "stage.menuTitle"
+msgid "{title} zeigen"
 msgstr ""
 
-msgctxt "skat.menuHint"
+msgctxt "stage.menuHint"
 msgid "Link eines Tisches einfügen"
 msgstr ""
 
-msgctxt "skat.linkLabel"
-msgid "Link des Skat-Tisches"
+msgctxt "stage.linkLabel"
+msgid "Link zu {title}"
 msgstr ""
 
-msgctxt "skat.showButton"
+msgctxt "stage.showButton"
 msgid "Zeigen"
 msgstr ""
 
-msgctxt "skat.badLinkToast"
-msgid "Das ist kein Link zu einem Skat-Tisch."
+msgctxt "stage.badLinkToast"
+msgid "Das ist kein Link zu {title}."
 msgstr ""
 
-msgctxt "skat.busyToast"
-msgid "Auf der Bühne steht schon ein Skat-Tisch."
+msgctxt "stage.busyToast"
+msgid "Auf der Bühne steht schon {title}."
 msgstr ""
 
-msgctxt "skat.notRemovedToast"
+msgctxt "stage.notRemovedToast"
 msgid "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen."
 msgstr ""
 
-msgctxt "skat.frameTitle"
-msgid "Skat-Tisch"
+msgctxt "stage.frameTitle"
+msgid "{title}"
 msgstr ""
 
-msgctxt "skat.removeButton"
+msgctxt "stage.removeButton"
 msgid "Tisch entfernen"
 msgstr ""
 

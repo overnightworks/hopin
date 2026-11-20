@@ -3,8 +3,23 @@
 from dataclasses import dataclass
 from typing import ClassVar, get_args
 
-from hopin.signaling.frames import WireFrame
+from hopin.signaling.frames import WireFrame, WireRecord
 from hopin.stage.vocabulary import StageRefusal, StageSignal
+
+
+@dataclass(frozen=True)
+class AppEntry(WireRecord):
+    """An app a seat may show a table of: the name the frames carry and the title the page shows."""
+
+    name: str
+    title: str
+
+
+@dataclass(frozen=True)
+class AppsFrame(WireFrame):
+    TYPE: ClassVar[StageSignal] = StageSignal.STAGE_APPS
+
+    apps: list[AppEntry]
 
 
 @dataclass(frozen=True)
@@ -13,6 +28,7 @@ class AttachedTableFrame(WireFrame):
 
     revision: int
     attachment: int
+    app: str
     table: str
     src: str
     opener_id: str | None
@@ -24,6 +40,7 @@ class EmptyTableFrame(WireFrame):
 
     revision: int
     attachment: None
+    app: None
     table: None
     src: None
     opener_id: None
@@ -36,7 +53,7 @@ class RefusedFrame(WireFrame):
     reason: StageRefusal
 
 
-type StageFrame = AttachedTableFrame | EmptyTableFrame | RefusedFrame
+type StageFrame = AppsFrame | AttachedTableFrame | EmptyTableFrame | RefusedFrame
 
 # The frames the generator renders into the stage's own browser wire, in the order they appear there.
 BROWSER_FRAMES = get_args(StageFrame.__value__)

@@ -14,7 +14,14 @@ vi.hoisted(() => {
     globalThis.AudioContext = function AudioContextStub() {} as unknown as typeof AudioContext;
 });
 
-async function installedSkat() {
+const APPS = {
+    apps: [
+        { name: "skat", title: "Skat" },
+        { name: "chess", title: "Schach" },
+    ],
+};
+
+async function installedStage() {
     const handlers = new Map<string, (frame: never) => void>();
     const sent: unknown[] = [];
     const toasts: string[] = [];
@@ -52,14 +59,16 @@ async function installedSkat() {
         if (handler === undefined) throw new Error(`no handler for ${type}`);
         (handler as (frame: object) => void)(frame);
     };
+    emit(STAGE_SIGNAL.STAGE_APPS, APPS);
     const query = (selector: string) => {
         const found = item.querySelector(selector);
         if (found === null) throw new Error(`no ${selector}`);
         return found;
     };
-    const button = () => query("#stageShowBtn") as HTMLButtonElement;
-    const form = () => query("#stageForm") as HTMLFormElement;
-    const input = () => query("#stageLink") as HTMLInputElement;
+    let app = "skat";
+    const button = () => query(`#stageShowBtn-${app}`) as HTMLButtonElement;
+    const form = () => query(`#stageForm-${app}`) as HTMLFormElement;
+    const input = () => query(`#stageLink-${app}`) as HTMLInputElement;
     return {
         item,
         sent,
@@ -75,6 +84,9 @@ async function installedSkat() {
                 hook();
             });
         },
+        use: (name: string) => {
+            app = name;
+        },
         paste: (link: string) => {
             button().click();
             input().value = ` ${link} `;
@@ -86,15 +98,35 @@ async function installedSkat() {
 const SHOWN = {
     revision: 2,
     attachment: 2,
+    app: "skat",
     table: "a".repeat(32),
     src: "https://skat.example/t/a?mode=call",
     opener_id: "me",
 };
-const NONE = { revision: 3, attachment: null, table: null, src: null, opener_id: null };
+const NONE = { revision: 3, attachment: null, app: null, table: null, src: null, opener_id: null };
 
-describe("the Skat entry in More", () => {
+describe("the entries in More", () => {
+    it("offers one entry per registered app, named by its title", async () => {
+        const page = await installedStage();
+
+        const labels = [...page.item.querySelectorAll("button.mi .grow")].map((label) => label.firstChild?.textContent);
+
+        expect(labels).toEqual([
+            words["stage.menuTitle"]({ title: "Skat" }),
+            words["stage.menuTitle"]({ title: "Schach" }),
+        ]);
+    });
+
+    it("takes a title for text, never for markup", async () => {
+        const page = await installedStage();
+
+        page.emit(STAGE_SIGNAL.STAGE_APPS, { apps: [{ name: "odd", title: "<img src=x>" }] });
+
+        expect(page.item.querySelector("img")).toBeNull();
+    });
+
     it("opens a link field on a tap, and a second tap closes it", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
         page.button().click();
         const opened = [page.form().hidden, page.button().getAttribute("aria-expanded")];
         page.button().click();
@@ -103,7 +135,7 @@ describe("the Skat entry in More", () => {
     });
 
     it("sends the pasted link without its blanks and closes the field", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
 
         page.paste("https://skat.example/t/a");
 
@@ -114,7 +146,7 @@ describe("the Skat entry in More", () => {
     });
 
     it("is hidden while a table is shown and comes back when it is removed", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
 
         page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
         const whileShown = page.item.hidden;
@@ -124,9 +156,40 @@ describe("the Skat entry in More", () => {
     });
 });
 
+describe("an open link field", () => {
+    const closedAndEmpty = (page: Awaited<ReturnType<typeof installedStage>>) => [
+        page.form().hidden,
+        page.button().getAttribute("aria-expanded"),
+        page.input().value,
+    ];
+    const openWithText = (page: Awaited<ReturnType<typeof installedStage>>) => {
+        page.button().click();
+        page.input().value = "https://skat.example/t/a";
+    };
+
+    it("is closed and emptied when a table is shown by another seat", async () => {
+        const page = await installedStage();
+        openWithText(page);
+
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, NONE);
+
+        expect(closedAndEmpty(page)).toEqual([true, "false", ""]);
+    });
+
+    it("is closed and emptied when the call ends", async () => {
+        const page = await installedStage();
+        openWithText(page);
+
+        page.endCall();
+
+        expect(closedAndEmpty(page)).toEqual([true, "false", ""]);
+    });
+});
+
 describe("the stage", () => {
     it("shows a view for a table and takes it away when the table goes", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
         page.emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: "me", is_host: false });
 
         page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
@@ -136,7 +199,7 @@ describe("the stage", () => {
     });
 
     it("frames the table in the agreed sandbox and sends its removal from the opener's button", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
         page.emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: "me", is_host: false });
         page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
         const [view] = page.stage;
@@ -147,17 +210,23 @@ describe("the stage", () => {
         target.querySelector("button")?.click();
         void unmount(mounted);
 
-        expect([frame?.getAttribute("sandbox"), frame?.getAttribute("allow"), frame?.getAttribute("src")]).toEqual([
+        expect([
+            frame?.getAttribute("sandbox"),
+            frame?.getAttribute("allow"),
+            frame?.getAttribute("src"),
+            frame?.getAttribute("title"),
+        ]).toEqual([
             "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox",
             "",
             SHOWN.src,
+            words["stage.frameTitle"]({ title: "Skat" }),
         ]);
         expect(frame?.getAttribute("referrerpolicy")).toBe("no-referrer");
         expect(page.sent).toEqual([{ type: STAGE_SIGNAL.STAGE_DETACH, attachment: 2 }]);
     });
 
     it("offers no removal to a seat that may not remove the table", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
         page.emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: "me", is_host: false });
         page.emit(STAGE_SIGNAL.STAGE_TABLE, { ...SHOWN, opener_id: "someone" });
         const [view] = page.stage;
@@ -171,7 +240,7 @@ describe("the stage", () => {
     });
 
     it("is cleared when the call ends", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
         page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "me", is_host: true });
         page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
 
@@ -183,20 +252,44 @@ describe("the stage", () => {
 });
 
 describe("a refusal", () => {
-    it.each([
-        [STAGE_REFUSAL.BAD_LINK, words["skat.badLinkToast"]],
-        [STAGE_REFUSAL.BUSY, words["skat.busyToast"]],
-        [STAGE_REFUSAL.NOT_OPENER_OR_HOST, words["skat.notRemovedToast"]],
-    ])("%s is told to the person", async (reason, text) => {
-        const page = await installedSkat();
+    it("of a link is told with the title of the app whose field it was pasted into", async () => {
+        const page = await installedStage();
+        page.use("chess");
+        page.paste("https://skat.example/t/a");
 
-        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason });
+        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: STAGE_REFUSAL.BAD_LINK });
 
-        expect(page.toasts).toEqual([text]);
+        expect(page.toasts).toEqual([words["stage.badLinkToast"]({ title: "Schach" })]);
+    });
+
+    it("of a second table is told with the title of the app on the stage", async () => {
+        const page = await installedStage();
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
+
+        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: STAGE_REFUSAL.BUSY });
+
+        expect(page.toasts).toEqual([words["stage.busyToast"]({ title: "Skat" })]);
+    });
+
+    it("of a second table names an app the page was not told of by its name", async () => {
+        const page = await installedStage();
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, { ...SHOWN, app: "other" });
+
+        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: STAGE_REFUSAL.BUSY });
+
+        expect(page.toasts).toEqual([words["stage.busyToast"]({ title: "other" })]);
+    });
+
+    it("of a removal by a seat that may not is told", async () => {
+        const page = await installedStage();
+
+        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: STAGE_REFUSAL.NOT_OPENER_OR_HOST });
+
+        expect(page.toasts).toEqual([words["stage.notRemovedToast"]]);
     });
 
     it("of a kind this page does not know is not toasted", async () => {
-        const page = await installedSkat();
+        const page = await installedStage();
 
         page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: "something_new" });
 

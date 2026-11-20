@@ -9,10 +9,11 @@ if TYPE_CHECKING:
 
 
 def test_an_empty_table_sends_its_absent_fields_as_explicit_null() -> None:
-    assert EmptyTableFrame(4, None, None, None, None).to_json() == {
+    assert EmptyTableFrame(4, None, None, None, None, None).to_json() == {
         "type": StageSignal.STAGE_TABLE.value,
         "revision": 4,
         "attachment": None,
+        "app": None,
         "table": None,
         "src": None,
         "opener_id": None,

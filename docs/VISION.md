@@ -8,6 +8,8 @@ A call should feel like sitting at one table: everyone sees and hears everyone, 
 
 What is said and shown belongs to the people in the call. Nobody outside it can watch or listen.
 
+HopIn is the room that other apps integrate into: an app that wants its people face to face shows its table on a call's stage and does not build a call of its own.
+
 ## Who uses it today
 
 The operator and the people he admits. HopIn is made for the friends he invites, who join under terms they accept.
