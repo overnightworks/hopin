@@ -385,7 +385,7 @@ describe("files", () => {
         chat.downloadFile(file);
 
         expect(chat.fileNote(file)).toBeNull();
-        expect(file).toMatchObject({ state: "done", url: "blob:paper", picture: false });
+        expect(file).toMatchObject({ state: "done", url: "blob:paper", display: null });
         expect(clicked).toEqual([["blob:paper", "paper.pdf"]]);
     });
 

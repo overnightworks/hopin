@@ -294,6 +294,14 @@ textarea {
     border-radius: 4px;
     margin-bottom: 0.25rem;
 }
+.chat-msg .chat-audio,
+.chat-msg .chat-video {
+    display: block;
+    width: 100%;
+    max-height: 16rem;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+}
 .chat-msg .chat-file-name {
     overflow-wrap: anywhere;
 }

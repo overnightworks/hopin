@@ -208,6 +208,11 @@ export function loadFile(key: string) {
     files.fetch(key);
 }
 
+/** The browser could not decode the song or video the chat plays: offer it as a download. */
+export function mediaUndecodable(file: FileView) {
+    files.undecodable(file.key);
+}
+
 /** Save a received file under its name: the browser offers the download of the blob and never opens it. */
 export function downloadFile(file: FileView) {
     if (file.url === null) return;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DOWNLOAD_TYPE, PICTURE_TYPE } from "#lib/call/file.ts";
+import { DOWNLOAD_TYPE, FILE_DISPLAY, MEDIA_TYPE, PICTURE_TYPE } from "#lib/call/file.ts";
 import {
     createFiles,
     FILE_PROBLEM,
@@ -101,7 +101,7 @@ class FakeTransport {
     }
 }
 
-function exchange(options: { delivery?: Delivery } = {}) {
+function exchange(options: { delivery?: Delivery; canPlay?: (type: string) => boolean } = {}) {
     const views = new Map<string, FileView>();
     const urls = new Map<string, Blob>();
     const revoked: string[] = [];
@@ -122,6 +122,7 @@ function exchange(options: { delivery?: Delivery } = {}) {
             return url;
         },
         revokeUrl: (url) => void revoked.push(url),
+        canPlay: options.canPlay ?? (() => true),
     });
     files.listen({
         shown: (view) => void views.set(view.key, view),
@@ -196,7 +197,7 @@ describe("a small picture announced", () => {
         expect(channel.binaryType).toBe("arraybuffer");
         for (const chunk of chunksOf(content)) channel.deliver(chunk);
 
-        expect(view("p1:4")).toMatchObject({ state: FILE_STATE.DONE, picture: true });
+        expect(view("p1:4")).toMatchObject({ state: FILE_STATE.DONE, display: FILE_DISPLAY.PICTURE });
         expect(blobOf("p1:4").type).toBe(PICTURE_TYPE.PNG);
         expect(new Uint8Array(await blobOf("p1:4").arrayBuffer())).toEqual(content);
         expect(acknowledged).toEqual([["p1", 4]]);
@@ -210,7 +211,7 @@ describe("a small picture announced", () => {
         files.announced("p1", 1, { name: "logo.png", size: svg.length, mime: "image/png" });
         (transport.opened[0] as FakeChannel).deliver(buffer(svg));
 
-        expect(view("p1:1")).toMatchObject({ state: FILE_STATE.DONE, picture: false });
+        expect(view("p1:1")).toMatchObject({ state: FILE_STATE.DONE, display: null });
         expect(blobOf("p1:1").type).toBe(DOWNLOAD_TYPE);
     });
 
@@ -222,7 +223,7 @@ describe("a small picture announced", () => {
         const [channel] = transport.opened as [FakeChannel];
         for (let offset = 0; offset < 30; offset += 3) channel.deliver(buffer(content.subarray(offset, offset + 3)));
 
-        expect(view("p1:1").picture).toBe(true);
+        expect(view("p1:1").display).toBe(FILE_DISPLAY.PICTURE);
         expect(blobOf("p1:1").type).toBe(PICTURE_TYPE.PNG);
     });
 
@@ -237,6 +238,111 @@ describe("a small picture announced", () => {
     });
 });
 
+describe("a song or video", () => {
+    const MP4_HEAD = [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d];
+    const CLIP: FileAnnouncement = { name: "clip.mp4", size: 100, mime: "video/mp4" };
+
+    function received(options: { canPlay?: (type: string) => boolean } = {}, announcement = CLIP, head = MP4_HEAD) {
+        const side = exchange(options);
+        side.files.announced("p1", 1, announcement);
+        side.files.fetch("p1:1");
+        (side.transport.opened[0] as FakeChannel).deliver(buffer(bytes(announcement.size, head)));
+        return side;
+    }
+
+    it("waits for a tap, though it is small", () => {
+        const { files, view, transport } = exchange();
+
+        files.announced("p1", 1, CLIP);
+
+        expect(transport.opened).toEqual([]);
+        expect(view("p1:1").state).toBe(FILE_STATE.OFFERED);
+    });
+
+    it("is shown in a blob of the type its bytes show once the browser can decode it, whatever its sender calls it", () => {
+        const { view, blobOf } = received({}, { ...CLIP, mime: "text/html" });
+
+        expect(view("p1:1")).toMatchObject({ state: FILE_STATE.DONE, display: FILE_DISPLAY.VIDEO });
+        expect(blobOf("p1:1").type).toBe(MEDIA_TYPE.MP4);
+    });
+
+    it("is offered as a download of opaque bytes when the browser cannot decode its type", () => {
+        const decoded: string[] = [];
+        const { view, blobOf } = received({
+            canPlay: (type) => {
+                decoded.push(type);
+                return false;
+            },
+        });
+
+        expect(decoded).toEqual([MEDIA_TYPE.MP4]);
+        expect(view("p1:1")).toMatchObject({ state: FILE_STATE.DONE, display: null });
+        expect(blobOf("p1:1").type).toBe(DOWNLOAD_TYPE);
+    });
+
+    it("is offered as a download of opaque bytes when its first bytes fail the container check, whatever its sender calls it", () => {
+        const { view, blobOf } = received({}, CLIP, [0x25, 0x50, 0x44, 0x46]);
+
+        expect(view("p1:1")).toMatchObject({ display: null });
+        expect(blobOf("p1:1").type).toBe(DOWNLOAD_TYPE);
+    });
+
+    it("is offered as a download of opaque bytes once the element fails to decode it, and the player's URL is released", async () => {
+        const { files, view, blobOf, revoked, urls } = received();
+        const playerUrl = view("p1:1").url;
+
+        files.undecodable("p1:1");
+
+        expect(view("p1:1")).toMatchObject({ display: null });
+        expect(view("p1:1").url).not.toBe(playerUrl);
+        expect(revoked).toEqual([playerUrl]);
+        expect(blobOf("p1:1").type).toBe(DOWNLOAD_TYPE);
+        expect(new Uint8Array(await blobOf("p1:1").arrayBuffer())).toEqual(bytes(CLIP.size, MP4_HEAD));
+        expect(urls.size).toBe(2);
+    });
+
+    it("keeps a picture a picture when its element reports an error, as only a song or video falls back", () => {
+        const { files, view } = received({}, PICTURE, PNG_HEAD);
+
+        files.undecodable("p1:1");
+
+        expect(view("p1:1").display).toBe(FILE_DISPLAY.PICTURE);
+    });
+
+    it("has every blob URL released with the call, the one made after a failure included", () => {
+        const { files, view, revoked } = received();
+        files.undecodable("p1:1");
+        const urlsHeld = [view("p1:1").url];
+
+        files.release();
+
+        expect(revoked.slice(1)).toEqual(urlsHeld);
+        expect(view("p1:1").url).toBeNull();
+    });
+
+    it("is shown to its sender once its bytes pass the check and the browser can decode them, in a blob of the type its bytes show", async () => {
+        const { files, view, blobOf } = exchange();
+
+        files.post(new File([buffer(bytes(100, MP4_HEAD))], "clip.mp4", { type: "application/octet-stream" }));
+
+        await vi.waitFor(() => {
+            expect(view("own:1").display).toBe(FILE_DISPLAY.VIDEO);
+        });
+        expect(blobOf("own:1").type).toBe(MEDIA_TYPE.MP4);
+    });
+
+    it("is not shown to its sender when the browser cannot decode its type", async () => {
+        const { files, view } = exchange({ canPlay: () => false });
+        const clip = new File([buffer(bytes(100, MP4_HEAD))], "clip.mp4", { type: "video/mp4" });
+        const reads = watchReads(clip);
+
+        files.post(clip);
+        await reads.read(1);
+
+        expect(view("own:1")).toMatchObject({ display: null, url: null });
+    });
+});
+
 describe("a file that waits for a tap", () => {
     it("is fetched on the tap and offered only as a download of opaque bytes whatever its sender calls it", async () => {
         const { files, view, blobOf, acknowledged, transport } = exchange();
@@ -247,7 +353,7 @@ describe("a file that waits for a tap", () => {
         files.fetch("p1:2");
         (transport.opened[0] as FakeChannel).deliver(buffer(content));
 
-        expect(view("p1:2")).toMatchObject({ state: FILE_STATE.DONE, picture: false });
+        expect(view("p1:2")).toMatchObject({ state: FILE_STATE.DONE, display: null });
         expect(blobOf("p1:2").type).toBe(DOWNLOAD_TYPE);
         expect(new Uint8Array(await blobOf("p1:2").arrayBuffer())).toEqual(content);
         expect(acknowledged).toEqual([["p1", 2]]);
@@ -475,7 +581,7 @@ describe("a file posted", () => {
         expect(announcements).toEqual([{ name: "..holiday.png", size: 200, mime: "image/png" }]);
         expect(view("own:1")).toMatchObject({ own: true, state: FILE_STATE.DONE, delivery: DELIVERY.PENDING });
         await vi.waitFor(() => {
-            expect(view("own:1").picture).toBe(true);
+            expect(view("own:1").display).toBe(FILE_DISPLAY.PICTURE);
         });
         expect(blobOf("own:1").type).toBe(PICTURE_TYPE.PNG);
     });
@@ -488,7 +594,7 @@ describe("a file posted", () => {
         files.post(svg);
         await reads.read(1);
 
-        expect(view("own:1")).toMatchObject({ picture: false, url: null });
+        expect(view("own:1")).toMatchObject({ display: null, url: null });
         expect(urls.size).toBe(0);
     });
 
@@ -697,7 +803,7 @@ describe("a file between two pages", () => {
         });
 
         expect(new Uint8Array(await receiverSide.blobOf("p1:1").arrayBuffer())).toEqual(content);
-        expect(receiverSide.view("p1:1").picture).toBe(true);
+        expect(receiverSide.view("p1:1").display).toBe(FILE_DISPLAY.PICTURE);
         expect(receiverSide.acknowledged).toEqual([["p1", 1]]);
         expect(fetching.readyState).toBe("closed");
     });
