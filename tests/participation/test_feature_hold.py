@@ -16,6 +16,7 @@ from hopin.participation.vocabulary import (
     SpeakStop,
     VoiceFailure,
 )
+from hopin.signaling.transition import InMemoryCallStore
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     CONTINUED,
@@ -77,6 +78,23 @@ def standing(participation, room_id, person=GUEST):
 
 
 class TestAPersonStartsSpeaking:
+    async def test_call_69_a_person_starting_to_speak_where_no_sentence_plays_commits_no_transition(
+        self, participation, call, monkeypatch
+    ):
+        host, guest, *_ = call
+        committed = []
+        commit = InMemoryCallStore.commit
+
+        def noting(store, view, change):
+            committed.append(change)
+            return commit(store, view, change)
+
+        monkeypatch.setattr(InMemoryCallStore, "commit", noting)
+
+        await participation.person_started(room_of(host), guest.peer_id)
+
+        assert (committed, holds(host)) == ([], [])
+
     async def test_call_69_the_playing_sentence_is_held_and_the_window_shows_the_hold_and_playing_false_in_one_change(
         self, participation, call, window_changes
     ):
