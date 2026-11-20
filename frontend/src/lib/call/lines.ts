@@ -6,7 +6,9 @@
 // undelivered for that person. Every recipient is paced on its own, so a line never goes faster than the limits'
 // budget, queued ones included. A person's receiver counts a line when it arrives, which may be much later than the
 // line left, so the sender counts a line against the budget until its receipt is in and refills only from the receipt
-// on: lines that were held up on the path and arrive together still find the receiver's budget.
+// on: lines that were held up on the path and arrive together still find the receiver's budget. A file is announced
+// on the same channel, queued, paced and counted like a line; the files exchange fetches its bytes elsewhere and
+// answers the announcement with its receipt when it is done with it.
 
 import { cleanLine, LineBudget } from "#lib/call/line.ts";
 import { isLive } from "#lib/call/signaling.ts";
@@ -26,6 +28,7 @@ export const LINE_CHANNEL_LABEL = "line";
 
 const MESSAGE = {
     LINE: "line",
+    FILE: "file",
     RECEIPT: "receipt",
 } as const;
 
@@ -53,18 +56,30 @@ export interface AgentLink {
     send: (text: string) => void;
 }
 
+/** What a sender says of a file it posts; the type is the sender's word, only the file's bytes decide. */
+export interface FileAnnouncement {
+    name: string;
+    size: number;
+    mime: string;
+}
+
 export interface LineEvents {
     /** A line from the person whose channel carried it, once it passed the limits. */
     received: (sender: string, text: string) => void;
+    /** A file announced by the person whose channel carried it, once the announcement passed the budget and has the shape; the listener answers it with `acknowledge`. */
+    announced: (sender: string, id: number, announcement: FileAnnouncement) => void;
     /** The delivery of the line sent as `id` changed; `missing` names those it did not reach. */
     delivery: (id: number, delivery: Delivery, missing: readonly string[]) => void;
 }
 
-export interface SentLine {
+export interface Posted {
     id: number;
-    text: string;
     delivery: Delivery;
     missing: readonly string[];
+}
+
+export interface SentLine extends Posted {
+    text: string;
 }
 
 export interface LineClock {
@@ -76,7 +91,8 @@ export interface LineClock {
 
 interface Queued {
     id: number;
-    text: string;
+    /** What goes over the channel with the id. */
+    message: Record<string, unknown>;
 }
 
 interface Peer {
@@ -109,7 +125,7 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
     let agentQueue: string[] = [];
     let agentTimer: ReturnType<typeof setTimeout> | null = null;
     let agents: AgentLink | null = null;
-    let events: LineEvents = { received: () => {}, delivery: () => {} };
+    let events: LineEvents = { received: () => {}, announced: () => {}, delivery: () => {} };
     let lastId = 0;
 
     function deliveryOf(line: Pending): Delivery {
@@ -147,9 +163,9 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
                 if (peer.unreceipted.size < LINE_BURST) pace(peer);
                 return;
             }
-            const { id, text } = peer.queue.shift() as Queued;
+            const { id, message } = peer.queue.shift() as Queued;
             peer.unreceipted.add(id);
-            peer.channel.send(JSON.stringify({ type: MESSAGE.LINE, id, text }));
+            peer.channel.send(JSON.stringify({ ...message, id }));
         }
     }
 
@@ -177,6 +193,14 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
     }
 
+    function receiveFile(participantId: string, peer: Peer, message: Record<string, unknown>) {
+        if (!peer.received.spend()) return;
+        const { id, name, size, mime } = message;
+        if (!Number.isSafeInteger(id) || typeof name !== "string" || typeof mime !== "string") return;
+        if (!Number.isSafeInteger(size)) return;
+        events.announced(participantId, id as number, { name, size: size as number, mime });
+    }
+
     function receiveReceipt(participantId: string, peer: Peer, message: Record<string, unknown>) {
         const id = message.id as number;
         if (!peer.unreceipted.delete(id)) return;
@@ -196,7 +220,26 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         }
         if (!isRecord(message)) return;
         if (message.type === MESSAGE.LINE) receiveLine(participantId, peer, message);
+        else if (message.type === MESSAGE.FILE) receiveFile(participantId, peer, message);
         else if (message.type === MESSAGE.RECEIPT) receiveReceipt(participantId, peer, message);
+    }
+
+    function post(message: Record<string, unknown>): Posted {
+        lastId += 1;
+        const sent: Pending = { id: lastId, waiting: new Set(), names: new Map(), missing: [] };
+        for (const [participantId, peer] of peers) {
+            const name = nameOf(participantId);
+            sent.names.set(participantId, name);
+            if (peer.closed) {
+                sent.missing.push(name);
+                continue;
+            }
+            sent.waiting.add(participantId);
+            peer.queue.push({ id: sent.id, message });
+        }
+        if (sent.waiting.size > 0) pending.set(sent.id, sent);
+        for (const peer of peers.values()) drain(peer);
+        return { id: sent.id, delivery: deliveryOf(sent), missing: [...sent.missing] };
     }
 
     function stop(peer: Peer) {
@@ -269,25 +312,24 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         send(text: string): SentLine | null {
             const line = cleanLine(text);
             if (line === null) return null;
-            lastId += 1;
-            const sent: Pending = { id: lastId, waiting: new Set(), names: new Map(), missing: [] };
-            for (const [participantId, peer] of peers) {
-                const name = nameOf(participantId);
-                sent.names.set(participantId, name);
-                if (peer.closed) {
-                    sent.missing.push(name);
-                    continue;
-                }
-                sent.waiting.add(participantId);
-                peer.queue.push({ id: sent.id, text: line });
-            }
-            if (sent.waiting.size > 0) pending.set(sent.id, sent);
-            for (const peer of peers.values()) drain(peer);
+            const posted = post({ type: MESSAGE.LINE, text: line });
             if (agents !== null) {
                 agentQueue.push(line);
                 drainAgents();
             }
-            return { id: sent.id, text: line, delivery: deliveryOf(sent), missing: [...sent.missing] };
+            return { ...posted, text: line };
+        },
+
+        /** Announce a file to everyone the page shows, never to an agent. */
+        announce({ name, size, mime }: FileAnnouncement): Posted {
+            return post({ type: MESSAGE.FILE, name, size, mime });
+        },
+
+        /** Answer the announcement `id` of the person with a receipt: the listener is done with it. */
+        acknowledge(participantId: string, id: number) {
+            const peer = peers.get(participantId);
+            if (peer === undefined || peer.closed || peer.channel.readyState !== CHANNEL_OPEN) return;
+            peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
         },
     };
 }

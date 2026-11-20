@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type Delivery, type LineChannel, createLines } from "#lib/call/lines.ts";
+import { type Delivery, type FileAnnouncement, type LineChannel, createLines } from "#lib/call/lines.ts";
 import { LINE_BURST, LINE_MAX_CHARACTERS } from "#lib/wire.ts";
 
 const SMILEY = "\u{1F600}";
@@ -55,11 +55,13 @@ function exchangeWithListener(names: Record<string, string> = NAMES) {
     const lines = createLines({ now: () => Date.now(), isLive: () => session.live, nameOf: (id) => names[id] ?? "" });
     const received: [string, string][] = [];
     const deliveries: [number, Delivery, readonly string[]][] = [];
+    const announced: [string, number, FileAnnouncement][] = [];
     lines.listen({
         received: (sender, text) => void received.push([sender, text]),
+        announced: (sender, id, announcement) => void announced.push([sender, id, announcement]),
         delivery: (id, delivery, missing) => void deliveries.push([id, delivery, missing]),
     });
-    return { lines, received, deliveries, session };
+    return { lines, received, announced, deliveries, session };
 }
 
 // What each line shows now: the last delivery reported for it.
@@ -423,6 +425,117 @@ describe("a line that arrives", () => {
         channel.deliver(lineMessage(1, "late"));
 
         expect(received).toEqual([]);
+    });
+});
+
+const PICTURE = { name: "holiday.png", size: 2048, mime: "image/png" };
+
+function fileMessage(id: number, announcement: Record<string, unknown> = PICTURE) {
+    return JSON.stringify({ type: "file", id, ...announcement });
+}
+
+describe("a file announced", () => {
+    it("goes to each person over the channel like a line and is delivered once every receipt is in", () => {
+        const { lines, deliveries } = exchangeWithListener();
+        const first = new FakeChannel();
+        const second = new FakeChannel();
+        lines.addPeer("p1", first);
+        lines.addPeer("p2", second);
+
+        const posted = lines.announce(PICTURE);
+        first.deliver(receiptFor(posted.id));
+        second.deliver(receiptFor(posted.id));
+
+        expect(posted.delivery).toBe("pending");
+        expect(first.sent).toEqual([{ type: "file", id: posted.id, ...PICTURE }]);
+        expect(second.sent).toEqual(first.sent);
+        expect(shown(deliveries)).toEqual({ [posted.id]: ["delivered", []] });
+    });
+
+    it("waits in the queue of a person whose channel is connecting, and is undelivered for a person who leaves", () => {
+        const { lines, deliveries } = exchangeWithListener();
+        const connecting = new FakeChannel("connecting");
+        lines.addPeer("p1", connecting);
+
+        const posted = lines.announce(PICTURE);
+        expect(connecting.sent).toEqual([]);
+        connecting.open();
+        expect(connecting.sent).toHaveLength(1);
+        lines.removePeer("p1");
+
+        expect(shown(deliveries)).toEqual({ [posted.id]: ["undelivered", ["Ada"]] });
+    });
+
+    it("shares the ids and the pacing of the lines", () => {
+        const { lines } = exchangeWithListener();
+        const channel = new FakeChannel();
+        lines.addPeer("p1", channel);
+
+        const line = lines.send("hello");
+        const posted = lines.announce(PICTURE);
+        for (let count = 0; count < LINE_BURST; count++) lines.announce(PICTURE);
+
+        expect(posted.id).toBe((line?.id ?? 0) + 1);
+        expect(channel.sent).toHaveLength(LINE_BURST);
+    });
+
+    it("reaches no agent", () => {
+        const { lines } = exchangeWithListener();
+        const agentLines: string[] = [];
+        lines.linkAgents({ names: ["Claude"], frameType: AGENT_FRAME, send: (text) => void agentLines.push(text) });
+
+        lines.announce(PICTURE);
+
+        expect(agentLines).toEqual([]);
+    });
+
+    it("arrives under the person whose channel carried it and waits for the listener's receipt", () => {
+        const { lines, announced } = exchangeWithListener();
+        const channel = new FakeChannel();
+        lines.addPeer("p1", channel);
+
+        channel.deliver(fileMessage(7));
+        expect(announced).toEqual([["p1", 7, PICTURE]]);
+        expect(channel.sent).toEqual([]);
+        lines.acknowledge("p1", 7);
+
+        expect(channel.sent).toEqual([{ type: "receipt", id: 7 }]);
+    });
+
+    it("is dropped when it has no shape, comes beyond the budget, or comes from a person who left", () => {
+        const { lines, announced } = exchangeWithListener();
+        const channel = new FakeChannel();
+        lines.addPeer("p1", channel);
+
+        channel.deliver(fileMessage(1, { name: 5, size: 1, mime: "image/png" }));
+        channel.deliver(fileMessage(2, { name: "a", size: 1.5, mime: "image/png" }));
+        channel.deliver(fileMessage(3, { name: "a", size: 1 }));
+        channel.deliver(JSON.stringify({ type: "file", id: "4", name: "a", size: 1, mime: "image/png" }));
+        expect(announced).toEqual([]);
+
+        for (let id = 10; id < 10 + LINE_BURST; id++) channel.deliver(fileMessage(id));
+        const shownAtOnce = announced.length;
+        lines.removePeer("p1");
+        channel.deliver(fileMessage(99));
+
+        expect(shownAtOnce).toBe(LINE_BURST - 4);
+        expect(announced).toHaveLength(shownAtOnce);
+    });
+
+    it("is answered with no receipt for a person who left or whose channel closed", () => {
+        const { lines } = exchangeWithListener();
+        const gone = new FakeChannel();
+        const closed = new FakeChannel();
+        lines.addPeer("p1", gone);
+        lines.addPeer("p2", closed);
+        lines.removePeer("p1");
+        closed.close();
+
+        lines.acknowledge("p1", 1);
+        lines.acknowledge("p2", 1);
+        lines.acknowledge("p3", 1);
+
+        expect([gone.sent, closed.sent]).toEqual([[], []]);
     });
 });
 
