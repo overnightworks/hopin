@@ -21,7 +21,7 @@ flowchart LR
     A & B & C -. sign-in redirect .-> K[Keycloak]
     A & B & C -. address discovery .-> T[STUN server]
     A & B & C -. media, only when a direct path fails .-> R[TURN relay, optional]
-    A & B & C -. "framed table page, optional" .-> SK[Skat]
+    A & B & C -. "framed table page, optional" .-> SK[Registered app]
     H -. "tokens" .-> K
     H -. TURN credentials .-> R
     H -. quiz run .-> AG[LiteLLM gateway]
@@ -41,7 +41,7 @@ flowchart TB
     end
     core <-- "WebSocket frames" --> sig
     core -. "address discovery" .-> ST[STUN server]
-    feats -. "framed table page, optional" .-> SK[Skat frame]
+    feats -. "framed table page, optional" .-> SK[Registered app frame]
     subgraph server["Server: each layer imports only the ones below it"]
         main --> app --> agent --> features --> people --> auth --> web --> sig[signaling] --> rooms --> stores --> config
         features["game, participation, stage"]
@@ -66,7 +66,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `people` | the admin download of what HopIn holds about one person |
 | `game` | optional: one quiz per call |
 | `participation` | optional: the agents a person dials in, with no AI in it |
-| `stage` | optional: the Skat table a call shows |
+| `stage` | optional: the table of a registered app that a call shows |
 | `agent` | optional connector: the MCP surface of a person's agents and the quiz agent; the only speaker to LiteLLM and the speech service |
 | `app` | the composition root: wires the packages, names no feature |
 | `main` | starts the server and switches the optional features in |
@@ -128,7 +128,7 @@ sequenceDiagram
 
 Caption: from the `agent/` and `participation/` packages.
 
-The rules of a room (host, lock, resume window, host grace, Skat table, quiz run, hearing hop, speaking queue) are in [docs/call.md](call.md). The frames are in `src/hopin/signaling/__init__.py`; the limits are constants in `config/constants.py`.
+The rules of a room (host, lock, resume window, host grace, stage table, quiz run, hearing hop, speaking queue) are in [docs/call.md](call.md). The frames are in `src/hopin/signaling/__init__.py`; the limits are constants in `config/constants.py`.
 
 ## 4. Deployment View
 
@@ -162,7 +162,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - **The other members of a call** see each other's addresses and relayed frames, and read each other's lines, which reach them end to end under DTLS, so neither HopIn's server nor the Cloudflare tunnel in front of it sees a line unless an agent is joined; the parties who deliver the page, HopIn's server (its operator, or an intruder in it) and Cloudflare's tunnel, can still swap the relayed connection descriptions with their DTLS fingerprints, or change the page's script, and read along, a risk HopIn leaves as the mesh's media has it, and it shows no safety code because the same parties would deliver the code; they cannot address people outside their room or act as host.
 - **The STUN server** learns each asking browser's address; a wrong answer at worst prevents a connection.
 - **The TURN provider** sees who connects to whom, when and how much, never media content; HopIn trusts only its credential answer, over https, and it bills the operator.
-- **Skat's frame** is a sandboxed page of another origin; it cannot use camera, microphone or screen, and HopIn reads from it only a checked `ready`.
+- **Each registered app's frame** (`HOPIN_STAGE_APPS`) is a sandboxed page of another origin; it cannot use camera, microphone or screen, and HopIn reads from it only a checked `ready`. The operator's registry is the only source of origins the page may frame.
 - **A person's own agent** reaches only `/mcp` with a realm token checked for issuer, audience, `azp`, scope and group, as a plain `user` with no host or admin right; HopIn trusts it to join its person's call, write a bounded line, read the chat and leave.
 - **An agent with an account of its own** is trusted for its standing alone: it accepts only an invitation an adder opened for it and never adds or hosts. Its exchanged token is held in memory for the speech audience only.
 - **A figure source** (`HOPIN_FIGURE_SOURCES`) is a host the operator allows; HopIn sends it one credential-less GET and trusts none of the answer beyond the size bound, the named sha256 and a glTF header.
@@ -173,7 +173,7 @@ Each line: what the party sees and what HopIn trusts of it.
 
 ## 6. Constraints and reasons
 
-- The import-linter contracts hold the dependency direction between packages, so a new top-level module needs a layer decision, and the game and Skat can be deleted without touching a contract.
+- The import-linter contracts hold the dependency direction between packages, so a new top-level module needs a layer decision, and the game and the stage can be deleted without touching a contract.
 - HopIn's own markup holds no inline script, `<style>`, `style=` or `on*=` attribute: the page runs under webauth's policy, which admits only the SvelteKit bootstrap script and the announcer style by hash.
 - The wire tokens have one owner each in Python, and `make wire` generates the TypeScript, so a drifting token fails `make wire-check`.
 
@@ -181,7 +181,7 @@ Each line: what the party sees and what HopIn trusts of it.
 
 - A media server (SFU) instead of the mesh: the server relays no call media and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
 - A database: accounts, sessions, rooms and replay logs are lost on restart by design; calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
-- Skat as a web component, or HopIn and Skat linked server to server: the sandboxed frame keeps Skat's code and sign-in out of HopIn's page and needs no shared secret; a table that must start from the call, not from a pasted link, reopens it.
+- An app as a web component, or HopIn and an app linked server to server: the sandboxed frame keeps the app's code and sign-in out of HopIn's page and needs no shared secret; a table that must start from the call, not from a pasted link, reopens it.
 - An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through the `overnightworks-agents` package; a second consumer needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
 
 ## 8. Risks and Technical Debt
