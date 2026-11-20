@@ -1,8 +1,0 @@
-claim_id = "98b7de3de5114d4d94c06bbee7913382"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "4b8c5721fb7c98da5c8df87c4c389fa9220b9f72"
-branch = "claude/issue-1025-refused-start-line"
-scope = ["src/hopin/auth/sign_in.py", "src/hopin/config", "src/hopin/main.py", "src/hopin/signaling/features.py", "src/hopin/web/turn_relay.py", "tests/auth/test_sign_in_config.py", "tests/auth/test_sign_in_rate_limit.py", "tests/test_app.py", "tests/test_main.py", "tests/web/test_turn_relay.py"]
-opened_commit = "40eea1781c67e30e85aefadebfa3c58e3e32458b"
-whole_reason = "One owner for how a refused start ends; the refusal classes live in the modules that raise them."
