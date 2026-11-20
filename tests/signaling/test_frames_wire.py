@@ -7,10 +7,10 @@ from hopin.signaling.frames import (
     ErrorFrame,
     ExistingParticipantsFrame,
     JsonObject,
+    OfferRelayFrame,
     PeerId,
     WireFrame,
 )
-from hopin.skat.frames import EmptyTableFrame
 
 
 @pytest.mark.parametrize(
@@ -27,8 +27,8 @@ from hopin.skat.frames import EmptyTableFrame
             id="a defaulted field that is set is sent in field order",
         ),
         pytest.param(
-            EmptyTableFrame(revision=4, attachment=None, table=None, src=None, opener_id=None),
-            {"type": "skat_table", "revision": 4, "attachment": None, "table": None, "src": None, "opener_id": None},
+            OfferRelayFrame(sdp="v=0", candidate=None, from_=PeerId("p1")),
+            {"type": SignalType.OFFER.value, "sdp": "v=0", "candidate": None, "from": "p1"},
             id="a field without a default is sent as null",
         ),
         pytest.param(
