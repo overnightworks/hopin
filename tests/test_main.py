@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+import shutil
 import socket
 
 import pytest
@@ -13,7 +14,7 @@ from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVE
 from hopin.config.settings import ServerSettings
 from hopin.main import SETTINGS_CLASSES, UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
-from hopin.signaling.features import FeatureClashError
+from hopin.web.page_build import SHELL_FILE
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
@@ -167,31 +168,14 @@ class TestMain:
         (line,) = capsys.readouterr().err.splitlines()
         assert "make frontend" in line
 
-    def test_ends_a_feature_clash_in_one_line(self, sign_in_settings, monkeypatch, capsys):
+    def test_keeps_the_traceback_of_an_error_it_does_not_know(self, sign_in_settings, monkeypatch, tmp_path):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
+        shutil.copytree(FIXTURE_DIRECTORY, tmp_path, dirs_exist_ok=True)
+        (tmp_path / SHELL_FILE).write_bytes(b"\xff")
 
-        def clash(*_arguments, **_keywords):
-            raise FeatureClashError(["sentinel-name"])
-
-        monkeypatch.setattr("hopin.main.create_app", clash)
-        with pytest.raises(SystemExit) as refusal:
-            main(["serve"], build_directory=FIXTURE_DIRECTORY)
-
-        assert refusal.value.code == 1
-        (line,) = capsys.readouterr().err.splitlines()
-        assert "reuse sentinel-name" in line
-
-    def test_keeps_the_traceback_of_an_error_it_does_not_know(self, sign_in_settings, monkeypatch):
-        for name, value in sign_in_settings().environment.items():
-            monkeypatch.setenv(name, value)
-
-        def broken(*_arguments, **_keywords):
-            raise RuntimeError("sentinel-bug")
-
-        monkeypatch.setattr("hopin.main.create_app", broken)
-        with pytest.raises(RuntimeError, match="sentinel-bug"):
-            main(["serve"], build_directory=FIXTURE_DIRECTORY)
+        with pytest.raises(UnicodeDecodeError):
+            main(["serve"], build_directory=tmp_path)
 
     def test_reads_every_settings_class_the_server_composes(self):
         for module in pkgutil.walk_packages(hopin.__path__, "hopin."):
