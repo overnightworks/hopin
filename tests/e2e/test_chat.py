@@ -294,40 +294,36 @@ def test_a_file_called_a_picture_whose_bytes_are_not_one_is_never_shown_inline(
     expect(host).not_to_have_title("ran")
 
 
-def test_a_posted_song_waits_for_a_tap_and_then_plays_from_memory_without_starting_by_itself(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+@pytest.mark.parametrize(
+    ("name", "clip_of", "player", "blob_type"),
+    [
+        ("song.wav", lambda _guest: _wav(), PLAYER, "audio/wav"),
+        ("clip.webm", lambda guest: base64.b64decode(guest.evaluate(RECORD_A_SHORT_VIDEO)), VIDEO_PLAYER, "video/webm"),
+    ],
+    ids=["song", "video"],
+)
+def test_a_posted_song_or_video_waits_for_a_tap_and_then_plays_from_memory_without_starting_by_itself(
+    open_person: Callable[..., Page],
+    base_url: str,
+    page_errors: list[str],
+    name: str,
+    clip_of: Callable[[Page], bytes],
+    player: str,
+    blob_type: str,
 ) -> None:
-    """CALL-73: A song is fetched on a tap, plays with controls from a blob typed by its bytes, and never autoplays."""
+    """CALL-73: A song or video is fetched on a tap, plays with controls from a typed blob, never autoplays."""
     host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP, RECORD_BLOB_TYPES)
     host.click("#chatBtn")
 
-    _post(guest, "song.wav", _wav(), "application/octet-stream")
+    _post(guest, name, clip_of(guest), "application/octet-stream")
 
-    expect(host.locator(PLAYER)).to_have_count(0)
+    expect(host.locator(player)).to_have_count(0)
     host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
-    expect(host.locator(PLAYER)).to_be_visible()
-    expect(host.locator(PLAYER)).to_have_attribute("controls", "")
-    assert host.locator(PLAYER).evaluate(BLOB_TYPE_OF_PLAYER) == "audio/wav"
-    assert host.locator(PLAYER).evaluate(PLAYER_NEVER_STARTS)
-    expect(guest.locator(PLAYER)).to_be_visible()
-
-
-def test_a_posted_video_waits_for_a_tap_and_then_plays_with_controls_without_starting_by_itself(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
-) -> None:
-    """CALL-73: A video is fetched on a tap, plays with controls from a blob typed by its bytes, and never autoplays."""
-    host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP, RECORD_BLOB_TYPES)
-    host.click("#chatBtn")
-    clip = base64.b64decode(guest.evaluate(RECORD_A_SHORT_VIDEO))
-
-    _post(guest, "clip.webm", clip, "application/octet-stream")
-
-    expect(host.locator(VIDEO_PLAYER)).to_have_count(0)
-    host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
-    expect(host.locator(VIDEO_PLAYER)).to_be_visible()
-    expect(host.locator(VIDEO_PLAYER)).to_have_attribute("controls", "")
-    assert host.locator(VIDEO_PLAYER).evaluate(BLOB_TYPE_OF_PLAYER) == "video/webm"
-    assert host.locator(VIDEO_PLAYER).evaluate(PLAYER_NEVER_STARTS)
+    expect(host.locator(player)).to_be_visible()
+    expect(host.locator(player)).to_have_attribute("controls", "")
+    assert host.locator(player).evaluate(BLOB_TYPE_OF_PLAYER) == blob_type
+    assert host.locator(player).evaluate(PLAYER_NEVER_STARTS)
+    expect(guest.locator(player)).to_be_visible()
 
 
 @pytest.mark.parametrize(
