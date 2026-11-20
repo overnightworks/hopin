@@ -1,3 +1,6 @@
+// Open, close and focus of the page's popover menus, which the layout registers for the call bar's More and
+// Invite and for the account menu.
+
 export interface Menu {
     readonly button: HTMLButtonElement;
     readonly dialog: HTMLDialogElement;

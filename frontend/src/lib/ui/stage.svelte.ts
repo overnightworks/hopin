@@ -1,3 +1,6 @@
+// The whole stage port: the own picture of the call tile and the pre-join preview and the remote tiles, which
+// `Tiles.svelte` renders. The tiles' streams stay in plain maps outside the reactive state.
+
 import { SvelteMap } from "svelte/reactivity";
 import { untrack } from "svelte";
 import {

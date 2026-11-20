@@ -1,3 +1,7 @@
+// The chat panel's open state, unread count, draft and lines, rendered by the layout. A feature's lines, pinned
+// bubble and card are feature views (`featureView`: a component bound to its props), rendered inside `display:
+// contents` wrappers.
+
 import { flushSync, type Component } from "svelte";
 import type { Attachment } from "svelte/attachments";
 import { isConnected, on, send } from "#lib/call/signaling.ts";

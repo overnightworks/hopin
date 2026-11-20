@@ -1,3 +1,5 @@
+// ICE restart of a peer connection that disconnected.
+
 export const ICE_DISCONNECTED_GRACE_MS = 2000;
 const ICE_RESTART_RETRY_DELAYS_MS = [2000, 4000, 8000, 15000];
 const CONNECTED_STATES = new Set<RTCIceConnectionState>(["connected", "completed"]);

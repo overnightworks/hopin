@@ -1,3 +1,5 @@
+// The upload cap of a peer connection's video, by the size of the call.
+
 const VIDEO_UPLOAD_BUDGET_BPS = 2_000_000;
 
 export type CappedConnection = Pick<RTCPeerConnection, "getTransceivers" | "signalingState">;

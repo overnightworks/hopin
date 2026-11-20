@@ -2,6 +2,8 @@
 caller's own token, whole for the game master and as a stream for an agent's renderer, which speaks on the token HopIn
 holds for the agent.
 
+It stays when the game is removed.
+
 The text, the sound and a token reach no log: the callers' step lines carry one closed code."""
 
 import asyncio

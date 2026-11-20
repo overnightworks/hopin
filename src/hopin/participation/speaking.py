@@ -46,7 +46,10 @@ _STEPS: Final = logging.getLogger(__name__)
 
 def speak_timer(agent: DialedAgent, text: str, *, seq: int | None) -> StepTimer:
     """The timer of the `speak.ended` line of one sentence the agent's speaking asked for, started now; `seq` is the
-    newest line of the agent's window when the sentence arrived, which the agent's last pulse told."""
+    newest line of the agent's window when the sentence arrived, which the agent's last pulse told. The line ends at
+    the sentence's first sound from speech. It runs in the trace of the `traceparent` the speak request carries, as a
+    header or in its MCP `_meta`, so it joins the turn that sent the request; a speak without one runs in a trace of
+    its own and joins no turn."""
     return StepTimer(
         "speak.ended",
         _STEPS,

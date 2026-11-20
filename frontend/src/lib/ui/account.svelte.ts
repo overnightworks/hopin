@@ -1,3 +1,6 @@
+// The person's name and initials read from `/api/account` (sign-in again on 401), rendered by the layout into
+// the triggers and the account menu.
+
 import { goThroughSignIn } from "#lib/ui/navigation.ts";
 import { ACCOUNT_PATH } from "#lib/wire.ts";
 import { words } from "#lib/words.ts";

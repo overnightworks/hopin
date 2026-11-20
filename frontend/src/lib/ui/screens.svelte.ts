@@ -1,3 +1,5 @@
+// The current screen, which the layout shows by the `hidden` class of the four `<main data-screen>` tags.
+
 import { closeOpenMenu } from "#lib/ui/menus.ts";
 
 export const SCREEN = {

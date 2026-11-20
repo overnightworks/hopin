@@ -1,3 +1,6 @@
+// The connection-quality bars: each peer connection's round trip, polled until the connection closes and
+// reported through the stage port.
+
 import { CONNECTION_QUALITY, setConnectionQuality, type ConnectionQuality } from "./stage-port.ts";
 
 const POLL_INTERVAL_MS = 3000;

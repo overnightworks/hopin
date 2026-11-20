@@ -1,3 +1,5 @@
+// The own audio and video state announced to the others, and the others' state handed to the stage.
+
 import { isConnected, on, send } from "#lib/call/signaling.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { setRemoteMediaState } from "#lib/call/stage-port.ts";

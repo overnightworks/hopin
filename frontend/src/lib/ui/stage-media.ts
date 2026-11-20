@@ -1,3 +1,5 @@
+// The Svelte actions through which the videos take their streams and the quality bars their reports.
+
 import {
     ownPicture,
     refreshPictureReady,

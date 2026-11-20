@@ -1,3 +1,5 @@
+// The home screen's greeting and start request; the start-up module installs the start callback.
+
 export const greeting: { name: string | null; isBusy: boolean } = $state({ name: null, isBusy: true });
 
 let onStartRequested: (() => void) | null = null;
