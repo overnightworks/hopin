@@ -280,6 +280,9 @@ forbidden_modules = ["fastapi", "starlette", "uvicorn", "websockets", "webauth"]
 
 [dependency-groups]
 dev = [
+    # Before 7.17.4, lines other threads recorded during a data flush were lost, and a data file could be named with
+    # the hash of other data, so combining skipped it as a duplicate: a covered line then read as missed.
+    "coverage>=7.17.4",
     "cryptography>=50.0.2",
     "fakeredis[lua]>=2.35,<3",
     "httpx2>=2.13.1",
