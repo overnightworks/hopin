@@ -163,8 +163,9 @@ function handleResumed(current: WebSocket, heldSeat: Seat, data: ResumedFrame) {
 function fallBackToJoin(current: WebSocket) {
     forgetSeat();
     sessionLost();
-    sessionLive(startWriting(current));
+    const replayed = startWriting(current);
     send(joinMessage());
+    sessionLive(replayed);
 }
 
 function keepSeat(data: RoomCreatedFrame | ExistingParticipantsFrame) {

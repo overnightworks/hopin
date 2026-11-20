@@ -436,6 +436,24 @@ describe("resuming", () => {
         expect(latestSocket().sent.slice(1)).toEqual([{ type: SIGNAL_TYPE.JOIN, seq: 1 }]);
     });
 
+    it("tells the page the session is live only after the fresh join is written, so a frame the page then sends follows the join", async () => {
+        const signaling = await freshSignaling();
+        const socket = seatedSocket(signaling);
+        socket.closeWith(1006);
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+        signaling.onSessionLive(() => {
+            signaling.sendFeatureFrame({ type: "line_for_agents", text: "waited" });
+        });
+
+        latestSocket().receive({ type: SIGNAL_TYPE.ERROR, reason: ERROR_REASON.RESUME_REFUSED });
+
+        expect(latestSocket().sent.slice(1)).toEqual([
+            { type: SIGNAL_TYPE.JOIN, seq: 1 },
+            { type: "line_for_agents", text: "waited", seq: 2 },
+        ]);
+    });
+
     it("tells the page which frames the resume wrote again", async () => {
         const signaling = await freshSignaling();
         const replayed: { type: string }[][] = [];
