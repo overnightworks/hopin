@@ -152,3 +152,11 @@ class TestTheHold:
         window.append(LineKind.AGENT, "Mozart", "Guten", own=True, spoken=True, cut=True)
 
         assert read(window).lines[0].cut is True
+
+    def test_call_60_a_line_that_continues_into_the_speakers_next_sentence_is_marked_continues(self):
+        window = ChatWindow("generation")
+
+        window.append(LineKind.AGENT, "Mozart", "Guten", own=True, spoken=True, continues=True)
+        window.append(LineKind.AGENT, "Mozart", "Tag", own=True, spoken=True)
+
+        assert [line.continues for line in read(window).lines] == [True, False]

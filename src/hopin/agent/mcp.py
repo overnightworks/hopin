@@ -326,6 +326,7 @@ def _window_of(window: WindowRead) -> PlaceWindow:
                 own=line.own,
                 spoken=line.spoken,
                 cut=line.cut,
+                continues=line.continues,
                 traceparent=line.traceparent,
             )
             for line in window.lines

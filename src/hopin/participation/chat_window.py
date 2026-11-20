@@ -40,6 +40,7 @@ class WindowLine:
     own: bool
     spoken: bool = False
     cut: bool = False
+    continues: bool = False
     traceparent: str | None = None
 
 
@@ -103,15 +104,18 @@ class ChatWindow:
         own: bool,
         spoken: bool = False,
         cut: bool = False,
+        continues: bool = False,
         traceparent: str | None = None,
     ) -> bool:
         """Add the line and evict the oldest past the bounds; say whether it was added. A line whose name or text is
         empty or does not encode as UTF-8 is refused and takes no `seq`. `spoken` marks a sentence heard aloud, `cut`
-        one that was cut before its end, and `traceparent` names the trace the line entered in."""
+        one that was cut before its end, `continues` a spoken one whose speaker's next sentence already waits to play,
+        and `traceparent` names the trace the line entered in."""
         size = utf8_length(text)
         if size is None or utf8_length(name) is None:
             return False
-        self._lines.append((WindowLine(self._next_seq, kind, name, text, own, spoken, cut, traceparent), size))
+        line = WindowLine(self._next_seq, kind, name, text, own, spoken, cut, continues, traceparent)
+        self._lines.append((line, size))
         self._next_seq += 1
         self._text_bytes += size
         while len(self._lines) > LINES_PER_WINDOW or self._text_bytes > TEXT_BYTES_PER_WINDOW:
