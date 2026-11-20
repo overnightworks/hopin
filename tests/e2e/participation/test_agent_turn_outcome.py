@@ -20,8 +20,8 @@ pytestmark = pytest.mark.e2e
 def test_the_stated_outcome_shows_beside_the_agents_name_until_a_new_turn_and_goes_with_the_agent(
     scene_of: Callable[[dict[str, Any]], Scene], form_factor: dict[str, Any]
 ) -> None:
-    """CALL-73: The outcome an agent states for its stopped turns shows beside its name in every browser that shows
-    the control (the adder's and the host's), the latest one replaces it, a new turn clears it, and the agent's
+    """CALL-73: The outcome an agent states for its stopped turns shows beside its name in every browser of the call
+    (driven here in the adder's and the host's), the latest one replaces it, a new turn clears it, and the agent's
     removal drops it."""
     scene = scene_of(form_factor)
     scene.member_adds_and_the_agent_accepts()

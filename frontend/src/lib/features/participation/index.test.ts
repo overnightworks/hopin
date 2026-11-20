@@ -497,6 +497,21 @@ describe("calling an agent that has an account of its own", () => {
         expect([names(page), page.offers()[0]?.textContent]).toEqual([["Claude"], expect.stringContaining(words)]);
     });
 
+    it("CALL-73: shows the outcome an agent in the call stated to a seat that may not add agents", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
+
+        expect([names(page), page.offers()[0]?.textContent, page.buttons()]).toEqual([
+            ["Claude"],
+            expect.stringContaining("Gerade ausgelastet"),
+            [],
+        ]);
+    });
+
     it("CALL-73: shows no outcome beside an agent whose outcome was cleared, and drops it with the agent", async () => {
         const page = await installedParticipation();
         page.seat(false);
