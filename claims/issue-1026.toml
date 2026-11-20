@@ -3,6 +3,6 @@ agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
 role = "builder"
 base = "4b8c5721fb7c98da5c8df87c4c389fa9220b9f72"
 branch = "claude/issue-1026-docs-lint-truth"
-scope = ["Dockerfile", "Makefile", "README.md", "docs/ARCHITECTURE.md", "scripts/generate_wire.py"]
+scope = ["Dockerfile", "Makefile", "README.md", "docs/ARCHITECTURE.md", "scripts/generate_wire.py", "src/hopin/participation/vocabulary.py"]
 opened_commit = "c34ef865ed8f08252d763a7379271c14f255d82a"
 whole_reason = "Four one-line truths and one check widening, each too small for its own lane."
