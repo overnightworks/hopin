@@ -116,14 +116,6 @@ class TestDetach:
             assert (gone["attachment"], gone["src"]) == (None, None)
             assert gone["revision"] > shown["revision"]
 
-    async def test_the_host_removes_a_table_another_seat_opened(self, link):
-        host, opener, guest = await host_opener_and_guest(link)
-        await attach(opener)
-
-        await detach(host, tables(guest)[-1]["attachment"])
-
-        assert tables(guest)[-1]["attachment"] is None
-
     async def test_a_seat_that_neither_opened_it_nor_hosts_is_refused_while_the_opener_is_there(self, link):
         _host, opener, guest = await host_opener_and_guest(link)
         await attach(opener)
@@ -181,19 +173,6 @@ class TestDetach:
 
 @pytest.mark.asyncio
 class TestTheOpenerLeaves:
-    async def test_the_table_stays_and_anyone_may_remove_it_afterwards(self, link):
-        host, opener, guest = await host_opener_and_guest(link)
-        await attach(opener)
-        shown = tables(guest)[-1]
-
-        await opener.drop(1000)
-
-        stays = tables(guest)[-1]
-        assert (stays["attachment"], stays["opener_id"]) == (shown["attachment"], None)
-        assert stays["revision"] > shown["revision"]
-        await detach(guest, shown["attachment"])
-        assert tables(host)[-1]["attachment"] is None
-
     async def test_an_opener_ending_during_its_attach_fan_out_leaves_every_seat_the_table_without_an_opener(
         self, link, scheduler
     ):

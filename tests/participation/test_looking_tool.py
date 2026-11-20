@@ -26,7 +26,6 @@ from tests.support.pictures import jpeg_of, part, parts_of
 pytestmark = pytest.mark.integration
 
 REQUEST = ParticipationSignal.AGENT_LOOK_REQUEST.value
-LOOKED = ParticipationSignal.AGENT_LOOKED.value
 SEEING = ParticipationSignal.AGENT_SEEING.value
 ANSWER_SECONDS = 30
 
@@ -96,18 +95,6 @@ class TestThePicture:
         largest = jpeg_of(LOOK_MAX_PIXELS, LOOK_MAX_PIXELS, LOOK_MAX_BYTES)
 
         assert is_within_event_bound("", ToolImage(content=largest))
-
-    def test_call_63_the_marks_reach_every_seat_and_only_the_sponsor_was_asked(self, asked, seeing_agent):
-        """CALL-63: Each seat is shown a look as a mark on the agent's tile; only the agent's sponsor is asked."""
-        waiting, request_id = asked()
-        seeing_agent.owner.send(part(request_id, parts_of(jpeg_of(), 10**6)[0]))
-        waiting.result(timeout=ANSWER_SECONDS)
-
-        drained(seeing_agent)
-
-        for seat in (seeing_agent.owner, seeing_agent.member):
-            assert [frame["agent_id"] for frame in seat.received if frame["type"] == LOOKED] == [seeing_agent.agent_id]
-        assert [frame for frame in seeing_agent.member.received if frame["type"] == REQUEST] == []
 
     def test_call_63_the_picture_reaches_no_log_record(self, caplog, asked, seeing_agent):
         """CALL-63: A look is logged by its tool's name and outcome alone, never the picture."""

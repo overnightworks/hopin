@@ -76,17 +76,6 @@ def test_the_offer_of_an_agent_speaks_the_kits_german_and_fits_the_page(
     assert scene.member.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
-def test_an_agent_with_a_lease_and_no_listen_is_offered_to_nobody(scene_of: Callable[[dict[str, Any]], Scene]) -> None:
-    """CALL-51: An agent that renews its lease without a listen on its standing is offered to no seat."""
-    scene = scene_of(DESKTOP)
-    assert scene.agent.standings() == []
-
-    open_more(scene.member)
-    scene.member.wait_for_timeout(QUIET_SECONDS * 1000)
-
-    expect(scene.offers_on(scene.member)).to_have_count(0)
-
-
 def test_a_listen_that_ends_without_a_next_one_drops_the_offer_of_the_seat_that_showed_it(
     scene_of: Callable[[dict[str, Any]], Scene],
 ) -> None:

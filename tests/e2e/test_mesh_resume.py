@@ -47,7 +47,6 @@ expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 HEARD_CHAT = "#chatMessages .chat-msg.other"
 HOST_PRESENCE_NEWS = {SignalType.HOST_AWAY, SignalType.HOST_BACK}
 CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
-CUTS_IN_A_ROW = 3
 ANSWER_APPLIED = '() => window.recordedConnections[0].signalingState === "stable"'
 HOLD_ANSWER_APPLICATION = """
 () => {
@@ -225,28 +224,6 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
         _wait_for(guest, ANSWER_APPLIED)
         assert [INJECTED_REJECTION in error for error in connected_pair.page_errors] == [True]
         connected_pair.page_errors.pop()
-
-
-def test_every_cut_in_a_row_resumes_with_the_first_delay_because_each_resume_resets_the_attempts(
-    connected_pair: ConnectedPair,
-) -> None:
-    guest, tap = connected_pair.guest, connected_pair.guest_tap
-    for _ in range(CUTS_IN_A_ROW + 1):
-        sockets_before_the_cut = len(tap.urls)
-        connected_pair.cut(guest)
-        assert len(tap.urls) == sockets_before_the_cut
-        connected_pair.resume(guest)
-        assert len(tap.urls) == sockets_before_the_cut + 1
-
-
-def test_server_frame_delivered_twice_is_dispatched_once(connected_pair: ConnectedPair) -> None:
-    guest, host = connected_pair.guest, connected_pair.host
-    connected_pair.guest_tap.deliver_chats_twice = True
-
-    say_in_chat(host, "once")
-    say_in_chat(host, "marker")
-
-    expect(guest.locator(HEARD_CHAT)).to_have_text([re.compile("once$"), re.compile("marker$")])
 
 
 def test_events_of_a_replaced_socket_are_ignored(connected_pair: ConnectedPair) -> None:

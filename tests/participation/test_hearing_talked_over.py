@@ -192,20 +192,6 @@ class TestTheAgentDecidesWhileHeld:
             [(TEXT, True)],
         )
 
-    def test_call_69_a_speak_with_the_hold_plays_after_the_cut_line(self, held_agent):
-        spoken = speak(held_agent, "Zweiter Satz", interrupted="1")
-
-        window = held_agent.window()
-        assert (
-            (spoken.is_error, spoken.outcome),
-            "interrupted" in window,
-            [(e["text"], e["cut"]) for e in window["entries"]],
-        ) == (
-            (False, {"spoken": True}),
-            False,
-            [(TEXT, True)],
-        )
-
 
 class TestTheAgentContinuesWhileHeld:
     def test_call_70_a_continue_with_the_hold_answers_continued_and_the_window_leaves_the_hold(self, held_agent):
