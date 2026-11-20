@@ -144,10 +144,7 @@ class TestHandleMessageRefusals:
                 id="unknown_type",
             ),
             pytest.param(
-                ErrorReason.INVALID_MESSAGE,
-                stranger_sends({"type": "chat", "message": "hello"}),
-                "Unknown signal type: chat",
-                id="a_chat_line_is_no_frame_of_the_server",
+                ErrorReason.INVALID_MESSAGE, stranger_sends({"type": "chat"}), "Unknown signal type: chat", id="no_chat"
             ),
             pytest.param(
                 ErrorReason.INVALID_MESSAGE, stranger_sends({"type": []}), "Missing signal type", id="non_string_type"
