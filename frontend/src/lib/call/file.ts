@@ -47,11 +47,7 @@ function startsWith(head: Uint8Array, signature: readonly number[], offset = 0):
 }
 
 function textAt(head: Uint8Array, text: string, offset = 0): boolean {
-    return startsWith(
-        head,
-        Array.from(text, (character) => character.charCodeAt(0)),
-        offset,
-    );
+    return startsWith(head, Array.from(new TextEncoder().encode(text)), offset);
 }
 
 /** The raster type the first bytes show, or null when they show none (SVG included). */
