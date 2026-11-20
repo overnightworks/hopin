@@ -46,6 +46,16 @@ expect = Expect()
 expect.set_options(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 HEARD_CHAT = "#chatMessages .chat-msg.other"
+SENT_LINE = "#chatMessages .chat-msg.self"
+# A person whose answers never come back: the channel sends every message but a receipt.
+WITHHOLD_RECEIPTS = """
+() => {
+    const nativeSend = RTCDataChannel.prototype.send;
+    RTCDataChannel.prototype.send = function (data) {
+        if (JSON.parse(data).type !== "receipt") nativeSend.call(this, data);
+    };
+}
+"""
 HOST_PRESENCE_NEWS = {SignalType.HOST_AWAY, SignalType.HOST_BACK}
 CUT_VIDEO_DEADLINE_SECONDS = RESUME_WINDOW_SECONDS // 2
 ANSWER_APPLIED = '() => window.recordedConnections[0].signalingState === "stable"'
@@ -276,6 +286,30 @@ def test_refused_resume_falls_back_to_a_fresh_join_with_new_peer_connections(
     assert (sent.count(SignalType.JOIN), sent.count(SignalType.RESUME)) == (2, 1)
     refusals = _frames_of(connected_pair.guest_tap, "downstream", SignalType.ERROR)
     assert [refusal["reason"] for refusal in refusals] == [ErrorReason.RESUME_REFUSED]
+
+
+def test_lines_pending_at_a_refused_resume_turn_undelivered_and_the_rejoined_page_reads_none_of_the_earlier_ones(
+    connected_pair: ConnectedPair,
+) -> None:
+    """CALL-71: A refused resume rebuilds the connections; a line still pending turns undelivered, none is resent."""
+    host, guest = connected_pair.host, connected_pair.guest
+    host.evaluate(WITHHOLD_RECEIPTS)
+    host.click("#chatBtn")
+    say_in_chat(host, "earlier from the host")
+    expect(guest.locator(HEARD_CHAT)).to_have_count(1)
+    say_in_chat(guest, "unanswered")
+    expect(host.locator(HEARD_CHAT)).to_have_count(1)
+    expect(guest.locator(f"{SENT_LINE}.pending")).to_have_count(1)
+    connected_pair.guest_tap.corrupt_resume_token = True
+
+    connected_pair.cut(guest)
+    connected_pair.reconnect(guest)
+    _wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
+
+    expect(guest.locator(f"{SENT_LINE}.pending")).to_have_count(0)
+    expect(guest.locator(f"{SENT_LINE} .chat-delivery")).to_have_count(1)
+    expect(guest.locator(HEARD_CHAT)).to_have_count(1)
+    expect(host.locator(HEARD_CHAT)).to_have_count(1)
 
 
 def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_window(

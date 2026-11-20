@@ -11,6 +11,7 @@ from tests.e2e.support.dialed_agent import (
     OwnAccountAgent,
     OwnAgent,
 )
+from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
 from tests.support.agent_adders import ADDERS_GROUP
@@ -140,3 +141,10 @@ def scene_of(
         )
 
     return build
+
+
+@pytest.fixture
+def connected_pair(open_person: Callable[..., Page], e2e_server: RunningServer) -> Iterator[ConnectedPair]:
+    """Two people in a call on this directory's server, each behind a tap on its signaling socket."""
+    for connect in pair_connector(open_person, e2e_server.base_url):
+        yield connect()

@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
     from tests.e2e.support.dialed_agent import OwnAgent
+    from tests.e2e.support.mesh_pair import ConnectedPair
     from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
 
@@ -27,6 +29,7 @@ pytestmark = pytest.mark.e2e
 WAKE_SECONDS = 20
 CHAT_LINE = "#chatMessages .chat-msg"
 READERS_NOTE = "#chatReaders"
+HEARD_LINE = "#chatMessages .chat-msg.other"
 
 
 def lines_read(agent: Any, room: str) -> list[tuple[Any, ...]]:
@@ -85,3 +88,26 @@ def test_call_54_a_persons_own_agent_is_woken_by_a_line_and_reads_it(
 
     assert agent.woken_within(WAKE_SECONDS)
     assert lines_read(agent, room) == [(1, "person", member_of(guest).account.username, "hello agent", False)]
+
+
+def test_call_71_a_line_said_in_a_cut_reaches_people_at_once_and_the_agent_once_after_the_resume(
+    connected_pair: ConnectedPair,
+    member_of: Callable[[Page], Any],
+    own_agent_of: Callable[[str], OwnAgent],
+) -> None:
+    """CALL-71: People read a line at once over the channel; the agent's window gets it once, after the resume."""
+    host, guest = connected_pair.host, connected_pair.guest
+    room = room_of_link(connected_pair.invite_link)
+    agent = own_agent_of(member_of(host).account.id)
+    agent.dial_in(room, "Claude")
+    agent.listen([window_uri(room)])
+    guest.click("#chatBtn")
+    expect(guest.locator(READERS_NOTE)).to_contain_text("Claude")
+
+    with connected_pair.socket_down(guest):
+        say_in_chat(guest, "said in the cut")
+        expect(host.locator(HEARD_LINE)).to_have_text([re.compile("said in the cut$")])
+        assert lines_read(agent, room) == []
+
+    assert agent.woken_within(WAKE_SECONDS)
+    assert lines_read(agent, room) == [(1, "person", member_of(guest).account.username, "said in the cut", False)]
