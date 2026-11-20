@@ -45,6 +45,7 @@ from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import (
     FIXTURE_ANNOUNCER_HASH,
     FIXTURE_DIRECTORY,
+    SOURCE_LANGUAGE_DIRECTORY,
     FIXTURE_SCRIPT_HASH,
     IMMUTABLE_FILE,
     SIGN_IN_FONT,
@@ -88,8 +89,11 @@ LOOKALIKE_PATHS = [
     f"{BACKCHANNEL_LOGOUT_PATH}x",
     BACKCHANNEL_LOGOUT_PATH.upper(),
 ]
-SIGN_IN_PAGES = {LOGIN_PATH: FIXTURE_DIRECTORY / "login.html", NO_ACCESS_PATH: FIXTURE_DIRECTORY / "no-access.html"}
-LOGIN_FAILED_PAGE = FIXTURE_DIRECTORY / "login-failed.html"
+SIGN_IN_PAGES = {
+    LOGIN_PATH: SOURCE_LANGUAGE_DIRECTORY / "login.html",
+    NO_ACCESS_PATH: SOURCE_LANGUAGE_DIRECTORY / "no-access.html",
+}
+LOGIN_FAILED_PAGE = SOURCE_LANGUAGE_DIRECTORY / "login-failed.html"
 FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 SAME_ORIGIN_FORM_POST = {**FORM_POST, "origin": TEST_PUBLIC_ORIGIN}
 JSON_POST = {"content-type": "application/json"}
@@ -257,6 +261,15 @@ class TestSignInPages:
         assert "location" not in response.headers
         assert response.content == (SIGN_IN_PAGES[path].read_bytes() if method == "GET" else b"")
         assert member is None or application.stores.sessions.load(member.session.id) is not None
+
+    @pytest.mark.parametrize("path", SIGN_IN_PAGES)
+    def test_the_page_is_the_prerender_of_the_language_the_browser_asks_for_and_varies_by_it(
+        self, application, path
+    ):
+        response = application.request("GET", path, None, **BROWSER_ACCEPT, **{"accept-language": "en"})
+
+        assert response.content == (FIXTURE_DIRECTORY / "en" / SIGN_IN_PAGES[path].name).read_bytes()
+        assert {"accept-language", "cookie"} <= {tag.strip().lower() for tag in response.headers["vary"].split(",")}
 
 
 class TestLogout:

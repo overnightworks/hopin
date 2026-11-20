@@ -9,12 +9,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from hopin.web.page_build import APP_LANGUAGES, PageBuild
+from hopin.words import SOURCE_LANGUAGE
 
 if TYPE_CHECKING:
     from webauth.languages import AppLanguages
 
 FIXTURE_DIRECTORY = Path(__file__).parent / "page_build_fixture"
 SIGN_IN_PAGE_FILES = ("login.html", "login-failed.html", "no-access.html")
+SOURCE_LANGUAGE_DIRECTORY = FIXTURE_DIRECTORY / SOURCE_LANGUAGE
 # The SHA-256 of the fixture shell's one inline script, written out so no test derives it through production code.
 FIXTURE_SCRIPT_HASH = "sha256-4LKaLFjkbG7q9xKX2UaD3tcSyvjsmzchYiSkLO5EkO8="
 # The style attribute of the announcer template in the fixture's immutable chunk, as the build writes it.

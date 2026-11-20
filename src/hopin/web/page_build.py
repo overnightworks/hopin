@@ -146,16 +146,17 @@ class PageVariant:
 
 @dataclass(frozen=True)
 class BuiltPage:
-    """One page as `make frontend` wrote it, once per offered language, each with its own strong ETag."""
+    """One page as `make frontend` wrote it for each offered language, each with its own strong ETag."""
 
     variants: Mapping[str, PageVariant]
 
     @classmethod
-    def of(cls, content: bytes, languages: AppLanguages, name: str) -> BuiltPage:
-        """The page with its `<html lang>` set to each offered language, made once so no request rewrites it."""
-        if HTML_LANGUAGE.search(content) is None:
+    def of(cls, content_of: Mapping[str, bytes], name: str) -> BuiltPage:
+        """The page as built for each language, its `<html lang>` set to that language, made once so no request
+        rewrites it."""
+        if any(HTML_LANGUAGE.search(content) is None for content in content_of.values()):
             raise PageBuildMissingError(f"The page {name} of the build has no <html lang>; run make frontend")
-        return cls(variants={language: _page_variant(content, language) for language in languages.offered})
+        return cls(variants={language: _page_variant(content, language) for language, content in content_of.items()})
 
 
 def _page_variant(content: bytes, language: str) -> PageVariant:
@@ -165,7 +166,9 @@ def _page_variant(content: bytes, language: str) -> PageVariant:
 
 def built_page_response(page: BuiltPage, language: str, status_code: int = 200) -> Response:
     variant = page.variants[language]
-    return Response(variant.content, status_code=status_code, media_type="text/html", headers={"ETag": variant.etag})
+    # The language follows the session's account tag first and `Accept-Language` second, so a cache keys on both.
+    headers = {"ETag": variant.etag, "Vary": "Accept-Language, Cookie"}
+    return Response(variant.content, status_code=status_code, media_type="text/html", headers=headers)
 
 
 @dataclass(frozen=True)
@@ -173,7 +176,8 @@ class PageBuild:
     """What `make frontend` wrote: the pages the server answers with, and what their policy and gate admit.
 
     The pages are held as read, one per offered language, so the served shell is the hashed shell even when a build
-    rewrites the file while the server runs. `sign_in_assets` are the `/_app/` stylesheets and icon the three sign-in
+    rewrites the file while the server runs. The shell is one file for every language, which loads its words in the
+    browser; each sign-in page is prerendered once per language in `<language>/` and carries its text. `sign_in_assets` are the `/_app/` stylesheets and icon the three sign-in
     pages link and the `/_app/` files those stylesheets reference (the fonts), the only build files a signed-out
     visitor may fetch.
     `announcer_style_sources` are the `style-src` sources that admit the route announcer's inline style.
@@ -195,11 +199,19 @@ class PageBuild:
 
     @classmethod
     def load(cls, directory: Path, languages: AppLanguages = APP_LANGUAGES) -> PageBuild:
-        page_paths = [directory / name for name in (SHELL_FILE, SIGNED_OUT_FILE, LOGIN_FAILED_FILE, NO_ACCESS_FILE)]
+        sign_in_paths = {
+            name: {language: directory / language / name for language in languages.offered}
+            for name in (SIGNED_OUT_FILE, LOGIN_FAILED_FILE, NO_ACCESS_FILE)
+        }
+        page_paths = [directory / SHELL_FILE, *(path for paths in sign_in_paths.values() for path in paths.values())]
         if not all(path.is_file() for path in page_paths) or not (directory / APP_DIRECTORY).is_dir():
             raise PageBuildMissingError(f"The page build is missing at {directory}; run make frontend")
-        shell_bytes, signed_out_bytes, login_failed_bytes, no_access_bytes = (path.read_bytes() for path in page_paths)
-        linked = [_linked_app_files(page) for page in (signed_out_bytes, login_failed_bytes, no_access_bytes)]
+        shell_bytes = (directory / SHELL_FILE).read_bytes()
+        sign_in_bytes = {
+            name: {language: path.read_bytes() for language, path in paths.items()}
+            for name, paths in sign_in_paths.items()
+        }
+        linked = [_linked_app_files(page) for pages in sign_in_bytes.values() for page in pages.values()]
         stylesheets = frozenset().union(*(files.stylesheets for files in linked))
         icons = frozenset().union(*(files.icons for files in linked))
         stylesheet_bytes = []
@@ -214,10 +226,10 @@ class PageBuild:
         return cls(
             directory=directory,
             languages=languages,
-            shell=BuiltPage.of(shell_bytes, languages, SHELL_FILE),
-            signed_out=BuiltPage.of(signed_out_bytes, languages, SIGNED_OUT_FILE),
-            login_failed=BuiltPage.of(login_failed_bytes, languages, LOGIN_FAILED_FILE),
-            no_access=BuiltPage.of(no_access_bytes, languages, NO_ACCESS_FILE),
+            shell=BuiltPage.of(dict.fromkeys(languages.offered, shell_bytes), SHELL_FILE),
+            signed_out=BuiltPage.of(sign_in_bytes[SIGNED_OUT_FILE], SIGNED_OUT_FILE),
+            login_failed=BuiltPage.of(sign_in_bytes[LOGIN_FAILED_FILE], LOGIN_FAILED_FILE),
+            no_access=BuiltPage.of(sign_in_bytes[NO_ACCESS_FILE], NO_ACCESS_FILE),
             script_hashes=tuple(_inline_hash(text) for text in scripts.texts),
             announcer_style_sources=("'unsafe-hashes'", f"'{_inline_hash(announcer_style)}'"),
             sign_in_assets=stylesheets | icons | frozenset().union(*(_css_asset_urls(css) for css in stylesheet_bytes)),
