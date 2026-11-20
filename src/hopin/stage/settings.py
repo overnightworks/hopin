@@ -23,8 +23,6 @@ HTTPS_PORT = 443
 HOST_PATTERN = re.compile(r"[a-z0-9.-]+")
 DEFAULT_PORTS = {"https": HTTPS_PORT, "http": 80}
 
-MAX_TITLE_LENGTH = 64
-
 type BrowserOrigin = tuple[str, str, int]
 
 
@@ -81,7 +79,7 @@ class StageApp(BaseModel):
 
     # Stable: the person-key label of the app's chairs is built from it.
     name: str
-    title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
+    title: str = Field(min_length=1)
     origin: str
     frame_path: str
 

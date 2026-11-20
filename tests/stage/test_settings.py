@@ -44,6 +44,14 @@ def test_each_entry_gives_an_app_and_the_feature_frames_exactly_their_origins(st
     assert feature.sign_in_scopes == ()
 
 
+def test_a_title_has_no_length_limit(stage_apps):
+    stage_apps(entry(title="T" * 200))
+
+    [feature] = configured_stage_feature(PUBLIC_ORIGIN)
+
+    assert [len(app.title) for app in feature.apps] == [200]
+
+
 @pytest.mark.parametrize(
     "public_origin",
     [
