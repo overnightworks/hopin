@@ -15,14 +15,26 @@ export function createAgentOffers(): AgentOffersView {
     return view;
 }
 
-/** The rows of an offers frame; an agent whose last invitation ended shows that outcome until it is invited again. */
-export function rowsOf(offers: Offer[], endings: ReadonlyMap<string, AgentControlOutcome>): AgentRow[] {
-    return offers.map((offer): AgentRow => {
-        const outcome = endings.get(offer.agent_key);
+/** How an agent's last invitation ended, with the name its row shows when the agent is no longer offered. */
+export interface Ending {
+    name: string;
+    outcome: AgentControlOutcome;
+}
+
+/** The rows of an offers frame; an agent whose last invitation ended shows that outcome until it is invited again, and
+ * an ended agent that is not offered keeps its ended row after the offered ones. */
+export function rowsOf(offers: Offer[], endings: ReadonlyMap<string, Ending>): AgentRow[] {
+    const offeredRows = offers.map((offer): AgentRow => {
+        const ending = endings.get(offer.agent_key);
         if (offer.pending) return { key: offer.agent_key, name: offer.name, state: "inviting" };
-        if (outcome !== undefined) return { key: offer.agent_key, name: offer.name, state: "ended", outcome };
+        if (ending !== undefined)
+            return { key: offer.agent_key, name: offer.name, state: "ended", outcome: ending.outcome };
         return { key: offer.agent_key, name: offer.name, state: "available" };
     });
+    const unlistedRows = [...endings]
+        .filter(([key]) => !offers.some((offer) => offer.agent_key === key))
+        .map(([key, { name, outcome }]): AgentRow => ({ key, name, state: "ended", outcome }));
+    return [...offeredRows, ...unlistedRows];
 }
 
 const OUTCOME_OF_ENDING: Record<INVITATION_OUTCOME, AgentControlOutcome> = {

@@ -1,4 +1,4 @@
-import { loadKitWords, type AgentControlOutcome } from "overnightworks-design";
+import { loadKitWords } from "overnightworks-design";
 import { createPlayer as createSpeechPlayer, startCapture } from "overnightworks-speech-browser";
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
@@ -10,7 +10,7 @@ import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createLooks } from "./looking.ts";
-import { createAgentOffers, outcomeOf, refusalOf, rowsOf } from "./offers.svelte.ts";
+import { createAgentOffers, outcomeOf, refusalOf, rowsOf, type Ending } from "./offers.svelte.ts";
 import { createAgentVoices, type PlayerFactory } from "./voice.ts";
 import {
     AGENT_REFUSAL,
@@ -186,7 +186,7 @@ export async function installWith(
     const offersView = createAgentOffers();
     // The last offers frame and how each agent's last invitation ended, which the row shows until a new call.
     let offered: Offer[] = [];
-    const endings = new Map<string, AgentControlOutcome>();
+    const endings = new Map<string, Ending>();
     mount(AgentOffers, {
         target: offers,
         props: {
@@ -200,8 +200,13 @@ export async function installWith(
     });
     core.addMoreItems(offers);
     // A refusal leaves with the next offers frame (the server sends an add's own offers frame before its refusal) and
-    // when the person closes More, for the server sends no frame when the person only lost the right.
-    offers.closest("dialog")?.addEventListener("close", clearRefusal);
+    // when the person closes More, for the server sends no frame when the person only lost the right. Every ended row
+    // leaves with the control too.
+    offers.closest("dialog")?.addEventListener("close", () => {
+        clearRefusal();
+        endings.clear();
+        drawOffers();
+    });
 
     function clearRefusal() {
         offersView.refusal = undefined;
@@ -227,7 +232,11 @@ export async function installWith(
         offered = frame.offers;
         const pending = new Set(offered.filter((offer) => offer.pending).map((offer) => offer.agent_key));
         const listed = new Set(offered.map((offer) => offer.agent_key));
-        for (const key of endings.keys()) if (pending.has(key) || !listed.has(key)) endings.delete(key);
+        // An owner-away row outlives the agent's absence from the list and goes when the owner is back.
+        for (const [key, { outcome }] of endings) {
+            const stays = outcome === "owner-absent" ? !listed.has(key) : listed.has(key) && !pending.has(key);
+            if (!stays) endings.delete(key);
+        }
         offersView.shown = frame.shown;
         offersView.full = frame.full;
         drawOffers();
@@ -236,7 +245,7 @@ export async function installWith(
     }
 
     function showEnding(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED]) {
-        endings.set(frame.agent_key, outcomeOf(frame.outcome));
+        endings.set(frame.agent_key, { name: frame.name, outcome: outcomeOf(frame.outcome) });
         drawOffers();
     }
 
