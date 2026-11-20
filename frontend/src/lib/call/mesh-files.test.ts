@@ -18,7 +18,7 @@ vi.mock("#lib/call/signaling.ts", () => ({
 async function freshMesh() {
     vi.resetModules();
     signal.handlers.clear();
-    FakeConnection.instances = [];
+    FakeConnection.reset();
     const mesh = await import("./mesh.ts");
     const { installStage } = await import("./stage-port.ts");
     const stage = {

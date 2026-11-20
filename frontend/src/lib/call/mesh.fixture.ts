@@ -30,8 +30,23 @@ export interface FakeTransceiver {
 }
 
 export class FakeConnection {
-    static instances: FakeConnection[] = [];
-    static offerGate: Promise<void> | null = null;
+    static readonly instances: FakeConnection[] = [];
+    private static offerGate: Promise<void> | null = null;
+    /** Forget every connection made and release the hold on offers. */
+    static reset() {
+        FakeConnection.instances.length = 0;
+        FakeConnection.offerGate = null;
+    }
+
+    /** Hold every offer being made until the returned function is called. */
+    static holdOffers(): () => void {
+        let release: () => void = () => undefined;
+        FakeConnection.offerGate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        return release;
+    }
+
     signalingState = "stable";
     iceConnectionState = "new";
     connectionState = "connected";

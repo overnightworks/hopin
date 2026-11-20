@@ -46,8 +46,7 @@ async function freshMesh({ watchPeers = true } = {}) {
     vi.resetModules();
     signal.handlers.clear();
     signal.sent.length = 0;
-    FakeConnection.instances = [];
-    FakeConnection.offerGate = null;
+    FakeConnection.reset();
     const mesh = await import("./mesh.ts");
     const { installStage } = await import("./stage-port.ts");
     const { state } = await import("./state.ts");
@@ -272,10 +271,7 @@ describe("meeting the people already there", () => {
 
     it("starts the quality and speaking monitors only once the offer is made", async () => {
         const mesh = await freshMesh();
-        let releaseOffer: () => void = () => undefined;
-        FakeConnection.offerGate = new Promise<void>((release) => {
-            releaseOffer = release;
-        });
+        const releaseOffer = FakeConnection.holdOffers();
         await meetPeer(mesh, "p1");
         connectionOf().receivers = [
             {
