@@ -1,10 +1,11 @@
 """What an e2e test sees of the hearing sockets a page opens, and the waits that go with it."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hopin.config.constants import HEALTH_PATH
 from hopin.participation.vocabulary import HEARING_PATH
 
 if TYPE_CHECKING:
@@ -54,6 +55,26 @@ def until(page: Page, condition: Callable[[], bool], what: str) -> None:
     pytest.fail(f"{what} did not happen within {HOP_SECONDS} seconds")
 
 
+def on_the_page_clock(open_person: Callable[..., Page]) -> Callable[..., Page]:
+    """`open_person` whose pages run on the page clock from their first load, which `settle` moves."""
+
+    def open_clocked(**options: Any) -> Page:
+        page = open_person(**options)
+        page.clock.install()
+        return page
+
+    return open_clocked
+
+
+@pytest.fixture
+def open_person(open_person: Callable[..., Page]) -> Callable[..., Page]:
+    """Overrides the suite's `open_person` in a module that imports it: its pages run on the page clock."""
+    return on_the_page_clock(open_person)
+
+
 def settle(page: Page) -> None:
-    """A window in which a hop that should not open would have."""
-    page.wait_for_timeout(NO_HOP_WINDOW_MILLISECONDS)
+    """A window in which a hop that should not open would have: the page clock runs through it at once, and one real
+    round trip to the server follows, so what the server sent in reply to the state change has been handled."""
+    page.clock.run_for(NO_HOP_WINDOW_MILLISECONDS)
+    page.evaluate("(path) => fetch(path).then((answer) => answer.status)", HEALTH_PATH)
+    page.clock.run_for(NO_HOP_WINDOW_MILLISECONDS)

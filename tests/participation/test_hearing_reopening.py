@@ -8,9 +8,7 @@ from tests.participation.support.hearing_scene import (
     endings_of,
     entries_of,
     header_of,
-)
-from tests.participation.support.hearing_scene import (
-    lose_the_held_token as _lose_the_held_token,
+    lose_the_held_token,
 )
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.fake_issuer import TOKEN_LIFETIME_SECONDS
@@ -21,15 +19,23 @@ from tests.support.log_lines import captured_lines
 pytestmark = pytest.mark.integration
 
 
-def refuse_the_workload_grant(scene, issuer_clock):
-    """HopIn's own token lapses and the issuer refuses the next one."""
-    issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
-    scene.call.issuer.refuses_client_credentials_grants = True
+@pytest.fixture
+def hearing_service(fake_speech_hearing):
+    return fake_speech_hearing
 
 
-def lose_the_held_token(scene, _issuer_clock):
-    """The agent's token lapses after the issuer refuses its exchanges."""
-    _lose_the_held_token(scene)
+@pytest.fixture(params=["issuer", "held_token"])
+def token_lost(request, issuer_clock):
+    """How a scene loses the token a reopening needs: HopIn's own token lapses and the issuer refuses the next one, or
+    the agent's token lapses after the issuer refuses its exchanges."""
+    if request.param == "held_token":
+        return lose_the_held_token
+
+    def refuse_the_workload_grant(scene):
+        issuer_clock.advance(TOKEN_LIFETIME_SECONDS)
+        scene.call.issuer.refuses_client_credentials_grants = True
+
+    return refuse_the_workload_grant
 
 
 class TestAReopenedSession:
@@ -73,17 +79,14 @@ class TestAReopenedSession:
         )
         assert len(grants(sponsored, CLIENT_CREDENTIALS_GRANT)) == 2
 
-    @pytest.mark.parametrize(
-        "token_lost", [refuse_the_workload_grant, lose_the_held_token], ids=["issuer", "held_token"]
-    )
     def test_call_58_a_reopening_without_a_token_ends_the_hearing_in_order_with_no_token_logged(
-        self, sponsored, fake_speech, issuer_clock, token_lost
+        self, sponsored, fake_speech, token_lost
     ):
         with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)
             first.wait_for_audio(1)
-            token_lost(sponsored, issuer_clock)
+            token_lost(sponsored)
             first.drop()
             closed = closed_with(socket)
 

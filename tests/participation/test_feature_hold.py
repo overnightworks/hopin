@@ -12,21 +12,27 @@ from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     HoldRefusal,
-    ParticipationSignal,
     SpeakStarted,
     SpeakStop,
     VoiceFailure,
 )
+from hopin.signaling.transition import InMemoryCallStore
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
+    CONTINUED,
+    HELD,
+    HOST,
     LONG,
     SENTENCE_MS,
+    STOP,
+    VOICE,
     StreamedSentence,
     a_sentence,
     hold_of_a_playing_sentence,
     hold_with_a_sentence_waiting,
     rendering,
     renders_failing,
+    sounds,
     speak,
     voice_ids,
     waiting_to_speak,
@@ -35,12 +41,7 @@ from tests.participation.support.speaking import (
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-HOST = person_named("host")
 GUEST = person_named("guest")
-STOP = ParticipationSignal.AGENT_STOP
-VOICE = ParticipationSignal.AGENT_VOICE
-HELD = ParticipationSignal.AGENT_HELD
-CONTINUED = ParticipationSignal.AGENT_CONTINUED
 
 
 @pytest.fixture
@@ -70,15 +71,6 @@ def continues(browser):
     return [frame["agent_id"] for frame in browser.frames(CONTINUED)]
 
 
-def sounds(browser, agent=None):
-    """The kinds of the sound frames a seat was told, of one agent when named, in the order it was told them."""
-    return [
-        frame["type"]
-        for frame in browser.frames(VOICE, HELD, CONTINUED, STOP)
-        if agent is None or frame["agent_id"] == agent.agent_id
-    ]
-
-
 def standing(participation, room_id, person=GUEST):
     window = participation.read_window(person, room_id)
     record = window.talked_over
@@ -86,6 +78,23 @@ def standing(participation, room_id, person=GUEST):
 
 
 class TestAPersonStartsSpeaking:
+    async def test_call_69_a_person_starting_to_speak_where_no_sentence_plays_commits_no_transition(
+        self, participation, call, monkeypatch
+    ):
+        host, guest, *_ = call
+        committed = []
+        commit = InMemoryCallStore.commit
+
+        def noting(store, view, change):
+            committed.append(change)
+            return commit(store, view, change)
+
+        monkeypatch.setattr(InMemoryCallStore, "commit", noting)
+
+        await participation.person_started(room_of(host), guest.peer_id)
+
+        assert (committed, holds(host)) == ([], [])
+
     async def test_call_69_the_playing_sentence_is_held_and_the_window_shows_the_hold_and_playing_false_in_one_change(
         self, participation, call, window_changes
     ):
@@ -387,6 +396,26 @@ class TestTheContinueTool:
         answered = await continue_tool.handler(
             Caller(GUEST), {"place": {"kind": "elsewhere", "id": "1"}, "interrupted": "1"}
         )
+
+        assert (answered.is_error, answered.content) == (True, '{"refused":"not_active"}')
+
+
+class TestTheToolsWithTheSponsorParked:
+    @pytest.mark.parametrize(
+        ("tool_name", "arguments"),
+        [(STOP_SPEAKING_TOOL, {}), (CONTINUE_SPEAKING_TOOL, {"interrupted": "1"})],
+    )
+    async def test_call_69_70_the_tool_refuses_not_active_while_the_sponsor_is_parked(
+        self, participation, call, tool_name, arguments
+    ):
+        host, guest, *_ = call
+        room_id = room_of(host)
+        [tool] = [
+            tool for tool in participation_tools(lambda: participation, None) if tool.declaration.name == tool_name
+        ]
+        await guest.drop()
+
+        answered = await tool.handler(Caller(GUEST), {"place": {"kind": CALL_KIND, "id": room_id}, **arguments})
 
         assert (answered.is_error, answered.content) == (True, '{"refused":"not_active"}')
 

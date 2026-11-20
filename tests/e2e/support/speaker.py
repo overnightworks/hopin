@@ -168,8 +168,11 @@ class Speaker:
         place = PlaceRef(kind=CALL_KIND, id=self.room)
         return self.scene.agent.call(STOP_SPEAKING_TOOL, {"place": place.model_dump()})
 
-    def leave(self) -> None:
-        self.scene.agent.call(LEAVE_CALL, {"room": self.room})
+    def leave(self) -> dict[str, Any]:
+        return self.scene.agent.call(LEAVE_CALL, {"room": self.room})
+
+    def refusal_of_a_second_leave(self) -> str:
+        return self.scene.agent.refusal_of(LEAVE_CALL, {"room": self.room})
 
     def started(self, person: Page) -> list[float]:
         return [round(seconds, 2) for seconds in person.evaluate("() => window.soundsStarted")]

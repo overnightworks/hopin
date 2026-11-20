@@ -4,8 +4,9 @@ transcript names, a line enters the agent's place with the trace it entered in, 
 request carries."""
 
 import json
+import logging
 import secrets
-import time
+import threading
 from dataclasses import dataclass
 
 import pytest
@@ -22,7 +23,26 @@ from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_reques
 
 pytestmark = pytest.mark.integration
 
+
+@pytest.fixture
+def hearing_service(fake_speech_hearing):
+    return fake_speech_hearing
+
+
 DROP_HANDLED_SECONDS = 10
+SOCKET_ENDED = "websocket.ended"
+
+
+class SocketEnd(logging.Handler):
+    """Sets `happened` when a record says that a socket ended, so a test waits on the end and not on a clock."""
+
+    def __init__(self):
+        super().__init__()
+        self.happened = threading.Event()
+
+    def emit(self, record):
+        if SOCKET_ENDED in str(record.msg):
+            self.happened.set()
 
 
 @dataclass(frozen=True)
@@ -113,18 +133,20 @@ def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_
     joined_agent.call.call(member_token, JOIN_CALL, {"room": joined_agent.owner.room_id, "name": "Bach"})
     speak(joined_agent, seconds=None)
 
+    socket_end_seen = SocketEnd()
+    root_logger = logging.getLogger()
     with configured("hopin"):
-        joined_agent.owner.drop(code=close_code)
-        lines, entries = [], []
-        deadline = time.monotonic() + DROP_HANDLED_SECONDS
-        while time.monotonic() < deadline and not (
-            entries and any(line["event"] == "websocket.ended" for line in lines)
-        ):
+        root_logger.addHandler(socket_end_seen)
+        try:
+            joined_agent.owner.drop(code=close_code)
+            assert socket_end_seen.happened.wait(DROP_HANDLED_SECONDS), "the owner's socket did not end"
             answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
             entries = json.loads(answer["result"]["contents"][0]["text"])["entries"]
-            lines += logged(capsys)
+            lines = logged(capsys)
+        finally:
+            root_logger.removeHandler(socket_end_seen)
 
-    [socket_end] = [line for line in lines if line["event"] == "websocket.ended"]
+    [socket_end] = [line for line in lines if line["event"] == SOCKET_ENDED]
     [entry] = entries
     assert (entry["cut"], trace_id_of(entry["traceparent"]) != socket_end["trace_id"]) == (True, True)
 

@@ -15,8 +15,7 @@ SPEAKER = "agent"
 async def reading_next(reader):
     """The reader's next read, started and left waiting."""
     task = asyncio.ensure_future(anext(reader))
-    await asyncio.sleep(0)
-    await asyncio.sleep(0)
+    await asyncio.wait({task}, timeout=0)
     return task
 
 

@@ -116,6 +116,8 @@ class AgentSpeech:
         """A person starts speaking: the windows say so, each agent that hears the seat and speaks is held, and every
         seat is told all the holds in one transition, so no sound of an agent reaches a seat before its hold."""
         arisen = self._speech.person_started(room_id, seat, self._is_speaking_or_held, self._is_held)
+        if not arisen:
+            return
         for agent, hold_id in arisen.items():
             self._speaking.hold(agent, hold_id)
         await self._transitions.apply(room_id, partial(self._tell_held_all, list(arisen)))

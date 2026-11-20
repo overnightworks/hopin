@@ -18,7 +18,7 @@ from tests.e2e.support.dialed_agent import (
     OwnAccountAgent,
     room_of_link,
 )
-from tests.e2e.support.hearing_hops import Hops, settle, until
+from tests.e2e.support.hearing_hops import Hops, open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
@@ -197,7 +197,7 @@ def test_the_other_agent_keeps_hearing_when_one_leaves(seat_of: Callable[..., Se
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_admits_the_third_agent(
     scene_of: Callable[[dict[str, Any]], Scene],
-    open_person: Callable[..., Page],
+    open_person: Callable[..., Page],  # noqa: F811 - the imported fixture is requested by name
     own_account_agent: OwnAccountAgent,
     second_own_account_agent: OwnAccountAgent,
     e2e_server: RunningServer,

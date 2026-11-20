@@ -70,6 +70,12 @@ def room_of_link(link: str) -> str:
     return found.group(0).removeprefix("/c/")
 
 
+def refusal_of(answer: Any) -> str:
+    """The code a refused tool call answers with."""
+    assert answer.is_error
+    return json.loads(answer.content[0].text)["refused"]
+
+
 class Agent:
     """A person's own agent, calling HopIn's MCP endpoint with a token its client would hold."""
 
@@ -165,6 +171,10 @@ class SdkAgent:
     def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return self.call_unawaited(tool, arguments).result(REQUEST_SECONDS)
 
+    def refusal_of(self, tool: str, arguments: dict[str, Any]) -> str:
+        """Call the tool and return the code the call refuses it with."""
+        return refusal_of(self._run(self._client.call_tool(tool, arguments)))
+
     def look_unawaited(self, room: str) -> Future[CallToolResult]:
         """Start the agent's `look` in the room and return its raw answer to come, since the answer is a picture and not
         the JSON of the other tools; the sponsor's browser answers while the test keeps driving its pages."""
@@ -240,9 +250,7 @@ class OwnAccountAgent(SdkAgent):
 
     def accept_refusal(self, standing: dict[str, Any]) -> str:
         """Accept the invitation and return the code the call refuses it with."""
-        result = self._run(self._client.call_tool(ACCEPT_INVITATION_TOOL, self._acceptance(standing)))
-        assert result.is_error
-        return json.loads(result.content[0].text)["refused"]
+        return self.refusal_of(ACCEPT_INVITATION_TOOL, self._acceptance(standing))
 
     @staticmethod
     def _acceptance(standing: dict[str, Any]) -> dict[str, Any]:

@@ -9,7 +9,12 @@ from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 
 GUEST = person_named("guest")
+HOST = person_named("host")
 SENTENCE_MS = 1500
+STOP = ParticipationSignal.AGENT_STOP
+VOICE = ParticipationSignal.AGENT_VOICE
+HELD = ParticipationSignal.AGENT_HELD
+CONTINUED = ParticipationSignal.AGENT_CONTINUED
 LONG_MS = 60 * 60 * 1000
 
 
@@ -219,8 +224,13 @@ async def renders_broken(sentence, voice):
     raise RuntimeError("the speech service broke")
 
 
-async def removed_by_the_host(participation, host, guest, agent):
-    await host.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
+def sounds(browser, agent=None):
+    """The kinds of the sound frames a seat was told, of one agent when named, in the order it was told them."""
+    return [
+        frame["type"]
+        for frame in browser.frames(VOICE, HELD, CONTINUED, STOP)
+        if agent is None or frame["agent_id"] == agent.agent_id
+    ]
 
 
 def voice_ids(browser):

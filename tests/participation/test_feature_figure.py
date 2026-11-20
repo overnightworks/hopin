@@ -39,7 +39,7 @@ from tests.participation.support.figures import (
 )
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_adders import ADDERS_GROUP
-from tests.support.dialed_call import RESOURCE_UPDATED, TOOLS_LIST_CHANGED, accept_arguments
+from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED, accept_arguments
 from tests.support.signed_in import cookie_header
 
 pytestmark = pytest.mark.integration
@@ -568,7 +568,7 @@ class TestTheGestureTool:
         before = GESTURE_TOOL in offered_tools(scene)
         with scene.call.open_listen(scene.token, [STANDING_URI], tools=True) as stream:
             change(scene)
-            assert stream.wait_for(RESOURCE_UPDATED, 10)
+            assert stream.wait_for(RESOURCE_UPDATED, LISTEN_TIMEOUT_SECONDS)
 
             assert (before, GESTURE_TOOL in offered_tools(scene)) == (not gained, gained)
             assert stream.arrivals(TOOLS_LIST_CHANGED, RESOURCE_UPDATED) == [TOOLS_LIST_CHANGED, RESOURCE_UPDATED]

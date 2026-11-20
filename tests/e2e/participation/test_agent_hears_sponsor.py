@@ -5,7 +5,7 @@ from agents.member import STANDING_URI
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, room_of_link
-from tests.e2e.support.hearing_hops import Hops, settle, until
+from tests.e2e.support.hearing_hops import Hops, open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence

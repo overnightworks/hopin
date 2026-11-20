@@ -8,31 +8,47 @@ import pytest_asyncio
 
 from hopin.agent.hearing import MemberHearingRecord
 from hopin.participation.hearing import Hearing
-from hopin.participation.vocabulary import ParticipationSignal, Sense, SpeakStarted
+from hopin.participation.vocabulary import Sense, SpeakStarted
 from tests.participation.support.people import person_named, room_of
-from tests.participation.support.speaking import LONG, announced_since, rendering, speak
+from tests.participation.support.speaking import (
+    CONTINUED,
+    HELD,
+    HOST,
+    LONG,
+    STOP,
+    VOICE,
+    announced_since,
+    rendering,
+    sounds,
+    speak,
+)
 from tests.signaling.support.browsers import HeldWrite
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-HOST = person_named("host")
 GUEST = person_named("guest")
-STOP = ParticipationSignal.AGENT_STOP
-VOICE = ParticipationSignal.AGENT_VOICE
-HELD = ParticipationSignal.AGENT_HELD
-CONTINUED = ParticipationSignal.AGENT_CONTINUED
+
+
+class HearersHostFirst(frozenset):
+    """Hearers that iterate with the host first, so the hold of the host's agent comes before the others'."""
+
+    def __iter__(self):
+        return iter(sorted(frozenset.__iter__(self), key=lambda person: person != HOST))
+
+
+class RecordNamingTheHostFirst(MemberHearingRecord):
+    def sensing(self, room_id, seat, sense):
+        return HearersHostFirst(super().sensing(room_id, seat, sense))
+
+
+def hearing_naming_the_host_first(member_hearing, *, enabled):
+    """The hearing of a seat whose hearers are named with the host's agent first."""
+    return Hearing(RecordNamingTheHostFirst(member_hearing), enabled=enabled)
 
 
 @pytest.fixture
 def hears():
     return True
-
-
-def sounds(browser, agent):
-    """The kinds of the sound frames a seat was told of one agent, in the order it was told them."""
-    return [
-        frame["type"] for frame in browser.frames(VOICE, HELD, CONTINUED, STOP) if frame["agent_id"] == agent.agent_id
-    ]
 
 
 class TestTwoAgentsHearingOneSeat:
@@ -42,17 +58,7 @@ class TestTwoAgentsHearingOneSeat:
     def hearing(self, member_hearing, hears):
         """Names the hearers of a seat with the host's agent first, so the guest's agent is held second."""
 
-        class HostFirst(MemberHearingRecord):
-            def sensing(self, room_id, seat, sense):
-                hearers = super().sensing(room_id, seat, sense)
-
-                class Ordered(frozenset):
-                    def __iter__(self):
-                        return iter(sorted(frozenset.__iter__(self), key=lambda person: person != HOST))
-
-                return Ordered(hearers)
-
-        return Hearing(HostFirst(member_hearing), enabled=hears)
+        return hearing_naming_the_host_first(member_hearing, enabled=hears)
 
     @pytest_asyncio.fixture
     async def started_while_the_host_seat_blocks(self, participation, call, member_hearing):

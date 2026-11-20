@@ -232,7 +232,7 @@ class TestALineHeldInTheRelay:
         assert [(line.name, line.text) for line in lines_of(participation, guest)] == [("host", "last words")]
 
 
-async def remove_by_the_host(participation, host, guest):
+async def remove_the_window_by_the_host(participation, host, guest):
     await host.say(
         {"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": (window_of(participation, guest)).generation}
     )
@@ -259,7 +259,7 @@ class TestTheEnd:
     @pytest.mark.parametrize(
         "end",
         [
-            pytest.param(remove_by_the_host, id="removal_by_the_host"),
+            pytest.param(remove_the_window_by_the_host, id="removal_by_the_host"),
             pytest.param(leave_by_the_agent, id="leave"),
             pytest.param(leave_by_the_sponsor, id="the_sponsors_seat_leaving"),
             pytest.param(end_by_the_host, id="the_rooms_end"),
