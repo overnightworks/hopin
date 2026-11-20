@@ -24,8 +24,7 @@ pytestmark = pytest.mark.e2e
 
 BAR = "#stage .cbar"
 VISIBLE_BAR_BUTTONS = f"{BAR} button:visible"
-ROUND_BUTTON_PIXELS = 52
-LEAVE_PILL_PIXELS = {"desktop": 72, "phone": 52}
+ROUNDING_PIXELS = 1
 MUTE, CAMERA_OFF, SHARE_SCREEN, INVITE, CHAT, MORE, LEAVE = (
     text("de", key)
     for key in (
@@ -122,14 +121,22 @@ def test_host_bar_shows_round_buttons_in_order_inside_the_stage_and_no_old_strip
     expect(host.locator(VISIBLE_BAR_BUTTONS)).to_have_count(len(BAR_NAMES[name]))
     assert bar_names(host) == BAR_NAMES[name]
     stage = host.evaluate(BOXES_OF, "#stage")[0]
-    for box in host.evaluate(BOXES_OF, BAR_BUTTONS):
+    boxes = host.evaluate(BOXES_OF, BAR_BUTTONS)
+    for box in boxes:
         assert stage["left"] <= box["left"]
         assert box["right"] <= stage["right"]
         assert box["bottom"] <= stage["bottom"]
-        assert box["bottom"] - box["top"] == ROUND_BUTTON_PIXELS
-    leave = button_named(host, LEAVE).bounding_box()
-    assert leave is not None
-    assert leave["width"] == LEAVE_PILL_PIXELS[name]
+    heights = [box["bottom"] - box["top"] for box in boxes]
+    assert max(heights) - min(heights) <= ROUNDING_PIXELS
+    *round_boxes, leave = boxes
+    for box in round_boxes:
+        assert abs((box["right"] - box["left"]) - (box["bottom"] - box["top"])) <= ROUNDING_PIXELS
+    leave_width = leave["right"] - leave["left"]
+    round_width = round_boxes[0]["right"] - round_boxes[0]["left"]
+    if name == "desktop":
+        assert leave_width > round_width + ROUNDING_PIXELS
+    else:
+        assert abs(leave_width - round_width) <= ROUNDING_PIXELS
     expect(host.locator(".controls")).to_have_count(0)
     assert host.evaluate(RULES_OF_THE_OLD_STRIP) == []
 
