@@ -40,6 +40,8 @@ flowchart TB
         feats --> core
     end
     core <-- "WebSocket frames" --> sig
+    core -. "address discovery" .-> ST[STUN server]
+    feats -. "framed table page, optional" .-> SK[Skat frame]
     subgraph server["Server: each layer imports only the ones below it"]
         main --> app --> agent --> features --> people --> auth --> web --> sig[signaling] --> rooms --> stores --> config
         features["game, participation, skat"]
@@ -146,7 +148,7 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 **Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** The conventions are in the docstring of `src/hopin/main.py`.
 
-**Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis. CI merges their coverage and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives each feature's deletion. [docs/call.md](call.md) maps each rule to its test.
+**Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis. CI merges their coverage and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives the deletion of the game and of Skat. [docs/call.md](call.md) maps each rule to its test.
 
 ### Trust
 
