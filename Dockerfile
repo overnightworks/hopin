@@ -30,7 +30,7 @@ ENV UV_PYTHON_DOWNLOADS=never \
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
-# git exists only in this stage, because uv needs it to fetch the two git-pinned
+# git exists only in this stage, because uv needs it to fetch the git-pinned
 # libraries; the final stage copies the environment and never carries it.
 FROM python-base AS dependencies
 RUN apt-get update \

@@ -213,7 +213,7 @@ def render_frame_type(
     """
     field_types = {**FRAME_FIELD_TYPES, **(extra_field_types or {})}
     for record_cls in _nested_records(frame_cls):
-        field_types[list[record_cls]] = f"{record_cls.__name__}[]"
+        field_types[types.GenericAlias(list, (record_cls,))] = f"{record_cls.__name__}[]"
     signal = _exported_name(enums, type(frame_cls.TYPE))
     lines = [f"{INDENT}type: {signal}.{frame_cls.TYPE.name};\n", *_properties(frame_cls, field_types, enums)]
     return f"export type {frame_cls.__name__} = {{\n" + "".join(lines) + "};\n"
