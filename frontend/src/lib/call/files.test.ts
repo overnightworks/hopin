@@ -553,18 +553,20 @@ describe("a file served", () => {
         expect(new Uint8Array(await new Blob(channel.sent).arrayBuffer())).toEqual(content);
     });
 
-    it("sends nothing while the channel is still connecting and starts when it opens", async () => {
-        const { files } = sender();
+    it("reads and sends nothing while the channel is still connecting and starts when it opens", async () => {
+        const { files, reads } = sender();
         const channel = new FakeChannel("file:1");
         channel.readyState = "connecting";
+        const readsBefore = reads.requested;
 
         files.serve("p1", channel);
+        const readsWhileConnecting = reads.requested;
         const sentWhileConnecting = channel.sent.length;
         channel.readyState = "open";
         channel.onopen?.();
         await channel.whenSent(4);
 
-        expect(sentWhileConnecting).toBe(0);
+        expect([readsWhileConnecting, sentWhileConnecting]).toEqual([readsBefore, 0]);
     });
 
     it("waits on the send buffer: it sends no more while the buffer is full and goes on when it is low again", async () => {
