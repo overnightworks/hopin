@@ -1,8 +1,0 @@
-claim_id = "e0cc3c105c6a43ddad879e6ebf6c1cfa"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "d33836736ec3213cfbe0c4a10218173b894cee3b"
-branch = "claude/issue-823-agent-row-turn-outcome"
-scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "frontend/src/lib/ui", "src/hopin/agent", "src/hopin/participation", "tests/agent", "tests/e2e/participation", "tests/e2e/support/dialed_agent.py", "tests/participation"]
-opened_commit = "31973dbf70cdca79757b7efe01378e4d16b5833e"
-whole_reason = "One outcome travels from the agent route through participation to the agent row; splitting it leaves a half path."
