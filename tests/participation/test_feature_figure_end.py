@@ -134,7 +134,7 @@ class TestAFigureEndReport:
 
 
 class TestAFigureEndReportAfterItsSeatLeft:
-    async def test_call_56_a_seat_that_left_is_logged_again_when_the_same_seat_reports_anew(self, participation, dialed):
+    async def test_call_56_a_seat_that_left_is_logged_again_when_it_reports_anew(self, participation, dialed):
         host, guest, agent = dialed
         view = RoomView(room_id=room_of(host), members=(host.peer_id, guest.peer_id))
         frame = ForeignFrame(
