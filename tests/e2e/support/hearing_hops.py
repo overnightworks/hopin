@@ -1,7 +1,7 @@
 """What an e2e test sees of the hearing sockets a page opens, and the waits that go with it."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -54,6 +54,17 @@ def until(page: Page, condition: Callable[[], bool], what: str) -> None:
     pytest.fail(f"{what} did not happen within {HOP_SECONDS} seconds")
 
 
+def on_the_page_clock(open_person: Callable[..., Page]) -> Callable[..., Page]:
+    """`open_person` whose pages run on the page clock from their first load, which `settle` moves."""
+
+    def open_clocked(**options: Any) -> Page:
+        page = open_person(**options)
+        page.clock.install()
+        return page
+
+    return open_clocked
+
+
 def settle(page: Page) -> None:
-    """A window in which a hop that should not open would have."""
-    page.wait_for_timeout(NO_HOP_WINDOW_MILLISECONDS)
+    """A window in which a hop that should not open would have: the page clock runs through it at once."""
+    page.clock.run_for(NO_HOP_WINDOW_MILLISECONDS)
