@@ -11,7 +11,7 @@ from speech_client.wire import VoiceId
 
 from hopin.agent.tools import CALL_KIND
 from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQUEST_SECONDS
-from tests.e2e.support.hearing_hops import settle, until
+from tests.e2e.support.hearing_hops import open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker, speaking_hopin
 from tests.support.fake_speech import ITEM, FakeSpeech, completed
