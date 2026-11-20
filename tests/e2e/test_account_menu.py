@@ -69,6 +69,11 @@ def watch(person: Page, page_errors: list[str], *, load_errors: list[str] | None
     return person
 
 
+def expect_layout(person: Page, predicate: str, selector: str) -> None:
+    """Wait until the laid-out box satisfies the predicate; a layout that never does fails at the timeout."""
+    person.wait_for_function(predicate, arg=selector)
+
+
 def open_home(open_person: Callable[..., Page], base_url: str, page_errors: list[str], **options: Any) -> Page:
     person = watch(open_person(**options), page_errors)
     person.goto(f"{base_url}/")
@@ -192,7 +197,7 @@ def test_avatar_opens_a_menu_with_the_username_one_log_out_and_the_legal_row(
     expect(menu.get_by_role("radiogroup")).to_have_count(0)
     expect(person.locator(AVATAR)).to_have_attribute("aria-expanded", "true")
     expect(menu.get_by_role("link").first).to_be_focused()
-    assert person.evaluate(BOX_FITS_THE_VIEWPORT, MENU)
+    expect_layout(person, BOX_FITS_THE_VIEWPORT, MENU)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -383,10 +388,11 @@ def test_a_very_long_username_is_cut_off_with_an_ellipsis_and_does_not_widen_the
 
     person.locator(AVATAR).click()
 
-    assert person.evaluate(NAME_IS_CUT_OFF_ON_ONE_LINE, MENU_NAME)
-    assert person.evaluate(NAME_ENDS_WITH_AN_ELLIPSIS, MENU_NAME)
-    assert person.evaluate(MENU_IS_NARROWER_THAN_THE_NAME, MENU_NAME)
-    assert person.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    expect(person.locator(MENU_NAME)).to_be_visible()
+    expect_layout(person, NAME_IS_CUT_OFF_ON_ONE_LINE, MENU_NAME)
+    expect_layout(person, NAME_ENDS_WITH_AN_ELLIPSIS, MENU_NAME)
+    expect_layout(person, MENU_IS_NARROWER_THAN_THE_NAME, MENU_NAME)
+    person.wait_for_function("() => document.documentElement.scrollWidth <= window.innerWidth")
 
 
 def test_a_very_long_username_without_a_break_wraps_the_home_greeting_and_keeps_the_brand(
