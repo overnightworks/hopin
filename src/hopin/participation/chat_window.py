@@ -1,5 +1,6 @@
 """The window of a call's chat one joined agent reads: the lines said in its room since it joined, bounded, the
-record of people talking over the agent's sentence and the hold that record opens.
+record of people talking over the agent's sentence and the ids of the holds that record opens; whether the agent is
+held and plays is its speaking's state, which a read takes from its caller.
 
 Plain state with no clock and no I/O. It lives and dies with the agent's place and keeps no history beyond its
 bounds.
@@ -90,8 +91,7 @@ class ChatWindow:
         self._next_seq = 1
         self._talked_over: _TalkedOver | None = None
         self._talked_over_count = 0
-        self._interrupted: str | None = None
-        self._interrupted_count = 0
+        self._hold_count = 0
         self._voice: WindowVoice | None = None
 
     def append(
@@ -123,36 +123,30 @@ class ChatWindow:
         """The `seq` of the newest line, 0 for a window that never held one."""
         return self._next_seq - 1
 
-    def talk_over(self, speaker: str, name: str, *, speaking: bool) -> bool:
-        """A person starts speaking: they join the record that stands, or open one when the agent is held or `speaking`,
-        which is when a sentence of it plays or waits; say whether the record changed. A person who is not in the record
-        while the agent `speaking` is not held holds it, and so does the one who opens a record then, in the same
-        change, under an id of its own, and the record says no sentence plays. The record keeps its id until its last
-        person's turn has ended."""
+    def talk_over(self, speaker: str, name: str, *, opens: bool) -> bool:
+        """A person starts speaking: they join the record that stands, or open one when `opens`, which is when a
+        sentence of the agent plays or waits or the agent is held; say whether the speaker was added. The record keeps
+        its id until its last person's turn has ended."""
         record = self._talked_over
         if record is not None and speaker in record.partials:
             return False
-        if self._interrupted is None and speaking:
-            self._interrupted_count += 1
-            self._interrupted = str(self._interrupted_count)
-            if record is not None:
-                record.playing = False
-        elif record is None and self._interrupted is None:
-            return False
         if record is None:
+            if not opens:
+                return False
             self._talked_over_count += 1
-            record = self._talked_over = _TalkedOver(str(self._talked_over_count), playing=False)
+            record = self._talked_over = _TalkedOver(str(self._talked_over_count))
         record.partials[speaker] = WindowPartial(name, "")
         return True
 
     @property
-    def interrupted(self) -> str | None:
-        """The id of the hold that stands, none while the agent is not held."""
-        return self._interrupted
+    def has_record(self) -> bool:
+        """Whether a record of people talking over the agent stands."""
+        return self._talked_over is not None
 
-    def end_hold(self) -> None:
-        """The hold ends."""
-        self._interrupted = None
+    def new_hold_id(self) -> str:
+        """The id of a hold that arises: the window's own, which never repeats within its generation."""
+        self._hold_count += 1
+        return str(self._hold_count)
 
     def hear_partial(self, speaker: str, text: str) -> bool:
         """The words the speaker has said so far; say whether the record changed. Text that does not encode as UTF-8
@@ -178,14 +172,6 @@ class ChatWindow:
             self._talked_over = None
         return True
 
-    def set_playing(self, *, playing: bool) -> bool:
-        """Whether a sentence of the agent plays now; say whether the record that stands changed."""
-        record = self._talked_over
-        if record is None or record.playing == playing:
-            return False
-        record.playing = playing
-        return True
-
     def voice_failed(self) -> bool:
         """The agent's voice failed; say whether it turned unavailable just now."""
         turned = self._voice is not WindowVoice.UNAVAILABLE
@@ -203,19 +189,19 @@ class ChatWindow:
             self._voice = WindowVoice.AVAILABLE
         return turned
 
-    def read(self) -> WindowRead:
+    def read(self, *, interrupted: str | None, playing: bool) -> WindowRead:
+        """The window, saying the agent is held under `interrupted` and whether a sentence of it `playing`, which its
+        speaking knows."""
         lines = tuple(line for line, _ in self._lines)
         record = self._talked_over
-        talked_over = (
-            None if record is None else WindowTalkedOver(record.id, record.playing, tuple(record.partials.values()))
-        )
+        talked_over = None if record is None else WindowTalkedOver(record.id, playing, tuple(record.partials.values()))
         return WindowRead(
             self._generation,
             lines[0].seq if lines else self._next_seq,
             lines,
             talked_over,
             self._voice,
-            self._interrupted,
+            interrupted,
         )
 
 
@@ -224,5 +210,4 @@ class _TalkedOver:
     """The record that stands: its people in the order they started speaking, keyed by the app's speaker."""
 
     id: str
-    playing: bool
     partials: dict[str, WindowPartial] = field(default_factory=dict)

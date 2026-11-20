@@ -113,11 +113,20 @@ class AgentSpeech:
         return refusal
 
     async def person_started(self, room_id: str, seat: PeerId) -> None:
-        """A person starts speaking: the windows say so, then each agent that hears the seat and speaks is held, which
-        every seat is told."""
-        for agent, hold_id in self._speech.person_started(room_id, seat, self._speaking.is_speaking).items():
+        """A person starts speaking: the windows say so, each agent that hears the seat and speaks is held, and every
+        seat is told all the holds in one transition, so no sound of an agent reaches a seat before its hold."""
+        arisen = self._speech.person_started(room_id, seat, self._is_speaking_or_held, self._is_held)
+        for agent, hold_id in arisen.items():
             self._speaking.hold(agent, hold_id)
-            await self._tell_room(agent, AgentHeldFrame(agent.agent_id), None)
+        await self._transitions.apply(room_id, partial(self._tell_held_all, list(arisen)))
+
+    def hold_of(self, agent: DialedAgent) -> str | None:
+        """The id of the hold that stands over the agent, none while it is not held."""
+        return self._speaking.hold_of(agent)
+
+    def plays(self, agent: DialedAgent) -> bool:
+        """Whether a sentence of the agent plays now."""
+        return self._speaking.plays(agent)
 
     def end(self, agent: DialedAgent) -> None:
         """The agent's removal, leave, lease end or call end, which closes its player in every seat."""
@@ -131,7 +140,7 @@ class AgentSpeech:
 
     def tell_held(self, view: RoomView, transition: Transition, agent: DialedAgent, peer_id: PeerId) -> None:
         """Tell a seat that joined that the agent is held, if it is."""
-        if self._speaking.is_held(agent):
+        if self._is_held(agent):
             send_in_room(view, transition, [peer_id], AgentHeldFrame(agent.agent_id))
 
     async def _stop_sound(self, agent: DialedAgent) -> None:
@@ -142,24 +151,34 @@ class AgentSpeech:
         """The sound of a sentence a hold kept ends in every seat, before any voice the agent's queue announces next."""
         self._in_own_turn(agent, self._stop_sound(agent))
 
-    async def _sentence_started(self, agent: DialedAgent, sentence: QueuedSentence) -> None:
+    async def _sentence_started(self, agent: DialedAgent, sentence: QueuedSentence, at_once: bool) -> None:
         """A sentence of the agent begins to play: in one transition it enters the call's chat as the agent's line and
         every seat is told its voice, also when a hold keeps it from playing, unless the agent's end came first; a stop
         that came first leaves the line without a voice."""
-        await self._transitions.apply(agent.room_id, partial(self._announce_sentence, agent, sentence))
+        await self._transitions.apply(agent.room_id, partial(self._announce_sentence, agent, sentence, at_once))
 
     def _announce_sentence(
-        self, agent: DialedAgent, sentence: QueuedSentence, view: RoomView, transition: Transition
+        self, agent: DialedAgent, sentence: QueuedSentence, at_once: bool, view: RoomView, transition: Transition
     ) -> None:
         if not self._speaking.speaks(agent):
             return
         standing = self._speaking.stands(agent, sentence)
-        if standing and not self._speaking.is_held(agent):
-            self._speech.sentence_started(agent)
+        if standing and not self._is_held(agent):
+            self._speech.sentence_started(agent, at_once=at_once)
         send_in_room(view, transition, view.members, AgentLineFrame(agent.agent_id, agent.name, sentence.text))
         if standing:
             voice = AgentVoiceFrame(agent.agent_id, sentence.voice.id, sentence.mood)
             send_in_room(view, transition, view.members, voice, voices_of(agent))
+
+    def _tell_held_all(self, agents: list[DialedAgent], view: RoomView, transition: Transition) -> None:
+        for agent in agents:
+            send_in_room(view, transition, view.members, AgentHeldFrame(agent.agent_id))
+
+    def _is_held(self, agent: DialedAgent) -> bool:
+        return self._speaking.hold_of(agent) is not None
+
+    def _is_speaking_or_held(self, agent: DialedAgent) -> bool:
+        return self._speaking.is_speaking(agent) or self._is_held(agent)
 
     def _in_own_turn(self, agent: DialedAgent, step: Coroutine[None, None, None]) -> None:
         self._transitions.in_own_turn(step, ANNOUNCEMENT_FAILED_EVENT, agent_id=agent.agent_id)

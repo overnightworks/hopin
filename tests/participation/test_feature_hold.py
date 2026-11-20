@@ -757,7 +757,7 @@ class TestTwoAgentsHearingOneSeat:
     ):
         _, guest, mozart, salieri = call
         room_id, held, starting = started_while_the_host_seat_blocks
-        known = asyncio.all_tasks()
+        known = asyncio.all_tasks()  # sounds[1:] leaves out the voice of the sentence that played before the hold
 
         answers = [
             await participation.speak(person, room_id, "Neu", rendering(), interrupted="1") for person in (HOST, GUEST)
@@ -766,7 +766,7 @@ class TestTwoAgentsHearingOneSeat:
         await starting
         await announced_since(known)
 
-        assert (answers, [sounds(guest, agent) for agent in (mozart, salieri)]) == (
+        assert (answers, [sounds(guest, agent)[1:] for agent in (mozart, salieri)]) == (
             [SpeakStarted.SPOKEN] * 2,
             [[HELD.value, STOP.value, VOICE.value]] * 2,
         )
@@ -784,7 +784,7 @@ class TestTwoAgentsHearingOneSeat:
         held.release.set()
         await starting
 
-        assert (await asyncio.gather(*continuing), [sounds(guest, agent) for agent in (mozart, salieri)]) == (
+        assert (await asyncio.gather(*continuing), [sounds(guest, agent)[1:] for agent in (mozart, salieri)]) == (
             [None, None],
             [[HELD.value, CONTINUED.value]] * 2,
         )

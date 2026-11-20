@@ -271,7 +271,11 @@ class Participation(TransitionFeature):
     def read_window(self, person: Person, room_id: str) -> WindowRead | None:
         """The chat window of the person's joined agent in the room, or nothing when it holds none there."""
         window = self._places.window_of(person, room_id)
-        return None if window is None else window.read()
+        if window is None:
+            return None
+        agent = self._places.get(person, room_id)
+        assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent holds a window
+        return window.read(interrupted=self._agent_speech.hold_of(agent), playing=self._agent_speech.plays(agent))
 
     def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
