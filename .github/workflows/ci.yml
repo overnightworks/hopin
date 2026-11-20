@@ -354,13 +354,18 @@ jobs:
 
       # The branch contract: 100 % over unit, integration, shared-stores and
       # end-to-end together. The xml is the report the quality gate's scan reads.
-      # Every shard's file is named, never globbed: a shard whose data did not arrive or arrived empty fails here and
-      # `coverage combine` refuses a named file that is absent, so the judged total always covers all shards.
+      # Every fetched data file is combined, so a shard added to the matrix is judged without a second list here. The
+      # job fails when unit, shared-stores or every end-to-end file is absent, or when a file is empty; `needs` makes a
+      # failed shard fail the job, and its upload step errors on a shard without data.
       - name: Judge the combined coverage
         run: |
-          shard_files=(.coverage.unit .coverage.shared-stores .coverage.e2e-0 .coverage.e2e-1 .coverage.e2e-2)
+          shard_files=(.coverage.*)
+          for required in .coverage.unit .coverage.shared-stores; do
+            test -e "${required}" || { echo "::error::${required} is missing"; exit 1; }
+          done
+          compgen -G ".coverage.e2e-*" > /dev/null || { echo "::error::no end-to-end coverage data arrived"; exit 1; }
           for shard_file in "${shard_files[@]}"; do
-            test -s "${shard_file}" || { echo "::error::${shard_file} is missing or empty"; exit 1; }
+            test -s "${shard_file}" || { echo "::error::${shard_file} is empty"; exit 1; }
           done
           coverage combine "${shard_files[@]}"
           coverage report --fail-under=100
