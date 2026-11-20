@@ -1,3 +1,13 @@
+"""The page build `make frontend` writes into `web/build/` (never committed), read once at start.
+
+The server refuses to start without it. The Content-Security-Policy admits the shell's inline scripts by hash, read from
+the built shell at start and never `'unsafe-inline'`, and in `style-src` exactly the hash of the one style SvelteKit's
+route announcer writes, read from the build's `immutable/` JavaScript at start. A build with no such style, or with two
+different ones, refuses the start. `hopin.css` hides `#svelte-announcer` itself, so the page does not depend on the
+admitted style, and every other inline style stays refused. The policy and a Permissions-Policy are installed by
+`app.py` through webauth's security headers.
+"""
+
 import base64
 import hashlib
 import re

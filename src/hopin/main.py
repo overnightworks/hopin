@@ -1,3 +1,32 @@
+"""The command line: `hopin serve` refuses to start on an invalid setting, builds the application and runs uvicorn.
+
+Logging. logline is the one logger: `serve` calls `configure("hopin")` once and uvicorn starts with `log_config=None`,
+so every line, uvicorn's and the libraries' included, is logline's JSON record with a `trace_id`. logline holds the HTTP
+clients' own loggers (`httpx2`, `httpcore2`) at WARNING, which keeps the gateway key out of the log even under DEBUG.
+
+- `create_app` adds logline's `RequestLineMiddleware`, which writes one request line per HTTP request (method, route
+  template, status, duration, never the raw path or query) and one `websocket.ended` line per socket session. webauth
+  writes none, but sets the line's `sub` once a gate, the sign-in callback or a socket's handshake has admitted a
+  person.
+- The line's `ip` is the client address that webauth's `ClientAddressMiddleware` records. `create_app` adds it directly
+  inside logline's middleware and outside the layers of webauth's installer, so a request that one of them answers (a
+  refused path, a rate limit) and a socket's session name the forwarded client too. That middleware is the one place
+  `HOPIN_TRUSTED_PROXIES` is read; everything inside reads the recorded address.
+- Every event is a literal `<noun>.<verb_past>` (logline's fleet standard). A line that closes a timed step ends in
+  `.ended` and carries `duration_ms` and `outcome` from logline's `StepTimer`; a step that ends because the service gave
+  no answer ends `refused` with its closed `reason`, and `failed` is an exception, which the timer names by its class.
+  Other lines are state changes, refusals with a `reason` and errors with an `error_type`, each written once where it
+  stops.
+- A WebSocket session runs in a trace of its own from the upgrade's `traceparent`, else a new one, and its
+  `websocket.ended` and the lines outside a turn carry it. A turn on a WebSocket, a signaling frame and a socket's
+  disconnect step run inside logline's `unit_trace`, which detaches at its end; a timer the scheduler starts runs in a
+  trace of its own, not the one of the frame that scheduled it.
+- The fields are ids, counts and durations with their unit in the name, and codes from closed sets (peer ids, event
+  kinds, causes and reasons, close codes, the call cap). No line carries the room id, which is the invite link's token:
+  `room_ref` is a keyed digest of it (`rooms/reference.py`). No event has a field for chat text, a quiz answer, tokens
+  or secrets.
+"""
+
 import argparse
 from typing import TYPE_CHECKING, TypedDict
 

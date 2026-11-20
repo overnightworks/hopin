@@ -1,6 +1,26 @@
 """A change of a call as one transition: load the room's view, apply a feature's hook to it, then commit the hook's
 state and frames together and wake the seats it sent to. Work a transition dispatched runs beside the call, and its
-results re-enter the room as transitions of their own."""
+results re-enter the room as transitions of their own.
+
+Each hook reads the room's view (`RoomView`: its seats and their accounts and names, its hosts, its parked seats,
+whether an agent place is free and the feature's own `Section` of state in that room), puts state, takes or frees agent
+places and sends frames only through its `Transition`, and does no other work. The store (`InMemoryCallStore`, one
+process's rooms) commits both in one synchronous step, and a hook that raises commits neither. Only then are the seats
+it sent to woken, each writing its logged frames in the order of their seq.
+
+- A transition may follow itself with another hook, which reads the room as the first one left it; the seats of both
+  are woken together.
+- A seat's departure and each feature's `seat_left` commit together before any seat is woken, so the room never hears
+  an outdated frame after the leave.
+- A frame may name the frames of its seat's queue it supersedes (`Supersedes`, such as a newer answer count an older
+  one); the commit drops those not yet being written, and a frame whose write has begun is written all the same.
+- The changes a feature starts itself run on the same transitions (`FeatureTransitions`, handed to the feature by
+  `attach`). A step whose writes must not hold its caller back, such as showing a started sentence, runs in a turn of
+  its own (`in_own_turn`).
+- A hook's other work, a call to another service or to a seat's socket, is `Work` the transition dispatches: it runs on
+  the process that holds its seat's socket, reaches a connection only there (`LiveSeats.connection_of`), and its
+  results re-enter the room as transitions of their own.
+"""
 
 import asyncio
 from dataclasses import dataclass, field, replace

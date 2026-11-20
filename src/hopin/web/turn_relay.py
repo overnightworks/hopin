@@ -1,3 +1,11 @@
+"""The TURN provider adapter, the only module besides the configuration that names the relay's provider.
+
+The ICE servers a call gets are a STUN server and, when `HOPIN_TURN_PROVIDER` is not `off`, a TURN relay, which is an
+external service. Media goes peer to peer unless a direct path fails; it then flows through the relay, still encrypted
+end to end between the browsers. HopIn trusts the provider's credential answer only over https from the provider's
+fixed endpoint; a failed or malformed answer gives a call STUN only.
+"""
+
 import contextlib
 import json
 import logging

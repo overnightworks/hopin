@@ -1,4 +1,18 @@
-"""The values built on webauth's types, so that `constants` imports no webauth."""
+"""The values built on webauth's types, so that `constants` imports no webauth.
+
+`SIGN_IN_PATHS` is the one source of the sign-in routes' paths: webauth derives from it the sign-in budget's paths
+(logout included), the back-channel body bound (32 KiB) and the `no-store` rule, and `app.py` passes it to the
+installer. The limits webauth then enforces:
+
+- Sign-in requests have their own budget and every other path another (webauth's default: 600 requests per 60
+  seconds per address); `/health` and the back-channel logout are exempt.
+- Request bodies are capped at webauth's default of 4 KiB.
+- A state-changing request is checked by its origin alone. webauth passes one marked `Sec-Fetch-Site: same-origin`, or
+  one whose fetch site is absent or `same-site` and whose `Origin` names HopIn's host over https, on any port when
+  `HOPIN_PUBLIC_ORIGIN` names none and on exactly that port when it names one. It refuses `cross-site`, any other
+  fetch-site value, and a request with neither header, whatever its content type. Only Keycloak's back-channel logout
+  is exempt, and there is no CSRF token or cookie.
+"""
 
 import re
 
