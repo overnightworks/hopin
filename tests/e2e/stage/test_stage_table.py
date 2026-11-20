@@ -242,14 +242,14 @@ def test_a_link_that_is_no_table_of_skat_is_told_and_a_stale_second_attach_is_re
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
 
     show_table(host, "https://elsewhere.example/t/" + "a" * 32)
-    expect(host.locator(TOASTS)).to_contain_text(text("de", "skat.badLinkToast"))
+    expect(host.locator(TOASTS)).to_contain_text(text("de", "stage.badLinkToast", title="Skat"))
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(guest, stub_skat)
     # A More that still offers the item stands for a seat whose attach crossed the other's.
     guest.evaluate("() => { document.querySelector('#stageItem').hidden = false; }")
     show_table(guest, table_link(stub_skat, "f" * 32))
 
-    expect(guest.locator(TOASTS)).to_contain_text(text("de", "skat.busyToast"))
+    expect(guest.locator(TOASTS)).to_contain_text(text("de", "stage.busyToast", title="Skat"))
     expect_table_on_stage(host, stub_skat)
 
 

@@ -11,6 +11,7 @@ from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
+from hopin.stage.settings import StageApp
 from tests.e2e.support.server import (
     LOOPBACK_HOST,
     bound_loopback_socket,
@@ -96,6 +97,11 @@ class StubSkat:
     origin: str
     paths: list[str] = field(default_factory=list)
     referers: list[str | None] = field(default_factory=list)
+
+    @property
+    def app(self) -> StageApp:
+        """The registry entry that frames the stub's tables."""
+        return StageApp(name="skat", title="Skat", origin=self.origin, frame_path="/t/{context}")
 
 
 def _app(stub: StubSkat) -> Starlette:
