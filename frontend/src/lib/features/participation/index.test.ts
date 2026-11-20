@@ -486,7 +486,7 @@ describe("calling an agent that has an account of its own", () => {
         [TURN_OUTCOME.BUSY, "Gerade ausgelastet"],
         [TURN_OUTCOME.BUDGET_SPENT, "Budget aufgebraucht"],
         [TURN_OUTCOME.UNAVAILABLE, "Gerade gestört"],
-    ])("CALL-72: shows the outcome %s an agent in the call stated beside its name", async (outcome, words) => {
+    ])("CALL-73: shows the outcome %s an agent in the call stated beside its name", async (outcome, words) => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
@@ -497,7 +497,7 @@ describe("calling an agent that has an account of its own", () => {
         expect([names(page), page.offers()[0]?.textContent]).toEqual([["Claude"], expect.stringContaining(words)]);
     });
 
-    it("CALL-72: shows no outcome beside an agent whose outcome was cleared, and drops it with the agent", async () => {
+    it("CALL-73: shows no outcome beside an agent whose outcome was cleared, and drops it with the agent", async () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });

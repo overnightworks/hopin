@@ -729,7 +729,7 @@ class TestStatedTurnOutcome:
             assert turn_state_told(seat) == (gesturing.agent_id, "busy")
         return gesturing
 
-    def test_call_72_a_stated_outcome_is_told_to_every_seat_and_a_later_one_gets_the_current(self, stopped):
+    def test_call_73_a_stated_outcome_is_told_to_every_seat_and_a_later_one_gets_the_current(self, stopped):
         call_in(stopped, tool=SET_TURN_STATE_TOOL, stopped="budget_spent")
         _, later_login = stopped.call.member()
         later = stopped.call.seat(later_login, stopped.owner.room_id)
@@ -749,13 +749,13 @@ class TestStatedTurnOutcome:
             ),
         ],
     )
-    def test_call_72_every_seat_is_told_the_outcome_cleared(self, stopped, ending):
+    def test_call_73_every_seat_is_told_the_outcome_cleared(self, stopped, ending):
         ending(stopped)
 
         for seat in (stopped.owner, stopped.member):
             assert turn_state_told(seat) == (stopped.agent_id, None)
 
-    def test_call_72_a_later_seat_is_told_no_outcome_once_cleared(self, stopped):
+    def test_call_73_a_later_seat_is_told_no_outcome_once_cleared(self, stopped):
         call_in(stopped, tool=SET_TURN_STATE_TOOL)
         stopped.owner.frame_of_type(TURN_STATE)
         _, later_login = stopped.call.member()
