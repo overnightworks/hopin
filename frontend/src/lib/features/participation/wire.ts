@@ -160,6 +160,7 @@ export type AgentOffersFrame = {
 export type AgentInvitationEndedFrame = {
     type: PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED;
     agent_key: string;
+    name: string;
     outcome: INVITATION_OUTCOME;
 };
 

@@ -47,10 +47,12 @@ class Invited:
 
 @dataclass(frozen=True)
 class AbandonedInvitation:
-    """An invitation that ended because the owner's seat left: the room, the agent's key and the seat that made it."""
+    """An invitation that ended because the owner's seat left: the room, the agent's key and name and the seat that
+    made it."""
 
     room_id: str
     agent_key: str
+    name: str
     adder: PeerId
 
 

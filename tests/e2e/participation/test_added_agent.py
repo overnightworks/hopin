@@ -135,19 +135,22 @@ def test_an_agent_that_declines_as_busy_shows_the_adder_the_busy_row_and_the_own
     assert scene.agent.standings() == []
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_the_owner_away_row(
-    scene_of: Callable[[dict[str, Any]], Scene],
+    scene_of: Callable[[dict[str, Any]], Scene], form_factor: dict[str, Any]
 ) -> None:
-    """CALL-52: An invitation whose owner leaves before the agent joins ends at once and the seat that made it sees
-    the kit's owner-away row when the agent is offered again."""
-    scene = scene_of(DESKTOP)
+    """CALL-52: An invitation whose owner leaves before the agent joins ends at once; the seat that made it sees the
+    kit's owner-away row of that agent while the owner is gone, and the row is gone once the owner is back."""
+    scene = scene_of(form_factor)
     scene.member_adds(scene.agent)
     scene.owner.click(LEAVE)
 
+    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
     scene.owner.locator(END_SCREEN).get_by_role("button", name=text("de", "end.rejoinButton")).click()
     press_through_the_prejoin(scene.owner)
 
-    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
+    expect(scene.offer_of_agent(scene.member)).to_have_count(1)
+    expect(scene.offer_of_agent(scene.member)).not_to_contain_text(kit_text("de", "agent.ownerAbsent"))
     assert scene.agent.standings() == []
 
 

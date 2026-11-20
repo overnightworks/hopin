@@ -453,7 +453,7 @@ describe("calling an agent that has an account of its own", () => {
             page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
             page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
 
-            page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, { agent_key: "k1", outcome });
+            page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, { agent_key: "k1", name: "Mozart", outcome });
 
             expect([page.offers()[0]?.textContent, page.buttons()]).toEqual([expect.stringContaining(words), []]);
         },
@@ -464,6 +464,7 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
+            name: "Mozart",
             outcome: INVITATION_OUTCOME.NO_ANSWER,
         });
 
@@ -477,6 +478,7 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
+            name: "Mozart",
             outcome: INVITATION_OUTCOME.NO_ANSWER,
         });
 
@@ -490,6 +492,7 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
+            name: "Mozart",
             outcome: INVITATION_OUTCOME.NO_ANSWER,
         });
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
@@ -499,11 +502,58 @@ describe("calling an agent that has an account of its own", () => {
         expect(page.offers()[0]?.textContent).not.toContain("Keine Antwort");
     });
 
+    it("CALL-52: shows the owner-away row of an agent that is not listed, and keeps it while it stays unlisted", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart", true)] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            name: "Mozart",
+            outcome: INVITATION_OUTCOME.OWNER_ABSENT,
+        });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Bach", false, "k2")] });
+
+        expect(page.offers().map((row) => row.textContent)).toEqual([
+            expect.stringContaining("Bach"),
+            expect.stringContaining("Sein Besitzer ist nicht hier."),
+        ]);
+    });
+
+    it("CALL-52: takes the owner-away row away once the agent is listed again", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            name: "Mozart",
+            outcome: INVITATION_OUTCOME.OWNER_ABSENT,
+        });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+
+        expect(page.offers()[0]?.textContent).not.toContain("Sein Besitzer ist nicht hier.");
+    });
+
+    it("CALL-52: takes the owner-away row away when the person closes More", async () => {
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            name: "Mozart",
+            outcome: INVITATION_OUTCOME.OWNER_ABSENT,
+        });
+
+        page.offers()[0]?.closest("dialog")?.dispatchEvent(new Event("close"));
+
+        expect(page.offers()).toEqual([]);
+    });
+
     it("CALL-52: takes an outcome away with the control at a fresh join", async () => {
         const page = await installedParticipation();
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
+            name: "Mozart",
             outcome: INVITATION_OUTCOME.NO_ANSWER,
         });
         page.seat(false);

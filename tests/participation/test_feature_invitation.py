@@ -228,9 +228,11 @@ class TestAnInvitation:
             [frame["type"] for frame in told[-2:]],
             told[-1].get("outcome"),
             told[-1].get("agent_key") == offer["agent_key"],
+            told[-1].get("name") == offer["name"],
         ) == (
             [ParticipationSignal.AGENT_OFFERS.value, ParticipationSignal.AGENT_INVITATION_ENDED.value],
             InvitationOutcome.OWNER_ABSENT.value,
+            True,
             True,
         )
 
