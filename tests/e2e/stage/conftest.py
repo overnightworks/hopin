@@ -22,7 +22,7 @@ def skat_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFactory) -
     with running_hopin(
         loopback_sign_in(tmp_path_factory.mktemp("skat-sign-in")),
         tmp_path_factory.mktemp("skat-tls"),
-        StageFeature(stub_skat.origin),
+        StageFeature((stub_skat.app,)),
         participation=True,
     ) as server:
         yield server
@@ -34,7 +34,7 @@ def skat_hearing_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFa
     with running_hopin(
         loopback_sign_in(tmp_path_factory.mktemp("skat-hearing-sign-in")),
         tmp_path_factory.mktemp("skat-hearing-tls"),
-        StageFeature(stub_skat.origin),
+        StageFeature((stub_skat.app,)),
         participation=True,
         hears=True,
     ) as server:

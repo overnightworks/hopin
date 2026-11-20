@@ -161,15 +161,15 @@ export type Words = {
     readonly "game.answerTooLongToast": string;
     readonly "game.endedToast": string;
     readonly "game.endedByLeaverToast": (gaps: { readonly leaver: string }) => string;
-    readonly "skat.menuTitle": string;
-    readonly "skat.menuHint": string;
-    readonly "skat.linkLabel": string;
-    readonly "skat.showButton": string;
-    readonly "skat.badLinkToast": string;
-    readonly "skat.busyToast": string;
-    readonly "skat.notRemovedToast": string;
-    readonly "skat.frameTitle": string;
-    readonly "skat.removeButton": string;
+    readonly "stage.menuTitle": (gaps: { readonly title: string }) => string;
+    readonly "stage.menuHint": string;
+    readonly "stage.linkLabel": (gaps: { readonly title: string }) => string;
+    readonly "stage.showButton": string;
+    readonly "stage.badLinkToast": (gaps: { readonly title: string }) => string;
+    readonly "stage.busyToast": (gaps: { readonly title: string }) => string;
+    readonly "stage.notRemovedToast": string;
+    readonly "stage.frameTitle": (gaps: { readonly title: string }) => string;
+    readonly "stage.removeButton": string;
     readonly "agent.notRemovedToast": string;
     readonly "agent.badge": string;
     readonly "chat.closeGlyph": string;
@@ -346,15 +346,15 @@ export const words: Words = {
     "game.answerTooLongToast": "Deine Antwort ist zu lang. Kürz sie und schick sie noch einmal.",
     "game.endedToast": "Quiz beendet.",
     "game.endedByLeaverToast": (gaps: { readonly leaver: string }) => "Quiz beendet: " + gaps.leaver + " ist gegangen.",
-    "skat.menuTitle": "Skat-Tisch zeigen",
-    "skat.menuHint": "Link eines Tisches einfügen",
-    "skat.linkLabel": "Link des Skat-Tisches",
-    "skat.showButton": "Zeigen",
-    "skat.badLinkToast": "Das ist kein Link zu einem Skat-Tisch.",
-    "skat.busyToast": "Auf der Bühne steht schon ein Skat-Tisch.",
-    "skat.notRemovedToast": "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen.",
-    "skat.frameTitle": "Skat-Tisch",
-    "skat.removeButton": "Tisch entfernen",
+    "stage.menuTitle": (gaps: { readonly title: string }) => gaps.title + " zeigen",
+    "stage.menuHint": "Link eines Tisches einfügen",
+    "stage.linkLabel": (gaps: { readonly title: string }) => "Link zu " + gaps.title,
+    "stage.showButton": "Zeigen",
+    "stage.badLinkToast": (gaps: { readonly title: string }) => "Das ist kein Link zu " + gaps.title + ".",
+    "stage.busyToast": (gaps: { readonly title: string }) => "Auf der Bühne steht schon " + gaps.title + ".",
+    "stage.notRemovedToast": "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen.",
+    "stage.frameTitle": (gaps: { readonly title: string }) => gaps.title,
+    "stage.removeButton": "Tisch entfernen",
     "agent.notRemovedToast": "Nur wer die KI geholt hat oder der Host kann sie entfernen.",
     "agent.badge": "AI",
     "chat.closeGlyph": "x",

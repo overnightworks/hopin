@@ -1,4 +1,4 @@
-/** The table's side of the handshake with the framed Skat page: it answers the page's `ready` with a `hello`. */
+/** The table's side of the handshake with the framed app page: it answers the page's `ready` with a `hello`. */
 
 const PROTOCOL_VERSION = 1;
 const READY = "ready";
@@ -35,7 +35,7 @@ export interface Received {
 function isReadyFor(data: unknown, table: string): boolean {
     if (typeof data !== "object" || data === null || Object.getPrototypeOf(data) !== Object.prototype) return false;
     const keys = Reflect.ownKeys(data);
-    // Exactly three keys and a `table` equal to the server's 32 hex digits bound the message's size.
+    // Exactly three keys and a `table` equal to the server's context key (64 characters at most) bound the message's size.
     if (keys.length !== READY_KEYS.length || !READY_KEYS.every((key) => keys.includes(key))) return false;
     const ready = data as { v: unknown; type: unknown; table: unknown };
     return ready.v === PROTOCOL_VERSION && ready.type === READY && ready.table === table;
