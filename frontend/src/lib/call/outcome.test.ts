@@ -8,12 +8,19 @@ class FakeConnection extends EventTarget {
     connectionState: RTCPeerConnectionState = "new";
     reports: Report[];
 
-    constructor(selectedCandidateTypes: [string, string]) {
+    constructor(selectedCandidateTypes: [string, string], withTransport = true) {
         super();
         this.reports = [
-            { id: "transport", type: "transport", selectedCandidatePairId: "pair" },
+            ...(withTransport ? [{ id: "transport", type: "transport", selectedCandidatePairId: "pair" }] : []),
             { id: "other", type: "candidate-pair", localCandidateId: "far", remoteCandidateId: "far" },
-            { id: "pair", type: "candidate-pair", localCandidateId: "local", remoteCandidateId: "remote" },
+            {
+                id: "pair",
+                type: "candidate-pair",
+                nominated: true,
+                state: "succeeded",
+                localCandidateId: "local",
+                remoteCandidateId: "remote",
+            },
             { id: "local", type: "local-candidate", candidateType: selectedCandidateTypes[0] },
             { id: "remote", type: "remote-candidate", candidateType: selectedCandidateTypes[1] },
             { id: "far", type: "local-candidate", candidateType: "relay" },
@@ -28,8 +35,8 @@ class FakeConnection extends EventTarget {
     }
 }
 
-function watched(selectedCandidateTypes: [string, string] = ["host", "host"]) {
-    const connection = new FakeConnection(selectedCandidateTypes);
+function watched(selectedCandidateTypes: [string, string] = ["host", "host"], withTransport = true) {
+    const connection = new FakeConnection(selectedCandidateTypes, withTransport);
     const outcomes: CONNECTION_OUTCOME[] = [];
     reportConnectionOutcomes(connection, (outcome) => outcomes.push(outcome));
     return { connection, outcomes };
@@ -51,6 +58,21 @@ describe("reporting how a peer connection went", () => {
             expect(outcomes).toEqual([outcome]);
         },
     );
+
+    it("CALL-76: without a transport report the nominated succeeded pair is the one judged", async () => {
+        const { connection, outcomes } = watched(["host", "relay"], false);
+        connection.changeTo("connected");
+        await settle();
+        expect(outcomes).toEqual([CONNECTION_OUTCOME.RELAYED]);
+    });
+
+    it("CALL-76: a connection that is reported connected again without a drop reports nothing more", async () => {
+        const { connection, outcomes } = watched();
+        connection.changeTo("connected");
+        connection.changeTo("connected");
+        await settle();
+        expect(outcomes).toEqual([CONNECTION_OUTCOME.DIRECT]);
+    });
 
     it("CALL-76: a drop that fails and then comes back is failed once and then resumed", async () => {
         const { connection, outcomes } = watched();
