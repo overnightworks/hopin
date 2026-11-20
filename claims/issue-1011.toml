@@ -1,0 +1,8 @@
+claim_id = "f2679be6688c4cb6a7066862f6c8c281"
+agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
+role = "builder"
+base = "fa61a02721cc97faa08f50cb23c8a05f48be54df"
+branch = "claude/issue-1011-continues-mark"
+scope = ["docs/call.md", "pyproject.toml", "src/hopin/agent/mcp.py", "src/hopin/participation/chat_window.py", "src/hopin/participation/speech_in_windows.py", "tests/agent", "tests/participation", "uv.lock"]
+opened_commit = "44c7addb0cccedfb17174cecee63d2892cd84762"
+whole_reason = "One fact the queue already holds is carried from the sentence end through the window line to the agents wire, with the pin it needs, its tests and its rule."
