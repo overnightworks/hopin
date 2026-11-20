@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cleanLine } from "#lib/call/line.ts";
-import lineCases from "../../../../tests/config/line_cases.json";
+import lineCases from "../../../../tests/config/fixtures/line_cases.json";
 
 interface LineCase {
     name: string;

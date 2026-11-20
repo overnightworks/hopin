@@ -7,7 +7,7 @@ import pytest
 from hopin.config.constants import LINE_LIMITS
 from hopin.participation.text import clean_line
 
-CASES = json.loads((Path(__file__).parent / "line_cases.json").read_text(encoding="utf-8"))
+CASES = json.loads((Path(__file__).parent / "fixtures" / "line_cases.json").read_text(encoding="utf-8"))
 BYTE_ORDER_MARK = "﻿"
 
 
