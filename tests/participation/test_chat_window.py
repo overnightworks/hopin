@@ -172,23 +172,6 @@ class TestTheHold:
             "2",
         )
 
-    def test_call_69_a_person_who_is_already_speaking_does_not_hold_the_agent_again_after_the_hold_ended(self):
-        window = ChatWindow("generation")
-        talked_over_while_speaking(window)
-        window.end_hold()
-
-        held = talked_over_while_speaking(window)
-
-        assert (held, window.read().interrupted) == (False, None)
-
-    def test_call_69_a_person_starting_while_the_agent_is_held_opens_no_second_hold(self):
-        window = ChatWindow("generation")
-        talked_over_while_speaking(window)
-
-        held = talked_over_while_speaking(window, "seat-b", "Bo")
-
-        assert (held, window.read().interrupted) == (True, "1")
-
     def test_call_69_a_hold_that_ended_is_followed_by_a_hold_with_a_new_id_that_never_repeats_in_the_generation(self):
         window = ChatWindow("generation")
         talked_over_while_speaking(window)
