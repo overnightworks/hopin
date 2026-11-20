@@ -47,7 +47,9 @@ export class FakeChannel implements FileChannel {
     /** Settles once at least `count` messages are sent. */
     whenSent(count: number): Promise<void> {
         if (this.sent.length >= count) return Promise.resolve();
-        return new Promise((resolve) => void this.sendWaiters.push({ count, resolve }));
+        return new Promise((resolve) => {
+            this.sendWaiters.push({ count, resolve });
+        });
     }
 
     deliver(data: unknown) {
@@ -104,7 +106,9 @@ export function exchange(options: { delivery?: Delivery; canPlay?: (type: string
                 announcements.push(announcement);
                 return { id: announcements.length, delivery: options.delivery ?? DELIVERY.PENDING, missing: [] };
             },
-            acknowledge: (participantId, id) => void acknowledged.push([participantId, id]),
+            acknowledge: (participantId, id) => {
+                acknowledged.push([participantId, id]);
+            },
         },
         nameOf: (participantId) => NAMES[participantId] ?? "",
         createUrl: (blob) => {
@@ -112,12 +116,18 @@ export function exchange(options: { delivery?: Delivery; canPlay?: (type: string
             urls.set(url, blob);
             return url;
         },
-        revokeUrl: (url) => void revoked.push(url),
+        revokeUrl: (url) => {
+            revoked.push(url);
+        },
         canPlay: options.canPlay ?? (() => true),
     });
     files.listen({
-        shown: (view) => void views.set(view.key, view),
-        changed: (view) => void views.set(view.key, view),
+        shown: (view) => {
+            views.set(view.key, view);
+        },
+        changed: (view) => {
+            views.set(view.key, view);
+        },
     });
     const transport = new FakeTransport();
     files.addPeer("p1", transport);
@@ -165,7 +175,10 @@ export function watchReads(file: Blob) {
         },
         /** Settles when the `count`th part is read and the exchange went on with it. */
         async read(count: number) {
-            if (reads.length < count) await new Promise<void>((resolve) => void waiters.push({ count, resolve }));
+            if (reads.length < count)
+                await new Promise<void>((resolve) => {
+                    waiters.push({ count, resolve });
+                });
             await reads[count - 1];
         },
     };
