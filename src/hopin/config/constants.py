@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import StrEnum
 
 DEFAULT_HOST = "0.0.0.0"  # noqa: S104 - the container must listen on every interface and HOPIN_HOST overrides it
@@ -69,6 +70,30 @@ PEER_ID_BYTES = 16
 
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
 UVICORN_LOG_LEVEL = "warning"
+
+
+@dataclass(frozen=True)
+class LineLimits:
+    """What a chat line may be, for every writer and reader of one: the page's composer, an agent's line and an
+    agent's spoken sentence. A line is 1 to `max_characters` code points once `trimmed` characters are cut from its
+    ends, and holds no `refused` character."""
+
+    max_characters: int
+    trimmed: frozenset[str]
+    refused: frozenset[str]
+
+
+# Explicit sets, because `str.strip()` and `String.trim()` differ (U+FEFF) and the page and the server must judge a
+# line alike. The trimmed set is Python's whitespace plus the byte order mark, the refused set the control
+# characters (Unicode category Cc, line breaks and tabs included).
+LINE_LIMITS = LineLimits(
+    max_characters=600,
+    trimmed=frozenset(
+        "\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008"
+        "\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+    ),
+    refused=frozenset(map(chr, (*range(0x00, 0x20), *range(0x7F, 0xA0)))),
+)
 
 
 class TurnProvider(StrEnum):

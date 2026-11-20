@@ -25,10 +25,10 @@ from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, fre
 from webauth.session_groups import SessionGroups
 
 from hopin.agent.issuer_error import grant_refusal_reason
+from hopin.config.constants import LINE_LIMITS
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
-    GAME_LINE_MAX_CHARACTERS,
     GAME_RETRY_AFTER_FALLBACK_SECONDS,
     GameRefusal,
 )
@@ -221,9 +221,9 @@ def _busy_wait(retry_after_seconds: int | None) -> int:
 
 
 def _cut(text: str) -> str:
-    if len(text) <= GAME_LINE_MAX_CHARACTERS:
+    if len(text) <= LINE_LIMITS.max_characters:
         return text
-    return text[: GAME_LINE_MAX_CHARACTERS - len(CUT_MARK)] + CUT_MARK
+    return text[: LINE_LIMITS.max_characters - len(CUT_MARK)] + CUT_MARK
 
 
 def _refusal_of_grant(refusal: AccessTokenRefusal) -> GameRefusal:
