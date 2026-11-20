@@ -161,14 +161,6 @@ class RoomUnlockedFrame(WireFrame):
 
 
 @dataclass(frozen=True)
-class ChatBroadcastFrame(WireFrame):
-    TYPE: ClassVar[SignalType] = SignalType.CHAT
-
-    message: str
-    from_: PeerId
-
-
-@dataclass(frozen=True)
 class MediaStateBroadcastFrame(WireFrame):
     TYPE: ClassVar[SignalType] = SignalType.MEDIA_STATE
 
@@ -254,11 +246,6 @@ class ForeignFrame:
 
 
 @dataclass(frozen=True)
-class ChatFrame:
-    message: str
-
-
-@dataclass(frozen=True)
 class MediaStateFrame:
     audio: bool
     video: bool
@@ -284,9 +271,7 @@ class ResumeFrame:
         return self.claim
 
 
-type DispatchedFrame = (
-    JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | ChatFrame | MediaStateFrame | ForeignFrame
-)
+type DispatchedFrame = JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | MediaStateFrame | ForeignFrame
 type ClientFrame = DispatchedFrame | ResumeFrame
 
 
@@ -319,13 +304,6 @@ def _decode_media_state(data: JsonObject, _kind: SignalType) -> MediaStateFrame:
     return MediaStateFrame(audio, video)
 
 
-def _decode_chat(data: JsonObject, _kind: SignalType) -> ChatFrame:
-    message = data.get("message", "")
-    if not isinstance(message, str):
-        raise InvalidMessageError("message must be a string")
-    return ChatFrame(message)
-
-
 def _decode_resume(data: JsonObject, _kind: SignalType) -> ResumeFrame:
     participant_id = data.get("participant_id")
     token = data.get("token")
@@ -345,7 +323,6 @@ _DECODERS: dict[str, Callable[[JsonObject, SignalType], ClientFrame]] = {
     SignalType.ICE_CANDIDATE.value: _decode_relay,
     SignalType.LOCK_ROOM.value: lambda _data, _kind: LockFrame(),
     SignalType.UNLOCK_ROOM.value: lambda _data, _kind: UnlockFrame(),
-    SignalType.CHAT.value: _decode_chat,
     SignalType.MEDIA_STATE.value: _decode_media_state,
     SignalType.END_ROOM.value: lambda _data, _kind: EndRoomFrame(),
     SignalType.RESUME.value: _decode_resume,

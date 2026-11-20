@@ -19,7 +19,15 @@ OFFER_UPDATES = 3  # the agent joined, left and invited: the offers a member is 
 
 
 def chat(message):
-    return {"type": SignalType.CHAT.value, "message": message}
+    return {"type": ParticipationSignal.LINE_FOR_AGENTS.value, "text": message}
+
+
+def said(other, seat, message):
+    """The line for the agents, once the server has taken it: the frames a seat sends are taken in order, so the
+    media state sent after it is heard by the other seat only then."""
+    other.send(chat(message))
+    other.send({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": True})
+    seat.frame_of_type(SignalType.MEDIA_STATE.value)
 
 
 def window_of(answer):
@@ -74,8 +82,7 @@ class TestReadingAWindow:
         """CALL-54: The read answers the window with seq, kind, name, text and own."""
         _, token, seat = own_agent
         other = dialed_call.seat(dialed_call.member()[1], seat.room_id)
-        other.send(chat("hello"))
-        seat.frame_of_type(SignalType.CHAT.value)
+        said(other, seat, "hello")
         dialed_call.call(token, SAY, {"room": seat.room_id, "text": "hi back"})
 
         window = window_of(dialed_call.window(token, seat.room_id))
@@ -90,10 +97,8 @@ class TestReadingAWindow:
         """CALL-54: An empty line or one that does not encode as UTF-8 is not held and takes no seq."""
         _, token, seat = own_agent
         other = dialed_call.seat(dialed_call.member()[1], seat.room_id)
-        other.send(chat(f"broken {LONE_SURROGATE}"))
-        other.send(chat("fine"))
-        while seat.frame_of_type(SignalType.CHAT.value)["message"] != "fine":
-            pass
+        said(other, seat, f"broken {LONE_SURROGATE}")
+        said(other, seat, "fine")
 
         window = window_of(dialed_call.window(token, seat.room_id))
 

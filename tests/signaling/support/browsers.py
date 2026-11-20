@@ -185,9 +185,20 @@ async def resume_holding_the_first_replayed_frame(link, browser):
     return held
 
 
-async def fill_server_log(host, frames):
+def note_for(browser, text):
+    """A frame the call relays whole to one seat, so a test follows what that seat hears: an ICE candidate that is the
+    text."""
+    return {"type": SignalType.ICE_CANDIDATE.value, "target": browser.peer_id, "candidate": text}
+
+
+def notes_heard(browser):
+    """The texts of the notes the browser was sent, in order."""
+    return [frame["candidate"] for frame in browser.frames(SignalType.ICE_CANDIDATE)]
+
+
+async def fill_server_log(host, guest, frames):
     for index in range(frames):
-        await host.say({"type": SignalType.CHAT.value, "message": f"message {index}"})
+        await host.say(note_for(guest, f"message {index}"))
 
 
 def clear_sent(*browsers):

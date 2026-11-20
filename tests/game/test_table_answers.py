@@ -48,7 +48,6 @@ async def test_an_answer_gives_every_seat_the_count_and_no_seat_its_text(link, g
 
     for browser in (host, guest):
         assert PRIVATE_ANSWER not in json.dumps(browser.socket.sent)
-        assert browser.frames(SignalType.CHAT) == []
 
 
 async def test_two_answers_in_one_round_trip_give_each_seat_a_count_that_holds_its_own_only_once_it_does(

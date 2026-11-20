@@ -67,8 +67,8 @@ class Seat:
     def answer(self, text):
         self.send({"type": GameSignal.GAME_ANSWER.value, "text": text})
 
-    def chat(self, text):
-        self.send({"type": SignalType.CHAT.value, "message": text})
+    def mute(self):
+        self.send({"type": SignalType.MEDIA_STATE.value, "audio": False, "video": True})
 
     def frames_until(self, signal_type):
         """The frames up to and including the first of this type."""

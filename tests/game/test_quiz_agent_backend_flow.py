@@ -44,9 +44,8 @@ def line(text):
     return {"type": GameSignal.GAME_LINE.value, "text": text}
 
 
-def chat_text_of(frame):
-    assert frame["type"] == SignalType.CHAT.value
-    return frame["message"]
+def is_a_mute(frame):
+    return frame["type"] == SignalType.MEDIA_STATE.value and frame["audio"] is False
 
 
 def revealed(starter, text):
@@ -115,9 +114,9 @@ def test_a_session_without_a_refresh_token_is_asked_to_sign_in_again_and_the_cal
     host.start()
     assert host.frames(3) == [phase(GamePhase.THINKING, host), refused(GameRefusal.SIGN_IN_AGAIN), IDLE]
     assert guest.frames(2) == [phase(GamePhase.THINKING, host), IDLE]
-    host.chat("Noch da?")
+    host.mute()
 
-    assert chat_text_of(guest.frames(1)[0]) == "Noch da?"
+    assert is_a_mute(guest.frames(1)[0])
     assert call.backend.runs == []
 
 
@@ -133,37 +132,36 @@ def test_a_store_failure_while_reading_the_groups_is_logged_by_its_type_alone_an
     with captured_lines() as logs:
         host.start()
         frames = host.frames(3)
-    host.chat("Noch da?")
+    host.mute()
 
     assert frames == [phase(GamePhase.THINKING, host), refused(GameRefusal.UNAVAILABLE), IDLE]
     assert {"event": "game_master.failed", "log_level": "error", "error_type": "ConnectionError"} in logs
     assert detail not in repr(logs)
-    assert guest.frames(3)[-1]["message"] == "Noch da?"
+    assert is_a_mute(guest.frames(3)[-1])
     assert call.backend.runs == []
 
 
-def test_chat_during_a_held_run_reaches_the_others_and_never_the_agent(call):
-    """GM-21: Chat during a held run reaches the others and never the agent."""
+def test_a_mute_during_a_held_run_reaches_the_others_and_never_the_agent(call):
+    """GM-21: What people do beside the game during a held run reaches the others and never the agent."""
     host, guest, _ = call.host_and_guest()
     held = Holds()
     call.backend.answer_next(held, Succeeds("Lissabon."))
-    chat_text = f"Meine Antwort {secrets.token_hex(8)}"
 
     host.start()
     assert host.frames(1) == [phase(GamePhase.THINKING, host)]
     assert held.started.wait()
-    guest.chat(chat_text)
-    assert chat_text_of(host.frames(1)[0]) == chat_text
+    guest.mute()
+    assert is_a_mute(host.frames(1)[0])
     held.release.set()
     guest.frames(3)
     host.reveal()
     host.frames(5)
 
-    assert [run for run in call.backend.runs if chat_text in run.request.model_dump_json()] == []
+    assert [run for run in call.backend.runs if SignalType.MEDIA_STATE.value in run.request.model_dump_json()] == []
 
 
-def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_no_chat_line(call):
-    """GM-21, GM-26: The reveal request carries each given answer with its players name and no chat line."""
+def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_nothing_else_of_the_call(call):
+    """GM-21, GM-26: The reveal request carries each given answer with its players name and nothing else of the call."""
     host_member, guest_member, third_member = call.member(), call.member(), call.member()
     host, created = call.seat(host_member)
     guest, _ = call.seat(guest_member, created["room_id"])
@@ -171,7 +169,6 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     host.frames(2)
     guest.frames(1)
     call.backend.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
-    chat_text = f"Plausch {secrets.token_hex(8)}"
 
     host.start()
     guest.frames(3)
@@ -180,12 +177,12 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     assert until_the_first_answer[-1]["type"] == GameSignal.GAME_ANSWER_COUNT.value
     guest.answer("Mondego")
     through_the_answers = until_the_first_answer + host.frames(1)
-    guest.chat(chat_text)
-    through_the_chat = through_the_answers + host.frames(1)
-    assert [frame["type"] for frame in through_the_chat][-3:] == [
+    guest.mute()
+    through_the_mute = through_the_answers + host.frames(1)
+    assert [frame["type"] for frame in through_the_mute][-3:] == [
         GameSignal.GAME_ANSWER_COUNT.value,
         GameSignal.GAME_ANSWER_COUNT.value,
-        SignalType.CHAT.value,
+        SignalType.MEDIA_STATE.value,
     ]
     host.reveal()
     host.frames(5)
@@ -200,7 +197,6 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     assert [message.text for message in third_run.turn.messages][-3] == reveal.text
     for run in call.backend.runs:
         assert third_member.account.username not in run.request.model_dump_json()
-        assert chat_text not in run.request.model_dump_json()
 
 
 def test_the_reveal_request_holds_the_quiz_so_far_and_an_empty_list_when_nobody_answered(call):

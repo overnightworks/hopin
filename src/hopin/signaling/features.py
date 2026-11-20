@@ -85,11 +85,6 @@ class TransitionFeature(ABC):
         seat that left, and the change commits at once, before the call core awaits anything. It sends nothing: a
         leave is told to the room by `seat_left`."""
 
-    def chat_said(self, view: RoomView, peer_id: PeerId, message: str, change: Change) -> None:  # noqa: B027 - optional and a no-op for a feature without one
-        """A seat's chat line is about to be relayed to the others in its room; called once per line the call core
-        admits, its change committed before the core awaits anything, so the view's seats and the sender's name are
-        those of the moment it was said. It sends nothing: the call core relays the line."""
-
     def room_ended(self, room_id: str) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Release what the feature keeps for the room beside its sections; its sections are dropped and its work
         stopped already."""

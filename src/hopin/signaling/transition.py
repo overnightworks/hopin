@@ -493,13 +493,6 @@ class TransitionHost:
         self._feature.seat_changed(view, peer_id, change)
         self._transitions.commit(view, change)
 
-    def chat_said(self, peer_id: PeerId, room_id: str, message: str) -> None:
-        """Apply the feature's `chat_said` to the room's view and commit it at once; it cannot send."""
-        view = self._transitions.view(room_id)
-        change = Change()
-        self._feature.chat_said(view, peer_id, message, change)
-        self._transitions.commit(view, change)
-
     def room_ended(self, room_id: str) -> None:
         self._transitions.room_ended(room_id)
         self._feature.room_ended(room_id)

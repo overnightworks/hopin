@@ -3,10 +3,10 @@ import pytest
 from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.frames import AgentOffersFrame, Offer
 from hopin.signaling.frames import (
-    ChatBroadcastFrame,
     ErrorFrame,
     ExistingParticipantsFrame,
     JsonObject,
+    MediaStateBroadcastFrame,
     OfferRelayFrame,
     PeerId,
     WireFrame,
@@ -32,8 +32,8 @@ from hopin.signaling.frames import (
             id="a field without a default is sent as null",
         ),
         pytest.param(
-            ChatBroadcastFrame(message="hi", from_=PeerId("p1")),
-            {"type": SignalType.CHAT.value, "message": "hi", "from": "p1"},
+            MediaStateBroadcastFrame(from_=PeerId("p1"), audio=True, video=False),
+            {"type": SignalType.MEDIA_STATE.value, "from": "p1", "audio": True, "video": False},
             id="the sender goes out under its wire key",
         ),
         pytest.param(

@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 LOCALHOST = "127.0.0.1"
 CLEAN_CLOSE_CODE = 1000
 ARRIVAL_CAP_SECONDS = 10
-BARRIER_MESSAGE = "after the resume"
 FIRST_CLIENT_SEQUENCE = 1
 FORBIDDEN_STATUS = 403
 
@@ -102,11 +101,16 @@ class TestRealTransport:
         call.guest.transport.abort()
 
         resumed_guest, resumed = await call.resume_guest_seat()
-        barrier = {"type": SignalType.CHAT.value, "message": BARRIER_MESSAGE, SEQUENCE_KEY: FIRST_CLIENT_SEQUENCE}
+        barrier = {
+            "type": SignalType.MEDIA_STATE.value,
+            "audio": True,
+            "video": True,
+            SEQUENCE_KEY: FIRST_CLIENT_SEQUENCE,
+        }
         await resumed_guest.send(json.dumps(barrier))
 
         assert resumed["type"] == SignalType.RESUMED.value
-        assert (await call.next_frame_the_host_hears())["type"] == SignalType.CHAT.value
+        assert (await call.next_frame_the_host_hears())["type"] == SignalType.MEDIA_STATE.value
 
     @pytest.mark.asyncio
     async def test_client_closing_with_a_clean_code_leaves_without_parking(self, call: Call) -> None:

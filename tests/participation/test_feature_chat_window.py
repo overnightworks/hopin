@@ -8,7 +8,6 @@ from hopin.config.constants import SignalType
 from hopin.participation.chat_window import LineKind, WindowLine
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.rooms.reference import room_reference
-from hopin.signaling.transition import Change, RoomView
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import HeldWrite, host_and_guest
 from tests.support.log_lines import captured_lines
@@ -21,18 +20,16 @@ MAX_FRAME_CHARACTERS = 65_536
 
 
 def chat(message):
-    return {"type": SignalType.CHAT.value, "message": message}
+    return {"type": ParticipationSignal.LINE_FOR_AGENTS.value, "text": message}
 
 
 async def dial(participation, browser, name=AGENT_NAME):
     return await participation.dial_in(person_named(browser.name), room_of(browser), name)
 
 
-def said_beyond_a_frame(participation, browser, text):
-    """The browser's chat line handed to participation's hook as the call core hands it, for a line longer than one
-    frame carries."""
-    view = RoomView(room_id=room_of(browser), members=(browser.peer_id,), names={browser.peer_id: browser.name})
-    participation.chat_said(view, browser.peer_id, text, Change())
+def said_in_the_windows(participation, browser, text):
+    """A person's line put into the windows directly, for a text and a count the page's limits never let through."""
+    participation.speech.line_said(room_of(browser), LineKind.PERSON, browser.name, text, sayer=None)
 
 
 def window_of(participation, browser):
@@ -127,7 +124,7 @@ class TestTheBound:
         await dial(participation, guest)
 
         for text in texts:
-            said_beyond_a_frame(participation, host, text)
+            said_in_the_windows(participation, host, text)
 
         window = window_of(participation, guest)
         assert (window.starts_at, len(window.lines)) == (starts_at, held)
@@ -184,21 +181,7 @@ class TestTheSignal:
 
 
 @pytest.mark.asyncio
-class TestALineHeldInTheRelay:
-    async def test_call_54_an_agent_joining_while_a_persons_line_is_relayed_does_not_get_it(self, link, participation):
-        """CALL-54: The audience of a person's line is that of the moment it was said."""
-        host, guest = await host_and_guest(link)
-        await dial(participation, guest)
-        relaying = HeldWrite(guest.socket, first_only=True)
-
-        relayed = asyncio.create_task(host.say(chat("held")))
-        await relaying.reached()
-        await dial(participation, host, OTHER_AGENT_NAME)
-        relaying.release.set()
-        await relayed
-
-        assert [len(lines_of(participation, browser)) for browser in (guest, host)] == [1, 0]
-
+class TestAnAgentsLineHeldInTheSend:
     async def test_call_54_an_agent_rejoining_while_an_agents_line_is_sent_does_not_get_it(self, link, participation):
         """CALL-54: The audience of an agent's line is that of the moment it was said."""
         host, guest = await host_and_guest(link)
@@ -214,22 +197,6 @@ class TestALineHeldInTheRelay:
         await sent
 
         assert [len(lines_of(participation, browser)) for browser in (guest, host)] == [1, 0]
-
-    async def test_call_54_a_sender_leaving_while_its_line_is_relayed_is_still_read_under_its_name(
-        self, link, participation
-    ):
-        """CALL-54: A line is held under the sender's name as of the moment it was said."""
-        host, guest = await host_and_guest(link)
-        await dial(participation, guest)
-        relaying = HeldWrite(guest.socket, first_only=True)
-
-        relayed = asyncio.create_task(host.say(chat("last words")))
-        await relaying.reached()
-        leaving = asyncio.create_task(host.drop(1000))
-        relaying.release.set()
-        await asyncio.gather(relayed, leaving)
-
-        assert [(line.name, line.text) for line in lines_of(participation, guest)] == [("host", "last words")]
 
 
 async def remove_the_window_by_the_host(participation, host, guest):

@@ -14,6 +14,7 @@ from hopin.participation.frames import (
     AgentRefusedFrame,
     ParticipationFrame,
 )
+from hopin.participation.line_budget import full_budget, spent_on_a_line
 from hopin.participation.live_agents import LiveAgents
 from hopin.participation.memberships import Membership, SeatViews
 from hopin.participation.offers import Offers
@@ -432,6 +433,8 @@ class Participation(TransitionFeature):
                     transition.follow(self._offer)
             case ParticipationSignal.AGENT_ADD:
                 self._on_add(peer_id, frame, view, transition)
+            case ParticipationSignal.LINE_FOR_AGENTS:
+                self._on_line_for_agents(peer_id, frame, view)
             case ParticipationSignal.AGENT_HEARING if self._hearing.enabled:
                 self._switches.on_frame(peer_id, frame, view, transition)
             case ParticipationSignal.AGENT_SEEING:
@@ -457,11 +460,22 @@ class Participation(TransitionFeature):
             self._agent_speech.tell_held(view, transition, agent, peer_id)
         self._offer(view, transition)
 
-    def chat_said(self, view: RoomView, peer_id: PeerId, message: str, change: Change) -> None:
-        """Add a person's line to the window of every agent joined in its room, under the name the call shows."""
-        del change
-        room_id = cast("str", view.room_id)  # the sender sits in it
-        self.speech.line_said(room_id, LineKind.PERSON, view.name_of(peer_id), message, sayer=None)
+    def _on_line_for_agents(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView) -> None:
+        """Add a person's line to the window of every agent joined in the sender's room, under the name the call shows;
+        a line beyond the limits, or one nobody reads, is dropped."""
+        text = frame.data.get("text")
+        if not isinstance(text, str):
+            raise InvalidMessageError("A line for agents needs its text")
+        line = clean_line(text)
+        if line is None or view.room_id is None:
+            return
+        seat = self._seat_views.of(peer_id, view.room_id)
+        now = self._deadlines.now()
+        budget = spent_on_a_line(seat.line_budget or full_budget(now), now)
+        if budget is None:
+            return
+        seat.line_budget = budget
+        self.speech.line_said(view.room_id, LineKind.PERSON, view.name_of(peer_id), line, sayer=None)
 
     def seat_changed(self, view: RoomView, peer_id: PeerId, change: Change) -> None:
         """A seat that left its room takes its places out in a change of that room at once and holds its agents for

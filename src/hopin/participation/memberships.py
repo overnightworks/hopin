@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from collections.abc import Collection
 
     from hopin.participation.frames import Offer
+    from hopin.participation.line_budget import LineBudget
     from hopin.signaling.frames import PeerId
 
 
@@ -17,9 +18,11 @@ class Membership(StrEnum):
 
 @dataclass
 class SeatView:
-    """What participation keeps of a seat in a room: its group memberships as last read and the offers last sent."""
+    """What participation keeps of a seat in a room: its group memberships as last read, the offers last sent and,
+    once it wrote a line for the agents, the budget of its lines."""
 
     room_id: str
+    line_budget: LineBudget | None = None
     memberships: dict[str, Membership] = field(default_factory=dict)
     offered: tuple[Offer, ...] = ()
     shown: bool = False

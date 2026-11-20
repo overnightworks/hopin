@@ -7,7 +7,7 @@ from agents.mcp_server.redis_place_store import RedisPlaceStore
 from agents.member import STANDING_URI
 
 from hopin.agent.mcp import PLACE_SIGNAL_FAILED_EVENT
-from hopin.config.constants import SignalType
+from hopin.participation.vocabulary import ParticipationSignal
 from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED
 from tests.support.log_lines import captured_lines
 
@@ -15,7 +15,7 @@ pytestmark = pytest.mark.integration
 
 
 def says(seat, message):
-    seat.send({"type": SignalType.CHAT.value, "message": message})
+    seat.send({"type": ParticipationSignal.LINE_FOR_AGENTS.value, "text": message})
 
 
 def told(stream):
