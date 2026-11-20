@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hopin.config.constants import HEALTH_PATH
 from hopin.participation.vocabulary import HEARING_PATH
 
 if TYPE_CHECKING:
@@ -65,6 +66,15 @@ def on_the_page_clock(open_person: Callable[..., Page]) -> Callable[..., Page]:
     return open_clocked
 
 
+@pytest.fixture
+def open_person(open_person: Callable[..., Page]) -> Callable[..., Page]:
+    """Overrides the suite's `open_person` in a module that imports it: its pages run on the page clock."""
+    return on_the_page_clock(open_person)
+
+
 def settle(page: Page) -> None:
-    """A window in which a hop that should not open would have: the page clock runs through it at once."""
+    """A window in which a hop that should not open would have: the page clock runs through it at once, and one real
+    round trip to the server follows, so what the server sent in reply to the state change has been handled."""
+    page.clock.run_for(NO_HOP_WINDOW_MILLISECONDS)
+    page.evaluate("(path) => fetch(path).then((answer) => answer.status)", HEALTH_PATH)
     page.clock.run_for(NO_HOP_WINDOW_MILLISECONDS)

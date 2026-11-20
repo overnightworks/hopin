@@ -18,7 +18,7 @@ from tests.e2e.support.dialed_agent import (
     OwnAccountAgent,
     room_of_link,
 )
-from tests.e2e.support.hearing_hops import Hops, on_the_page_clock, settle, until
+from tests.e2e.support.hearing_hops import Hops, settle, until
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
@@ -38,11 +38,6 @@ LATER_SENTENCE = "Auf Wiedersehen"
 THIRD_AGENT_NAME = "Raphael"
 # A sentence counts for the agents whose switch was on when it began, so it begins after the second switch went on.
 AFTER_BOTH_SWITCHES_MILLISECONDS = 5_000
-
-
-@pytest.fixture
-def open_person(open_person: Callable[..., Page]) -> Callable[..., Page]:
-    return on_the_page_clock(open_person)
 
 
 @pytest.fixture

@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 
 from hopin.agent.hearing import MemberHearingRecord
+from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import Sense, SpeakStarted
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
@@ -17,7 +18,6 @@ from tests.participation.support.speaking import (
     STOP,
     VOICE,
     announced_since,
-    hearing_naming_the_host_first,
     rendering,
     sounds,
     speak,
@@ -27,6 +27,23 @@ from tests.signaling.support.browsers import HeldWrite
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 GUEST = person_named("guest")
+
+
+class HearersHostFirst(frozenset):
+    """Hearers that iterate with the host first, so the hold of the host's agent comes before the others'."""
+
+    def __iter__(self):
+        return iter(sorted(frozenset.__iter__(self), key=lambda person: person != HOST))
+
+
+class RecordNamingTheHostFirst(MemberHearingRecord):
+    def sensing(self, room_id, seat, sense):
+        return HearersHostFirst(super().sensing(room_id, seat, sense))
+
+
+def hearing_naming_the_host_first(member_hearing, *, enabled):
+    """The hearing of a seat whose hearers are named with the host's agent first."""
+    return Hearing(RecordNamingTheHostFirst(member_hearing), enabled=enabled)
 
 
 @pytest.fixture

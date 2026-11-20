@@ -11,7 +11,7 @@ from speech_client.wire import VoiceId
 
 from hopin.agent.tools import CALL_KIND
 from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQUEST_SECONDS
-from tests.e2e.support.hearing_hops import on_the_page_clock, settle, until
+from tests.e2e.support.hearing_hops import settle, until
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker, speaking_hopin
 from tests.support.fake_speech import ITEM, FakeSpeech, completed
@@ -31,11 +31,6 @@ SENTENCE_SECONDS = 4.0
 HELD_SENTENCE = "Guten Tag"
 ANSWERING_SENTENCE = "Moment, ich höre"
 PLAYBACK_WAIT_MILLISECONDS = 15_000
-
-
-@pytest.fixture
-def open_person(open_person: Callable[..., Page]) -> Callable[..., Page]:
-    return on_the_page_clock(open_person)
 
 
 @pytest.fixture(scope="module")

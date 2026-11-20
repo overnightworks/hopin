@@ -1,5 +1,4 @@
 import base64
-import json
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -7,7 +6,7 @@ from playwright.sync_api import expect
 
 from hopin.participation.jpeg import size_of
 from hopin.participation.vocabulary import LOOK_MAX_PIXELS
-from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, SEE_SWITCH_ON_A_TILE, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, SEE_SWITCH_ON_A_TILE, refusal_of, room_of_link
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:
@@ -43,11 +42,6 @@ class Sponsor:
 
     def look(self) -> Any:
         return self.scene.agent.look_unawaited(self.room)
-
-
-def refusal_of(answer: Any) -> str:
-    assert answer.is_error
-    return json.loads(answer.content[0].text)["refused"]
 
 
 @pytest.fixture

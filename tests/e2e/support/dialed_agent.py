@@ -70,6 +70,12 @@ def room_of_link(link: str) -> str:
     return found.group(0).removeprefix("/c/")
 
 
+def refusal_of(answer: Any) -> str:
+    """The code a refused tool call answers with."""
+    assert answer.is_error
+    return json.loads(answer.content[0].text)["refused"]
+
+
 class Agent:
     """A person's own agent, calling HopIn's MCP endpoint with a token its client would hold."""
 
@@ -167,9 +173,7 @@ class SdkAgent:
 
     def refusal_of(self, tool: str, arguments: dict[str, Any]) -> str:
         """Call the tool and return the code the call refuses it with."""
-        result = self._run(self._client.call_tool(tool, arguments))
-        assert result.is_error
-        return json.loads(result.content[0].text)["refused"]
+        return refusal_of(self._run(self._client.call_tool(tool, arguments)))
 
     def look_unawaited(self, room: str) -> Future[CallToolResult]:
         """Start the agent's `look` in the room and return its raw answer to come, since the answer is a picture and not
