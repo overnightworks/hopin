@@ -3,12 +3,12 @@
 from dataclasses import dataclass
 from typing import ClassVar, get_args
 
-from hopin.signaling.frames import TYPE_KEY, JsonObject
+from hopin.signaling.frames import WireFrame
 from hopin.skat.vocabulary import SkatRefusal, SkatSignal
 
 
 @dataclass(frozen=True)
-class AttachedTableFrame:
+class AttachedTableFrame(WireFrame):
     TYPE: ClassVar[SkatSignal] = SkatSignal.SKAT_TABLE
 
     revision: int
@@ -17,19 +17,9 @@ class AttachedTableFrame:
     src: str
     opener_id: str | None
 
-    def to_json(self) -> JsonObject:
-        return {
-            TYPE_KEY: self.TYPE.value,
-            "revision": self.revision,
-            "attachment": self.attachment,
-            "table": self.table,
-            "src": self.src,
-            "opener_id": self.opener_id,
-        }
-
 
 @dataclass(frozen=True)
-class EmptyTableFrame:
+class EmptyTableFrame(WireFrame):
     TYPE: ClassVar[SkatSignal] = SkatSignal.SKAT_TABLE
 
     revision: int
@@ -38,25 +28,12 @@ class EmptyTableFrame:
     src: None
     opener_id: None
 
-    def to_json(self) -> JsonObject:
-        return {
-            TYPE_KEY: self.TYPE.value,
-            "revision": self.revision,
-            "attachment": self.attachment,
-            "table": self.table,
-            "src": self.src,
-            "opener_id": self.opener_id,
-        }
-
 
 @dataclass(frozen=True)
-class RefusedFrame:
+class RefusedFrame(WireFrame):
     TYPE: ClassVar[SkatSignal] = SkatSignal.SKAT_REFUSED
 
     reason: SkatRefusal
-
-    def to_json(self) -> JsonObject:
-        return {TYPE_KEY: self.TYPE.value, "reason": self.reason.value}
 
 
 type SkatFrame = AttachedTableFrame | EmptyTableFrame | RefusedFrame
