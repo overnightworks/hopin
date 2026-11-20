@@ -13,9 +13,9 @@ flowchart LR
         B[Browser B]
         C[Browser C]
     end
-    A <-. media, peer to peer .-> B
-    B <-. media, peer to peer .-> C
-    A <-. media, peer to peer .-> C
+    A <-. "media and chat lines, peer to peer" .-> B
+    B <-. "media and chat lines, peer to peer" .-> C
+    A <-. "media and chat lines, peer to peer" .-> C
     A & B & C -- "https and WebSocket; sound while an agent hears, a picture per look" --> H[HopIn]
     H -. "spoken voices" .-> A & B & C
     A & B & C -. sign-in redirect .-> K[Keycloak]
@@ -28,7 +28,7 @@ flowchart LR
     H -. spoken sentences and heard sound .-> SP[Speech service]
 ```
 
-Caption: who talks to whom, from `auth/`, `web/turn_relay.py` and `agent/`. The session gate (`auth/gate.py`) guards every route and `/ws`.
+Caption: who talks to whom, from `auth/`, `web/turn_relay.py` and `agent/`. A chat line between people passes no hop but the mesh's data channel, never HopIn. The session gate (`auth/gate.py`) guards every route and `/ws`.
 
 ## 2. Building Block View
 
@@ -158,7 +158,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - **Anyone without a session** reaches the sign-in routes and a few static files only (`auth/gate.py`); HopIn trusts nothing they send.
 - **Keycloak** decides who is a member and admin; HopIn trusts its signed tokens from the one issuer, and its logout token to end sessions, so that route stays off the public internet. The session row holds each login's ID token and refresh token, both secrets.
 - **The proxy hops** in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`; empty trusts none.
-- **The other members of a call** see each other's addresses and relayed frames, and read each other's lines, which reach them end to end under DTLS, so neither HopIn's server nor the Cloudflare tunnel in front of it sees a line unless an agent is joined; an attacker who actively intercepts the connection setup (the offers and answers pass through the server) could still insert themselves into a pair, a risk HopIn leaves as the mesh's media has it; they cannot address people outside their room or act as host.
+- **The other members of a call** see each other's addresses and relayed frames, and read each other's lines, which reach them end to end under DTLS, so neither HopIn's server nor the Cloudflare tunnel in front of it sees a line unless an agent is joined; the parties who deliver the page, HopIn's server (its operator, or an intruder in it) and Cloudflare's tunnel, can still swap the relayed connection descriptions with their DTLS fingerprints, or change the page's script, and read along, a risk HopIn leaves as the mesh's media has it, and it shows no safety code because the same parties would deliver the code; they cannot address people outside their room or act as host.
 - **The STUN server** learns each asking browser's address; a wrong answer at worst prevents a connection.
 - **The TURN provider** sees who connects to whom, when and how much, never media content; HopIn trusts only its credential answer, over https, and it bills the operator.
 - **Skat's frame** is a sandboxed page of another origin; it cannot use camera, microphone or screen, and HopIn reads from it only a checked `ready`.
@@ -187,5 +187,7 @@ Each line: what the party sees and what HopIn trusts of it.
 
 - Mesh upload grows with every participant, so a call is capped at `MAX_PARTICIPANTS_PER_ROOM`; with TURN off, calls on networks that block direct paths cannot connect.
 - TURN costs money and stops slowly: HopIn sets no cap of its own (the provider's usage alert is the guard), and a credential handed out stays valid at the provider up to 12 hours.
+- Whoever delivers the page, HopIn's server with its operator and Cloudflare's tunnel, can read people's lines and media by swapping the relayed fingerprints or the page's script; no safety code closes this, because those parties would deliver it, and only an app installed apart from HopIn would, which the vision rules out.
+- The agent link has no receipts: a line for the agents shows delivered once handed on, and the server drops one beyond a seat's budget, or when no agent is joined, without telling the page. The page paces its lines to the budget, also after a cut socket, so an honest sender does not meet the drop.
 - A restart ends every call and session.
 - Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone; calls in memory survive.
