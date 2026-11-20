@@ -156,6 +156,37 @@ describe("the entries in More", () => {
     });
 });
 
+describe("an open link field", () => {
+    const closedAndEmpty = (page: Awaited<ReturnType<typeof installedStage>>) => [
+        page.form().hidden,
+        page.button().getAttribute("aria-expanded"),
+        page.input().value,
+    ];
+    const openWithText = (page: Awaited<ReturnType<typeof installedStage>>) => {
+        page.button().click();
+        page.input().value = "https://skat.example/t/a";
+    };
+
+    it("is closed and emptied when a table is shown by another seat", async () => {
+        const page = await installedStage();
+        openWithText(page);
+
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, NONE);
+
+        expect(closedAndEmpty(page)).toEqual([true, "false", ""]);
+    });
+
+    it("is closed and emptied when the call ends", async () => {
+        const page = await installedStage();
+        openWithText(page);
+
+        page.endCall();
+
+        expect(closedAndEmpty(page)).toEqual([true, "false", ""]);
+    });
+});
+
 describe("the stage", () => {
     it("shows a view for a table and takes it away when the table goes", async () => {
         const page = await installedStage();

@@ -15,8 +15,11 @@ const ITEM_MARKUP = (name: string) =>
 
 type SeatFrame = ServerFrameByType[SIGNAL_TYPE.ROOM_CREATED] | ServerFrameByType[SIGNAL_TYPE.EXISTING_PARTICIPANTS];
 
-/** The Mehr item of one app: a button that opens a field for the link of a table of that app. */
-function appItem(app: AppEntry, onLink: (title: string, link: string) => void, afterLink: () => void): HTMLElement {
+type AppItem = { element: HTMLElement; close: () => void };
+
+/** The Mehr item of one app: a button that opens a field for the link of a table of that app; `close` shuts the field
+ * and clears it. */
+function appItem(app: AppEntry, onLink: (title: string, link: string) => void, afterLink: () => void): AppItem {
     const fragment = document.createElement("template");
     fragment.innerHTML = ITEM_MARKUP(app.name);
     const item = document.createElement("div");
@@ -28,6 +31,11 @@ function appItem(app: AppEntry, onLink: (title: string, link: string) => void, a
     showButton.querySelector(".grow")?.prepend(words["stage.menuTitle"]({ title: app.title }));
     input.placeholder = label;
     input.setAttribute("aria-label", label);
+    const close = () => {
+        form.hidden = true;
+        showButton.setAttribute("aria-expanded", "false");
+        input.value = "";
+    };
     showButton.addEventListener("click", () => {
         form.hidden = !form.hidden;
         showButton.setAttribute("aria-expanded", String(!form.hidden));
@@ -36,12 +44,10 @@ function appItem(app: AppEntry, onLink: (title: string, link: string) => void, a
     form.addEventListener("submit", (event) => {
         event.preventDefault();
         onLink(app.title, input.value.trim());
-        form.hidden = true;
-        showButton.setAttribute("aria-expanded", "false");
-        input.value = "";
+        close();
         afterLink();
     });
-    return item;
+    return { element: item, close };
 }
 
 /** What a refusal says; `linkTitle` is the app whose field the person last pasted into, `shownTitle` the app on the
@@ -64,6 +70,12 @@ export function install(core: FeatureCore<StageFrameByType>): Promise<void> {
     items.id = "stageItem";
     let titles = new Map<string, string>();
     let linkTitle = "";
+    let appItems: AppItem[] = [];
+    const closeForms = () => {
+        appItems.forEach((entry) => {
+            entry.close();
+        });
+    };
 
     const titleOf = (name: string | null) => (name === null ? "" : (titles.get(name) ?? name));
 
@@ -71,6 +83,7 @@ export function install(core: FeatureCore<StageFrameByType>): Promise<void> {
         {
             show: (src, shown) => {
                 items.hidden = true;
+                closeForms();
                 core.showStage(featureView(StageTable, { src, table: shown, title: titleOf(shown.app) }));
             },
             hide: () => {
@@ -92,20 +105,19 @@ export function install(core: FeatureCore<StageFrameByType>): Promise<void> {
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, seated);
     core.on(STAGE_SIGNAL.STAGE_APPS, (frame) => {
         titles = new Map(frame.apps.map((app) => [app.name, app.title]));
-        items.replaceChildren(
-            ...frame.apps.map((app) =>
-                appItem(
-                    app,
-                    (title, link) => {
-                        linkTitle = title;
-                        core.send({ type: STAGE_SIGNAL.STAGE_ATTACH, link });
-                    },
-                    () => {
-                        core.closeMore();
-                    },
-                ),
+        appItems = frame.apps.map((app) =>
+            appItem(
+                app,
+                (title, link) => {
+                    linkTitle = title;
+                    core.send({ type: STAGE_SIGNAL.STAGE_ATTACH, link });
+                },
+                () => {
+                    core.closeMore();
+                },
             ),
         );
+        items.replaceChildren(...appItems.map((entry) => entry.element));
     });
     core.on(STAGE_SIGNAL.STAGE_TABLE, (frame) => {
         table.receive(frame);
@@ -117,9 +129,7 @@ export function install(core: FeatureCore<StageFrameByType>): Promise<void> {
     core.onCallEnded(() => {
         table.reset();
         items.hidden = false;
-        items.querySelectorAll("form").forEach((form) => {
-            form.hidden = true;
-        });
+        closeForms();
     });
     return Promise.resolve();
 }
