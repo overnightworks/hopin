@@ -193,6 +193,19 @@ class TestAPersonStartsSpeaking:
 
         assert (standing(participation, room_id), holds(host), stops(host)) == (("1", False), [mozart.agent_id], [])
 
+    async def test_call_69_the_hold_outlives_its_record_and_a_person_starting_afresh_opens_no_new_hold(
+        self, participation, call
+    ):
+        _, guest, *_ = call
+        room_id = await hold_of_a_playing_sentence(participation, call)
+        participation.speech.turn_ended(room_id, guest.peer_id)
+        gone = participation.read_window(GUEST, room_id)
+
+        await participation.person_started(room_id, guest.peer_id)
+
+        window = participation.read_window(GUEST, room_id)
+        assert (gone.interrupted, gone.talked_over, window.interrupted, window.talked_over.id) == ("1", None, "1", "2")
+
     async def test_call_69_nothing_leaves_the_hold_by_itself(self, participation, call, scheduler):
         host, guest, *_ = call
         room_id = await hold_of_a_playing_sentence(participation, call)
