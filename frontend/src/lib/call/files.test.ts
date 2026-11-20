@@ -481,19 +481,16 @@ describe("a file served", () => {
         return channel;
     }
 
-    it("goes over the channel in chunks, then the sender closes the channel once the buffer is empty", async () => {
+    it("goes over the channel in chunks and leaves the closing to the receiver, which holds the last byte", async () => {
         const { files, content } = sender();
 
         const channel = fetchedBy("p1", 1, files);
         await vi.waitFor(() => {
             expect(channel.sent).toHaveLength(4);
         });
-        expect(channel.readyState).toBe("open");
-        channel.drain();
+        await new Promise((resolve) => setTimeout(resolve, 5));
 
-        await vi.waitFor(() => {
-            expect(channel.readyState).toBe("closed");
-        });
+        expect(channel.readyState).toBe("open");
         expect(channel.sent.map((chunk) => chunk.byteLength)).toEqual([CHUNK, CHUNK, CHUNK, 5]);
         expect(new Uint8Array(await new Blob(channel.sent).arrayBuffer())).toEqual(content);
     });
@@ -551,13 +548,15 @@ describe("a file served", () => {
         await vi.waitFor(() => {
             expect(first.sent).toHaveLength(4);
         });
-        first.drain();
-        await vi.waitFor(() => {
-            expect(first.readyState).toBe("closed");
-        });
+        first.drop();
+        await new Promise((resolve) => setTimeout(resolve, 5));
         const again = fetchedBy("p1", 1, files);
+        const next = fetchedBy("p1", 2, files);
+        await vi.waitFor(() => {
+            expect(next.sent).toHaveLength(1);
+        });
 
-        expect([concurrent.readyState, again.readyState]).toEqual(["closed", "closed"]);
+        expect([concurrent.readyState, again.readyState, next.readyState]).toEqual(["closed", "closed", "open"]);
     });
 
     it("serves nothing to a person who left, and nothing after the release", () => {

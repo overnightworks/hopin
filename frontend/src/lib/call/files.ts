@@ -280,9 +280,8 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
             if (channel.readyState !== CHANNEL_OPEN) return;
             channel.send(chunk);
         }
-        channel.bufferedAmountLowThreshold = 0;
-        while (channel.readyState === CHANNEL_OPEN && channel.bufferedAmount > 0) await wait();
-        channel.close();
+        // The receiver closes the channel once it holds the last byte: a close from this side could cut data still on its way.
+        while (channel.readyState === CHANNEL_OPEN) await wait();
     }
 
     return {
