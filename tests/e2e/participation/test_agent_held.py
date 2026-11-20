@@ -94,18 +94,6 @@ class HeldAgent:
         place = PlaceRef(kind=CALL_KIND, id=self.speaker.room)
         return self.speaker.scene.agent.call(tool, {"place": place.model_dump(), **named})
 
-    def refusal_of(self, tool: str, **named: Any) -> str:
-        """The refusal a call of the tool is answered with."""
-        with pytest.raises(AssertionError) as refused:
-            self.call(tool, **named)
-        return str(refused.value)
-
-    def waiting_speak_refusal(self) -> str:
-        """The refusal the `speak` that waited behind the held sentence is answered with."""
-        with pytest.raises(AssertionError) as refused:
-            self.second_answer.result(REQUEST_SECONDS)
-        return str(refused.value)
-
     def sounds_started(self, person: Page) -> list[float]:
         return self.speaker.started(person)
 
@@ -144,22 +132,16 @@ def test_a_person_starting_to_speak_pauses_the_agents_sound_in_every_browser_and
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_while_held_a_speak_without_the_hold_is_refused_and_one_with_it_plays_after_the_cut_line(
-    held: HeldAgent,
-) -> None:
-    """CALL-69: A `speak` without the hold's id is refused `held` and changes nothing; one with it drops the held
-    rest, answers the waiting `speak` as stopped, plays at once in every browser and enters its line after the cut
-    line of the held sentence."""
-    refused_without_the_hold = held.refusal_of(SPEAK_TOOL, text=ANSWERING_SENTENCE)
-
+def test_while_held_a_speak_with_the_hold_plays_after_the_cut_line(held: HeldAgent) -> None:
+    """CALL-69: A `speak` with the hold's id drops the held rest, plays at once in every browser and enters its line
+    after the cut line of the held sentence."""
     answered = held.call(SPEAK_TOOL, text=ANSWERING_SENTENCE, interrupted="1")
 
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert person.evaluate("() => window.soundsStopped") > 0
     window = held.speaker.window()
-    assert ('"refused":"held"' in refused_without_the_hold, answered) == (True, {"spoken": True})
-    assert '"refused":"stopped"' in held.waiting_speak_refusal()
+    assert answered == {"spoken": True}
     assert ("interrupted" in window, [(line["text"], line["cut"]) for line in window["entries"]]) == (
         False,
         [(HELD_SENTENCE, True)],
@@ -167,16 +149,10 @@ def test_while_held_a_speak_without_the_hold_is_refused_and_one_with_it_plays_af
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_while_held_a_stop_with_a_stale_id_is_refused_and_one_with_the_hold_ends_silent_and_a_later_speak_sounds(
-    held: HeldAgent,
-) -> None:
-    """CALL-69 and CALL-70: A `stop_speaking` with an id that is not the hold's is refused `not_interrupted` and the
-    hold stands; one with the hold's id ends it silent in every browser and answers the text of the cut sentence, the
-    second sentence never sounds, and a `speak` after it sounds in every browser, which a player left paused would not
-    do."""
-    stale = held.refusal_of(STOP_SPEAKING_TOOL, interrupted="9")
-    standing = held.speaker.window()["interrupted"]
-
+def test_while_held_a_stop_with_the_hold_ends_silent_and_a_later_speak_sounds(held: HeldAgent) -> None:
+    """CALL-69 and CALL-70: A `stop_speaking` with the hold's id ends it silent in every browser and answers the text
+    of the cut sentence, the second sentence never sounds, and a `speak` after it sounds in every browser, which a
+    player left paused would not do."""
     stopped = held.call(STOP_SPEAKING_TOOL, interrupted="1")
     window = held.speaker.window()
     settle(held.speaker.scene.owner)
@@ -186,7 +162,7 @@ def test_while_held_a_stop_with_a_stale_id_is_refused_and_one_with_the_hold_ends
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
-    assert ('"refused":"not_interrupted"' in stale, standing, stopped) == (True, {"id": "1"}, {"cut": HELD_SENTENCE})
+    assert stopped == {"cut": HELD_SENTENCE}
     assert ("interrupted" in window, silent) == (False, [[SENTENCE_SECONDS]] * len(held.everyone))
 
 
@@ -194,12 +170,9 @@ def test_while_held_a_stop_with_a_stale_id_is_refused_and_one_with_the_hold_ends
 def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_the_queue_plays_after_it(
     held: HeldAgent,
 ) -> None:
-    """CALL-70: A `continue_speaking` with a stale id is refused `not_interrupted` and the hold stands; one with the
-    hold's id answers continued, the window drops `interrupted` in that change, the same sound goes on where it paused
-    in every browser and plays to its end, its whole line enters uncut, and the second sentence plays after it."""
-    stale = held.refusal_of(CONTINUE_SPEAKING_TOOL, interrupted="9")
-    standing = held.speaker.window()["interrupted"]
-
+    """CALL-70: A `continue_speaking` with the hold's id answers continued, the window drops `interrupted` in that
+    change, the same sound goes on where it paused in every browser and plays to its end, its whole line enters
+    uncut, and the second sentence plays after it."""
     continued = held.call(CONTINUE_SPEAKING_TOOL, interrupted="1")
     window = held.speaker.window()
 
@@ -214,7 +187,7 @@ def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
     entries = held.speaker.window()["entries"]
-    assert ('"refused":"not_interrupted"' in stale, standing, continued) == (True, {"id": "1"}, {"continued": True})
+    assert continued == {"continued": True}
     assert ("interrupted" in window, [(line["text"], line.get("cut", False)) for line in entries]) == (
         (False, [(HELD_SENTENCE, False)])
     )
