@@ -49,7 +49,7 @@ from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
 from hopin.stage.feature import configured_stage_feature  # stage
-from hopin.stage.settings import SkatSettings  # stage
+from hopin.stage.settings import StageSettings  # stage
 from hopin.stores.redis import connect_shared_stores
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
@@ -77,7 +77,7 @@ SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (
     AgentSettings,  # game
     ParticipationSettings,
     SpeechSettings,
-    SkatSettings,  # stage
+    StageSettings,  # stage
 )
 
 

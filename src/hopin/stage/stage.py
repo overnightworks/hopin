@@ -7,11 +7,12 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Attachment:
-    """The table a room shows: its number (the revision that attached it), its id, the address its frame loads and the
-    seat that brought it, or nothing once that seat has left for good."""
+    """The table a room shows: its number (the revision that attached it), its app's name, its id, the address its frame
+    loads and the seat that brought it, or nothing once that seat has left for good."""
 
     number: int
     _: KW_ONLY
+    app: str
     table: str
     source: str
     opener: PeerId | None
@@ -25,12 +26,12 @@ class RoomState:
     revision: int = 0
     attachment: Attachment | None = None
 
-    def attached(self, *, table: str, source: str, opener: PeerId) -> RoomState | None:
+    def attached(self, *, app: str, table: str, source: str, opener: PeerId) -> RoomState | None:
         """The room showing the table, or nothing while it shows one already."""
         if self.attachment is not None:
             return None
         revision = self.revision + 1
-        return RoomState(revision, Attachment(revision, table=table, source=source, opener=opener))
+        return RoomState(revision, Attachment(revision, app=app, table=table, source=source, opener=opener))
 
     def detached(self) -> RoomState:
         return RoomState(self.revision + 1, None)
@@ -40,4 +41,6 @@ class RoomState:
         held = self.attachment
         if held is None or held.opener != peer_id:
             return self
-        return RoomState(self.revision + 1, Attachment(held.number, table=held.table, source=held.source, opener=None))
+        return RoomState(
+            self.revision + 1, Attachment(held.number, app=held.app, table=held.table, source=held.source, opener=None)
+        )

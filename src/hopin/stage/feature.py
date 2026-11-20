@@ -8,13 +8,13 @@ from hopin.errors import InvalidMessageError
 from hopin.rooms.reference import room_reference
 from hopin.signaling.features import TransitionFeature
 from hopin.signaling.transition import Section
-from hopin.stage.frames import AttachedTableFrame, EmptyTableFrame, RefusedFrame
-from hopin.stage.settings import SkatSettings, check_origin_differs, table_source
+from hopin.stage.frames import AppEntry, AppsFrame, AttachedTableFrame, EmptyTableFrame, RefusedFrame
+from hopin.stage.settings import StageApp, StageSettings, check_origins_differ, linked_context
 from hopin.stage.stage import RoomState
 from hopin.stage.vocabulary import FEATURE_NAME, SIGNAL_TYPES, StageRefusal, StageSignal
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
@@ -33,13 +33,13 @@ STAGE = Section[RoomState](FEATURE_NAME)
 
 
 class StageTransitions(TransitionFeature):
-    """The table each call shows on its stage: any seat attaches one while none is shown, its opener or the host
-    removes it, and anyone does once the opener has left for good. Every seat is sent the room's whole state.
-    `stage.attached` and `stage.detached` carry the room reference and the attachment number; a table id or link is
-    never logged."""
+    """The table each call shows on its stage: any seat attaches one of a registered app's while none is shown, its
+    opener or the host removes it, and anyone does once the opener has left for good. Every seat is sent the registered
+    apps and the room's whole state. `stage.attached` and `stage.detached` carry the room reference and the attachment
+    number; a table id or link is never logged."""
 
-    def __init__(self, origin: str) -> None:
-        self._origin = origin
+    def __init__(self, apps: Sequence[StageApp]) -> None:
+        self._apps = tuple(apps)
         self._handlers = {
             StageSignal.STAGE_ATTACH.value: self._on_attach,
             StageSignal.STAGE_DETACH.value: self._on_detach,
@@ -65,7 +65,8 @@ class StageTransitions(TransitionFeature):
         return True
 
     def seat_joined(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
-        """Tell a seat that just joined what its room shows, also when that is nothing."""
+        """Tell a seat that just joined which apps it may show and what its room shows, also when that is nothing."""
+        transition.send(peer_id, AppsFrame([AppEntry(app.name, app.title) for app in self._apps]).to_json())
         transition.send(peer_id, _table_frame(_state_of(view)).to_json())
 
     def seat_left(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
@@ -84,11 +85,13 @@ class StageTransitions(TransitionFeature):
         room_id = view.room_of(peer_id)
         if room_id is None:
             return
-        address = table_source(self._origin, link)
-        if address is None:
+        linked = linked_context(self._apps, link)
+        if linked is None:
             transition.send(peer_id, RefusedFrame(StageRefusal.BAD_LINK).to_json())
             return
-        attached = _state_of(view).attached(table=address.table, source=address.source, opener=peer_id)
+        attached = _state_of(view).attached(
+            app=linked.app.name, table=linked.context, source=linked.source, opener=peer_id
+        )
         if attached is None:
             transition.send(peer_id, RefusedFrame(StageRefusal.BUSY).to_json())
             return
@@ -121,8 +124,8 @@ def _state_of(view: RoomView) -> RoomState:
 def _table_frame(state: RoomState) -> AttachedTableFrame | EmptyTableFrame:
     held = state.attachment
     if held is None:
-        return EmptyTableFrame(state.revision, None, None, None, None)
-    return AttachedTableFrame(state.revision, held.number, held.table, held.source, held.opener)
+        return EmptyTableFrame(state.revision, None, None, None, None, None)
+    return AttachedTableFrame(state.revision, held.number, held.app, held.table, held.source, held.opener)
 
 
 def _tell_room(view: RoomView, state: RoomState, transition: Transition) -> None:
@@ -132,7 +135,7 @@ def _tell_room(view: RoomView, state: RoomState, transition: Transition) -> None
 
 @dataclass(frozen=True)
 class BuiltStageFeature:
-    """What Skat adds to the app: its call feature, and no route and no bearer resource."""
+    """What the stage adds to the app: its call feature, and no route and no bearer resource."""
 
     feature: TransitionFeature
     router: APIRouter
@@ -141,19 +144,19 @@ class BuiltStageFeature:
 
 @dataclass(frozen=True)
 class StageFeature:
-    """Skat, built inside `create_app`: the call may frame the tables of one origin."""
+    """The stage, built inside `create_app`: the call may frame the tables of the registered apps."""
 
-    origin: str
+    apps: tuple[StageApp, ...]
 
     @property
     def sign_in_scopes(self) -> tuple[str, ...]:
-        """None: the frame signs in at Skat itself."""
+        """None: each frame signs in at its app itself."""
         return ()
 
     @property
     def frame_sources(self) -> tuple[str, ...]:
-        """The one origin the page may frame."""
-        return (self.origin,)
+        """The origin of every registered app, which are the origins the page may frame."""
+        return tuple(app.origin for app in self.apps)
 
     def __call__(
         self,
@@ -167,13 +170,11 @@ class StageFeature:
         request_language: RequestLanguage,
     ) -> BuiltStageFeature:
         del relying_party, sessions, auth_config, scheduler, deadlines, transaction, request_language
-        return BuiltStageFeature(StageTransitions(self.origin), APIRouter())
+        return BuiltStageFeature(StageTransitions(self.apps), APIRouter())
 
 
 def configured_stage_feature(public_origin: str) -> tuple[StageFeature, ...]:
-    """Skat as the environment configures it: one feature for a configured origin, none for an unset one."""
-    configured = SkatSettings().origin
-    origins = () if configured is None else (configured,)
-    for origin in origins:
-        check_origin_differs(origin, public_origin)
-    return tuple(StageFeature(origin) for origin in origins)
+    """The stage as the environment configures it: one feature for a registry with apps, none for an empty one."""
+    apps = StageSettings().apps
+    check_origins_differ(apps, public_origin)
+    return (StageFeature(apps),) if apps else ()

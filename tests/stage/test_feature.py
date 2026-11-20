@@ -6,7 +6,7 @@ from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.signaling.frames import ForeignFrame
 from hopin.stage.vocabulary import StageRefusal, StageSignal
 from tests.signaling.support.browsers import HeldWrite, clear_sent
-from tests.stage.support.tables import OTHER_TABLE_LINK, TABLE_ID, TABLE_LINK
+from tests.stage.support.tables import OTHER_TABLE_LINK, SKAT, TABLE_ID, TABLE_LINK
 from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = pytest.mark.integration
@@ -62,6 +62,14 @@ class TestAttach:
 
         await detach(opener, tables(host)[-1]["attachment"])
         assert tables(host)[-1]["table"] is None
+
+    async def test_the_table_frame_names_the_app_the_link_belongs_to_and_none_without_a_table(self, link):
+        host, opener, _guest = await host_opener_and_guest(link)
+        assert tables(host)[-1]["app"] is None
+
+        await attach(opener)
+
+        assert tables(host)[-1]["app"] == SKAT.name
 
     async def test_a_link_that_is_no_table_of_the_origin_is_refused_to_the_sender_alone(self, link):
         host, opener, _guest = await host_opener_and_guest(link)
@@ -196,6 +204,13 @@ class TestTheOpenerLeaves:
 
 @pytest.mark.asyncio
 class TestFreshJoinsAndTheCallsEnd:
+    async def test_a_seat_that_joins_is_sent_the_apps_it_may_show_by_name_and_title(self, link):
+        host = await link.join("host")
+
+        [apps] = host.frames(StageSignal.STAGE_APPS)
+
+        assert apps["apps"] == [{"name": SKAT.name, "title": SKAT.title}]
+
     async def test_a_seat_that_joins_is_sent_that_nothing_is_shown(self, link):
         host = await link.join("host")
 

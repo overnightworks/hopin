@@ -4,13 +4,13 @@ import pytest_asyncio
 from hopin.signaling.handler import SignalingHandler
 from hopin.stage.feature import StageTransitions
 from tests.signaling.support.browsers import Link
-from tests.stage.support.tables import ORIGIN
+from tests.stage.support.tables import SKAT
 from tests.support.signaling_fakes import SocketAccountResolver
 
 
 @pytest.fixture
 def handler(room_manager, scheduler, deadlines):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [StageTransitions(ORIGIN)])
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [StageTransitions([SKAT])])
 
 
 @pytest_asyncio.fixture
