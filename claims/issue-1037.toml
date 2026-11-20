@@ -1,8 +1,0 @@
-claim_id = "7ebc41474d314e779e03beee45a96319"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "d6ef4645fe4012194d9300ec31c366643c338f9d"
-branch = "claude/issue-1037-lines-over-the-data-channel"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/VISION.md", "docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call", "frontend/src/lib/catalogs", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/participation", "frontend/src/lib/features/skat/index.test.ts", "frontend/src/lib/ui", "frontend/src/lib/wire.ts", "frontend/src/lib/words", "frontend/src/routes/(call)/+layout.svelte", "frontend/src/routes/(call)/start-up.ts", "scripts/generate_wire.py", "src/hopin/agent/tools.py", "src/hopin/config/constants.py", "src/hopin/participation", "src/hopin/signaling", "src/hopin/words.py", "tests/auth/test_sign_in_backchannel_erasure.py", "tests/e2e", "tests/game/support/call_world.py", "tests/game/test_quiz_agent_backend_flow.py", "tests/game/test_table_answers.py", "tests/participation", "tests/scripts/test_generate_wire.py", "tests/signaling", "tests/support/signaling_fakes.py", "tests/test_config.py", "tests/test_people.py"]
-opened_commit = "0dd73878e281beea32295ada9d9c7c54c09b1d8d"
-whole_reason = "The transport switch and the relay's deletion must land together, or lines are delivered twice or not at all."
