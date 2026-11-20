@@ -45,10 +45,10 @@ def _wire_value(value: object) -> JsonValue:
             return cast("JsonValue", value.value)
         case WireRecord():
             return value.to_json()
-        case list():
-            return [_wire_value(item) for item in value]
-        case dict():
-            return {key: _wire_value(item) for key, item in value.items()}
+        case list() as items:
+            return [_wire_value(item) for item in items]
+        case dict() as mapping:
+            return {key: _wire_value(item) for key, item in mapping.items()}
         case _:
             return cast("JsonValue", value)
 
