@@ -4,15 +4,19 @@ at participation's real feature and the agents library's real record of who may 
 import asyncio
 
 import pytest
+import pytest_asyncio
 from agents.member import CONTINUE_SPEAKING_TOOL, STOP_SPEAKING_TOOL
 
+from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.tools import CALL_KIND, participation_tools
+from hopin.participation.hearing import Hearing
 from hopin.participation.participants import Caller
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
     HoldRefusal,
     ParticipationSignal,
+    Sense,
     SpeakStarted,
     SpeakStop,
     VoiceFailure,
@@ -23,6 +27,7 @@ from tests.participation.support.speaking import (
     SENTENCE_MS,
     StreamedSentence,
     a_sentence,
+    announced_since,
     hold_of_a_playing_sentence,
     hold_with_a_sentence_waiting,
     rendering,
@@ -32,6 +37,7 @@ from tests.participation.support.speaking import (
     waiting_to_speak,
     window_texts,
 )
+from tests.signaling.support.browsers import HeldWrite
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -70,9 +76,13 @@ def continues(browser):
     return [frame["agent_id"] for frame in browser.frames(CONTINUED)]
 
 
-def sounds(browser):
-    """The kinds of the agent's sound frames a seat was told, in the order it was told them."""
-    return [frame["type"] for frame in browser.frames(VOICE, HELD, CONTINUED, STOP)]
+def sounds(browser, agent=None):
+    """The kinds of the sound frames a seat was told, of one agent when named, in the order it was told them."""
+    return [
+        frame["type"]
+        for frame in browser.frames(VOICE, HELD, CONTINUED, STOP)
+        if agent is None or frame["agent_id"] == agent.agent_id
+    ]
 
 
 def standing(participation, room_id, person=GUEST):
@@ -706,3 +716,87 @@ class TestASeatThatJoinsDuringAHold:
         await participation.continue_speaking(GUEST, room_id, "1")
 
         assert sounds(late) == [HELD.value, CONTINUED.value]
+
+
+class TestTwoAgentsHearingOneSeat:
+    """The guest's seat is heard by two agents; the host seat's first write blocks while the agents are held."""
+
+    @pytest.fixture
+    def hearing(self, member_hearing, hears):
+        """Names the hearers of a seat with the host's agent first, so the guest's agent is held second."""
+
+        class HostFirst(MemberHearingRecord):
+            def sensing(self, room_id, seat, sense):
+                hearers = super().sensing(room_id, seat, sense)
+
+                class Ordered(frozenset):
+                    def __iter__(self):
+                        return iter(sorted(frozenset.__iter__(self), key=lambda person: person != HOST))
+
+                return Ordered(hearers)
+
+        return Hearing(HostFirst(member_hearing), enabled=hears)
+
+    @pytest_asyncio.fixture
+    async def started_while_the_host_seat_blocks(self, participation, call, member_hearing):
+        """The room, the blocked write and the guest's starting to speak, which waits on that write."""
+        host, guest, *_ = call
+        room_id = room_of(host)
+        MemberHearingRecord(member_hearing).allow(room_id, guest.peer_id, HOST, Sense.HEARING, allowed=True)
+        await speak(participation, room_id=room_id, render=LONG)
+        await speak(participation, room_id=room_id, render=LONG, who=HOST)
+        held = HeldWrite(host.socket, first_only=True)
+        starting = asyncio.create_task(participation.person_started(room_id, guest.peer_id))
+        await held.reached()
+        yield room_id, held, starting
+        held.release.set()
+        await asyncio.gather(starting, return_exceptions=True)
+
+    async def test_call_69_a_speak_with_the_hold_is_accepted_for_both_agents_and_every_hold_is_told_before_its_sound(
+        self, participation, call, started_while_the_host_seat_blocks
+    ):
+        _, guest, mozart, salieri = call
+        room_id, held, starting = started_while_the_host_seat_blocks
+        known = asyncio.all_tasks()
+
+        answers = [
+            await participation.speak(person, room_id, "Neu", rendering(), interrupted="1") for person in (HOST, GUEST)
+        ]
+        held.release.set()
+        await starting
+        await announced_since(known)
+
+        assert (answers, [sounds(guest, agent) for agent in (mozart, salieri)]) == (
+            [SpeakStarted.SPOKEN] * 2,
+            [[HELD.value, STOP.value, VOICE.value]] * 2,
+        )
+
+    async def test_call_69_a_continue_with_the_hold_is_accepted_for_both_agents_and_told_after_the_hold(
+        self, participation, call, started_while_the_host_seat_blocks
+    ):
+        _, guest, mozart, salieri = call
+        room_id, held, starting = started_while_the_host_seat_blocks
+
+        continuing = [
+            asyncio.create_task(participation.continue_speaking(person, room_id, "1")) for person in (HOST, GUEST)
+        ]
+        await asyncio.sleep(0)
+        held.release.set()
+        await starting
+
+        assert (await asyncio.gather(*continuing), [sounds(guest, agent) for agent in (mozart, salieri)]) == (
+            [None, None],
+            [[HELD.value, CONTINUED.value]] * 2,
+        )
+
+    async def test_call_69_an_agent_paused_while_another_hold_is_being_told_is_not_held_afterwards(
+        self, participation, call, started_while_the_host_seat_blocks
+    ):
+        _, guest, *_ = call
+        room_id, held, starting = started_while_the_host_seat_blocks
+
+        await guest.drop()
+        held.release.set()
+        started = await asyncio.gather(starting, return_exceptions=True)
+
+        assert (participation.read_window(GUEST, room_id).interrupted, started) == (None, [None])
