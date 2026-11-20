@@ -134,13 +134,17 @@ def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_
     speak(joined_agent, seconds=None)
 
     socket_end_seen = SocketEnd()
+    root_logger = logging.getLogger()
     with configured("hopin"):
-        logging.getLogger().addHandler(socket_end_seen)
-        joined_agent.owner.drop(code=close_code)
-        assert socket_end_seen.happened.wait(DROP_HANDLED_SECONDS), "the owner's socket did not end"
-        answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
-        entries = json.loads(answer["result"]["contents"][0]["text"])["entries"]
-        lines = logged(capsys)
+        root_logger.addHandler(socket_end_seen)
+        try:
+            joined_agent.owner.drop(code=close_code)
+            assert socket_end_seen.happened.wait(DROP_HANDLED_SECONDS), "the owner's socket did not end"
+            answer = joined_agent.call.window(member_token, joined_agent.owner.room_id)
+            entries = json.loads(answer["result"]["contents"][0]["text"])["entries"]
+            lines = logged(capsys)
+        finally:
+            root_logger.removeHandler(socket_end_seen)
 
     [socket_end] = [line for line in lines if line["event"] == SOCKET_ENDED]
     [entry] = entries
