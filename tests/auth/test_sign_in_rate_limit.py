@@ -269,11 +269,11 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings(trusted_proxies=value).settings
 
         rate_limits = in_thread_stores().rate_limits
-        with pytest.raises(SignInConfigurationError, match="trusted_proxies") as refusal:
+        with pytest.raises(SignInConfigurationError, match="HOPIN_TRUSTED_PROXIES") as refusal:
             build_sign_in_configs(settings, (), rate_limits)
 
         assert value not in str(refusal.value)
-        assert "session_secret_file" not in str(refusal.value)
+        assert "HOPIN_SESSION_SECRET_FILE" not in str(refusal.value)
 
     def test_without_the_variable_no_proxy_is_trusted_and_the_app_starts(self, sign_in_settings):
         settings = sign_in_settings().settings

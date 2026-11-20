@@ -1,4 +1,5 @@
-"""The command line: `hopin serve` refuses to start on an invalid setting, builds the application and runs uvicorn.
+"""The command line: `hopin serve` ends a start it refuses for a known reason in one stderr line and a nonzero exit,
+builds the application and runs uvicorn.
 
 Logging. logline is the one logger: `serve` calls `configure("hopin")` once and uvicorn starts with `log_config=None`,
 so every line, uvicorn's and the libraries' included, is logline's JSON record with a `trace_id`. logline holds the HTTP
@@ -28,12 +29,14 @@ clients' own loggers (`httpx2`, `httpcore2`) at WARNING, which keeps the gateway
 """
 
 import argparse
+import re
 from typing import TYPE_CHECKING, TypedDict
 
 import structlog
 import uvicorn
 from logline import configure
 from pydantic import ValidationError
+from pydantic_settings.exceptions import SettingsError
 
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeature
@@ -41,6 +44,7 @@ from hopin.agent.settings import AgentSettings  # game
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
+from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
@@ -64,6 +68,9 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 # Pydantic's prefix on a message a model validator raised.
 MODEL_VALIDATOR_MESSAGE_PREFIX = "Value error, "
+
+# The field pydantic-settings names when a source cannot parse its value.
+SETTINGS_FIELD_IN_MESSAGE = re.compile(r'error parsing value for field "([^"]+)"')
 
 SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (
     ServerSettings,
@@ -181,6 +188,12 @@ def refusal_lines(settings_class: type[BaseSettings], invalid: ValidationError) 
     return "\n".join(lines) + "\n"
 
 
+def unreadable_line(settings_class: type[BaseSettings], unreadable: SettingsError) -> str:
+    """The line for a value its source cannot parse; the message holds the field, never the value."""
+    (field,) = SETTINGS_FIELD_IN_MESSAGE.findall(str(unreadable))
+    return f"{settings_class.model_config['env_prefix']}{field}".upper() + " is malformed\n"
+
+
 def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
     """The refusal of every settings class the server composes, empty when each reads."""
     refusal = ""
@@ -189,6 +202,8 @@ def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
             settings_class()
         except ValidationError as invalid:
             refusal += refusal_lines(settings_class, invalid)
+        except SettingsError as unreadable:
+            refusal += unreadable_line(settings_class, unreadable)
     return refusal
 
 
@@ -198,8 +213,11 @@ def main(arguments: Sequence[str] | None = None, *, build_directory: Path = BUIL
     refusal = refused_settings(SETTINGS_CLASSES)
     if refusal:
         parser.exit(1, refusal)
-    settings = ServerSettings()
-    serve(settings, PageBuild.load(build_directory), connect_shared_stores(str(settings.redis_url)))
+    try:
+        settings = ServerSettings()
+        serve(settings, PageBuild.load(build_directory), connect_shared_stores(str(settings.redis_url)))
+    except StartRefusedError as refused:
+        parser.exit(1, f"{refused}\n")
 
 
 if __name__ == "__main__":

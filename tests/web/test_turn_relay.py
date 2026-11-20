@@ -152,7 +152,7 @@ class TestStart:
 
         error = refusal_of(settings)
 
-        assert setting in str(error)
+        assert setting.upper() in str(error)
         assert_refusal_leaks_nothing(error, hidden=[sentinel, str(path)], capsys=capsys)
 
     @pytest.mark.parametrize("key_id", ["a/b", "a?b", "a#b", "a@b", "..", "a b", "a%2Fb", "a\nb"])
@@ -163,7 +163,7 @@ class TestStart:
 
         error = refusal_of(turn_settings(keys))
 
-        assert "turn_key_id_file" in str(error)
+        assert "HOPIN_TURN_KEY_ID_FILE" in str(error)
         assert_refusal_leaks_nothing(error, hidden=[key_id], capsys=capsys)
 
     @pytest.mark.parametrize("token", ["a\rb", "a\nb", "a\r\n b", "a b", "a\x00b", 'a"b', "a,b", "café", "Ā"])
@@ -172,8 +172,8 @@ class TestStart:
     ):
         error = refusal_of(turn_settings(TurnKeys(api_token=token)))
 
-        assert "turn_api_token_file" in str(error)
-        assert "turn_key_id_file" not in str(error)
+        assert "HOPIN_TURN_API_TOKEN_FILE" in str(error)
+        assert "HOPIN_TURN_KEY_ID_FILE" not in str(error)
         assert_refusal_leaks_nothing(error, hidden=[token, "UnicodeEncodeError", "ValueError"], capsys=capsys)
 
     def test_a_token_with_padding_and_the_rfc_6750_symbols_is_accepted(self, turn_settings):

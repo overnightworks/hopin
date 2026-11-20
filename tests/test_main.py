@@ -1,19 +1,30 @@
+import importlib
+import pkgutil
+import shutil
 import socket
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from pydantic_settings import BaseSettings
 from starlette.websockets import WebSocketDisconnect
 
+import hopin
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
-from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
-from hopin.main import UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
+from hopin.main import SETTINGS_CLASSES, UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
+from hopin.web.page_build import SHELL_FILE
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.in_thread_stores import in_thread_stores
-from tests.support.page_build import fixture_page_build
+from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+
+
+def all_subclasses(base: type) -> set[type]:
+    direct = set(base.__subclasses__())
+    return direct | {nested for subclass in direct for nested in all_subclasses(subclass)}
+
 
 pytestmark = pytest.mark.usefixtures("game_environment", "logging_restored")
 
@@ -121,14 +132,60 @@ class TestMain:
         with pytest.raises(ValidationError):
             build_application(settings, page_build, shared_stores)
 
-    def test_refuses_to_start_without_the_page_build_and_names_the_build_command(
-        self, sign_in_settings, monkeypatch, tmp_path
+    @pytest.mark.parametrize(
+        ("setting", "value", "expected_line"),
+        [
+            pytest.param("HOPIN_TRUSTED_PROXIES", "sentinel-proxy", "HOPIN_TRUSTED_PROXIES is refused", id="proxies"),
+            pytest.param("HOPIN_FIGURE_SOURCES", "sentinel{", "HOPIN_FIGURE_SOURCES is malformed", id="not_json"),
+            pytest.param("HOPIN_OIDC_CLIENT_SECRET_FILE", "/sentinel/none", "HOPIN_OIDC_CLIENT_SECRET_FILE", id="file"),
+        ],
+    )
+    def test_ends_a_refusal_the_server_knows_in_one_line_without_a_traceback(
+        self, sign_in_settings, monkeypatch, capsys, setting, value, expected_line
+    ):
+        for name, environment_value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, environment_value)
+        monkeypatch.setenv(setting, value)
+
+        with pytest.raises(SystemExit) as refusal:
+            main(["serve"], build_directory=FIXTURE_DIRECTORY)
+
+        assert refusal.value.code == 1
+        (line,) = capsys.readouterr().err.splitlines()
+        assert expected_line in line
+        assert "sentinel" not in line
+
+    def test_ends_a_missing_page_build_in_one_line_naming_the_build_command(
+        self, sign_in_settings, monkeypatch, tmp_path, capsys
     ):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
 
-        with pytest.raises(StartRefusedError, match="make frontend"):
+        with pytest.raises(SystemExit) as refusal:
             main(["serve"], build_directory=tmp_path / "build")
+
+        assert refusal.value.code == 1
+        (line,) = capsys.readouterr().err.splitlines()
+        assert "make frontend" in line
+
+    def test_keeps_the_traceback_of_an_error_it_does_not_know(self, sign_in_settings, monkeypatch, tmp_path):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        shutil.copytree(FIXTURE_DIRECTORY, tmp_path, dirs_exist_ok=True)
+        (tmp_path / SHELL_FILE).write_bytes(b"\xff")
+
+        with pytest.raises(UnicodeDecodeError):
+            main(["serve"], build_directory=tmp_path)
+
+    def test_reads_every_settings_class_the_server_composes(self):
+        for module in pkgutil.walk_packages(hopin.__path__, "hopin."):
+            importlib.import_module(module.name)
+
+        assert set(SETTINGS_CLASSES) == {
+            settings_class
+            for settings_class in all_subclasses(BaseSettings)
+            if settings_class.__module__.startswith("hopin.")
+        }
 
     @pytest.mark.parametrize(
         ("sources", "starts"),

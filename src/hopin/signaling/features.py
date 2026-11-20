@@ -19,6 +19,7 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 from hopin.config.constants import SignalType
+from hopin.config.secret_files import StartRefusedError
 from hopin.signaling.transition import TransitionHost
 
 if TYPE_CHECKING:
@@ -105,7 +106,7 @@ class TransitionFeature(ABC):
         """Release what the feature holds, once its work and its steps have ended."""
 
 
-class FeatureClashError(ValueError):
+class FeatureClashError(StartRefusedError):
     """Features reuse a name the call core or another feature already owns; the call core refuses them at start."""
 
     def __init__(self, clashes: list[str]) -> None:
