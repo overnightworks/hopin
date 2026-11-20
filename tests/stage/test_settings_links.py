@@ -1,6 +1,6 @@
 import pytest
 
-from hopin.skat.settings import table_source
+from hopin.stage.settings import table_source
 
 ORIGIN = "https://skat.example"
 TABLE_ID = "0123456789abcdef0123456789abcdef"

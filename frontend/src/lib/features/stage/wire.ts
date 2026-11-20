@@ -1,20 +1,20 @@
 // Generated from the Python wire owners by scripts/generate_wire.py. Do not edit.
 
-export enum SKAT_SIGNAL {
-    SKAT_ATTACH = "skat_attach",
-    SKAT_DETACH = "skat_detach",
-    SKAT_TABLE = "skat_table",
-    SKAT_REFUSED = "skat_refused",
+export enum STAGE_SIGNAL {
+    STAGE_ATTACH = "stage_attach",
+    STAGE_DETACH = "stage_detach",
+    STAGE_TABLE = "stage_table",
+    STAGE_REFUSED = "stage_refused",
 }
 
-export enum SKAT_REFUSAL {
+export enum STAGE_REFUSAL {
     BAD_LINK = "bad_link",
     BUSY = "busy",
     NOT_OPENER_OR_HOST = "not_opener_or_host",
 }
 
 export type AttachedTableFrame = {
-    type: SKAT_SIGNAL.SKAT_TABLE;
+    type: STAGE_SIGNAL.STAGE_TABLE;
     revision: number;
     attachment: number;
     table: string;
@@ -23,7 +23,7 @@ export type AttachedTableFrame = {
 };
 
 export type EmptyTableFrame = {
-    type: SKAT_SIGNAL.SKAT_TABLE;
+    type: STAGE_SIGNAL.STAGE_TABLE;
     revision: number;
     attachment: null;
     table: null;
@@ -32,11 +32,11 @@ export type EmptyTableFrame = {
 };
 
 export type RefusedFrame = {
-    type: SKAT_SIGNAL.SKAT_REFUSED;
-    reason: SKAT_REFUSAL;
+    type: STAGE_SIGNAL.STAGE_REFUSED;
+    reason: STAGE_REFUSAL;
 };
 
-export type SkatFrameByType = {
-    [SKAT_SIGNAL.SKAT_TABLE]: AttachedTableFrame | EmptyTableFrame;
-    [SKAT_SIGNAL.SKAT_REFUSED]: RefusedFrame;
+export type StageFrameByType = {
+    [STAGE_SIGNAL.STAGE_TABLE]: AttachedTableFrame | EmptyTableFrame;
+    [STAGE_SIGNAL.STAGE_REFUSED]: RefusedFrame;
 };

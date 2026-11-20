@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hopin.app import create_app
-from hopin.skat.feature import SkatFeature
+from hopin.stage.feature import StageFeature
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
@@ -23,7 +23,7 @@ def content_security_policy(sign_in_settings, call_features):
 
 
 def test_the_page_may_frame_exactly_skats_origin(sign_in_settings):
-    policy = content_security_policy(sign_in_settings, (SkatFeature(SKAT_ORIGIN),))
+    policy = content_security_policy(sign_in_settings, (StageFeature(SKAT_ORIGIN),))
 
     assert f"frame-src {SKAT_ORIGIN};" in policy
 

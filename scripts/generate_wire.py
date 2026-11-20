@@ -66,8 +66,8 @@ from hopin.signaling.frames import (  # noqa: E402
     is_omitted_when_none,
 )
 from hopin.signaling.replay import DESCRIPTION_TYPES, SUPERSEDED_BY_A_DESCRIPTION  # noqa: E402
-from hopin.skat.frames import BROWSER_FRAMES as SKAT_FRAMES  # noqa: E402  # skat
-from hopin.skat.vocabulary import BROWSER_ENUMS as SKAT_BROWSER_ENUMS  # noqa: E402  # skat
+from hopin.stage.frames import BROWSER_FRAMES as STAGE_FRAMES  # noqa: E402  # stage
+from hopin.stage.vocabulary import BROWSER_ENUMS as STAGE_BROWSER_ENUMS  # noqa: E402  # stage
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -325,7 +325,7 @@ def outputs(root: Path) -> dict[Path, str]:
         root / CORE_OUTPUT: render_core(),
         root / "frontend/src/lib/features/game/wire.ts": render_feature(BROWSER_ENUMS, BROWSER_FRAMES),  # game
         root / "frontend/src/lib/features/participation/wire.ts": render_participation(),  # participation
-        root / "frontend/src/lib/features/skat/wire.ts": render_feature(SKAT_BROWSER_ENUMS, SKAT_FRAMES),  # skat
+        root / "frontend/src/lib/features/stage/wire.ts": render_feature(STAGE_BROWSER_ENUMS, STAGE_FRAMES),  # stage
     }
 
 

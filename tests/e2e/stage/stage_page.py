@@ -6,14 +6,14 @@ from tests.e2e.support.calls import open_more
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 
 if TYPE_CHECKING:
-    from tests.e2e.skat.stub_skat import StubSkat
+    from tests.e2e.stage.stub_skat import StubSkat
 
-FRAME = ".skat-frame"
+FRAME = ".stage-frame"
 SURFACE = "#stage .surface"
 STRIP_TILES = "#videoGrid .tile"
-REMOVE_TABLE = "button.skat-remove"
-SHOW_ITEM = "#skatShowBtn"
-LINK_FIELD = "#skatLink"
+REMOVE_TABLE = "button.stage-remove"
+SHOW_ITEM = "#stageShowBtn"
+LINK_FIELD = "#stageLink"
 TOASTS = "#toasts"
 TABLE_ID = "0123456789abcdef0123456789abcdef"
 

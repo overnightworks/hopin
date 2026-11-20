@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.skat.skat_page import expect_table_on_stage, show_table, table_link
+from tests.e2e.stage.stage_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
 from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_TILE, REMOVE
 from tests.e2e.support.people import FORM_FACTORS, PHONE
@@ -11,7 +11,7 @@ from tests.e2e.support.people import FORM_FACTORS, PHONE
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.e2e.skat.stub_skat import StubSkat
+    from tests.e2e.stage.stub_skat import StubSkat
     from tests.e2e.support.dialed_agent import Agent
     from tests.e2e.support.server import RunningServer
 

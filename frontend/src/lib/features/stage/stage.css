@@ -1,10 +1,10 @@
-.skat-table {
+.stage-table {
     display: flex;
     flex-direction: column;
     gap: 8px;
     height: 100%;
 }
-.skat-frame {
+.stage-frame {
     display: block;
     flex: 1;
     min-height: 0;
@@ -13,27 +13,27 @@
     border-radius: 16px;
     background: var(--stage-2);
 }
-.skat-remove {
+.stage-remove {
     flex: none;
     align-self: flex-end;
     background: var(--glass);
     color: var(--on-stage);
 }
-.skat-remove:hover,
-.skat-remove:focus-visible {
+.stage-remove:hover,
+.stage-remove:focus-visible {
     background: var(--glass-hover);
 }
 /* The button sits under the field, so the field keeps the popover's full text width for its placeholder. */
-.skat-form {
+.stage-form {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     padding: 0 14px 6px 50px;
 }
-.skat-form[hidden] {
+.stage-form[hidden] {
     display: none;
 }
-.skat-form input {
+.stage-form input {
     flex: 1 1 100%;
     min-width: 0;
     height: 44px;
@@ -44,6 +44,6 @@
     color: var(--text);
     font-size: 16px;
 }
-.skat-form .button {
+.stage-form .button {
     height: 44px;
 }

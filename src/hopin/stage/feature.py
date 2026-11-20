@@ -8,10 +8,10 @@ from hopin.errors import InvalidMessageError
 from hopin.rooms.reference import room_reference
 from hopin.signaling.features import TransitionFeature
 from hopin.signaling.transition import Section
-from hopin.skat.frames import AttachedTableFrame, EmptyTableFrame, RefusedFrame
-from hopin.skat.settings import SkatSettings, check_origin_differs, table_source
-from hopin.skat.stage import RoomState
-from hopin.skat.vocabulary import FEATURE_NAME, SIGNAL_TYPES, SkatRefusal, SkatSignal
+from hopin.stage.frames import AttachedTableFrame, EmptyTableFrame, RefusedFrame
+from hopin.stage.settings import SkatSettings, check_origin_differs, table_source
+from hopin.stage.stage import RoomState
+from hopin.stage.vocabulary import FEATURE_NAME, SIGNAL_TYPES, StageRefusal, StageSignal
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -32,15 +32,18 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 STAGE = Section[RoomState](FEATURE_NAME)
 
 
-class Skat(TransitionFeature):
+class StageTransitions(TransitionFeature):
     """The table each call shows on its stage: any seat attaches one while none is shown, its opener or the host
     removes it, and anyone does once the opener has left for good. Every seat is sent the room's whole state.
-    `skat.attached` and `skat.detached` carry the room reference and the attachment number; a table id or link is never
-    logged."""
+    `stage.attached` and `stage.detached` carry the room reference and the attachment number; a table id or link is
+    never logged."""
 
     def __init__(self, origin: str) -> None:
         self._origin = origin
-        self._handlers = {SkatSignal.SKAT_ATTACH.value: self._on_attach, SkatSignal.SKAT_DETACH.value: self._on_detach}
+        self._handlers = {
+            StageSignal.STAGE_ATTACH.value: self._on_attach,
+            StageSignal.STAGE_DETACH.value: self._on_detach,
+        }
 
     @property
     def name(self) -> str:
@@ -83,13 +86,13 @@ class Skat(TransitionFeature):
             return
         address = table_source(self._origin, link)
         if address is None:
-            transition.send(peer_id, RefusedFrame(SkatRefusal.BAD_LINK).to_json())
+            transition.send(peer_id, RefusedFrame(StageRefusal.BAD_LINK).to_json())
             return
         attached = _state_of(view).attached(table=address.table, source=address.source, opener=peer_id)
         if attached is None:
-            transition.send(peer_id, RefusedFrame(SkatRefusal.BUSY).to_json())
+            transition.send(peer_id, RefusedFrame(StageRefusal.BUSY).to_json())
             return
-        logger.info("skat.attached", room_ref=room_reference(room_id), attachment=attached.revision)
+        logger.info("stage.attached", room_ref=room_reference(room_id), attachment=attached.revision)
         transition.put(STAGE, attached)
         _tell_room(view, attached, transition)
 
@@ -103,9 +106,9 @@ class Skat(TransitionFeature):
         if room_id is None or held is None or held.number != attachment:
             return
         if held.opener not in (None, peer_id) and not view.is_host(peer_id):
-            transition.send(peer_id, RefusedFrame(SkatRefusal.NOT_OPENER_OR_HOST).to_json())
+            transition.send(peer_id, RefusedFrame(StageRefusal.NOT_OPENER_OR_HOST).to_json())
             return
-        logger.info("skat.detached", room_ref=room_reference(room_id), attachment=attachment)
+        logger.info("stage.detached", room_ref=room_reference(room_id), attachment=attachment)
         detached = state.detached()
         transition.put(STAGE, detached)
         _tell_room(view, detached, transition)
@@ -128,7 +131,7 @@ def _tell_room(view: RoomView, state: RoomState, transition: Transition) -> None
 
 
 @dataclass(frozen=True)
-class BuiltSkatFeature:
+class BuiltStageFeature:
     """What Skat adds to the app: its call feature, and no route and no bearer resource."""
 
     feature: TransitionFeature
@@ -137,7 +140,7 @@ class BuiltSkatFeature:
 
 
 @dataclass(frozen=True)
-class SkatFeature:
+class StageFeature:
     """Skat, built inside `create_app`: the call may frame the tables of one origin."""
 
     origin: str
@@ -162,15 +165,15 @@ class SkatFeature:
         deadlines: Deadlines,
         transaction: SignInTransaction,
         request_language: RequestLanguage,
-    ) -> BuiltSkatFeature:
+    ) -> BuiltStageFeature:
         del relying_party, sessions, auth_config, scheduler, deadlines, transaction, request_language
-        return BuiltSkatFeature(Skat(self.origin), APIRouter())
+        return BuiltStageFeature(StageTransitions(self.origin), APIRouter())
 
 
-def configured_skat_feature(public_origin: str) -> tuple[SkatFeature, ...]:
+def configured_stage_feature(public_origin: str) -> tuple[StageFeature, ...]:
     """Skat as the environment configures it: one feature for a configured origin, none for an unset one."""
     configured = SkatSettings().origin
     origins = () if configured is None else (configured,)
     for origin in origins:
         check_origin_differs(origin, public_origin)
-    return tuple(SkatFeature(origin) for origin in origins)
+    return tuple(StageFeature(origin) for origin in origins)

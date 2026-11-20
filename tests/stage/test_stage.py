@@ -1,4 +1,4 @@
-from hopin.skat.stage import RoomState
+from hopin.stage.stage import RoomState
 
 TABLE = "a" * 32
 SOURCE = f"https://skat.example/t/{TABLE}"

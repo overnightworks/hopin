@@ -48,8 +48,8 @@ from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
-from hopin.skat.feature import configured_skat_feature  # skat
-from hopin.skat.settings import SkatSettings  # skat
+from hopin.stage.feature import configured_stage_feature  # stage
+from hopin.stage.settings import SkatSettings  # stage
 from hopin.stores.redis import connect_shared_stores
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
@@ -77,7 +77,7 @@ SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (
     AgentSettings,  # game
     ParticipationSettings,
     SpeechSettings,
-    SkatSettings,  # skat
+    SkatSettings,  # stage
 )
 
 
@@ -138,7 +138,7 @@ def build_application(
                 redis=shared_stores.async_redis,
                 subscription_wait_seconds=subscription_wait_seconds,
             ),
-            *configured_skat_feature(settings.public_origin),  # skat
+            *configured_stage_feature(settings.public_origin),  # stage
         ),
     )
 
