@@ -271,16 +271,23 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 () => {
                     wake?.();
                 };
+        const waitWhile = async (blocked: () => boolean): Promise<void> => {
+            if (!blocked()) return;
+            await wait();
+            await waitWhile(blocked);
+        };
         channel.bufferedAmountLowThreshold = SEND_BUFFER_LOW_BYTES;
-        while (channel.readyState === CHANNEL_CONNECTING) await wait();
+        await waitWhile(() => channel.readyState === CHANNEL_CONNECTING);
         for (let offset = 0; offset < file.size; offset += CHUNK_BYTES) {
-            while (channel.readyState === CHANNEL_OPEN && channel.bufferedAmount > SEND_BUFFER_HIGH_BYTES) await wait();
+            await waitWhile(
+                () => channel.readyState === CHANNEL_OPEN && channel.bufferedAmount > SEND_BUFFER_HIGH_BYTES,
+            );
             const chunk = await file.slice(offset, offset + CHUNK_BYTES).arrayBuffer();
             if (channel.readyState !== CHANNEL_OPEN) return;
             channel.send(chunk);
         }
         // The receiver closes the channel once it holds the last byte: a close from this side could cut data still on its way.
-        while (channel.readyState === CHANNEL_OPEN) await wait();
+        await waitWhile(() => channel.readyState === CHANNEL_OPEN);
     }
 
     return {
