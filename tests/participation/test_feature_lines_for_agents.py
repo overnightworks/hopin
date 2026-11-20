@@ -53,7 +53,7 @@ class TestWhereTheLineGoes:
         await host.say(line_for_agents("still shown on the page"))
 
         assert participation.read_window(person_named("guest"), room_of(host)) is None
-        assert (len(host.socket.sent), len(guest.socket.sent)) == heard_before
+        assert heard_before == (len(host.socket.sent), len(guest.socket.sent))
 
     async def test_a_line_from_a_modified_page_while_no_agent_is_joined_changes_nothing_and_tells_no_seat(
         self, link, participation, window_changes
@@ -64,7 +64,7 @@ class TestWhereTheLineGoes:
         await host.say(line_for_agents("nobody reads this"))
 
         assert window_changes == []
-        assert (len(host.socket.sent), len(guest.socket.sent)) == heard_before
+        assert heard_before == (len(host.socket.sent), len(guest.socket.sent))
 
 
 class TestWhatTheServerDrops:

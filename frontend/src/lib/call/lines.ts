@@ -125,7 +125,7 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
     }
 
     function settleAll(participantId: string) {
-        for (const line of [...pending.values()]) settle(line, participantId, false);
+        for (const line of pending.values()) settle(line, participantId, false);
     }
 
     function pace(peer: Peer) {
@@ -157,12 +157,10 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
         if (!isLive()) return;
         while (agentQueue.length > 0) {
             if (!agentBudget.spend()) {
-                if (agentTimer === null) {
-                    agentTimer = setTimeout(() => {
-                        agentTimer = null;
-                        drainAgents();
-                    }, agentBudget.waitMilliseconds());
-                }
+                agentTimer ??= setTimeout(() => {
+                    agentTimer = null;
+                    drainAgents();
+                }, agentBudget.waitMilliseconds());
                 return;
             }
             (agents as AgentLink).send(agentQueue.shift() as string);
