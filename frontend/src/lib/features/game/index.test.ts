@@ -66,6 +66,7 @@ async function installedGame({
         showAgentTile: (tile) => void agentTiles.push(tile),
         showStage: () => undefined,
         drawAgentFigures: () => undefined,
+        onAgentFigureEnded: () => undefined,
         gestureAgentFigure: () => undefined,
         speakAgentFigure: () => undefined,
         thinkAgentFigure: () => undefined,

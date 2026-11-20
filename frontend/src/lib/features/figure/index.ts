@@ -7,6 +7,7 @@ import {
     type AgentSentence,
     type FeatureCore,
 } from "#lib/call/feature-port.ts";
+import { FIGURE_END } from "#lib/features/participation/wire.ts";
 import type { FigureGesture, FigureHandle, FigureMood, FigureSignal, MountOptions } from "overnightworks-figure/draw";
 
 type FigureDrawing = Promise<typeof import("overnightworks-figure/draw")>;
@@ -20,6 +21,14 @@ async function fetchBytes(from: string, signal: AbortSignal) {
     return new Uint8Array(await response.arrayBuffer());
 }
 
+// Why a figure ended, by the signal that ended it; a figure that could not be fetched or loaded ends as `unloaded`.
+const ENDING: Record<Exclude<FigureSignal, "drawn">, FIGURE_END> = {
+    unsupported: FIGURE_END.UNSUPPORTED,
+    refused: FIGURE_END.REFUSED,
+    lost: FIGURE_END.LOST,
+    slow: FIGURE_END.SLOW,
+};
+
 // The figure shows no mood for a name that is no mood of its own, so the page checks none.
 function speakTo(handle: FigureHandle, sentence: AgentSentence | null) {
     handle.speak(sentence === null ? null : { voice: sentence.voice, mood: sentence.mood as FigureMood | undefined });
@@ -29,7 +38,7 @@ function speakTo(handle: FigureHandle, sentence: AgentSentence | null) {
 function drawFigure(
     host: HTMLElement,
     path: string,
-    show: (figure: AgentFigure) => void,
+    show: (figure: AgentFigure, reason?: string) => void,
     drawing: FigureDrawing,
     clipPaths: AgentGestureClips,
 ): AgentFigureHandle {
@@ -43,19 +52,19 @@ function drawFigure(
     // A function, so the checks after an await do not read as settled.
     const hasEnded = () => over;
 
-    function end(report: AgentFigure | null) {
+    function end(reason: FIGURE_END | null) {
         if (over) return;
         over = true;
         fetching.abort();
         handle?.dispose();
         canvas?.remove();
-        if (report !== null) show(report);
+        if (reason !== null) show(AGENT_FIGURE.ENDED, reason);
     }
 
     function heard(signal: FigureSignal) {
         if (over) return;
         if (signal === "drawn") show(AGENT_FIGURE.DRAWN);
-        else end(AGENT_FIGURE.ENDED);
+        else end(ENDING[signal]);
     }
 
     // A clip that cannot be fetched is left out: the figure plays its own gesture.
@@ -104,7 +113,7 @@ function drawFigure(
     }
 
     run().catch(() => {
-        end(AGENT_FIGURE.ENDED);
+        end(FIGURE_END.UNLOADED);
     });
     return {
         stop: () => {

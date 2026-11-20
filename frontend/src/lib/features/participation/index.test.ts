@@ -8,7 +8,7 @@ import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { ME, installedParticipation, joined, tileActivities } from "./page.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
-import { AGENT_REFUSAL, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { AGENT_REFUSAL, FIGURE_END, HEARING_PATH, INVITATION_OUTCOME, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -66,6 +66,29 @@ describe("dialed-in agents", () => {
             { wave: "/api/participation/clips/def" },
             undefined,
         ]);
+    });
+
+    it("CALL-56: reports the closed code a figure ended with, with the id of its agent", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
+            ...joined("someone"),
+            figure: "/api/participation/figures/abc",
+        });
+        const [key] = [...page.tiles.keys()];
+
+        page.endFigure(key as string, FIGURE_END.SLOW);
+
+        expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_FIGURE_ENDED, agent_id: "a1", code: "slow" }]);
+    });
+
+    it("CALL-56: reports nothing for a tile no agent of the call holds", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+
+        page.endFigure("agent-gone", FIGURE_END.LOST);
+
+        expect(page.sent).toEqual([]);
     });
 
     it.each([

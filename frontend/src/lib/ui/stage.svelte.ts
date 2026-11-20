@@ -79,6 +79,12 @@ export function drawAgentFigures(drawer: AgentFigureDrawer) {
     figureDrawer = drawer;
 }
 
+let figureEndedHook: ((key: string, reason: string) => void) | null = null;
+
+export function onAgentFigureEnded(hook: (key: string, reason: string) => void) {
+    figureEndedHook = hook;
+}
+
 interface DrawnFigure {
     handle: AgentFigureHandle;
     // The id of the tile the figure was last turned toward, null for nobody.
@@ -151,7 +157,7 @@ interface AgentFigureSpot {
     gestures?: AgentGestureClips;
 }
 
-/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, and a new path draws afresh; the clips go with the path they came with. */
+/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, `data-figure-end` why it ended, and a new path draws afresh; the clips go with the path they came with. */
 export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
     // The key is the tile's own and never changes while its action lives.
     const { key } = spot;
@@ -166,6 +172,7 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
 
     function draw(figure: string | undefined, gestures: AgentGestureClips | undefined) {
         stop();
+        delete host.dataset.figureEnd;
         if (figureDrawer === null || figure === undefined) {
             delete host.dataset.figure;
             return;
@@ -174,8 +181,11 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
         drawn = figureDrawer(
             host,
             figure,
-            (state) => {
+            (state, reason) => {
                 host.dataset.figure = state;
+                if (reason === undefined) return;
+                host.dataset.figureEnd = reason;
+                figureEndedHook?.(key, reason);
             },
             gestures,
         );

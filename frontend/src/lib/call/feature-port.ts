@@ -53,11 +53,11 @@ export interface AgentFigureHandle {
 /** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */
 export type AgentGestureClips = Readonly<Record<string, string>>;
 
-/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, and reports whether it is `DRAWN` or `ENDED`; the tile shows its symbol until `DRAWN`. */
+/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, and reports whether it is `DRAWN` or `ENDED`, an end with the `reason` it ended for; the tile shows its symbol until `DRAWN`. */
 export type AgentFigureDrawer = (
     host: HTMLElement,
     path: string,
-    show: (figure: AgentFigure) => void,
+    show: (figure: AgentFigure, reason?: string) => void,
     gestures?: AgentGestureClips,
 ) => AgentFigureHandle;
 
@@ -120,6 +120,8 @@ export interface FeatureCore<Frames extends object = object> {
     showAgentTile(tile: AgentTile | null, key?: string): void;
     /** Hand the drawer that draws the figure of each agent tile that names one. The core keeps it and an action on the tile's video layer, which writes the figure's state as `data-figure` and stops the figure when the tile goes or names another path. */
     drawAgentFigures(drawer: AgentFigureDrawer): void;
+    /** Register a handler told, with the key of the agent tile and the reason, each time that tile's figure ends; the tile keeps the reason as `data-figure-end`. */
+    onAgentFigureEnded(hook: (key: string, reason: string) => void): void;
     /** Play the gesture on the figure of the agent tile shown under `key`; dropped when that tile has no drawn figure. */
     gestureAgentFigure(key: string, gesture: string): void;
     /** Make the figure of the agent tile shown under `key` speak the sentence, null stop; dropped when that tile has no figure. */
