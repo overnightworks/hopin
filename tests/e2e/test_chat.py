@@ -33,6 +33,7 @@ SENT_FILE = "#chatMessages .chat-file.self"
 HEARD_FILE = "#chatMessages .chat-file.other"
 SHOWN_PICTURE = "#chatMessages .chat-picture"
 PLAYER = "#chatMessages audio.chat-audio"
+VIDEO_PLAYER = "#chatMessages video.chat-video"
 LOAD_BUTTON = ".chat-file-load"
 DOWNLOAD_BUTTON = ".chat-file-download"
 BYTES_PER_MEGABYTE = 1024 * 1024
@@ -287,19 +288,33 @@ def test_a_posted_song_waits_for_a_tap_and_then_plays_from_memory_without_starti
     expect(guest.locator(PLAYER)).to_be_visible()
 
 
-def test_a_song_the_browser_cannot_decode_is_offered_as_a_download_like_any_file(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+@pytest.mark.parametrize(
+    ("name", "mime_type", "container_head", "player"),
+    [
+        ("broken.wav", "audio/wav", b"RIFF\x00\x00\x00\x00WAVE", PLAYER),
+        ("broken.webm", "video/webm", b"\x1a\x45\xdf\xa3\x00\x00\x00\x00", VIDEO_PLAYER),
+    ],
+    ids=["song", "video"],
+)
+def test_a_song_or_video_the_browser_cannot_decode_is_offered_as_a_download_like_any_file(
+    open_person: Callable[..., Page],
+    base_url: str,
+    page_errors: list[str],
+    name: str,
+    mime_type: str,
+    container_head: bytes,
+    player: str,
 ) -> None:
     """CALL-73: A file that passes the container check and fails to decode is offered as a download."""
     host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
     host.click("#chatBtn")
-    broken = b"RIFF\x00\x00\x00\x00WAVE" + bytes(range(200))
+    broken = container_head + bytes(range(200))
 
-    _post(guest, "broken.wav", broken, "audio/wav")
+    _post(guest, name, broken, mime_type)
 
     host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
     expect(host.locator(f"{HEARD_FILE} {DOWNLOAD_BUTTON}")).to_be_visible()
-    expect(host.locator(PLAYER)).to_have_count(0)
+    expect(host.locator(player)).to_have_count(0)
     with host.expect_download() as download:
         host.click(f"{HEARD_FILE} {DOWNLOAD_BUTTON}")
     assert Path(download.value.path()).read_bytes() == broken
