@@ -311,7 +311,7 @@ def test_a_posted_song_or_video_waits_for_a_tap_and_then_plays_from_memory_witho
     player: str,
     blob_type: str,
 ) -> None:
-    """CALL-73: A song or video is fetched on a tap, plays with controls from a typed blob, never autoplays."""
+    """CALL-74: A song or video is fetched on a tap, plays with controls from a typed blob, never autoplays."""
     host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP, RECORD_BLOB_TYPES)
     host.click("#chatBtn")
 
@@ -343,7 +343,7 @@ def test_a_song_or_video_the_browser_cannot_decode_is_offered_as_a_download_like
     container_head: bytes,
     player: str,
 ) -> None:
-    """CALL-73: A file that passes the container check and fails to decode is offered as a download."""
+    """CALL-74: A file that passes the container check and fails to decode is offered as a download."""
     host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
     host.click("#chatBtn")
     broken = container_head + bytes(range(200))
@@ -361,7 +361,7 @@ def test_a_song_or_video_the_browser_cannot_decode_is_offered_as_a_download_like
 def test_a_file_called_a_song_whose_bytes_are_not_one_is_never_played(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
-    """CALL-73: A song plays only when its first bytes pass the container check, whatever its sender calls it."""
+    """CALL-74: A song plays only when its first bytes pass the container check, whatever its sender calls it."""
     host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
     host.click("#chatBtn")
 

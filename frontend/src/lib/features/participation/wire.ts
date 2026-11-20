@@ -16,6 +16,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_CONTINUED = "agent_continued",
     AGENT_GESTURE = "agent_gesture",
     AGENT_THINKING = "agent_thinking",
+    AGENT_TURN_STATE = "agent_turn_state",
     AGENT_SEEING = "agent_seeing",
     AGENT_LOOK_REQUEST = "agent_look_request",
     AGENT_LOOK_PART = "agent_look_part",
@@ -73,6 +74,13 @@ export enum FIGURE_MOOD {
     SAD = "sad",
     RELAXED = "relaxed",
     SURPRISED = "surprised",
+}
+
+export enum TURN_OUTCOME {
+    NOT_ENABLED = "not_enabled",
+    BUSY = "busy",
+    BUDGET_SPENT = "budget_spent",
+    UNAVAILABLE = "unavailable",
 }
 
 export enum FIGURE_END {
@@ -160,6 +168,12 @@ export type AgentThinkingFrame = {
     on: boolean;
 };
 
+export type AgentTurnStateFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_TURN_STATE;
+    agent_id: string;
+    outcome: TURN_OUTCOME | null;
+};
+
 export type AgentOffersFrame = {
     type: PARTICIPATION_SIGNAL.AGENT_OFFERS;
     shown: boolean;
@@ -199,6 +213,7 @@ export type ParticipationFrameByType = {
     [PARTICIPATION_SIGNAL.AGENT_CONTINUED]: AgentContinuedFrame;
     [PARTICIPATION_SIGNAL.AGENT_GESTURE]: AgentGestureFrame;
     [PARTICIPATION_SIGNAL.AGENT_THINKING]: AgentThinkingFrame;
+    [PARTICIPATION_SIGNAL.AGENT_TURN_STATE]: AgentTurnStateFrame;
     [PARTICIPATION_SIGNAL.AGENT_OFFERS]: AgentOffersFrame;
     [PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED]: AgentInvitationEndedFrame;
     [PARTICIPATION_SIGNAL.AGENT_LINE]: AgentLineFrame;

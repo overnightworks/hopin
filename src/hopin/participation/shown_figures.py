@@ -1,5 +1,5 @@
 """The figures the joined agents show on their tiles: which a digest names, whether an agent shows one, the
-gestures it makes with it and whether it thinks."""
+gestures it makes with it, whether it thinks and why its turns do not answer."""
 
 from typing import TYPE_CHECKING
 
@@ -7,9 +7,9 @@ import structlog
 
 from hopin.errors import InvalidMessageError
 from hopin.participation.figures import NamedFigure
-from hopin.participation.frames import AgentGestureFrame, AgentThinkingFrame, ParticipationFrame
+from hopin.participation.frames import AgentGestureFrame, AgentThinkingFrame, AgentTurnStateFrame, ParticipationFrame
 from hopin.participation.participants import DialedAgent
-from hopin.participation.vocabulary import THINKING_MAX_SECONDS, AgentRefusal, FigureEnd, FigureGesture
+from hopin.participation.vocabulary import THINKING_MAX_SECONDS, AgentRefusal, FigureEnd, FigureGesture, TurnOutcome
 from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
@@ -28,7 +28,8 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 class ShownFigures:
     """`active_agent` names a person's joined agent in a room or why it is not; `tell` sends a frame to seats and
     `recipients` names the seats of a room. An agent thinks from its statement until its next speak, gesture or
-    statement at its place, or `THINKING_MAX_SECONDS`; nothing else starts it."""
+    statement at its place, or `THINKING_MAX_SECONDS`; nothing else starts it. The outcome an agent states for its
+    stopped turns stands until its next turn state, speak, gesture or line, or its end."""
 
     def __init__(
         self,
@@ -45,6 +46,8 @@ class ShownFigures:
         self._recipients = recipients
         # The agents that think, by their id; an agent that ended meanwhile stays here until its deadline.
         self._thinking: dict[str, DialedAgent] = {}
+        # The outcome each agent last stated for its stopped turns, by the agent's id.
+        self._stopped: dict[str, TurnOutcome] = {}
         # The seats that reported an agent's figure ended, by the agent's id, for as long as the agent is joined.
         self._ended: dict[str, set[PeerId]] = {}
         deadlines.register(DeadlineKind.THINKING, self._thinking_ran_out)
@@ -79,18 +82,22 @@ class ShownFigures:
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
-        await self.end_thinking(agent)
+        await self.end_turn_state(agent)
         if agent.figure is None:
             return AgentRefusal.GONE
         await self._tell(room_id, self._recipients(room_id), AgentGestureFrame(agent.agent_id, gesture))
         return None
 
-    async def state_turn(self, person: Person, room_id: str, *, thinking: bool) -> AgentRefusal | None:
-        """Take the turn state the person's agent states at its place, active or paused: its stated thinking, or an
-        end of it; why not when it holds no place there. A repeated thinking runs its deadline afresh."""
+    async def state_turn(
+        self, person: Person, room_id: str, *, thinking: bool, stopped: TurnOutcome | None = None
+    ) -> AgentRefusal | None:
+        """Take the turn state the person's agent states at its place, active or paused: its stated thinking, why its
+        turns stop, or an end of both; why not when it holds no place there. A repeated thinking runs its deadline
+        afresh."""
         agent = self._places.get(person, room_id)
         if not isinstance(agent, DialedAgent):
             return AgentRefusal.GONE
+        await self._set_stopped(agent, stopped)
         if not thinking:
             await self.end_thinking(agent)
             return None
@@ -101,18 +108,30 @@ class ShownFigures:
         await self._tell(room_id, self._recipients(room_id), AgentThinkingFrame(agent.agent_id, on=True))
         return None
 
+    async def end_turn_state(self, agent: DialedAgent) -> None:
+        """The agent spoke, said a line or gestured at its place: tell every seat it no longer thinks and states no
+        outcome, when it did."""
+        await self.end_thinking(agent)
+        await self._set_stopped(agent, None)
+
+    def agent_ended(self, agent: DialedAgent) -> None:
+        """Forget the outcome of an agent that left; its seats drop it with the agent's tile."""
+        self._stopped.pop(agent.agent_id, None)
+
     async def end_thinking(self, agent: DialedAgent) -> None:
-        """The agent spoke or gestured at its place: tell every seat it no longer thinks, when it did."""
+        """Tell every seat the agent no longer thinks, when it did."""
         if self._thinking.pop(agent.agent_id, None) is None:
             return
         self._deadlines.cancel(DeadlineKind.THINKING, agent.agent_id)
         await self._tell(agent.room_id, self._recipients(agent.room_id), AgentThinkingFrame(agent.agent_id, on=False))
 
-    def tell_thinking(self, agent: DialedAgent, peer_id: PeerId, transition: Transition) -> None:
-        """Tell a seat that joined later, in the transition that announces the agent to it, that the agent thinks,
-        when it does."""
+    def tell_turn_state(self, agent: DialedAgent, peer_id: PeerId, transition: Transition) -> None:
+        """Tell a seat that joined later, in the transition that announces the agent to it, that the agent thinks and
+        the outcome it stated, when it did."""
         if agent.agent_id in self._thinking:
             transition.send(peer_id, AgentThinkingFrame(agent.agent_id, on=True).to_json())
+        if (outcome := self._stopped.get(agent.agent_id)) is not None:
+            transition.send(peer_id, AgentTurnStateFrame(agent.agent_id, outcome).to_json())
 
     def ended(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView) -> None:
         """Write down the closed code a seat reports for why an agent's figure ended, with ids and the code only; a
@@ -133,6 +152,16 @@ class ShownFigures:
     def seat_left(self, peer_id: PeerId) -> None:
         """Forget the figure ends the seat reported, so a seat that comes back does not grow what is kept."""
         self._ended = {agent: peers - {peer_id} for agent, peers in self._ended.items() if peers - {peer_id}}
+
+    async def _set_stopped(self, agent: DialedAgent, outcome: TurnOutcome | None) -> None:
+        """Keep the outcome the agent states, or none, and tell every seat when it differs from the kept one."""
+        if self._stopped.get(agent.agent_id) == outcome:
+            return
+        if outcome is None:
+            del self._stopped[agent.agent_id]
+        else:
+            self._stopped[agent.agent_id] = outcome
+        await self._tell(agent.room_id, self._recipients(agent.room_id), AgentTurnStateFrame(agent.agent_id, outcome))
 
     async def _thinking_ran_out(self, agent_id: str) -> None:
         agent = self._thinking.pop(agent_id, None)

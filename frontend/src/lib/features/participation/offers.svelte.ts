@@ -1,5 +1,5 @@
-import type { AgentControlOutcome, AgentControlRefusal, AgentRow } from "overnightworks-design";
-import { AGENT_REFUSAL, INVITATION_OUTCOME, type Offer } from "./wire.ts";
+import type { AgentControlOutcome, AgentControlRefusal, AgentRow, TurnOutcome } from "overnightworks-design";
+import { AGENT_REFUSAL, INVITATION_OUTCOME, TURN_OUTCOME, type Offer } from "./wire.ts";
 
 /** What the page shows of the agents a seat may call: whether the control shows, whether no place is free for an agent,
  * its rows and the refusal of the last call. */
@@ -21,9 +21,27 @@ export interface Ending {
     outcome: AgentControlOutcome;
 }
 
-/** The rows of an offers frame; an agent whose last invitation ended shows that outcome until it is invited again, and
- * an ended agent that is not offered keeps its ended row after the offered ones. */
-export function rowsOf(offers: Offer[], endings: ReadonlyMap<string, Ending>): AgentRow[] {
+const TURN_STATE_OF_OUTCOME: Record<TURN_OUTCOME, TurnOutcome> = {
+    [TURN_OUTCOME.NOT_ENABLED]: "not_enabled",
+    [TURN_OUTCOME.BUSY]: "busy",
+    [TURN_OUTCOME.BUDGET_SPENT]: "budget_spent",
+    [TURN_OUTCOME.UNAVAILABLE]: "unavailable",
+};
+
+/** The row of an agent that is in the call, with the outcome it stated for its stopped turns, if any. */
+export function hereRowOf(agentId: string, name: string, outcome: TURN_OUTCOME | undefined): AgentRow {
+    return {
+        key: agentId,
+        name,
+        state: "here",
+        turnState: outcome === undefined ? undefined : TURN_STATE_OF_OUTCOME[outcome],
+    };
+}
+
+/** The rows of the control: the agents in the call first, then those of an offers frame; an agent whose last invitation
+ * ended shows that outcome until it is invited again, and an ended agent that is not offered keeps its ended row after
+ * the offered ones. */
+export function rowsOf(here: readonly AgentRow[], offers: Offer[], endings: ReadonlyMap<string, Ending>): AgentRow[] {
     const offeredRows = offers.map((offer): AgentRow => {
         const ending = endings.get(offer.agent_key);
         if (offer.pending) return { key: offer.agent_key, name: offer.name, state: "inviting" };
@@ -34,7 +52,7 @@ export function rowsOf(offers: Offer[], endings: ReadonlyMap<string, Ending>): A
     const unlistedRows = [...endings]
         .filter(([key]) => !offers.some((offer) => offer.agent_key === key))
         .map(([key, { name, outcome }]): AgentRow => ({ key, name, state: "ended", outcome }));
-    return [...offeredRows, ...unlistedRows];
+    return [...here, ...offeredRows, ...unlistedRows];
 }
 
 const OUTCOME_OF_ENDING: Record<INVITATION_OUTCOME, AgentControlOutcome> = {
