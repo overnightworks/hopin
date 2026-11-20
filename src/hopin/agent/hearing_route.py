@@ -1,6 +1,13 @@
 """The hearing route: a sponsor's browser sends its microphone sound through HopIn's server to the speech service, and
 each finished sentence enters the window of the agent that hears the seat.
 
+The socket is `/ws/hearing/<seat>`, registered with the MCP route on participation's router only while
+`HOPIN_SPEECH__HEARING` is on. It asks participation for the seat's hop and takes the agent's token from
+`hearing_token.py`; the languages, the one-hour deadline and the held sound limit are its constants.
+
+A hop runs in its socket's session trace, apart from each turn's; `transcript_relay.ended` times a person's transcript
+arriving to its entry in the agents' windows, in the trace the service names, else one of its own.
+
 HopIn keeps the route, the admission, the choice of tokens and when a hop ends; the speech client's relay and
 finished-utterance helper keep the sound's relay and the service's session. The browser gets no token and no text, only
 the code its socket closes with (`HearingClose`), and nothing here logs sound, text or a token."""

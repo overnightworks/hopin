@@ -7,6 +7,14 @@ removes it with the last person's turn. A person who joins a record while the ag
 the agent's speaking owns the hold and whether a sentence plays, and a read of the window takes both from it. Every
 change tells the agent whose window changed once.
 
+A line enters each agent's window as `line.entered` (room reference, agent id, the window's `seq`, and `kind`: `heard`
+for the sound of a sentence, `written` for a chat line or an agent's written line), and the agent is handed the change
+as `pulse.sent`, which ends at the hand-off to the agents library's listen stream: the library writes the pulse to the
+stream and owns that time. A heard line carries the `item_id` of the transcript that speech sent, and a written one
+none. Each line enters with the `traceparent` current at that moment, the session's outside a turn, and the agent
+reads it on the line's `PlaceEntry`, so the turn the line wakes continues its trace. A voice that was lost and is
+available again writes `agent_voice.returned` once per return, as `agent_voice.lost` writes the loss.
+
 While a window states its agent's voice unavailable, the speech service is asked at a fixed interval whether a voice of
 the agent is offered again, and the window turns available once it is, with no sentence needed; with no such window
 nothing is asked.

@@ -1,3 +1,6 @@
+// The leave confirmation's open state; the start-up module installs its confirm action, because a `lib/ui` state
+// module never imports the module that imports it.
+
 export const leaveDialog = $state({ isOpen: false });
 
 let onLeaveConfirmed: (() => void) | null = null;

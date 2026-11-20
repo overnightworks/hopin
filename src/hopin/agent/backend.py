@@ -1,3 +1,11 @@
+"""The game master's backend: the starter's verified identity and groups, and one quiz turn on the gateway.
+
+The turn logs only codes. `game_master_turn.ended` carries a refused turn's closed detail label, else its rejection or
+failure code, or a closed reason of HopIn's own such as `no_words`; `group_read.ended` and `token_refresh.ended` carry
+webauth's and the issuer's refusal reason, the issuer's error code when it is one of OAuth's token endpoint codes, else
+`other`. No field carries a prompt, a question, a group, a key or what the gateway answered.
+"""
+
 import asyncio
 import logging
 from contextlib import aclosing

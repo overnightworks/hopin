@@ -1,3 +1,12 @@
+"""The game's table: a room's quiz, its phase and its runs.
+
+A run's lines time the steps a caller waits on: `run_wait.ended` (a run behind the run before it), `voice_wait.ended`
+(a run waiting for its voice) and `game_master_run.ended`, which spans from the run's wait to its last frame and
+carries the room reference and, as `reason`, `ended` for a run an End or the starter's leave cancelled, else the
+refusal. A defect is logged by exception type only, as `game_master.failed` and `game_driver.failed`, the latter also
+for a seat whose write broke while the others got the run's frames.
+"""
+
 import asyncio
 import logging
 import secrets

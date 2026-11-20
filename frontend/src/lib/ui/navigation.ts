@@ -1,3 +1,6 @@
+// The room id and call link of the address, the document loads home, into a call and through sign-in, and the
+// shallow rewrite of the address to the call link.
+
 import { goto } from "$app/navigation";
 import { resolve } from "$app/paths";
 

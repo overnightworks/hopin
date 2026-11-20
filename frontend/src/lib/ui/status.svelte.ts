@@ -1,3 +1,5 @@
+// The call's status line, lock tag and participant count, rendered by the layout.
+
 import { words } from "#lib/words.ts";
 
 export type StatusType = "connecting" | "connected" | "error" | "disconnected";

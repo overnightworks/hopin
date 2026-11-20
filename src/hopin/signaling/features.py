@@ -2,17 +2,8 @@
 
 Every feature runs on transitions (`TransitionFeature`; `transition.py` runs it). The handler holds the features as a
 tuple and offers each the frames of the types it declares (`ForeignFrame`); a clash between features, or with the
-core's types, is refused at start (`FeatureClashError`). It tells each feature:
-
-- when a seat joined a room (`seat_joined`);
-- when a seat parked, was resumed or left its room (`seat_changed`);
-- when a seat has left its room for good (`seat_left`, with the room it left and the name the call showed);
-- when a chat line was said, with the sender's seat and its room's view (`chat_said`);
-- when a room ended (`room_ended`);
-
-and shuts it down with the server. `seat_changed` and `chat_said` get a `Change`, which cannot send, and commit at once,
-before the call core awaits anything. A seat that left its room is told to the room by `seat_left`, so the departed
-seat's `seat_changed` commit has no seat to wake.
+core's types, is refused at start (`FeatureClashError`). The hooks tell a feature what happens to its seats and rooms;
+each states its own contract.
 
 `create_app` takes the features as `call_features`: builders it calls on the app's own sign-in, scheduler, deadlines
 and sign-in transaction, whose product is the feature, its router and, for a feature that serves a bearer token, the

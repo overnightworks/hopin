@@ -1,3 +1,5 @@
+// The own camera, microphone and screen share, with their requests and their end.
+
 import { addTrackToPeers, removeTrackFromPeers, replaceVideoTrackOnPeers } from "#lib/call/mesh.ts";
 import { announceMediaState } from "#lib/call/media-state.ts";
 import { microphoneChanged } from "#lib/call/microphone.ts";

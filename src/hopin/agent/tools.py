@@ -1,4 +1,9 @@
-"""The tools HopIn offers an agent over MCP: each is the act of a person's own agent in a call."""
+"""The tools HopIn offers an agent over MCP: each is the act of a person's own agent in a call.
+
+`join_call`, `accept_invitation` and `decline_invitation` have the runtime's shared shape; `leave_call`, `say` and
+`speak` follow. The quiz agent never gets `say` or `speak`. `AUDIENCE_OF_TOOL` is the one table of which tool serves
+which kind of agent.
+"""
 
 import json
 from dataclasses import dataclass

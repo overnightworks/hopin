@@ -1,3 +1,6 @@
+// The speaking ring: each peer's and the own sound level, polled until the connection closes and reported
+// through the stage port.
+
 import { onMicrophone } from "./microphone.ts";
 import { setOwnSpeaking, setRemoteSpeaking } from "./stage-port.ts";
 

@@ -1,3 +1,5 @@
+// The one current toast, rendered by `Toasts.svelte`.
+
 import { tick } from "svelte";
 
 export const TOAST_KIND = Object.freeze({

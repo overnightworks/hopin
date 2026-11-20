@@ -1,3 +1,5 @@
+// The one mutable call state, with no DOM.
+
 export interface CallState {
     roomId: string | null;
     isHost: boolean;

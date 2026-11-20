@@ -1,3 +1,5 @@
+// The log of sent frames, resent after a resume.
+
 import { DESCRIPTION_TYPES, REPLAY_LOG_LIMIT, SUPERSEDED_BY_A_DESCRIPTION, type SIGNAL_TYPE } from "#lib/wire.ts";
 
 export interface OutgoingMessage {

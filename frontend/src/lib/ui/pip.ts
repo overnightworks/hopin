@@ -1,3 +1,5 @@
+// The own tile's picture-in-picture drag on a phone call of two, attached by the layout.
+
 // The stylesheet owns this breakpoint; script cannot read a media query out of it.
 const PHONE_LAYOUT_QUERY = "(max-width: 600px)";
 const PICTURE_IN_PICTURE_COUNT = "2";

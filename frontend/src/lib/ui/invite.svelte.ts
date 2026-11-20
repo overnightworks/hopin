@@ -1,3 +1,5 @@
+// The call link, the waiting card, copy and share.
+
 import { TOAST_KIND, showToast } from "#lib/ui/toast.svelte.ts";
 import { words } from "#lib/words.ts";
 

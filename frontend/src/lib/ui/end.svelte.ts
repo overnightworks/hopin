@@ -1,3 +1,5 @@
+// The end screen's kinds, their texts and actions, and the shown end.
+
 import { ERROR_REASON, type ErrorFrame, ROOM_CLOSED_REASON, type RoomClosedFrame } from "#lib/wire.ts";
 import { getRoomIdFromUrl, openCall } from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";

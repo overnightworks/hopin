@@ -1,4 +1,5 @@
-"""Which agents with an account of their own are live: one lease per person, renewed by every call it makes.
+"""Which agents with an account of their own are live: one lease per person, renewed by every call it makes. A lease
+that runs out, or a change of owner, ends the agent's places and signals its standing.
 
 The registry is immutable and takes the time as an argument; its owner arms the timers and acts on what it answers.
 """

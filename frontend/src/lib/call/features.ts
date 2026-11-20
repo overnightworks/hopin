@@ -1,3 +1,16 @@
+// The loader of the call's optional features. The page starts with or without the game: each feature is bundled
+// under `frontend/src/lib/features/<module>/`, and `GET /api/call-features` (`web/call_features.py`) names the
+// browser modules of every wired feature (`TransitionFeature.browser_modules`). The start-up module
+// (`routes/(call)/start-up.ts`) hands the bundle's `import.meta.glob` of those entries to `loadFeatures`, which
+// imports each named module and awaits its `install` before signaling connects, because signaling drops for good a
+// frame no handler takes. The features load once, at the first call start, never at page load. A feature that fails
+// to load, its stylesheet included, never stops the call: `loadFeatures` resolves to `false`, and the page starts
+// without it and shows one generic toast.
+//
+// The import contract `call-core-knows-no-game` (`pyproject.toml`) keeps the call core from reaching the game,
+// participation or Skat, and its eslint twin in `frontend/eslint.config.js` keeps the frontend's core code from
+// importing any `features/` module.
+
 import type { FeatureCore, FeatureModule } from "#lib/call/feature-port.ts";
 import { CALL_FEATURES_PATH } from "#lib/wire.ts";
 

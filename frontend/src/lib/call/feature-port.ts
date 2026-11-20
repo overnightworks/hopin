@@ -1,6 +1,11 @@
 // The seam where a feature's browser module reaches the call core. The page hands `FeatureCore` to each
 // feature's `install` before signaling connects; besides `featureView`, which builds what it hands over, a
-// feature imports only the generated wires and the core's types.
+// feature imports only the generated wires (the core's `lib/wire.ts` and its own `wire.ts`) and the core's types.
+// The slots are the call core's few: a frame handler, sending a frame and asking whether the socket is connected,
+// a toast, an item in More, a chat line no person wrote or a line pinned last, a card between the chat's header
+// and its lines, a view on the stage, an agent's tile and the drawer of its figure, the person's microphone and a
+// hook for the call's end. The three chat slots take a feature view, a component bound to its props that a feature
+// builds with core chat's `featureView`; the core renders it and never names what it shows or any agent kind.
 
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { TOAST_KIND, ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
@@ -113,7 +118,7 @@ export interface FeatureCore<Frames extends object = object> {
     showChatCard(view: FeatureView | null): void;
     /** Show an agent's tile on the stage under its key, beside the people's and taking none of the call's places, until null takes it away. */
     showAgentTile(tile: AgentTile | null, key?: string): void;
-    /** Hand the drawer that draws the figure of each agent tile that names one. */
+    /** Hand the drawer that draws the figure of each agent tile that names one. The core keeps it and an action on the tile's video layer, which writes the figure's state as `data-figure` and stops the figure when the tile goes or names another path. */
     drawAgentFigures(drawer: AgentFigureDrawer): void;
     /** Play the gesture on the figure of the agent tile shown under `key`; dropped when that tile has no drawn figure. */
     gestureAgentFigure(key: string, gesture: string): void;
@@ -121,7 +126,7 @@ export interface FeatureCore<Frames extends object = object> {
     speakAgentFigure(key: string, sentence: AgentSentence | null): void;
     /** Show whether the agent of the tile under `key` thinks, until the next call or the tile goes; a figure drawn on that tile meanwhile starts so. */
     thinkAgentFigure(key: string, thinking: boolean): void;
-    /** Show a view on the stage; the tiles move into a strip until another view, or null, takes its place; the call's end clears it. */
+    /** Show a view on the stage; the tiles move into a strip at the top, right-aligned, and picture-in-picture is off, until another view, or null, takes its place; the call's end clears it. */
     showStage(view: FeatureView | null): void;
     /** Register a handler for the person's microphone; it is told the current state at once and then on every change: a stream that holds only the local microphone track while the person is in a call and the microphone is on, and null otherwise (the pre-join included). The stream is never a screen share's audio, a peer's or an agent's. */
     onMicrophone(handler: (stream: MediaStream | null) => void): void;

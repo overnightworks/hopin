@@ -1,3 +1,6 @@
+// The pre-join screen's texts, device choices and media request, rendered by the layout; the start-up module
+// installs the start callback.
+
 import { flushSync } from "svelte";
 
 import { acquireMedia, addCamera, releaseCamera, toggleAudio } from "#lib/call/media.ts";

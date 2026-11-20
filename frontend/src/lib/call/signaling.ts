@@ -1,3 +1,5 @@
+// The call's one WebSocket: its connection, reconnect and resume.
+
 import { type LoggedMessage, type OutgoingMessage, type SentFrame, SentLog } from "#lib/call/replay.ts";
 import { state } from "#lib/call/state.ts";
 import { getRoomIdFromUrl } from "#lib/ui/navigation.ts";

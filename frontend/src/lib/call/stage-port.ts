@@ -1,5 +1,6 @@
 // The one seam where ported call code reaches the stage's tile DOM. The page installs
-// the stage once at start-up; callers import the forwarders, never the stage.
+// the stage once at start-up; `mesh`, `media`, `media-state` and the pre-join's `prejoin` call the stage through
+// the forwarders, never by importing it. The port owns the connection-quality words they exchange.
 
 export const CONNECTION_QUALITY = { GOOD: "good", FAIR: "fair", POOR: "poor" } as const;
 

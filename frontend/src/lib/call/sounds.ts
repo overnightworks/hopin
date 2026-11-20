@@ -1,3 +1,5 @@
+// The call's cue sounds for a join, a leave and a message.
+
 // Safari before 14.1 only has the prefixed constructor.
 const audioHost: { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext } = globalThis;
 const AudioContextConstructor = (audioHost.AudioContext || audioHost.webkitAudioContext) as typeof AudioContext;

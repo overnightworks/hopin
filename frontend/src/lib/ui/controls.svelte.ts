@@ -1,3 +1,6 @@
+// The call bar's device buttons, the lock switch and their clicks, rendered by the layout; the leave callback is
+// installed by the start-up module.
+
 import { CameraError, addCamera, releaseCamera, toggleAudio, toggleScreenShare } from "#lib/call/media.ts";
 import { isConnected, send } from "#lib/call/signaling.ts";
 import { state } from "#lib/call/state.ts";

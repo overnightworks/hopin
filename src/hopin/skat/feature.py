@@ -34,7 +34,9 @@ STAGE = Section[RoomState](FEATURE_NAME)
 
 class Skat(TransitionFeature):
     """The table each call shows on its stage: any seat attaches one while none is shown, its opener or the host
-    removes it, and anyone does once the opener has left for good. Every seat is sent the room's whole state."""
+    removes it, and anyone does once the opener has left for good. Every seat is sent the room's whole state.
+    `skat.attached` and `skat.detached` carry the room reference and the attachment number; a table id or link is never
+    logged."""
 
     def __init__(self, origin: str) -> None:
         self._origin = origin
