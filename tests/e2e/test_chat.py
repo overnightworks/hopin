@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import expect
 
+from hopin.config.constants import LINE_LIMITS
 from hopin.words import text
 from tests.e2e.support.calls import join, open_call, open_host, say_in_chat
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
@@ -18,7 +19,6 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.e2e
 
-LINE_LIMIT = 600
 SMILEY = "\N{GRINNING FACE}"
 SENT_LINE = "#chatMessages .chat-msg.self"
 HEARD_LINE = "#chatMessages .chat-msg.other"
@@ -130,8 +130,8 @@ def test_the_composer_sends_a_line_at_the_limit_and_says_why_one_over_it_is_not_
     """CALL-71: A line holds 1 to 600 characters; the composer says why a longer draft is not sent."""
     _, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
     guest.click("#chatBtn")
-    at_the_limit = SMILEY * LINE_LIMIT
-    over_the_limit = SMILEY * (LINE_LIMIT + 1)
+    at_the_limit = SMILEY * LINE_LIMITS.max_characters
+    over_the_limit = SMILEY * (LINE_LIMITS.max_characters + 1)
 
     guest.fill("#chatInput", at_the_limit)
     expect(guest.locator("#chatDraftProblem")).to_have_count(0)
@@ -141,6 +141,8 @@ def test_the_composer_sends_a_line_at_the_limit_and_says_why_one_over_it_is_not_
     guest.fill("#chatInput", over_the_limit)
     guest.click("#chatSend")
 
-    expect(guest.locator("#chatDraftProblem")).to_have_text(text("de", "chat.lineTooLong", max=str(LINE_LIMIT)))
+    expect(guest.locator("#chatDraftProblem")).to_have_text(
+        text("de", "chat.lineTooLong", max=str(LINE_LIMITS.max_characters))
+    )
     expect(guest.locator("#chatInput")).to_have_value(over_the_limit)
     expect(guest.locator(SENT_LINE)).to_have_count(1)
