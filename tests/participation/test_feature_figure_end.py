@@ -5,14 +5,19 @@ import pytest_asyncio
 import structlog.testing
 
 from hopin.config.constants import ErrorReason, SignalType
+from hopin.participation.participants import DialedAgent
+from hopin.participation.places import Places
+from hopin.participation.shown_figures import ShownFigures
 from hopin.participation.vocabulary import FigureEnd, ParticipationSignal
 from hopin.rooms.reference import room_reference
+from hopin.signaling.frames import ForeignFrame, PeerId
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 ENDED_EVENT = "agent_figure.ended"
+SEAT = PeerId("seat-1")
 
 
 def report(agent_id, code):
@@ -120,15 +125,39 @@ class TestAFigureEndReport:
 
         assert endings_in(logs) == []
 
-    async def test_call_56_a_seat_that_left_and_came_back_is_logged_once_for_the_agent(self, link, dialed):
+    async def test_call_56_a_seat_reporting_twice_for_an_agent_is_logged_once(self, link, dialed):
         host, _, agent = dialed
         visitor = await link.join("visitor", room_of(host))
-        await visitor.say(report(agent.agent_id, FigureEnd.LOST.value))
-        await visitor.drop(1000)
-        returned = await link.join("visitor", room_of(host))
 
         with structlog.testing.capture_logs() as logs:
-            await returned.say(report(agent.agent_id, FigureEnd.SLOW.value))
-            await returned.say(report(agent.agent_id, FigureEnd.LOST.value))
+            await visitor.say(report(agent.agent_id, FigureEnd.SLOW.value))
+            await visitor.say(report(agent.agent_id, FigureEnd.LOST.value))
 
         assert [entry["code"] for entry in endings_in(logs)] == [FigureEnd.SLOW.value]
+
+
+class SeatInRoom:
+    def __init__(self, room_id):
+        self._room_id = room_id
+
+    def room_of(self, peer_id):
+        return self._room_id
+
+
+class TestAFigureEndReportAfterItsSeatLeft:
+    async def test_call_56_a_seat_that_left_is_logged_again_when_the_same_seat_reports_anew(self, deadlines):
+        places = Places()
+        agent = DialedAgent("agent-1", "Claude", person_named("sponsor"), SEAT, "room-1")
+        places.put(agent.person, agent.room_id, agent)
+        figures = ShownFigures(places, deadlines, None, None, None)
+        frame = ForeignFrame(
+            ParticipationSignal.AGENT_FIGURE_ENDED.value, {"agent_id": agent.agent_id, "code": FigureEnd.LOST.value}
+        )
+        view = SeatInRoom(agent.room_id)
+        figures.ended(SEAT, frame, view)
+
+        figures.seat_left(SEAT)
+        with structlog.testing.capture_logs() as logs:
+            figures.ended(SEAT, frame, view)
+
+        assert len(endings_in(logs)) == 1
