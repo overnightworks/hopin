@@ -64,6 +64,7 @@ class ParticipationSignal(StrEnum):
     AGENT_LOOK_NONE = "agent_look_none"
     AGENT_LOOKED = "agent_looked"
     AGENT_INVITATION_ENDED = "agent_invitation_ended"
+    AGENT_FIGURE_ENDED = "agent_figure_ended"
 
 
 class AgentRefusal(StrEnum):
@@ -109,6 +110,17 @@ class FigureMood(StrEnum):
     SAD = "sad"
     RELAXED = "relaxed"
     SURPRISED = "surprised"
+
+
+class FigureEnd(StrEnum):
+    """Why a figure ended on a seat's tile, as the seat's browser reports it: the figure's own four signals, and the
+    figure's file that could not be fetched or loaded."""
+
+    UNSUPPORTED = "unsupported"
+    REFUSED = "refused"
+    LOST = "lost"
+    SLOW = "slow"
+    UNLOADED = "unloaded"
 
 
 class Sense(StrEnum):
@@ -260,4 +272,5 @@ BROWSER_ENUMS: dict[str, type[StrEnum | IntEnum]] = {
     "HEARING_CLOSE": HearingClose,
     "FIGURE_GESTURE": FigureGesture,
     "FIGURE_MOOD": FigureMood,
+    "FIGURE_END": FigureEnd,
 }

@@ -436,6 +436,8 @@ class Participation(TransitionFeature):
                 self._switches.on_frame(peer_id, frame, view, transition)
             case ParticipationSignal.AGENT_SEEING:
                 self._switches.on_frame(peer_id, frame, view, transition)
+            case ParticipationSignal.AGENT_FIGURE_ENDED:
+                self.figures.ended(peer_id, frame, view)
             case ParticipationSignal.AGENT_LOOK_PART:
                 self._seeing.answered(peer_id, frame, part=True)
             case ParticipationSignal.AGENT_LOOK_NONE:

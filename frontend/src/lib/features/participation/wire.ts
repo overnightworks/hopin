@@ -21,6 +21,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_LOOK_NONE = "agent_look_none",
     AGENT_LOOKED = "agent_looked",
     AGENT_INVITATION_ENDED = "agent_invitation_ended",
+    AGENT_FIGURE_ENDED = "agent_figure_ended",
 }
 
 export enum AGENT_REFUSAL {
@@ -71,6 +72,14 @@ export enum FIGURE_MOOD {
     SAD = "sad",
     RELAXED = "relaxed",
     SURPRISED = "surprised",
+}
+
+export enum FIGURE_END {
+    UNSUPPORTED = "unsupported",
+    REFUSED = "refused",
+    LOST = "lost",
+    SLOW = "slow",
+    UNLOADED = "unloaded",
 }
 
 export interface Offer {
