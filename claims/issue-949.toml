@@ -1,8 +1,0 @@
-claim_id = "2677963592324738b7b5ce8157f67e57"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "5a2de07b1db7c5573a6f14fca93f5d829ebb3d8f"
-branch = "claude/issue-949-sign-in-language"
-scope = ["frontend/scripts/browser-coverage-report.js", "frontend/src/routes", "frontend/svelte.config.js", "src/hopin/web", "tests/auth/test_gate.py", "tests/auth/test_sign_in_routes.py", "tests/e2e/test_render_languages.py", "tests/support/page_build.py", "tests/support/page_build_fixture", "tests/web/test_page_build.py", "tests/web/test_routes.py"]
-opened_commit = "e043cf264036d4c408579dd177c47fe7ede9b851"
-whole_reason = "The prerender step, the server's language choice and the test that proves it move together."
