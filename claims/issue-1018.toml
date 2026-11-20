@@ -1,8 +1,0 @@
-claim_id = "971c689af7874d50b8435c04f39bde4f"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "54bc582a218d6039b35275c7a2e7a036c9ad8c50"
-branch = "claude/issue-1018-core-detail-to-docstrings"
-scope = ["docs/ARCHITECTURE.md", "src/hopin/auth", "src/hopin/config", "src/hopin/main.py", "src/hopin/rooms", "src/hopin/signaling", "src/hopin/stores", "src/hopin/web"]
-opened_commit = "fb9bb25c54507da98557fd6850cc6ce9ab65730b"
-whole_reason = "One move of the server core's detail from the overview into the docstrings of the packages that own it; splitting it would leave the overview half moved."
