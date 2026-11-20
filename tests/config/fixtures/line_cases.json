@@ -24,5 +24,8 @@
     {"name": "exactly at the limit", "text": "x", "repeat": 600, "expected": "x"},
     {"name": "one over the limit", "text": "x", "repeat": 601, "expected": null},
     {"name": "astral code points count as one", "text": "😀", "repeat": 600, "expected": "😀"},
-    {"name": "one astral code point over", "text": "😀", "repeat": 601, "expected": null}
+    {"name": "one astral code point over", "text": "😀", "repeat": 601, "expected": null},
+    {"name": "joined family counts by its code points at the limit", "text": "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67", "repeat": 120, "expected": "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67"},
+    {"name": "joined family one family over the limit", "text": "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67", "repeat": 121, "expected": null},
+    {"name": "joiner and variation selector are kept around a keycap", "text": " 1\ufe0f\u20e3\u200d ", "expected": "1\ufe0f\u20e3\u200d"}
 ]

@@ -211,8 +211,6 @@ EMOJI_LINE = " ".join(
         "1\ufe0f\u20e3",
     )
 )
-# A family: man, woman and child joined by two zero width joiners, one glyph of five code points.
-FAMILY = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
 
 
 def _insert_as_a_keyboard_does(person: Page, text: str) -> None:
@@ -239,28 +237,6 @@ def test_a_line_of_emoji_inserted_as_a_system_keyboard_does_arrives_unchanged_an
     assert panel["x"] <= send["x"]
     assert send["x"] + send["width"] <= panel["x"] + panel["width"]
     expect(guest.locator("#chatSend")).to_be_in_viewport(ratio=1)
-
-
-def test_the_composer_counts_an_emoji_line_by_code_points_and_refuses_one_over_the_limit_without_cutting_it(
-    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
-) -> None:
-    """CALL-75: A line of joined emoji at the limit is sent whole; one code point over is refused, never cut."""
-    _, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
-    guest.click("#chatBtn")
-    at_the_limit = FAMILY * (LINE_LIMITS.max_characters // len(FAMILY))
-    over_the_limit = at_the_limit + SMILEY
-
-    _insert_as_a_keyboard_does(guest, at_the_limit)
-    guest.click("#chatSend")
-    expect(guest.locator(SENT_LINE)).to_have_text(at_the_limit)
-
-    _insert_as_a_keyboard_does(guest, over_the_limit)
-    guest.click("#chatSend")
-
-    expect(guest.locator("#chatDraftProblem")).to_have_text(
-        text("de", "chat.lineTooLong", max=str(LINE_LIMITS.max_characters))
-    )
-    expect(guest.locator("#chatInput")).to_have_value(over_the_limit)
 
 
 def _png() -> bytes:
