@@ -102,6 +102,28 @@ LINE_LIMITS = LineLimits(
 )
 
 
+@dataclass(frozen=True)
+class FileLimits:
+    """What a file posted in a call may be, enforced by every receiving browser: the sender's composer refuses a file
+    over `max_bytes`, a receiver refuses an announcement over it, refuses a fetch while the same sender has another
+    in flight, and refuses one that would take its received bytes in this page's call beyond `max_received_bytes`. A
+    picture announced as at most `picture_auto_fetch_bytes` is fetched at once, any other file on a tap. A shown
+    name holds at most `max_name_characters` code points."""
+
+    max_bytes: int
+    max_received_bytes: int
+    picture_auto_fetch_bytes: int
+    max_name_characters: int
+
+
+FILE_LIMITS = FileLimits(
+    max_bytes=32 * 1024 * 1024,
+    max_received_bytes=256 * 1024 * 1024,
+    picture_auto_fetch_bytes=4 * 1024 * 1024,
+    max_name_characters=100,
+)
+
+
 class TurnProvider(StrEnum):
     OFF = "off"
     CLOUDFLARE = "cloudflare"
