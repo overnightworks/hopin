@@ -165,7 +165,7 @@ export function createLines({ now, isLive, nameOf }: LineClock) {
             }
             const { id, message } = peer.queue.shift() as Queued;
             peer.unreceipted.add(id);
-            peer.channel.send(JSON.stringify({ ...message, id }));
+            peer.channel.send(JSON.stringify({ type: message.type, id, ...message }));
         }
     }
 

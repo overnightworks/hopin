@@ -106,6 +106,17 @@ export type Words = {
     readonly "chat.lineRefusedCharacter": string;
     readonly "chat.lineUndelivered": (gaps: { readonly names: string }) => string;
     readonly "chat.readersNote": (gaps: { readonly names: string }) => string;
+    readonly "chat.attachButton": string;
+    readonly "chat.fileLoadButton": string;
+    readonly "chat.fileDownloadLink": string;
+    readonly "chat.fileLoading": string;
+    readonly "chat.fileIncomplete": string;
+    readonly "chat.fileRefused": (gaps: { readonly max: string }) => string;
+    readonly "chat.fileBusyReceiving": (gaps: { readonly name: string }) => string;
+    readonly "chat.fileTotalReceived": (gaps: { readonly max: string }) => string;
+    readonly "chat.fileTooLarge": (gaps: { readonly max: string; readonly name: string }) => string;
+    readonly "chat.fileEmpty": (gaps: { readonly name: string }) => string;
+    readonly "chat.fileBusy": string;
     readonly "account.menuLabel": string;
     readonly "account.unnamedMenuName": string;
     readonly "account.unnamedRowName": string;
@@ -271,6 +282,17 @@ export const words: Words = {
     "chat.lineRefusedCharacter": "Diese Nachricht enthält Zeichen, die nicht gesendet werden können.",
     "chat.lineUndelivered": (gaps: { readonly names: string }) => "Nicht angekommen bei " + gaps.names,
     "chat.readersNote": (gaps: { readonly names: string }) => "Mitlesende KI: " + gaps.names + ". Nachrichten gehen dafür über den Server.",
+    "chat.attachButton": "Datei anhängen",
+    "chat.fileLoadButton": "Laden",
+    "chat.fileDownloadLink": "Herunterladen",
+    "chat.fileLoading": "Wird geladen …",
+    "chat.fileIncomplete": "Nicht vollständig angekommen",
+    "chat.fileRefused": (gaps: { readonly max: string }) => "Abgelehnt: größer als " + gaps.max + " MB",
+    "chat.fileBusyReceiving": (gaps: { readonly name: string }) => "Eine andere Datei von " + gaps.name + " wird noch geladen. Versuch es danach noch einmal.",
+    "chat.fileTotalReceived": (gaps: { readonly max: string }) => "In diesem Anruf sind schon " + gaps.max + " MB angekommen, mehr nimmt die Seite nicht an.",
+    "chat.fileTooLarge": (gaps: { readonly max: string; readonly name: string }) => "„" + gaps.name + "“ ist zu groß: Eine Datei hat höchstens " + gaps.max + " MB.",
+    "chat.fileEmpty": (gaps: { readonly name: string }) => "„" + gaps.name + "“ ist leer und wird nicht gesendet.",
+    "chat.fileBusy": "Eine Datei ist noch unterwegs. Warte, bis sie angekommen ist.",
     "account.menuLabel": "Konto",
     "account.unnamedMenuName": "Konto",
     "account.unnamedRowName": "Du",

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import type { ComponentInternals } from "svelte";
+import type { FileView } from "#lib/call/files.ts";
 import type { ChatLine, FeatureView } from "#lib/ui/chat.svelte.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LINE_MAX_CHARACTERS } from "#lib/wire.ts";
+import { FILE_MAX_BYTES, LINE_MAX_CHARACTERS } from "#lib/wire.ts";
 import { words } from "#lib/words.ts";
 
 const sounds = vi.hoisted(() => ({ playMessageSound: vi.fn() }));
@@ -17,7 +18,8 @@ async function freshChat() {
     const chatModule = await import("#lib/ui/chat.svelte.ts");
     const { state } = await import("#lib/call/state.ts");
     const { lines } = await import("#lib/call/lines.ts");
-    return { ...chatModule, state, exchange: lines };
+    const { files } = await import("#lib/call/files.ts");
+    return { ...chatModule, state, exchange: lines, files };
 }
 
 type Chat = Awaited<ReturnType<typeof freshChat>>;
@@ -297,6 +299,186 @@ describe("receiving", () => {
         person.receive({ type: "line", id: 1, text: "hi" });
 
         expect(chat.chat.lines).toEqual([{ kind: "other", text: "hi", sender: "" }]);
+    });
+});
+
+// The way a person's file channels open, which a case reads what the page fetched over.
+class FakeFileChannel {
+    readyState = "open";
+    bufferedAmount = 0;
+    bufferedAmountLowThreshold = 0;
+    binaryType = "blob";
+    onopen = null;
+    onclose: (() => void) | null = null;
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+    onbufferedamountlow = null;
+
+    constructor(readonly label: string) {}
+
+    send() {}
+
+    close() {
+        this.readyState = "closed";
+    }
+}
+
+function seatFileSender(chat: Chat, participantId: string) {
+    const opened: FakeFileChannel[] = [];
+    chat.files.addPeer(participantId, {
+        open: (label) => {
+            const channel = new FakeFileChannel(label);
+            opened.push(channel);
+            return channel;
+        },
+    });
+    return opened;
+}
+
+const PAPER = { type: "file", id: 3, name: "paper.pdf", size: 4, mime: "application/pdf" };
+
+describe("files", () => {
+    it("shows a file announced under the sender's name, counts it as unread and answers it", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+
+        person.receive(PAPER);
+
+        expect(chat.chat.lines).toMatchObject([
+            { kind: "file", file: { name: "paper.pdf", sender: "Ada", state: "offered", own: false } },
+        ]);
+        expect(chat.chat.unread).toBe(1);
+        expect(person.sent).toEqual([JSON.stringify({ type: "receipt", id: 3 })]);
+    });
+
+    it("fetches a file on a tap and offers the bytes it got as a download under the file's name", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        const channels = seatFileSender(chat, "p1");
+        const urls = vi.fn(() => "blob:paper");
+        URL.createObjectURL = urls;
+        const clicked: [string, string][] = [];
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            clicked.push([this.href, this.download]);
+        });
+        person.receive(PAPER);
+        const [{ file }] = chat.chat.lines as [{ kind: "file"; file: FileView }];
+
+        chat.loadFile(file.key);
+        channels[0]?.onmessage?.({ data: new Uint8Array(4).buffer });
+        chat.downloadFile(file);
+
+        expect(chat.fileNote(file)).toBeNull();
+        expect(file).toMatchObject({ state: "done", url: "blob:paper", picture: false });
+        expect(clicked).toEqual([["blob:paper", "paper.pdf"]]);
+    });
+
+    it("says what happened to a file that did not come", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        seatFileSender(chat, "p1");
+        person.receive({ ...PAPER, size: FILE_MAX_BYTES + 1 });
+        person.receive({ ...PAPER, id: 4 });
+        person.receive({ ...PAPER, id: 5 });
+        const [refused, waiting, other] = chat.chat.lines.map((line) => (line as { file: FileView }).file);
+
+        chat.loadFile((waiting as FileView).key);
+        chat.loadFile((other as FileView).key);
+        chat.exchange.removePeer("p1");
+        chat.files.removePeer("p1");
+
+        expect(chat.fileNote(refused as FileView)).toBe(words["chat.fileRefused"]({ max: "32" }));
+        expect(chat.fileNote(waiting as FileView)).toBe(words["chat.fileIncomplete"]);
+        expect(chat.fileNote(other as FileView)).toBe(words["chat.fileIncomplete"]);
+    });
+
+    it("shows an own file pending until every receipt is in, then delivered, and names the person it did not reach", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const first = seatPerson(chat, "p1", "Ada");
+        seatPerson(chat, "p2", "Ben");
+
+        chat.postFile(new File(["abc"], "note.txt"));
+        const [line] = chat.chat.lines as [ChatLine];
+        expect(chat.isPending(line)).toBe(true);
+        first.receive({ type: "receipt", id: 1 });
+        chat.exchange.removePeer("p2");
+
+        expect(line).toMatchObject({ kind: "file", file: { own: true, delivery: "undelivered", missing: ["Ben"] } });
+        expect(chat.undeliveredNote(line)).toBe(words["chat.lineUndelivered"]({ names: "Ben" }));
+        expect(chat.isPending(line)).toBe(false);
+        expect(chat.chat.unread).toBe(0);
+    });
+
+    it.each([
+        ["is empty", () => new File([], "none.txt"), words["chat.fileEmpty"]({ name: "none.txt" })],
+        [
+            "is over the per-file cap",
+            () => Object.defineProperty(new File(["x"], "big.mov"), "size", { value: FILE_MAX_BYTES + 1 }),
+            words["chat.fileTooLarge"]({ name: "big.mov", max: "32" }),
+        ],
+    ])("names the file it does not post when it %s, and posts the next one", async (_name, make, expected) => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+
+        chat.postFile(make());
+        expect(chat.unpostedNote()).toBe(expected);
+        expect(chat.chat.lines).toEqual([]);
+        chat.postFile(new File(["abc"], "fine.txt"));
+
+        expect(chat.unpostedNote()).toBeNull();
+        expect(chat.chat.lines).toHaveLength(1);
+    });
+
+    it("refuses a second file while the first is on its way", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        seatPerson(chat, "p1", "Ada");
+
+        chat.postFile(new File(["abc"], "one.txt"));
+        chat.postFile(new File(["abc"], "two.txt"));
+
+        expect(chat.unpostedNote()).toBe(words["chat.fileBusy"]);
+        expect(chat.chat.lines).toHaveLength(1);
+    });
+
+    it("hands a picked file to the composer's rules and lets the picker offer it again", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const input = document.createElement("input");
+        input.type = "file";
+        Object.defineProperty(input, "files", { value: [new File(["abc"], "pick.txt")] });
+        const picked = vi.fn();
+        input.addEventListener("click", picked);
+
+        chat.chatFileInput(input);
+        chat.pickFile();
+        chat.filePicked({ currentTarget: input } as unknown as Event);
+
+        expect(picked).toHaveBeenCalledOnce();
+        expect(chat.chat.lines).toHaveLength(1);
+        expect(input.value).toBe("");
+    });
+
+    it("frees the blob URL of every file at the call's end", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        const channels = seatFileSender(chat, "p1");
+        const revoked = vi.fn();
+        URL.createObjectURL = () => "blob:paper";
+        URL.revokeObjectURL = revoked;
+        person.receive(PAPER);
+        const [{ file }] = chat.chat.lines as [{ kind: "file"; file: FileView }];
+        chat.loadFile(file.key);
+        channels[0]?.onmessage?.({ data: new Uint8Array(4).buffer });
+
+        chat.releaseChatFiles();
+
+        expect(revoked).toHaveBeenCalledWith("blob:paper");
+        expect(file).toMatchObject({ state: "incomplete", url: null });
     });
 });
 

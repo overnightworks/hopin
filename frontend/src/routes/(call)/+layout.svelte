@@ -12,16 +12,26 @@
     import { greeting, requestStart } from "#lib/ui/home.svelte.ts";
     import {
         chat,
+        chatFileInput,
         chatInput,
         chatList,
         closeChat,
+        downloadFile,
         draftProblem,
+        fileNote,
+        filePicked,
+        fileSize,
+        isPending,
+        loadFile,
+        pickFile,
         readersNote,
         sendChatMessage,
         sendOnEnter,
         toggleChat,
         undeliveredNote,
+        unpostedNote,
     } from "#lib/ui/chat.svelte.ts";
+    import { FILE_STATE } from "#lib/call/files.ts";
     import { actionClasses, END_ACTION, END_ICON, rejoinCall, shownEndView } from "#lib/ui/end.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
     import { goHome } from "#lib/ui/navigation.ts";
@@ -231,14 +241,18 @@
             {#each chat.lines as line (line)}
                 {#if line.kind === "feature"}<div class="chat-element"><line.view /></div>
                 {:else if line.kind === "self"}<div class={["chat-msg", "self", line.delivery === DELIVERY.PENDING && "pending"]}>{line.text}{#if undeliveredNote(line) !== null}<div class="chat-delivery">{undeliveredNote(line)}</div>{/if}</div>
+                {:else if line.kind === "file"}<div class={["chat-msg", "chat-file", line.file.own ? "self" : "other", isPending(line) && "pending"]} data-file-state={line.file.state}>{#if !line.file.own}<div class="chat-sender">{line.file.sender}</div>{/if}{#if line.file.picture && line.file.url !== null}<img class="chat-picture" src={line.file.url} alt={line.file.name}>{/if}<div class="chat-file-name">{line.file.name} <span class="chat-file-size">{fileSize(line.file.size)}</span></div>{#if fileNote(line.file) !== null}<div class="chat-delivery chat-file-note">{fileNote(line.file)}</div>{/if}{#if undeliveredNote(line) !== null}<div class="chat-delivery">{undeliveredNote(line)}</div>{/if}{#if !line.file.own && line.file.state === FILE_STATE.OFFERED}<button class="chat-file-action chat-file-load" type="button" onclick={() => { loadFile(line.file.key); }}>{words["chat.fileLoadButton"]}</button>{:else if line.file.url !== null && !line.file.own}<button class="chat-file-action chat-file-download" type="button" onclick={() => { downloadFile(line.file); }}>{words["chat.fileDownloadLink"]}</button>{/if}</div>
                 {:else}<div class="chat-msg other"><div class="chat-sender">{line.sender}</div>{line.text}</div>{/if}
             {/each}
             {#if chat.pinned !== null}<div class="chat-element"><chat.pinned /></div>{/if}
         </div>
         {#if readersNote() !== null}<div id="chatReaders" class="chat-note">{readersNote()}</div>{/if}
         {#if draftProblem() !== null}<div id="chatDraftProblem" class="chat-note chat-problem" role="status">{draftProblem()}</div>{/if}
+        {#if unpostedNote() !== null}<div id="chatFileProblem" class="chat-note chat-problem" role="status">{unpostedNote()}</div>{/if}
         <div class="chat-input-row">
             <input id="chatInput" type="text" placeholder={words["chat.inputPlaceholder"]} autocomplete="off" aria-label={words["chat.inputLabel"]} bind:value={chat.draft} onkeydown={sendOnEnter} {@attach chatInput}>
+            <input id="chatFile" type="file" hidden onchange={filePicked} {@attach chatFileInput}>
+            <button id="chatAttach" class="btn-secondary" type="button" aria-label={words["chat.attachButton"]} onclick={pickFile}><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button>
             <button id="chatSend" class="btn-primary" onclick={sendChatMessage}>{words["chat.sendButton"]}</button>
         </div>
     </div>

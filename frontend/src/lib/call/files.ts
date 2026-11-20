@@ -194,7 +194,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
         record.chunks = [];
         leaveFetching(record);
         closeChannel(record);
-        emit(record, { state: FILE_STATE.INCOMPLETE });
+        emit(record, { state: FILE_STATE.INCOMPLETE, problem: null });
         acknowledge(record);
     }
 
@@ -430,7 +430,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 closeChannel(record);
                 if (record.view.url !== null) revokeUrl(record.view.url);
                 record.settled = true;
-                emit(record, { state: FILE_STATE.INCOMPLETE, url: null });
+                emit(record, { state: FILE_STATE.INCOMPLETE, problem: null, url: null });
             }
             records.clear();
             transports.clear();

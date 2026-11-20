@@ -1,4 +1,11 @@
-import { pinLast, receiveLine, registerChatHandlers, setLineReaders, showCard } from "#lib/ui/chat.svelte.ts";
+import {
+    pinLast,
+    receiveLine,
+    registerChatHandlers,
+    releaseChatFiles,
+    setLineReaders,
+    showCard,
+} from "#lib/ui/chat.svelte.ts";
 import {
     addMoreItems,
     confirmLockChange,
@@ -137,6 +144,7 @@ function tearDownCall() {
     state.intentionalLeave = true;
     state.inCall = false;
     removeAllPeers();
+    releaseChatFiles();
     stopLocalMedia();
     disconnect();
     showLocalStream(null);

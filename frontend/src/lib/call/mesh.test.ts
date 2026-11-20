@@ -65,6 +65,7 @@ class FakeConnection {
     // What the connection was asked to do before its first offer, in order, and every data channel it made.
     steps: string[] = [];
     dataChannels: { label: string; options: unknown; sent: string[]; readyState: string }[] = [];
+    ondatachannel: ((event: { channel: unknown }) => void) | null = null;
     private readonly listeners = new Map<string, (() => void)[]>();
 
     constructor(readonly configuration: unknown) {
@@ -79,6 +80,9 @@ class FakeConnection {
             sent: [] as string[],
             readyState: "connecting",
             send: (data: string) => channel.sent.push(data),
+            close: () => {
+                channel.readyState = "closed";
+            },
         };
         this.dataChannels.push(channel);
         return channel;
@@ -319,7 +323,11 @@ describe("the line channel", () => {
         await meetPeer(mesh, "p1");
         const channel = connectionOf().dataChannels[0];
         const sentLines: unknown[] = [];
-        lines.listen({ received: () => {}, delivery: (id, delivery) => void sentLines.push([id, delivery]) });
+        lines.listen({
+            received: () => {},
+            announced: () => {},
+            delivery: (id, delivery) => void sentLines.push([id, delivery]),
+        });
 
         lines.send("hello");
         expect(channel?.sent).toEqual([]);
@@ -329,6 +337,37 @@ describe("the line channel", () => {
 
         expect(channel?.sent).toEqual([JSON.stringify({ type: "line", id: 1, text: "hello" })]);
         expect(sentLines).toEqual([[1, "undelivered"]]);
+    });
+});
+
+describe("a file channel", () => {
+    it("is opened by the page that fetches, in the person's connection, and a channel the person opens is served", async () => {
+        const mesh = await freshMesh();
+        const { files } = await import("./files.ts");
+        await meetPeer(mesh, "p1");
+        const connection = connectionOf();
+        const served: unknown[] = [];
+        const unknownFile = { label: "file:99", close: () => void served.push("closed") };
+
+        files.announced("p1", 3, { name: "a.png", size: 10, mime: "image/png" });
+        connection.ondatachannel?.({ channel: unknownFile });
+
+        expect(connection.dataChannels.map((channel) => channel.label)).toEqual(["line", "file:3"]);
+        expect(connection.dataChannels[1]?.options).toEqual({ ordered: true });
+        expect(served).toEqual(["closed"]);
+    });
+
+    it("stops fetching with the person who leaves", async () => {
+        const mesh = await freshMesh();
+        const { files } = await import("./files.ts");
+        const shown: string[] = [];
+        files.listen({ shown: () => {}, changed: (view) => void shown.push(view.state) });
+        await meetPeer(mesh, "p1");
+        files.announced("p1", 3, { name: "a.png", size: 10, mime: "image/png" });
+
+        deliver(SIGNAL_TYPE.PARTICIPANT_LEFT, { participant_id: "p1" });
+
+        expect(shown).toEqual(["loading", "incomplete"]);
     });
 });
 

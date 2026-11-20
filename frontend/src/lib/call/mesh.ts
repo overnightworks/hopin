@@ -1,6 +1,7 @@
 // The peer connections of the call and their signaling.
 
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
+import { files } from "#lib/call/files.ts";
 import { LINE_CHANNEL_ID, LINE_CHANNEL_LABEL, lines } from "#lib/call/lines.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
@@ -79,6 +80,11 @@ async function createPeerConnection(participantId: string, initiator: boolean) {
         participantId,
         connection.createDataChannel(LINE_CHANNEL_LABEL, { negotiated: true, id: LINE_CHANNEL_ID, ordered: true }),
     );
+    // A file is fetched on a channel the fetching side opens in the connection, one per file.
+    files.addPeer(participantId, { open: (label) => connection.createDataChannel(label, { ordered: true }) });
+    connection.ondatachannel = (event) => {
+        files.serve(participantId, event.channel);
+    };
 
     if (state.localStream) {
         for (const track of state.localStream.getTracks()) {
@@ -177,6 +183,7 @@ async function applyIceCandidate(data: IceCandidateRelayFrame) {
 
 function removePeer(participantId: string) {
     lines.removePeer(participantId);
+    files.removePeer(participantId);
     connectionsByParticipant.get(participantId)?.close();
     connectionsByParticipant.delete(participantId);
     remoteSignalingByParticipant.delete(participantId);
