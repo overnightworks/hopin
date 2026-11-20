@@ -177,7 +177,7 @@ class RoomRouting:
         if window is None:
             return
         peer.outcome_times = window
-        await logger.ainfo("connection.outcome", room_ref=room_reference(room_id), outcome=frame.outcome.value)
+        await logger.ainfo("connection.reported", room_ref=room_reference(room_id), outcome=frame.outcome.value)
 
     async def handle_relay(self, peer_id: PeerId, frame: RelayFrame) -> None:
         target_id = frame.target

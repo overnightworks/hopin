@@ -4,13 +4,19 @@ import pytest
 import pytest_asyncio
 import structlog.testing
 
-from hopin.config.constants import CONNECTION_OUTCOME_RATE, ConnectionOutcome, ErrorReason, SignalType
+from hopin.config.constants import (
+    CONNECTION_OUTCOME_RATE,
+    MAX_PARTICIPANTS_PER_ROOM,
+    ConnectionOutcome,
+    ErrorReason,
+    SignalType,
+)
 from hopin.rooms.reference import room_reference
 from tests.signaling.support.browsers import Link, host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-OUTCOME_EVENT = "connection.outcome"
+OUTCOME_EVENT = "connection.reported"
 
 
 @pytest_asyncio.fixture
@@ -75,3 +81,18 @@ async def test_call_76_a_seat_is_written_down_at_most_the_rate_in_one_window_and
     codes = [entry["outcome"] for entry in outcomes_in(logs)]
     assert codes.count(ConnectionOutcome.DIRECT.value) == CONNECTION_OUTCOME_RATE.most
     assert codes.count(ConnectionOutcome.RELAYED.value) == 1
+
+
+async def test_call_76_a_seat_in_a_full_room_is_written_down_for_every_connection_through_a_drop_and_its_resume(link):
+    _host, guest = await host_and_guest(link)
+    other_seats = MAX_PARTICIPANTS_PER_ROOM - 1
+    reports = [ConnectionOutcome.DIRECT, ConnectionOutcome.FAILED, ConnectionOutcome.RESUMED]
+
+    with structlog.testing.capture_logs() as logs:
+        for outcome in reports:
+            for _ in range(other_seats):
+                await guest.say(report(outcome.value))
+
+    codes = [entry["outcome"] for entry in outcomes_in(logs)]
+    assert codes.count(ConnectionOutcome.RESUMED.value) == other_seats
+    assert len(codes) == other_seats * len(reports)

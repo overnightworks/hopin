@@ -170,7 +170,8 @@ class ConnectionOutcome(StrEnum):
 
 
 # A seat's reports that the server writes down in a window; a longer burst is dropped.
-CONNECTION_OUTCOME_RATE = Rate(most=12, window_seconds=60)
+# Room for each other seat's connection to go direct, fail and resume once in a full room.
+CONNECTION_OUTCOME_RATE = Rate(most=(MAX_PARTICIPANTS_PER_ROOM - 1) * 3, window_seconds=60)
 
 
 class ErrorReason(StrEnum):

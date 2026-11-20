@@ -5,14 +5,14 @@ import pytest
 import structlog.testing
 
 from hopin.config.constants import ConnectionOutcome
-from tests.e2e.support.mesh_pair import FIRST_CONNECTION_IS_CONNECTED, FORCE_STATE, ConnectedPair, _wait_for, pump_until
+from tests.e2e.support.mesh_pair import FIRST_CONNECTION_IS_CONNECTED, FORCE_STATE, ConnectedPair, pump_until, wait_for
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 pytestmark = pytest.mark.e2e
 
-OUTCOME_EVENT = "connection.outcome"
+OUTCOME_EVENT = "connection.reported"
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def test_a_dropped_connection_that_comes_back_is_logged_by_the_server_as_failed_
 
     connected_pair.force_failed_on(guest)
     pump_until(guest, lambda: _outcomes(server_logs)[ConnectionOutcome.FAILED.value] == 1)
-    _wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
+    wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
     guest.evaluate(FORCE_STATE, None)
 
     pump_until(guest, lambda: _outcomes(server_logs)[ConnectionOutcome.RESUMED.value] == 1)
