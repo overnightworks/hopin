@@ -117,7 +117,6 @@ class SignalingTap:
     corrupt_resume_token: bool = False
     hold_resumed: bool = False
     held_resumed: list[str | bytes] = field(default_factory=list)
-    sent_before_resumed_released: int = 0
     _sides: tuple[WebSocketRoute, WebSocketRoute] | None = None
 
     def relay(self, browser_side: WebSocketRoute) -> None:
@@ -137,7 +136,6 @@ class SignalingTap:
 
     def release_held_resumed(self) -> None:
         assert self._sides is not None
-        self.sent_before_resumed_released = len(self.upstream)
         for frame in self.held_resumed:
             self._sides[0].send(frame)
         self.held_resumed.clear()

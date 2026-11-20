@@ -4,7 +4,7 @@ How HopIn is built, how a call runs and what it trusts. For what HopIn is and ho
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator switches it on and a direct path fails. Camera video and sound between people never pass the server. Three other things do: the spoken sentences of the game master and the agents, which the server has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, forwarded unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory until the agent has it. The server signs people in, hands out rooms and relays setup messages, chat lines and media state within a room.
+A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator switches it on and a direct path fails. Camera video and sound between people never pass the server. Three other things do: the spoken sentences of the game master and the agents, which the server has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, forwarded unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory until the agent has it. The server signs people in, hands out rooms and relays setup messages and media state within a room; chat lines go from browser to browser over a data channel of the mesh, and only while an agent is joined does a page also send its lines to the server.
 
 ```mermaid
 flowchart LR
@@ -154,11 +154,11 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 Each line: what the party sees and what HopIn trusts of it. 
 
-- **A member's browser** sends chat, media state and connection descriptions with a session; HopIn trusts none beyond the session: names come from the Keycloak account, senders are server-minted peer ids, host actions are checked against the account. It reports why an agent's figure ended as one of five closed codes only, which HopIn checks against the set and logs with ids.
+- **A member's browser** sends media state and connection descriptions with a session, and its chat lines to the other browsers over the mesh's data channel, and to the server only while the page shows a joined agent, as `line_for_agents`, which the server checks (1 to 600 characters, a burst of ten lines then one a second per seat) and drops when no agent is joined; HopIn trusts none beyond the session: names come from the Keycloak account, senders are server-minted peer ids, host actions are checked against the account. It reports why an agent's figure ended as one of five closed codes only, which HopIn checks against the set and logs with ids.
 - **Anyone without a session** reaches the sign-in routes and a few static files only (`auth/gate.py`); HopIn trusts nothing they send.
 - **Keycloak** decides who is a member and admin; HopIn trusts its signed tokens from the one issuer, and its logout token to end sessions, so that route stays off the public internet. The session row holds each login's ID token and refresh token, both secrets.
 - **The proxy hops** in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`; empty trusts none.
-- **The other members of a call** see each other's addresses and relayed frames; they cannot address people outside their room or act as host.
+- **The other members of a call** see each other's addresses and relayed frames, and read each other's lines, which reach them end to end under DTLS, so neither HopIn's server nor the Cloudflare tunnel in front of it sees a line unless an agent is joined; an attacker who actively intercepts the connection setup (the offers and answers pass through the server) could still insert themselves into a pair, a risk HopIn leaves as the mesh's media has it; they cannot address people outside their room or act as host.
 - **The STUN server** learns each asking browser's address; a wrong answer at worst prevents a connection.
 - **The TURN provider** sees who connects to whom, when and how much, never media content; HopIn trusts only its credential answer, over https, and it bills the operator.
 - **Skat's frame** is a sandboxed page of another origin; it cannot use camera, microphone or screen, and HopIn reads from it only a checked `ready`.

@@ -20,6 +20,23 @@ window.WebSocket = class extends PageWebSocket {
     }
 };
 """
+# Every frame the page's sockets send or receive, as text, so a test can prove what never crossed a socket.
+RECORD_SOCKET_FRAMES = """
+window.socketFrames = [];
+const FramePageWebSocket = window.WebSocket;
+window.WebSocket = class extends FramePageWebSocket {
+    constructor(...socketArguments) {
+        super(...socketArguments);
+        this.addEventListener("message", (event) => window.socketFrames.push(String(event.data)));
+    }
+
+    send(data) {
+        window.socketFrames.push(String(data));
+        super.send(data);
+    }
+};
+"""
+SOCKET_FRAMES = "() => window.socketFrames.join('\\n')"
 LATE_EVENTS_OF_THE_FIRST_SOCKET = """
 () => {
     const [first] = window.openedSockets;

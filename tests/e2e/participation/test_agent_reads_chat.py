@@ -26,6 +26,7 @@ pytestmark = pytest.mark.e2e
 
 WAKE_SECONDS = 20
 CHAT_LINE = "#chatMessages .chat-msg"
+READERS_NOTE = "#chatReaders"
 
 
 def lines_read(agent: Any, room: str) -> list[tuple[Any, ...]]:
@@ -49,6 +50,7 @@ def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_read
     scene.member.click("#chatClose")
     scene.member_adds_and_the_agent_accepts()
     agent.listen([STANDING_URI, window_uri(room)])
+    expect(scene.host.locator(READERS_NOTE)).to_contain_text(agent.name)
 
     say_in_chat(scene.host, "hello agent")
 
@@ -76,6 +78,8 @@ def test_call_54_a_persons_own_agent_is_woken_by_a_line_and_reads_it(
     agent = own_agent_of(member_of(host).account.id)
     agent.dial_in(room, "Claude")
     agent.listen([window_uri(room)])
+    guest.click("#chatBtn")
+    expect(guest.locator(READERS_NOTE)).to_contain_text("Claude")
 
     say_in_chat(guest, "hello agent")
 
