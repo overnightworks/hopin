@@ -347,6 +347,19 @@ class TestTheVoiceComesBackWithoutASentence:
 
         assert (len(offered.asked), recovery_timers(scheduler)) == (1, [])
 
+    async def test_call_61_a_second_failure_while_the_asking_is_waiting_keeps_the_first_offer(
+        self, participation, call, scheduler
+    ):
+        host, *_ = call
+        room_id = room_of(host)
+        first, second = self.offering(True), self.offering(True)
+        await speak(participation, render=renders_failing, room_id=room_id, offered=first)
+        await speak(participation, render=renders_failing, room_id=room_id, offered=second)
+
+        await scheduler.advance(10 * VOICE_RECOVERY_SECONDS)
+
+        assert (len(first.asked), second.asked) == (1, [])
+
     async def test_call_61_a_sound_turns_the_window_available_and_nothing_is_asked_any_more(
         self, participation, call, scheduler
     ):
