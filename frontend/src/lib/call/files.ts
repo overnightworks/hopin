@@ -3,8 +3,10 @@
 // its own for that file, in chunks, while the sender waits on the channel's send buffer. A small picture is fetched at
 // once, any other file on a tap. The receiver enforces the caps: a file over the per-file cap is refused, a fetch
 // while the same sender has another in flight is refused, and so is one that takes the bytes received in this call
-// beyond the total cap; each refusal is shown. A picture is shown only when its first bytes pass the raster check; any
-// other file is offered as a download in a blob typed as opaque bytes. A file whose sender leaves, or whose channel
+// beyond the total cap; each refusal is shown. A picture is shown only when its first bytes pass the raster check, and a
+// song or video only when they pass the container check and the browser says it can decode the type; its blob has the
+// type the bytes show, never the announced one. A file the element then fails to decode, and any other file, is offered
+// as a download in a blob typed as opaque bytes. A file whose sender leaves, or whose channel
 // closes before its last byte, is discarded and shown incomplete. Every blob URL and held file is released with
 // `release`, at leave and at the call's end. An announcement is answered with the lines exchange's receipt when the
 // exchange is done with it, so the sender's file shows pending until every receiver is done with the announcement; the
@@ -12,12 +14,15 @@
 
 import {
     DOWNLOAD_TYPE,
+    FILE_DISPLAY,
+    FILE_HEAD_BYTES,
     FILE_REFUSAL,
+    type FileDisplay,
     fileRefusal,
     isFetchedAtOnce,
-    PICTURE_HEAD_BYTES,
-    pictureTypeOf,
     safeFileName,
+    type Shown,
+    shownOf,
 } from "#lib/call/file.ts";
 import { DELIVERY, type Delivery, type FileAnnouncement, lines, type Posted } from "#lib/call/lines.ts";
 import { state } from "#lib/call/state.ts";
@@ -54,9 +59,10 @@ export interface FileView {
     size: number;
     state: FileState;
     problem: FileProblem | null;
-    /** The blob URL of a picture or a download, none while there are no bytes to show or offer. */
+    /** The blob URL of a picture, a song, a video or a download, none while there are no bytes to show or offer. */
     url: string | null;
-    picture: boolean;
+    /** The element that shows the file, none for a download. */
+    display: FileDisplay | null;
     /** The delivery of the sender's own file; a received file is delivered. */
     delivery: Delivery;
     missing: readonly string[];
@@ -107,6 +113,8 @@ export interface FilesEnvironment {
     nameOf: (participantId: string) => string;
     createUrl: (blob: Blob) => string;
     revokeUrl: (url: string) => void;
+    /** Whether the browser can decode a song or video of the type. */
+    canPlay: (type: string) => boolean;
 }
 
 const CHUNK_BYTES = 16 * 1024;
@@ -127,6 +135,8 @@ interface FileRecord {
     received: number;
     channel: FileChannel | null;
     acknowledged: boolean;
+    /** The bytes of a song or video the page plays: a download is made from them when the browser fails to decode them. */
+    playable: Blob | null;
 }
 
 interface Held {
@@ -136,20 +146,20 @@ interface Held {
     served: Set<string>;
 }
 
-/** The first bytes of the chunks, as many as the raster check reads. */
+/** The first bytes of the chunks, as many as the raster and container checks read. */
 function headOf(chunks: readonly ArrayBuffer[]): Uint8Array {
-    const head = new Uint8Array(PICTURE_HEAD_BYTES);
+    const head = new Uint8Array(FILE_HEAD_BYTES);
     let length = 0;
     for (const chunk of chunks) {
-        const bytes = new Uint8Array(chunk, 0, Math.min(chunk.byteLength, PICTURE_HEAD_BYTES - length));
+        const bytes = new Uint8Array(chunk, 0, Math.min(chunk.byteLength, FILE_HEAD_BYTES - length));
         head.set(bytes, length);
         length += bytes.length;
-        if (length === PICTURE_HEAD_BYTES) break;
+        if (length === FILE_HEAD_BYTES) break;
     }
     return head.subarray(0, length);
 }
 
-export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEnvironment) {
+export function createFiles({ announcer, nameOf, createUrl, revokeUrl, canPlay }: FilesEnvironment) {
     const transports = new Map<string, FileTransport>();
     const records = new Map<string, FileRecord>();
     const held = new Map<number, Held>();
@@ -161,6 +171,12 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
     /** Counts the releases: work that was under way when the call ended finds the count changed and leaves. */
     let generation = 0;
     let events: FileEvents = { shown: () => {}, changed: () => {} };
+
+    /** What the bytes show when the page can show it: a song or video only of a type the browser decodes. */
+    function shownIfPlayable(head: Uint8Array): Shown | null {
+        const shown = shownOf(head);
+        return shown?.display === FILE_DISPLAY.PICTURE || (shown !== null && canPlay(shown.type)) ? shown : null;
+    }
 
     function emit(record: FileRecord, change: Partial<FileView>) {
         Object.assign(record.view, change);
@@ -199,12 +215,13 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
     }
 
     function finish(record: FileRecord) {
-        const pictureType = pictureTypeOf(headOf(record.chunks));
-        const blob = new Blob(record.chunks, { type: pictureType ?? DOWNLOAD_TYPE });
+        const shown = shownIfPlayable(headOf(record.chunks));
+        const blob = new Blob(record.chunks, { type: shown?.type ?? DOWNLOAD_TYPE });
         record.chunks = [];
+        record.playable = shown === null || shown.display === FILE_DISPLAY.PICTURE ? null : blob;
         leaveFetching(record);
         closeChannel(record);
-        emit(record, { state: FILE_STATE.DONE, url: createUrl(blob), picture: pictureType !== null });
+        emit(record, { state: FILE_STATE.DONE, url: createUrl(blob), display: shown?.display ?? null });
         acknowledge(record);
     }
 
@@ -331,7 +348,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                     state: tooLarge ? FILE_STATE.REFUSED : FILE_STATE.OFFERED,
                     problem: null,
                     url: null,
-                    picture: false,
+                    display: null,
                     delivery: DELIVERY.DELIVERED,
                     missing: [],
                 },
@@ -340,6 +357,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 received: 0,
                 channel: null,
                 acknowledged: false,
+                playable: null,
             };
             show(record);
             if (!tooLarge && isFetchedAtOnce(announcement.mime, announcement.size)) {
@@ -379,7 +397,7 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                     state: FILE_STATE.DONE,
                     problem: null,
                     url: null,
-                    picture: false,
+                    display: null,
                     delivery: posted.delivery,
                     missing: posted.missing,
                 },
@@ -388,17 +406,29 @@ export function createFiles({ announcer, nameOf, createUrl, revokeUrl }: FilesEn
                 received: 0,
                 channel: null,
                 acknowledged: true,
+                playable: null,
             };
             show(record);
             void file
-                .slice(0, PICTURE_HEAD_BYTES)
+                .slice(0, FILE_HEAD_BYTES)
                 .arrayBuffer()
                 .then((head) => {
-                    const pictureType = pictureTypeOf(new Uint8Array(head));
-                    if (generation !== postedIn || pictureType === null) return;
-                    emit(record, { picture: true, url: createUrl(file.slice(0, file.size, pictureType)) });
+                    const shown = shownIfPlayable(new Uint8Array(head));
+                    if (generation !== postedIn || shown === null) return;
+                    if (shown.display !== FILE_DISPLAY.PICTURE) record.playable = file;
+                    emit(record, { display: shown.display, url: createUrl(file.slice(0, file.size, shown.type)) });
                 });
             return null;
+        },
+
+        /** The browser failed to decode the song or video `key`: it is offered as a download from now on. */
+        undecodable(key: string) {
+            const record = records.get(key);
+            if (record === undefined || record.playable === null || record.view.url === null) return;
+            revokeUrl(record.view.url);
+            const download = createUrl(new Blob([record.playable], { type: DOWNLOAD_TYPE }));
+            record.playable = null;
+            emit(record, { display: null, url: download });
         },
 
         /** The delivery of the sender's own file `id` changed. */
@@ -450,4 +480,5 @@ export const files = createFiles({
     revokeUrl: (url) => {
         URL.revokeObjectURL(url);
     },
+    canPlay: (type) => document.createElement("video").canPlayType(type) !== "",
 });

@@ -1,5 +1,8 @@
+import base64
+import io
 import re
 import struct
+import wave
 import zlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -30,6 +33,8 @@ LIST_IS_AT_THE_TOP = "(list) => list.scrollTop === 0"
 SENT_FILE = "#chatMessages .chat-file.self"
 HEARD_FILE = "#chatMessages .chat-file.other"
 SHOWN_PICTURE = "#chatMessages .chat-picture"
+PLAYER = "#chatMessages audio.chat-audio"
+VIDEO_PLAYER = "#chatMessages video.chat-video"
 LOAD_BUTTON = ".chat-file-load"
 DOWNLOAD_BUTTON = ".chat-file-download"
 BYTES_PER_MEGABYTE = 1024 * 1024
@@ -41,6 +46,38 @@ URL.revokeObjectURL = (url) => { window.revokedUrls.push(url); revokeObjectUrl(u
 """
 REVOKED_URLS = "() => window.revokedUrls"
 IMAGE_IS_DECODED = "(image) => image.complete && image.naturalWidth > 0"
+PLAYER_NEVER_STARTS = "(player) => !player.autoplay && player.paused && player.currentTime === 0"
+# The type of every blob the page made a URL for, by URL: the content-security policy admits a blob as a media source,
+# not as a fetch.
+RECORD_BLOB_TYPES = """
+window.blobTypes = {};
+const createObjectUrl = URL.createObjectURL.bind(URL);
+URL.createObjectURL = (blob) => { const url = createObjectUrl(blob); window.blobTypes[url] = blob.type; return url; };
+"""
+BLOB_TYPE_OF_PLAYER = "(player) => window.blobTypes[player.src]"
+# A short WebM the page records from a canvas, as base64 text: the browser's own encoder makes a clip it can decode.
+RECORD_A_SHORT_VIDEO = """
+async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 48;
+    const context = canvas.getContext("2d");
+    const recorder = new MediaRecorder(canvas.captureStream(), { mimeType: "video/webm" });
+    const parts = [];
+    recorder.ondataavailable = (event) => parts.push(event.data);
+    const stopped = new Promise((resolve) => { recorder.onstop = resolve; });
+    recorder.start();
+    for (let step = 0; step < 6; step += 1) {
+        context.fillStyle = `hsl(${step * 60}, 90%, 50%)`;
+        context.fillRect(0, 0, 64, 48);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    recorder.stop();
+    await stopped;
+    const bytes = new Uint8Array(await new Blob(parts).arrayBuffer());
+    return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
+}
+"""
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -177,6 +214,17 @@ def _png() -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
+def _wav() -> bytes:
+    """A short song the browser decodes."""
+    sound = io.BytesIO()
+    with wave.open(sound, "wb") as writer:
+        writer.setnchannels(1)
+        writer.setsampwidth(2)
+        writer.setframerate(8000)
+        writer.writeframes(b"\x00\x00" * 1600)
+    return sound.getvalue()
+
+
 def _choose(person: Page, files: Any) -> None:
     """Pick the files the way a person does: the attach button opens the picker."""
     if not person.locator("#chatPanel.visible").count():
@@ -246,6 +294,85 @@ def test_a_file_called_a_picture_whose_bytes_are_not_one_is_never_shown_inline(
     expect(host).not_to_have_title("ran")
 
 
+@pytest.mark.parametrize(
+    ("name", "clip_of", "player", "blob_type"),
+    [
+        ("song.wav", lambda _guest: _wav(), PLAYER, "audio/wav"),
+        ("clip.webm", lambda guest: base64.b64decode(guest.evaluate(RECORD_A_SHORT_VIDEO)), VIDEO_PLAYER, "video/webm"),
+    ],
+    ids=["song", "video"],
+)
+def test_a_posted_song_or_video_waits_for_a_tap_and_then_plays_from_memory_without_starting_by_itself(
+    open_person: Callable[..., Page],
+    base_url: str,
+    page_errors: list[str],
+    name: str,
+    clip_of: Callable[[Page], bytes],
+    player: str,
+    blob_type: str,
+) -> None:
+    """CALL-74: A song or video is fetched on a tap, plays with controls from a typed blob, never autoplays."""
+    host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP, RECORD_BLOB_TYPES)
+    host.click("#chatBtn")
+
+    _post(guest, name, clip_of(guest), "application/octet-stream")
+
+    expect(host.locator(player)).to_have_count(0)
+    host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
+    expect(host.locator(player)).to_be_visible()
+    expect(host.locator(player)).to_have_attribute("controls", "")
+    assert host.locator(player).evaluate(BLOB_TYPE_OF_PLAYER) == blob_type
+    assert host.locator(player).evaluate(PLAYER_NEVER_STARTS)
+    expect(guest.locator(player)).to_be_visible()
+
+
+@pytest.mark.parametrize(
+    ("name", "mime_type", "container_head", "player"),
+    [
+        ("broken.wav", "audio/wav", b"RIFF\x00\x00\x00\x00WAVE", PLAYER),
+        ("broken.webm", "video/webm", b"\x1a\x45\xdf\xa3\x00\x00\x00\x00", VIDEO_PLAYER),
+    ],
+    ids=["song", "video"],
+)
+def test_a_song_or_video_the_browser_cannot_decode_is_offered_as_a_download_like_any_file(
+    open_person: Callable[..., Page],
+    base_url: str,
+    page_errors: list[str],
+    name: str,
+    mime_type: str,
+    container_head: bytes,
+    player: str,
+) -> None:
+    """CALL-74: A file that passes the container check and fails to decode is offered as a download."""
+    host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    host.click("#chatBtn")
+    broken = container_head + bytes(range(200))
+
+    _post(guest, name, broken, mime_type)
+
+    host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
+    expect(host.locator(f"{HEARD_FILE} {DOWNLOAD_BUTTON}")).to_be_visible()
+    expect(host.locator(player)).to_have_count(0)
+    with host.expect_download() as download:
+        host.click(f"{HEARD_FILE} {DOWNLOAD_BUTTON}")
+    assert Path(download.value.path()).read_bytes() == broken
+
+
+def test_a_file_called_a_song_whose_bytes_are_not_one_is_never_played(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    """CALL-74: A song plays only when its first bytes pass the container check, whatever its sender calls it."""
+    host, guest, _ = open_call(open_person, base_url, page_errors, DESKTOP)
+    host.click("#chatBtn")
+
+    _post(guest, "song.mp3", b"<html><script>document.title = 'ran'</script></html>", "audio/mpeg")
+
+    host.click(f"{HEARD_FILE} {LOAD_BUTTON}")
+    expect(host.locator(f"{HEARD_FILE} {DOWNLOAD_BUTTON}")).to_be_visible()
+    expect(host.locator(PLAYER)).to_have_count(0)
+    expect(host).not_to_have_title("ran")
+
+
 def test_a_picture_one_person_never_answered_turns_undelivered_for_them_when_they_leave(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
@@ -280,7 +407,7 @@ def test_the_composer_names_a_file_over_the_per_file_cap_and_posts_none(
     expect(guest.locator("#chatMessages .chat-file")).to_have_count(0)
 
 
-def test_leaving_the_call_revokes_the_blob_url_of_a_shown_picture(
+def test_leaving_the_call_revokes_the_blob_url_of_a_shown_picture_and_a_played_song(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     """CALL-72: Every blob URL is released at leave."""
@@ -291,10 +418,15 @@ def test_leaving_the_call_revokes_the_blob_url_of_a_shown_picture(
     host.click("#chatBtn")
     _post(guest, "kept-for-the-call.png", _png(), "image/png")
     shown_url = host.locator(SHOWN_PICTURE).get_attribute("src")
+    expect(guest.locator(f"{SENT_FILE}.pending")).to_have_count(0)
+    _post(guest, "kept-too.wav", _wav(), "audio/wav")
+    host.click(f"{HEARD_FILE}:has-text('kept-too.wav') {LOAD_BUTTON}")
+    played_url = host.locator(PLAYER).get_attribute("src")
 
     host.click("#leaveBtn")
     host.click("#leaveYes")
 
     host.locator("[data-screen=end]").wait_for()
     assert shown_url is not None
-    assert shown_url in host.evaluate(REVOKED_URLS)
+    assert played_url is not None
+    assert {shown_url, played_url} <= set(host.evaluate(REVOKED_URLS))

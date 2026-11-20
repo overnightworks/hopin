@@ -23,6 +23,7 @@
         fileSize,
         isPending,
         loadFile,
+        mediaUndecodable,
         pickFile,
         readersNote,
         sendChatMessage,
@@ -31,6 +32,7 @@
         undeliveredNote,
         unpostedNote,
     } from "#lib/ui/chat.svelte.ts";
+    import { FILE_DISPLAY } from "#lib/call/file.ts";
     import { FILE_STATE } from "#lib/call/files.ts";
     import { actionClasses, END_ACTION, END_ICON, rejoinCall, shownEndView } from "#lib/ui/end.svelte.ts";
     import { copyCallLink, invite, shareCallLink } from "#lib/ui/invite.svelte.ts";
@@ -241,7 +243,7 @@
             {#each chat.lines as line (line)}
                 {#if line.kind === "feature"}<div class="chat-element"><line.view /></div>
                 {:else if line.kind === "self"}<div class={["chat-msg", "self", line.delivery === DELIVERY.PENDING && "pending"]}>{line.text}{#if undeliveredNote(line) !== null}<div class="chat-delivery">{undeliveredNote(line)}</div>{/if}</div>
-                {:else if line.kind === "file"}<div class={["chat-msg", "chat-file", line.file.own ? "self" : "other", isPending(line) && "pending"]} data-file-state={line.file.state}>{#if !line.file.own}<div class="chat-sender">{line.file.sender}</div>{/if}{#if line.file.picture && line.file.url !== null}<img class="chat-picture" src={line.file.url} alt={line.file.name}>{/if}<div class="chat-file-name">{line.file.name} <span class="chat-file-size">{fileSize(line.file.size)}</span></div>{#if fileNote(line.file) !== null}<div class="chat-delivery chat-file-note">{fileNote(line.file)}</div>{/if}{#if undeliveredNote(line) !== null}<div class="chat-delivery">{undeliveredNote(line)}</div>{/if}{#if !line.file.own && line.file.state === FILE_STATE.OFFERED}<button class="chat-file-action chat-file-load" type="button" onclick={() => { loadFile(line.file.key); }}>{words["chat.fileLoadButton"]}</button>{:else if line.file.url !== null && !line.file.own}<button class="chat-file-action chat-file-download" type="button" onclick={() => { downloadFile(line.file); }}>{words["chat.fileDownloadLink"]}</button>{/if}</div>
+                {:else if line.kind === "file"}<div class={["chat-msg", "chat-file", line.file.own ? "self" : "other", isPending(line) && "pending"]} data-file-state={line.file.state}>{#if !line.file.own}<div class="chat-sender">{line.file.sender}</div>{/if}{#if line.file.url !== null}{#if line.file.display === FILE_DISPLAY.PICTURE}<img class="chat-picture" src={line.file.url} alt={line.file.name}>{:else if line.file.display === FILE_DISPLAY.AUDIO}<audio class="chat-audio" controls preload="metadata" src={line.file.url} aria-label={line.file.name} onerror={() => { mediaUndecodable(line.file); }}></audio>{:else if line.file.display === FILE_DISPLAY.VIDEO}<!-- svelte-ignore a11y_media_has_caption --><video class="chat-video" controls playsinline preload="metadata" src={line.file.url} aria-label={line.file.name} onerror={() => { mediaUndecodable(line.file); }}></video>{/if}{/if}<div class="chat-file-name">{line.file.name} <span class="chat-file-size">{fileSize(line.file.size)}</span></div>{#if fileNote(line.file) !== null}<div class="chat-delivery chat-file-note">{fileNote(line.file)}</div>{/if}{#if undeliveredNote(line) !== null}<div class="chat-delivery">{undeliveredNote(line)}</div>{/if}{#if !line.file.own && line.file.state === FILE_STATE.OFFERED}<button class="chat-file-action chat-file-load" type="button" onclick={() => { loadFile(line.file.key); }}>{words["chat.fileLoadButton"]}</button>{:else if line.file.url !== null && !line.file.own}<button class="chat-file-action chat-file-download" type="button" onclick={() => { downloadFile(line.file); }}>{words["chat.fileDownloadLink"]}</button>{/if}</div>
                 {:else}<div class="chat-msg other"><div class="chat-sender">{line.sender}</div>{line.text}</div>{/if}
             {/each}
             {#if chat.pinned !== null}<div class="chat-element"><chat.pinned /></div>{/if}
