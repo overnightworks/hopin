@@ -68,10 +68,16 @@ export class LineBudget {
         return true;
     }
 
-    /** The milliseconds until the budget holds a whole line; none when it holds one now. */
-    waitMilliseconds(): number {
+    /** Whether the budget holds `count` whole lines now. */
+    holds(count: number): boolean {
         this.#refill();
-        return Math.max(0, Math.ceil(((1 - this.#lines) / LINES_PER_SECOND) * 1000));
+        return this.#lines >= count - EPSILON;
+    }
+
+    /** The milliseconds until the budget holds `count` whole lines, no more than its capacity; none when it holds them now. */
+    waitMilliseconds(count = 1): number {
+        this.#refill();
+        return Math.max(0, Math.ceil(((count - this.#lines) / LINES_PER_SECOND) * 1000));
     }
 
     #refill() {

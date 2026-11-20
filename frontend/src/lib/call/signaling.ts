@@ -37,6 +37,7 @@ let seat: Seat | null = null;
 let sentLog = new SentLog();
 let lastDispatchedSeq = 0;
 let sessionLost = () => {};
+let sessionLive = () => {};
 let sessionEnded = () => {};
 
 function addHandler(type: string, handler: Handler) {
@@ -57,6 +58,11 @@ export function onFeatureFrame(type: string, handler: (frame: never) => void) {
 
 export function onSessionLost(callback: () => void) {
     sessionLost = callback;
+}
+
+/** The callback runs each time the socket turns live and its unacknowledged frames are written: after a join and after a resume. */
+export function onSessionLive(callback: () => void) {
+    sessionLive = callback;
 }
 
 export function onSessionEnded(callback: () => void) {
@@ -83,6 +89,11 @@ function openSocket(): WebSocket {
 
 export function isConnected() {
     return socket !== null;
+}
+
+/** Whether a frame sent now goes out at once; while it is not, a logged frame waits for the next resume. */
+export function isLive() {
+    return socketIsLive;
 }
 
 function dispatch(data: ServerFrame) {
@@ -121,6 +132,7 @@ function startWriting(current: WebSocket) {
     for (const frame of sentLog.unacknowledged()) {
         writeFirstFrame(current, frame);
     }
+    sessionLive();
 }
 
 function forgetSeat() {

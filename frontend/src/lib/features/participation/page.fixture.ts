@@ -35,7 +35,7 @@ export async function installedParticipation(installOn?: typeof install) {
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
     // The link the page last handed the chat for the agents that read its lines.
-    let lineReaders: AgentLink = { names: [], send: () => {} };
+    let lineReaders: AgentLink = { names: [], send: vi.fn() };
     const moreItems: Element[] = [];
     const callEndedHooks: (() => void)[] = [];
     const figureEndedHooks: ((key: string, reason: string) => void)[] = [];

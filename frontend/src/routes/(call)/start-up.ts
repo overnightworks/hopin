@@ -26,6 +26,7 @@ import {
 } from "#lib/call/mesh.ts";
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import { loadFeatures } from "#lib/call/features.ts";
+import { lines } from "#lib/call/lines.ts";
 import { playJoinSound, playLeaveSound } from "#lib/call/sounds.ts";
 import {
     connect,
@@ -34,6 +35,7 @@ import {
     on,
     onFeatureFrame,
     onSessionEnded,
+    onSessionLive,
     onSessionLost,
     sendFeatureFrame,
 } from "#lib/call/signaling.ts";
@@ -234,6 +236,9 @@ export function startUp() {
     registerSessionHandlers();
     onPeersChanged(updateParticipantCount);
     onSessionLost(removeAllPeers);
+    onSessionLive(() => {
+        lines.resumeAgents();
+    });
     onSessionEnded(() => {
         tearDownCall();
         goThroughSignIn();

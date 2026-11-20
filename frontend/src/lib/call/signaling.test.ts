@@ -175,6 +175,31 @@ describe("sending", () => {
     });
 });
 
+describe("being live", () => {
+    it("is live from the join on, not live while a reconnect waits and live again once resumed, each time telling the page", async () => {
+        const signaling = await freshSignaling();
+        const live: boolean[] = [];
+        signaling.onSessionLive(() => void live.push(signaling.isLive()));
+        const socket = seatedSocket(signaling);
+        const afterJoin = [signaling.isLive(), [...live]];
+        socket.closeWith(1006);
+        const whileDown = signaling.isLive();
+        vi.advanceTimersByTime(1000);
+        latestSocket().open();
+        const whileResuming = signaling.isLive();
+
+        latestSocket().receive({ type: SIGNAL_TYPE.RESUMED, resume_token: "token-2", last_seq: 0 });
+
+        expect([afterJoin, whileDown, whileResuming, signaling.isLive(), live.length]).toEqual([
+            [true, [true]],
+            false,
+            false,
+            true,
+            2,
+        ]);
+    });
+});
+
 describe("sending a transient frame", () => {
     it("writes it numbered like the rest once the socket is live and never resends it after a resume", async () => {
         const signaling = await freshSignaling();

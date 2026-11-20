@@ -220,6 +220,23 @@ describe("sending", () => {
         expect(line).toMatchObject({ delivery: "undelivered", missing: ["Ada"] });
         expect(chat.undeliveredNote(line as ChatLine)).toBe(words["chat.lineUndelivered"]({ names: "Ada" }));
     });
+
+    it("shows no note under a line that is not an own one", async () => {
+        const { undeliveredNote } = await freshChat();
+
+        expect(undeliveredNote({ kind: "other", text: "hi", sender: "Ada" })).toBeNull();
+    });
+
+    it("shows nothing for the delivery of a line the chat does not hold", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        seatPerson(chat, "p1", "Ada");
+        chat.exchange.send("not from the composer");
+
+        chat.exchange.removePeer("p1");
+
+        expect(chat.chat.lines).toEqual([]);
+    });
 });
 
 describe("what the composer says", () => {
@@ -269,6 +286,17 @@ describe("receiving", () => {
         expect(chat.chat.unread).toBe(1);
         expect(sounds.playMessageSound).toHaveBeenCalledOnce();
         expect(person.sent).toEqual([JSON.stringify({ type: "receipt", id: 7 })]);
+    });
+
+    it("shows a line of a person whose name is not known under no name", async () => {
+        const chat = await freshChat();
+        chat.registerChatHandlers();
+        const person = seatPerson(chat, "p1", "Ada");
+        chat.state.namesByParticipant.clear();
+
+        person.receive({ type: "line", id: 1, text: "hi" });
+
+        expect(chat.chat.lines).toEqual([{ kind: "other", text: "hi", sender: "" }]);
     });
 });
 

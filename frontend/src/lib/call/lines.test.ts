@@ -12,6 +12,8 @@ class FakeChannel implements LineChannel {
     onmessage: ((event: MessageEvent) => void) | null = null;
     // The channel at the other end of the pair, when a case connects two exchanges.
     peer: FakeChannel | null = null;
+    // Messages held back on the path, when a case delays what this channel sends.
+    held: string[] | null = null;
 
     constructor(readyState = "open") {
         this.readyState = readyState;
@@ -19,7 +21,15 @@ class FakeChannel implements LineChannel {
 
     send(data: string) {
         this.sent.push(JSON.parse(data));
-        this.peer?.deliver(data);
+        if (this.held === null) this.peer?.deliver(data);
+        else this.held.push(data);
+    }
+
+    /** Let every message held back arrive at once. */
+    release() {
+        const arriving = this.held ?? [];
+        this.held = null;
+        for (const data of arriving) this.peer?.deliver(data);
     }
 
     deliver(data: unknown) {
@@ -39,15 +49,16 @@ class FakeChannel implements LineChannel {
 
 const NAMES: Record<string, string> = { p1: "Ada", p2: "Ben", p3: "Cleo" };
 
-function exchangeWithListener() {
-    const lines = createLines({ now: () => Date.now(), nameOf: (id) => NAMES[id] ?? "" });
+function exchangeWithListener(names: Record<string, string> = NAMES) {
+    const session = { live: true };
+    const lines = createLines({ now: () => Date.now(), isLive: () => session.live, nameOf: (id) => names[id] ?? "" });
     const received: [string, string][] = [];
     const deliveries: [number, Delivery, readonly string[]][] = [];
     lines.listen({
         received: (sender, text) => void received.push([sender, text]),
         delivery: (id, delivery, missing) => void deliveries.push([id, delivery, missing]),
     });
-    return { lines, received, deliveries };
+    return { lines, received, deliveries, session };
 }
 
 // What each line shows now: the last delivery reported for it.
@@ -198,41 +209,102 @@ describe("a line to people", () => {
         first.deliver(receiptFor(99));
         first.deliver("not json");
         first.deliver(JSON.stringify([1, 2]));
+        first.deliver("null");
         first.deliver(JSON.stringify({ type: "other" }));
         first.deliver(new ArrayBuffer(1));
 
         expect(deliveries).toEqual([]);
     });
+
+    it("stays quiet before the chat listens, for a line that comes and for a receipt", () => {
+        const lines = createLines({ now: () => Date.now(), isLive: () => true, nameOf: () => "" });
+        const channel = new FakeChannel();
+        lines.addPeer("p1", channel);
+        lines.send("hello");
+
+        channel.deliver(lineMessage(1, "hi"));
+        channel.deliver(receiptFor(1));
+
+        expect(channel.sent).toEqual([
+            { type: "line", id: 1, text: "hello" },
+            { type: "receipt", id: 1 },
+        ]);
+    });
+
+    it("keeps a line to a person who stays pending when another person who already answered leaves", () => {
+        const { lines, deliveries } = exchangeWithListener();
+        const leaving = new FakeChannel();
+        const staying = new FakeChannel();
+        lines.addPeer("p1", leaving);
+        lines.addPeer("p2", staying);
+        lines.send("hello");
+        leaving.deliver(receiptFor(1));
+
+        lines.removePeer("p1");
+
+        expect(shown(deliveries)).toEqual({ 1: ["pending", []] });
+    });
+
+    it("names a person by the name known when the line is written, however late the page learned it", () => {
+        const names: Record<string, string> = {};
+        const { lines, deliveries } = exchangeWithListener(names);
+        lines.addPeer("p1", new FakeChannel());
+        names.p1 = "Ada";
+
+        lines.send("hello");
+        lines.removePeer("p1");
+
+        expect(deliveries).toEqual([[1, "undelivered", ["Ada"]]]);
+    });
 });
 
 describe("pacing the sender's own lines", () => {
-    it("sends a burst at once and then one line a second, never dropping one", () => {
+    it("sends the burst at once, holds the rest until the receipts are in and then sends one line a second", () => {
         const { lines } = exchangeWithListener();
         const channel = new FakeChannel();
         lines.addPeer("p1", channel);
 
         for (let number = 1; number <= LINE_BURST + 5; number++) lines.send(`line ${String(number)}`);
         const atOnce = channel.sent.length;
+        vi.advanceTimersByTime(60_000);
+        const withoutReceipts = channel.sent.length;
+        for (let id = 1; id <= LINE_BURST; id++) channel.deliver(receiptFor(id));
+        const withReceipts = channel.sent.length;
         vi.advanceTimersByTime(1000);
         const afterASecond = channel.sent.length;
-        vi.advanceTimersByTime(10_000);
 
-        expect([atOnce, afterASecond]).toEqual([LINE_BURST - 1, LINE_BURST]);
-        expect(textsOf(channel)).toEqual(
-            Array.from({ length: LINE_BURST + 5 }, (_, index) => `line ${String(index + 1)}`),
-        );
+        expect([atOnce, withoutReceipts, withReceipts, afterASecond]).toEqual([
+            LINE_BURST,
+            LINE_BURST,
+            LINE_BURST,
+            LINE_BURST + 1,
+        ]);
+    });
+
+    it("stops the wait for its turn of a person who leaves", () => {
+        const { lines } = exchangeWithListener();
+        const channel = new FakeChannel();
+        lines.addPeer("p1", channel);
+        for (let number = 1; number <= LINE_BURST; number++) lines.send(`line ${String(number)}`);
+        for (let id = 1; id <= LINE_BURST; id++) channel.deliver(receiptFor(id));
+        lines.send("waits for its turn");
+
+        lines.removePeer("p1");
+        vi.advanceTimersByTime(60_000);
+
+        expect(channel.sent).toHaveLength(LINE_BURST);
     });
 
     it("keeps a line waiting for its turn pending", () => {
         const { lines, deliveries } = exchangeWithListener();
         const channel = new FakeChannel();
         lines.addPeer("p1", channel);
-        for (let number = 1; number <= LINE_BURST; number++) lines.send(`line ${String(number)}`);
+        for (let number = 1; number <= LINE_BURST + 1; number++) lines.send(`line ${String(number)}`);
 
-        for (let id = 1; id <= LINE_BURST - 1; id++) channel.deliver(receiptFor(id));
+        for (let id = 1; id <= LINE_BURST; id++) channel.deliver(receiptFor(id));
 
         expect(deliveries.map(([, delivery]) => delivery)).toEqual(
-            Array.from({ length: LINE_BURST - 1 }, () => "delivered"),
+            Array.from({ length: LINE_BURST }, () => "delivered"),
         );
     });
 
@@ -252,6 +324,27 @@ describe("pacing the sender's own lines", () => {
         expect(receiver.received).toHaveLength(30);
         expect(sender.deliveries.at(-1)).toEqual([30, "delivered", []]);
     });
+
+    it("sends no more than a receiver's budget holds while the lines it sent are held up on the path", () => {
+        const sender = exchangeWithListener();
+        const receiver = exchangeWithListener();
+        const toReceiver = new FakeChannel();
+        const toSender = new FakeChannel();
+        toReceiver.peer = toSender;
+        toSender.peer = toReceiver;
+        toReceiver.held = [];
+        sender.lines.addPeer("p1", toReceiver);
+        receiver.lines.addPeer("p2", toSender);
+
+        for (let number = 1; number <= LINE_BURST + 5; number++) sender.lines.send(`line ${String(number)}`);
+        vi.advanceTimersByTime(5000);
+        const onThePath = toReceiver.sent.length;
+        toReceiver.release();
+        vi.advanceTimersByTime(60_000);
+
+        expect(onThePath).toBe(LINE_BURST);
+        expect(receiver.received).toHaveLength(LINE_BURST + 5);
+    });
 });
 
 describe("a line that arrives", () => {
@@ -266,7 +359,7 @@ describe("a line that arrives", () => {
         expect(channel.sent).toEqual([{ type: "receipt", id: 5 }]);
     });
 
-    it("passes 600 astral characters and not 601", () => {
+    it("passes a line of astral characters at the limit and not one over", () => {
         const { lines, received } = exchangeWithListener();
         const channel = new FakeChannel();
         lines.addPeer("p1", channel);
@@ -364,6 +457,31 @@ describe("a line for the agents", () => {
         vi.advanceTimersByTime(60_000);
 
         expect([atOnce, agentLines.length]).toEqual([LINE_BURST - 1, LINE_BURST - 1]);
+    });
+
+    it("waits while the session is not live and goes paced once it is live again", () => {
+        const { lines, session } = exchangeWithListener();
+        const agentLines: string[] = [];
+        session.live = false;
+        lines.linkAgents({ names: ["Claude"], send: (text) => void agentLines.push(text) });
+
+        for (let number = 1; number <= LINE_BURST + 5; number++) lines.send(`line ${String(number)}`);
+        vi.advanceTimersByTime(60_000);
+        const whileDown = agentLines.length;
+        session.live = true;
+        lines.resumeAgents();
+        const atOnce = agentLines.length;
+        vi.advanceTimersByTime(60_000);
+
+        expect([whileDown, atOnce, agentLines.length]).toEqual([0, LINE_BURST - 1, LINE_BURST + 5]);
+    });
+
+    it("has nothing to resume when no agent is shown", () => {
+        const { lines } = exchangeWithListener();
+
+        expect(() => {
+            lines.resumeAgents();
+        }).not.toThrow();
     });
 
     it("is paced to the end while the agents stay", () => {

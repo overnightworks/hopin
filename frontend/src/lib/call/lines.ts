@@ -4,9 +4,12 @@
 // by the person whose channel carried it. Each receiver answers a line it shows with a receipt, which turns the
 // sender's line from pending to delivered; a person who leaves, or whose channel closes, before its receipt turns it
 // undelivered for that person. Every recipient is paced on its own, so a line never goes faster than the limits'
-// budget, queued ones included.
+// budget, queued ones included. A person's receiver counts a line when it arrives, which may be much later than the
+// line left, so the sender counts a line against the budget until its receipt is in and refills only from the receipt
+// on: lines that were held up on the path and arrive together still find the receiver's budget.
 
 import { cleanLine, LineBudget } from "#lib/call/line.ts";
+import { isLive } from "#lib/call/signaling.ts";
 import { state } from "#lib/call/state.ts";
 import { LINE_BURST } from "#lib/wire.ts";
 
@@ -26,9 +29,9 @@ const MESSAGE = {
     RECEIPT: "receipt",
 } as const;
 
-// A sender keeps one line of the burst unspent, so jitter on the path never makes an honest sender's lines arrive
-// faster than the receiver's own budget allows.
-const SENDER_BURST = LINE_BURST - 1;
+// The agents' link has no receipts, so its sender keeps one line of the burst unspent: jitter on the way to the
+// server then never makes an honest sender's lines arrive faster than the server's budget allows.
+const AGENT_BURST = LINE_BURST - 1;
 
 const CHANNEL_OPEN = "open";
 
@@ -63,6 +66,8 @@ export interface SentLine {
 
 export interface LineClock {
     now: () => number;
+    /** Whether the page's session is live: a line for the agents waits while it is not. */
+    isLive: () => boolean;
     nameOf: (participantId: string) => string;
 }
 
@@ -73,10 +78,12 @@ interface Queued {
 
 interface Peer {
     readonly channel: LineChannel;
-    readonly name: string;
+    /** The receiver's budget as the sender knows it: debited when a receipt is in, never before. */
     readonly budget: LineBudget;
     readonly received: LineBudget;
     queue: Queued[];
+    /** The lines sent whose receipt is not in; each is held against the budget. */
+    unreceipted: Set<number>;
     timer: ReturnType<typeof setTimeout> | null;
     closed: boolean;
 }
@@ -92,10 +99,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
-export function createLines({ now, nameOf }: LineClock) {
+export function createLines({ now, isLive, nameOf }: LineClock) {
     const peers = new Map<string, Peer>();
     const pending = new Map<number, Pending>();
-    const agentBudget = new LineBudget(now, SENDER_BURST);
+    const agentBudget = new LineBudget(now, AGENT_BURST);
     let agentQueue: string[] = [];
     let agentTimer: ReturnType<typeof setTimeout> | null = null;
     let agents: AgentLink | null = null;
@@ -120,26 +127,31 @@ export function createLines({ now, nameOf }: LineClock) {
 
     function pace(peer: Peer) {
         if (peer.timer !== null) return;
-        peer.timer = setTimeout(() => {
-            peer.timer = null;
-            drain(peer);
-        }, peer.budget.waitMilliseconds());
+        peer.timer = setTimeout(
+            () => {
+                peer.timer = null;
+                drain(peer);
+            },
+            peer.budget.waitMilliseconds(peer.unreceipted.size + 1),
+        );
     }
 
     function drain(peer: Peer) {
         if (peer.closed || peer.channel.readyState !== CHANNEL_OPEN) return;
         while (peer.queue.length > 0) {
-            if (!peer.budget.spend()) {
-                pace(peer);
+            if (!peer.budget.holds(peer.unreceipted.size + 1)) {
+                // A budget full of lines awaiting their receipts refills with the receipts, not with time.
+                if (peer.unreceipted.size < LINE_BURST) pace(peer);
                 return;
             }
             const { id, text } = peer.queue.shift() as Queued;
+            peer.unreceipted.add(id);
             peer.channel.send(JSON.stringify({ type: MESSAGE.LINE, id, text }));
         }
     }
 
     function drainAgents() {
-        if (agents === null) return;
+        if (!isLive()) return;
         while (agentQueue.length > 0) {
             if (!agentBudget.spend()) {
                 if (agentTimer === null) {
@@ -150,7 +162,7 @@ export function createLines({ now, nameOf }: LineClock) {
                 }
                 return;
             }
-            agents.send(agentQueue.shift() as string);
+            (agents as AgentLink).send(agentQueue.shift() as string);
         }
     }
 
@@ -161,12 +173,16 @@ export function createLines({ now, nameOf }: LineClock) {
         const line = cleanLine(text);
         if (line === null) return;
         events.received(participantId, line);
-        if (peer.channel.readyState === CHANNEL_OPEN) peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
+        peer.channel.send(JSON.stringify({ type: MESSAGE.RECEIPT, id }));
     }
 
-    function receiveReceipt(participantId: string, message: Record<string, unknown>) {
-        const line = pending.get(message.id as number);
-        if (line !== undefined) settle(line, participantId, true);
+    function receiveReceipt(participantId: string, peer: Peer, message: Record<string, unknown>) {
+        const id = message.id as number;
+        if (!peer.unreceipted.delete(id)) return;
+        // The receiver counted the line before it answered, so the budget holds the line the sender counted for it.
+        peer.budget.spend();
+        settle(pending.get(id) as Pending, participantId, true);
+        drain(peer);
     }
 
     function receive(participantId: string, peer: Peer, data: unknown) {
@@ -179,7 +195,7 @@ export function createLines({ now, nameOf }: LineClock) {
         }
         if (!isRecord(message)) return;
         if (message.type === MESSAGE.LINE) receiveLine(participantId, peer, message);
-        else if (message.type === MESSAGE.RECEIPT) receiveReceipt(participantId, message);
+        else if (message.type === MESSAGE.RECEIPT) receiveReceipt(participantId, peer, message);
     }
 
     function stop(peer: Peer) {
@@ -199,10 +215,10 @@ export function createLines({ now, nameOf }: LineClock) {
         addPeer(participantId: string, channel: LineChannel) {
             const peer: Peer = {
                 channel,
-                name: nameOf(participantId),
-                budget: new LineBudget(now, SENDER_BURST),
+                budget: new LineBudget(now),
                 received: new LineBudget(now),
                 queue: [],
+                unreceipted: new Set(),
                 timer: null,
                 closed: false,
             };
@@ -229,6 +245,11 @@ export function createLines({ now, nameOf }: LineClock) {
             settleAll(participantId);
         },
 
+        /** The session turned live: the lines for the agents that waited for it go now, paced. */
+        resumeAgents() {
+            if (agents !== null) drainAgents();
+        },
+
         /** The agents the page shows and how to reach them; null, or none named, when no agent is shown. */
         linkAgents(link: AgentLink | null) {
             agents = link !== null && link.names.length > 0 ? link : null;
@@ -248,9 +269,10 @@ export function createLines({ now, nameOf }: LineClock) {
             lastId += 1;
             const sent: Pending = { id: lastId, waiting: new Set(), names: new Map(), missing: [] };
             for (const [participantId, peer] of peers) {
-                sent.names.set(participantId, peer.name);
+                const name = nameOf(participantId);
+                sent.names.set(participantId, name);
                 if (peer.closed) {
-                    sent.missing.push(peer.name);
+                    sent.missing.push(name);
                     continue;
                 }
                 sent.waiting.add(participantId);
@@ -269,5 +291,6 @@ export function createLines({ now, nameOf }: LineClock) {
 
 export const lines = createLines({
     now: () => performance.now(),
+    isLive,
     nameOf: (participantId) => state.namesByParticipant.get(participantId) ?? "",
 });

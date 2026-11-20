@@ -17,6 +17,7 @@ vi.mock("#lib/call/signaling.ts", () => ({
         signal.sent.push(message);
     },
     isConnected: () => true,
+    isLive: () => true,
 }));
 
 class FakeSender {
