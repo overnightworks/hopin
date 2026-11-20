@@ -1,10 +1,10 @@
 # HopIn Architecture
 
-How HopIn is built, how a call runs and what it trusts. For what HopIn is and how to run it, see the [README](../README.md). Each package states its own rules in its docstring or header; a call's rules, each with its test, are in [docs/call.md](call.md).
+How HopIn is built, how a call runs and what it trusts. For what HopIn is and how to run it, see the [README](../README.md). Each package states its rules in its docstring or header; a call's rules, each with its test, are in [docs/call.md](call.md).
 
 ## 1. Context and Scope
 
-A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator has switched it on and a direct path fails. The camera video and the sound between people never pass the server. Three other things do: the spoken sentences of the game master and the agents, which the server has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, forwarded unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory only until the agent has it. The server signs people in, hands out rooms and relays the setup messages, chat lines and media state between the members of one room.
+A call is a full mesh: every browser sends its media straight to every other browser, or through a TURN relay when the operator switches it on and a direct path fails. Camera video and sound between people never pass the server. Three other things do: the spoken sentences of the game master and the agents, which the server has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, forwarded unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory until the agent has it. The server signs people in, hands out rooms and relays setup messages, chat lines and media state within a room.
 
 ```mermaid
 flowchart LR
@@ -28,7 +28,7 @@ flowchart LR
     H -. spoken sentences and heard sound .-> SP[Speech service]
 ```
 
-Caption: who talks to whom, from `auth/`, `web/turn_relay.py` and `agent/`. The session gate (`auth/gate.py`) stands in front of every route and `/ws`.
+Caption: who talks to whom, from `auth/`, `web/turn_relay.py` and `agent/`. The session gate (`auth/gate.py`) guards every route and `/ws`.
 
 ## 2. Building Block View
 
@@ -53,7 +53,7 @@ flowchart TB
     web -.-> TU[TURN provider]
 ```
 
-Caption: parts and what each may import, from the `layers` contract in `pyproject.toml` (`errors` and `words` stand in the bottom layers) and `frontend/src/lib/`. A dashed arrow leaves HopIn.
+Caption: what each part may import, from the `layers` contract in `pyproject.toml` (`errors` and `words` stand in the bottom layers) and `frontend/src/lib/`. A dashed arrow leaves HopIn.
 
 | Package | Job |
 |---|---|
@@ -146,7 +146,7 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 **Persistence.** Nothing outlasts a restart except Redis's rate limit windows and the connector's place records. The README's A Person's Data says what HopIn holds about a person.
 
-**Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** The conventions are in the docstring of `src/hopin/main.py`.
+**Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** Conventions are in the docstring of `src/hopin/main.py`.
 
 **Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis. CI merges their coverage and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives the deletion of the game and of Skat. [docs/call.md](call.md) maps each rule to its test.
 
@@ -172,13 +172,13 @@ Each line: what the party sees and what HopIn trusts of it.
 
 ## 6. Constraints and reasons
 
-- The import-linter contracts hold the dependency direction between packages, so a new top-level module is placed in a layer by a decision, and the game and the agent connector can be deleted without touching a contract.
+- The import-linter contracts hold the dependency direction between packages, so a new top-level module needs a layer decision, and the game and the agent connector can be deleted without touching a contract.
 - HopIn's own markup holds no inline script, `<style>`, `style=` or `on*=` attribute: the page runs under webauth's policy, which admits only the SvelteKit bootstrap script and the announcer style by hash.
 - The wire tokens have one owner each in Python, and `make wire` generates the TypeScript, so a drifting token fails `make wire-check`.
 
 ## 7. Not chosen
 
-- A media server (SFU) instead of the mesh: the server relays no call media between members and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
+- A media server (SFU) instead of the mesh: the server relays no call media and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
 - A database: accounts, sessions, rooms and replay logs are lost on restart by design; calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
 - Skat as a web component, or HopIn and Skat linked server to server: the sandboxed frame keeps Skat's code and sign-in out of HopIn's page and needs no shared secret; a table that must start from the call, not from a pasted link, reopens it.
 - An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through the `overnightworks-agents` package; a second consumer needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
@@ -186,6 +186,6 @@ Each line: what the party sees and what HopIn trusts of it.
 ## 8. Risks and Technical Debt
 
 - Mesh upload grows with every participant, so a call is capped at `MAX_PARTICIPANTS_PER_ROOM`; with TURN off, calls on networks that block direct paths cannot connect.
-- TURN costs money and stops slowly: HopIn sets no cap of its own (the provider's usage alert is the guard), and a credential already handed out stays valid at the provider up to 12 hours.
+- TURN costs money and stops slowly: HopIn sets no cap of its own (the provider's usage alert is the guard), and a credential handed out stays valid at the provider up to 12 hours.
 - A restart ends every call and session.
 - Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone; calls in memory survive.
