@@ -984,6 +984,14 @@ section[hidden] {
 		height: 660px;
 	}
 }
+.pairgrid.three {
+	grid-template-columns: 1fr;
+}
+@media (min-width: 901px) {
+	.pairgrid.three {
+		grid-template-columns: 1fr 1fr 1fr;
+	}
+}
 .pair-label {
 	font-size: 13px;
 	font-weight: 700;
@@ -1070,10 +1078,17 @@ section[hidden] {
 	color: var(--text);
 }
 
+.stage.bare .ctop,
+.stage.bare .cbar {
+	display: none;
+}
+.stage.bare .grid {
+	inset: 8px;
+}
 </style></head>
 <body>
 <div class="top"><h1>Agent-Kachel mit 3D-Figur</h1>
-<nav class="tabs"><button type="button" data-tab="stage" aria-pressed="true">Bühne</button><button type="button" data-tab="gaze" aria-pressed="false">Blick</button></nav></div>
+<nav class="tabs"><button type="button" data-tab="stage" aria-pressed="true">Bühne</button><button type="button" data-tab="gaze" aria-pressed="false">Blick</button><button type="button" data-tab="framing" aria-pressed="false">Rahmung</button><button type="button" data-tab="change" aria-pressed="false">Wechsel</button></nav></div>
 <p class="licence">Die Bilder zeigen pixivs Beispielmodell <code>VRM1_Constraint_Twist_Sample</code>, © 2022 pixiv Inc., unter <a href="https://vrm.dev/licenses/1.0/">https://vrm.dev/licenses/1.0/</a>, als Stellvertreter-Gesicht.</p>
 <section id="stageView">
 <div class="panel">
@@ -1084,6 +1099,7 @@ section[hidden] {
 <div class="grp"><span class="gl">Stimmung</span><div class="seg" id="grpMood"><button type="button" data-act="mood" data-v="happy" aria-pressed="false">happy</button><button type="button" data-act="mood" data-v="angry" aria-pressed="false">angry</button><button type="button" data-act="mood" data-v="sad" aria-pressed="false">sad</button><button type="button" data-act="mood" data-v="relaxed" aria-pressed="false">relaxed</button><button type="button" data-act="mood" data-v="surprised" aria-pressed="false">surprised</button></div></div>
 <div class="grp"><span class="gl">Ausfall</span><div class="seg" id="grpFail"><button type="button" data-act="fail" data-v="loading" aria-pressed="false">loading</button><button type="button" data-act="fail" data-v="nowebgl" aria-pressed="false">no WebGL</button><button type="button" data-act="fail" data-v="lost" aria-pressed="false">lost</button><button type="button" data-act="fail" data-v="slow" aria-pressed="false">slow</button><button type="button" data-act="fail" data-v="ok" aria-pressed="true">ok</button></div></div>
 <div class="grp"><span class="gl">Dazu</span><div class="seg"><button type="button" data-act="muted" aria-pressed="false">muted for me</button><button type="button" data-act="reduce" aria-pressed="false">reduced motion</button></div></div>
+<div class="grp"><span class="gl">Rahmung</span><div class="seg" id="grpFraming"><button type="button" data-act="framing" data-v="face" aria-pressed="false">Gesicht</button><button type="button" data-act="framing" data-v="shoulders" aria-pressed="true">Schultern</button><button type="button" data-act="framing" data-v="upper" aria-pressed="false">Oberkörper</button><button type="button" data-act="framing" data-v="full" aria-pressed="false">ganzer Körper</button></div></div>
 <div class="grp"><span class="gl">Modell (.vrm)</span><input type="file" id="pick" accept=".vrm,model/gltf-binary"></div>
 <div class="read" id="read"></div>
 </div>
@@ -1098,6 +1114,12 @@ section[hidden] {
 <div class="view"><div class="pair-label">A<small>schaut immer auf wen spricht</small></div><div class="call" id="callA"></div></div>
 <div class="view"><div class="pair-label">B<small>schaut nur auf wen er hört</small></div><div class="call" id="callB"></div></div>
 </div>
+</section>
+<section id="framingView" hidden>
+<div class="pairgrid" id="framingGrid"></div>
+</section>
+<section id="changeView" hidden>
+<div class="pairgrid three" id="changeGrid"></div>
 </section>
 <script type="module">
 import {TextureLoader,WebGLRenderer,Scene,DirectionalLight,AmbientLight,PerspectiveCamera,Vector3,MathUtils} from "three";
@@ -1290,11 +1312,22 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
   },
   Hp = { ua: [-0.6, 0.5, 0.6], la: [0, 2.4, 0], h: [0, 0, 0] },
   Tt = { characters: new Set(), started: !1, cpu: 0, fps: 0, last: 0, burnMs: 0 },
+  // Rahmung: Meter über und unter den Augen sowie halbe Breite, die die Kamera zeigen muss. "shoulders" ist das gesegnete Bild.
+  // Bei "upper" und "full" liegt der Kopf unter der Zeile der beiden Hör-Pillen, damit sie das Gesicht nicht verdecken.
+  FR = {
+    face: { r: 0.15, o: 0.15, a: 0.14 },
+    shoulders: { r: 0.25, o: 0.4, a: 0.31 },
+    upper: { r: 0.43, o: 0.75, a: 0.45 },
+    full: { r: 0.7, o: 9, a: 0.6 },
+  },
   ih = class {
     constructor(e, t = {}) {
       ((this.tile = e),
         (this.host = e.querySelector(".vid")),
         (this.hue = t.hue ?? 0),
+        (this.framing = t.framing ?? "shoulders"),
+        (this.custom = null),
+        (this.fr = null),
         (this.noWebGL = !1),
         (this.holdLoad = !1),
         (this.status = "loading"),
@@ -1381,6 +1414,7 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
         (this.memory = lS(r.scene)),
         this.renderer.render(this.scene, this.camera),
         (this.memory.uploaded = this.renderer.info.memory.textures),
+        (this.fr = this.goal()),
         this.resize(),
         this.observe(),
         this.applyPose(0, !0),
@@ -1404,15 +1438,37 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
       let e = Math.max(2, this.host.clientWidth),
         t = Math.max(2, this.host.clientHeight),
         n = Math.min(devicePixelRatio || 1, 2, Math.sqrt(9e5 / (e * t)));
-      (this.renderer.setPixelRatio(Math.max(1, n)), this.renderer.setSize(e, t, !1), (this.camera.aspect = e / t));
+      (this.renderer.setPixelRatio(Math.max(1, n)), this.renderer.setSize(e, t, !1), (this.camera.aspect = e / t), this.placeCamera());
+    }
+    goal() {
+      let feet = this.headPos.y + 0.05,
+        at = (n) => ({ r: FR[n].r, o: Math.min(FR[n].o, feet), a: FR[n].a }),
+        m = this.custom;
+      if (!m) return at(this.framing);
+      let a = at(m.from),
+        b = at(m.to);
+      return { r: a.r + (b.r - a.r) * m.k, o: a.o + (b.o - a.o) * m.k, a: a.a + (b.a - a.a) * m.k };
+    }
+    setFraming(i, snap = !1) {
+      (typeof i === "string" ? ((this.framing = i), (this.custom = null)) : (this.custom = i), snap && this.headPos && ((this.fr = this.goal()), this.placeCamera()));
+    }
+    placeCamera() {
+      if (!this.headPos) return;
       let s = Math.tan(MathUtils.degToRad(this.camera.fov / 2)),
-        r = 0.25,
-        o = 0.4,
-        a = 0.31,
+        { r, o, a } = this.fr,
         l = (r + o) / 2,
         c = this.headPos.y + (r - o) / 2,
         u = Math.max(l / s, a / (s * this.camera.aspect));
       (this.camera.position.set(this.headPos.x, c, this.headPos.z + u), this.camera.lookAt(this.headPos.x, c, this.headPos.z), this.camera.updateProjectionMatrix());
+    }
+    glide(e) {
+      let g = this.goal(),
+        f = this.fr;
+      if (iS()) ((this.fr = g), this.placeCamera());
+      else if (Math.abs(f.r - g.r) + Math.abs(f.o - g.o) + Math.abs(f.a - g.a) > 1e-4) {
+        for (let k of ["r", "o", "a"]) f[k] = Up(f[k], g[k], 4, e);
+        this.placeCamera();
+      }
     }
     fail(e) {
       (this.token++, Tt.characters.delete(this), this.teardownGl(), this.setStatus(e));
@@ -1523,7 +1579,7 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
     }
     frame(e) {
       if (!(!this.vrm || !this.renderer)) {
-        if ((this.applyPose(e), this.vrm.update(e), Tt.burnMs)) {
+        if ((this.glide(e), this.applyPose(e), this.vrm.update(e), Tt.burnMs)) {
           let t = performance.now() + Tt.burnMs;
           for (; performance.now() < t;);
         }
@@ -1611,7 +1667,7 @@ var sh = class {
     }
   },
   co = class {
-    constructor(e, { count: t = 3, policy: n = "B", pair: s = !1, hearOn: r = !0, annaHeard: o = !0, agents: a = ["Mozart"] } = {}) {
+    constructor(e, { count: t = 3, policy: n = "B", pair: s = !1, hearOn: r = !0, annaHeard: o = !0, agents: a = ["Mozart"], framing: f = "shoulders", bare: b = !1 } = {}) {
       ((this.root = e),
         (this.count = t),
         (this.policy = n),
@@ -1619,6 +1675,8 @@ var sh = class {
         (this.hearOn = r),
         (this.annaHeard = o),
         (this.agentNames = a),
+        (this.framing = f),
+        (this.bare = b),
         (this.agents = []),
         (this.people = new Map()),
         (this.speakerId = null));
@@ -1636,14 +1694,14 @@ var sh = class {
           .join(""),
         n = lr.ctop.replace(/<span class="num">\d+<\/span>/, `<span class="num">${e.length}</span>`);
       return (
-        (this.root.innerHTML = `<div class="stage${this.pair ? " pair" : ""}" data-count="${e.length}">${n}<div class="grid"><div class="tiles">${t}</div></div>${lr.cbar}</div>`),
+        (this.root.innerHTML = `<div class="stage${this.pair ? " pair" : ""}${this.bare ? " bare" : ""}" data-count="${e.length}">${n}<div class="grid"><div class="tiles">${t}</div></div>${lr.cbar}</div>`),
         (this.el = this.root.querySelector(".stage")),
         [...this.el.querySelectorAll(".tile")].forEach((r, o) => {
           if (((r.dataset.id = e[o]), mS(r), r.classList.contains("self"))) {
             let a = r.querySelector("[data-ear]");
             ((a.hidden = !this.hearOn), this.people.set("You", { el: r, heard: () => this.hearOn }));
           } else if (r.classList.contains("agent")) {
-            let a = new sh(this, r, e[o], { hue: e[o] === "Clara" ? 150 : 0 });
+            let a = new sh(this, r, e[o], { hue: e[o] === "Clara" ? 150 : 0, framing: this.framing });
             this.agents.push(a);
           } else this.people.set(e[o], { el: r, heard: () => !(e[o] === "Anna" && this.pair && !this.annaHeard) });
         }),
@@ -1692,8 +1750,20 @@ var sh = class {
       this.root.innerHTML = "";
     }
   },
-  lt = { stage: null, count: 3, policy: "B" },
+  lt = { stage: null, count: 3, policy: "B", framing: "shoulders" },
   Dt = { a: null, b: null, speaker: "Anna" },
+  Fr = [],
+  FRAMES = [
+    ["face", "Gesicht", "Die Kamera zeigt nur das Gesicht."],
+    ["shoulders", "Schultern", "Gesicht und Schultern; so zeigt die Kachel die Figur heute."],
+    ["upper", "Oberkörper", "Kopf bis Hüfte, die Hände bleiben im Bild."],
+    ["full", "ganzer Körper", "Die Figur steht von Kopf bis Fuß in der Kachel."],
+  ],
+  STEPS = [
+    ["Vorher", "Schultern", { from: "shoulders", to: "full", k: 0 }],
+    ["Unterwegs", "die Kamera gleitet", { from: "shoulders", to: "full", k: 0.5 }],
+    ["Nachher", "ganzer Körper", { from: "shoulders", to: "full", k: 1 }],
+  ],
   Vp = "stage",
   Rt = (i, e = document) => e.querySelector(i),
   ah = (i, e = document) => [...e.querySelectorAll(i)];
@@ -1709,11 +1779,12 @@ function Sl() {
 }
 function kp() {
   (lt.stage?.dispose(),
-    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy }).build()),
+    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy, framing: lt.framing }).build()),
     (Rt("#mainCall").closest(".view").dataset.count = lt.count),
     Sl(),
     Di(Rt("#grpLayout"), String(lt.count)),
-    Di(Rt("#grpPolicy"), lt.policy));
+    Di(Rt("#grpPolicy"), lt.policy),
+    Di(Rt("#grpFraming"), lt.framing));
 }
 function gS() {
   (Dt.a?.dispose(), Dt.b?.dispose());
@@ -1724,16 +1795,32 @@ function lh(i) {
   ((Dt.speaker = i), Di(Rt("#grpGazeWho"), i || ""));
   for (let e of [Dt.a, Dt.b]) e?.setSpeaker(i || null);
 }
+function fgrid(i, entries, bare = !1) {
+  let g = Rt(i);
+  g.innerHTML = entries.map(([id, title, note]) => `<div class="view"><div class="pair-label">${title}<small>${note}</small></div><div class="call" id="fr_${id}"></div></div>`).join("");
+  return entries.map(([id, , , framing]) => {
+    let c = new co(Rt("#fr_" + id), { count: 3, pair: !0, bare, framing: typeof framing === "string" ? framing : "shoulders" }).build();
+    return (typeof framing === "object" && c.mozart.character.setFraming(framing), c);
+  });
+}
 function ch(i) {
   ((Vp = i),
     ah("[data-tab]").forEach((e) => e.setAttribute("aria-pressed", String(e.dataset.tab === i))),
-    (Rt("#stageView").hidden = i !== "stage"),
-    (Rt("#gazeView").hidden = i !== "gaze"),
-    i === "stage" ? (Dt.a?.dispose(), Dt.b?.dispose(), (Dt.a = Dt.b = null), lt.stage || kp()) : (lt.stage?.dispose(), (lt.stage = null), gS()));
+    ["stage", "gaze", "framing", "change"].forEach((v) => (Rt("#" + v + "View").hidden = i !== v)),
+    i !== "stage" && (lt.stage?.dispose(), (lt.stage = null)),
+    Dt.a?.dispose(),
+    Dt.b?.dispose(),
+    (Dt.a = Dt.b = null),
+    Fr.forEach((c) => c.dispose()),
+    (Fr = []),
+    i === "stage" ? lt.stage || kp() : i === "gaze" ? gS() : i === "framing" ? (Fr = fgrid("#framingGrid", FRAMES.map(([id, t, n]) => [id, t, n, id]))) : (Fr = fgrid("#changeGrid", STEPS.map(([t, n, m]) => [t.toLowerCase(), t, n, m]), !0)));
 }
 var lo = {
   layout(i) {
     ((lt.count = Number(i)), kp());
+  },
+  framing(i) {
+    ((lt.framing = i), lt.stage.mozart.character.setFraming(i), Di(Rt("#grpFraming"), i));
   },
   policy(i) {
     ((lt.policy = i), lt.stage && (lt.stage.policy = i), Di(Rt("#grpPolicy"), i));
@@ -1811,7 +1898,7 @@ function _S(i) {
 }
 function xS() {
   let i = [],
-    t = (Vp === "stage" ? (lt.stage?.agents ?? []) : [...(Dt.a?.agents ?? []), ...(Dt.b?.agents ?? [])]).filter((s) => s.character.memory),
+    t = [...(lt.stage?.agents ?? []), ...(Dt.a?.agents ?? []), ...(Dt.b?.agents ?? []), ...Fr.flatMap((c) => c.agents)].filter((s) => s.character.memory),
     n = t[0]?.character.memory;
   (i.push(`Bild ${Tt.cpu.toFixed(1)} ms`),
     i.push(`${Math.round(Tt.fps)} fps`),
@@ -1833,7 +1920,7 @@ function vS() {
   (ah("#grpFail button").forEach((r) => r.setAttribute("aria-pressed", String(r.dataset.v === s))), zp(), Di(Rt("#who"), i.speakerId ?? ""));
 }
 setInterval(() => {
-  (lt.stage?.tick(), Dt.a?.tick(), Dt.b?.tick());
+  (lt.stage?.tick(), Dt.a?.tick(), Dt.b?.tick(), Fr.forEach((c) => c.tick()));
 }, 1e3 / 30);
 setInterval(() => {
   (xS(), vS());
@@ -1854,6 +1941,9 @@ window.proto = {
   get gaze() {
     return Dt;
   },
+  get frames() {
+    return Fr;
+  },
   setCount(i) {
     lo.layout(String(i));
   },
@@ -1865,14 +1955,14 @@ window.proto = {
     (document.documentElement.toggleAttribute("data-reduce", i), Rt('[data-act="reduce"]').setAttribute("aria-pressed", String(i)));
   },
   characters() {
-    return [...(lt.stage?.agents ?? []), ...(Dt.a?.agents ?? []), ...(Dt.b?.agents ?? [])].map((i) => i.character);
+    return [...(lt.stage?.agents ?? []), ...(Dt.a?.agents ?? []), ...(Dt.b?.agents ?? []), ...Fr.flatMap((c) => c.agents)].map((i) => i.character);
   },
   async ready() {
     for (; this.characters().some((i) => i.status === "loading");) await new Promise((i) => setTimeout(i, 50));
   },
 };
 var rh = oh;
-ch(rh.get("view") === "gaze" ? "gaze" : "stage");
+ch(["gaze", "framing", "change"].includes(rh.get("view")) ? rh.get("view") : "stage");
 rh.get("count") && lo.layout(rh.get("count"));
 Rt("#pick").addEventListener("change", async (i) => {
   let e = i.target.files[0];
