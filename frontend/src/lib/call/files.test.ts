@@ -149,13 +149,14 @@ function chunksOf(content: Uint8Array): ArrayBuffer[] {
 /** Follows the reads of a file's parts, so a case goes on when the exchange has read and not after a guess of how long that takes. */
 function watchReads(file: Blob) {
     const reads: Promise<ArrayBuffer>[] = [];
+    let gate: Promise<void> = Promise.resolve();
     const waiters: { count: number; resolve: () => void }[] = [];
     const slice = file.slice.bind(file);
     file.slice = (...range: Parameters<Blob["slice"]>) => {
         const part = slice(...range);
         const read = part.arrayBuffer.bind(part);
         part.arrayBuffer = () => {
-            const reading = read();
+            const reading = gate.then(read);
             reads.push(reading);
             for (const waiter of waiters) if (reads.length >= waiter.count) waiter.resolve();
             return reading;
@@ -165,6 +166,14 @@ function watchReads(file: Blob) {
     return {
         get requested() {
             return reads.length;
+        },
+        /** Keeps the reads asked for from now on pending until the returned function settles them. */
+        hold() {
+            let open = () => {};
+            gate = new Promise<void>((resolve) => {
+                open = resolve;
+            });
+            return open;
         },
         /** Settles when the `count`th part is read and the exchange went on with it. */
         async read(count: number) {
@@ -525,7 +534,9 @@ describe("a file served", () => {
         return { ...exchanged, content, reads };
     }
 
-    function fetchedBy(participantId: string, id: number, files: ReturnType<typeof exchange>["files"]) {
+    type Files = ReturnType<typeof exchange>["files"];
+
+    function fetchedBy(participantId: string, id: number, files: Files) {
         const channel = new FakeChannel(`file:${String(id)}`);
         files.serve(participantId, channel);
         return channel;
@@ -558,15 +569,15 @@ describe("a file served", () => {
         expect(channel.bufferedAmountLowThreshold).toBeGreaterThanOrEqual(0);
     });
 
-    it("stops when the receiver's channel closes under it", async () => {
+    it("sends nothing of a chunk that was being read when the receiver's channel closed", async () => {
         const { files, reads } = sender();
         const channel = new FakeChannel("file:1");
-        channel.bufferedAmount = 10 * 1024 * 1024;
         const readsBefore = reads.requested;
+        const settle = reads.hold();
 
         files.serve("p1", channel);
         channel.drop();
-        channel.bufferedAmount = 0;
+        settle();
         await reads.read(readsBefore + 1);
 
         expect(channel.sent).toEqual([]);
