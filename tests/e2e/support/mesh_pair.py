@@ -115,7 +115,6 @@ class SignalingTap:
     blackhole_downstream: bool = False
     refused_connections: int = 0
     corrupt_resume_token: bool = False
-    deliver_chats_twice: bool = False
     hold_resumed: bool = False
     held_resumed: list[str | bytes] = field(default_factory=list)
     sent_before_resumed_released: int = 0
@@ -166,8 +165,6 @@ class SignalingTap:
             self.held_resumed.append(frame)
         else:
             browser_side.send(frame)
-            if self.deliver_chats_twice and message["type"] == SignalType.CHAT:
-                browser_side.send(frame)
 
     def types(self, direction: list[dict[str, Any]]) -> list[str]:
         return [message["type"] for message in direction]
