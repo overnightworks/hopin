@@ -3,8 +3,9 @@ people talking over a sentence of the agent stand in its window as a record unti
 
 The record is the agents library's talked-over record. HopIn opens it for each agent that hears a person who starts
 speaking while a sentence of that agent plays or waits, or while it is held, updates it with the words heard, and
-removes it with the last person's turn. A record that opens while the agent speaks also holds it, and the window says
-so until the hold ends. Every change tells the agent whose window changed once.
+removes it with the last person's turn. A person who joins a record while the agent speaks and is not held holds it;
+the agent's speaking owns the hold and whether a sentence plays, and a read of the window takes both from it. Every
+change tells the agent whose window changed once.
 
 While a window states its agent's voice unavailable, the speech service is asked at a fixed interval whether a voice of
 the agent is offered again, and the window turns available once it is, with no sentence needed; with no such window
@@ -190,29 +191,26 @@ class SpeechInWindows:
         windows = (self._places.window_of(agent.person, agent.room_id) for agent in self._places.joined())
         return [window for window in windows if window is not None]
 
-    def sentence_started(self, agent: DialedAgent) -> None:
-        """A sentence of the agent plays: the record that stands says so."""
+    def sentence_started(self, agent: DialedAgent, *, at_once: bool) -> None:
+        """A sentence of the agent plays: the record that stands says so, unless the sentence starts at once after one
+        that was continued into it, which kept the record saying a sentence plays."""
         window = self._places.window_of(agent.person, agent.room_id)
-        if window is not None and window.set_playing(playing=True):
+        if window is not None and window.has_record and not at_once:
             self._on_window_changed(agent.person, agent.room_id)
 
     def sentence_ended(self, agent: DialedAgent, sentence: QueuedSentence, end: SentenceEnd) -> None:
-        """A sentence of the agent was said to its end or cut: it enters every window in the room as a spoken line,
-        the agent's own as its own, and the agent's record says it plays no more unless its next sentence starts at
-        once, all in one change of each window."""
+        """A sentence of the agent was said to its end or cut: it enters every window in the room as a spoken line, the
+        agent's own as its own, in one change of each window."""
         for person, window in self._places.windows_in(agent.room_id).items():
-            own = person == agent.person
             changed = window.append(
                 LineKind.AGENT,
                 agent.name,
                 sentence.text,
-                own=own,
+                own=person == agent.person,
                 spoken=True,
                 cut=end is SentenceEnd.CUT,
                 traceparent=current_traceparent(),
             )
-            if own and end is not SentenceEnd.CONTINUED:
-                changed = window.set_playing(playing=False) or changed
             if changed:
                 self._on_window_changed(person, agent.room_id)
 
@@ -255,34 +253,29 @@ class SpeechInWindows:
         return agent.agent_id if isinstance(agent, DialedAgent) else None
 
     def person_started(
-        self, room_id: str, seat: PeerId, is_speaking: Callable[[DialedAgent], bool]
+        self, room_id: str, seat: PeerId, opens: Callable[[DialedAgent], bool], is_held: Callable[[DialedAgent], bool]
     ) -> dict[DialedAgent, str]:
-        """A person starts speaking: each agent that hears the seat is talked over while one of its sentences plays or
-        waits, as `is_speaking` says, or while it is held, and an agent that was not held is held by that. The ids of
-        the holds that arose, by the agent held."""
+        """A person starts speaking: each agent that hears the seat is talked over, a new record opening only when
+        `opens` says a sentence of the agent plays or waits or it is held. The person holds the agent when the agent
+        `opens` and is not `is_held`. The ids of the holds that arose, by the agent to hold."""
         arisen: dict[DialedAgent, str] = {}
         for person in self._hearing.hearers(room_id, seat):
             window = self._places.window_of(person, room_id)
             agent = self._places.get(person, room_id)
             assert window is not None  # noqa: S101 - only a joined agent hears
             assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent hears
-            held_before = window.interrupted
-            if window.talk_over(seat, self._name_of(seat), speaking=is_speaking(agent)):
+            opening = opens(agent)
+            if window.talk_over(seat, self._name_of(seat), opens=opening):
                 self._on_window_changed(person, room_id)
-            if held_before is None and window.interrupted is not None:
-                arisen[agent] = window.interrupted
+                if opening and not is_held(agent):
+                    arisen[agent] = window.new_hold_id()
         return arisen
 
-    def hold_ended(self, agent: DialedAgent, resumed: bool) -> None:
-        """The hold over the agent ended: the window stops saying that it is held, and that no sentence plays when the
-        held one goes on, in one change."""
-        window = self._places.window_of(agent.person, agent.room_id)
-        if window is None:
-            return
-        window.end_hold()
-        if resumed:
-            window.set_playing(playing=True)
-        self._on_window_changed(agent.person, agent.room_id)
+    def hold_ended(self, agent: DialedAgent) -> None:
+        """The hold over the agent ended: its window changed, which now says that it is not held and whether the held
+        sentence plays on."""
+        if self._places.window_of(agent.person, agent.room_id) is not None:
+            self._on_window_changed(agent.person, agent.room_id)
 
     def words_heard(self, room_id: str, seat: PeerId, text: str) -> None:
         """The words the seat has said so far in its turn."""
