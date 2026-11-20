@@ -92,7 +92,7 @@ class TestCreateApp:
         settings.session_secret_file.unlink()
         page_build = fixture_page_build()
         shared_stores = in_thread_stores()
-        with pytest.raises(StartRefusedError, match="session_secret_file"):
+        with pytest.raises(StartRefusedError, match="HOPIN_SESSION_SECRET_FILE"):
             create_app(settings, page_build=page_build, shared_stores=shared_stores)
 
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):

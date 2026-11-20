@@ -42,7 +42,7 @@ class TestSecretFiles:
         corrupt_secret_file(settings, setting, state, sentinel)
 
         rate_limits = in_thread_stores().rate_limits
-        with pytest.raises(StartRefusedError, match=setting) as refusal:
+        with pytest.raises(StartRefusedError, match=setting.upper()) as refusal:
             build_sign_in_configs(settings, (), rate_limits)
 
         error = refusal.value
@@ -58,7 +58,7 @@ class TestSecretFiles:
         settings = sign_in_settings().settings
         settings.session_secret_file.write_text(secrets.token_urlsafe(24)[:31])
         rate_limits = in_thread_stores().rate_limits
-        with pytest.raises(SignInConfigurationError, match="session_secret_file"):
+        with pytest.raises(SignInConfigurationError, match="HOPIN_SESSION_SECRET_FILE"):
             build_sign_in_configs(settings, (), rate_limits)
 
     def test_a_session_secret_of_32_characters_is_accepted(self, sign_in_settings):
@@ -127,7 +127,7 @@ class TestRefusedUrls:
     def test_an_http_url_stops_the_start_naming_the_settings_and_not_the_value(self, sign_in_settings, setting, value):
         settings = sign_in_settings(**{setting: value}).settings
         rate_limits = in_thread_stores().rate_limits
-        with pytest.raises(SignInConfigurationError, match="oidc_issuer and public_origin") as refusal:
+        with pytest.raises(SignInConfigurationError, match="HOPIN_OIDC_ISSUER and HOPIN_PUBLIC_ORIGIN") as refusal:
             build_sign_in_configs(settings, (), rate_limits)
         assert value not in str(refusal.value)
 

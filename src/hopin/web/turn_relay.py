@@ -174,8 +174,8 @@ def build_turn_relay(settings: ServerSettings, post: TurnCredentialsPost) -> Tur
     # The settings validator refuses a missing file when TURN is on.
     key_id_file = cast("Path", settings.turn_key_id_file)
     api_token_file = cast("Path", settings.turn_api_token_file)
-    key_id = read_secret_file(key_id_file, "turn_key_id_file")
-    _checked(key_id, KEY_ID_PATTERN, "turn_key_id_file")
-    api_token = read_secret_file(api_token_file, "turn_api_token_file")
-    _checked(api_token, API_TOKEN_PATTERN, "turn_api_token_file")
+    key_id = read_secret_file(key_id_file, "HOPIN_TURN_KEY_ID_FILE")
+    _checked(key_id, KEY_ID_PATTERN, "HOPIN_TURN_KEY_ID_FILE")
+    api_token = read_secret_file(api_token_file, "HOPIN_TURN_API_TOKEN_FILE")
+    _checked(api_token, API_TOKEN_PATTERN, "HOPIN_TURN_API_TOKEN_FILE")
     return CloudflareTurnRelay(key_id=key_id.get_secret_value(), api_token=api_token, post=post)
