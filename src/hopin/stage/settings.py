@@ -6,7 +6,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hopin.config.secret_files import StartRefusedError
-from hopin.skat.vocabulary import CALL_MODE_QUERY, TABLE_PATH_PATTERN, TABLE_PATH_PREFIX
+from hopin.stage.vocabulary import CALL_MODE_QUERY, TABLE_PATH_PATTERN, TABLE_PATH_PREFIX
 
 HTTPS_PORT = 443
 HOST_PATTERN = re.compile(r"[a-z0-9.-]+")

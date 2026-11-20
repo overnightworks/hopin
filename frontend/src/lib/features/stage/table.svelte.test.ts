@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OutgoingFrame } from "#lib/call/feature-port.ts";
 import { Table } from "./table.svelte.ts";
-import { SKAT_SIGNAL, type SkatFrameByType } from "./wire.ts";
+import { STAGE_SIGNAL, type StageFrameByType } from "./wire.ts";
 
 const ME = "me";
 const SOMEONE = "someone";
@@ -11,11 +11,11 @@ function stateOf(
     revision: number,
     attachment: number | null,
     openerId: string | null = SOMEONE,
-): SkatFrameByType[SKAT_SIGNAL.SKAT_TABLE] {
+): StageFrameByType[STAGE_SIGNAL.STAGE_TABLE] {
     if (attachment === null)
-        return { type: SKAT_SIGNAL.SKAT_TABLE, revision, attachment, table: null, src: null, opener_id: null };
+        return { type: STAGE_SIGNAL.STAGE_TABLE, revision, attachment, table: null, src: null, opener_id: null };
     return {
-        type: SKAT_SIGNAL.SKAT_TABLE,
+        type: STAGE_SIGNAL.STAGE_TABLE,
         revision,
         attachment,
         table: TABLE,
@@ -184,7 +184,7 @@ describe("removing the table", () => {
 
         table.remove();
 
-        expect(sent).toEqual([{ type: SKAT_SIGNAL.SKAT_DETACH, attachment: 7 }]);
+        expect(sent).toEqual([{ type: STAGE_SIGNAL.STAGE_DETACH, attachment: 7 }]);
     });
 
     it("asks for nothing while no table is shown", () => {

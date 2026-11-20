@@ -7,7 +7,7 @@ import { words } from "#lib/words.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { install } from "./index.ts";
-import { SKAT_REFUSAL, SKAT_SIGNAL } from "./wire.ts";
+import { STAGE_REFUSAL, STAGE_SIGNAL } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -57,9 +57,9 @@ async function installedSkat() {
         if (found === null) throw new Error(`no ${selector}`);
         return found;
     };
-    const button = () => query("#skatShowBtn") as HTMLButtonElement;
-    const form = () => query("#skatForm") as HTMLFormElement;
-    const input = () => query("#skatLink") as HTMLInputElement;
+    const button = () => query("#stageShowBtn") as HTMLButtonElement;
+    const form = () => query("#stageForm") as HTMLFormElement;
+    const input = () => query("#stageLink") as HTMLInputElement;
     return {
         item,
         sent,
@@ -107,7 +107,7 @@ describe("the Skat entry in More", () => {
 
         page.paste("https://skat.example/t/a");
 
-        expect(page.sent).toEqual([{ type: SKAT_SIGNAL.SKAT_ATTACH, link: "https://skat.example/t/a" }]);
+        expect(page.sent).toEqual([{ type: STAGE_SIGNAL.STAGE_ATTACH, link: "https://skat.example/t/a" }]);
         expect(page.form().hidden).toBe(true);
         expect(page.input().value).toBe("");
         expect(page.closed).toEqual([true]);
@@ -116,9 +116,9 @@ describe("the Skat entry in More", () => {
     it("is hidden while a table is shown and comes back when it is removed", async () => {
         const page = await installedSkat();
 
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, SHOWN);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
         const whileShown = page.item.hidden;
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, NONE);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, NONE);
 
         expect([whileShown, page.item.hidden]).toEqual([true, false]);
     });
@@ -129,8 +129,8 @@ describe("the stage", () => {
         const page = await installedSkat();
         page.emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: "me", is_host: false });
 
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, SHOWN);
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, NONE);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, NONE);
 
         expect(page.stage.map((view) => view !== null)).toEqual([true, false]);
     });
@@ -138,7 +138,7 @@ describe("the stage", () => {
     it("frames the table in the agreed sandbox and sends its removal from the opener's button", async () => {
         const page = await installedSkat();
         page.emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: "me", is_host: false });
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, SHOWN);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
         const [view] = page.stage;
         const target = document.createElement("div");
         const mounted = mount(view as FeatureView, { target });
@@ -153,13 +153,13 @@ describe("the stage", () => {
             SHOWN.src,
         ]);
         expect(frame?.getAttribute("referrerpolicy")).toBe("no-referrer");
-        expect(page.sent).toEqual([{ type: SKAT_SIGNAL.SKAT_DETACH, attachment: 2 }]);
+        expect(page.sent).toEqual([{ type: STAGE_SIGNAL.STAGE_DETACH, attachment: 2 }]);
     });
 
     it("offers no removal to a seat that may not remove the table", async () => {
         const page = await installedSkat();
         page.emit(SIGNAL_TYPE.ROOM_CREATED, { participant_id: "me", is_host: false });
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, { ...SHOWN, opener_id: "someone" });
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, { ...SHOWN, opener_id: "someone" });
         const [view] = page.stage;
         const target = document.createElement("div");
 
@@ -173,7 +173,7 @@ describe("the stage", () => {
     it("is cleared when the call ends", async () => {
         const page = await installedSkat();
         page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "me", is_host: true });
-        page.emit(SKAT_SIGNAL.SKAT_TABLE, SHOWN);
+        page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
 
         page.endCall();
 
@@ -184,13 +184,13 @@ describe("the stage", () => {
 
 describe("a refusal", () => {
     it.each([
-        [SKAT_REFUSAL.BAD_LINK, words["skat.badLinkToast"]],
-        [SKAT_REFUSAL.BUSY, words["skat.busyToast"]],
-        [SKAT_REFUSAL.NOT_OPENER_OR_HOST, words["skat.notRemovedToast"]],
+        [STAGE_REFUSAL.BAD_LINK, words["skat.badLinkToast"]],
+        [STAGE_REFUSAL.BUSY, words["skat.busyToast"]],
+        [STAGE_REFUSAL.NOT_OPENER_OR_HOST, words["skat.notRemovedToast"]],
     ])("%s is told to the person", async (reason, text) => {
         const page = await installedSkat();
 
-        page.emit(SKAT_SIGNAL.SKAT_REFUSED, { reason });
+        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason });
 
         expect(page.toasts).toEqual([text]);
     });
@@ -198,7 +198,7 @@ describe("a refusal", () => {
     it("of a kind this page does not know is not toasted", async () => {
         const page = await installedSkat();
 
-        page.emit(SKAT_SIGNAL.SKAT_REFUSED, { reason: "something_new" });
+        page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: "something_new" });
 
         expect(page.toasts).toEqual([]);
     });

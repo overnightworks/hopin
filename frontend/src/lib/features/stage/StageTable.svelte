@@ -24,10 +24,10 @@
     });
 </script>
 
-<div class="skat-table">
+<div class="stage-table">
     <iframe
         bind:this={frame}
-        class="skat-frame"
+        class="stage-frame"
         title={words["skat.frameTitle"]}
         {src}
         sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
@@ -36,7 +36,7 @@
     ></iframe>
     {#if table.mayRemove}
         <button
-            class="button skat-remove"
+            class="button stage-remove"
             type="button"
             onclick={() => {
                 table.remove();

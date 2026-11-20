@@ -36,7 +36,7 @@ Caption: who talks to whom, from `auth/`, `web/turn_relay.py` and `agent/`. A ch
 flowchart TB
     subgraph browser["Browser: SvelteKit shell"]
         shell["start-up: wires the shell"] --> core["call core: signaling, mesh, media"]
-        shell -. "loads by name" .-> feats["features: game, participation, skat, figure"]
+        shell -. "loads by name" .-> feats["features: game, participation, stage, figure"]
         feats --> core
     end
     core <-- "WebSocket frames" --> sig
@@ -44,7 +44,7 @@ flowchart TB
     feats -. "framed table page, optional" .-> SK[Skat frame]
     subgraph server["Server: each layer imports only the ones below it"]
         main --> app --> agent --> features --> people --> auth --> web --> sig[signaling] --> rooms --> stores --> config
-        features["game, participation, skat"]
+        features["game, participation, stage"]
     end
     auth -.-> KC[Keycloak]
     stores -.-> RD[Redis]
@@ -66,7 +66,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `people` | the admin download of what HopIn holds about one person |
 | `game` | optional: one quiz per call |
 | `participation` | optional: the agents a person dials in, with no AI in it |
-| `skat` | optional: the Skat table a call shows |
+| `stage` | optional: the Skat table a call shows |
 | `agent` | optional connector: the MCP surface of a person's agents and the quiz agent; the only speaker to LiteLLM and the speech service |
 | `app` | the composition root: wires the packages, names no feature |
 | `main` | starts the server and switches the optional features in |

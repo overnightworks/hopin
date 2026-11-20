@@ -10,7 +10,7 @@ and sign-in transaction, whose product is the feature, its router and, for a fea
 protected resource the bearer gate admits. The features' `sign_in_scopes` join the sign-in's, their `frame_sources`
 the Content-Security-Policy's `frame-src` (none keeps `'none'`), and `GET /api/call-features` (`web/call_features.py`)
 names the browser modules of every wired feature. `main.py` passes the game and Skat in on lines marked `# game` and
-`# skat`, which `scripts/remove_feature.py` deletes, and `create_app` builds the server without any when
+`# stage`, which `scripts/remove_feature.py` deletes, and `create_app` builds the server without any when
 `call_features` is left empty.
 """
 

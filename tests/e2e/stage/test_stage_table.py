@@ -6,7 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.words import text
-from tests.e2e.skat.skat_page import (
+from tests.e2e.stage.stage_page import (
     FRAME,
     LINK_FIELD,
     REMOVE_TABLE,
@@ -30,7 +30,7 @@ from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from tests.e2e.skat.stub_skat import StubSkat
+    from tests.e2e.stage.stub_skat import StubSkat
     from tests.e2e.support.browser_coverage import BrowserCoverage
     from tests.e2e.support.dialed_agent import Agent
     from tests.e2e.support.server import RunningServer
@@ -246,7 +246,7 @@ def test_a_link_that_is_no_table_of_skat_is_told_and_a_stale_second_attach_is_re
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(guest, stub_skat)
     # A More that still offers the item stands for a seat whose attach crossed the other's.
-    guest.evaluate("() => { document.querySelector('#skatItem').hidden = false; }")
+    guest.evaluate("() => { document.querySelector('#stageItem').hidden = false; }")
     show_table(guest, table_link(stub_skat, "f" * 32))
 
     expect(guest.locator(TOASTS)).to_contain_text(text("de", "skat.busyToast"))

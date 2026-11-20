@@ -394,7 +394,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [game, skat]
+        feature: [game, stage]
     env:
       COPY: ${{ github.workspace }}-without-${{ matrix.feature }}
     steps:

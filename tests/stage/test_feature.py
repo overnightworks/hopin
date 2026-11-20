@@ -4,9 +4,9 @@ import pytest
 
 from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.signaling.frames import ForeignFrame
-from hopin.skat.vocabulary import SkatRefusal, SkatSignal
+from hopin.stage.vocabulary import StageRefusal, StageSignal
 from tests.signaling.support.browsers import HeldWrite, clear_sent
-from tests.skat.support.tables import OTHER_TABLE_LINK, TABLE_ID, TABLE_LINK
+from tests.stage.support.tables import OTHER_TABLE_LINK, TABLE_ID, TABLE_LINK
 from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = pytest.mark.integration
@@ -17,20 +17,21 @@ FIRST_ATTACHMENT = 1
 def tables(browser):
     """The state frames the browser was sent, without their sequence numbers, which are the seat's own."""
     return [
-        {key: value for key, value in frame.items() if key != "seq"} for frame in browser.frames(SkatSignal.SKAT_TABLE)
+        {key: value for key, value in frame.items() if key != "seq"}
+        for frame in browser.frames(StageSignal.STAGE_TABLE)
     ]
 
 
 def refusals(browser):
-    return [frame["reason"] for frame in browser.frames(SkatSignal.SKAT_REFUSED)]
+    return [frame["reason"] for frame in browser.frames(StageSignal.STAGE_REFUSED)]
 
 
 async def attach(browser, link=TABLE_LINK):
-    await browser.say({"type": SkatSignal.SKAT_ATTACH.value, "link": link})
+    await browser.say({"type": StageSignal.STAGE_ATTACH.value, "link": link})
 
 
 async def detach(browser, attachment):
-    await browser.say({"type": SkatSignal.SKAT_DETACH.value, "attachment": attachment})
+    await browser.say({"type": StageSignal.STAGE_DETACH.value, "attachment": attachment})
 
 
 async def host_opener_and_guest(link):
@@ -67,7 +68,7 @@ class TestAttach:
 
         await attach(opener, "https://elsewhere.example/t/" + "a" * 32)
 
-        assert refusals(opener) == [SkatRefusal.BAD_LINK.value]
+        assert refusals(opener) == [StageRefusal.BAD_LINK.value]
         assert refusals(host) == []
         assert tables(host)[-1]["attachment"] is None
 
@@ -75,7 +76,7 @@ class TestAttach:
     async def test_a_link_that_is_no_string_is_an_invalid_message(self, link, link_value):
         host, opener, _guest = await host_opener_and_guest(link)
 
-        await opener.say({"type": SkatSignal.SKAT_ATTACH.value, "link": link_value})
+        await opener.say({"type": StageSignal.STAGE_ATTACH.value, "link": link_value})
 
         [error] = opener.frames(SignalType.ERROR)
         assert error["reason"] == "invalid_message"
@@ -88,7 +89,7 @@ class TestAttach:
 
         await attach(guest, OTHER_TABLE_LINK)
 
-        assert refusals(guest) == [SkatRefusal.BUSY.value]
+        assert refusals(guest) == [StageRefusal.BUSY.value]
         assert tables(guest)[-1] == shown
 
     async def test_of_two_attaches_at_once_exactly_one_wins(self, link):
@@ -98,7 +99,7 @@ class TestAttach:
 
         shown = tables(host)[-1]
         assert shown["src"] in (TABLE_LINK + "?mode=call", OTHER_TABLE_LINK + "?mode=call")
-        assert sorted([refusals(opener), refusals(guest)]) == [[], [SkatRefusal.BUSY.value]]
+        assert sorted([refusals(opener), refusals(guest)]) == [[], [StageRefusal.BUSY.value]]
         assert shown["opener_id"] == (opener.peer_id if refusals(opener) == [] else guest.peer_id)
 
 
@@ -123,7 +124,7 @@ class TestDetach:
 
         await detach(guest, shown["attachment"])
 
-        assert refusals(guest) == [SkatRefusal.NOT_OPENER_OR_HOST.value]
+        assert refusals(guest) == [StageRefusal.NOT_OPENER_OR_HOST.value]
         assert tables(opener)[-1] == shown
 
     async def test_a_stale_detach_removes_nothing_newer(self, link):
@@ -150,7 +151,7 @@ class TestDetach:
     async def test_an_attachment_that_is_no_integer_is_an_invalid_message(self, link, attachment):
         _host, opener, _guest = await host_opener_and_guest(link)
 
-        await opener.say({"type": SkatSignal.SKAT_DETACH.value, "attachment": attachment})
+        await opener.say({"type": StageSignal.STAGE_DETACH.value, "attachment": attachment})
 
         [error] = opener.frames(SignalType.ERROR)
         assert error["reason"] == "invalid_message"
@@ -227,7 +228,7 @@ class TestSeatsOutsideARoom:
     async def test_a_socket_that_has_not_joined_can_attach_nothing(self, link, handler):
         socket = await link.open(account_named("stranger"))
 
-        socket.push(text_frame({"type": SkatSignal.SKAT_ATTACH.value, "link": TABLE_LINK, "seq": 1}))
+        socket.push(text_frame({"type": StageSignal.STAGE_ATTACH.value, "link": TABLE_LINK, "seq": 1}))
         await link.settle(socket)
 
         assert socket.sent == []

@@ -2,8 +2,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hopin.skat.feature import SkatFeature
-from tests.e2e.skat.stub_skat import StubSkat, running_stub_skat
+from hopin.stage.feature import StageFeature
+from tests.e2e.stage.stub_skat import StubSkat, running_stub_skat
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ def skat_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFactory) -
     with running_hopin(
         loopback_sign_in(tmp_path_factory.mktemp("skat-sign-in")),
         tmp_path_factory.mktemp("skat-tls"),
-        SkatFeature(stub_skat.origin),
+        StageFeature(stub_skat.origin),
         participation=True,
     ) as server:
         yield server
@@ -34,7 +34,7 @@ def skat_hearing_server(stub_skat: StubSkat, tmp_path_factory: pytest.TempPathFa
     with running_hopin(
         loopback_sign_in(tmp_path_factory.mktemp("skat-hearing-sign-in")),
         tmp_path_factory.mktemp("skat-hearing-tls"),
-        SkatFeature(stub_skat.origin),
+        StageFeature(stub_skat.origin),
         participation=True,
         hears=True,
     ) as server:

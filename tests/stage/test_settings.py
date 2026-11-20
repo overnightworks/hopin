@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from hopin.config.secret_files import StartRefusedError
-from hopin.skat.feature import configured_skat_feature
+from hopin.stage.feature import configured_stage_feature
 
 PUBLIC_ORIGIN = "https://hopin.example"
 
@@ -21,13 +21,13 @@ def skat_origin(monkeypatch):
 def test_unset_means_no_skat_at_all(skat_origin):
     skat_origin(None)
 
-    assert configured_skat_feature(PUBLIC_ORIGIN) == ()
+    assert configured_stage_feature(PUBLIC_ORIGIN) == ()
 
 
 def test_a_configured_origin_gives_one_feature_that_frames_exactly_that_origin(skat_origin):
     skat_origin("https://skat.example:8443")
 
-    [feature] = configured_skat_feature(PUBLIC_ORIGIN)
+    [feature] = configured_stage_feature(PUBLIC_ORIGIN)
 
     assert feature.frame_sources == ("https://skat.example:8443",)
     assert feature.sign_in_scopes == ()
@@ -47,7 +47,7 @@ def test_an_origin_equal_to_the_public_origin_refuses_the_start_naming_both_sett
     skat_origin("https://skat.example")
 
     with pytest.raises(StartRefusedError) as refusal:
-        configured_skat_feature(public_origin)
+        configured_stage_feature(public_origin)
 
     assert "HOPIN_SKAT_ORIGIN" in str(refusal.value)
     assert "HOPIN_PUBLIC_ORIGIN" in str(refusal.value)
@@ -56,7 +56,7 @@ def test_an_origin_equal_to_the_public_origin_refuses_the_start_naming_both_sett
 def test_another_port_is_another_origin(skat_origin):
     skat_origin("https://hopin.example:8443")
 
-    assert len(configured_skat_feature(PUBLIC_ORIGIN)) == 1
+    assert len(configured_stage_feature(PUBLIC_ORIGIN)) == 1
 
 
 @pytest.mark.parametrize(
@@ -84,6 +84,6 @@ def test_a_malformed_origin_stops_the_start_without_echoing_it(skat_origin, valu
     skat_origin(value)
 
     with pytest.raises(ValidationError) as refusal:
-        configured_skat_feature(PUBLIC_ORIGIN)
+        configured_stage_feature(PUBLIC_ORIGIN)
 
     assert "skat.example" not in str(refusal.value)

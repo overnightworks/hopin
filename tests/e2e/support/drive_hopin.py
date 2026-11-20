@@ -14,7 +14,7 @@ from webauth.ports import AccountKind
 
 from hopin.agent.feature import GameFeature  # game
 from hopin.participation.voice import VoiceStore
-from hopin.skat.feature import SkatFeature
+from hopin.stage.feature import StageFeature
 from tests.e2e.support.people import playwright_cookie
 from tests.e2e.support.server import loopback_sign_in, running_hopin
 from tests.game.support.fake_agent_backend import FakeAgentBackend  # game
@@ -36,7 +36,7 @@ def serve(directory: Path, skat_origin: str) -> None:
         participation=True,
         voices=voices,
         certificate=(directory / "drive-key.pem", directory / "drive-ca.pem"),
-        more_call_features=(SkatFeature(skat_origin),),
+        more_call_features=(StageFeature(skat_origin),),
     ) as server:
         cookies = {}
         for name in PEOPLE:
