@@ -103,7 +103,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 
 The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), and `HOPIN_AGENT_ADDERS` and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
 
-Agents dial in through `POST /mcp` with a bearer token and need no setting, except that an agent with an account of its own is added only where `HOPIN_AGENT_ADDERS` maps its owner: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the four required settings and the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
+Agents dial in through `POST /mcp` with a bearer token and need no setting, except that an agent with an account of its own is added only where `HOPIN_AGENT_ADDERS` maps its owner: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the five required settings and the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Development
 
