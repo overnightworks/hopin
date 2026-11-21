@@ -1,9 +1,10 @@
 import io
 import json
 import secrets
+import time
 import zipfile
 from contextlib import ExitStack
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -12,7 +13,7 @@ import structlog.testing
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.admission import AppRole
-from webauth.config import install_web_auth_config, installed_web_auth_config
+from webauth.config import installed_web_auth_config
 from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
@@ -51,10 +52,29 @@ def stores():
     return single_process_stores()
 
 
+class SettableWallClock:
+    """The real wall clock until a test sets a reading."""
+
+    def __init__(self):
+        self.seconds = None
+
+    def __call__(self):
+        return time.time() if self.seconds is None else self.seconds
+
+
 @pytest.fixture
-def app(sign_in_settings, stores):
+def wall_clock():
+    return SettableWallClock()
+
+
+@pytest.fixture
+def app(sign_in_settings, stores, wall_clock):
     return create_app(
-        sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
+        sign_in_settings().settings,
+        page_build=fixture_page_build(),
+        shared_stores=in_thread_stores(),
+        stores=stores,
+        wall_clock=wall_clock,
     )
 
 
@@ -224,9 +244,9 @@ class TestExportOfAPerson:
         assert len(set(started)) == 2
         assert started == sorted(started)
 
-    def test_stamps_the_export_with_the_configured_clock_in_whole_seconds(self, app, client, admin, config):
+    def test_stamps_the_export_with_the_configured_clock_in_whole_seconds(self, client, admin, config, wall_clock):
         export_time = int(config.wall_clock()) + 90
-        install_web_auth_config(app, replace(config, wall_clock=lambda: export_time + 0.75))
+        wall_clock.seconds = export_time + 0.75
 
         _, export = read_archive(ask(client, "anna", admin).content)
 
