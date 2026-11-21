@@ -2,6 +2,7 @@
 
 import asyncio
 import threading
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -10,11 +11,12 @@ from agents.config import AgentConfig, ChatGateway
 from starlette.requests import HTTPConnection
 from webauth.admission import AppRole
 from webauth.languages import AppLanguages
+from webauth.oidc import OidcRelyingParty
 from webauth.ports import AccountKind
 
 from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
-from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
+from hopin.auth.sign_in import build_sign_in_configs
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
 from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
@@ -106,7 +108,13 @@ def build_world(sign_in: SignInSettings, languages: AppLanguages = APP_LANGUAGES
     configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
     stores = single_process_stores()
     sessions = StoreSpy(stores.sessions)
-    relying_party = build_relying_party(configs, issuer.transports)
+    relying_party = OidcRelyingParty(
+        configs.oidc_client,
+        post_token_request=issuer.transports.post_token_request,
+        fetch_key_set=issuer.transports.fetch_key_set,
+        wall_clock=configs.web_auth.wall_clock,
+        monotonic_clock=time.monotonic,
+    )
     return World(issuer, FakeAgentBackend(), stores, sessions, relying_party, configs.web_auth, languages)
 
 

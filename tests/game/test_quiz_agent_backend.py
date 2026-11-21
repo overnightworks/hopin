@@ -7,6 +7,7 @@ from agents.agent_file import load_agent
 from agents.turn import FailureCode, Principal, RejectionCode, RunFile
 from logline import Outcome
 from webauth.admission import AppRole
+from webauth.oidc import IdpErrorCode
 
 from hopin.agent.backend import QUIZ_AGENT_FILE, VERDICT_TOOL
 from hopin.game.quiz import Judgement, Speaker, Turn, Verdict
@@ -132,7 +133,7 @@ class TestThePerson:
         ("idp_error", "logged"),
         [
             pytest.param("unauthorized_client", "unauthorized_client", id="an-oauth-error"),
-            pytest.param(secrets.token_urlsafe(32), "other", id="text-outside-the-oauth-vocabulary"),
+            pytest.param(secrets.token_urlsafe(32), IdpErrorCode.OTHER, id="text-outside-the-oauth-vocabulary"),
         ],
     )
     async def test_a_refresh_grant_refused_otherwise_is_unavailable_and_logged_by_a_closed_value(

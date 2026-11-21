@@ -84,7 +84,7 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Receive, Scope, Send
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionTransaction, SignInTransaction
+    from webauth.ports import SessionTransaction
 
     from hopin.agent.speech_settings import SpeechService
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
@@ -455,7 +455,6 @@ class ParticipationFeature:
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         deadlines: Deadlines,
-        transaction: SignInTransaction,
         request_language: RequestLanguage,
         page_build: PageBuild,
     ) -> BuiltParticipationFeature:
@@ -497,8 +496,8 @@ class ParticipationFeature:
         )
         _add_file_routes(router, store, clip_store, built.current)
         self._add_voice_route(router, built.current)
-        self._add_hearing_route(router, built.current, relying_party, session_transaction, scheduler, hearing_tokens)
-        return BuiltParticipationFeature(built.participation, router, self._resource(transaction))
+        self._add_hearing_route(router, built.current, relying_party, scheduler, hearing_tokens)
+        return BuiltParticipationFeature(built.participation, router, self._resource())
 
     def _clip_store(self) -> FigureStore:
         """The store of the clips, with its own byte bound, cache and step line apart from the figure's."""
@@ -519,7 +518,6 @@ class ParticipationFeature:
         router: APIRouter,
         participation: Callable[[], Participation],
         relying_party: OidcRelyingParty,
-        session_transaction: SessionTransaction,
         scheduler: Scheduler,
         hearing_tokens: HearingTokens,
     ) -> None:
@@ -529,7 +527,7 @@ class ParticipationFeature:
         hearing_route = HearingRoute(
             service=self.hearing,
             issuer=relying_party.issuer,
-            resolver=SessionIdentityResolver(session_transaction),
+            resolver=SessionIdentityResolver(),
             participation=participation,
             tokens=hearing_tokens,
             relying_party=relying_party,
@@ -567,7 +565,7 @@ class ParticipationFeature:
             methods=READ_METHODS,
         )
 
-    def _resource(self, transaction: SignInTransaction) -> ProtectedResource:
+    def _resource(self) -> ProtectedResource:
         return ProtectedResource(
             url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
             scope=MCP_SCOPE,
@@ -575,7 +573,6 @@ class ParticipationFeature:
             agent_group=AGENT_GROUP,
             authorized_parties=AuthorizedParties(frozenset({MCP_CLIENT_ID})),
             admits_client_audience=True,
-            transaction=transaction,
         )
 
     def _voice(self, relying_party: OidcRelyingParty, tokens: HearingTokens) -> AgentVoice | None:
