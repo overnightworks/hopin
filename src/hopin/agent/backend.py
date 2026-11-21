@@ -2,8 +2,8 @@
 
 The turn logs only codes. `game_master_turn.ended` carries a refused turn's closed detail label, else its rejection or
 failure code, or a closed reason of HopIn's own such as `no_words`; `group_read.ended` and `token_refresh.ended` carry
-webauth's and the issuer's refusal reason, the issuer's error code when it is one of OAuth's token endpoint codes, else
-`other`. No field carries a prompt, a question, a group, a key or what the gateway answered.
+webauth's and the issuer's refusal reason, the issuer's error code when webauth registers it, else webauth's
+`_OTHER`. No field carries a prompt, a question, a group, a key or what the gateway answered.
 """
 
 import asyncio

@@ -3,28 +3,18 @@
 Without a session only these pass: `PUBLIC_PATHS`; the stylesheets and the icon the built sign-in pages link under
 `/_app/` and the fonts those stylesheets reference (`sign_in_assets`, read from the page build); and the sign-in
 routes' own public rules, which webauth derives from `SIGN_IN_PATHS` (start, callback, and the POSTs of logout and
-Keycloak's back-channel logout). The resource's own public rule joins them when a feature serves one.
+Keycloak's back-channel logout). webauth adds the protected resource's own public rule when a feature serves one.
 """
 
-from typing import TYPE_CHECKING
-
-from webauth.admission import AdmissionConfig
-from webauth.middleware import BearerGate, SessionGate
+from webauth.middleware import BearerGate, ProtectedResource, SessionGate
 from webauth.policies import PathRules, PublicRule
 
 from hopin.config.constants import (
-    ADMIN_GROUP,
     HEALTH_PATH,
-    LOGIN_GROUP,
     LOGIN_PATH,
     NO_ACCESS_PATH,
 )
 from hopin.config.web_policy import SIGN_IN_PATHS
-
-if TYPE_CHECKING:
-    from webauth.middleware import ProtectedResource
-    from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionTransaction
 
 PUBLIC_PATHS = frozenset(
     {
@@ -35,21 +25,13 @@ PUBLIC_PATHS = frozenset(
 )
 
 
-def session_gate(
-    session_transaction: SessionTransaction, sign_in_assets: frozenset[str], resource: ProtectedResource | None = None
-) -> SessionGate:
-    # Each call takes the stores' shared guard, so a sign-in entry in progress holds this call back.
+def session_gate(sign_in_assets: frozenset[str]) -> SessionGate:
     return SessionGate(
-        session_transaction=session_transaction,
         login_redirect=SIGN_IN_PATHS.login_redirect,
-        public=(
-            PublicRule(PathRules(exact=PUBLIC_PATHS | sign_in_assets)),
-            *(() if resource is None else (resource.public_rule,)),
-        ),
+        public=(PublicRule(PathRules(exact=PUBLIC_PATHS | sign_in_assets)),),
     )
 
 
-def bearer_gate(relying_party: OidcRelyingParty, resource: ProtectedResource) -> BearerGate:
+def bearer_gate(resource: ProtectedResource) -> BearerGate:
     """The one door a bearer token opens: the resource's entry point, for a person the issuer lets in."""
-    admission = AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP)
-    return BearerGate(relying_party=relying_party, admission=admission, resource=resource)
+    return BearerGate(resource=resource)

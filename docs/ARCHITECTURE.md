@@ -63,7 +63,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `rooms` | rooms, participants, the places people and agents share, the lock |
 | `signaling` | the WebSocket: identity, frames, seats, replay, timers, the feature port |
 | `web` | the page build, the request's language, health, the ICE server list |
-| `auth` | sign-in against Keycloak through webauth and the session gate |
+| `auth` | sign-in against Keycloak through webauth, built once by `WebAuth.build` before the routes and installed by `auth.install` after the last, and the session gate |
 | `people` | the admin download of what HopIn holds about one person |
 | `game` | optional: one quiz per call |
 | `participation` | optional: the agents a person dials in, with no AI in it |

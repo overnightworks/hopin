@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionTransaction, SignInTransaction
+    from webauth.ports import SessionTransaction
 
     from hopin.agent.backend import QuizBackend
     from hopin.game.voice import VoiceShelf
@@ -67,11 +67,10 @@ class GameFeature:
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         deadlines: Deadlines,
-        transaction: SignInTransaction,
         request_language: RequestLanguage,
         page_build: PageBuild,
     ) -> BuiltGameFeature:
-        del scheduler, transaction, page_build
+        del scheduler, page_build
         starter_person = StarterPerson(relying_party, session_transaction, auth_config, request_language)
         game = Game(
             deadlines=deadlines,

@@ -6,14 +6,15 @@ Logging. logline is the one logger: `serve` calls `configure("hopin")` once and 
 so every line, uvicorn's and the libraries' included, is logline's JSON record with a `trace_id`. logline holds the HTTP
 clients' own loggers (`httpx2`, `httpcore2`) at WARNING, which keeps the gateway key out of the log even under DEBUG.
 
-- `create_app` adds logline's `RequestLineMiddleware`, which writes one request line per HTTP request (method, route
-  template, status, duration, never the raw path or query) and one `websocket.ended` line per socket session. webauth
-  writes none, but sets the line's `sub` once a gate, the sign-in callback or a socket's handshake has admitted a
-  person.
-- The line's `ip` is the client address that webauth's `ClientAddressMiddleware` records. `create_app` adds it directly
-  inside logline's middleware and outside the layers of webauth's installer, so a request that one of them answers (a
-  refused path, a rate limit) and a socket's session name the forwarded client too. That middleware is the one place
-  `HOPIN_TRUSTED_PROXIES` is read; everything inside reads the recorded address.
+- `create_app` builds webauth with `front=TrustedProxies`, so webauth's `install` places logline's
+  `RequestLineMiddleware` outermost: one request line per HTTP request (method, route template, status, duration, never
+  the raw path or query) and one `websocket.ended` line per socket session. webauth sets the line's `sub` once a gate,
+  the sign-in callback or a socket's handshake has admitted a person, and writes the sign-in callback's
+  `sign_in.refused` and `sign_in.completed`.
+- The line's `ip` is the client address that webauth's client-address writer records inside the request line and outside
+  the rest of the stack, so a request that one of its layers answers (a refused path, a rate limit) and a socket's
+  session name the forwarded client too. `front` is the one place `HOPIN_TRUSTED_PROXIES` is read; everything inside
+  reads the recorded address.
 - Every event is a literal `<noun>.<verb_past>` (logline's fleet standard). A line that closes a timed step ends in
   `.ended` and carries `duration_ms` and `outcome` from logline's `StepTimer`; a step that ends because the service gave
   no answer ends `refused` with its closed `reason`, and `failed` is an exception, which the timer names by its class.

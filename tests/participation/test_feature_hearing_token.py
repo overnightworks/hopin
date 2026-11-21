@@ -8,6 +8,7 @@ import pytest
 from agents.member import LEASE_SECONDS
 from logline import Outcome
 from speech_client.wire import VoiceId
+from webauth.oidc import IdpErrorCode
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.participation.participants import Person
@@ -269,7 +270,7 @@ def refusals(logs):
 class TestRefusedExchange:
     @pytest.mark.parametrize(
         ("issuer_error", "logged"),
-        [("invalid_scope", "invalid_scope"), ("access_denied", "other")],
+        [("invalid_scope", "invalid_scope"), ("access_denied", "access_denied"), ("made_up_code", IdpErrorCode.OTHER)],
     )
     def test_a_refusal_serves_the_call_logs_one_closed_code_and_holds_nothing(
         self, adding_call, agent, issuer_error, logged
