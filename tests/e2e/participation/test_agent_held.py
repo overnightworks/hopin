@@ -255,7 +255,7 @@ def test_a_continue_during_the_pausing_ramp_goes_on_with_the_same_sound_and_the_
     sound go on without a suspend, and the second sentence plays after it."""
 
     def unfreeze_once_no_sound_has_ended(person: Page) -> None:
-        assert person.evaluate("() => window.sourcesEnded") == 0
+        assert person.evaluate("() => window.soundsEnded") == 0
         person.evaluate("() => { window.clockFrozen = false; }")
 
     continue_and_check_the_same_sound_goes_on(held_in_the_pausing_ramp, unfreeze_once_no_sound_has_ended)
