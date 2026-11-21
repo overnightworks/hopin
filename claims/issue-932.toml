@@ -1,8 +1,0 @@
-claim_id = "8e2d0e999ec34da7acaaa2aff5596068"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "abc1a6c1a97d4478793f27efde3b3c23b9c36874"
-branch = "claude/issue-932-call-drop-outcomes"
-scope = ["docs/call.md", "frontend/src/lib/call", "frontend/src/lib/wire.ts", "scripts/generate_wire.py", "src/hopin/config/constants.py", "src/hopin/config/rate.py", "src/hopin/participation/look_rate.py", "src/hopin/participation/places.py", "src/hopin/signaling", "tests/e2e", "tests/participation/test_look_rate.py", "tests/signaling"]
-opened_commit = "632d39baaa1a293bd94ff84b641d0edc3f153562"
-whole_reason = "The outcome codes, the frame that carries them, their log events and the drive that proves a resume move together."
