@@ -46,14 +46,18 @@ def answer_sent_status(answered: int, players: int) -> str:
     return text("de", "game.answerSentCountStatus", answered=str(answered), players=str(players))
 
 
+def _score_entries(correct_by_name: tuple[tuple[str, int], ...]) -> str:
+    return ", ".join(
+        text("de", "game.scoreEntry", name=name, correct=str(correct)) for name, correct in correct_by_name
+    )
+
+
 def score_line(*correct_by_name: tuple[str, int]) -> str:
-    entries = [text("de", "game.scoreEntry", name=name, correct=str(correct)) for name, correct in correct_by_name]
-    return text("de", "game.scoreLine", scores=", ".join(entries))
+    return text("de", "game.scoreLine", scores=_score_entries(correct_by_name))
 
 
 def final_score_line(*correct_by_name: tuple[str, int]) -> str:
-    entries = [text("de", "game.scoreEntry", name=name, correct=str(correct)) for name, correct in correct_by_name]
-    return text("de", "game.finalScoreLine", scores=", ".join(entries))
+    return text("de", "game.finalScoreLine", scores=_score_entries(correct_by_name))
 
 
 def start_quiz(person: Page) -> None:
