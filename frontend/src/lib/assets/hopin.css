@@ -385,6 +385,7 @@ textarea {
 }
 .stage {
     --stage-bottom: 112px;
+    --surface-top: 116px;
     --c: 1;
     --r: 1;
     position: relative;
@@ -963,9 +964,6 @@ textarea {
 }
 .stage[data-surface] .tile .name {
     display: none;
-}
-.stage {
-    --surface-top: 116px;
 }
 .surface {
     position: absolute;
