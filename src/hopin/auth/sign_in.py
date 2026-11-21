@@ -5,19 +5,16 @@ from typing import TYPE_CHECKING, cast
 from urllib.parse import urlsplit
 
 import structlog
-from fastapi import APIRouter, FastAPI, Request, Response
-from webauth.admission import AdmissionConfig, AdmissionRefusal
+from fastapi import APIRouter, Request, Response
+from webauth.admission import AdmissionConfig
 from webauth.config import SessionLifetime, WebAuthConfig
 from webauth.https_client import fetch_key_set_over_https
-from webauth.oidc import OidcClientConfig, OidcRefusal, OidcRelyingParty, TokenRequestPost
+from webauth.oidc import OidcClientConfig, TokenRequestPost
 from webauth.oidc_transport import post_token_request_over_https
+from webauth.policies import CsrfPolicy, RateLimitPolicy
 from webauth.proxies import TrustedProxies
-from webauth.sign_in_routes import (
-    LogoutPageText,
-    RefusalPage,
-    SignInRefusal,
-    install_sign_in_routes,
-)
+from webauth.sign_in_routes import LogoutPageText, RefusalPage, SignInRefusal
+from webauth.web_auth import IssuerCalls, SignInPages, WebAuth, WebAuthSettings, WebAuthStores
 
 from hopin.config.constants import (
     ADMIN_GROUP,
@@ -31,7 +28,7 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
-from hopin.config.web_policy import SIGN_IN_PATHS
+from hopin.config.web_policy import RATE_LIMIT_EXEMPT_PATH_RULES, SIGN_IN_PATHS
 from hopin.web.page_build import built_page_response
 from hopin.words import text
 
@@ -40,7 +37,9 @@ if TYPE_CHECKING:
 
     from pydantic import SecretStr
     from webauth.jwt_verification import KeySetFetch
-    from webauth.ports import AccountEvent, RateLimitBackend, SignInTransaction
+    from webauth.middleware import SessionGate
+    from webauth.policies import SecurityHeadersPolicy
+    from webauth.ports import AccountEvent, RateLimitBackend
 
     from hopin.config.settings import ServerSettings
     from hopin.web.page_build import PageBuild
@@ -140,54 +139,57 @@ def _build_web_auth(
     )
 
 
-def build_relying_party(
-    sign_in_configs: SignInConfigs,
-    issuer_transports: IssuerTransports,
-    monotonic_clock: Callable[[], float] = time.monotonic,
-) -> OidcRelyingParty:
-    return OidcRelyingParty(
-        sign_in_configs.oidc_client,
-        post_token_request=issuer_transports.post_token_request,
-        fetch_key_set=issuer_transports.fetch_key_set,
-        wall_clock=sign_in_configs.web_auth.wall_clock,
-        monotonic_clock=monotonic_clock,
-    )
-
-
-def install_sign_in(
-    app: FastAPI,
-    relying_party: OidcRelyingParty,
-    transaction: SignInTransaction,
-    page_build: PageBuild,
-    request_language: Callable[[Request], str],
-    logout_button_label: Callable[[str], str],
-) -> None:
-    """The library serves the start, callback, logout and back-channel routes; the pages stay HopIn's."""
-    install_sign_in_routes(
-        app,
-        paths=SIGN_IN_PATHS,
-        relying_party=lambda _request: relying_party,
-        admission=AdmissionConfig(bound_issuer=relying_party.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
-        transaction=transaction,
-        refused=lambda request, refusal: _refusal_response(refusal, page_build, request_language(request)),
-        keeps_id_token=True,
-        max_sessions=None,
-        logout_page_text=lambda request: _logout_page_text(request_language(request), logout_button_label),
-        ui_language=request_language,
-    )
-    app.include_router(_create_pages_router(page_build, request_language))
-
-
 def words_logout_button_label(language: str) -> str:
     # The offered languages are the words' own, so the resolved one is a words language.
     return text(cast("Language", language), "signIn.logOutButton")
+
+
+def build_web_auth(
+    sign_in_configs: SignInConfigs,
+    stores: WebAuthStores,
+    page_build: PageBuild,
+    request_language: Callable[[Request], str],
+    security_headers: SecurityHeadersPolicy,
+    issuer_transports: IssuerTransports,
+    monotonic_clock: Callable[[], float] = time.monotonic,
+    gate: SessionGate | None = None,
+    logout_button_label: Callable[[str], str] = words_logout_button_label,
+) -> WebAuth:
+    """HopIn's whole auth, built before its routes: the library serves the sign-in routes, the pages stay HopIn's."""
+    client = sign_in_configs.oidc_client
+    return WebAuth.build(
+        WebAuthSettings(
+            config=sign_in_configs.web_auth,
+            client=client,
+            sign_in_paths=SIGN_IN_PATHS,
+            keeps_id_token=True,
+            max_sessions=None,
+            security_headers=security_headers,
+            csrf_origin=CsrfPolicy(),
+            rate_limit=RateLimitPolicy(exempt=RATE_LIMIT_EXEMPT_PATH_RULES),
+        ),
+        stores=stores,
+        groups=AdmissionConfig(bound_issuer=client.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
+        pages=SignInPages(
+            refused=lambda request, refusal: _refusal_response(refusal, page_build, request_language(request)),
+            logout_page_text=lambda request: _logout_page_text(request_language(request), logout_button_label),
+            ui_language=request_language,
+        ),
+        front=sign_in_configs.trusted_proxies,
+        gate=gate,
+        issuer_calls=IssuerCalls(
+            post_token_request=issuer_transports.post_token_request,
+            fetch_key_set=issuer_transports.fetch_key_set,
+            monotonic_clock=monotonic_clock,
+        ),
+    )
 
 
 def _logout_page_text(language: str, button_label_of: Callable[[str], str]) -> LogoutPageText:
     return LogoutPageText(language=language, button_label=button_label_of(language))
 
 
-def _create_pages_router(page_build: PageBuild, request_language: Callable[[Request], str]) -> APIRouter:
+def create_pages_router(page_build: PageBuild, request_language: Callable[[Request], str]) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(LOGIN_PATH, methods=READ_METHODS)
@@ -202,18 +204,6 @@ def _create_pages_router(page_build: PageBuild, request_language: Callable[[Requ
 
 
 def _refusal_response(refusal: SignInRefusal, page_build: PageBuild, language: str) -> Response:
-    _log_refusal(refusal.cause)
     if refusal.page is RefusalPage.NO_ACCESS:
         return Response(status_code=HTTPStatus.SEE_OTHER, headers={"location": NO_ACCESS_PATH})
     return built_page_response(page_build.login_failed, language, status_code=HTTPStatus.FORBIDDEN)
-
-
-def _log_refusal(refusal: OidcRefusal | AdmissionRefusal) -> None:
-    if isinstance(refusal, AdmissionRefusal):
-        logger.info("sign_in.refused", reason=refusal.value)
-        return
-    codes = {
-        "idp_error": refusal.idp_error,
-        "token_rejection": None if refusal.token_rejection is None else refusal.token_rejection.value,
-    }
-    logger.info("sign_in.refused", reason=refusal.reason.value, **{name: code for name, code in codes.items() if code})

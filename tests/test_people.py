@@ -1,6 +1,7 @@
 import io
 import json
 import secrets
+import time
 import zipfile
 from contextlib import ExitStack
 from dataclasses import dataclass, field, replace
@@ -12,10 +13,11 @@ import structlog.testing
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.admission import AppRole
-from webauth.config import install_web_auth_config, installed_web_auth_config
+from webauth.config import installed_web_auth_config
 from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
+import hopin.app
 from hopin.app import create_app
 from hopin.config.constants import (
     ADMIN_GROUP,
@@ -52,7 +54,22 @@ def stores():
 
 
 @pytest.fixture
-def app(sign_in_settings, stores):
+def clock_reading(monkeypatch):
+    """The wall clock's reading the app's configuration answers once a test sets it; the real clock until then."""
+    reading = {"seconds": None}
+    build_configs = hopin.app.build_sign_in_configs
+
+    def configs_with_clock(*arguments):
+        configs = build_configs(*arguments)
+        wall_clock = lambda: time.time() if reading["seconds"] is None else reading["seconds"]  # noqa: E731
+        return replace(configs, web_auth=replace(configs.web_auth, wall_clock=wall_clock))
+
+    monkeypatch.setattr(hopin.app, "build_sign_in_configs", configs_with_clock)
+    return reading
+
+
+@pytest.fixture
+def app(sign_in_settings, stores, clock_reading):
     return create_app(
         sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
     )
@@ -224,9 +241,9 @@ class TestExportOfAPerson:
         assert len(set(started)) == 2
         assert started == sorted(started)
 
-    def test_stamps_the_export_with_the_configured_clock_in_whole_seconds(self, app, client, admin, config):
+    def test_stamps_the_export_with_the_configured_clock_in_whole_seconds(self, client, admin, config, clock_reading):
         export_time = int(config.wall_clock()) + 90
-        install_web_auth_config(app, replace(config, wall_clock=lambda: export_time + 0.75))
+        clock_reading["seconds"] = export_time + 0.75
 
         _, export = read_archive(ask(client, "anna", admin).content)
 

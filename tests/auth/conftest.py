@@ -3,14 +3,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fastapi import FastAPI, Request
-from webauth.config import install_web_auth_config, web_auth_config
+from webauth.config import web_auth_config
 from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
+from webauth.web_auth import WebAuthStores
 
 from hopin.auth.sign_in import (
     IssuerTransports,
-    build_relying_party,
     build_sign_in_configs,
-    install_sign_in,
+    build_web_auth,
+    create_pages_router,
     words_logout_button_label,
 )
 from hopin.stores.session_transaction import session_transaction_of
@@ -54,15 +56,19 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         stores = single_process_stores(audit)
         accounts, sessions = stores.accounts, stores.sessions
         app = FastAPI()
-        install_web_auth_config(app, configs.web_auth)
-        install_sign_in(
-            app,
-            build_relying_party(configs, transports),
-            stores.transaction,
-            fixture_page_build(languages),
-            RequestLanguage(languages, session_transaction_of(sessions), configs.web_auth),
-            logout_button_label,
+        page_build = fixture_page_build(languages)
+        session_transaction = session_transaction_of(sessions)
+        request_language = RequestLanguage(languages, session_transaction, configs.web_auth)
+        web_auth = build_web_auth(
+            configs,
+            WebAuthStores(sign_in=stores.transaction, sessions=session_transaction),
+            page_build,
+            request_language,
+            SecurityHeadersPolicy(content_security_policy=default_content_security_policy()),
+            transports,
+            logout_button_label=logout_button_label,
         )
+        app.include_router(create_pages_router(page_build, request_language))
 
         @app.get(WHO_AM_I_PATH)
         def who_am_i(request: Request) -> dict[str, object]:
@@ -75,6 +81,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
                 return {"user": None}
             return {"user": {"id": admitted.id, "username": admitted.username}, "session_id": session_id}
 
+        web_auth.install(app, bearer=None)
         return SignInHarness(sign_in, issuer, accounts, sessions, configs.web_auth, app)
 
     return make
