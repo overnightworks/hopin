@@ -694,12 +694,16 @@ textarea {
 .listen-slot {
     display: contents;
 }
-/* The listen chip wraps below the see chip rather than squeezing its label away on a tile too narrow for both. */
+/* The listen chip wraps below the see chip rather than squeezing its label away on a tile too narrow for both; a strip
+   tile beside a shown surface has no height for a third row, so its row stays one. */
 .hear-row {
     display: flex;
     flex-wrap: wrap;
     max-width: 100%;
     gap: 4px;
+}
+.stage[data-surface] .hear-row {
+    flex-wrap: nowrap;
 }
 .hear-set.narrow,
 .hear-set.narrow .hear-row {
