@@ -335,29 +335,19 @@ def _build_features(
     ]
 
 
-def create_app(
+def _assemble_app(
     settings: ServerSettings,
     *,
     page_build: PageBuild,
     shared_stores: SharedStores,
-    issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
-    stores: SingleProcessStores | None = None,
-    scheduler: Scheduler | None = None,
-    turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
-    call_features: Sequence[CallFeatureBuilder] = (),
-    monotonic_clock: Callable[[], float] = time.monotonic,
+    sign_in_configs: SignInConfigs,
+    sign_in_stores: SingleProcessStores,
+    relying_party: OidcRelyingParty,
+    timers: Scheduler,
+    deadlines: Deadlines,
+    turn_relay: TurnRelay | None,
+    call_features: Sequence[CallFeatureBuilder],
 ) -> FastAPI:
-    sign_in_configs = build_sign_in_configs(
-        settings,
-        tuple(scope for builder in call_features for scope in builder.sign_in_scopes),
-        shared_stores.rate_limits,
-    )
-    turn_relay = build_turn_relay(settings, turn_transport)
-
-    sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
-    relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
-    timers = scheduler if scheduler is not None else AsyncioScheduler()
-    deadlines = InMemoryDeadlines(timers)
     session_transaction = session_transaction_of(sign_in_stores.sessions)
     request_language = RequestLanguage(page_build.languages, session_transaction, sign_in_configs.web_auth)
     built_features = _build_features(
@@ -400,3 +390,40 @@ def create_app(
     )
 
     return app
+
+
+def create_app(
+    settings: ServerSettings,
+    *,
+    page_build: PageBuild,
+    shared_stores: SharedStores,
+    issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
+    stores: SingleProcessStores | None = None,
+    scheduler: Scheduler | None = None,
+    turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
+    call_features: Sequence[CallFeatureBuilder] = (),
+    monotonic_clock: Callable[[], float] = time.monotonic,
+) -> FastAPI:
+    sign_in_configs = build_sign_in_configs(
+        settings,
+        tuple(scope for builder in call_features for scope in builder.sign_in_scopes),
+        shared_stores.rate_limits,
+    )
+    turn_relay = build_turn_relay(settings, turn_transport)
+
+    sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
+    relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
+    timers = scheduler if scheduler is not None else AsyncioScheduler()
+    deadlines = InMemoryDeadlines(timers)
+    return _assemble_app(
+        settings,
+        page_build=page_build,
+        shared_stores=shared_stores,
+        sign_in_configs=sign_in_configs,
+        sign_in_stores=sign_in_stores,
+        relying_party=relying_party,
+        timers=timers,
+        deadlines=deadlines,
+        turn_relay=turn_relay,
+        call_features=call_features,
+    )
