@@ -104,13 +104,13 @@ def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_
     assert lies_inside(track_box, tile_box)
     assert overlap_of(track_box, remove_box) == 0
     narrow = tile_box["width"] < WHOLE_CHIP_FITS_FROM_PIXELS
-    expect(host.locator(AGENT_LISTEN_SWITCH)).to_have_count(0 if narrow else 1)
+    expect(host.locator(AGENT_LISTEN_SWITCH)).to_have_count(1)
+    listen_box = box_of(AGENT_LISTEN_SWITCH, host)
+    assert lies_inside(listen_box, tile_box)
+    assert overlap_of(listen_box, remove_box) == 0
+    assert overlap_of(listen_box, box_of(AGENT_SEE_SWITCH, host)) == 0
+    assert overlap_of(listen_box, track_box) == 0
     if not narrow:
-        listen_box = box_of(AGENT_LISTEN_SWITCH, host)
-        assert lies_inside(listen_box, tile_box)
-        assert overlap_of(listen_box, remove_box) == 0
-        assert overlap_of(listen_box, track_box) == 0
-        assert overlap_of(listen_box, box_of(AGENT_SEE_SWITCH, host)) == 0
         chip_box = box_of(SWITCH, host)
         assert chip_box["x"] - tile_box["x"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
         assert chip_box["y"] - tile_box["y"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
@@ -187,7 +187,7 @@ def test_each_switch_on_a_strip_tile_is_a_touch_target_clear_of_the_remove_butto
     ]
     for x, y in remove_points:
         assert host.evaluate(TOPMOST_AT_SCRIPT, [AGENT_TILE + " " + REMOVE, x, y])
-    for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH):
+    for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_LISTEN_SWITCH):
         switch = host.locator(selector)
         assert switch.evaluate(PRESSABLE_SQUARE_SCRIPT, AGENT_TILE) >= MIN_TARGET_PIXELS
         assert overlap_of(box_of(selector, host), remove_box) == 0

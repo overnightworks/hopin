@@ -770,7 +770,8 @@ describe("an agent tile's compact chips", () => {
         { figured: false, narrow: false, seeing: true, expected: { hearing: false, listening: true } },
         { figured: true, narrow: false, seeing: false, expected: { hearing: true, listening: true } },
         { figured: false, narrow: true, seeing: false, expected: { hearing: false, listening: true } },
-        { figured: true, narrow: true, seeing: true, expected: { hearing: false, listening: true } },
+        { figured: true, narrow: true, seeing: false, expected: { hearing: false, listening: true } },
+        { figured: true, narrow: true, seeing: true, expected: { hearing: true, listening: true } },
     ])(
         "CALL-77: shrinks $expected for figured $figured, narrow $narrow and seeing $seeing",
         async ({ figured, narrow, seeing, expected }) => {

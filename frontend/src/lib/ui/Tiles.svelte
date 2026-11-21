@@ -108,14 +108,19 @@
                     />
                 {/if}
                 <div class="hear-row">
-                    {#if agent.listening !== undefined && !(narrow && agent.hearing !== undefined && agent.seeing !== undefined)}
-                        <HearingSwitch
-                            kind="listen"
-                            on={agent.listening.on}
-                            onChange={agent.listening.onChange}
-                            words={kitWords}
-                            compact={chips.listening}
-                        />
+                    {#if agent.listening !== undefined}
+                        <div
+                            class="listen-slot"
+                            class:beside-consents={agent.hearing !== undefined && agent.seeing !== undefined}
+                        >
+                            <HearingSwitch
+                                kind="listen"
+                                on={agent.listening.on}
+                                onChange={agent.listening.onChange}
+                                words={kitWords}
+                                compact={chips.listening}
+                            />
+                        </div>
                     {/if}
                     {#if agent.seeing !== undefined}
                         <HearingSwitch
