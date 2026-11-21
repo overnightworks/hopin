@@ -6,6 +6,7 @@ record are shared by all runs and all threads.
 """
 
 import asyncio
+import json
 import threading
 from collections import deque
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ from agents.turn import FailureCode, RejectionCode, RunFile
 from agents.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent
 
 from hopin.agent.backend import VERDICT_TOOL_NAME
-from hopin.game.quiz import Judgement
+from hopin.game.quiz import REVEAL_REQUEST, Judgement
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -166,15 +167,16 @@ class FakeAgentBackend(AgentBackend):
             self._runs.append(seen)
             answer = self._script.popleft() if self._script else Succeeds()
         try:
-            async for event in _events_of(answer):
+            async for event in _events_of(answer, request):
                 yield event
         finally:
             seen.closed.set()
 
 
-async def _events_of(answer: Answer) -> AsyncGenerator[TurnEvent]:
+async def _events_of(answer: Answer, request: TurnRequest) -> AsyncGenerator[TurnEvent]:
     match answer:
         case Succeeds(text=text, files=files, said=said, verdicts=verdicts, verdict_calls=verdict_calls):
+            verdicts = _every_answer_correct(request) if verdicts is None else verdicts
             for _ in range(verdict_calls if verdicts is not None else 0):
                 yield ToolCallEvent(
                     tool_use_id="verdicts-1", name=VERDICT_TOOL_NAME, input={"verdicts": list(verdicts)}
@@ -190,12 +192,21 @@ async def _events_of(answer: Answer) -> AsyncGenerator[TurnEvent]:
             yield ToolCallEvent(tool_use_id="call-1", name="lookup")
         case SaysThenStops(text=text, stop=stop):
             yield AssistantTextEvent(text=text)
-            async for event in _events_of(stop):
+            async for event in _events_of(stop, request):
                 yield event
         case Holds(then=then, started=started, release=release):
             started.set()
             await release.wait_async()
-            async for event in _events_of(then):
+            async for event in _events_of(then, request):
                 yield event
         case EndsEarly():
             return
+
+
+def _every_answer_correct(request: TurnRequest) -> tuple[JsonObject, ...] | None:
+    """The verdicts of a script that does not judge: a reveal with answers has each judged correct, other turns none."""
+    text = request.turn.messages[-1].text
+    if not text.startswith(REVEAL_REQUEST):
+        return None
+    numbers = [answer["nr"] for answer in json.loads(text.split("\n")[1])]
+    return correct(*numbers) if numbers else None
