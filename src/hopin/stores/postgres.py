@@ -7,6 +7,7 @@ engine hides statement parameters and never sets `echo`, which keeps `sqlalchemy
 never by the driver's text, which quotes the host and the parameters.
 """
 
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -32,6 +33,10 @@ from hopin.config.secret_files import StartRefusedError, read_secret_file
 from hopin.stores.shared import SharedStores
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from sqlalchemy import Connection
+
     from hopin.config.settings import DatabaseSettings
 
 logger = structlog.get_logger()
@@ -66,10 +71,25 @@ def _head_revision() -> str | None:
     return ScriptDirectory.from_config(_alembic_config()).get_current_head()
 
 
+_UNANSWERING_DATABASE = "HOPIN_DATABASE_URL names a database that does not answer"
+
+
+@contextmanager
+def _connection_to_an_answering_database(engine: Engine) -> Iterator[Connection]:
+    """The engine's connection; a database that does not answer is refused in a line that names the setting, since the
+    driver's own text quotes the host, the port and the database user."""
+    try:
+        connection = engine.connect()
+    except SQLAlchemyError:
+        raise StartRefusedError(_UNANSWERING_DATABASE) from None
+    with connection:
+        yield connection
+
+
 def migrate(engine: Engine) -> None:
     """Bring the database to head; concurrent runs wait for one another on a Postgres advisory lock."""
     config = _alembic_config()
-    with engine.connect() as connection:
+    with _connection_to_an_answering_database(engine) as connection:
         connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
         connection.commit()
         try:
@@ -87,7 +107,7 @@ def require_head(engine: Engine) -> None:
         with engine.connect() as connection:
             heads = MigrationContext.configure(connection).get_current_heads()
     except SQLAlchemyError:
-        raise StartRefusedError("HOPIN_DATABASE_URL names a database that does not answer") from None
+        raise StartRefusedError(_UNANSWERING_DATABASE) from None
     if heads != (_head_revision(),):
         raise StartRefusedError("the database is not at this image's schema; run hopin migrate")
 

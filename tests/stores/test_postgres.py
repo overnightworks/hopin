@@ -108,6 +108,22 @@ class TestMigrate:
         assert len(empty_database.rows(LIST_VERSIONS)) == 1
         assert len(empty_database.rows(LIST_TABLES)) == 3
 
+    def test_refuses_in_one_line_naming_the_setting_on_a_database_that_does_not_answer(
+        self, empty_database, served_environment, monkeypatch, capsys
+    ):
+        gate = ServiceGate(empty_database.url)
+        gate.close()
+        monkeypatch.setenv("HOPIN_DATABASE_URL", gate.url)
+
+        with pytest.raises(SystemExit) as refusal:
+            main(["migrate"])
+
+        assert refusal.value.code == 1
+        output = capsys.readouterr()
+        (line,) = output.err.splitlines()
+        assert "HOPIN_DATABASE_URL" in line
+        assert urlsplit(gate.url).hostname not in output.out + output.err
+
     def test_leaves_the_schema_the_metadata_describes(self, migrated_database):
         engine = create_database_engine(DatabaseSettings())
         try:
