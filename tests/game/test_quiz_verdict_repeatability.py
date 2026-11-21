@@ -71,6 +71,17 @@ async def test_a_single_run_without_a_verdict_fails_the_report_however_low_the_m
     assert not passes(report, 0.5)
 
 
+async def test_the_printed_report_names_how_many_runs_gave_no_verdict():
+    right, wrong = Judgement.CORRECT, Judgement.WRONG
+    malformed = Succeeds("Auflösung.", verdicts=({"nr": 1, "judgement": "maybe"},))
+
+    with_malformed = await agreement_over(judging(right, wrong), malformed)
+    without_malformed = await agreement_over(judging(right, wrong))
+
+    assert "(1 run without verdict)" in printed(with_malformed)
+    assert "without verdict" not in printed(without_malformed)
+
+
 async def test_every_run_asks_the_reveal_request_the_quiz_itself_builds_for_the_recorded_answers():
     backend = FakeAgentBackend()
     game_master = QuizGameMaster(backend, ThrowawayStarter("/api"))
