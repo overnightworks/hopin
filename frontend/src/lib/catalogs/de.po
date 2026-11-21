@@ -571,6 +571,10 @@ msgctxt "game.scoreLine"
 msgid "Stand: {scores}"
 msgstr ""
 
+msgctxt "game.finalScoreLine"
+msgid "Endstand: {scores}"
+msgstr ""
+
 msgctxt "game.scoreEntry"
 msgid "{name} {correct}"
 msgstr ""

@@ -424,7 +424,8 @@ class Game(TransitionFeature):
             outcome.text,
             voiced=True if self._voice is not None else None,
             round=run.quiz.round if run.quiz.is_asking else None,
-            scores=_score_entries(quiz) if run.quiz.is_revealing else None,
+            scores=_score_entries(quiz) if run.quiz.is_revealing or run.quiz.is_scoring else None,
+            final=True if run.quiz.is_scoring else None,
         )
         _send_each(transition, recipients, line)
         return quiz

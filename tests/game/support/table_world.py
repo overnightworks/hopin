@@ -83,9 +83,10 @@ def question(text=DEFAULT_QUESTION, round_number=1):
     return {"type": GameSignal.GAME_LINE.value, "text": text, "round": round_number}
 
 
-def line(text, scores=None):
+def line(text, scores=None, *, final=False):
     frame = {"type": GameSignal.GAME_LINE.value, "text": text}
-    return frame if scores is None else {**frame, "scores": scores}
+    frame = frame if scores is None else {**frame, "scores": scores}
+    return {**frame, "final": True} if final else frame
 
 
 def scores_of(*correct_by_name):

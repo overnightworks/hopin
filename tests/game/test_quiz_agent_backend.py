@@ -296,7 +296,7 @@ class TestTheVerdicts:
     async def test_the_verdicts_of_the_tool_call_come_back_with_the_final_line(self, world):
         """GM-40: The verdicts of the tool call come back with the final line."""
         starter, _ = world.starter()
-        wrong = {"answer": 2, "judgement": Judgement.WRONG.value}
+        wrong = {"nr": 2, "judgement": Judgement.WRONG.value}
         world.backend.answer_next(Succeeds("Sam hat recht.", verdicts=(*correct(1), wrong)))
 
         outcome = await world.game_master.ask(starter, OPENING)
@@ -306,9 +306,9 @@ class TestTheVerdicts:
     @pytest.mark.parametrize(
         "verdicts",
         [
-            pytest.param(({"answer": 1, "judgement": "maybe"},), id="a judgement outside the closed set"),
-            pytest.param(({"answer": "1", "judgement": "correct"},), id="an answer number as text"),
-            pytest.param(({"answer": 1, "judgement": "correct", "points": 5},), id="an extra field"),
+            pytest.param(({"nr": 1, "judgement": "maybe"},), id="a judgement outside the closed set"),
+            pytest.param(({"nr": "1", "judgement": "correct"},), id="an answer number as text"),
+            pytest.param(({"nr": 1, "judgement": "correct", "points": 5},), id="an extra field"),
             pytest.param(({"judgement": "correct"},), id="no answer number"),
         ],
     )

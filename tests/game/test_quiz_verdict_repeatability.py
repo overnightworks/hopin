@@ -27,8 +27,8 @@ def judging(first, second):
     return Succeeds(
         "Auflösung.",
         verdicts=(
-            {"answer": 1, "judgement": first.value},
-            {"answer": 2, "judgement": second.value},
+            {"nr": 1, "judgement": first.value},
+            {"nr": 2, "judgement": second.value},
         ),
     )
 
@@ -54,11 +54,21 @@ async def test_the_report_counts_in_how_many_runs_the_most_frequent_verdict_of_e
 
 
 async def test_runs_that_give_no_verdict_are_reported_and_never_pass():
-    report = await agreement_over(Succeeds("Auflösung.", verdicts=({"answer": 1, "judgement": "maybe"},)))
+    report = await agreement_over(Succeeds("Auflösung.", verdicts=({"nr": 1, "judgement": "maybe"},)))
 
     assert [line.judgement for line in report] == [None, None]
     assert "no verdict" in printed(report)
     assert not passes(report, 0.0)
+
+
+async def test_a_single_run_without_a_verdict_fails_the_report_however_low_the_minimum():
+    right, wrong = Judgement.CORRECT, Judgement.WRONG
+    malformed = Succeeds("Auflösung.", verdicts=({"nr": 1, "judgement": "maybe"},))
+
+    report = await agreement_over(judging(right, wrong), judging(right, wrong), judging(right, wrong), malformed)
+
+    assert [line.judgement for line in report] == [right, wrong]
+    assert not passes(report, 0.5)
 
 
 async def test_every_run_asks_the_reveal_request_the_quiz_itself_builds_for_the_recorded_answers():

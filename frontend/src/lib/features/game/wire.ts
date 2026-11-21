@@ -57,6 +57,7 @@ export type LineFrame = {
     voiced?: true;
     round?: number;
     scores?: ScoreEntry[];
+    final?: true;
 };
 
 export type VoiceFrame = {

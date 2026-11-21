@@ -60,6 +60,7 @@ class VerdictAgreement:
     judgement: Judgement | None
     runs_agreeing: int
     runs: int
+    runs_without_verdict: int = 0
 
     @property
     def share(self) -> float:
@@ -95,13 +96,17 @@ async def agreements(
         for _ in range(runs):
             outcome = await game_master.ask(starter, reveal_transcript(case))
             by_number = (
-                {verdict.answer: verdict.judgement for verdict in outcome.verdicts} if isinstance(outcome, Line) else {}
+                {verdict.nr: verdict.judgement for verdict in outcome.verdicts} if isinstance(outcome, Line) else {}
             )
             for number, judgements in enumerate(judged, start=1):
                 judgements.append(by_number.get(number))
         for answer, judgements in zip(case.answers, judged, strict=True):
             judgement, agreeing = Counter(judgements).most_common(1)[0]
-            report.append(VerdictAgreement(index, f"{answer.name}: {answer.text}", judgement, agreeing, runs))
+            report.append(
+                VerdictAgreement(
+                    index, f"{answer.name}: {answer.text}", judgement, agreeing, runs, judgements.count(None)
+                )
+            )
     return report
 
 
@@ -114,7 +119,7 @@ def printed(report: Sequence[VerdictAgreement]) -> str:
 
 
 def passes(report: Sequence[VerdictAgreement], minimum: float) -> bool:
-    return all(line.judgement is not None and line.share >= minimum for line in report)
+    return all(line.runs_without_verdict == 0 and line.share >= minimum for line in report)
 
 
 class ThrowawayStarter:

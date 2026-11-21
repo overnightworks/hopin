@@ -33,7 +33,7 @@ SIGNAL_CAP_SECONDS = 10
 
 def correct(*answers: int) -> tuple[JsonObject, ...]:
     """Verdicts that judge each numbered answer correct."""
-    return tuple({"answer": number, "judgement": Judgement.CORRECT.value} for number in answers)
+    return tuple({"nr": number, "judgement": Judgement.CORRECT.value} for number in answers)
 
 
 class Signal:

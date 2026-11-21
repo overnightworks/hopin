@@ -146,6 +146,7 @@ export type Words = {
     readonly "game.sendButton": string;
     readonly "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => string;
     readonly "game.scoreLine": (gaps: { readonly scores: string }) => string;
+    readonly "game.finalScoreLine": (gaps: { readonly scores: string }) => string;
     readonly "game.scoreEntry": (gaps: { readonly correct: string; readonly name: string }) => string;
     readonly "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => string;
     readonly "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => string;
@@ -326,6 +327,7 @@ export const words: Words = {
     "game.sendButton": "Senden",
     "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => "Frage " + gaps.round + " von " + gaps.rounds,
     "game.scoreLine": (gaps: { readonly scores: string }) => "Stand: " + gaps.scores,
+    "game.finalScoreLine": (gaps: { readonly scores: string }) => "Endstand: " + gaps.scores,
     "game.scoreEntry": (gaps: { readonly correct: string; readonly name: string }) => gaps.name + " " + gaps.correct,
     "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => gaps.answered + " von " + gaps.players + " haben geantwortet",
     "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => "Antwort gesendet · " + gaps.answered + " von " + gaps.players + " haben geantwortet",

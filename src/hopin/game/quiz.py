@@ -66,7 +66,7 @@ class Judgement(StrEnum):
 class Verdict:
     """The game master's judgement of one answer, named by its `nr` in the reveal request (counted from one)."""
 
-    answer: int
+    nr: int
     judgement: Judgement
 
 
@@ -125,6 +125,10 @@ class Quiz:
     @property
     def is_revealing(self) -> bool:
         return self.step is QuizStep.REVEALING
+
+    @property
+    def is_scoring(self) -> bool:
+        return self.step is QuizStep.SCORING
 
     @property
     def awaits_game_master(self) -> bool:
@@ -199,7 +203,7 @@ class Quiz:
 
     def judges(self, verdicts: tuple[Verdict, ...]) -> bool:
         """Whether the verdicts name each given answer exactly once and nothing else."""
-        return sorted(verdict.answer for verdict in verdicts) == list(range(1, len(self.answers) + 1))
+        return sorted(verdict.nr for verdict in verdicts) == list(range(1, len(self.answers) + 1))
 
     def heard(self, line: str, players: frozenset[PeerId], verdicts: tuple[Verdict, ...] = ()) -> Quiz:
         """The quiz once the game master's line answers the step's request, with the request that follows.
@@ -248,6 +252,6 @@ class Quiz:
         points = {score.player: score for score in self.scores}
         for number, answer in enumerate(self.answers, start=1):
             current = points.get(answer.player, Score(answer.player, answer.name, 0))
-            correct = any(verdict.answer == number and verdict.judgement is Judgement.CORRECT for verdict in verdicts)
+            correct = any(verdict.nr == number and verdict.judgement is Judgement.CORRECT for verdict in verdicts)
             points[answer.player] = replace(current, correct=current.correct + int(correct))
         return replace(self, scores=tuple(points.values()))  # NOSONAR(S5886) replace returns a Quiz here

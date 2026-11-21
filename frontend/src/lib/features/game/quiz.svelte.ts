@@ -39,6 +39,17 @@ interface QuizOutlet {
     isConnected(): boolean;
 }
 
+function scoreEntries(scores: ScoreEntry[]) {
+    return scores
+        .map((entry) => words["game.scoreEntry"]({ name: entry.name, correct: String(entry.correct) }))
+        .join(", ");
+}
+
+/** The final score as the page writes it from the server's count, whatever the game master's last line says. */
+export function finalScoreText(scores: ScoreEntry[]) {
+    return words["game.finalScoreLine"]({ scores: scoreEntries(scores) });
+}
+
 /** One page's view of the quiz; every change ends in `onChange`, which hands the page what to show. */
 export class Quiz {
     readonly #outlet: QuizOutlet;
@@ -263,11 +274,7 @@ export class Quiz {
     }
 
     #scoreText() {
-        if (this.#scores.length === 0) return "";
-        const entries = this.#scores.map((entry) =>
-            words["game.scoreEntry"]({ name: entry.name, correct: String(entry.correct) }),
-        );
-        return words["game.scoreLine"]({ scores: entries.join(", ") });
+        return this.#scores.length === 0 ? "" : words["game.scoreLine"]({ scores: scoreEntries(this.#scores) });
     }
 
     #openCard(quizRound: QuizRound, question: { text: string }): QuestionCardProps {

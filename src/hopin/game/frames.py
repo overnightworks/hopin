@@ -46,7 +46,8 @@ class ScoreEntry(WireRecord):
 
 @dataclass(frozen=True)
 class LineFrame(WireFrame):
-    """A game master line; a reveal's carries the score counted from its verdicts, the question's none."""
+    """A game master line; a reveal's carries the score counted from its verdicts, the question's none, the final
+    line's the final score and `final`."""
 
     TYPE: ClassVar[GameSignal] = GameSignal.GAME_LINE
 
@@ -54,6 +55,7 @@ class LineFrame(WireFrame):
     voiced: Literal[True] | None = None
     round: int | None = None
     scores: list[ScoreEntry] | None = None
+    final: Literal[True] | None = None
 
 
 @dataclass(frozen=True)
