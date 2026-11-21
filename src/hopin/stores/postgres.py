@@ -7,7 +7,6 @@ engine hides statement parameters and never sets `echo`, which keeps `sqlalchemy
 never by the driver's text, which quotes the host and the parameters.
 """
 
-from dataclasses import replace
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -30,10 +29,10 @@ from hopin.config.constants import (
     POSTGRES_DRIVER,
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
+from hopin.stores.shared import SharedStores
 
 if TYPE_CHECKING:
     from hopin.config.settings import DatabaseSettings
-    from hopin.stores.shared import SharedStores
 
 logger = structlog.get_logger()
 
@@ -105,4 +104,8 @@ def _database_answers(engine: Engine) -> bool:
 
 def with_database_readiness(shared_stores: SharedStores, engine: Engine) -> SharedStores:
     """The stores whose readiness is the shared store's and the database's."""
-    return replace(shared_stores, answers=lambda: shared_stores.answers() and _database_answers(engine))
+    return SharedStores(
+        rate_limits=shared_stores.rate_limits,
+        answers=lambda: shared_stores.answers() and _database_answers(engine),
+        async_redis=shared_stores.async_redis,
+    )
