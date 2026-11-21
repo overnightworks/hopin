@@ -35,7 +35,6 @@ from hopin.game.vocabulary import (
     GAME_RETRY_AFTER_FALLBACK_SECONDS,
     GameRefusal,
 )
-from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
     from agents.tools import JsonObject
@@ -43,7 +42,7 @@ if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore
+    from webauth.ports import SessionRecord, SessionTransaction
 
     from hopin.agent.settings import AgentSettings
     from hopin.web.request_language import RequestLanguage
@@ -158,14 +157,13 @@ class StarterPerson:
     def __init__(
         self,
         relying_party: OidcRelyingParty,
-        sessions: SessionRecordStore,
+        session_transaction: SessionTransaction,
         web_auth: WebAuthConfig,
         request_language: RequestLanguage,
     ) -> None:
         self._relying_party = relying_party
-        self._sessions = sessions
         self._web_auth = web_auth
-        self._session_transaction = session_transaction_of(sessions)
+        self._session_transaction = session_transaction
         self._groups = SessionGroups(relying_party, self._session_transaction, web_auth)
         self._request_language = request_language
 
@@ -176,7 +174,7 @@ class StarterPerson:
     async def person_of(self, starter: HTTPConnection) -> TurnPerson:
         """The starter as the backend's `TurnPerson`; raises `StarterRefusedError` without a standing session."""
         session_id = self._session_id_of(starter)
-        record = await asyncio.to_thread(self._sessions.load, session_id)
+        record = await asyncio.to_thread(self._load_record, session_id)
         if record is None:
             raise StarterRefusedError(_refusal_of_grant(AccessTokenRefusal(AccessTokenRefusalReason.SESSION_ENDED)))
         # webauth binds the store to one issuer, and an account's id is that issuer's `sub`. Two spellings
@@ -211,6 +209,10 @@ class StarterPerson:
         if isinstance(groups, AccessTokenRefusal):
             raise StarterRefusedError(_refusal_of_grant(groups))
         return groups
+
+    def _load_record(self, session_id: str) -> SessionRecord | None:
+        with self._session_transaction() as sessions:
+            return sessions.load(session_id)
 
     def _fresh_access_token(self, session_id: str) -> SecretStr | AccessTokenRefusal:
         return fresh_access_token(
