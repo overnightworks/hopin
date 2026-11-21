@@ -98,7 +98,7 @@ def _database_answers(engine: Engine) -> bool:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except SQLAlchemyError:
-        logger.warning("database_not_answering")
+        logger.warning("database.refused", reason="not_answering")
         return False
     return True
 

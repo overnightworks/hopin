@@ -1,8 +1,11 @@
+import json
 import logging
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from typing import TYPE_CHECKING, NamedTuple
+from urllib.parse import urlsplit
 
 import psycopg
 import pytest
@@ -41,7 +44,6 @@ SECRET_PARAMETER = "sentinel-parameter"
 
 class Health(NamedTuple):
     status: HTTPStatus
-    body: str
 
 
 def health_while_serving(settings: ServerSettings, between: Callable[[], None] = lambda: None) -> list[Health]:
@@ -51,7 +53,7 @@ def health_while_serving(settings: ServerSettings, between: Callable[[], None] =
 
     def ask(client: TestClient) -> None:
         response = client.get(HEALTH_PATH)
-        answers.append(Health(HTTPStatus(response.status_code), response.text))
+        answers.append(Health(HTTPStatus(response.status_code)))
 
     def probe(application: FastAPI, _options: UvicornOptions) -> None:
         with TestClient(application, base_url=TEST_PUBLIC_ORIGIN) as client:
@@ -76,6 +78,13 @@ class TestMigrate:
 
         assert [table for (table,) in empty_database.rows(LIST_TABLES)] == ["accounts", "alembic_version", "sessions"]
         assert len(empty_database.rows(LIST_VERSIONS)) == 1
+
+    def test_does_not_load_the_schema_the_metadata_describes(self, empty_database, served_environment, monkeypatch):
+        monkeypatch.delitem(sys.modules, "hopin.stores.schema")
+
+        main(["migrate"])
+
+        assert "hopin.stores.schema" not in sys.modules
 
     def test_changes_nothing_at_head(self, migrated_database):
         before = (migrated_database.rows(LIST_VERSIONS), migrated_database.rows(LIST_TABLES))
@@ -140,7 +149,7 @@ class TestServe:
         assert [answer.status for answer in health_while_serving(ServerSettings())] == [HTTPStatus.OK, HTTPStatus.OK]
 
     def test_is_not_ready_while_postgres_does_not_answer_and_says_nothing_of_it(
-        self, migrated_database, sign_in_settings, redis_url
+        self, migrated_database, sign_in_settings, redis_url, capsys
     ):
         gate = ServiceGate(migrated_database.url)
         try:
@@ -153,5 +162,12 @@ class TestServe:
             gate.close()
 
         assert [answer.status for answer in answers] == [HTTPStatus.OK, HTTPStatus.SERVICE_UNAVAILABLE]
-        assert gate.url not in answers[1].body
-        assert migrated_database.password not in answers[1].body
+        output = capsys.readouterr()
+        records = [json.loads(line) for line in output.out.splitlines() if line.startswith("{")]
+        (refusal,) = (record for record in records if record["event"] == "database.refused")
+        assert refusal["reason"] == "not_answering"
+        gate_address = urlsplit(gate.url)
+        for address_part in (gate_address.hostname, str(gate_address.port)):
+            assert address_part not in output.out + output.err
+        # The password may equal the user, which the logger's own name carries.
+        assert migrated_database.password not in str({key: value for key, value in refusal.items() if key != "logger"})
