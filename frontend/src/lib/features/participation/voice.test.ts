@@ -382,3 +382,82 @@ describe("closing an agent's player", () => {
         expect(players.created).toEqual([]);
     });
 });
+
+describe("muting an agent's voice", () => {
+    it("ends the agent's playing sound at once, reports it silent and plays none of its later sounds", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        await players.created[0]?.sounds[0]?.start();
+
+        agentVoices.setMuted("a1", true);
+        await Promise.resolve();
+        await Promise.resolve();
+        agentVoices.play("a1", "second");
+        await players.created[0]?.sounds[1]?.start();
+
+        expect([players.created[0]?.muted, reported]).toEqual([
+            true,
+            [
+                ["a1", true],
+                ["a1", false],
+            ],
+        ]);
+    });
+
+    it("plays the agent's sounds that arrive after it is unmuted", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.setMuted("a1", true);
+        agentVoices.setMuted("a1", false);
+        agentVoices.play("a1", "second");
+
+        await players.created[0]?.sounds[1]?.start();
+
+        expect([players.created[0]?.muted, reported]).toEqual([false, [["a1", true]]]);
+    });
+
+    it("leaves the other agents' players unmuted", () => {
+        const { players, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        agentVoices.play("a2", "second");
+
+        agentVoices.setMuted("a1", true);
+
+        expect(players.created.map((player) => player.muted)).toEqual([true, false]);
+    });
+
+    it("mutes the player of an agent that has not spoken yet when it is made", () => {
+        const { players, agentVoices } = voices();
+        agentVoices.setMuted("a1", true);
+
+        agentVoices.play("a1", "first");
+
+        expect(players.created.map((player) => player.muted)).toEqual([true]);
+    });
+
+    it("shows the agent speaking once it is unmuted after a hold the mute cleared", async () => {
+        const { players, reported, agentVoices } = voices();
+        agentVoices.play("a1", "first");
+        await players.created[0]?.sounds[0]?.start();
+        agentVoices.pause("a1");
+
+        agentVoices.setMuted("a1", true);
+        await Promise.resolve();
+        await Promise.resolve();
+        agentVoices.setMuted("a1", false);
+        agentVoices.play("a1", "second");
+        await players.created[0]?.sounds[1]?.start();
+
+        expect(reported.at(-1)).toEqual(["a1", true]);
+    });
+
+    it("tells whether an agent is muted, and forgets the mute when its player closes", () => {
+        const { agentVoices } = voices();
+        agentVoices.setMuted("a1", true);
+        const whileMuted = agentVoices.isMuted("a1");
+
+        agentVoices.close("a1");
+
+        expect([whileMuted, agentVoices.isMuted("a1")]).toEqual([true, false]);
+    });
+});

@@ -3,6 +3,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from speech_client.wire import VoiceId
 
 from tests.e2e.support.dialed_agent import (
     AGENT_NAME,
@@ -14,8 +15,11 @@ from tests.e2e.support.dialed_agent import (
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
+from tests.e2e.support.speaker import Speaker, speaking_hopin
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.fake_speech import FakeSpeech
+from tests.support.loopback_origin import Origin
+from tests.support.speech_origin import offering
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -117,6 +121,27 @@ def own_agent_of(e2e_server: RunningServer) -> Iterator[Callable[[str], OwnAgent
     yield make
     for agent in agents:
         agent.close()
+
+
+@pytest.fixture(scope="module")
+def speech_origin() -> Iterator[Origin]:
+    """A speech origin that offers every voice."""
+    origin = Origin()
+    offering(origin, *VoiceId)
+    yield origin
+    origin.close()
+
+
+@pytest.fixture(scope="module")
+def voicing_server(tmp_path_factory: pytest.TempPathFactory, speech_origin: Origin) -> Iterator[RunningServer]:
+    """HopIn whose agents speak through `speech_origin`."""
+    with speaking_hopin(tmp_path_factory, "voice", speech_origin.base_url) as server:
+        yield server
+
+
+@pytest.fixture
+def speaker(scene_of: Callable[[dict[str, Any]], Scene], speech_origin: Origin, form_factor: dict[str, Any]) -> Speaker:
+    return Speaker(scene_of(form_factor), speech_origin)
 
 
 @pytest.fixture
