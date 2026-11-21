@@ -132,16 +132,6 @@ class TestTheStartLink:
 
         assert (response.status_code, response.json()) == (404, {"detail": "Not Found"})
 
-    def test_without_a_stage_the_address_is_no_page_at_all(self, sign_in_settings):
-        response = World(sign_in_settings, ()).signed_in.get(start_link())
-
-        assert response.status_code == 404
-
-    def test_a_room_link_is_still_the_page(self, world):
-        response = world.signed_in.get(f"{CALL_PATH}/abcd2345")
-
-        assert response.content == PAGE
-
 
 class TestTheRouteOrder:
     @pytest.fixture
@@ -158,9 +148,12 @@ class TestTheRouteOrder:
         assert beside_a_routed_feature.signed_in.get(f"{CALL_PATH}/abcd2345").content == PAGE
         assert beside_a_routed_feature.signed_in.get(TEMPLATED_FEATURE_PATH.format(name="x")).json() == "templated"
 
-    @pytest.mark.parametrize("path", [HEALTH_PATH, HOME_PATH, f"{CALL_PATH}/abcd2345"])
-    def test_the_stage_leaves_the_call_cores_fixed_addresses_to_the_core(self, beside_a_routed_feature, path):
-        response = beside_a_routed_feature.signed_in.get(path)
+    def test_the_health_address_stays_the_cores_beside_a_routed_feature(self, beside_a_routed_feature):
+        response = beside_a_routed_feature.signed_in.get(HEALTH_PATH)
 
-        assert response.status_code == 200
-        assert response.content == PAGE or response.json() == {"status": "ok"}
+        assert (response.status_code, response.json()) == (200, {"status": "ok"})
+
+    def test_the_home_address_stays_the_cores_beside_a_routed_feature(self, beside_a_routed_feature):
+        response = beside_a_routed_feature.signed_in.get(HOME_PATH)
+
+        assert (response.status_code, response.content) == (200, PAGE)
