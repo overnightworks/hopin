@@ -207,13 +207,15 @@ def test_while_held_a_stop_with_the_hold_ends_silent_and_a_later_speak_sounds(he
     assert ("interrupted" in window, silent) == (False, [[SENTENCE_SECONDS]] * len(held.everyone))
 
 
-def continue_and_check_the_same_sound_goes_on(held: HeldAgent) -> None:
+def continue_and_check_the_same_sound_goes_on(
+    held: HeldAgent, after_the_continue: Callable[[Page], None] = lambda person: None
+) -> None:
     continued = held.call(CONTINUE_SPEAKING_TOOL, interrupted="1")
     window = held.speaker.window()
 
     for person in held.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
-        person.evaluate("() => { window.clockFrozen = false; }")
+        after_the_continue(person)
     until(
         held.speaker.scene.owner,
         lambda: [line["text"] for line in held.speaker.window()["entries"]] == [HELD_SENTENCE],
@@ -251,7 +253,12 @@ def test_a_continue_during_the_pausing_ramp_goes_on_with_the_same_sound_and_the_
 ) -> None:
     """CALL-70: A `continue_speaking` that arrives before a browser's player has suspended its context lets the same
     sound go on without a suspend, and the second sentence plays after it."""
-    continue_and_check_the_same_sound_goes_on(held_in_the_pausing_ramp)
+
+    def unfreeze_once_no_sound_has_ended(person: Page) -> None:
+        assert person.evaluate("() => window.sourcesEnded") == 0
+        person.evaluate("() => { window.clockFrozen = false; }")
+
+    continue_and_check_the_same_sound_goes_on(held_in_the_pausing_ramp, unfreeze_once_no_sound_has_ended)
     for person in held_in_the_pausing_ramp.everyone:
         assert person.evaluate("() => window.contextsSuspended") == 0
 
