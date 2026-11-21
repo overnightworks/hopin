@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import secrets
 import time
@@ -244,7 +245,11 @@ class TestLogout:
 
         response = harness.browser().post(
             LOGOUT_PATH,
-            headers={"cookie": cookie_header(member.set_cookie_headers), "accept-language": asked},
+            headers={
+                "cookie": cookie_header(member.set_cookie_headers),
+                "accept-language": asked,
+                "origin": TEST_PUBLIC_ORIGIN,
+            },
         )
 
         page = EndSessionPage(response.text)
@@ -555,23 +560,25 @@ class TestLogs:
         ("groups", "endpoint_is_down", "reason"),
         [([], False, "not-a-member"), ([LOGIN_GROUP], True, "token-endpoint-failed")],
     )
-    def test_a_refusal_logs_one_line_with_its_reason_and_no_identity(self, harness, groups, endpoint_is_down, reason):
+    def test_a_refusal_logs_one_line_with_its_reason_and_no_identity(
+        self, harness, caplog, groups, endpoint_is_down, reason
+    ):
         harness.issuer.token_endpoint_is_down = endpoint_is_down
-        with structlog.testing.capture_logs() as logs:
+        with caplog.at_level(logging.INFO):
             harness.sign_in_through(harness.browser(), groups=groups)
-        refusals = [log for log in logs if log["event"] == "sign_in.refused"]
-        assert [log["reason"] for log in refusals] == [reason]
-        assert SUBJECT not in json.dumps(refusals)
-        assert USERNAME not in json.dumps(refusals)
+        refusals = [record for record in caplog.records if record.getMessage() == "sign_in.refused"]
+        assert [record.reason for record in refusals] == [reason]
+        assert SUBJECT not in json.dumps([vars(record) for record in refusals], default=str)
+        assert USERNAME not in json.dumps([vars(record) for record in refusals], default=str)
 
-    def test_a_client_secret_with_a_carriage_return_shows_as_a_refused_token_request(self, make_harness):
+    def test_a_client_secret_with_a_carriage_return_shows_as_a_refused_token_request(self, make_harness, caplog):
         harness = make_harness(windows_line_ending=True)
-        with structlog.testing.capture_logs() as logs:
+        with caplog.at_level(logging.INFO):
             response = harness.sign_in_through(harness.browser())
         assert_refused(harness, response)
-        assert [(log["reason"], log["idp_error"]) for log in logs if log["event"] == "sign_in.refused"] == [
-            ("token-request-refused", "invalid_client")
-        ]
+        assert [
+            (record.reason, record.idp_error) for record in caplog.records if record.getMessage() == "sign_in.refused"
+        ] == [("token-request-refused", "invalid_client")]
 
     def test_no_secret_reaches_a_log_or_a_response_body(self, harness):
         browser, refused_browser = harness.browser(), harness.browser()

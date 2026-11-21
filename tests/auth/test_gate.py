@@ -10,17 +10,16 @@ import pytest
 import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from webauth.config import WebAuthConfig, install_web_auth_config, installed_web_auth_config
+from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.languages import AppLanguages
-from webauth.middleware import ClientAddressMiddleware, install_web_auth_middleware
 from webauth.middleware.security_headers import STRICT_TRANSPORT_SECURITY
-from webauth.policies import CsrfPolicy, SecurityHeadersPolicy, default_content_security_policy
+from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
 from webauth.ports import AccountEventKind
-from webauth.proxies import TrustedProxies
+from webauth.web_auth import WebAuthStores
 
 from hopin.app import create_app
 from hopin.auth.gate import session_gate
-from hopin.auth.sign_in import build_sign_in_configs
+from hopin.auth.sign_in import SignInConfigs, build_sign_in_configs, build_web_auth
 from hopin.config.constants import (
     ACCOUNT_CONSOLE_PATH,
     ACCOUNT_PATH,
@@ -38,7 +37,6 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from hopin.config.web_policy import SIGN_IN_PATHS
 from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from tests.support.fake_issuer import FakeIssuer
@@ -520,18 +518,16 @@ class TestSessionLifetime:
         sign_in = sign_in_settings()
         stores = single_process_stores()
         now = [1_800_000_000.0]
-        config: WebAuthConfig = replace(
-            build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits).web_auth,
-            wall_clock=lambda: now[0],
-        )
+        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
+        config: WebAuthConfig = replace(configs.web_auth, wall_clock=lambda: now[0])
         member = seed_member(stores, config)
         app = FastAPI()
-        install_web_auth_config(app, config)
-        install_gate(app, stores)
 
         @app.get("/")
         def home() -> str:
             return "home"
+
+        install_gate(app, sign_in, replace(configs, web_auth=config), stores)
 
         client = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         headers = {**BROWSER_ACCEPT, "cookie": cookie_header(member.set_cookie_headers)}
@@ -579,17 +575,19 @@ class TestPageBuildAssets:
         assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
 
 
-def install_gate(app: FastAPI, stores: SingleProcessStores) -> None:
-    install_web_auth_middleware(
-        app,
-        sign_in_paths=SIGN_IN_PATHS,
-        security_headers=SecurityHeadersPolicy(
+def install_gate(app: FastAPI, sign_in: SignInSettings, configs: SignInConfigs, stores: SingleProcessStores) -> None:
+    web_auth = build_web_auth(
+        configs,
+        WebAuthStores(sign_in=stores.transaction, sessions=session_transaction_of(stores.sessions)),
+        fixture_page_build(),
+        lambda _request: "de",
+        SecurityHeadersPolicy(
             content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
         ),
-        csrf_origin=CsrfPolicy(),
-        session_gate=session_gate(session_transaction_of(stores.sessions), frozenset()),
+        FakeIssuer(sign_in).transports,
+        gate=session_gate(frozenset()),
     )
-    app.add_middleware(ClientAddressMiddleware, trusted_proxies=TrustedProxies())
+    web_auth.install(app, bearer=None)
 
 
 class TestSecurityHeaders:

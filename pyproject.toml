@@ -9,7 +9,7 @@ dependencies = [
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.7.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.22.3#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.13.1",
-    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.42.0",
+    "overnightworks-webauth @ git+https://github.com/overnightworks/webauth@v0.43.0",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "redis>=5.0,<9",
