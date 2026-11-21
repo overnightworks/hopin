@@ -98,6 +98,25 @@ class HeldAgent:
         return self.speaker.started(person)
 
 
+# The pause's ramp ends when the context's clock passes its end; a frozen clock keeps every player in the ramp until
+# `window.clockFrozen` is false again, with the context not yet suspended.
+FREEZE_CONTEXT_CLOCKS = """
+() => {
+    const currentTime = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'currentTime').get;
+    const frozenAt = new WeakMap();
+    window.clockFrozen = false;
+    Object.defineProperty(BaseAudioContext.prototype, 'currentTime', {
+        configurable: true,
+        get() {
+            if (!window.clockFrozen) return currentTime.call(this);
+            if (!frozenAt.has(this)) frozenAt.set(this, currentTime.call(this));
+            return frozenAt.get(this);
+        },
+    });
+}
+"""
+
+
 @pytest.fixture
 def held(
     scene_of: Callable[[dict[str, Any]], Scene],
@@ -107,6 +126,28 @@ def held(
 ) -> HeldAgent:
     held_agent = HeldAgent(Speaker(scene_of(form_factor), speech_origin), speech_service)
     held_agent.sponsor_starts_speaking()
+    return held_agent
+
+
+@pytest.fixture
+def held_in_the_pausing_ramp(
+    scene_of: Callable[[dict[str, Any]], Scene],
+    speech_origin: Origin,
+    speech_service: FakeSpeech,
+    form_factor: dict[str, Any],
+) -> HeldAgent:
+    """The held agent, with every browser's players still in the ramp of their pause, not yet suspended."""
+    held_agent = HeldAgent(Speaker(scene_of(form_factor), speech_origin), speech_service)
+    for person in held_agent.everyone:
+        person.wait_for_function(
+            f"() => window.soundsStarted[0] > {SENTENCE_SECONDS - 0.1}", timeout=PLAYBACK_WAIT_MILLISECONDS
+        )
+        person.evaluate(FREEZE_CONTEXT_CLOCKS)
+        person.evaluate("() => { window.clockFrozen = true; }")
+    held_agent.sponsor_starts_speaking()
+    for person in held_agent.everyone:
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+        assert person.evaluate("() => window.contextsSuspended") == 0
     return held_agent
 
 
@@ -166,21 +207,13 @@ def test_while_held_a_stop_with_the_hold_ends_silent_and_a_later_speak_sounds(he
     assert ("interrupted" in window, silent) == (False, [[SENTENCE_SECONDS]] * len(held.everyone))
 
 
-@pytest.mark.parametrize("form_factor", FORM_FACTORS)
-def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_the_queue_plays_after_it(
-    held: HeldAgent,
-) -> None:
-    """CALL-70: A `continue_speaking` with the hold's id answers continued, the window drops `interrupted` in that
-    change, the same sound goes on where it paused in every browser and plays to its end, its whole line enters
-    uncut, and the second sentence plays after it."""
-    for person in held.everyone:
-        person.wait_for_function("() => window.contextsSuspended > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
+def continue_and_check_the_same_sound_goes_on(held: HeldAgent) -> None:
     continued = held.call(CONTINUE_SPEAKING_TOOL, interrupted="1")
     window = held.speaker.window()
 
     for person in held.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
-        person.wait_for_function("() => window.contextsResumed > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        person.evaluate("() => { window.clockFrozen = false; }")
     until(
         held.speaker.scene.owner,
         lambda: [line["text"] for line in held.speaker.window()["entries"]] == [HELD_SENTENCE],
@@ -196,6 +229,31 @@ def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_
     assert held.second_answer.result(REQUEST_SECONDS) == {"spoken": True}
     assert [held.sounds_started(person) for person in held.everyone] == [[SENTENCE_SECONDS] * 2] * len(held.everyone)
     assert [person.evaluate("() => window.soundsStopped") for person in held.everyone] == [0] * len(held.everyone)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_the_queue_plays_after_it(
+    held: HeldAgent,
+) -> None:
+    """CALL-70: A `continue_speaking` with the hold's id answers continued, the window drops `interrupted` in that
+    change, the same sound goes on where it paused in every browser and plays to its end, its whole line enters
+    uncut, and the second sentence plays after it."""
+    for person in held.everyone:
+        person.wait_for_function("() => window.contextsSuspended > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    continue_and_check_the_same_sound_goes_on(held)
+    for person in held.everyone:
+        assert person.evaluate("() => window.contextsResumed") > 0
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_continue_during_the_pausing_ramp_goes_on_with_the_same_sound_and_the_queue_plays_after_it(
+    held_in_the_pausing_ramp: HeldAgent,
+) -> None:
+    """CALL-70: A `continue_speaking` that arrives before a browser's player has suspended its context lets the same
+    sound go on without a suspend, and the second sentence plays after it."""
+    continue_and_check_the_same_sound_goes_on(held_in_the_pausing_ramp)
+    for person in held_in_the_pausing_ramp.everyone:
+        assert person.evaluate("() => window.contextsSuspended") == 0
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

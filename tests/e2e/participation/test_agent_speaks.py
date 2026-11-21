@@ -103,7 +103,10 @@ def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_render
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
         person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
     for person in everyone:
-        person.wait_for_function("() => window.sourcesEnded === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+        person.wait_for_function(
+            "() => window.sourcesStarted > 0 && window.sourcesEnded === window.sourcesStarted",
+            timeout=PLAYBACK_WAIT_MILLISECONDS,
+        )
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
     assert not speaker.speech_has_rendered_the_rest()
     speaker.finish_rendering()
