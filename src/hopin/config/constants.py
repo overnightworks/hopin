@@ -209,3 +209,18 @@ REDIS_KEY_PREFIX = "hopin:v1"
 REDIS_AGENTS_KEY_PREFIX = "hopin"
 # How often the async client retries a connection before it gives up.
 REDIS_RETRY_ATTEMPTS = 3
+
+# One integer per advisory lock of the database, each distinct from the others: any constant shared by every process
+# that takes the lock does.
+# Serialises concurrent `hopin migrate` runs.
+MIGRATION_LOCK_KEY = 7_426_113_501
+# Serialises the sign-in entries of every pod on the database (webauth's `sign_in_entry`).
+SIGN_IN_LOCK_KEY = 7_426_113_502
+POSTGRES_DRIVER = "postgresql+psycopg"
+# A pod holds at most pool_size + max_overflow connections, so the database's connection limit is sized from these.
+DATABASE_POOL_SIZE = 5
+DATABASE_POOL_OVERFLOW = 5
+# How long a request waits for a free pooled connection.
+DATABASE_POOL_TIMEOUT_SECONDS = 10
+# Bounds a connection attempt to a database that is down or silent; libpq takes whole seconds.
+DATABASE_CONNECT_TIMEOUT_SECONDS = 5
