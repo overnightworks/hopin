@@ -33,6 +33,11 @@ export enum GAME_REFUSAL {
     UNAVAILABLE = "unavailable",
 }
 
+export interface ScoreEntry {
+    name: string;
+    correct: number;
+}
+
 export type IdlePhaseFrame = {
     type: GAME_SIGNAL.GAME_PHASE;
     phase: GAME_PHASE.IDLE;
@@ -51,6 +56,7 @@ export type LineFrame = {
     text: string;
     voiced?: true;
     round?: number;
+    scores?: ScoreEntry[];
 };
 
 export type VoiceFrame = {

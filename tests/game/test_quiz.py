@@ -1,12 +1,12 @@
 import pytest
 
 from hopin.game.quiz import (
-    FINAL_SCORE_REQUEST,
     QUIZ_ROUNDS,
     PlayerAnswer,
     Quiz,
     Speaker,
     Turn,
+    final_score_request,
     question_request,
 )
 from hopin.signaling.frames import PeerId
@@ -82,7 +82,7 @@ def test_the_last_rounds_revealed_answer_asks_for_the_final_score():
     """GM-24: The last rounds revealed answer asks for the final score."""
     quiz = last_round_revealed()
 
-    assert (quiz.round, quiz.transcript[-1]) == (QUIZ_ROUNDS, Turn(Speaker.HOPIN, FINAL_SCORE_REQUEST))
+    assert (quiz.round, quiz.transcript[-1]) == (QUIZ_ROUNDS, Turn(Speaker.HOPIN, final_score_request(())))
     assert not quiz.is_over
 
 
@@ -208,7 +208,10 @@ def test_revealing_lists_each_given_answer_with_its_name_in_the_order_last_sent(
     """GM-26: Revealing lists each given answer with its name in the order last sent."""
     quiz = open_question().with_answer(OTHER, "Otto", "Mondego").with_answer(STARTER, "Sam", "Tejo")
 
-    assert revealed_answers(quiz) == [{"name": "Otto", "antwort": "Mondego"}, {"name": "Sam", "antwort": "Tejo"}]
+    assert revealed_answers(quiz) == [
+        {"name": "Otto", "antwort": "Mondego"},
+        {"name": "Sam", "antwort": "Tejo"},
+    ]
 
 
 def test_revealing_with_no_answer_lists_nobody():

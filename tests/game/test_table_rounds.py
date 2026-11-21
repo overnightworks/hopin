@@ -1,6 +1,6 @@
 import pytest
 
-from hopin.game.quiz import FINAL_SCORE_REQUEST, QUIZ_ROUNDS, Speaker, Turn
+from hopin.game.quiz import QUIZ_ROUNDS, Speaker, Turn, final_score_request
 from hopin.game.table import Line
 from tests.game.support.table_world import (
     IDLE,
@@ -72,7 +72,7 @@ class TestFiveRounds:
 
         assert len(game_master.calls) == RUN_COUNT
         assert {run.starter for run in game_master.calls} == {call[1].socket}
-        assert game_master.calls[-1].transcript[-1] == Turn(Speaker.HOPIN, FINAL_SCORE_REQUEST)
+        assert game_master.calls[-1].transcript[-1] == Turn(Speaker.HOPIN, final_score_request(()))
 
     async def test_every_seat_sees_the_rounds_in_order_the_final_line_and_idle_once_at_the_end(self, link, game_master):
         call = await call_of(link, "host", "guest")

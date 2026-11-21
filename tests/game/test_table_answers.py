@@ -23,6 +23,7 @@ from tests.game.support.table_world import (
     refused,
     revealed_answers,
     revealed_into_question_two,
+    scores_of,
     script_two_questions,
     sent,
     sent_count_to_all,
@@ -95,13 +96,13 @@ async def test_the_last_present_players_answer_runs_the_reveal_on_the_starters_s
         *asked(guest, "Frage?"),
         answer_count(1, 2, own=True),
         answer_count(2, 2, own=True),
-        *revealed_into_question_two(guest),
+        *revealed_into_question_two(guest, scores_of(("host", 1), ("guest", 1))),
     ]
     assert game_frames(guest) == [
         *asked(guest, "Frage?"),
         answer_count(1, 2),
         answer_count(2, 2, own=True),
-        *revealed_into_question_two(guest),
+        *revealed_into_question_two(guest, scores_of(("host", 1), ("guest", 1))),
     ]
     assert game_master.calls[1].starter is guest.socket
 
@@ -145,7 +146,7 @@ async def test_a_parked_player_holds_the_reveal_back_until_it_answers_after_its_
         *asked(host, "Frage?"),
         answer_count(1, 2, own=True),
         answer_count(2, 2, own=True),
-        *revealed_into_question_two(host),
+        *revealed_into_question_two(host, scores_of(("host", 1), ("guest", 1))),
     ]
     assert revealed_answers(game_master) == [
         {"name": "host", "antwort": "Porto"},
@@ -259,7 +260,7 @@ async def test_the_last_answer_reveals_once_the_question_run_still_held_by_a_dep
         *asked(host, "Frage?"),
         answer_count(1, 2, own=True),
         answer_count(2, 2, own=True),
-        *revealed_into_question_two(host),
+        *revealed_into_question_two(host, scores_of(("host", 1), ("guest", 1))),
     ]
     assert len(game_master.calls) == 3
 
@@ -296,7 +297,7 @@ async def test_a_seat_whose_write_breaks_does_not_stop_the_counts_the_reveal_or_
         *asked(host, "Frage?"),
         answer_count(1, 2),
         answer_count(2, 2, own=True),
-        *revealed_into_question_two(host),
+        *revealed_into_question_two(host, scores_of(("guest", 1), ("host", 1))),
     ]
     assert host.socket.closed_with is None
 

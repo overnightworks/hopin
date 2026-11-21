@@ -15,15 +15,24 @@ from agents.backend import AgentBackend, TurnStopKind, TurnStopped
 from agents.turn import FailureCode, RejectionCode, RunFile
 from agents.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent
 
+from hopin.agent.backend import VERDICT_TOOL_NAME
+from hopin.game.quiz import Judgement
+
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from agents.agent_file import TurnRequest
     from agents.backend import TurnEvent, TurnPerson
+    from agents.tools import JsonObject
     from agents.turn import AgentRole, Principal
 
 DEFAULT_QUESTION = "Welcher Fluss fließt durch Lissabon?"
 SIGNAL_CAP_SECONDS = 10
+
+
+def correct(*answers: int) -> tuple[JsonObject, ...]:
+    """Verdicts that judge each numbered answer correct."""
+    return tuple({"answer": number, "judgement": Judgement.CORRECT.value} for number in answers)
 
 
 class Signal:
@@ -69,11 +78,13 @@ class SeenRun:
 
 @dataclass(frozen=True)
 class Succeeds:
-    """Ends with `text`; `said` is what the agent spoke on the way, before the end."""
+    """Ends with `text`; `said` is what the agent spoke on the way, before the end; `verdicts`, when given, are the
+    input of the one call of the verdict tool the turn makes first."""
 
     text: str = DEFAULT_QUESTION
     files: tuple[RunFile, ...] = ()
     said: tuple[str, ...] = ()
+    verdicts: tuple[JsonObject, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -162,7 +173,11 @@ class FakeAgentBackend(AgentBackend):
 
 async def _events_of(answer: Answer) -> AsyncGenerator[TurnEvent]:
     match answer:
-        case Succeeds(text=text, files=files, said=said):
+        case Succeeds(text=text, files=files, said=said, verdicts=verdicts):
+            if verdicts is not None:
+                yield ToolCallEvent(
+                    tool_use_id="verdicts-1", name=VERDICT_TOOL_NAME, input={"verdicts": list(verdicts)}
+                )
             for spoken in said:
                 yield AssistantTextEvent(text=spoken)
             yield FinalEvent(text=text, files=files)

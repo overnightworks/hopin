@@ -8,7 +8,7 @@ from agents.turn import FailureCode, Principal, RejectionCode, RunFile
 from logline import Outcome
 from webauth.admission import AppRole
 
-from hopin.agent.backend import QUIZ_AGENT_FILE
+from hopin.agent.backend import QUIZ_AGENT_FILE, VERDICT_TOOL
 from hopin.game.quiz import Speaker, Turn
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GameRefusal
@@ -306,8 +306,8 @@ class TestWhatLeaves:
 
         [run] = world.backend.runs
         request = run.request
-        agent = load_agent(QUIZ_AGENT_FILE, [])
-        assert (request.agent, request.roles, request.tools) == ("quiz", ["admin", "user"], ())
+        agent = load_agent(QUIZ_AGENT_FILE, [VERDICT_TOOL.declaration])
+        assert (request.agent, request.roles, request.tools) == ("quiz", ["admin", "user"], (VERDICT_TOOL.declaration,))
         assert (request.model, request.max_duration_seconds) == (agent.model, agent.max_duration_seconds)
         assert request.turn.system.startswith(agent.prompt)
         assert [(message.role.value, message.text) for message in request.turn.messages] == [
@@ -329,7 +329,7 @@ class TestTheStartersLanguage:
         await world.game_master.ask(starter, OPENING)
 
         [run] = world.backend.runs
-        prompt = load_agent(QUIZ_AGENT_FILE, []).prompt
+        prompt = load_agent(QUIZ_AGENT_FILE, [VERDICT_TOOL.declaration]).prompt
         words_after_the_prompt = re.findall(r"\w+", run.request.turn.system.removeprefix(prompt))
         assert (tag in words_after_the_prompt, other_tag in words_after_the_prompt) == (True, False)
         assert "Deutsch" not in prompt

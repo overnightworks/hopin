@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Literal, get_args
 
 from hopin.game.vocabulary import GamePhase, GameRefusal, GameSignal
-from hopin.signaling.frames import PeerId, WireFrame
+from hopin.signaling.frames import PeerId, WireFrame, WireRecord
 
 QuizPhase = Literal[GamePhase.THINKING, GamePhase.ANSWERING]
 OtherRefusal = Literal[
@@ -37,12 +37,23 @@ class QuizPhaseFrame(WireFrame):
 
 
 @dataclass(frozen=True)
+class ScoreEntry(WireRecord):
+    """How many questions the named player has answered correctly so far."""
+
+    name: str
+    correct: int
+
+
+@dataclass(frozen=True)
 class LineFrame(WireFrame):
+    """A game master line; a reveal's carries the score counted from its verdicts, the question's none."""
+
     TYPE: ClassVar[GameSignal] = GameSignal.GAME_LINE
 
     text: str
     voiced: Literal[True] | None = None
     round: int | None = None
+    scores: list[ScoreEntry] | None = None
 
 
 @dataclass(frozen=True)

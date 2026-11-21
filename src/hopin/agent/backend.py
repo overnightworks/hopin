@@ -7,6 +7,7 @@ webauth's and the issuer's refusal reason, the issuer's error code when it is on
 """
 
 import asyncio
+import json
 import logging
 from contextlib import aclosing
 from functools import partial
@@ -16,9 +17,11 @@ from typing import TYPE_CHECKING, Final, Protocol, assert_never
 from agents.agent_file import load_agent
 from agents.backend import AgentBackend, TurnEvent, TurnPerson, TurnStopped
 from agents.backend.gateway import GatewayBackend
+from agents.tools import HandTool, ToolDeclaration, ToolEffect, ToolOutcome, tool_parameters
 from agents.turn import AgentRole, Principal, StopOutcome, TurnMessage, TurnRole
 from agents.turn_events import AssistantTextEvent, FinalEvent, ToolCallEvent, ToolResultEvent
 from logline import StepTimer
+from pydantic import BaseModel, ConfigDict, ValidationError
 from webauth.admission import AppRole
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import AccessTokenRefusal, AccessTokenRefusalReason, fresh_access_token
@@ -26,7 +29,7 @@ from webauth.session_groups import SessionGroups
 
 from hopin.agent.issuer_error import grant_refusal_reason
 from hopin.config.constants import LINE_LIMITS
-from hopin.game.quiz import Speaker, Turn
+from hopin.game.quiz import Speaker, Turn, Verdict
 from hopin.game.table import GameOutcome, Line, Refused
 from hopin.game.vocabulary import (
     GAME_RETRY_AFTER_FALLBACK_SECONDS,
@@ -35,6 +38,7 @@ from hopin.game.vocabulary import (
 from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
+    from agents.tools import JsonObject
     from pydantic import SecretStr
     from starlette.requests import HTTPConnection
     from webauth.config import WebAuthConfig
@@ -63,8 +67,49 @@ ROLE_OF_SPEAKER: Final = {Speaker.HOPIN: TurnRole.USER, Speaker.GAME_MASTER: Tur
 STARTER_LANGUAGE_SYSTEM: Final = "Schreibe jede Zeile in der Sprache mit dem Sprach-Tag {tag}."
 
 
+VERDICT_TOOL_NAME: Final = "record_verdicts"
+
+
+class _Verdicts(BaseModel):
+    """The input of the verdict tool, which is how the game master hands in its judgement of each answer."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    verdicts: list[Verdict]
+
+
+class MalformedVerdictsError(Exception):
+    """The game master's verdicts are not the tool's input; the message holds no provider output."""
+
+
+async def _acknowledge_verdicts(_principal: Principal, _arguments: JsonObject) -> ToolOutcome:
+    return ToolOutcome(content="Urteile erhalten.", is_error=False)
+
+
+VERDICT_TOOL: Final = HandTool(
+    ToolDeclaration(
+        name=VERDICT_TOOL_NAME,
+        description=(
+            "Gib dein Urteil über die Antworten der Mitspielenden ab, genau einmal je Auflösung und vor der "
+            "Auflösung selbst: je Antwort ihre nr aus der Bitte und ob sie richtig (correct) oder falsch (wrong) ist."
+        ),
+        parameters=tool_parameters(_Verdicts),
+        effect=ToolEffect.READ_ONLY,
+    ),
+    _acknowledge_verdicts,
+)
+
+
+def verdicts_of(arguments: JsonObject) -> tuple[Verdict, ...]:
+    """The verdicts a call of the verdict tool holds; raises `MalformedVerdictsError` for any other input."""
+    try:
+        return tuple(_Verdicts.model_validate_json(json.dumps(arguments), strict=True).verdicts)
+    except ValidationError as error:
+        raise MalformedVerdictsError from error
+
+
 def gateway_backend(settings: AgentSettings) -> QuizBackend:
-    return GatewayBackend(settings.agent)
+    return GatewayBackend(settings.agent, tools=[VERDICT_TOOL])
 
 
 class StarterRefusedError(Exception):
@@ -151,7 +196,7 @@ class QuizGameMaster:
     def __init__(self, backend: QuizBackend, starter_person: StarterPerson) -> None:
         self._backend = backend
         self._starter_person = starter_person
-        self._agent = load_agent(QUIZ_AGENT_FILE, [])
+        self._agent = load_agent(QUIZ_AGENT_FILE, [VERDICT_TOOL.declaration])
 
     async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
         async with StepTimer("game_master_turn.ended", _STEPS) as step:
@@ -161,11 +206,18 @@ class QuizGameMaster:
                     _turn_messages(transcript), appended_system=STARTER_LANGUAGE_SYSTEM.format(tag=tag)
                 )
                 person = await self._starter_person.person_of(starter)
+                verdicts: tuple[Verdict, ...] | None = None
                 async with aclosing(self._backend.run(request, person)) as events:
                     async for event in events:
-                        outcome = _outcome_of_event(event, step)
+                        if isinstance(event, ToolCallEvent) and event.name == VERDICT_TOOL_NAME:
+                            verdicts = _verdicts_of_call(event, verdicts)
+                            continue
+                        outcome = _outcome_of_event(event, step, verdicts or ())
                         if outcome is not None:
                             return outcome
+            except MalformedVerdictsError:
+                step.refuse("malformed_verdicts")
+                return UNAVAILABLE
             except StarterRefusedError as refused:
                 step.refuse(refused.refusal.value)
                 return Refused(refused.refusal)
@@ -182,16 +234,23 @@ def _turn_messages(transcript: tuple[Turn, ...]) -> list[TurnMessage]:
     return [TurnMessage(role=ROLE_OF_SPEAKER[turn.speaker], text=turn.text) for turn in transcript]
 
 
-def _outcome_of_event(event: TurnEvent, step: StepTimer) -> GameOutcome | None:
+def _verdicts_of_call(call: ToolCallEvent, earlier: tuple[Verdict, ...] | None) -> tuple[Verdict, ...]:
+    """The verdicts of the turn's one call of the verdict tool; a second call is as malformed as a bad one."""
+    if earlier is not None:
+        raise MalformedVerdictsError
+    return verdicts_of(call.input)
+
+
+def _outcome_of_event(event: TurnEvent, step: StepTimer, verdicts: tuple[Verdict, ...]) -> GameOutcome | None:
     # Text before the end stays unread: only the final text becomes a line.
     match event:
         case FinalEvent(text=text) if text:
-            return Line(_cut(text))
+            return Line(_cut(text), verdicts)
         case FinalEvent():
             step.refuse("no_words")
-        case ToolCallEvent() | ToolResultEvent():
+        case ToolCallEvent():
             step.refuse("tool_event")
-        case AssistantTextEvent():
+        case ToolResultEvent() | AssistantTextEvent():
             return None
         case _:  # pragma: no cover - the type checker proves the match exhaustive
             assert_never(event)
