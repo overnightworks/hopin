@@ -94,10 +94,6 @@ async def test_every_run_asks_the_reveal_request_the_quiz_itself_builds_for_the_
 
 
 def test_the_shipped_recording_holds_answers_for_every_case():
-    assert all(case.answers for case in recorded_cases())
-
-
-def test_the_recording_ships_as_package_data_with_answers_for_every_case():
     cases = recorded_cases()
 
     assert cases
