@@ -11,6 +11,7 @@ from tests.e2e.support.dialed_agent import (
     AGENT_SEE_SWITCH,
     AGENT_TILE,
     REMOVE,
+    TOLERANCE_PIXELS,
     lies_inside,
     share_area,
 )
@@ -31,7 +32,6 @@ SEE_TRACK = AGENT_SEE_SWITCH + ' >> span[aria-hidden="true"]'
 SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
-TOLERANCE_PIXELS = 1
 MIN_TARGET_PIXELS = 24
 
 
