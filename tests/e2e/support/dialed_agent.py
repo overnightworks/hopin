@@ -307,3 +307,19 @@ def assert_tiles_clear_of_the_controls(person: Page, tiles: int, form_factor: di
     overhang = person.evaluate(LABELS_ABOVE_THE_CONTROLS if full_bleed else TILES_ABOVE_THE_CONTROLS)
     assert len(overhang) == (1 if full_bleed else tiles)
     assert all(extra <= TOLERANCE_PIXELS for extra in overhang), overhang
+
+
+def lies_inside(inner: dict[str, float], outer: dict[str, float]) -> bool:
+    return (
+        inner["x"] >= outer["x"] - TOLERANCE_PIXELS
+        and inner["y"] >= outer["y"] - TOLERANCE_PIXELS
+        and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + TOLERANCE_PIXELS
+        and inner["y"] + inner["height"] <= outer["y"] + outer["height"] + TOLERANCE_PIXELS
+    )
+
+
+def share_area(first: dict[str, float], second: dict[str, float]) -> float:
+    """The area two boxes share."""
+    width = min(first["x"] + first["width"], second["x"] + second["width"]) - max(first["x"], second["x"])
+    height = min(first["y"] + first["height"], second["y"] + second["height"]) - max(first["y"], second["y"])
+    return max(width, 0) * max(height, 0)

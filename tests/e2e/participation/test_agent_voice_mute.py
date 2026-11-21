@@ -5,7 +5,7 @@ from playwright.sync_api import expect
 
 from hopin.words import text
 from tests.e2e.support.calls import press_through_the_prejoin
-from tests.e2e.support.dialed_agent import AGENT_LISTEN_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_LISTEN_SWITCH, AGENT_TILE, REMOVE, lies_inside, share_area
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker
@@ -21,7 +21,6 @@ SOUND_SECONDS = 1.0
 LONGER_SOUND_SECONDS = 5.0
 LATER_SOUND_SECONDS = 1.5
 PLAYBACK_WAIT_MILLISECONDS = 15_000
-TOLERANCE_PIXELS = 1
 IN_CALL = text("de", "call.statusInCall")
 
 
@@ -34,21 +33,6 @@ def box_of(locator: Locator) -> dict[str, float]:
     box = locator.bounding_box()
     assert box is not None
     return box
-
-
-def lies_inside(inner: dict[str, float], outer: dict[str, float]) -> bool:
-    return (
-        inner["x"] >= outer["x"] - TOLERANCE_PIXELS
-        and inner["y"] >= outer["y"] - TOLERANCE_PIXELS
-        and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + TOLERANCE_PIXELS
-        and inner["y"] + inner["height"] <= outer["y"] + outer["height"] + TOLERANCE_PIXELS
-    )
-
-
-def share_area(first: dict[str, float], second: dict[str, float]) -> float:
-    width = min(first["x"] + first["width"], second["x"] + second["width"]) - max(first["x"], second["x"])
-    height = min(first["y"] + first["height"], second["y"] + second["height"]) - max(first["y"], second["y"])
-    return max(width, 0) * max(height, 0)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
