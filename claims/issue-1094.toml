@@ -3,6 +3,6 @@ agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
 role = "builder"
 base = "160bd08ddebdf5ba593a5908dea49e05952790eb"
 branch = "claude/issue-1094-webauth-0-43"
-scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/agent", "src/hopin/app.py", "src/hopin/auth", "src/hopin/main.py", "src/hopin/people.py", "src/hopin/signaling/identity.py", "src/hopin/web", "tests/agent", "tests/auth", "tests/e2e/support", "tests/signaling", "tests/support", "tests/test_app.py", "tests/test_people.py", "uv.lock"]
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/agent", "src/hopin/app.py", "src/hopin/auth", "src/hopin/main.py", "src/hopin/people.py", "src/hopin/signaling/identity.py", "src/hopin/stage/feature.py", "src/hopin/web", "tests/agent", "tests/auth", "tests/e2e/support", "tests/game/support/world.py", "tests/game/test_quiz_agent_backend.py", "tests/participation/test_feature_hearing_token.py", "tests/signaling", "tests/support", "tests/test_app.py", "tests/test_people.py", "uv.lock"]
 opened_commit = "323111f47eea44633b252fb22cabf9d9d358dccb"
 whole_reason = "One Breaking library take: the composition call, the removed record fields and the dropped refusal line change together or hopin does not start."
