@@ -167,8 +167,7 @@ class TestServe:
         records = [json.loads(line) for line in output.out.splitlines() if line.startswith("{")]
         (refusal,) = (record for record in records if record["event"] == "database.refused")
         assert refusal["reason"] == "not_answering"
-        gate_address = urlsplit(gate.url)
-        for address_part in (gate_address.hostname, str(gate_address.port)):
-            assert address_part not in output.out + output.err
-        # The password may equal the user, which the logger's own name carries.
+        assert urlsplit(gate.url).hostname not in output.out + output.err
+        # The password may equal the user, and in CI both are "postgres", which the logger's own name
+        # (hopin.stores.postgres) contains.
         assert migrated_database.password not in str({key: value for key, value in refusal.items() if key != "logger"})

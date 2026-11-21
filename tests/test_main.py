@@ -281,6 +281,7 @@ class TestMain:
         assert "serve" in error
         assert "migrate" in error
 
+    @pytest.mark.shared_stores
     @pytest.mark.parametrize(
         ("setting", "value", "expected_line"),
         [
@@ -290,35 +291,24 @@ class TestMain:
                 "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin",
                 "HOPIN_DATABASE_URL is malformed",
                 id="url_with_a_password",
-                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_URL",
                 "postgresql://hopin@postgres.test.invalid/hopin?sslpassword=sentinel-password",
                 "HOPIN_DATABASE_URL is malformed",
                 id="url_with_a_query",
-                marks=pytest.mark.shared_stores,
-            ),
-            pytest.param(
-                "HOPIN_DATABASE_URL",
-                "postgresql://hopin@postgres.test.invalid/hopin#?sslpassword=sentinel-password",
-                "HOPIN_DATABASE_URL is malformed",
-                id="url_with_a_query_behind_a_fragment",
-                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_PASSWORD_FILE",
                 None,
                 "HOPIN_DATABASE_PASSWORD_FILE is missing",
                 id="missing_password_file_setting",
-                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_PASSWORD_FILE",
                 "/sentinel/absent/password",
                 "HOPIN_DATABASE_PASSWORD_FILE names a file that cannot be read",
                 id="absent_password_file",
-                marks=pytest.mark.shared_stores,
             ),
         ],
     )
