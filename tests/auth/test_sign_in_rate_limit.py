@@ -23,6 +23,7 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -115,6 +116,7 @@ def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch
                 page_build=fixture_page_build(),
                 shared_stores=in_thread_stores(),
                 issuer_transports=issuer.transports,
+                identity=single_process_stores(),
             ),
             issuer,
             clock,

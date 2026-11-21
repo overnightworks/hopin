@@ -292,7 +292,7 @@ class OneLoopServer:
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=self.issuer.transports,
-            stores=self._stores,
+            identity=self._stores,
             scheduler=self.scheduler,
             call_features=(GameFeature(self.backend, VoiceStore()),),
         )

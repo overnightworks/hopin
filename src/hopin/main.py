@@ -49,6 +49,7 @@ from hopin.agent.settings import AgentSettings  # game
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.agent.verdict_check import BackendOf, add_command, configured_agreements  # game
 from hopin.app import create_app
+from hopin.auth.sign_in import LoggingAuditSink
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import DatabaseSettings, RealmSettings, ServerSettings
@@ -57,7 +58,13 @@ from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
 from hopin.stage.feature import configured_stage_feature  # stage
 from hopin.stage.settings import StageSettings  # stage
-from hopin.stores.postgres import create_database_engine, migrate, require_head, with_database_readiness
+from hopin.stores.postgres import (
+    PostgresIdentity,
+    create_database_engine,
+    migrate,
+    require_head,
+    with_database_readiness,
+)
 from hopin.stores.redis import connect_shared_stores
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
@@ -67,8 +74,8 @@ if TYPE_CHECKING:
 
     from fastapi import FastAPI
     from pydantic_settings import BaseSettings
-    from webauth.single_process_stores import SingleProcessStores
 
+    from hopin.stores.identity import IdentityStores
     from hopin.stores.shared import SharedStores
 
 
@@ -126,8 +133,8 @@ def build_application(
     realm: RealmSettings,
     page_build: PageBuild,
     shared_stores: SharedStores,
+    identity: IdentityStores,
     *,
-    stores: SingleProcessStores | None = None,
     subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
 ) -> FastAPI:
     participation = ParticipationSettings()
@@ -138,7 +145,7 @@ def build_application(
         realm,
         page_build=page_build,
         shared_stores=shared_stores,
-        stores=stores,
+        identity=identity,
         call_features=(
             configured_game_feature(voices),  # game
             ParticipationFeature(
@@ -166,8 +173,8 @@ def serve(
     realm: RealmSettings,
     page_build: PageBuild,
     shared_stores: SharedStores,
+    identity: IdentityStores,
     *,
-    stores: SingleProcessStores | None = None,
     subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
     run: Callable[[FastAPI, UvicornOptions], None] = run_uvicorn,
 ) -> None:
@@ -178,7 +185,7 @@ def serve(
         realm,
         page_build,
         shared_stores,
-        stores=stores,
+        identity,
         subscription_wait_seconds=subscription_wait_seconds,
     )
     run(application, uvicorn_options(settings))
@@ -207,6 +214,7 @@ def serve_on_migrated_database(
             realm,
             page_build,
             shared_stores,
+            PostgresIdentity(engine, LoggingAuditSink()),
             subscription_wait_seconds=subscription_wait_seconds,
             run=run_at_head,
         )

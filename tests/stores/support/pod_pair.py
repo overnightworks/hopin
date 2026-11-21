@@ -17,7 +17,7 @@ from tests.support.page_build import FIXTURE_DIRECTORY
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
 LOCALHOST = "127.0.0.1"
 LAUNCHER = Path(__file__).parent / "serve_hopin.py"
@@ -43,11 +43,11 @@ class Pod:
     process: subprocess.Popen[bytes]
     log: Path
 
-    def status(self, path: str) -> int:
-        """The status of a GET from this machine's address, redirects unfollowed."""
+    def status(self, path: str, *, method: str = "GET", headers: Mapping[str, str] | None = None) -> int:
+        """The status of a request from this machine's address, redirects unfollowed."""
         connection = http.client.HTTPConnection(LOCALHOST, self.port, timeout=REQUEST_WAIT_SECONDS)
         try:
-            connection.request("GET", path, headers={"Host": urlsplit(TEST_PUBLIC_ORIGIN).netloc})
+            connection.request(method, path, headers={"Host": urlsplit(TEST_PUBLIC_ORIGIN).netloc, **(headers or {})})
             return connection.getresponse().status
         finally:
             connection.close()

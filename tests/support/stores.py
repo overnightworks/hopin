@@ -1,4 +1,5 @@
 import threading
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -6,14 +7,64 @@ from webauth.single_process_stores import SingleProcessStores
 
 from hopin.auth.sign_in import LoggingAuditSink
 from hopin.participation.voice import StoredVoice, VoiceStore
+from hopin.stores.accounts import AccountRecord
+from hopin.stores.identity import PersonRecords, SessionTimes
 
 if TYPE_CHECKING:
-    from webauth.ports import AuditSink, SessionRecord, SessionRecordStore
+    from contextlib import AbstractContextManager
+    from datetime import datetime
+
+    from webauth.ports import AuditSink, SessionRecord, SessionRecordStore, SessionTransaction, SignInStores
 
 
-def single_process_stores(audit: AuditSink | None = None) -> SingleProcessStores:
-    """The stores of production's wiring; a test that needs another audit sink passes it."""
-    return SingleProcessStores(audit=LoggingAuditSink() if audit is None else audit)
+def session_transaction_of(sessions: SessionRecordStore) -> SessionTransaction:
+    """The one transaction every session read opens; the in-memory store commits each call itself."""
+    return lambda: nullcontext(sessions)
+
+
+class InThreadIdentity:
+    """webauth's single-process stores behind `IdentityStores`, for the tests that run the app in one process.
+
+    A test seeds `accounts` and `sessions`, and may replace `sessions` with a watching wrapper the app then reads.
+    """
+
+    def __init__(self, audit: AuditSink) -> None:
+        stores = SingleProcessStores(audit=audit)
+        self.accounts = stores.accounts
+        self.sessions = stores.sessions
+        self.transaction = stores.transaction
+
+    def sign_in_transaction(self) -> AbstractContextManager[SignInStores]:
+        return self.transaction()
+
+    def session_transaction(self) -> AbstractContextManager[SessionRecordStore]:
+        return nullcontext(self.sessions)
+
+    def records_of(self, subject: str) -> PersonRecords:
+        records = self.sessions.records_of(subject)
+        account = records.account
+        return PersonRecords(
+            account=None
+            if account is None
+            else AccountRecord(id=account.id, username=account.username, role=account.role, kind=account.kind),
+            sessions=tuple(
+                SessionTimes(
+                    started_at=session.started_at,
+                    expires_at=session.expires_at,
+                    holds_refresh_token=session.holds_refresh_token,
+                    holds_id_token=session.holds_id_token,
+                )
+                for session in records.sessions
+            ),
+        )
+
+    def delete_expired(self, at: datetime) -> int:
+        return self.sessions.delete_expired(at)
+
+
+def single_process_stores(audit: AuditSink | None = None) -> InThreadIdentity:
+    """The in-thread tests' identity; a test that needs another audit sink passes it."""
+    return InThreadIdentity(LoggingAuditSink() if audit is None else audit)
 
 
 @dataclass(frozen=True)

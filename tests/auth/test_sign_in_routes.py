@@ -4,6 +4,7 @@ import re
 import secrets
 import time
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlsplit
 
@@ -281,6 +282,12 @@ class FailingAuditSink(LoggingAuditSink):
 
 
 class TestBackchannelLogout:
+    pytestmark = pytest.mark.shared_stores
+
+    @pytest.fixture
+    def make_harness(self, make_harness, postgres_stores_with):
+        return partial(make_harness, stores_of=postgres_stores_with)
+
     def sign_in_on_devices(self, harness, subject: str, devices: int = 2) -> list[str]:
         session_ids = []
         for _ in range(devices):
@@ -289,17 +296,18 @@ class TestBackchannelLogout:
             session_ids.append(harness.who(browser)["session_id"])
         return session_ids
 
-    def test_a_valid_token_ends_every_session_and_removes_the_account_of_its_subject_and_no_one_elses(self, harness):
+    def test_a_valid_token_ends_every_session_and_keeps_the_account_of_its_subject_and_no_one_elses(self, harness):
         anna = self.sign_in_on_devices(harness, "anna")
         (other,) = self.sign_in_on_devices(harness, "ben", devices=1)
         ben = harness.accounts.get("ben")
+        anna_account = harness.accounts.get("anna")
 
         with structlog.testing.capture_logs() as logs:
             response = harness.post_logout_token(harness.issuer.logout_token("anna"))
 
         assert response.status_code == 200
         assert [harness.sessions.load(session_id) for session_id in anna] == [None, None]
-        assert harness.accounts.get("anna") is None
+        assert harness.accounts.get("anna") == anna_account
         assert harness.sessions.load(other) is not None
         assert harness.accounts.get("ben") == ben
         ended = [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value]
@@ -312,14 +320,14 @@ class TestBackchannelLogout:
         assert response.status_code == 200
         assert harness.accounts.get("stranger") is None
 
-    def test_a_token_for_a_subject_without_a_session_removes_the_account_and_logs_no_logout(self, harness):
-        harness.accounts.create_for_subject("anna", USERNAME, role="user", kind=AccountKind.PERSON)
+    def test_a_token_for_a_subject_without_a_session_keeps_the_account_and_logs_no_logout(self, harness):
+        account = harness.accounts.create_for_subject("anna", USERNAME, role="user", kind=AccountKind.PERSON)
 
         with structlog.testing.capture_logs() as logs:
             response = harness.post_logout_token(harness.issuer.logout_token("anna"))
 
         assert response.status_code == 200
-        assert harness.accounts.get("anna") is None
+        assert harness.accounts.get("anna") == account
         assert [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value] == []
 
     def test_the_same_token_sent_again_is_accepted_and_changes_nothing(self, harness):
@@ -331,10 +339,10 @@ class TestBackchannelLogout:
             response = harness.post_logout_token(token)
 
         assert response.status_code == 200
-        assert harness.accounts.get("anna") is None
+        assert harness.accounts.get("anna") is not None
         assert [log for log in logs if log.get("kind") == AccountEventKind.BACKCHANNEL_LOGOUT.value] == []
 
-    def test_a_person_signs_in_again_after_the_erasure_and_gets_a_new_account_and_session(self, harness):
+    def test_a_person_signs_in_again_after_the_logout_and_gets_a_new_session_on_the_same_account(self, harness):
         old_browser = harness.browser()
         harness.sign_in_through(old_browser, subject="anna")
         harness.post_logout_token(harness.issuer.logout_token("anna"))
@@ -344,7 +352,7 @@ class TestBackchannelLogout:
             harness.sign_in_through(new_browser, subject="anna")
 
         created = [log for log in logs if log.get("kind") == AccountEventKind.USER_CREATED.value]
-        assert [(log["sub"], log["role"]) for log in created] == [("anna", "user")]
+        assert created == []
         assert harness.who(old_browser) == {"user": None}
         assert harness.who(new_browser)["user"] == {"id": "anna", "username": USERNAME}
 

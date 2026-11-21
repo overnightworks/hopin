@@ -37,7 +37,6 @@ from hopin.config.constants import (
     WEBSOCKET_PATH,
     SignalType,
 )
-from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
@@ -61,14 +60,13 @@ from tests.support.sign_in_settings import (
     SignInSettings,
 )
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
-from tests.support.stores import single_process_stores
+from tests.support.stores import InThreadIdentity, session_transaction_of, single_process_stores
 
 pytestmark = pytest.mark.integration
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    from webauth.single_process_stores import SingleProcessStores
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
 FETCH_ACCEPT = {"accept": "application/json"}
@@ -125,7 +123,7 @@ class Application:
             TEST_REALM,
             page_build=fixture_page_build(languages),
             shared_stores=in_thread_stores(),
-            stores=self.stores,
+            identity=self.stores,
             issuer_transports=self.issuer.transports,
             **options,
         )
@@ -582,7 +580,7 @@ class TestPageBuildAssets:
         assert (response.status_code, response.headers["cache-control"]) == (200, "no-cache")
 
 
-def install_gate(app: FastAPI, sign_in: SignInSettings, configs: SignInConfigs, stores: SingleProcessStores) -> None:
+def install_gate(app: FastAPI, sign_in: SignInSettings, configs: SignInConfigs, stores: InThreadIdentity) -> None:
     web_auth = build_web_auth(
         configs,
         WebAuthStores(sign_in=stores.transaction, sessions=session_transaction_of(stores.sessions)),

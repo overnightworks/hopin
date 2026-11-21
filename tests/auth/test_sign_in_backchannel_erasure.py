@@ -32,18 +32,17 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
-from tests.support.stores import single_process_stores
 
 ABNORMAL_CLOSE_CODE = 4999
 FOUND_ELSEWHERE = 302
 UNAUTHENTICATED = 401
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.shared_stores
 
 
 @pytest.fixture
-def stores():
-    return single_process_stores()
+def stores(postgres_stores):
+    return postgres_stores
 
 
 @pytest.fixture
@@ -64,7 +63,7 @@ def app(sign_in_settings, issuer, stores, scheduler):
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         issuer_transports=issuer.transports,
-        stores=stores,
+        identity=stores,
         scheduler=scheduler,
     )
 
@@ -180,7 +179,6 @@ class TestSeatsOfAnErasedPerson:
 
         advance(SESSION_RECHECK_SECONDS)
 
-        assert stores.accounts.get("anna") is None
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         assert host.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
 
@@ -250,6 +248,28 @@ class TestSeatsOfAnErasedPerson:
         assert close_code_of(in_second) == SESSION_ENDED_CLOSE_CODE
 
 
+class TestAccountAfterTheLogout:
+    def test_every_session_of_the_person_ends_and_the_account_stays(self, app, stores, erase):
+        config = installed_web_auth_config(app)
+        account = stores.accounts.create_for_subject("anna", "anna", AppRole.USER, kind=AccountKind.PERSON)
+        first = seed_member(stores, config, account=account)
+        second = seed_member(stores, config, account=account)
+
+        assert erase("anna").is_success
+
+        assert stores.sessions.load(first.session.id) is None
+        assert stores.sessions.load(second.session.id) is None
+        assert stores.accounts.get("anna") == account
+
+    def test_a_repeat_and_an_unknown_person_change_nothing_and_are_no_error(self, members, stores, erase):
+        anna = members("anna")
+
+        assert [erase(subject).is_success for subject in ("anna", "anna", "ghost")] == [True, True, True]
+
+        assert stores.accounts.get("anna") == anna.account
+        assert stores.accounts.get("ghost") is None
+
+
 class TestRequestsOfAnErasedPerson:
     def test_a_navigation_is_sent_to_the_sign_in_and_an_api_call_is_refused_never_a_server_error(
         self, client, members, erase
@@ -288,9 +308,10 @@ class TestExportAfterTheErasure:
         assert close_code_of(guest) == SESSION_ENDED_CLOSE_CODE
         data_after, withheld_after = export_of(client, admin, "anna")
 
-        assert data_before["account"] is None
+        anna = {"name": "anna", "role": AppRole.USER}
+        assert data_before["account"] == anna
         assert data_before["sessions"] == []
         assert len(data_before["seats"]) == 1
         assert withheld_before["resume_token"] == 1
-        assert data_after == {"account": None, "sessions": [], "seats": []}
-        assert withheld_after == {}
+        assert data_after == {"account": anna, "sessions": [], "seats": []}
+        assert set(withheld_after.values()) == {0}

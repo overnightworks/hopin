@@ -1,9 +1,0 @@
-[[code]]
-path = "src/hopin/stores/schema.py"
-item = "overnightworks/hopin#828"
-reason = "The accounts and sessions tables have only the drift test as caller until the stores switch to Postgres."
-
-[[code]]
-path = "src/hopin/config/constants.py"
-item = "overnightworks/hopin#828"
-reason = "SIGN_IN_LOCK_KEY is taken by the sign-in entry once the stores switch to Postgres."

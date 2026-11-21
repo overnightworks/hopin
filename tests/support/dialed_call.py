@@ -31,12 +31,12 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
-from tests.support.stores import WatchedSessions, WatchedVoices, single_process_stores
+from tests.support.stores import InThreadIdentity, WatchedSessions, WatchedVoices, single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
-    from webauth.single_process_stores import SingleProcessStores, StoredAccount
+    from webauth.single_process_stores import StoredAccount
 
     from hopin.agent.mcp import BuiltParticipationFeature
     from tests.support.fake_issuer import FakeIssuer
@@ -174,7 +174,7 @@ class DialedCall:
     """A HopIn instance whose issuer is a fake, with the means to seat people and to call its MCP endpoint."""
 
     issuer: FakeIssuer
-    stores: SingleProcessStores
+    stores: InThreadIdentity
     client: TestClient
     sockets: ExitStack
     audience: str
@@ -509,7 +509,7 @@ def serving_dialed_call(
         page_build=fixture_page_build(),
         shared_stores=shared_stores,
         issuer_transports=issuer.transports,
-        stores=stores,
+        identity=stores,
         scheduler=scheduler,
         call_features=(
             *more_call_features,

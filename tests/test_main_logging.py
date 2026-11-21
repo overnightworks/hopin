@@ -84,7 +84,7 @@ async def started_server(
             RealmSettings(),
             fixture_page_build(),
             in_thread_stores(),
-            stores=stores,
+            stores,
             run=lambda application, options: started.append((application, options)),
         )
     ((app, options),) = started

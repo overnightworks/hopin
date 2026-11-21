@@ -72,7 +72,7 @@ def app(sign_in_settings, stores, wall_clock):
         TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
-        stores=stores,
+        identity=stores,
         wall_clock=wall_clock,
     )
 
@@ -402,7 +402,7 @@ def issuer_browser(sign_in_settings, stores):
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         issuer_transports=issuer.transports,
-        stores=stores,
+        identity=stores,
     )
 
     def sign_in_with(groups):
