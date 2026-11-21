@@ -27,7 +27,6 @@ from hopin.config.constants import (
     AUTH_START_PATH,
     CALL_FEATURES_PATH,
     HEALTH_PATH,
-    LOGIN_GROUP,
     SESSION_SWEEP_SECONDS,
     WEBSOCKET_PATH,
     SignalType,
@@ -42,7 +41,7 @@ from tests.support.forwarded_clients import (
 )
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_ICON, SIGN_IN_STYLESHEET, fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
 from tests.support.signed_in import cookie_header, handshake_headers, new_id_token, seed_member
 from tests.support.stores import single_process_stores
@@ -126,7 +125,9 @@ class TestCreateApp:
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert start.headers["location"].startswith(sign_in.settings.oidc_issuer)
         assert callback.status_code == 303
@@ -143,7 +144,9 @@ class TestCreateApp:
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
 
         answer = browser.get(ACCOUNT_PATH)
@@ -163,7 +166,9 @@ class TestCreateApp:
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         cookie = f"{SESSION_COOKIE}={browser.cookies[SESSION_COOKIE]}"
         session_id = session_id_from_request(
@@ -186,7 +191,9 @@ class TestCreateApp:
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         handshake = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
         with browser.websocket_connect(WEBSOCKET_PATH, headers=handshake) as socket:

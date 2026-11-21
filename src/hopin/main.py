@@ -51,7 +51,7 @@ from hopin.agent.verdict_check import BackendOf, add_command, configured_agreeme
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
-from hopin.config.settings import DatabaseSettings, ServerSettings
+from hopin.config.settings import DatabaseSettings, RealmSettings, ServerSettings
 from hopin.game.verdict_repeatability import passes, printed  # game
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
@@ -81,6 +81,7 @@ MODEL_VALIDATOR_MESSAGE_PREFIX = "Value error, "
 SETTINGS_FIELD_IN_MESSAGE = re.compile(r'error parsing value for field "([^"]+)"')
 
 SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (
+    RealmSettings,
     ServerSettings,
     AgentSettings,  # game
     ParticipationSettings,
@@ -146,6 +147,7 @@ def build_application(
                 speaking=speech.speaking_service,
                 voices=voices,
                 redis=shared_stores.async_redis,
+                realm=settings.realm,
                 subscription_wait_seconds=subscription_wait_seconds,
             ),
             *configured_stage_feature(settings.public_origin),  # stage
@@ -242,7 +244,9 @@ def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
         try:
             settings_class()
         except ValidationError as invalid:
-            refusal += refusal_lines(settings_class, invalid)
+            # A nested class's refusal reaches its owner unwrapped, and the nested class reports its own keys.
+            if invalid.title == settings_class.__name__:
+                refusal += refusal_lines(settings_class, invalid)
         except SettingsError as unreadable:
             refusal += unreadable_line(settings_class, unreadable)
     return refusal

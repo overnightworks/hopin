@@ -156,7 +156,12 @@ def serving_call(
             else (
                 GameFeature(backend, voices, speech),
                 # The voices are served by participation's route.
-                ParticipationFeature(sign_in.settings.public_origin, voices=voices, redis=shared_stores.async_redis),
+                ParticipationFeature(
+                    sign_in.settings.public_origin,
+                    voices=voices,
+                    redis=shared_stores.async_redis,
+                    realm=sign_in.settings.realm,
+                ),
             )
         ),
     )

@@ -21,11 +21,10 @@ from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from playwright.sync_api import Page, expect
 
-from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, LOOK, SAY
-from hopin.config.constants import LOGIN_GROUP
 from tests.e2e.support.calls import INVITE_LINK_PATTERN
 from tests.e2e.support.people import PHONE
+from tests.support.sign_in_settings import TEST_REALM
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -224,8 +223,8 @@ class OwnAccountAgent(SdkAgent):
             f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
             audience=f"{server.base_url}/mcp",
             authorized_party="some-agent-client",
-            scope=MCP_SCOPE,
-            groups=(AGENT_GROUP, MCP_GROUP),
+            scope=TEST_REALM.mcp_scope,
+            groups=(TEST_REALM.agent_group, TEST_REALM.mcp_group),
             extra_claims={"agent_owner": owner_subject, "agent_name": name},
         )
         super().__init__(server, token)
@@ -285,9 +284,9 @@ class OwnAgent(SdkAgent):
         token = server.issuer.access_token(
             account_id,
             audience=f"{server.base_url}/mcp",
-            authorized_party=MCP_CLIENT_ID,
-            scope=MCP_SCOPE,
-            groups=(LOGIN_GROUP, MCP_GROUP),
+            authorized_party=TEST_REALM.mcp_client_id,
+            scope=TEST_REALM.mcp_scope,
+            groups=(TEST_REALM.login_group, TEST_REALM.mcp_group),
         )
         super().__init__(server, token)
 

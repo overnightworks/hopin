@@ -17,9 +17,7 @@ from webauth.sign_in_routes import LogoutPageText, RefusalPage, SignInRefusal
 from webauth.web_auth import IssuerCalls, SignInPages, WebAuth, WebAuthSettings, WebAuthStores
 
 from hopin.config.constants import (
-    ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
-    LOGIN_GROUP,
     LOGIN_PATH,
     NO_ACCESS_PATH,
     OIDC_LEEWAY_SECONDS,
@@ -66,6 +64,7 @@ class SignInConfigs:
     oidc_client: OidcClientConfig
     web_auth: WebAuthConfig
     trusted_proxies: TrustedProxies
+    groups: AdmissionConfig
 
 
 @dataclass(frozen=True)
@@ -98,7 +97,10 @@ def build_sign_in_configs(
         web_auth = _build_web_auth(settings, session_secret, rate_limits, wall_clock)
     except ValueError as refusal:
         raise SignInConfigurationError(f"HOPIN_SESSION_SECRET_FILE is refused: {refusal}") from None
-    return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies)
+    groups = AdmissionConfig(
+        bound_issuer=oidc_client.issuer, login_group=settings.realm.login_group, admin_group=settings.realm.admin_group
+    )
+    return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies, groups=groups)
 
 
 def _parse_trusted_proxies(raw: str) -> TrustedProxies:
@@ -118,7 +120,7 @@ def _build_oidc_client(
         token_endpoint=f"{openid_connect}/token",
         jwks_url=f"{openid_connect}/certs",
         end_session_endpoint=f"{openid_connect}/logout",
-        client_id=settings.oidc_client_id,
+        client_id=settings.realm.client_id,
         client_secret=client_secret,
         redirect_uri=settings.public_origin + AUTH_CALLBACK_PATH,
         post_logout_redirect_uri=settings.public_origin + LOGIN_PATH,
@@ -176,7 +178,7 @@ def build_web_auth(
             rate_limit=RateLimitPolicy(exempt=RATE_LIMIT_EXEMPT_PATH_RULES),
         ),
         stores=stores,
-        groups=AdmissionConfig(bound_issuer=client.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
+        groups=sign_in_configs.groups,
         pages=SignInPages(
             refused=lambda request, refusal: _refusal_response(refusal, page_build, request_language(request)),
             logout_page_text=lambda request: _logout_page_text(request_language(request), logout_button_label),

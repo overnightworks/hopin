@@ -22,7 +22,7 @@ from hopin.config.constants import (
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 
 pytestmark = pytest.mark.integration
 
@@ -77,7 +77,9 @@ class Deployment:
         """Callback queries carrying a valid code, from a start made by an address nobody else uses."""
         start = self.client("192.0.2.200").get(AUTH_START_PATH)
         return [
-            self.issuer.authorize(start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna")
+            self.issuer.authorize(
+                start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
+            )
             for _ in range(count)
         ]
 
@@ -86,7 +88,7 @@ class Deployment:
         start = browser.get(AUTH_START_PATH)
         assert start.status_code == HTTPStatus.SEE_OTHER
         query = self.issuer.authorize(
-            start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna"
+            start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
         )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert callback.headers["location"] != NO_ACCESS_PATH

@@ -9,7 +9,6 @@ from hopin.config.constants import (
     DEFAULT_PORT,
     MAX_PARTICIPANTS_PER_ROOM,
     MIN_PARTICIPANTS_PER_ROOM,
-    OIDC_CLIENT_ID,
     ROOM_ID_LENGTH,
     STUN_SERVER_URL,
     SignalType,
@@ -73,7 +72,6 @@ class TestServerSettings:
         assert settings.port == DEFAULT_PORT
         assert settings.stun_server == STUN_SERVER_URL
         assert settings.max_participants_per_room == MAX_PARTICIPANTS_PER_ROOM
-        assert settings.oidc_client_id == OIDC_CLIENT_ID
         assert settings.trusted_proxies == ""
         assert settings.turn_provider is TurnProvider.OFF
         assert settings.turn_key_id_file is None
@@ -87,7 +85,6 @@ class TestServerSettings:
             "HOPIN_PORT": "9090",
             "HOPIN_MAX_PARTICIPANTS_PER_ROOM": "3",
             "HOPIN_STUN_SERVER": "stun:stun.example.test:3478",
-            "HOPIN_OIDC_CLIENT_ID": "other-client",
             "HOPIN_TRUSTED_PROXIES": "10.0.0.0/8,127.0.0.1",
         }
         with patch.dict(os.environ, env):
@@ -96,7 +93,6 @@ class TestServerSettings:
             assert settings.port == 9090
             assert settings.max_participants_per_room == 3
             assert settings.stun_server == "stun:stun.example.test:3478"
-            assert settings.oidc_client_id == "other-client"
             assert settings.trusted_proxies == "10.0.0.0/8,127.0.0.1"
             assert settings.oidc_issuer == sign_in.settings.oidc_issuer
             assert settings.public_origin == sign_in.settings.public_origin

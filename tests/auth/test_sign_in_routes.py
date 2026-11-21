@@ -20,10 +20,8 @@ from hopin.auth.sign_in import (
     LoggingAuditSink,
 )
 from hopin.config.constants import (
-    ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
     HOME_PATH,
-    LOGIN_GROUP,
     LOGIN_PATH,
     LOGOUT_PATH,
     NO_ACCESS_PATH,
@@ -42,7 +40,7 @@ from tests.support.sign_in_harness import (
     set_cookies,
     with_query_value,
 )
-from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
 
 pytestmark = pytest.mark.integration
@@ -58,7 +56,7 @@ class TestStart:
             f"{harness.sign_in.settings.oidc_issuer}/protocol/openid-connect/auth"
         )
         assert {name: query[name] for name in ("client_id", "redirect_uri", "response_type", "scope")} == {
-            "client_id": [harness.sign_in.settings.oidc_client_id],
+            "client_id": [harness.sign_in.settings.realm.client_id],
             "redirect_uri": [TEST_PUBLIC_ORIGIN + AUTH_CALLBACK_PATH],
             "response_type": ["code"],
             "scope": ["openid profile groups"],
@@ -89,7 +87,7 @@ class TestStart:
 
 
 class TestMemberSignIn:
-    @pytest.mark.parametrize("group", [LOGIN_GROUP, f"{LOGIN_GROUP}/team"])
+    @pytest.mark.parametrize("group", [TEST_REALM.login_group, f"{TEST_REALM.login_group}/team"])
     def test_a_member_gets_a_session_and_lands_on_the_requested_page(self, harness, group):
         browser = harness.browser()
         response = harness.sign_in_through(browser, groups=[group], next_path="/c/abc")
@@ -120,11 +118,11 @@ class TestMemberSignIn:
     @pytest.mark.parametrize(
         ("groups", "admin"),
         [
-            ([LOGIN_GROUP], False),
-            ([f"{LOGIN_GROUP}/team"], False),
-            ([f"{LOGIN_GROUP}/administrators"], False),
-            ([ADMIN_GROUP], True),
-            ([f"{ADMIN_GROUP}/team"], True),
+            ([TEST_REALM.login_group], False),
+            ([f"{TEST_REALM.login_group}/team"], False),
+            ([f"{TEST_REALM.login_group}/administrators"], False),
+            ([TEST_REALM.admin_group], True),
+            ([f"{TEST_REALM.admin_group}/team"], True),
         ],
     )
     def test_the_role_follows_the_groups_at_each_sign_in(self, harness, groups, admin):
@@ -133,8 +131,8 @@ class TestMemberSignIn:
         assert harness.accounts.get(SUBJECT).role == expected
 
     def test_a_member_who_left_the_admin_group_is_a_user_again_at_the_next_sign_in(self, harness):
-        harness.sign_in_through(harness.browser(), groups=[ADMIN_GROUP])
-        harness.sign_in_through(harness.browser(), groups=[LOGIN_GROUP])
+        harness.sign_in_through(harness.browser(), groups=[TEST_REALM.admin_group])
+        harness.sign_in_through(harness.browser(), groups=[TEST_REALM.login_group])
         assert harness.accounts.get(SUBJECT).role == AppRole.USER
 
     def test_the_issued_refresh_token_is_held_in_the_session_row_as_a_secret(self, harness):
@@ -217,7 +215,7 @@ class TestLogout:
         assert response.headers["cache-control"] == "no-store"
         assert page.action == f"{TEST_ISSUER}/protocol/openid-connect/logout"
         assert page.fields == {
-            "client_id": harness.sign_in.settings.oidc_client_id,
+            "client_id": harness.sign_in.settings.realm.client_id,
             "post_logout_redirect_uri": TEST_PUBLIC_ORIGIN + LOGIN_PATH,
             "id_token_hint": id_token,
         }
@@ -410,7 +408,9 @@ class TestBackchannelLogout:
 
 class TestRefusedLogin:
     @pytest.mark.parametrize(
-        "groups", [[], None, [f"{LOGIN_GROUP}2"], ["/apps"], ["/apps/songmaker"]], ids=lambda groups: str(groups)
+        "groups",
+        [[], None, [f"{TEST_REALM.login_group}2"], ["/apps"], ["/apps/songmaker"]],
+        ids=lambda groups: str(groups),
     )
     def test_a_non_member_is_sent_to_no_access_and_gets_no_account(self, harness, groups):
         browser = harness.browser()
@@ -425,7 +425,7 @@ class TestRefusedLogin:
         browser = harness.browser()
         start = harness.start(browser)
         query = harness.issuer.authorize(
-            start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
+            start.headers["location"], subject=SUBJECT, groups=[TEST_REALM.login_group], username=USERNAME
         )
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query.replace('state=', 'state=x')}")
         # webauth clears the cookie named for the state it was handed, which is not the one the start set
@@ -436,7 +436,7 @@ class TestRefusedLogin:
         owner, intruder = harness.browser(), harness.browser()
         start = harness.start(owner)
         query = harness.issuer.authorize(
-            start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
+            start.headers["location"], subject=SUBJECT, groups=[TEST_REALM.login_group], username=USERNAME
         )
         refused = intruder.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert harness.issuer.exchanges == []
@@ -451,7 +451,7 @@ class TestRefusedLogin:
         browser = harness.browser()
         start = harness.start(browser)
         swapped = with_query_value(start.headers["location"], claim, "swapped")
-        query = harness.issuer.authorize(swapped, subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME)
+        query = harness.issuer.authorize(swapped, subject=SUBJECT, groups=[TEST_REALM.login_group], username=USERNAME)
         response = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert_refused(harness, response)
         assert harness.who(browser) == {"user": None}
@@ -466,7 +466,7 @@ class TestRefusedLogin:
 
         start = browser.get(again.group(1))
         query = harness.issuer.authorize(
-            start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
+            start.headers["location"], subject=SUBJECT, groups=[TEST_REALM.login_group], username=USERNAME
         )
         landing = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
 
@@ -476,7 +476,7 @@ class TestRefusedLogin:
         browser = harness.browser()
         start = harness.start(browser)
         query = harness.issuer.authorize(
-            start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
+            start.headers["location"], subject=SUBJECT, groups=[TEST_REALM.login_group], username=USERNAME
         )
         ((pending_name, pending_value),) = pending_cookie_values(start).items()
         assert browser.get(f"{AUTH_CALLBACK_PATH}?{query}").status_code == 303
@@ -509,7 +509,7 @@ class TestRefusedLogin:
         query = harness.issuer.authorize(
             start.headers["location"],
             subject=SUBJECT,
-            groups=LOGIN_GROUP if breakage == "groups claim is a string" else [LOGIN_GROUP],
+            groups=TEST_REALM.login_group if breakage == "groups claim is a string" else [TEST_REALM.login_group],
             username=USERNAME,
         )
         if breakage == "access denied":
@@ -558,7 +558,7 @@ class TestLogs:
 
     @pytest.mark.parametrize(
         ("groups", "endpoint_is_down", "reason"),
-        [([], False, "not-a-member"), ([LOGIN_GROUP], True, "token-endpoint-failed")],
+        [([], False, "not-a-member"), ([TEST_REALM.login_group], True, "token-endpoint-failed")],
     )
     def test_a_refusal_logs_one_line_with_its_reason_and_no_identity(
         self, harness, caplog, groups, endpoint_is_down, reason
@@ -585,7 +585,7 @@ class TestLogs:
         with structlog.testing.capture_logs() as logs:
             start = harness.start(browser)
             query = harness.issuer.authorize(
-                start.headers["location"], subject=SUBJECT, groups=[LOGIN_GROUP], username=USERNAME
+                start.headers["location"], subject=SUBJECT, groups=[TEST_REALM.login_group], username=USERNAME
             )
             admitted = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
             refused_start = harness.start(refused_browser)

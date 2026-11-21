@@ -87,6 +87,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionTransaction
 
     from hopin.agent.speech_settings import SpeechService
+    from hopin.config.settings import RealmSettings
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import TransitionFeature
@@ -97,13 +98,6 @@ if TYPE_CHECKING:
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
 
-# The realm's objects for HopIn's MCP path: the scope and audience a token carries, the group whose members the
-# gate admits, the group of agents' own accounts it admits from any client, and the public client an agent signs in
-# with.
-MCP_SCOPE: Final = "mcp-hopin"
-MCP_GROUP: Final = "/apps/hopin/mcp"
-AGENT_GROUP: Final = "/agents"
-MCP_CLIENT_ID: Final = "agents"
 GLB_MEDIA_TYPE: Final = "model/gltf-binary"
 # The tools offered only while the principal's agent shows a figure.
 FIGURE_TOOLS: Final = frozenset({GESTURE_TOOL, SET_FRAMING_TOOL})
@@ -429,6 +423,8 @@ class ParticipationFeature:
     public_origin: str
     # The Redis that carries an agent's place signals between HopIn's processes.
     redis: AsyncRedis = field(kw_only=True)
+    # The realm's names for the MCP path.
+    realm: RealmSettings = field(kw_only=True)
     agent_adders: Mapping[str, str] = field(default_factory=dict)
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
@@ -568,10 +564,10 @@ class ParticipationFeature:
     def _resource(self) -> ProtectedResource:
         return ProtectedResource(
             url=f"{self.public_origin}{MCP_ENDPOINT_PATH}",
-            scope=MCP_SCOPE,
-            required_group=MCP_GROUP,
-            agent_group=AGENT_GROUP,
-            authorized_parties=AuthorizedParties(frozenset({MCP_CLIENT_ID})),
+            scope=self.realm.mcp_scope,
+            required_group=self.realm.mcp_group,
+            agent_group=self.realm.agent_group,
+            authorized_parties=AuthorizedParties(frozenset({self.realm.mcp_client_id})),
             admits_client_audience=True,
         )
 

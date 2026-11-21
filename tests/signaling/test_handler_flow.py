@@ -9,7 +9,6 @@ from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     HOST_GRACE_SECONDS,
-    LOGIN_GROUP,
     MAX_LIVE_SEATS_PER_ACCOUNT,
     SEAT_CLOSED_BY_SERVER_CODE,
     SESSION_ENDED_CLOSE_CODE,
@@ -22,7 +21,7 @@ from tests.signaling.support.flow import POLICY_VIOLATION_CODE, events_named, ex
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signed_in import cookie_header
 
 
@@ -101,7 +100,9 @@ class TestProductionWiring:
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         headers = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
 

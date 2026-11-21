@@ -11,7 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 
 import hopin
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
-from hopin.config.settings import ServerSettings
+from hopin.config.settings import RealmSettings, ServerSettings
 from hopin.main import SETTINGS_CLASSES, UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
 from hopin.web.page_build import SHELL_FILE
@@ -271,6 +271,11 @@ class TestMain:
         self, serve_refusal, setting, value, expected_line
     ):
         serve_refusal(setting, value, expected_line)
+
+    @pytest.mark.parametrize("key", [f"REALM_{name.upper()}" for name in RealmSettings.model_fields])
+    @pytest.mark.parametrize("value", [None, ""], ids=["missing", "empty"])
+    def test_refuses_a_missing_or_empty_realm_key_in_one_line_naming_it(self, serve_refusal, key, value):
+        serve_refusal(key, value, f"{key} is missing")
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     def test_refuses_without_a_command(self, arguments, capsys):

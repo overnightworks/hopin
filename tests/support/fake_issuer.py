@@ -62,7 +62,7 @@ class FakeIssuer:
     def __init__(self, sign_in: SignInSettings) -> None:
         self._key = rsa.generate_private_key(public_exponent=65537, key_size=RSA_KEY_BITS)
         self._issuer = sign_in.settings.oidc_issuer
-        self._client_id = sign_in.settings.oidc_client_id
+        self._client_id = sign_in.settings.realm.client_id
         self._client_secret = sign_in.client_secret
         self._codes: dict[str, _IssuedCode] = {}
         self.refresh_token = secrets.token_urlsafe(REFRESH_TOKEN_BYTES)

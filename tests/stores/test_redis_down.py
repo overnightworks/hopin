@@ -50,6 +50,7 @@ def started_without_subscription(sign_in_settings, unreachable_redis_url) -> Tes
             ParticipationFeature(
                 settings.public_origin,
                 redis=shared_stores.async_redis,
+                realm=settings.realm,
                 subscription_wait_seconds=SHORT_SUBSCRIPTION_WAIT_SECONDS,
             ),
         ),

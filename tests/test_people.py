@@ -19,12 +19,10 @@ from webauth.ports import AccountKind
 
 from hopin.app import create_app
 from hopin.config.constants import (
-    ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     HEALTH_PATH,
     HOME_PATH,
-    LOGIN_GROUP,
     NO_ACCESS_PATH,
     WEBSOCKET_PATH,
     SignalType,
@@ -34,7 +32,7 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.people_export import ask, export_path, read_archive, withheld_counts
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
 from tests.support.stores import single_process_stores
 
@@ -417,19 +415,19 @@ def issuer_browser(sign_in_settings, stores):
 
 
 class TestAdminGroup:
-    @pytest.mark.parametrize("group", [ADMIN_GROUP, f"{ADMIN_GROUP}/team"])
+    @pytest.mark.parametrize("group", [TEST_REALM.admin_group, f"{TEST_REALM.admin_group}/team"])
     def test_an_admin_group_member_exports_after_signing_in(self, issuer_browser, group):
         browser, _ = issuer_browser([group])
 
         assert browser.get(export_path("anna")).status_code == 200
 
-    @pytest.mark.parametrize("group", [LOGIN_GROUP, f"{LOGIN_GROUP}/administrators"])
+    @pytest.mark.parametrize("group", [TEST_REALM.login_group, f"{TEST_REALM.login_group}/administrators"])
     def test_a_member_outside_the_admin_group_is_refused(self, issuer_browser, group):
         browser, _ = issuer_browser([group])
 
         assert browser.get(export_path("anna")).status_code == 403
 
     def test_a_group_that_only_shares_the_login_groups_text_is_not_let_in(self, issuer_browser):
-        _, callback = issuer_browser([f"{LOGIN_GROUP}x/admin"])
+        _, callback = issuer_browser([f"{TEST_REALM.login_group}x/admin"])
 
         assert callback.headers["location"] == NO_ACCESS_PATH

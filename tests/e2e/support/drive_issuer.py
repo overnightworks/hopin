@@ -57,7 +57,8 @@ def _approval_form(approve_url: str, parameters: list[tuple[str, str]], account:
 def drive_issuer_app(issuer_url: str, client_id: str, client_secret: str) -> Starlette:
     issuer = FakeIssuer(
         SimpleNamespace(  # type: ignore[arg-type]
-            settings=SimpleNamespace(oidc_issuer=issuer_url, oidc_client_id=client_id), client_secret=client_secret
+            settings=SimpleNamespace(oidc_issuer=issuer_url, realm=SimpleNamespace(client_id=client_id)),
+            client_secret=client_secret,
         )
     )
     realm_path = urlsplit(issuer_url).path

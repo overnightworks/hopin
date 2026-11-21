@@ -197,6 +197,7 @@ def participation_feature(
         speaking=speech if speaks else None,
         voices=voices or VoiceStore(),
         redis=loopback.shared_stores.async_redis,
+        realm=loopback.sign_in.settings.realm,
     )
 
 

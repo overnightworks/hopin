@@ -10,7 +10,6 @@ from hopin.config.constants import (
     DEFAULT_PORT,
     MAX_PARTICIPANTS_PER_ROOM,
     MIN_PARTICIPANTS_PER_ROOM,
-    OIDC_CLIENT_ID,
     STUN_SERVER_URL,
     TurnProvider,
 )
@@ -71,6 +70,25 @@ class DatabaseSettings(BaseSettings):
     database_password_file: AbsolutePath = Field(repr=False)
 
 
+class RealmSettings(BaseSettings):
+    """The names of HopIn's objects in the Keycloak realm, which the platform's Deployment hands every app under the
+    same `REALM_` keys; none has a default, and an empty value counts as missing."""
+
+    model_config = SettingsConfigDict(env_prefix="REALM_", env_ignore_empty=True, hide_input_in_errors=True)
+
+    # The client HopIn signs people in as.
+    client_id: str = Field(min_length=1)
+    # The group whose members sign in, and the group of those who administer.
+    login_group: str = Field(min_length=1)
+    admin_group: str = Field(min_length=1)
+    # The group whose members' agents may reach the MCP endpoint, and the scope and audience their token carries.
+    mcp_group: str = Field(min_length=1)
+    mcp_scope: str = Field(min_length=1)
+    # The group of agents' own accounts, admitted from any client, and the public client an agent signs in through.
+    agent_group: str = Field(min_length=1)
+    mcp_client_id: str = Field(min_length=1)
+
+
 class ServerSettings(DatabaseSettings):
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
@@ -79,7 +97,7 @@ class ServerSettings(DatabaseSettings):
         default=MAX_PARTICIPANTS_PER_ROOM, ge=MIN_PARTICIPANTS_PER_ROOM, le=MAX_PARTICIPANTS_PER_ROOM
     )
     oidc_issuer: IssuerUrl
-    oidc_client_id: str = OIDC_CLIENT_ID
+    realm: RealmSettings = Field(default_factory=RealmSettings)
     oidc_client_secret_file: AbsolutePath = Field(repr=False)
     public_origin: OriginUrl
     session_secret_file: AbsolutePath = Field(repr=False)

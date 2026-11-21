@@ -20,15 +20,15 @@ from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 from webauth.ports import AccountKind
 
-from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE, ParticipationFeature
+from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.tools import CALL_KIND
 from hopin.app import create_app
-from hopin.config.constants import ADMIN_GROUP, LOGIN_GROUP, WEBSOCKET_PATH, SignalType
+from hopin.config.constants import WEBSOCKET_PATH, SignalType
 from hopin.participation.participants import Person
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
 from tests.support.stores import WatchedSessions, WatchedVoices, single_process_stores
@@ -220,9 +220,9 @@ class DialedCall:
         account: StoredAccount,
         *,
         audience=None,
-        authorized_party=MCP_CLIENT_ID,
-        scope=MCP_SCOPE,
-        groups=(LOGIN_GROUP, MCP_GROUP),
+        authorized_party=TEST_REALM.mcp_client_id,
+        scope=TEST_REALM.mcp_scope,
+        groups=(TEST_REALM.login_group, TEST_REALM.mcp_group),
         age_seconds=0,
     ):
         return self.issuer.access_token(
@@ -242,8 +242,8 @@ class DialedCall:
             subject,
             audience=self.audience,
             authorized_party="some-agent-client",
-            scope=MCP_SCOPE,
-            groups=(AGENT_GROUP, MCP_GROUP),
+            scope=TEST_REALM.mcp_scope,
+            groups=(TEST_REALM.agent_group, TEST_REALM.mcp_group),
             extra_claims={"agent_owner": owner, "agent_name": agent_name, **username},
         )
 
@@ -464,7 +464,7 @@ def accept_arguments(standing):
 
 
 def admin_groups():
-    return (LOGIN_GROUP, ADMIN_GROUP, MCP_GROUP)
+    return (TEST_REALM.login_group, TEST_REALM.admin_group, TEST_REALM.mcp_group)
 
 
 @contextmanager
@@ -500,6 +500,7 @@ def serving_dialed_call(
             speaking=speaking,
             voices=voices,
             redis=shared_stores.async_redis,
+            realm=sign_in.settings.realm,
         )
     )
     app = create_app(

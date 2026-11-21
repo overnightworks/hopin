@@ -139,7 +139,7 @@ class TestBuiltConfigs:
         origin = sign_in.settings.public_origin
         assert client.redirect_uri == f"{origin}/auth/callback"
         assert client.post_logout_redirect_uri == f"{origin}/login"
-        assert client.client_id == sign_in.settings.oidc_client_id
+        assert client.client_id == sign_in.settings.realm.client_id
 
     def test_the_client_endpoints_derive_from_the_issuer(self, sign_in_settings):
         sign_in = sign_in_settings()

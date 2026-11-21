@@ -2,7 +2,7 @@ import secrets
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from hopin.config.settings import ServerSettings
+from hopin.config.settings import RealmSettings, ServerSettings
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -12,6 +12,15 @@ END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 TEST_PUBLIC_ORIGIN = "https://hopin.test.invalid"
 TEST_REDIS_URL = "redis://redis.test.invalid:6379"
 TEST_DATABASE_URL = "postgresql://hopin@postgres.test.invalid:5432/hopin"
+TEST_REALM = RealmSettings(
+    client_id="test-client",
+    login_group="/apps/test",
+    admin_group="/apps/test/admin",
+    mcp_group="/apps/test/mcp",
+    mcp_scope="mcp-test",
+    agent_group="/agents-test",
+    mcp_client_id="agents-test",
+)
 SESSION_SECRET_BYTES = 36
 CLIENT_SECRET_BYTES = 24
 
@@ -46,8 +55,11 @@ def build_sign_in_settings(directory: Path, **overrides: str | int | Path | None
     }
     present = {name: value for name, value in values.items() if value is not None}
     return SignInSettings(
-        environment={f"HOPIN_{name.upper()}": str(value) for name, value in present.items()},
-        settings=ServerSettings(**present),
+        environment={
+            **{f"HOPIN_{name.upper()}": str(value) for name, value in present.items()},
+            **{f"REALM_{name.upper()}": value for name, value in TEST_REALM.model_dump().items()},
+        },
+        settings=ServerSettings(**present, realm=TEST_REALM),
         client_secret=client_secret,
         session_secret=session_secret,
     )
