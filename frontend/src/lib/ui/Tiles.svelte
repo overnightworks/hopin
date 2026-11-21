@@ -62,6 +62,7 @@
     {@const tileId = tileIdOf(key)}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
     {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
+    {@const figured = agent.figure !== undefined}
     <div
         bind:clientWidth={agentTileWidths[key]}
         class={tileClass}
@@ -99,6 +100,7 @@
                         on={agent.hearing.on}
                         onChange={agent.hearing.onChange}
                         words={kitWords}
+                        compact={figured && !narrow}
                     />
                 {/if}
                 {#if agent.seeing !== undefined}
@@ -107,7 +109,7 @@
                         on={agent.seeing.on}
                         onChange={agent.seeing.onChange}
                         words={kitWords}
-                        compact={narrow}
+                        compact={narrow || figured}
                     />
                 {/if}
             </div>

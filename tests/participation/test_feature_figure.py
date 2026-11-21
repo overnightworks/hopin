@@ -661,6 +661,16 @@ class TestTheFramingTool:
 
         assert later.frame_of_type(JOINED)["framing"] == "upperBody"
 
+    def test_call_78_the_framing_stands_through_a_pause_of_the_agent_s_place(self, gesturing, seat_changes):
+        call_in(gesturing, tool=SET_FRAMING_TOOL, framing="face")
+        seat_changes.clear()
+        gesturing.owner.drop()
+        assert seat_changes.wait(timeout=10)
+        _, later_login = gesturing.call.member()
+        later = gesturing.call.seat(later_login, gesturing.owner.room_id)
+
+        assert later.frame_of_type(JOINED)["framing"] == "face"
+
     def test_call_78_a_tile_told_before_any_framing_carries_none(self, gesturing):
         _, later_login = gesturing.call.member()
         later = gesturing.call.seat(later_login, gesturing.owner.room_id)
