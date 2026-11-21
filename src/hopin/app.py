@@ -47,6 +47,7 @@ from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Deadlines, InMemoryDeadlines, Scheduler, TimerHandle
+from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.call_features import create_call_features_router
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.request_language import RequestLanguage
@@ -60,7 +61,7 @@ if TYPE_CHECKING:
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore, SignInTransaction
+    from webauth.ports import SessionTransaction, SignInTransaction
     from webauth.single_process_stores import SingleProcessSessionStore
 
     from hopin.config.settings import ServerSettings
@@ -105,7 +106,7 @@ class CallFeatureBuilder(Protocol):
         self,
         *,
         relying_party: OidcRelyingParty,
-        sessions: SessionRecordStore,
+        session_transaction: SessionTransaction,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         deadlines: Deadlines,
@@ -173,7 +174,7 @@ def _lifespan(
 
 def _install_web_auth(
     app: FastAPI,
-    sessions: SingleProcessSessionStore,
+    session_transaction: SessionTransaction,
     page_build: PageBuild,
     bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
     call_features: Sequence[CallFeatureBuilder],
@@ -199,7 +200,9 @@ def _install_web_auth(
         csrf_origin=CsrfPolicy(),
         rate_limit=RateLimitPolicy(exempt=RATE_LIMIT_EXEMPT_PATH_RULES),
         bearer_gate=None if bearer is None else bearer_gate(*bearer),
-        session_gate=session_gate(sessions, page_build.sign_in_assets, None if bearer is None else bearer[1]),
+        session_gate=session_gate(
+            session_transaction, page_build.sign_in_assets, None if bearer is None else bearer[1]
+        ),
     )
 
 
@@ -268,6 +271,7 @@ def _install_sign_in_surface(
     relying_party: OidcRelyingParty,
     page_build: PageBuild,
     request_language: RequestLanguage,
+    session_transaction: SessionTransaction,
     bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
     call_features: Sequence[CallFeatureBuilder],
 ) -> None:
@@ -275,7 +279,7 @@ def _install_sign_in_surface(
     install_sign_in(
         app, relying_party, sign_in_stores.transaction, page_build, request_language, words_logout_button_label
     )
-    _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
+    _install_web_auth(app, session_transaction, page_build, bearer, call_features)
     app.add_middleware(ClientAddressMiddleware, trusted_proxies=sign_in_configs.trusted_proxies)
     app.add_middleware(RequestLineMiddleware)
 
@@ -283,6 +287,7 @@ def _install_sign_in_surface(
 def _new_app(
     settings: ServerSettings,
     sign_in_stores: SingleProcessStores,
+    session_transaction: SessionTransaction,
     auth_config: WebAuthConfig,
     timers: Scheduler,
     deadlines: Deadlines,
@@ -290,7 +295,7 @@ def _new_app(
 ) -> tuple[FastAPI, SignalingHandler]:
     signaling_handler = SignalingHandler(
         RoomManager(max_participants_per_room=settings.max_participants_per_room),
-        SessionIdentityResolver(sign_in_stores.sessions),
+        SessionIdentityResolver(session_transaction),
         timers,
         deadlines,
         [built.feature for built in built_features],
@@ -308,6 +313,7 @@ def _build_features(
     call_features: Sequence[CallFeatureBuilder],
     relying_party: OidcRelyingParty,
     sign_in_stores: SingleProcessStores,
+    session_transaction: SessionTransaction,
     auth_config: WebAuthConfig,
     timers: Scheduler,
     deadlines: Deadlines,
@@ -317,7 +323,7 @@ def _build_features(
     return [
         builder(
             relying_party=relying_party,
-            sessions=sign_in_stores.sessions,
+            session_transaction=session_transaction,
             auth_config=auth_config,
             scheduler=timers,
             deadlines=deadlines,
@@ -352,11 +358,13 @@ def create_app(
     relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     deadlines = InMemoryDeadlines(timers)
-    request_language = RequestLanguage(page_build.languages, sign_in_stores.sessions, sign_in_configs.web_auth)
+    session_transaction = session_transaction_of(sign_in_stores.sessions)
+    request_language = RequestLanguage(page_build.languages, session_transaction, sign_in_configs.web_auth)
     built_features = _build_features(
         call_features,
         relying_party,
         sign_in_stores,
+        session_transaction,
         sign_in_configs.web_auth,
         timers,
         deadlines,
@@ -365,7 +373,7 @@ def create_app(
     )
     bearer = _bearer_of(built_features, relying_party)
     app, signaling_handler = _new_app(
-        settings, sign_in_stores, sign_in_configs.web_auth, timers, deadlines, built_features
+        settings, sign_in_stores, session_transaction, sign_in_configs.web_auth, timers, deadlines, built_features
     )
     _include_routes(
         app,
@@ -380,7 +388,15 @@ def create_app(
     )
     app.state.settings = settings
     _install_sign_in_surface(
-        app, sign_in_configs, sign_in_stores, relying_party, page_build, request_language, bearer, call_features
+        app,
+        sign_in_configs,
+        sign_in_stores,
+        relying_party,
+        page_build,
+        request_language,
+        session_transaction,
+        bearer,
+        call_features,
     )
 
     return app

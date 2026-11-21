@@ -41,6 +41,7 @@ from hopin.config.constants import (
     SESSION_LIFETIME_SECONDS,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
+from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from hopin.web.request_language import RequestLanguage
 from hopin.words import text
@@ -150,7 +151,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
             build_relying_party(configs, transports),
             stores.transaction,
             fixture_page_build(languages),
-            RequestLanguage(languages, sessions, configs.web_auth),
+            RequestLanguage(languages, session_transaction_of(sessions), configs.web_auth),
             logout_button_label,
         )
 

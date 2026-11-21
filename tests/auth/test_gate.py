@@ -39,6 +39,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.config.web_policy import SIGN_IN_PATHS
+from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
@@ -586,7 +587,7 @@ def install_gate(app: FastAPI, stores: SingleProcessStores) -> None:
             content_security_policy=default_content_security_policy(), permissions_policy=PERMISSIONS_POLICY
         ),
         csrf_origin=CsrfPolicy(),
-        session_gate=session_gate(stores.sessions, frozenset()),
+        session_gate=session_gate(session_transaction_of(stores.sessions), frozenset()),
     )
     app.add_middleware(ClientAddressMiddleware, trusted_proxies=TrustedProxies())
 
