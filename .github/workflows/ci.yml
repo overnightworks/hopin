@@ -37,13 +37,13 @@ jobs:
       # overnightworks libraries named in pyproject.toml (tool.uv), run with
       # exact build tools; --no-build refuses every other source distribution,
       # whose build script would run third-party code on the runner, so third-party
-      # packages are wheel-only. hopin itself stays out of the environment: nothing
+      # packages are wheel-only. hopin and the probe stay out of the environment: nothing
       # below needs it installed, because pytest puts src/ on the import path
       # (pyproject.toml, tool.pytest.ini_options.pythonpath). The steps below then
       # call their tool straight from that environment instead of installing again.
       - name: Install dependencies
         run: |
-          uv sync --locked --no-install-project --no-build
+          uv sync --locked --no-install-workspace --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       # The Makefile owns what lint means. UV_NO_SYNC keeps its `uv run` calls
@@ -108,7 +108,7 @@ jobs:
       # tests start finds src/ through PYTHONPATH.
       - name: Install dependencies
         run: |
-          uv sync --locked --no-install-project --no-build
+          uv sync --locked --no-install-workspace --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       # Two `hopin serve` processes with their own ports against the one Redis, and apps in the test process over
@@ -182,7 +182,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --locked --no-install-project --no-build
+          uv sync --locked --no-install-workspace --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       # The image is pinned because the libraries Chromium needs come with it; installing them through apt stalls now
@@ -331,7 +331,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --locked --no-install-project --no-build
+          uv sync --locked --no-install-workspace --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       - name: Fetch the coverage data
@@ -421,7 +421,7 @@ jobs:
       - name: Install dependencies
         working-directory: ${{ env.COPY }}
         run: |
-          uv sync --locked --no-install-project --no-build
+          uv sync --locked --no-install-workspace --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
       # The page the call runs in is built in the copy, so a core module that
@@ -573,9 +573,59 @@ jobs:
       - name: Check that the image carries the verdict repeatability command
         run: docker run --rm hopin-image hopin verdict-repeatability --help
 
+      # The probe is its own image; the serving image must not advertise a command it cannot run.
+      - name: Check that the image carries no probe
+        run: |
+          if docker run --rm --entrypoint sh hopin-image -c 'command -v hopin-probe'; then
+            echo "the serving image has hopin-probe" >&2
+            exit 1
+          fi
+
+  # Chromium and Piper make this build costly, and selector drift is the end-to-end test's to catch, so the pull
+  # request builds it only when a file it is built from changes. A push to main builds it always.
+  image-probe:
+    name: Image (probe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Find out whether the probe image is affected
+        id: affected
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "${BASE_SHA}" ]; then
+            echo "affected=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+          if git diff --quiet "${BASE_SHA}" HEAD -- Dockerfile .dockerignore packages/probe pyproject.toml uv.lock scripts/fetch_probe_voice.sh .github/workflows; then
+            echo "affected=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "affected=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Build the probe image without pushing it
+        if: steps.affected.outputs.affected == 'true'
+        run: docker build --target probe --tag hopin-probe-image .
+
+      # Without configuration the probe prints the failed settings stage and the checks it did not reach, and exits 2.
+      - name: Check that the unconfigured probe exits 2 and prints only its codes
+        if: steps.affected.outputs.affected == 'true'
+        run: |
+          status=0
+          docker run --rm hopin-probe-image > probe.out 2> probe.err || status=$?
+          [ "${status}" = 2 ]
+          [ ! -s probe.err ]
+          ! grep -Eqv '^(stage=settings verdict=failed reason=invalid field=origin|check=[ABC] verdict=no reason=not_reached)$' probe.out
+
   quality:
     name: quality
-    needs: [ci, e2e-shard, e2e, coverage, removal-drill, frontend, image]
+    needs: [ci, e2e-shard, e2e, coverage, removal-drill, frontend, image, image-probe]
     if: always()
     permissions:
       contents: read

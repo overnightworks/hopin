@@ -136,6 +136,8 @@ One container, built from `Dockerfile`, runs as the one pod of the `hopin` names
 
 Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit windows and the agent connector's member-place signals; the server refuses to start without it and `/health` is not ready while it does not answer. All other state lives in memory, so a restart ends every call and session; there is no database.
 
+The live probe is a second image from the same `Dockerfile`, the target `probe`, built from the workspace member `packages/probe` and released with the serving image at its version with the suffix `-probe`. It runs as an on-demand Job the platform's repository owns, outside the serving pod, and drives HopIn's public page in Chromium as a test account; the serving image has neither the member nor Chromium and Piper.
+
 ## 5. Crosscutting Concepts
 
 **Sign-in and sessions.** webauth runs the OIDC code flow against Keycloak and the gate admits the members of `/apps/hopin` (`src/hopin/auth/__init__.py`).
@@ -175,6 +177,7 @@ Each line: what the party sees and what HopIn trusts of it.
 
 - The import-linter contracts hold the dependency direction between packages, so a new top-level module needs a layer decision, and the game and the stage can be deleted without touching a contract.
 - HopIn's own markup holds no inline script, `<style>`, `style=` or `on*=` attribute: the page runs under webauth's policy, which admits only the SvelteKit bootstrap script and the announcer style by hash.
+- `hopin` never imports `hopin_probe`: the probe is its own distribution, so the serving wheel and image stay free of its dependencies. The probe reads the page through hopin's constants and words and the kit's words, never a copy, so a page change that breaks it fails the end-to-end test of the probe.
 - The wire tokens have one owner each in Python, and `make wire` generates the TypeScript, so a drifting token fails `make wire-check`.
 
 ## 7. Not chosen
@@ -192,4 +195,5 @@ Each line: what the party sees and what HopIn trusts of it.
 - The agent link has no receipts: a line for the agents shows delivered once handed on, and the server drops one beyond a seat's budget, or when no agent is joined, without telling the page. The page paces its lines to the budget, holds them while the socket is cut and charges the lines a resume writes again, but it cannot see when the server counts a line: a socket that dies unnoticed or stalls and then delivers its frames together can bring more than a burst at once, and the server drops the rest, so a line for the agents may be lost then. Only a server receipt for the agent link closes this; it waits for usage evidence.
 - A file is sent once to each person, so a sender's upload grows with the people in the call times the per-file cap; it is fetched only while the sender stays, and a later joiner or a page that reloads gets nothing earlier. A receiver's memory holds up to the total received-bytes cap.
 - A restart ends every call and session.
+- The probe image carries `piper-tts`, which is `GPL-3.0-or-later`, in an MIT repository, and only there; the obligation that follows is not settled here, as in speech.
 - Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone; calls in memory survive.

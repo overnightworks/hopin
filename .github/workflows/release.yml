@@ -42,9 +42,26 @@ jobs:
       version: ${{ inputs.version }}
       push: true
 
+  # The probe image carries the version of hopin's image with a suffix, so the probe and the page it reads match.
+  image-probe:
+    name: Image (probe)
+    needs: gate
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    uses: overnightworks/quality/.github/workflows/image.yml@8a01f2aec4cb5e905a851a306041bad0465ce7d2 # v0.22.1
+    with:
+      context: .
+      file: Dockerfile
+      target: probe
+      version: ${{ inputs.version }}-probe
+      push: true
+
   tag:
     name: Tag
-    needs: [gate, image]
+    needs: [gate, image, image-probe]
     permissions:
       contents: write
     uses: overnightworks/quality/.github/workflows/release-tag.yml@8a01f2aec4cb5e905a851a306041bad0465ce7d2 # v0.22.1

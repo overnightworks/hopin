@@ -28,7 +28,9 @@ ENV UV_PYTHON_DOWNLOADS=never \
     PATH=/opt/venv/bin:$PATH
 
 WORKDIR /app
+# uv reads the workspace's members from their manifests, so the lock check needs the probe's.
 COPY pyproject.toml uv.lock ./
+COPY packages/probe/pyproject.toml ./packages/probe/pyproject.toml
 
 # git exists only in this stage, because uv needs it to fetch the git-pinned
 # libraries; the final stage copies the environment and never carries it.
@@ -43,6 +45,36 @@ RUN apt-get update \
 # step below, after its source is copied, so that its own build runs through
 # the exact-pinned hatchling.
 RUN uv sync --locked --no-dev --no-install-project --no-build
+
+# The probe stage comes before the serving stage, which stays last so that a build without a target is the serving
+# image. Chromium, Piper and the probe's package never reach the serving stage.
+FROM python-base AS probe-dependencies
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN uv sync --locked --no-dev --package hopin-probe --no-install-workspace --no-build
+
+FROM python-base AS probe
+COPY --from=probe-dependencies /opt/venv /opt/venv
+# Chromium and the libraries it needs come with the playwright version the lock holds; curl is for the voice.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright HOME=/tmp
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends curl ca-certificates \
+ && playwright install --with-deps chromium \
+ && rm -rf /var/lib/apt/lists/*
+COPY scripts/fetch_probe_voice.sh /usr/local/bin/fetch_probe_voice.sh
+RUN fetch_probe_voice.sh /opt/piper-voice
+COPY src ./src
+COPY packages/probe ./packages/probe
+# Both wheels are built from the copied source; hopin's is for the constants and words of its page, which the probe
+# reads. --no-build keeps the install itself from running any other build script.
+RUN uv build --wheel --out-dir /tmp/wheel \
+ && uv build --wheel --package hopin-probe --out-dir /tmp/wheel \
+ && uv pip install --python /opt/venv/bin/python --no-deps --no-build /tmp/wheel/*.whl \
+ && rm -r /tmp/wheel
+RUN useradd --no-create-home --uid 1001 probe
+USER 1001
+ENTRYPOINT ["hopin-probe"]
 
 FROM python-base
 COPY --from=dependencies /opt/venv /opt/venv

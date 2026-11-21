@@ -6,6 +6,8 @@
 !uv.lock
 !src
 !frontend
+!packages/probe
+!scripts/fetch_probe_voice.sh
 
 # What the build makes for itself, so a stale local copy never enters the context.
 frontend/node_modules
