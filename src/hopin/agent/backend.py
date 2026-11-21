@@ -112,6 +112,14 @@ def gateway_backend(settings: AgentSettings) -> QuizBackend:
     return GatewayBackend(settings.agent, tools=[VERDICT_TOOL])
 
 
+class QuizStarter(Protocol):
+    """Who a run is for and in which language; the game's starter is the `StarterPerson` of a signed-in seat."""
+
+    async def language_of(self, starter: HTTPConnection) -> str: ...
+
+    async def person_of(self, starter: HTTPConnection) -> TurnPerson: ...
+
+
 class StarterRefusedError(Exception):
     """The starter's standing cannot be read; raised to the backend's caller so that no request is made."""
 
@@ -193,7 +201,7 @@ class QuizGameMaster:
     """Asks the quiz agent for the game master's next line through the backend, for the starter, in the starter's
     language."""
 
-    def __init__(self, backend: QuizBackend, starter_person: StarterPerson) -> None:
+    def __init__(self, backend: QuizBackend, starter_person: QuizStarter) -> None:
         self._backend = backend
         self._starter_person = starter_person
         self._agent = load_agent(QUIZ_AGENT_FILE, [VERDICT_TOOL.declaration])

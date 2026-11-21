@@ -1,4 +1,4 @@
-.PHONY: install lint wire wire-check catalogs format test shared-stores dead check run e2e frontend frontend-check
+.PHONY: verdict-repeatability install lint wire wire-check catalogs format test shared-stores dead check run e2e frontend frontend-check
 
 install:
 	uv sync --all-extras
@@ -45,3 +45,7 @@ check: lint test dead frontend-check
 
 run: frontend
 	uv run hopin serve
+
+# Costs real model calls on the configured gateway; never part of `make check` or CI.
+verdict-repeatability:
+	uv run python scripts/verdict_repeatability.py --runs $(or $(RUNS),10)
