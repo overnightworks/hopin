@@ -1,8 +1,0 @@
-claim_id = "5fe0a8603e2d4bf4a0d94c1652155343"
-agent = "Claude d102189c-9f27-4985-8ccc-1652f4bd968e"
-role = "builder"
-base = "64b2853e78ac0a57c37c29818d9b879c0b07ee36"
-branch = "claude/issue-1096-realm-names-from-settings"
-scope = ["README.md", "docs/ARCHITECTURE.md", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/auth", "src/hopin/config", "src/hopin/main.py", "tests"]
-opened_commit = "48900b1ff3fae9f710c4d009855c9db306379e02"
-whole_reason = "Seven settings and their readers: removing a constant without its setting breaks the start, and a setting without its reader is unused."
