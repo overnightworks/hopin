@@ -11,6 +11,7 @@ import {
     removeRemoteTile,
     setConnectionQuality,
     setRemoteSpeaking,
+    showAgentTile,
     showLocalStream,
     showRemoteScreen,
     showRemoteStream,
@@ -377,5 +378,50 @@ describe("shared screens in a component", () => {
         expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([laterAudio]);
         tracking.restore();
         void unmount(component);
+    });
+});
+
+describe("an agent tile's chips in a component", () => {
+    // A wide tile: jsdom lays nothing out, so its width is the one the test gives.
+    beforeEach(() => {
+        vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        );
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        showAgentTile(null, "agent-a1");
+        vi.restoreAllMocks();
+        document.body.innerHTML = "";
+    });
+
+    async function hearingChipOf(figure: string | undefined) {
+        showAgentTile(
+            { name: "Ada", activity: "present", figure, hearing: { on: true, onChange: () => {} } } as never,
+            "agent-a1",
+        );
+        const component = mount(Tiles, { target: document.body });
+        await vi.waitFor(() => {
+            expect(document.querySelector(".hear-set > *")).not.toBeNull();
+        });
+        flushSync();
+        const compact = document.querySelector(".hear-set .compact") !== null;
+        void unmount(component);
+        return compact;
+    }
+
+    it("CALL-77: makes the hearing chip compact while the tile names a figure, and not otherwise", async () => {
+        const withFigure = await hearingChipOf("/api/participation/figures/abc");
+        document.body.innerHTML = "";
+        const withoutFigure = await hearingChipOf(undefined);
+
+        expect([withFigure, withoutFigure]).toEqual([true, false]);
     });
 });
