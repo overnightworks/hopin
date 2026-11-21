@@ -147,6 +147,8 @@ type Key = Literal[
     'game.answerLabel',
     'game.sendButton',
     'game.questionProgress',
+    'game.scoreLine',
+    'game.scoreEntry',
     'game.answerCountStatus',
     'game.answerSentCountStatus',
     'game.busyRetryToast',
@@ -339,6 +341,8 @@ WORDS: Mapping[Language, Mapping[Key, str | Mapping[Category, str]]] = {
         'game.answerLabel': 'Deine Antwort',
         'game.sendButton': 'Senden',
         'game.questionProgress': 'Frage {round} von {rounds}',
+        'game.scoreLine': 'Stand: {scores}',
+        'game.scoreEntry': '{name} {correct}',
         'game.answerCountStatus': '{answered} von {players} haben geantwortet',
         'game.answerSentCountStatus': 'Antwort gesendet · {answered} von {players} haben geantwortet',
         'game.busyRetryToast': {
@@ -515,6 +519,8 @@ WORDS: Mapping[Language, Mapping[Key, str | Mapping[Category, str]]] = {
         'game.answerLabel': 'Your answer',
         'game.sendButton': 'Send',
         'game.questionProgress': 'Question {round} of {rounds}',
+        'game.scoreLine': 'Score: {scores}',
+        'game.scoreEntry': '{name} {correct}',
         'game.answerCountStatus': '{answered} of {players} have answered',
         'game.answerSentCountStatus': 'Answer sent · {answered} of {players} have answered',
         'game.busyRetryToast': {

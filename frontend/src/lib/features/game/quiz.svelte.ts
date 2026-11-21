@@ -1,7 +1,7 @@
 import { SvelteSet } from "svelte/reactivity";
 import { words } from "#lib/words.ts";
 import { AGENT_ACTIVITY, type AgentTile, type OutgoingFrame } from "#lib/call/feature-port.ts";
-import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType } from "./wire.ts";
+import { GAME_PHASE, GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType, type ScoreEntry } from "./wire.ts";
 
 type PhaseFrame = GameFrameByType[GAME_SIGNAL.GAME_PHASE];
 type LineFrame = GameFrameByType[GAME_SIGNAL.GAME_LINE];
@@ -15,6 +15,7 @@ export type QuestionCardProps = {
     revealDisabled: boolean;
     locked: boolean;
     status: string;
+    score: string;
     sent: boolean;
     reveal: () => void;
     answer: (text: string) => void;
@@ -49,6 +50,8 @@ export class Quiz {
     #question: { round: number; text: string } | null = null;
     #awaitingAnswer = false;
     #answerCount: { answered: number; players: number } | null = null;
+    // The score the server counted from the verdicts of the reveals so far.
+    #scores: ScoreEntry[] = [];
     #ownAnswer = OwnAnswer.NONE;
     #ownAnswerBeforeLastSend = OwnAnswer.NONE;
     #cardRound: number | null = null;
@@ -130,6 +133,7 @@ export class Quiz {
         this.#phase = GAME_PHASE.IDLE;
         this.#quizRound = null;
         this.#question = null;
+        this.#scores = [];
         this.#awaitingAnswer = false;
         this.#voiceMuted = false;
         this.receiveEnd();
@@ -151,6 +155,7 @@ export class Quiz {
         if (frame.phase === GAME_PHASE.IDLE) {
             this.#quizRound = null;
             this.#question = null;
+            this.#scores = [];
         } else {
             this.#quizRound = { round: frame.round, rounds: frame.rounds, starter: frame.starter };
         }
@@ -160,6 +165,7 @@ export class Quiz {
     receiveLine(frame: LineFrame) {
         // A line without a round is the reveal or the final score: the card shows only an open question.
         this.#question = frame.round === undefined ? null : { round: frame.round, text: frame.text };
+        if (frame.scores !== undefined) this.#scores = frame.scores;
         this.#voiceFrameDue = frame.voiced === true;
         this.#voicesOffered ||= this.#voiceFrameDue;
         this.#changed();
@@ -256,6 +262,14 @@ export class Quiz {
             : words["game.answerCountStatus"](counts);
     }
 
+    #scoreText() {
+        if (this.#scores.length === 0) return "";
+        const entries = this.#scores.map((entry) =>
+            words["game.scoreEntry"]({ name: entry.name, correct: String(entry.correct) }),
+        );
+        return words["game.scoreLine"]({ scores: entries.join(", ") });
+    }
+
     #openCard(quizRound: QuizRound, question: { text: string }): QuestionCardProps {
         this.#answerCount = null;
         this.#ownAnswer = OwnAnswer.NONE;
@@ -267,6 +281,7 @@ export class Quiz {
             revealDisabled: true,
             locked: true,
             status: "",
+            score: "",
             sent: false,
             reveal: () => {
                 this.reveal();
@@ -283,6 +298,7 @@ export class Quiz {
         card.revealDisabled = locked;
         card.locked = locked;
         card.status = this.#answerStatus();
+        card.score = this.#scoreText();
         // The mark waits for the count that includes the own answer: the status line never shows the mark alone.
         card.sent = this.#ownAnswer === OwnAnswer.COUNTED;
     }
