@@ -20,7 +20,8 @@ if TYPE_CHECKING:
 
 
 class Asker(Protocol):
-    async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome: ...
+    async def ask(self, starter: HTTPConnection, transcript: tuple[Turn, ...]) -> GameOutcome:
+        """The game master's outcome for the transcript."""
 
 
 @dataclass(frozen=True)
