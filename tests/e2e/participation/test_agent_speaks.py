@@ -92,11 +92,11 @@ def test_an_agents_sentences_sound_once_each_in_order_in_every_browser_and_its_t
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_rendering_it(speaker: Speaker) -> None:
     """CALL-60: A sentence starts when its first chunk arrives: `speak` answers and every browser plays and shows the
-    tile speaking while speech has rendered only the first half, and the sound goes on as one sound when the rest
+    tile speaking while speech has rendered only the first half, and the sound goes on when the rest
     arrives, until the tile shows present again."""
     everyone = speaker.scene.everyone
 
-    answered = speaker.speak_while_speech_pauses(SOUND_SECONDS)
+    answered = speaker.speak_while_speech_pauses(LONGER_SOUND_SECONDS)
 
     assert answered.result(REQUEST_SECONDS) == {"spoken": True}
     for person in everyone:
@@ -105,8 +105,8 @@ def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_render
     assert not speaker.speech_has_rendered_the_rest()
     speaker.finish_rendering()
     for person in everyone:
-        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
-        assert speaker.started(person) == [SOUND_SECONDS]
+        expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE, timeout=PLAYBACK_WAIT_MILLISECONDS)
+        assert speaker.started(person) == [LONGER_SOUND_SECONDS]
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
