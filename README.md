@@ -4,7 +4,7 @@
 
 HopIn is a self-hosted video call service. A signed-in member starts a call and shares its link, and friends join in the browser with nothing to install. The server signs people in and relays the setup messages between the members of a call; their chat lines go straight between the browsers. The camera video and the call's sound between the members flow directly between the browsers, or through the TURN relay when it is switched on and a direct path fails, still encrypted between the browsers. Three things do pass through the server: the game master's and agents' spoken sentences, which it has the speech service render and serves to each browser; while an agent hears a person, that person's microphone sound, which it forwards unread to the speech service; and, when an agent the person lets see looks, one still picture of their camera, held in memory only until the agent has it.
 
-Only members of the Keycloak group `/apps/hopin` use it. Why HopIn exists and what it deliberately is not: [docs/VISION.md](docs/VISION.md). How it is built, how a call runs and what it trusts: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Only members of the Keycloak group `REALM_LOGIN_GROUP` names use it. Why HopIn exists and what it deliberately is not: [docs/VISION.md](docs/VISION.md). How it is built, how a call runs and what it trusts: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## What a Call Offers
 
@@ -20,13 +20,13 @@ Only members of the Keycloak group `/apps/hopin` use it. Why HopIn exists and wh
 
 ## Quick Start
 
-You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the seven required settings and the three required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run`, which runs `hopin migrate` and then `hopin serve`; it listens on `HOPIN_HOST` and `HOPIN_PORT`.
+You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the required `HOPIN_` and `REALM_` settings and the three required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run`, which runs `hopin migrate` and then `hopin serve`; it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
 `hopin verdict-repeatability [--runs N] [--minimum S]` asks the configured quiz master the same recorded reveals N times and reports how often its verdicts agree (GM-41 in `docs/game-master.md`); it reads only the `HOPIN_AGENT__` settings, costs real model calls, and the image carries it. `make verdict-repeatability RUNS=N` runs it from a checkout.
 
 Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings, or with one malformed, HopIn refuses to start and prints one line per setting naming its environment variable, never its value. `HOPIN_REDIS_URL` names a Redis that every HopIn process shares for its request budgets and for the signals that wake an agent's open listen; a local `redis-server` is enough, and HopIn has no in-memory fallback. `HOPIN_DATABASE_URL` names a Postgres (a local one is enough) whose schema `hopin migrate` brings to the image's head; `hopin serve` refuses to start on a database that is not at that head, naming the command, and `/health` is not ready while the database does not answer. Run `hopin migrate` before every start of a new version: it reads only the two database settings, concurrent runs wait for one another, and a run at head changes nothing.
 
-Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
+Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in the group `REALM_LOGIN_GROUP` names.
 
 Press "Anruf starten" and share the generated link.
 
@@ -54,7 +54,7 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ### Erasing a person
 
-Remove the person from `/apps/hopin` in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves) drops the person from HopIn. Today it does not reach HopIn on the platform ([platform#46](https://github.com/overnightworks/platform/issues/46)), so there the session lasts until its 12-hour lifetime ends. The steps below hold once the logout arrives. A second logout for the same person, or one for a person HopIn does not know, changes nothing. A logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
+Remove the person from the group `REALM_LOGIN_GROUP` names in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves) drops the person from HopIn. Today it does not reach HopIn on the platform ([platform#46](https://github.com/overnightworks/platform/issues/46)), so there the session lasts until its 12-hour lifetime ends. The steps below hold once the logout arrives. A second logout for the same person, or one for a person HopIn does not know, changes nothing. A logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
 
 - **Removed at once, once the logout arrives:** every session of the person, refresh and ID tokens included, and their account.
 - **Removed within 60 seconds:** the person's own seats in calls, with the resume token and the frames held for it. A seat closes at the person's next frame or at the next minute check, or, for a seat whose connection dropped, when its 30-second wait ends. A call the person hosts ends for everyone after a further 60-second wait.
