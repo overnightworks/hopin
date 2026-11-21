@@ -11,7 +11,7 @@ import structlog
 import structlog.testing
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
-from logline import REQUEST_EVENT
+from logline import REQUEST_EVENT, WEBSOCKET_EVENT
 from logline.testing import configured
 from starlette.requests import Request
 from starlette.websockets import WebSocketDisconnect
@@ -57,7 +57,6 @@ if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
 
 SESSION_COOKIE = "__Host-session_id"
-WEBSOCKET_EVENT = "websocket.ended"
 
 
 def signed_in_client(settings: ServerSettings) -> TestClient:

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+from logline import WEBSOCKET_EVENT
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.config.constants import (
@@ -31,7 +32,7 @@ class TestConnect:
         code = refused_with_code(client, handshake_headers(None), "/ws?id=someone")
 
         assert code == POLICY_VIOLATION_CODE
-        assert {entry["event"] for entry in logs} == {"handshake.refused", "websocket.ended"}
+        assert {entry["event"] for entry in logs} == {"handshake.refused", WEBSOCKET_EVENT}
         assert [entry for entry in logs if entry.get("sub") is not None or "someone" in str(entry)] == []
         assert events_named(logs, "handshake.refused") == [
             {"event": "handshake.refused", "reason": "no-session", "log_level": "info"}
