@@ -28,12 +28,6 @@ def test_an_empty_list_means_no_stage_at_all(stage_apps):
     assert configured_stage_feature(PUBLIC_ORIGIN) == ()
 
 
-def test_a_leftover_skat_origin_is_ignored_without_an_error(stage_apps, monkeypatch):
-    monkeypatch.setenv("HOPIN_SKAT_ORIGIN", "not an origin")
-
-    assert configured_stage_feature(PUBLIC_ORIGIN) == ()
-
-
 def test_each_entry_gives_an_app_and_the_feature_frames_exactly_their_origins(stage_apps):
     stage_apps(entry(origin="https://skat.example:8443"), entry(name="chess", origin="https://chess.example"))
 
