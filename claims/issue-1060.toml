@@ -1,8 +1,0 @@
-claim_id = "ec8948e24d3b45a29885872a062a406e"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "ff33a10ae5f06074dd9f60947697fcf64b5bcc5f"
-branch = "claude/issue-1060-stage-start-link"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/stage.md", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/features/game/index.test.ts", "frontend/src/lib/features/participation/page.fixture.ts", "frontend/src/lib/features/stage", "frontend/src/lib/ui/navigation.test.ts", "frontend/src/lib/ui/navigation.ts", "frontend/src/routes", "src/hopin/agent/feature.py", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/stage", "src/hopin/web/routes.py", "tests/e2e/stage", "tests/stage", "tests/web"]
-opened_commit = "8ff4af6ad24df0fd6007f4628927279602e7a18b"
-whole_reason = "The route, its registration order, the page's start-or-join path, the index and its proof are one entry point."
