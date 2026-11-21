@@ -7,14 +7,14 @@ from dataclasses import dataclass
 from importlib.resources import files
 from typing import TYPE_CHECKING, Protocol
 
-from starlette.requests import HTTPConnection
-
 from hopin.game.quiz import Judgement, Quiz, Turn
 from hopin.game.table import Line
 from hopin.signaling.frames import PeerId
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from starlette.requests import HTTPConnection
 
     from hopin.game.table import GameOutcome
 

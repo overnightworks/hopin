@@ -43,8 +43,8 @@ from pydantic_settings.exceptions import SettingsError
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeature
 from hopin.agent.settings import AgentSettings  # game
-from hopin.agent.verdict_check import configured_agreements  # game
 from hopin.agent.speech_settings import SpeechSettings
+from hopin.agent.verdict_check import configured_agreements  # game
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError

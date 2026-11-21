@@ -4,8 +4,8 @@ import pytest
 from starlette.requests import HTTPConnection
 
 from hopin.agent.backend import QuizGameMaster
-from hopin.game.quiz import Judgement
 from hopin.agent.verdict_check import ThrowawayStarter
+from hopin.game.quiz import Judgement
 from hopin.game.verdict_repeatability import (
     RecordedAnswer,
     RecordedCase,
