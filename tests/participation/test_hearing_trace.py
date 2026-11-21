@@ -10,7 +10,7 @@ import threading
 from dataclasses import dataclass
 
 import pytest
-from logline import unit_trace
+from logline import WEBSOCKET_EVENT, unit_trace
 from logline.testing import configured
 from speech_client.wire import TRACEPARENT_HEADER, VoiceId
 
@@ -30,7 +30,6 @@ def hearing_service(fake_speech_hearing):
 
 
 DROP_HANDLED_SECONDS = 10
-SOCKET_ENDED = "websocket.ended"
 
 
 class SocketEnd(logging.Handler):
@@ -41,7 +40,7 @@ class SocketEnd(logging.Handler):
         self.happened = threading.Event()
 
     def emit(self, record):
-        if SOCKET_ENDED in str(record.msg):
+        if WEBSOCKET_EVENT in str(record.msg):
             self.happened.set()
 
 
@@ -146,7 +145,7 @@ def test_a_sentence_cut_by_a_leaving_person_reaches_the_other_agent_outside_the_
         finally:
             root_logger.removeHandler(socket_end_seen)
 
-    [socket_end] = [line for line in lines if line["event"] == SOCKET_ENDED]
+    [socket_end] = [line for line in lines if line["event"] == WEBSOCKET_EVENT]
     [entry] = entries
     assert (entry["cut"], trace_id_of(entry["traceparent"]) != socket_end["trace_id"]) == (True, True)
 
@@ -216,5 +215,5 @@ def test_the_hearing_hops_lines_and_its_socket_end_share_the_trace_of_its_upgrad
         hear_the_turn(sponsored, fake_speech, turn)
     upgrade_trace = trace_id_of(fake_speech.next_session().headers[TRACEPARENT_HEADER])
 
-    [socket_end] = [line for line in logged(capsys) if line["event"] == "websocket.ended"]
+    [socket_end] = [line for line in logged(capsys) if line["event"] == WEBSOCKET_EVENT]
     assert socket_end["trace_id"] == upgrade_trace
