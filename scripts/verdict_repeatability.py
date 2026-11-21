@@ -113,9 +113,16 @@ async def agreements(
 def printed(report: Sequence[VerdictAgreement]) -> str:
     return "\n".join(
         f"case {line.case}  {line.answer}  {line.judgement.value if line.judgement else 'no verdict'}  "
-        f"{line.runs_agreeing}/{line.runs}"
+        f"{line.runs_agreeing}/{line.runs}{_without_verdict(line)}"
         for line in report
     )
+
+
+def _without_verdict(line: VerdictAgreement) -> str:
+    if not line.runs_without_verdict:
+        return ""
+    noun = "run" if line.runs_without_verdict == 1 else "runs"
+    return f"  ({line.runs_without_verdict} {noun} without verdict)"
 
 
 def passes(report: Sequence[VerdictAgreement], minimum: float) -> bool:
