@@ -1,6 +1,6 @@
 """The identity provider of the joint drive: an HTTPS issuer that exists only in the drive, signing with a key it
 generated at run time, for Skat's client alone. `/auth` shows a page and redirects only after a click, so a person can
-close the sign-in window before it finishes; it offers a member of `/apps/skat` and a person who holds no group.
+close the sign-in window before it finishes; it offers two members of `/apps/skat` and a person who holds no group.
 
     python -m tests.e2e.support.drive_issuer --port N --certificate F --key F --issuer URL --client-id ID \
         --client-secret-file F
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 ACCOUNTS = {
     "member": ("drive-member", ["/apps/skat"], "Ada Member"),
+    "second-member": ("drive-second-member", ["/apps/skat"], "Ben Member"),
     "outsider": ("drive-outsider", [], "Otto Outsider"),
 }
 APPROVE_PATH = "/auth/approve"
