@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import pytest
-from agents.member import SET_TURN_STATE_TOOL, SPEAK_TOOL, PlaceRef
+from agents.member import SET_FRAMING_TOOL, SET_TURN_STATE_TOOL, SPEAK_TOOL, PlaceRef
 from playwright.sync_api import expect
 from speech_client.wire import VoiceId
 
@@ -114,13 +114,14 @@ def figure_faked() -> bool:
     return False
 
 
-# Stands in for figure's drawing chunk: it draws nothing and records the id of each element the page hands `listen`,
-# null for nobody, and of each sentence the page hands `speak` whether its voice is an audio node and its mood, null for
-# none.
+# Stands in for figure's drawing chunk: it draws nothing and records the framing it is mounted in and each the page
+# hands `frame`, the id of each element the page hands `listen`, null for nobody, and of each sentence the page hands
+# `speak` whether its voice is an audio node and its mood, null for none.
 FAKE_FIGURE = """
 export async function mount(canvas, bytes, options) {
     window.figureListens = [];
     window.figureSentences = [];
+    window.figureFramings = [options.framing ?? null];
     options.onSignal?.("drawn");
     const ignore = () => undefined;
     return {
@@ -131,6 +132,7 @@ export async function mount(canvas, bytes, options) {
             sentence === null ? null : { voice: sentence.voice instanceof AudioNode, mood: sentence.mood ?? null },
         ),
         gesture: ignore,
+        frame: (name) => void window.figureFramings.push(name),
         listen: (speaker) => void window.figureListens.push(speaker === null ? null : speaker.id),
     };
 }
@@ -536,3 +538,31 @@ def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
         wait_until_arm_shifted_from(rest[person], person)
+
+
+FRAMINGS = ["face", "shoulders", "upperBody", "fullBody"]
+FRAMINGS_SEEN = "() => window.figureFramings"
+
+
+@pytest.mark.parametrize("figure_faked", [True])
+def test_a_framing_the_agent_sets_reaches_every_figure_and_a_late_joiners_mounts_in_it(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-77, CALL-78: Each of the four framings the agent sets reaches the figure on every seat's page, a seat that
+    joins later mounts its figure in the current one, and a framing at a place the agent does not hold is refused as
+    not_active."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds_and_the_agent_accepts(figure_of(DRAWABLE_URL, DRAWABLE))
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE).locator(".vid")).to_have_attribute("data-figure", "drawn")
+
+    for framing in FRAMINGS:
+        assert scene.agent.set_framing(framing) == {}
+        for person in scene.everyone:
+            person.wait_for_function("(name) => window.figureFramings.at(-1) === name", arg=framing)
+    late = scene.person_joins_late()
+    expect(late.locator(AGENT_TILE).locator(".vid")).to_have_attribute("data-figure", "drawn")
+
+    assert late.evaluate(FRAMINGS_SEEN) == [FRAMINGS[-1]]
+    place = PlaceRef(kind="table", id=room_of_link(scene.link)).model_dump()
+    assert scene.agent.refusal_of(SET_FRAMING_TOOL, {"place": place, "framing": "face"}) == "not_active"

@@ -11,6 +11,7 @@ from agents.member import (
     ACCEPT_INVITATION_TOOL,
     DECLINE_INVITATION_TOOL,
     GESTURE_TOOL,
+    SET_FRAMING_TOOL,
     SET_TURN_STATE_TOOL,
     STANDING_URI,
     PlaceRef,
@@ -250,6 +251,13 @@ class OwnAccountAgent(SdkAgent):
         """Make the gesture with the figure at the one place the agent holds."""
         [active] = [standing for standing in self.standings() if standing["state"] == "active"]
         return self.call(GESTURE_TOOL, {"place": active["place"], "gesture": name})
+
+    def set_framing(self, name: str, place: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Take the framing at `place`, the one place the agent holds by default."""
+        if place is None:
+            [active] = [standing for standing in self.standings() if standing["state"] == "active"]
+            place = active["place"]
+        return self.call(SET_FRAMING_TOOL, {"place": place, "framing": name})
 
     def state_turn(self, **statement: Any) -> dict[str, Any]:
         """State the turn at the one place the agent holds: `thinking`, why its turns `stopped`, or none of both."""

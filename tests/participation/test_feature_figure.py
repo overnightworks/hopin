@@ -4,9 +4,9 @@ told, and the route that serves the verified file while a joined agent names it.
 import pytest
 import structlog.testing
 from agents.member import (
-    ACCEPT_INVITATION_TOOL,
     GESTURE_TOOL,
     LEASE_SECONDS,
+    SET_FRAMING_TOOL,
     SET_TURN_STATE_TOOL,
     SPEAK_TOOL,
     STANDING_URI,
@@ -15,7 +15,6 @@ from agents.member import (
 from hopin.agent.tools import LEAVE_CALL, SAY
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
-from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
     CLIP_PATH,
@@ -27,10 +26,18 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
 )
 from hopin.rooms.reference import room_reference
+from tests.participation.support.figure_scene import (
+    FILE,
+    JOINED,
+    accept_invitation,
+    accept_with,
+    figure_of,
+    joined_with,
+    offered_tools,
+)
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
     Answer,
-    FigureOrigin,
     digest_of,
     figure_url,
     glb,
@@ -39,27 +46,20 @@ from tests.participation.support.figures import (
 )
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_adders import ADDERS_GROUP
-from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED, accept_arguments
+from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED
 from tests.support.signed_in import cookie_header
 
 pytestmark = pytest.mark.integration
 
-JOINED = ParticipationSignal.AGENT_JOINED.value
-OFFERS = ParticipationSignal.AGENT_OFFERS.value
 GESTURED = ParticipationSignal.AGENT_GESTURE.value
+FRAMED = ParticipationSignal.AGENT_FRAMING.value
 THINKING = ParticipationSignal.AGENT_THINKING.value
 TURN_STATE = ParticipationSignal.AGENT_TURN_STATE.value
 SECOND_OWNER = "subject-second-owner"
-FILE = glb(b"mozart" * 8)
 CLIP = glb(b"wave" * 8)
 REFUSED_EVENT = "agent_figure.refused"
 CLIP_REFUSED_EVENT = "agent_clip.refused"
 WAVE = "wave"
-
-
-@pytest.fixture
-def figure_origin():
-    return FigureOrigin()
 
 
 @pytest.fixture
@@ -68,62 +68,13 @@ def sources():
 
 
 @pytest.fixture
-def figure_sources(sources):
-    return ParticipationSettings(figure_sources=sources).figure_sources
-
-
-@pytest.fixture
-def figure_transport(figure_origin):
-    return figure_origin
-
-
-@pytest.fixture
 def adding_call_adders(adding_call_adders):
     return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
-
-
-def figure_of(url, body=FILE, clips=None):
-    """The accept's figure; `clips` maps a gesture to the URL and the bytes of the clip that replaces it."""
-    gestures = {name: {"url": clip_url, "sha256": digest_of(clip)} for name, (clip_url, clip) in (clips or {}).items()}
-    return {"url": url, "sha256": digest_of(body)} | ({"gestures": gestures} if gestures else {})
-
-
-def accept_with(scene, figure, *, token=None, name=None):
-    """The member adds the agent and it accepts with the figure, or with none."""
-    if name is None:
-        scene.invite()
-    else:
-        scene.add(key_offered(scene, name))
-        scene.member.frame_of_type(OFFERS)
-    return accept_invitation(scene, figure, token=token)
-
-
-def accept_invitation(scene, figure, *, token=None):
-    """The agent accepts the invitation it holds, with the figure or with none."""
-    token = token or scene.token
-    standing = next(item for item in scene.call.standing(token) if item["state"] == "invited")
-    arguments = accept_arguments(standing) | ({} if figure is None else {"figure": figure})
-    return scene.call.call(token, ACCEPT_INVITATION_TOOL, arguments)
-
-
-def key_offered(scene, name):
-    """The key of the agent of that name in the first offers the member is sent that hold it."""
-    while True:
-        offers = scene.member.frame_of_type(OFFERS)["offers"]
-        keys = [offer["agent_key"] for offer in offers if offer["name"] == name]
-        if keys:
-            return keys[0]
 
 
 def read_figure(scene, path, method="GET", **headers):
     cookie = {"cookie": cookie_header(scene.member_login.set_cookie_headers)}
     return scene.call.client.request(method, path, headers=cookie | headers)
-
-
-def joined_with(scene, url, body=FILE):
-    """The agent accepted with the figure at the URL; the path the owner's seat was told."""
-    assert not accept_with(scene, figure_of(url, body)).is_error
-    return scene.owner.frame_of_type(JOINED)["figure"]
 
 
 def refusals_in(logs, event=REFUSED_EVENT):
@@ -518,19 +469,6 @@ class TestThePersonasClips:
         assert scene.call.client.get(path).status_code == 401
 
 
-def offered_tools(scene):
-    answer = scene.call.request(scene.token, "tools/list").json()
-    return {tool["name"] for tool in answer["result"]["tools"]}
-
-
-@pytest.fixture
-def gesturing(scene, figure_origin):
-    """The scene with the agent joined with a shown figure."""
-    joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
-    scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
-    return scene
-
-
 class TestTheGestureTool:
     def test_call_64_an_agent_with_a_shown_figure_is_offered_the_gesture_tool(self, gesturing):
         assert GESTURE_TOOL in offered_tools(gesturing)
@@ -592,14 +530,21 @@ class TestTheGestureTool:
         assert [frame for frame in later.received if frame["type"] == GESTURED] == []
 
     @pytest.mark.parametrize(
-        "arguments",
+        ("tool", "named"),
         [
-            pytest.param({"gesture": "wave", "place": {"kind": "call", "id": "no-such-room"}}, id="another room"),
-            pytest.param({"gesture": "wave", "place": {"kind": "table", "id": "any"}}, id="a place of another kind"),
+            pytest.param(GESTURE_TOOL, {"gesture": "wave"}, id="a gesture"),
+            pytest.param(SET_FRAMING_TOOL, {"framing": "face"}, id="a framing"),
         ],
     )
-    def test_call_64_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
-        dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, arguments)
+    @pytest.mark.parametrize(
+        "place",
+        [
+            pytest.param({"kind": "call", "id": "no-such-room"}, id="another room"),
+            pytest.param({"kind": "table", "id": "any"}, id="a place of another kind"),
+        ],
+    )
+    def test_call_64_and_77_a_figure_tool_at_no_call_the_agent_holds_is_not_active(self, gesturing, tool, named, place):
+        dialed = gesturing.call.call(gesturing.token, tool, {"place": place, **named})
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
 
@@ -608,17 +553,24 @@ class TestTheGestureTool:
 
         assert GESTURE_TOOL not in offered_tools(gesturing)
 
-    def test_call_64_a_gesture_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
-        self, gesturing, seat_changes
+    @pytest.mark.parametrize(
+        ("tool", "named", "signal"),
+        [
+            pytest.param(GESTURE_TOOL, {"gesture": "wave"}, GESTURED, id="a gesture"),
+            pytest.param(SET_FRAMING_TOOL, {"framing": "face"}, FRAMED, id="a framing"),
+        ],
+    )
+    def test_call_64_and_77_a_figure_tool_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
+        self, gesturing, seat_changes, tool, named, signal
     ):
         seat_changes.clear()
         gesturing.owner.drop()
         assert seat_changes.wait(timeout=10)
 
-        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+        dialed = call_in(gesturing, tool=tool, **named)
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-        assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
+        assert signal not in [frame["type"] for frame in gesturing.member.received]
 
 
 def thinking_told(seat):

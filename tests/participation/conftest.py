@@ -16,9 +16,12 @@ from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.speech_settings import SpeechService
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
+from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.support.figure_scene import FILE, JOINED, joined_with
+from tests.participation.support.figures import FigureOrigin, figure_url, ok
 from tests.participation.support.hearing_scene import AUDIENCE_SCOPE
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.participation.support.people import person_named, room_of
@@ -223,15 +226,36 @@ def adding_call_adders():
 
 
 @pytest.fixture
-def figure_sources():
-    """The figure sources the adding call allows; a module about figures names its own."""
-    return ()
+def sources():
+    """The figure sources the adding call allows, none unless a module about figures names its own."""
+    return []
 
 
 @pytest.fixture
-def figure_transport():
-    """The figures' source behind the transport port; a module about figures brings its own."""
-    return
+def figure_sources(sources):
+    """The figure sources as the settings read them from `sources`."""
+    return ParticipationSettings(figure_sources=sources).figure_sources
+
+
+@pytest.fixture
+def figure_transport(figure_origin):
+    """The figures' source behind the transport port: the `figure_origin`."""
+    return figure_origin
+
+
+@pytest.fixture
+def figure_origin():
+    """The figure origin a module about figures serves from and hands its `figure_transport`."""
+    return FigureOrigin()
+
+
+@pytest.fixture
+def gesturing(scene, figure_origin):
+    """The scene with the agent joined with a shown figure; the module brings the `figure_sources` and
+    `figure_transport` that let the figure through."""
+    joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
+    scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
+    return scene
 
 
 class MonotonicClock:

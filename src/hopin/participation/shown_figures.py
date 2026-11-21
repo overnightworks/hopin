@@ -1,5 +1,5 @@
 """The figures the joined agents show on their tiles: which a digest names, whether an agent shows one, the
-gestures it makes with it, whether it thinks and why its turns do not answer."""
+gestures it makes with it, the framing it takes, whether it thinks and why its turns do not answer."""
 
 from typing import TYPE_CHECKING
 
@@ -7,9 +7,22 @@ import structlog
 
 from hopin.errors import InvalidMessageError
 from hopin.participation.figures import NamedFigure
-from hopin.participation.frames import AgentGestureFrame, AgentThinkingFrame, AgentTurnStateFrame, ParticipationFrame
+from hopin.participation.frames import (
+    AgentFramingFrame,
+    AgentGestureFrame,
+    AgentThinkingFrame,
+    AgentTurnStateFrame,
+    ParticipationFrame,
+)
 from hopin.participation.participants import DialedAgent
-from hopin.participation.vocabulary import THINKING_MAX_SECONDS, AgentRefusal, FigureEnd, FigureGesture, TurnOutcome
+from hopin.participation.vocabulary import (
+    THINKING_MAX_SECONDS,
+    AgentRefusal,
+    FigureEnd,
+    FigureFraming,
+    FigureGesture,
+    TurnOutcome,
+)
 from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
@@ -48,6 +61,8 @@ class ShownFigures:
         self._thinking: dict[str, DialedAgent] = {}
         # The outcome each agent last stated for its stopped turns, by the agent's id.
         self._stopped: dict[str, TurnOutcome] = {}
+        # The framing each agent last set, by the agent's id, kept through a pause and dropped when the agent ends.
+        self._framing: dict[str, FigureFraming] = {}
         # The seats that reported an agent's figure ended, by the agent's id, for as long as the agent is joined.
         self._ended: dict[str, set[PeerId]] = {}
         deadlines.register(DeadlineKind.THINKING, self._thinking_ran_out)
@@ -88,6 +103,24 @@ class ShownFigures:
         await self._tell(room_id, self._recipients(room_id), AgentGestureFrame(agent.agent_id, gesture))
         return None
 
+    async def frame(self, person: Person, room_id: str, framing: FigureFraming) -> AgentRefusal | None:
+        """Take the framing the person's agent sets for its figure and tell every seat when it differs from the kept
+        one; why not when the agent holds no active place there or shows no figure. A seat that joins later is told the
+        kept framing with the agent's tile."""
+        agent = self._active_agent(person, room_id)
+        if isinstance(agent, AgentRefusal):
+            return agent
+        if agent.figure is None:
+            return AgentRefusal.GONE
+        if self._framing.get(agent.agent_id) != framing:
+            self._framing[agent.agent_id] = framing
+            await self._tell(room_id, self._recipients(room_id), AgentFramingFrame(agent.agent_id, framing))
+        return None
+
+    def framing_of(self, agent: DialedAgent) -> FigureFraming | None:
+        """The framing the agent set, or none until it sets one."""
+        return self._framing.get(agent.agent_id)
+
     async def state_turn(
         self, person: Person, room_id: str, *, thinking: bool, stopped: TurnOutcome | None = None
     ) -> AgentRefusal | None:
@@ -115,8 +148,9 @@ class ShownFigures:
         await self._set_stopped(agent, None)
 
     def agent_ended(self, agent: DialedAgent) -> None:
-        """Forget the outcome of an agent that left; its seats drop it with the agent's tile."""
+        """Forget the outcome and the framing of an agent that left; its seats drop them with the agent's tile."""
         self._stopped.pop(agent.agent_id, None)
+        self._framing.pop(agent.agent_id, None)
 
     async def end_thinking(self, agent: DialedAgent) -> None:
         """Tell every seat the agent no longer thinks, when it did."""

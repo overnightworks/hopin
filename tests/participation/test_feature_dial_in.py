@@ -7,6 +7,7 @@ from hopin.participation.participants import DialedAgent
 from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     AgentRefusal,
+    FigureFraming,
     FigureGesture,
     ParticipationSignal,
 )
@@ -129,6 +130,22 @@ class TestJoiningOneLiveSeat:
 
         assert refused is AgentRefusal.GONE
         assert agent_frames(host, ParticipationSignal.AGENT_GESTURE) == []
+
+    @pytest.mark.parametrize("reason", ["no_figure", "left"])
+    async def test_call_77_a_framing_of_an_agent_without_an_active_place_or_figure_is_refused(
+        self, link, participation, reason
+    ):
+        """CALL-77: A framing is refused while the agent shows no figure or has left."""
+        host, guest = await host_and_guest(link)
+        await dial(participation, guest)
+        person, room_id = person_named("guest"), room_of(guest)
+        if reason == "left":
+            await participation.leave(person, room_id)
+
+        refused = await participation.figures.frame(person, room_id, FigureFraming.FACE)
+
+        assert refused is AgentRefusal.GONE
+        assert agent_frames(host, ParticipationSignal.AGENT_FRAMING) == []
 
     @pytest.mark.parametrize(
         "ending",

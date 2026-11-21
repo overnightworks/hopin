@@ -13,6 +13,8 @@ interface Mounting {
     resolve: () => void;
     dispose: ReturnType<typeof vi.fn>;
     gesture: ReturnType<typeof vi.fn>;
+    frame: ReturnType<typeof vi.fn>;
+    framing: string | undefined;
     listen: ReturnType<typeof vi.fn>;
     speak: ReturnType<typeof vi.fn>;
     think: ReturnType<typeof vi.fn>;
@@ -24,11 +26,12 @@ const drawing = vi.hoisted(() => ({ mounts: [] as Mounting[] }));
 function fakeMount(
     canvas: HTMLCanvasElement,
     bytes: Uint8Array,
-    options: { onSignal: (signal: Signal) => void; gestures?: Record<string, Uint8Array> },
+    options: { onSignal: (signal: Signal) => void; gestures?: Record<string, Uint8Array>; framing?: string },
 ) {
     return new Promise((resolve) => {
         const dispose = vi.fn();
         const gesture = vi.fn();
+        const frame = vi.fn();
         const listen = vi.fn();
         const speak = vi.fn();
         const think = vi.fn();
@@ -36,12 +39,14 @@ function fakeMount(
             canvas,
             bytes,
             gestures: options.gestures,
+            framing: options.framing,
             give: options.onSignal,
             resolve: () => {
-                resolve({ signal: "drawn", dispose, gesture, listen, speak, think });
+                resolve({ signal: "drawn", dispose, gesture, frame, listen, speak, think });
             },
             dispose,
             gesture,
+            frame,
             listen,
             speak,
             think,
@@ -90,12 +95,12 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
     return drawer;
 }
 
-function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
+function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>, framing?: string) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
     // The reason each report gave, undefined for none.
     const reasons: (string | undefined)[] = [];
-    const { stop, gesture, listen, speak, think } = drawer(
+    const { stop, gesture, frame, listen, speak, think } = drawer(
         host,
         FIGURE_PATH,
         (figure, reason) => {
@@ -103,8 +108,9 @@ function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
             reasons.push(reason);
         },
         gestures,
+        framing,
     );
-    return { host, shown, reasons, stop, gesture, listen, speak, think };
+    return { host, shown, reasons, stop, gesture, frame, listen, speak, think };
 }
 
 // The frontend carries no Node typings; a rejection nothing handles reaches the test through the runtime's process.
@@ -112,8 +118,8 @@ const runtime = (globalThis as unknown as { process: UnhandledRejectionSource })
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function mounted(drawer: AgentFigureDrawer, gestures?: Record<string, string>) {
-    const drawn = draw(drawer, gestures);
+async function mounted(drawer: AgentFigureDrawer, gestures?: Record<string, string>, framing?: string) {
+    const drawn = draw(drawer, gestures, framing);
     await vi.waitFor(() => {
         expect(drawing.mounts).toHaveLength(1);
     });
@@ -315,6 +321,36 @@ describe("a figure on an agent's tile", () => {
         gesture("wave");
 
         expect(mounting.gesture.mock.calls).toEqual([["wave"]]);
+    });
+
+    it("CALL-77: takes a framing through the mounted figure's handle", async () => {
+        fetchedBytes();
+        const { frame, mounting } = await mounted(await installedDrawer());
+        mounting.resolve();
+        await settled();
+
+        frame("fullBody");
+
+        expect(mounting.frame.mock.calls).toEqual([["fullBody"]]);
+    });
+
+    it("CALL-78: mounts the figure in the framing the tile carried", async () => {
+        fetchedBytes();
+
+        const { mounting } = await mounted(await installedDrawer(), undefined, "upperBody");
+
+        expect(mounting.framing).toBe("upperBody");
+    });
+
+    it("CALL-77: shows a framing taken while the figure loads once it is drawn", async () => {
+        fetchedBytes();
+        const { frame, mounting } = await mounted(await installedDrawer(), undefined, "face");
+
+        frame("fullBody");
+        mounting.resolve();
+        await settled();
+
+        expect(mounting.frame.mock.calls).toEqual([["fullBody"]]);
     });
 
     it("CALL-64: drops a gesture while the figure is still loading", async () => {

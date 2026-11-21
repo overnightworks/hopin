@@ -420,6 +420,8 @@ describe("an agent tile's figure", () => {
             show: (figure: AgentFigure, reason?: string) => void;
             stop: ReturnType<typeof vi.fn>;
             gesture: ReturnType<typeof vi.fn>;
+            frame: ReturnType<typeof vi.fn>;
+            framing: string | undefined;
             listen: ReturnType<typeof vi.fn>;
             speak: ReturnType<typeof vi.fn>;
             think: ReturnType<typeof vi.fn>;
@@ -429,14 +431,16 @@ describe("an agent tile's figure", () => {
             path: string,
             show: (figure: AgentFigure, reason?: string) => void,
             gestures?: Record<string, string>,
+            framing?: string,
         ) => {
             const stop = vi.fn();
             const gesture = vi.fn();
+            const frame = vi.fn();
             const listen = vi.fn();
             const speak = vi.fn();
             const think = vi.fn();
-            started.push({ host, path, gestures, show, stop, gesture, listen, speak, think });
-            return { stop, gesture, listen, speak, think };
+            started.push({ host, path, gestures, show, stop, gesture, frame, framing, listen, speak, think });
+            return { stop, gesture, frame, listen, speak, think };
         };
         return { drawer, started };
     }
@@ -608,6 +612,29 @@ describe("an agent tile's figure", () => {
         expect(started[0]?.gesture).not.toHaveBeenCalled();
     });
 
+    it("CALL-77: takes a framing on the figure drawn for the tile key, and drops one for a tile without a figure", async () => {
+        const { agentFigure, drawAgentFigures, frameAgentFigure } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH });
+        agentFigure(document.createElement("div"), { key: "agent-a2", path: PATH });
+
+        frameAgentFigure(KEY, "fullBody");
+        frameAgentFigure("agent-none", "face");
+
+        expect([started[0]?.frame.mock.calls, started[1]?.frame.mock.calls]).toEqual([[["fullBody"]], []]);
+    });
+
+    it("CALL-78: draws a figure in the framing its tile names from its first frame", async () => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH, framing: "upperBody" });
+
+        expect(started[0]?.framing).toBe("upperBody");
+    });
+
     it("CALL-67: makes the figure drawn for the tile key speak each sentence and stop, and drops one for a tile without a figure", async () => {
         const { agentFigure, drawAgentFigures, speakAgentFigure } = await freshStage();
         const { drawer, started } = drawerOf();
@@ -734,5 +761,18 @@ describe("an agent tile's figure", () => {
         stage.agentFigure(document.createElement("div"), { key: KEY, path: PATH });
 
         expect(started[0]?.listen.mock.calls).toEqual([[tile("container-p1")]]);
+    });
+});
+
+describe("an agent tile's compact chips", () => {
+    it.each([
+        { figured: false, narrow: false, expected: { hearing: false, seeing: false } },
+        { figured: true, narrow: false, expected: { hearing: true, seeing: true } },
+        { figured: false, narrow: true, expected: { hearing: false, seeing: true } },
+        { figured: true, narrow: true, expected: { hearing: false, seeing: true } },
+    ])("CALL-77: shrinks $expected for figured $figured and narrow $narrow", async ({ figured, narrow, expected }) => {
+        const stage = await freshStage();
+
+        expect(stage.compactChips({ figured, narrow })).toEqual(expected);
     });
 });

@@ -15,6 +15,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_HELD = "agent_held",
     AGENT_CONTINUED = "agent_continued",
     AGENT_GESTURE = "agent_gesture",
+    AGENT_FRAMING = "agent_framing",
     AGENT_THINKING = "agent_thinking",
     AGENT_TURN_STATE = "agent_turn_state",
     AGENT_SEEING = "agent_seeing",
@@ -68,6 +69,13 @@ export enum FIGURE_GESTURE {
     WAVE = "wave",
 }
 
+export enum FIGURE_FRAMING {
+    FACE = "face",
+    SHOULDERS = "shoulders",
+    UPPER_BODY = "upperBody",
+    FULL_BODY = "fullBody",
+}
+
 export enum FIGURE_MOOD {
     HAPPY = "happy",
     ANGRY = "angry",
@@ -105,6 +113,7 @@ export type AgentJoinedFrame = {
     sponsor_id: string;
     figure?: string;
     gestures?: Record<string, string>;
+    framing?: FIGURE_FRAMING;
 };
 
 export type AgentLeftFrame = {
@@ -162,6 +171,12 @@ export type AgentGestureFrame = {
     gesture: FIGURE_GESTURE;
 };
 
+export type AgentFramingFrame = {
+    type: PARTICIPATION_SIGNAL.AGENT_FRAMING;
+    agent_id: string;
+    framing: FIGURE_FRAMING;
+};
+
 export type AgentThinkingFrame = {
     type: PARTICIPATION_SIGNAL.AGENT_THINKING;
     agent_id: string;
@@ -212,6 +227,7 @@ export type ParticipationFrameByType = {
     [PARTICIPATION_SIGNAL.AGENT_HELD]: AgentHeldFrame;
     [PARTICIPATION_SIGNAL.AGENT_CONTINUED]: AgentContinuedFrame;
     [PARTICIPATION_SIGNAL.AGENT_GESTURE]: AgentGestureFrame;
+    [PARTICIPATION_SIGNAL.AGENT_FRAMING]: AgentFramingFrame;
     [PARTICIPATION_SIGNAL.AGENT_THINKING]: AgentThinkingFrame;
     [PARTICIPATION_SIGNAL.AGENT_TURN_STATE]: AgentTurnStateFrame;
     [PARTICIPATION_SIGNAL.AGENT_OFFERS]: AgentOffersFrame;

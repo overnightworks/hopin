@@ -69,6 +69,7 @@ async function installedGame({
         drawAgentFigures: () => undefined,
         onAgentFigureEnded: () => undefined,
         gestureAgentFigure: () => undefined,
+        frameAgentFigure: () => undefined,
         speakAgentFigure: () => undefined,
         thinkAgentFigure: () => undefined,
         closeMore: () => undefined,

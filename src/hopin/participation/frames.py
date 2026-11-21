@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, ClassVar, get_args
 from hopin.participation.figures import clip_path, figure_path
 from hopin.participation.vocabulary import (
     AgentRefusal,
+    FigureFraming,
     FigureGesture,
     FigureMood,
     InvitationOutcome,
@@ -37,6 +38,7 @@ class AgentJoinedFrame(WireFrame):
     sponsor_id: str
     figure: str | None = None
     gestures: dict[str, str] | None = None
+    framing: FigureFraming | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +117,14 @@ class AgentGestureFrame(WireFrame):
 
 
 @dataclass(frozen=True)
+class AgentFramingFrame(WireFrame):
+    TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_FRAMING
+
+    agent_id: str
+    framing: FigureFraming
+
+
+@dataclass(frozen=True)
 class AgentThinkingFrame(WireFrame):
     TYPE: ClassVar[ParticipationSignal] = ParticipationSignal.AGENT_THINKING
 
@@ -176,6 +186,7 @@ type ParticipationFrame = (
     | AgentHeldFrame
     | AgentContinuedFrame
     | AgentGestureFrame
+    | AgentFramingFrame
     | AgentThinkingFrame
     | AgentTurnStateFrame
     | AgentOffersFrame
@@ -188,7 +199,7 @@ type ParticipationFrame = (
 BROWSER_FRAMES = get_args(ParticipationFrame.__value__)
 
 
-def joined_frame(agent: DialedAgent, sponsor_name: str) -> AgentJoinedFrame:
+def joined_frame(agent: DialedAgent, sponsor_name: str, framing: FigureFraming | None) -> AgentJoinedFrame:
     figure = agent.figure
     return AgentJoinedFrame(
         agent_id=agent.agent_id,
@@ -197,4 +208,5 @@ def joined_frame(agent: DialedAgent, sponsor_name: str) -> AgentJoinedFrame:
         sponsor_id=agent.sponsor,
         figure=None if figure is None else figure_path(figure.sha256),
         gestures={clip.gesture: clip_path(clip.sha256) for clip in figure.clips} if figure and figure.clips else None,
+        framing=framing,
     )

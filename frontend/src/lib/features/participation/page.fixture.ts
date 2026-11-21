@@ -31,6 +31,8 @@ export async function installedParticipation(installOn?: typeof install) {
     const gestures: [string, string][] = [];
     // The tile key and sentence of each call the page made to an agent's figure's speak, null for none.
     const figureSentences: [string, AgentSentence | null][] = [];
+    // The tile key and framing of each call the page made to frame an agent's figure.
+    const framings: [string, string][] = [];
     const thoughts: [string, boolean][] = [];
     const toasts: string[] = [];
     const lines: FeatureView[] = [];
@@ -65,6 +67,9 @@ export async function installedParticipation(installOn?: typeof install) {
         },
         gestureAgentFigure: (key, gesture) => {
             gestures.push([key, gesture]);
+        },
+        frameAgentFigure: (key, framing) => {
+            framings.push([key, framing]);
         },
         speakAgentFigure: (key, sentence) => {
             figureSentences.push([key, sentence]);
@@ -120,6 +125,7 @@ export async function installedParticipation(installOn?: typeof install) {
         sentTransient,
         tiles,
         gestures,
+        framings,
         figureSentences,
         thoughts,
         toasts,

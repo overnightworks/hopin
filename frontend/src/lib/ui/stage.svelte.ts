@@ -78,6 +78,11 @@ export function tileIdOf(key: string) {
     return "container-" + key;
 }
 
+/** Which of an agent tile's chips shrink to their icon: both while the tile shows a figure, which leaves less room; a narrow tile already shrinks the see chip, and its hearing chip stays whole there, where hopin.css moves it into a corner. */
+export function compactChips(tile: { figured: boolean; narrow: boolean }) {
+    return { hearing: tile.figured && !tile.narrow, seeing: tile.narrow || tile.figured };
+}
+
 // The call core draws no figure itself: the feature that does hands over its drawer, and a tile without one or without a path stays as it is.
 let figureDrawer: AgentFigureDrawer | null = null;
 
@@ -104,6 +109,11 @@ const drawnFigures = new Map<string, DrawnFigure>();
 /** Play the gesture on the figure of the agent tile under `key`; a tile with no drawn figure drops it. */
 export function gestureAgentFigure(key: string, gesture: string) {
     drawnFigures.get(key)?.handle.gesture(gesture);
+}
+
+/** Show the figure of the agent tile under `key` in the framing named `framing`; a tile with no drawn figure drops it. */
+export function frameAgentFigure(key: string, framing: string) {
+    drawnFigures.get(key)?.handle.frame(framing);
 }
 
 /** Make the figure of the agent tile under `key` speak the sentence, null stop; a tile with no figure drops it. */
@@ -161,6 +171,7 @@ interface AgentFigureSpot {
     key: string;
     path: string | undefined;
     gestures?: AgentGestureClips;
+    framing?: string;
 }
 
 /** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, `data-figure-end` why it ended, and a new path draws afresh; the clips go with the path they came with. */
@@ -176,7 +187,7 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
         drawnFigures.delete(key);
     }
 
-    function draw(figure: string | undefined, gestures: AgentGestureClips | undefined) {
+    function draw(figure: string | undefined, gestures: AgentGestureClips | undefined, framing: string | undefined) {
         stop();
         delete host.dataset.figureEnd;
         if (figureDrawer === null || figure === undefined) {
@@ -194,19 +205,20 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
                 figureEndedHook?.(key, reason);
             },
             gestures,
+            framing,
         );
         drawnFigures.set(key, { handle: drawn, listensTo: null });
         if (thinkingKeys.has(key)) drawn.think(true);
         refreshListening();
     }
 
-    draw(drawnPath, spot.gestures);
+    draw(drawnPath, spot.gestures, spot.framing);
     return {
         // Svelte calls update with the unchanged path whenever the tile's entry re-renders; only a new path draws afresh.
         update(next: AgentFigureSpot) {
             if (next.path === drawnPath) return;
             drawnPath = next.path;
-            draw(next.path, next.gestures);
+            draw(next.path, next.gestures, next.framing);
         },
         destroy: stop,
     };

@@ -17,6 +17,7 @@ from agents.member import (
     CONTINUE_SPEAKING_TOOL,
     DECLINE_INVITATION_TOOL,
     GESTURE_TOOL,
+    SET_FRAMING_TOOL,
     SET_TURN_STATE_TOOL,
     SPEAK_TOOL,
     STOP_SPEAKING_TOOL,
@@ -38,6 +39,9 @@ from agents.member import (
     GestureRefused,
     PlaceRef,
     Relayed,
+    SetFramingArguments,
+    SetFramingRefusal,
+    SetFramingRefused,
     SetTurnStateArguments,
     SetTurnStateRefusal,
     SetTurnStateRefused,
@@ -50,6 +54,7 @@ from agents.member import (
     StopSpeakingRefusal,
     StopSpeakingRefused,
     Written,
+    framing_tool,
     gesture_tool,
     member_arguments,
 )
@@ -65,6 +70,7 @@ from hopin.participation.vocabulary import (
     AGENT_NAME_MAX_CHARACTERS,
     LOOKS_PER_WINDOW,
     AgentRefusal,
+    FigureFraming,
     FigureGesture,
     FigureMood,
     HoldRefusal,
@@ -119,6 +125,7 @@ AUDIENCE_OF_TOOL: Final = {
     STOP_SPEAKING_TOOL: Audience.EVERY_AGENT,
     CONTINUE_SPEAKING_TOOL: Audience.EVERY_AGENT,
     GESTURE_TOOL: Audience.EVERY_AGENT,
+    SET_FRAMING_TOOL: Audience.EVERY_AGENT,
     SET_TURN_STATE_TOOL: Audience.EVERY_AGENT,
     LOOK: Audience.EVERY_AGENT,
 }
@@ -352,6 +359,10 @@ def _gesture_refused() -> ToolOutcome:
     return ToolOutcome(GestureRefused(refused=GestureRefusal.NOT_ACTIVE).model_dump_json(), is_error=True)
 
 
+def _framing_refused() -> ToolOutcome:
+    return ToolOutcome(SetFramingRefused(refused=SetFramingRefusal.NOT_ACTIVE).model_dump_json(), is_error=True)
+
+
 def _turn_state_refused() -> ToolOutcome:
     return ToolOutcome(SetTurnStateRefused(refused=SetTurnStateRefusal.NOT_HELD).model_dump_json(), is_error=True)
 
@@ -472,6 +483,29 @@ async def _gestured(participation: Participation, caller: Caller, arguments: Jso
     return ToolOutcome(Relayed(relayed=True).model_dump_json(), is_error=False)
 
 
+async def _left(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    refusal = await participation.leave(caller.person, _text_of(arguments, "room"))
+    if refusal is None:
+        return ToolOutcome(json.dumps({"left": True}), is_error=False)
+    return refused(refusal)
+
+
+async def _said(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    refusal = await participation.say(caller.person, _text_of(arguments, "room"), _text_of(arguments, "text"))
+    if refusal is None:
+        return ToolOutcome(json.dumps({}), is_error=False)
+    return refused(refusal)
+
+
+async def _framed(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    framing = member_arguments(SetFramingArguments, arguments)
+    if framing.place.kind != CALL_KIND:
+        return _framing_refused()
+    if await participation.figures.frame(caller.person, framing.place.id, FigureFraming(framing.framing.value)):
+        return _framing_refused()
+    return ToolOutcome(json.dumps({}), is_error=False)
+
+
 async def _turn_stated(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     stating = member_arguments(SetTurnStateArguments, arguments)
     if stating.place.kind != CALL_KIND:
@@ -503,8 +537,8 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     an agent's sentences, none while speaking is off."""
 
     async def join_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        outcome = await participation().dial_in(caller.person, _text_of(arguments, "room"), _text_of(arguments, "name"))
-        return _joined_or_refused(outcome)
+        room, name = _text_of(arguments, "room"), _text_of(arguments, "name")
+        return _joined_or_refused(await participation().dial_in(caller.person, room, name))
 
     async def accept_invitation(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _accepted(participation(), caller, arguments)
@@ -513,16 +547,10 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         return await _declined(participation(), caller, arguments)
 
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        refusal = await participation().leave(caller.person, _text_of(arguments, "room"))
-        if refusal is None:
-            return ToolOutcome(json.dumps({"left": True}), is_error=False)
-        return refused(refusal)
+        return await _left(participation(), caller, arguments)
 
     async def say(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        refusal = await participation().say(caller.person, _text_of(arguments, "room"), _text_of(arguments, "text"))
-        if refusal is None:
-            return ToolOutcome(json.dumps({}), is_error=False)
-        return refused(refusal)
+        return await _said(participation(), caller, arguments)
 
     async def speak(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _spoken(participation(), voice, caller, arguments)
@@ -535,6 +563,9 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
 
     async def gesture(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _gestured(participation(), caller, arguments)
+
+    async def set_framing(caller: Caller, arguments: JsonObject) -> ToolOutcome:
+        return await _framed(participation(), caller, arguments)
 
     async def set_turn_state(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _turn_stated(participation(), caller, arguments)
@@ -552,6 +583,7 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         CallerTool(_STOP_SPEAKING_DECLARATION, stop_speaking),
         CallerTool(_CONTINUE_SPEAKING_DECLARATION, continue_speaking),
         CallerTool(gesture_tool(), gesture),
+        CallerTool(framing_tool(), set_framing),
         CallerTool(_SET_TURN_STATE_DECLARATION, set_turn_state),
         CallerTool(_LOOK_DECLARATION, look),
     )

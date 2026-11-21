@@ -43,10 +43,11 @@ export interface AgentSentence {
     mood?: string;
 }
 
-/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `listen` turns the figure toward the tile of whoever speaks, null toward nobody; `speak` makes the figure speak the sentence, null makes it stop; `think` shows whether its agent thinks; one `listen`, `speak` or `think` given while the figure loads holds once it is drawn. */
+/** What a drawn figure offers the page: `stop` takes the figure away and is the last the drawer reports; `gesture` plays the gesture of that name once, and is dropped while the figure is loading; `frame` takes the framing of that name, which a figure still loading shows once it is drawn; `listen` turns the figure toward the tile of whoever speaks, null toward nobody; `speak` makes the figure speak the sentence, null makes it stop; `think` shows whether its agent thinks; one `listen`, `speak` or `think` given while the figure loads holds once it is drawn. */
 export interface AgentFigureHandle {
     stop: () => void;
     gesture: (name: string) => void;
+    frame: (name: string) => void;
     listen: (speaker: Element | null) => void;
     speak: (sentence: AgentSentence | null) => void;
     think: (working: boolean) => void;
@@ -55,12 +56,13 @@ export interface AgentFigureHandle {
 /** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */
 export type AgentGestureClips = Readonly<Record<string, string>>;
 
-/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, and reports whether it is `DRAWN` or `ENDED`, an end with the `reason` it ended for; the tile shows its symbol until `DRAWN`. */
+/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, seen in the framing named `framing` from its first frame (the figure's own default when none), and reports whether it is `DRAWN` or `ENDED`, an end with the `reason` it ended for; the tile shows its symbol until `DRAWN`. */
 export type AgentFigureDrawer = (
     host: HTMLElement,
     path: string,
     show: (figure: AgentFigure, reason?: string) => void,
     gestures?: AgentGestureClips,
+    framing?: string,
 ) => AgentFigureHandle;
 
 /** The switch on an agent's tile that lets the agent hear the person: the tile shows `on` and hands each press, as the value it asks for, to `onChange`; it holds no state of its own. */
@@ -75,13 +77,14 @@ export interface AgentSeeing {
     onChange: (on: boolean) => void;
 }
 
-/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it and the paths of the clips it brings; a tile with `hearing` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it the paths of the clips it brings and the framing its agent has taken; a tile with `hearing` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
 export interface AgentTile {
     name: string;
     activity: AgentActivity;
     sponsor?: string;
     figure?: string;
     gestures?: AgentGestureClips;
+    framing?: string;
     hearing?: AgentHearing;
     seeing?: AgentSeeing;
     looking?: boolean;
@@ -128,6 +131,8 @@ export interface FeatureCore<Frames extends object = object> {
     onAgentFigureEnded(hook: (key: string, reason: string) => void): void;
     /** Play the gesture on the figure of the agent tile shown under `key`; dropped when that tile has no drawn figure. */
     gestureAgentFigure(key: string, gesture: string): void;
+    /** Show the figure of the agent tile shown under `key` in the framing named `framing`; dropped when that tile has no drawn figure. */
+    frameAgentFigure(key: string, framing: string): void;
     /** Make the figure of the agent tile shown under `key` speak the sentence, null stop; dropped when that tile has no figure. */
     speakAgentFigure(key: string, sentence: AgentSentence | null): void;
     /** Show whether the agent of the tile under `key` thinks, until the next call or the tile goes; a figure drawn on that tile meanwhile starts so. */

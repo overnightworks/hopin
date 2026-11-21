@@ -18,6 +18,7 @@ import {
     PARTICIPATION_SIGNAL,
     type Offer,
     type ParticipationFrameByType,
+    type FIGURE_FRAMING,
     type TURN_OUTCOME,
 } from "./wire.ts";
 
@@ -30,6 +31,8 @@ interface ShownAgent {
     readonly looking?: boolean;
     // Why the agent's turns do not answer, as it stated it last; absent when it states none.
     readonly turnOutcome?: TURN_OUTCOME;
+    // The framing the agent took after it joined; absent until its frame comes, the joined frame carries the one before.
+    readonly framing?: FIGURE_FRAMING;
 }
 
 // How long the mark of a look stays on the agent's tile.
@@ -94,7 +97,7 @@ export async function installWith(
         return thinking.has(agentId) ? AGENT_ACTIVITY.THINKING : AGENT_ACTIVITY.PRESENT;
     }
 
-    function draw({ joined: frame, hearing, seeing, looking }: ShownAgent) {
+    function draw({ joined: frame, hearing, seeing, looking, framing }: ShownAgent) {
         core.showAgentTile(
             {
                 name: frame.name,
@@ -102,6 +105,7 @@ export async function installWith(
                 sponsor: frame.sponsor,
                 figure: frame.figure,
                 gestures: frame.gestures,
+                framing: framing ?? frame.framing,
                 hearing:
                     hearing === undefined
                         ? undefined
@@ -319,6 +323,14 @@ export async function installWith(
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_GESTURE, (frame) => {
         if (shown.has(frame.agent_id)) core.gestureAgentFigure(tileKey(frame.agent_id), frame.gesture);
+    });
+    core.on(PARTICIPATION_SIGNAL.AGENT_FRAMING, (frame) => {
+        const agent = shown.get(frame.agent_id);
+        if (agent === undefined) return;
+        const recorded = { ...agent, framing: frame.framing };
+        shown.set(frame.agent_id, recorded);
+        draw(recorded);
+        core.frameAgentFigure(tileKey(frame.agent_id), frame.framing);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_THINKING, (frame) => {
         const agent = shown.get(frame.agent_id);

@@ -41,6 +41,7 @@ async function installedStage(startLink: StartLink | null = null) {
         drawAgentFigures: () => undefined,
         onAgentFigureEnded: () => undefined,
         gestureAgentFigure: () => undefined,
+        frameAgentFigure: () => undefined,
         speakAgentFigure: () => undefined,
         thinkAgentFigure: () => undefined,
         closeMore: () => void closed.push(true),

@@ -8,7 +8,14 @@ import {
     type FeatureCore,
 } from "#lib/call/feature-port.ts";
 import { FIGURE_END } from "#lib/features/participation/wire.ts";
-import type { FigureGesture, FigureHandle, FigureMood, FigureSignal, MountOptions } from "overnightworks-figure/draw";
+import type {
+    FigureFraming,
+    FigureGesture,
+    FigureHandle,
+    FigureMood,
+    FigureSignal,
+    MountOptions,
+} from "overnightworks-figure/draw";
 
 type FigureDrawing = Promise<typeof import("overnightworks-figure/draw")>;
 
@@ -41,6 +48,7 @@ function drawFigure(
     show: (figure: AgentFigure, reason?: string) => void,
     drawing: FigureDrawing,
     clipPaths: AgentGestureClips,
+    firstFraming: string | undefined,
 ): AgentFigureHandle {
     const fetching = new AbortController();
     let canvas: HTMLCanvasElement | undefined;
@@ -48,6 +56,8 @@ function drawFigure(
     let speaker: Element | null = null;
     let sentence: AgentSentence | null = null;
     let thinking = false;
+    // A framing the page names that figure does not know is dropped by the figure itself.
+    let framing = firstFraming as FigureFraming | undefined;
     let over = false;
     // A function, so the checks after an await do not read as settled.
     const hasEnded = () => over;
@@ -101,12 +111,15 @@ function drawFigure(
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         host.prepend(canvas);
-        const mounted = await mount(canvas, bytes, { onSignal: heard, gestures });
+        const mountedIn = framing;
+        const mounted = await mount(canvas, bytes, { onSignal: heard, gestures, framing: mountedIn });
         if (hasEnded()) {
             mounted.dispose();
             return;
         }
         handle = mounted;
+        // A framing taken while the figure mounted is shown now.
+        if (framing !== undefined && framing !== mountedIn) handle.frame(framing);
         if (speaker !== null) handle.listen(speaker);
         if (sentence !== null) speakTo(handle, sentence);
         if (thinking) handle.think(true);
@@ -122,6 +135,10 @@ function drawFigure(
         // The handle drops a name that is no gesture of figure's, so the page checks none.
         gesture: (name) => {
             handle?.gesture(name as FigureGesture);
+        },
+        frame: (name) => {
+            framing = name as FigureFraming;
+            handle?.frame(framing);
         },
         listen: (next) => {
             speaker = next;
@@ -142,8 +159,8 @@ export function install(core: FeatureCore): Promise<void> {
     const drawing: FigureDrawing = import("overnightworks-figure/draw");
     // A failed import is reported by each figure that awaits it; one that fails before the first drawer awaits it is no unhandled rejection.
     drawing.catch(() => undefined);
-    const draws: AgentFigureDrawer = (host, path, show, gestures = {}) =>
-        drawFigure(host, path, show, drawing, gestures);
+    const draws: AgentFigureDrawer = (host, path, show, gestures, framing) =>
+        drawFigure(host, path, show, drawing, gestures ?? {}, framing);
     core.drawAgentFigures(draws);
     return Promise.resolve();
 }
