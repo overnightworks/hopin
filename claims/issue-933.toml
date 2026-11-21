@@ -3,6 +3,6 @@ agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
 role = "builder"
 base = "b76b2fce4ebd21284ebf62c094d2cd77aba46add"
 branch = "claude/issue-933-screen-and-camera"
-scope = ["README.md", "docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call", "frontend/src/lib/ui", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e/support", "tests/e2e/test_camera_off.py", "tests/e2e/test_end.py", "tests/e2e/test_media.py", "tests/e2e/test_screen_share.py"]
+scope = ["README.md", "docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call", "frontend/src/lib/ui", "frontend/src/routes/(call)/+layout.svelte", "tests/e2e/stage/test_stage_table.py", "tests/e2e/support", "tests/e2e/test_camera_off.py", "tests/e2e/test_end.py", "tests/e2e/test_media.py", "tests/e2e/test_media_tile_picture.py", "tests/e2e/test_screen_share.py", "tests/e2e/test_stage.py"]
 opened_commit = "00fa32571e01951ade818ebe3f79947c3424c945"
 whole_reason = "The second video sender, its negotiation, the screen tile beside the camera and their proof change together."
