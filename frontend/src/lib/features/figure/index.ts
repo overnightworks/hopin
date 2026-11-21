@@ -159,8 +159,8 @@ export function install(core: FeatureCore): Promise<void> {
     const drawing: FigureDrawing = import("overnightworks-figure/draw");
     // A failed import is reported by each figure that awaits it; one that fails before the first drawer awaits it is no unhandled rejection.
     drawing.catch(() => undefined);
-    const draws: AgentFigureDrawer = (host, path, show, gestures = {}, framing) =>
-        drawFigure(host, path, show, drawing, gestures, framing);
+    const draws: AgentFigureDrawer = (host, path, show, gestures, framing) =>
+        drawFigure(host, path, show, drawing, gestures ?? {}, framing);
     core.drawAgentFigures(draws);
     return Promise.resolve();
 }
