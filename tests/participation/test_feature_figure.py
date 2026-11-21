@@ -6,6 +6,7 @@ import structlog.testing
 from agents.member import (
     GESTURE_TOOL,
     LEASE_SECONDS,
+    SET_FRAMING_TOOL,
     SET_TURN_STATE_TOOL,
     SPEAK_TOOL,
     STANDING_URI,
@@ -14,6 +15,7 @@ from agents.member import (
 from hopin.agent.tools import LEAVE_CALL, SAY
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
+from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
     CLIP_PATH,
@@ -64,6 +66,21 @@ WAVE = "wave"
 @pytest.fixture
 def adding_call_adders(adding_call_adders):
     return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
+
+
+@pytest.fixture
+def sources():
+    return [SOURCE_PREFIX]
+
+
+@pytest.fixture
+def figure_sources(sources):
+    return ParticipationSettings(figure_sources=sources).figure_sources
+
+
+@pytest.fixture
+def figure_transport(figure_origin):
+    return figure_origin
 
 
 def read_figure(scene, path, method="GET", **headers):
@@ -524,14 +541,21 @@ class TestTheGestureTool:
         assert [frame for frame in later.received if frame["type"] == GESTURED] == []
 
     @pytest.mark.parametrize(
-        "arguments",
+        ("tool", "named"),
         [
-            pytest.param({"gesture": "wave", "place": {"kind": "call", "id": "no-such-room"}}, id="another room"),
-            pytest.param({"gesture": "wave", "place": {"kind": "table", "id": "any"}}, id="a place of another kind"),
+            pytest.param(GESTURE_TOOL, {"gesture": "wave"}, id="a gesture"),
+            pytest.param(SET_FRAMING_TOOL, {"framing": "face"}, id="a framing"),
         ],
     )
-    def test_call_64_a_gesture_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
-        dialed = gesturing.call.call(gesturing.token, GESTURE_TOOL, arguments)
+    @pytest.mark.parametrize(
+        "place",
+        [
+            pytest.param({"kind": "call", "id": "no-such-room"}, id="another room"),
+            pytest.param({"kind": "table", "id": "any"}, id="a place of another kind"),
+        ],
+    )
+    def test_call_64_and_77_a_figure_tool_at_no_call_the_agent_holds_is_not_active(self, gesturing, tool, named, place):
+        dialed = gesturing.call.call(gesturing.token, tool, {"place": place, **named})
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
 
@@ -540,17 +564,24 @@ class TestTheGestureTool:
 
         assert GESTURE_TOOL not in offered_tools(gesturing)
 
-    def test_call_64_a_gesture_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
-        self, gesturing, seat_changes
+    @pytest.mark.parametrize(
+        ("tool", "named", "signal"),
+        [
+            pytest.param(GESTURE_TOOL, {"gesture": "wave"}, GESTURED, id="a gesture"),
+            pytest.param(SET_FRAMING_TOOL, {"framing": "face"}, FRAMED, id="a framing"),
+        ],
+    )
+    def test_call_64_and_77_a_figure_tool_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
+        self, gesturing, seat_changes, tool, named, signal
     ):
         seat_changes.clear()
         gesturing.owner.drop()
         assert seat_changes.wait(timeout=10)
 
-        dialed = call_in(gesturing, tool=GESTURE_TOOL, gesture="wave")
+        dialed = call_in(gesturing, tool=tool, **named)
 
         assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-        assert GESTURED not in [frame["type"] for frame in gesturing.member.received]
+        assert signal not in [frame["type"] for frame in gesturing.member.received]
 
 
 def thinking_told(seat):

@@ -5,13 +5,25 @@ import pytest
 from agents.member import SET_FRAMING_TOOL
 
 from hopin.agent.tools import LEAVE_CALL
+from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.figure_scene import JOINED, accept_with, offered_tools
+from tests.participation.support.figures import SOURCE_PREFIX
 from tests.participation.support.tool_calls import call_in
 
 pytestmark = pytest.mark.integration
 
 FRAMED = ParticipationSignal.AGENT_FRAMING.value
+
+
+@pytest.fixture
+def figure_sources():
+    return ParticipationSettings(figure_sources=[SOURCE_PREFIX]).figure_sources
+
+
+@pytest.fixture
+def figure_transport(figure_origin):
+    return figure_origin
 
 
 class TestTheFramingTool:
@@ -67,30 +79,6 @@ class TestTheFramingTool:
         later = gesturing.call.seat(later_login, gesturing.owner.room_id)
 
         assert "framing" not in later.frame_of_type(JOINED)
-
-    @pytest.mark.parametrize(
-        "arguments",
-        [
-            pytest.param({"framing": "face", "place": {"kind": "call", "id": "no-such-room"}}, id="another room"),
-            pytest.param({"framing": "face", "place": {"kind": "table", "id": "any"}}, id="a place of another kind"),
-        ],
-    )
-    def test_call_77_a_framing_at_no_call_the_agent_holds_is_not_active(self, gesturing, arguments):
-        dialed = gesturing.call.call(gesturing.token, SET_FRAMING_TOOL, arguments)
-
-        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-
-    def test_call_77_a_framing_while_the_sponsors_seat_is_parked_is_not_active_and_tells_no_seat(
-        self, gesturing, seat_changes
-    ):
-        seat_changes.clear()
-        gesturing.owner.drop()
-        assert seat_changes.wait(timeout=10)
-
-        dialed = call_in(gesturing, tool=SET_FRAMING_TOOL, framing="face")
-
-        assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})
-        assert FRAMED not in [frame["type"] for frame in gesturing.member.received]
 
     def test_call_77_a_framing_the_schema_does_not_name_fails_the_schema(self, gesturing):
         dialed = call_in(gesturing, tool=SET_FRAMING_TOOL, framing="closeup")

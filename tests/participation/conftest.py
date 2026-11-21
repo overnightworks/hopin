@@ -19,6 +19,8 @@ from hopin.participation.hearing import Hearing
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
+from tests.participation.support.figure_scene import FILE, JOINED, joined_with
+from tests.participation.support.figures import FigureOrigin, figure_url, ok
 from tests.participation.support.hearing_scene import AUDIENCE_SCOPE
 from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
 from tests.participation.support.people import person_named, room_of
@@ -232,6 +234,21 @@ def figure_sources():
 def figure_transport():
     """The figures' source behind the transport port; a module about figures brings its own."""
     return
+
+
+@pytest.fixture
+def figure_origin():
+    """The figure origin a module about figures serves from and hands its `figure_transport`."""
+    return FigureOrigin()
+
+
+@pytest.fixture
+def gesturing(scene, figure_origin):
+    """The scene with the agent joined with a shown figure; the module brings the `figure_sources` and
+    `figure_transport` that let the figure through."""
+    joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
+    scene.agent_id = scene.member.frame_of_type(JOINED)["agent_id"]
+    return scene
 
 
 class MonotonicClock:
