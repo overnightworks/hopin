@@ -110,6 +110,11 @@ def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_
     assert overlap_of(listen_box, remove_box) == 0
     assert overlap_of(listen_box, box_of(AGENT_SEE_SWITCH, host)) == 0
     assert overlap_of(listen_box, track_box) == 0
+    hearing_box = box_of(SWITCH, host)
+    assert lies_inside(hearing_box, tile_box)
+    assert overlap_of(hearing_box, remove_box) == 0
+    assert overlap_of(hearing_box, box_of(AGENT_SEE_SWITCH, host)) == 0
+    assert overlap_of(hearing_box, listen_box) == 0
     if not narrow:
         chip_box = box_of(SWITCH, host)
         assert chip_box["x"] - tile_box["x"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
