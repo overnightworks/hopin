@@ -48,6 +48,7 @@ flowchart TB
     end
     auth -.-> KC[Keycloak]
     stores -.-> RD[Redis]
+    stores -.-> PG[Postgres]
     agent -.-> LL[LiteLLM gateway]
     agent -.-> SP[Speech service]
     web -.-> TU[TURN provider]
@@ -58,7 +59,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | Package | Job |
 |---|---|
 | `config` | settings, constants, enums and the secret-file reader |
-| `stores` | the Redis every process shares and the port `create_app` takes |
+| `stores` | the Redis every process shares, the port `create_app` takes, and the Postgres engine, its schema and `hopin migrate` |
 | `rooms` | rooms, participants, the places people and agents share, the lock |
 | `signaling` | the WebSocket: identity, frames, seats, replay, timers, the feature port |
 | `web` | the page build, the request's language, health, the ICE server list |
@@ -134,7 +135,7 @@ The rules of a room (host, lock, resume window, host grace, stage table, quiz ru
 
 One container, built from `Dockerfile`, runs as the one pod of the `hopin` namespace on the platform (k3s with Flux) from its attested private GHCR image. The platform's repository owns the manifests under `apps/hopin/`, which hold the live settings; secret files come from `platform-secrets` under `/run/secrets`. The Cloudflare tunnel terminates https and runs through Traefik to HopIn on 8080; readiness is `GET /health`. Keycloak's back-channel logout does not reach HopIn there, so a sign-out at Keycloak ends a HopIn session only at its 12-hour lifetime ([platform#46](https://github.com/overnightworks/platform/issues/46)). `compose.yaml` serves only the rollback path on hal, behind the edge reverse proxy.
 
-Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit windows and the agent connector's member-place signals; the server refuses to start without it and `/health` is not ready while it does not answer. All other state lives in memory, so a restart ends every call and session; there is no database.
+Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit windows and the agent connector's member-place signals; the server refuses to start without it and `/health` is not ready while it does not answer. Every process also reaches one Postgres at `HOPIN_DATABASE_URL`, whose schema (`accounts` and `sessions`) `hopin migrate` brings to the image's head under an advisory lock, so concurrent init containers wait for one another; migrations only expand. `hopin serve` refuses to start on a database that is not at that head and `/health` is not ready while the database does not answer. Nothing reads the tables yet: all other state lives in memory, so a restart ends every call and session.
 
 ## 5. Crosscutting Concepts
 
@@ -169,6 +170,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - **The LiteLLM gateway** receives per run HopIn's key, the quiz prompt, the given answers with players' names and the tapper's fingerprint; HopIn trusts one cut line from it, shown as text.
 - **The speech service** is the operator's own, on an isolated network over plain HTTP; it receives a line's text, the starter's or agent's token, HopIn's workload token and, while an agent hears, a member's microphone sound. HopIn trusts it to answer one bounded sound and serves that unchanged.
 - **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it; whoever reaches it could read counted addresses or clear a budget.
+- **The shared Postgres** is trusted to hold the schema and answer; HopIn's user has the one database, the URL carries no password and the engine hides statement parameters and logs no statement, so neither a password nor a session token reaches a log or an error line.
 - **The operator's settings and secret files** are trusted fully; secrets are read from files and never enter the environment.
 
 ## 6. Constraints and reasons
@@ -180,7 +182,7 @@ Each line: what the party sees and what HopIn trusts of it.
 ## 7. Not chosen
 
 - A media server (SFU) instead of the mesh: the server relays no call media and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
-- A database: accounts, sessions, rooms and replay logs are lost on restart by design; calls or sessions that must survive a restart, or a second instance sharing them, reopen it.
+- Rooms, seats and replay logs in a database: they are lost on restart by design; calls that must survive a restart, or a second instance sharing them, reopen it.
 - An app as a web component, or HopIn and an app linked server to server: the sandboxed frame keeps the app's code and sign-in out of HopIn's page and needs no shared secret; a table that must start from the call, not from a pasted link, reopens it.
 - An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through the `overnightworks-agents` package; a second consumer needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
 

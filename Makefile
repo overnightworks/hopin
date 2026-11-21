@@ -29,6 +29,7 @@ test:
 e2e: frontend
 	uv run pytest -m e2e --no-cov --output test-results
 
+# HOPIN_TEST_REDIS_URL and HOPIN_TEST_POSTGRES_URL name the stores; the Postgres user may create databases.
 shared-stores:
 	uv run pytest -m shared_stores --no-cov
 
@@ -44,6 +45,7 @@ frontend-check:
 check: lint test dead frontend-check
 
 run: frontend
+	uv run hopin migrate
 	uv run hopin serve
 
 # Costs real model calls on the configured gateway; never part of `make check` or CI.

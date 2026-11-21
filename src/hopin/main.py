@@ -1,5 +1,6 @@
 """The command line: `hopin serve` ends a start it refuses for a known reason in one stderr line and a nonzero exit,
-builds the application and runs uvicorn.
+builds the application and runs uvicorn; `hopin migrate` brings the database to the schema of this image and reads
+only the database settings.
 
 Logging. logline is the one logger: `serve` calls `configure("hopin")` once and uvicorn starts with `log_config=None`,
 so every line, uvicorn's and the libraries' included, is logline's JSON record with a `trace_id`. logline holds the HTTP
@@ -50,12 +51,13 @@ from hopin.agent.verdict_check import BackendOf, add_command, configured_agreeme
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
-from hopin.config.settings import ServerSettings
+from hopin.config.settings import DatabaseSettings, ServerSettings
 from hopin.game.verdict_repeatability import passes, printed  # game
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
 from hopin.stage.feature import configured_stage_feature  # stage
 from hopin.stage.settings import StageSettings  # stage
+from hopin.stores.postgres import create_database_engine, migrate, require_head, with_database_readiness
 from hopin.stores.redis import connect_shared_stores
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 
@@ -112,7 +114,8 @@ def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
 def command_line_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hopin")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("serve", help="start the server")
+    commands.add_parser("serve", help="start the server; it refuses a database that is not at this image's schema")
+    commands.add_parser("migrate", help="bring the database to this image's schema")
     add_command(commands)  # game
     return parser
 
@@ -175,6 +178,37 @@ def serve(
     run(application, uvicorn_options(settings))
 
 
+def serve_on_migrated_database(
+    settings: ServerSettings,
+    page_build: PageBuild,
+    *,
+    subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
+    run: Callable[[FastAPI, UvicornOptions], None] = run_uvicorn,
+) -> None:
+    """Production's wiring of `serve`: the shared Redis and a database at this image's head, which is checked after the
+    settings have built the application; the engine ends with the server."""
+    engine = create_database_engine(settings)
+
+    def run_at_head(application: FastAPI, options: UvicornOptions) -> None:
+        require_head(engine)
+        run(application, options)
+
+    try:
+        shared_stores = with_database_readiness(connect_shared_stores(str(settings.redis_url)), engine)
+        serve(settings, page_build, shared_stores, subscription_wait_seconds=subscription_wait_seconds, run=run_at_head)
+    finally:
+        engine.dispose()
+
+
+def migrate_database(settings: DatabaseSettings) -> None:
+    configure("hopin")
+    engine = create_database_engine(settings)
+    try:
+        migrate(engine)
+    finally:
+        engine.dispose()
+
+
 def refusal_lines(settings_class: type[BaseSettings], invalid: ValidationError) -> str:
     """One line per invalid setting, named by its environment variable; a value never appears."""
     prefix = settings_class.model_config["env_prefix"]
@@ -229,12 +263,14 @@ def main(
         report = asyncio.run(configured_agreements(parsed.runs, quiz_backend_of))  # game
         sys.stdout.write(f"{printed(report)}\n")  # game
         parser.exit(0 if passes(report, parsed.minimum) else 1)  # game
-    refusal = refused_settings(SETTINGS_CLASSES)
+    refusal = refused_settings((DatabaseSettings,) if parsed.command == "migrate" else SETTINGS_CLASSES)
     if refusal:
         parser.exit(1, refusal)
     try:
-        settings = ServerSettings()
-        serve(settings, PageBuild.load(build_directory), connect_shared_stores(str(settings.redis_url)))
+        if parsed.command == "migrate":
+            migrate_database(DatabaseSettings())
+        else:
+            serve_on_migrated_database(ServerSettings(), PageBuild.load(build_directory))
     except StartRefusedError as refused:
         parser.exit(1, f"{refused}\n")
 

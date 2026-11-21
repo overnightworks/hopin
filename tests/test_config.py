@@ -17,7 +17,15 @@ from hopin.config.constants import (
 )
 from hopin.config.settings import ServerSettings
 
-REQUIRED_SETTINGS = ["oidc_issuer", "oidc_client_secret_file", "public_origin", "session_secret_file", "redis_url"]
+REQUIRED_SETTINGS = [
+    "oidc_issuer",
+    "oidc_client_secret_file",
+    "public_origin",
+    "session_secret_file",
+    "redis_url",
+    "database_url",
+    "database_password_file",
+]
 
 
 class TestConstants:
@@ -118,6 +126,15 @@ class TestServerSettings:
             ("oidc_client_secret_file", "relative/client-secret"),
             ("session_secret_file", "relative/session-secret"),
             ("redis_url", "http://redis.test.invalid:6379"),
+            ("database_password_file", "relative/database-password"),
+            ("database_url", "mysql://hopin@postgres.test.invalid/hopin"),
+            ("database_url", "postgresql://hopin@postgres.test.invalid:not-a-port/hopin"),
+            ("database_url", "postgresql://postgres.test.invalid/hopin"),
+            ("database_url", "postgresql://hopin@postgres.test.invalid"),
+            ("database_url", "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin"),
+            ("database_url", "postgresql://hopin:@postgres.test.invalid/hopin"),
+            ("database_url", "postgresql://hopin@postgres.test.invalid/hopin?host=other.test.invalid"),
+            ("database_url", "postgresql://hopin@postgres.test.invalid/hopin#?host=other.test.invalid"),
         ],
     )
     def test_malformed_setting_is_refused_by_name_and_never_by_value(self, sign_in_settings, setting, value):

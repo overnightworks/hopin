@@ -12,7 +12,7 @@ from hopin.agent.mcp import PLACE_SIGNAL_FAILED_EVENT
 from hopin.config.constants import HEALTH_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.pod_pair import LOCALHOST, starting_pod
-from tests.stores.support.redis_gate import RedisGate
+from tests.stores.support.service_gate import ServiceGate
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import RESOURCE_UPDATED, accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
@@ -113,26 +113,33 @@ def free_port() -> int:
 
 
 class TestReadinessWaitsForTheSubscription:
-    def test_a_pod_answers_no_health_until_its_subscription_is_up(self, sign_in_settings, redis_url, tmp_path):
+    def test_a_pod_answers_no_health_until_its_subscription_is_up(
+        self, sign_in_settings, redis_url, migrated_database, tmp_path
+    ):
         port = free_port()
         unreachable = f"redis://{LOCALHOST}:{port}{urlsplit(redis_url).path}"
-        with starting_pod(sign_in_settings().environment, unreachable, tmp_path) as pod:
+        with starting_pod(sign_in_settings(**migrated_database.settings).environment, unreachable, tmp_path) as pod:
             deadline = time.monotonic() + NOT_READY_OBSERVED_SECONDS
             while time.monotonic() < deadline:
                 with pytest.raises(OSError, match=r"."):
                     pod.status(HEALTH_PATH)
                 time.sleep(0.2)
-            reachable = RedisGate(redis_url, port)
+            reachable = ServiceGate(redis_url, port)
             try:
                 pod.wait_until_serving(HEALTH_PATH)
                 assert pod.status(HEALTH_PATH) == HTTPStatus.OK
             finally:
                 reachable.close()
 
-    def test_a_pod_whose_subscription_never_comes_up_exits_non_zero(self, sign_in_settings, tmp_path):
+    def test_a_pod_whose_subscription_never_comes_up_exits_non_zero(
+        self, sign_in_settings, migrated_database, tmp_path
+    ):
         unreachable = f"redis://{LOCALHOST}:{free_port()}/0"
         with starting_pod(
-            sign_in_settings().environment, unreachable, tmp_path, SHORT_SUBSCRIPTION_WAIT_SECONDS
+            sign_in_settings(**migrated_database.settings).environment,
+            unreachable,
+            tmp_path,
+            SHORT_SUBSCRIPTION_WAIT_SECONDS,
         ) as pod:
             exit_code = pod.process.wait(SHORT_SUBSCRIPTION_WAIT_SECONDS + PROCESS_START_ALLOWANCE_SECONDS)
 

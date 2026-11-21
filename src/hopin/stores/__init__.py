@@ -1,4 +1,6 @@
-"""The Redis every HopIn process shares (`redis.py`), the async client the connector's place store runs on and the
+"""The Postgres every HopIn process shares (`postgres.py`: the engine, `hopin migrate`, the start's check that the
+schema is the image's head and the readiness check; `schema.py`: the tables, which `migrations/` writes out literally),
+and the Redis every HopIn process shares (`redis.py`), the async client the connector's place store runs on and the
 `SharedStores` port `create_app` takes (`shared.py`: the rate-limit backend, whether the store answers and the async
 client), and the guard of webauth's single-process stores (`session_transaction.py`).
 
@@ -7,9 +9,9 @@ is refused through the others; production never builds webauth's single-process 
 tests pass behind the same port. Redis's clock decides the window. A Redis that does not answer within the client's
 one-second timeouts fails a budgeted request closed with `503` and `Retry-After`, and `/health` is not ready.
 
-Nothing else outlasts a restart: accounts, sessions, rooms, seats and replay logs live in process memory. The windows
-expire with their window (at most 10 minutes) and hold a counted address and no name. The agent connector's
-member-place records in the same Redis hold a principal and a resource address, never content, and lapse within a
-listen's bound. What HopIn holds about a person, and what an admin may download, is in the README under A Person's
-Data.
+Nothing reads the Postgres tables yet, so nothing else outlasts a restart: accounts, sessions, rooms, seats and replay
+logs live in process memory. The windows expire with their window (at most 10 minutes) and hold a counted address and no
+name. The agent connector's member-place records in the same Redis hold a principal and a resource address, never
+content, and lapse within a listen's bound. What HopIn holds about a person, and what an admin may download, is in the
+README under A Person's Data.
 """

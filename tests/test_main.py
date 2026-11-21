@@ -18,7 +18,7 @@ from hopin.web.page_build import SHELL_FILE
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_DATABASE_URL, TEST_PUBLIC_ORIGIN
 
 
 def all_subclasses(base: type) -> set[type]:
@@ -168,6 +168,23 @@ class TestMain:
         (line,) = capsys.readouterr().err.splitlines()
         assert "make frontend" in line
 
+    def test_ends_a_start_on_a_database_that_does_not_answer_in_one_line_naming_the_setting(
+        self, sign_in_settings, monkeypatch, capsys
+    ):
+        with socket.socket() as closed:
+            closed.bind(("127.0.0.1", 0))
+            url = f"postgresql://hopin@127.0.0.1:{closed.getsockname()[1]}/hopin"
+        for name, value in sign_in_settings(database_url=url).environment.items():
+            monkeypatch.setenv(name, value)
+
+        with pytest.raises(SystemExit) as refusal:
+            main(["serve"], build_directory=FIXTURE_DIRECTORY)
+
+        assert refusal.value.code == 1
+        (line,) = capsys.readouterr().err.splitlines()
+        assert "HOPIN_DATABASE_URL" in line
+        assert url not in line
+
     def test_keeps_the_traceback_of_an_error_it_does_not_know(self, sign_in_settings, monkeypatch, tmp_path):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
@@ -181,10 +198,11 @@ class TestMain:
         for module in pkgutil.walk_packages(hopin.__path__, "hopin."):
             importlib.import_module(module.name)
 
+        # A class another one extends is read as part of the class that extends it.
         assert set(SETTINGS_CLASSES) == {
             settings_class
             for settings_class in all_subclasses(BaseSettings)
-            if settings_class.__module__.startswith("hopin.")
+            if settings_class.__module__.startswith("hopin.") and not settings_class.__subclasses__()
         }
 
     @pytest.mark.parametrize(
@@ -207,6 +225,21 @@ class TestMain:
         ("setting", "value", "expected_line"),
         [
             pytest.param("HOPIN_REDIS_URL", None, "HOPIN_REDIS_URL is missing", id="missing_redis"),
+            pytest.param("HOPIN_DATABASE_URL", None, "HOPIN_DATABASE_URL is missing", id="missing_database_url"),
+            pytest.param(
+                "HOPIN_DATABASE_URL",
+                "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin",
+                "HOPIN_DATABASE_URL is malformed",
+                id="database_url_with_a_password",
+                marks=pytest.mark.shared_stores,
+            ),
+            pytest.param(
+                "HOPIN_DATABASE_URL",
+                "postgresql://hopin@postgres.test.invalid/hopin?sslpassword=sentinel-password",
+                "HOPIN_DATABASE_URL is malformed",
+                id="database_url_with_a_query",
+                marks=pytest.mark.shared_stores,
+            ),
             pytest.param("HOPIN_OIDC_ISSUER", None, "HOPIN_OIDC_ISSUER is missing", id="missing_issuer"),
             pytest.param(
                 "HOPIN_PUBLIC_ORIGIN",
@@ -240,8 +273,65 @@ class TestMain:
         serve_refusal(setting, value, expected_line)
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
-    def test_refuses_without_the_serve_command(self, arguments, capsys):
+    def test_refuses_without_a_command(self, arguments, capsys):
         with pytest.raises(SystemExit) as refusal:
             main(arguments)
         assert refusal.value.code != 0
-        assert "serve" in capsys.readouterr().err
+        error = capsys.readouterr().err
+        assert "serve" in error
+        assert "migrate" in error
+
+    @pytest.mark.shared_stores
+    @pytest.mark.parametrize(
+        ("setting", "value", "expected_line"),
+        [
+            pytest.param("HOPIN_DATABASE_URL", None, "HOPIN_DATABASE_URL is missing", id="missing_url"),
+            pytest.param(
+                "HOPIN_DATABASE_URL",
+                "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin",
+                "HOPIN_DATABASE_URL is malformed",
+                id="url_with_a_password",
+            ),
+            pytest.param(
+                "HOPIN_DATABASE_URL",
+                "postgresql://hopin@postgres.test.invalid/hopin?sslpassword=sentinel-password",
+                "HOPIN_DATABASE_URL is malformed",
+                id="url_with_a_query",
+            ),
+            pytest.param(
+                "HOPIN_DATABASE_PASSWORD_FILE",
+                None,
+                "HOPIN_DATABASE_PASSWORD_FILE is missing",
+                id="missing_password_file_setting",
+            ),
+            pytest.param(
+                "HOPIN_DATABASE_PASSWORD_FILE",
+                "/sentinel/absent/password",
+                "HOPIN_DATABASE_PASSWORD_FILE names a file that cannot be read",
+                id="absent_password_file",
+            ),
+        ],
+    )
+    def test_migrate_refuses_a_database_setting_in_one_line_naming_it_and_never_its_value(
+        self, serve_refusal, setting, value, expected_line
+    ):
+        serve_refusal(setting, value, expected_line, command="migrate")
+
+    @pytest.mark.shared_stores
+    def test_migrate_refuses_an_empty_password_file(self, serve_refusal, tmp_path):
+        empty = tmp_path / "empty-password"
+        empty.write_bytes(b"")
+
+        serve_refusal(
+            "HOPIN_DATABASE_PASSWORD_FILE", str(empty), "HOPIN_DATABASE_PASSWORD_FILE names an empty file", "migrate"
+        )
+
+    def test_migrate_needs_no_setting_but_the_database_ones(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setenv("HOPIN_DATABASE_URL", TEST_DATABASE_URL)
+        monkeypatch.setenv("HOPIN_DATABASE_PASSWORD_FILE", str(tmp_path / "absent"))
+
+        with pytest.raises(SystemExit):
+            main(["migrate"])
+
+        (line,) = capsys.readouterr().err.splitlines()
+        assert "HOPIN_DATABASE_PASSWORD_FILE" in line
