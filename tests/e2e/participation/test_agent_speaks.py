@@ -11,8 +11,7 @@ from speech_client.wire import VoiceId
 from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS, AgentRefusal
 from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS
 from tests.e2e.support.people import FORM_FACTORS
-from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker, speaking_hopin
-from tests.support.loopback_origin import Origin
+from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker
 from tests.support.speech_origin import (
     offering,
     speech_requests,
@@ -25,6 +24,7 @@ if TYPE_CHECKING:
     from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
+    from tests.support.loopback_origin import Origin
 
 pytestmark = pytest.mark.e2e
 
@@ -38,28 +38,9 @@ LATER_SOUND_SECONDS = (1.5, 1.25)
 PLAYBACK_WAIT_MILLISECONDS = 15_000
 
 
-@pytest.fixture(scope="module")
-def speech_origin() -> Iterator[Origin]:
-    origin = Origin()
-    offering(origin, *VoiceId)
-    yield origin
-    origin.close()
-
-
-@pytest.fixture(scope="module")
-def voicing_server(tmp_path_factory: pytest.TempPathFactory, speech_origin: Origin) -> Iterator[RunningServer]:
-    with speaking_hopin(tmp_path_factory, "voice", speech_origin.base_url) as server:
-        yield server
-
-
 @pytest.fixture
 def e2e_server(voicing_server: RunningServer) -> RunningServer:
     return voicing_server
-
-
-@pytest.fixture
-def speaker(scene_of: Callable[[dict[str, Any]], Scene], speech_origin: Origin, form_factor: dict[str, Any]) -> Speaker:
-    return Speaker(scene_of(form_factor), speech_origin)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)

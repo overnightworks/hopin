@@ -687,9 +687,16 @@ textarea {
 }
 /* On a narrow tile (Tiles.svelte decides) the narrowest chip no longer fits beside the remove button (8px, the chip,
    the button's 32px and its 10px), so the hearing chip moves into the tile's lower right corner, clear of the button;
-   its icon may be cut, its switch stays whole and pressable. The listen and see chips are the kit's compact ones there:
-   a track alone each in the upper left corner. */
-.hear-set.narrow {
+   its icon may be cut, its switch stays whole and pressable. The see chip is the kit's compact one there: its track
+   alone in the upper left corner; so is the listen chip of a tile with no sponsor's chips. A narrow tile holds no room
+   for a third chip beside the two consent chips and the remove button, so a sponsor's narrow tile has none. */
+.hear-row {
+    display: flex;
+    max-width: 100%;
+    gap: 4px;
+}
+.hear-set.narrow,
+.hear-set.narrow .hear-row {
     display: contents;
 }
 .tile .hear-set.narrow > :not(.compact) {
@@ -700,15 +707,11 @@ textarea {
     width: var(--hear-narrowest);
     max-width: none;
 }
-.tile .hear-set.narrow > .compact {
+.tile .hear-set.narrow .compact {
     position: absolute;
     top: 2px;
     left: 2px;
     z-index: 7;
-}
-/* The second compact chip sits under the first, each 28px high with 4px between. */
-.tile .hear-set.narrow > .compact + .compact {
-    top: 34px;
 }
 /* Under a coarse pointer the kit gives each chip a margin (8px above and below, and 9px at the sides of the compact one)
    that is part of its 44px target. The offsets give that margin back, so the drawn chips keep the place they had (8px
@@ -721,12 +724,9 @@ textarea {
     .tile .hear-set.narrow > :not(.compact) {
         bottom: -6px;
     }
-    .tile .hear-set.narrow > .compact {
+    .tile .hear-set.narrow .compact {
         top: -6px;
         left: -7px;
-    }
-    .tile .hear-set.narrow > .compact + .compact {
-        top: 26px;
     }
     .stage[data-surface] .agent-remove {
         z-index: 8;

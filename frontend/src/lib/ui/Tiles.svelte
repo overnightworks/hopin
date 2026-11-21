@@ -62,7 +62,11 @@
     {@const tileId = tileIdOf(key)}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
     {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
-    {@const chips = compactChips({ figured: agent.figure !== undefined, narrow })}
+    {@const chips = compactChips({
+        figured: agent.figure !== undefined,
+        narrow,
+        seeing: agent.seeing !== undefined,
+    })}
     <div
         bind:clientWidth={agentTileWidths[key]}
         class={tileClass}
@@ -103,24 +107,26 @@
                         compact={chips.hearing}
                     />
                 {/if}
-                {#if agent.listening !== undefined}
-                    <HearingSwitch
-                        kind="listen"
-                        on={agent.listening.on}
-                        onChange={agent.listening.onChange}
-                        words={kitWords}
-                        compact={chips.listening}
-                    />
-                {/if}
-                {#if agent.seeing !== undefined}
-                    <HearingSwitch
-                        kind="see"
-                        on={agent.seeing.on}
-                        onChange={agent.seeing.onChange}
-                        words={kitWords}
-                        compact={chips.seeing}
-                    />
-                {/if}
+                <div class="hear-row">
+                    {#if agent.listening !== undefined && !(narrow && agent.hearing !== undefined && agent.seeing !== undefined)}
+                        <HearingSwitch
+                            kind="listen"
+                            on={agent.listening.on}
+                            onChange={agent.listening.onChange}
+                            words={kitWords}
+                            compact={chips.listening}
+                        />
+                    {/if}
+                    {#if agent.seeing !== undefined}
+                        <HearingSwitch
+                            kind="see"
+                            on={agent.seeing.on}
+                            onChange={agent.seeing.onChange}
+                            words={kitWords}
+                            compact
+                        />
+                    {/if}
+                </div>
             </div>
         {/if}
         {#if agent.looking === true}

@@ -5,7 +5,13 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.stage.stage_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import (
+    AGENT_HEARING_SWITCH,
+    AGENT_LISTEN_SWITCH,
+    AGENT_SEE_SWITCH,
+    AGENT_TILE,
+    REMOVE,
+)
 from tests.e2e.support.people import FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
@@ -97,7 +103,14 @@ def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_
     remove_box = box_of(AGENT_TILE + " " + REMOVE, host)
     assert lies_inside(track_box, tile_box)
     assert overlap_of(track_box, remove_box) == 0
-    if tile_box["width"] >= WHOLE_CHIP_FITS_FROM_PIXELS:
+    narrow = tile_box["width"] < WHOLE_CHIP_FITS_FROM_PIXELS
+    expect(host.locator(AGENT_LISTEN_SWITCH)).to_have_count(0 if narrow else 1)
+    if not narrow:
+        listen_box = box_of(AGENT_LISTEN_SWITCH, host)
+        assert lies_inside(listen_box, tile_box)
+        assert overlap_of(listen_box, remove_box) == 0
+        assert overlap_of(listen_box, track_box) == 0
+        assert overlap_of(listen_box, box_of(AGENT_SEE_SWITCH, host)) == 0
         chip_box = box_of(SWITCH, host)
         assert chip_box["x"] - tile_box["x"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
         assert chip_box["y"] - tile_box["y"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)

@@ -78,10 +78,9 @@ export function tileIdOf(key: string) {
     return "container-" + key;
 }
 
-/** Which of an agent tile's chips shrink to their icon: all while the tile shows a figure, which leaves less room; a narrow tile already shrinks the listen and see chips, and its hearing chip stays whole there, where hopin.css moves it into a corner. */
-export function compactChips(tile: { figured: boolean; narrow: boolean }) {
-    const shrinks = tile.narrow || tile.figured;
-    return { hearing: tile.figured && !tile.narrow, listening: shrinks, seeing: shrinks };
+/** Which of an agent tile's chips shrink to their icon: the hearing chip while the tile shows a figure, which leaves less room, and stays whole on a narrow tile, where hopin.css moves it into a corner; the listen chip on a narrow or figured tile and beside the see chip, which always shrinks, the two sharing one row under the hearing chip. */
+export function compactChips(tile: { figured: boolean; narrow: boolean; seeing: boolean }) {
+    return { hearing: tile.figured && !tile.narrow, listening: tile.narrow || tile.figured || tile.seeing };
 }
 
 // The call core draws no figure itself: the feature that does hands over its drawer, and a tile without one or without a path stays as it is.
