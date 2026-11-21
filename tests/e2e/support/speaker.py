@@ -36,15 +36,18 @@ if TYPE_CHECKING:
 SPEAKING_TILE = re.compile(r"\bspeaking\b")
 
 # Each page records the length of every sound its players start, how many sources it stopped and how often a player
-# suspended and resumed its context, which is what a pause and its resume do. A player starts a
-# sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its own context's clock,
-# so the chunks of one context that join up are one sound, whichever other player starts between them.
+# suspended and resumed its context, which is what a pause and its resume do. A sound has ended when the source that
+# ended was the last chunk its context started, an earlier chunk ending being the sound still going on.
+# A player starts a sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its
+# own context's clock, so the chunks of one context that join up are one sound,
+# whichever other player starts between them.
 RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
     window.soundsStopped = 0;
     window.sourcesStarted = 0;
     window.sourcesEnded = 0;
+    window.soundsEnded = 0;
     window.contextsSuspended = 0;
     window.contextsResumed = 0;
     const lastSoundOf = new WeakMap();
@@ -54,9 +57,13 @@ RECORD_PLAYBACK = """
         let index = last?.index;
         if (last?.joinsAt === when) window.soundsStarted[index] += this.buffer.duration;
         else index = window.soundsStarted.push(this.buffer.duration) - 1;
-        lastSoundOf.set(this.context, { index, joinsAt: when + this.buffer.duration });
+        const joinsAt = when + this.buffer.duration;
+        lastSoundOf.set(this.context, { index, joinsAt });
         window.sourcesStarted += 1;
-        this.addEventListener('ended', () => { window.sourcesEnded += 1; });
+        this.addEventListener('ended', () => {
+            window.sourcesEnded += 1;
+            if (lastSoundOf.get(this.context).joinsAt === joinsAt) window.soundsEnded += 1;
+        });
         return start.call(this, when, ...args);
     };
     const stop = AudioBufferSourceNode.prototype.stop;
