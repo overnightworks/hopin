@@ -40,11 +40,12 @@ from logline import configure
 from pydantic import ValidationError
 from pydantic_settings.exceptions import SettingsError
 
+from hopin.agent.backend import gateway_backend  # game
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeature
 from hopin.agent.settings import AgentSettings  # game
 from hopin.agent.speech_settings import SpeechSettings
-from hopin.agent.verdict_check import configured_agreements  # game
+from hopin.agent.verdict_check import BackendOf, add_command, configured_agreements  # game
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
@@ -111,13 +112,7 @@ def command_line_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hopin")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("serve", help="start the server")
-    repeatability = commands.add_parser(
-        "verdict-repeatability",
-        help="ask the configured quiz master the same recorded reveals again and again and report how often its "
-        "verdicts agree; costs real model calls",
-    )
-    repeatability.add_argument("--runs", type=int, default=10, help="how many times each recorded reveal is asked")
-    repeatability.add_argument("--minimum", type=float, default=1.0, help="the least share of runs that must agree")
+    add_command(commands)  # game
     return parser
 
 
@@ -218,21 +213,21 @@ def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
     return refusal
 
 
-def verdict_repeatability(parser: argparse.ArgumentParser, runs: int, minimum: float) -> None:
-    """Report the quiz master's agreement with itself; exits 1 below `minimum` or when a run gave no verdict."""
-    refusal = refused_settings((AgentSettings,))
-    if refusal:
-        parser.exit(1, refusal)
-    report = asyncio.run(configured_agreements(runs))
-    sys.stdout.write(f"{printed(report)}\n")
-    parser.exit(0 if passes(report, minimum) else 1)
-
-
-def main(arguments: Sequence[str] | None = None, *, build_directory: Path = BUILD_DIRECTORY) -> None:
+def main(
+    arguments: Sequence[str] | None = None,
+    *,
+    build_directory: Path = BUILD_DIRECTORY,
+    quiz_backend_of: BackendOf = gateway_backend,  # game
+) -> None:
     parser = command_line_parser()
     parsed = parser.parse_args(arguments)
-    if parsed.command == "verdict-repeatability":
-        verdict_repeatability(parser, parsed.runs, parsed.minimum)
+    if parsed.command == "verdict-repeatability":  # game
+        refusal = refused_settings((AgentSettings,))  # game
+        if refusal:  # game
+            parser.exit(1, refusal)  # game
+        report = asyncio.run(configured_agreements(parsed.runs, quiz_backend_of))  # game
+        sys.stdout.write(f"{printed(report)}\n")  # game
+        parser.exit(0 if passes(report, parsed.minimum) else 1)  # game
     refusal = refused_settings(SETTINGS_CLASSES)
     if refusal:
         parser.exit(1, refusal)

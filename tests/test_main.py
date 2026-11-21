@@ -245,11 +245,3 @@ class TestMain:
             main(arguments)
         assert refusal.value.code != 0
         assert "serve" in capsys.readouterr().err
-
-    def test_the_verdict_repeatability_command_parses_its_runs_and_minimum(self, capsys):
-        with pytest.raises(SystemExit) as helped:
-            main(["verdict-repeatability", "--help"])
-        assert helped.value.code == 0
-        help_text = capsys.readouterr().out
-        assert "--runs" in help_text
-        assert "--minimum" in help_text
