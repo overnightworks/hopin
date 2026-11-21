@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONNECTION_OUTCOME, ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
-import { FakeConnection, FakeDescription, FakeSender, type Frame } from "./mesh.fixture.ts";
+import { FakeConnection, FakeDescription, FakeSender, type Frame, streamWith, track } from "./mesh.fixture.ts";
 import type { StagePort } from "./stage-port.ts";
 
 const signal = vi.hoisted(() => ({
@@ -18,32 +18,6 @@ vi.mock("#lib/call/signaling.ts", () => ({
     isConnected: () => true,
     isLive: () => true,
 }));
-
-function track(kind: string) {
-    return { kind } as unknown as MediaStreamTrack;
-}
-
-let streamCount = 0;
-
-function streamWith(...kinds: string[]) {
-    const tracks = kinds.map(track);
-    const listeners: (() => void)[] = [];
-    streamCount += 1;
-    return {
-        id: `stream-${String(streamCount)}`,
-        getTracks: () => tracks,
-        getVideoTracks: () => tracks.filter((candidate) => candidate.kind === "video"),
-        addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
-        loseTrack: () => {
-            tracks.pop();
-            for (const listener of listeners) listener();
-        },
-        loseTracks: () => {
-            tracks.length = 0;
-            for (const listener of listeners) listener();
-        },
-    } as unknown as MediaStream & { loseTracks(): void; loseTrack(): void };
-}
 
 const reportError = vi.fn();
 const iceServers = [{ urls: "ice-server-from-the-endpoint" }];

@@ -187,3 +187,29 @@ export class FakeConnection {
 export class FakeDescription {
     constructor(readonly init: Frame) {}
 }
+
+export function track(kind: string) {
+    return { kind } as unknown as MediaStreamTrack;
+}
+
+let streamCount = 0;
+
+export function streamWith(...kinds: string[]) {
+    const tracks = kinds.map(track);
+    const listeners: (() => void)[] = [];
+    streamCount += 1;
+    return {
+        id: `stream-${String(streamCount)}`,
+        getTracks: () => tracks,
+        getVideoTracks: () => tracks.filter((candidate) => candidate.kind === "video"),
+        addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
+        loseTrack: () => {
+            tracks.pop();
+            for (const listener of listeners) listener();
+        },
+        loseTracks: () => {
+            tracks.length = 0;
+            for (const listener of listeners) listener();
+        },
+    } as unknown as MediaStream & { loseTracks(): void; loseTrack(): void };
+}
